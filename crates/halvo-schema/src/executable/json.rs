@@ -12,8 +12,8 @@ use crate::ids::{AgentId, RequestId, WorkflowId};
 use crate::record::Instant;
 
 /// The cause of a refusal of this run's parsers: `malformed`, an input that is not the form of its contract, or
-/// `length`, a playbook of more than 64 steps, a step whose compact JSON passes 2,048 bytes or a frame whose JSON
-/// passes 65,536 bytes.
+/// `length`, a playbook of more than 64 steps, a step whose compact JSON passes 2,048 bytes, a frame whose JSON
+/// passes 65,536 bytes or a reply whose bytes as they arrive pass the bound of a reply.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefusalCause {
     Malformed,
@@ -365,6 +365,7 @@ macro_rules! object_type {
         }
         rules($this:pat_param) $rules:block
         $(max_len($max:expr))?
+        $(arrives($amax:expr, $arule:literal))?
     ) => {
         $(#[$meta])*
         pub struct $name {
@@ -417,7 +418,22 @@ macro_rules! object_type {
             }
 
             /// Reads one JSON value of this type and refuses every other input.
+            $(
+                #[doc = concat!(
+                    "An input of more than `",
+                    stringify!($amax),
+                    "` bytes, counted on the bytes given before anything is read, white space and escapes ",
+                    "included, is refused with the cause `length` and the rule `",
+                    $arule,
+                    "`."
+                )]
+            )?
             pub fn parse(bytes: &[u8]) -> Result<Self, $crate::executable::Refusal> {
+                $(
+                    if bytes.len() > $amax {
+                        return Err($crate::executable::Refusal::length(stringify!($name), $arule));
+                    }
+                )?
                 Self::from_raw($crate::executable::json::whole(stringify!($name), bytes)?)
             }
 

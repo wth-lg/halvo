@@ -381,6 +381,7 @@ object_type! {
         pub stored: u32 = "stored" => from_json,
     }
     rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 /// The reply of a runner body, told apart by its keys.
@@ -628,9 +629,8 @@ object_type! {
 
 object_type! {
     /// The reply of `list_checkpoints`: the checkpoints in ascending order of run id, each run and workbook once,
-    /// and the run id to ask after for the next page, or null. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the
-    /// compact text here, which the writer writes; the bytes of a reply as it arrives are counted by
-    /// `CoordinatorReply::parse`, the reader of the reply.
+    /// and the run id to ask after for the next page, or null. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the bytes
+    /// given to `parse` and to `CoordinatorReply::parse`, and the compact text that the writer writes.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct CheckpointsReply {
         pub checkpoints: Vec<ListedCheckpoint> = "checkpoints" => list(ListedCheckpoint::from_raw),
@@ -645,6 +645,7 @@ object_type! {
         each_once("CheckpointsReply", &keys).map_err(|e| e.at("checkpoints"))
     }
     max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -655,6 +656,7 @@ object_type! {
         pub rev: NonZeroU32 = "rev" => from_json,
     }
     rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -664,6 +666,7 @@ object_type! {
         pub state: AgentState = "state" => from_json,
     }
     rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -671,6 +674,7 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Accepted [ok = "yes"] {}
     rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 /// The reply of a coordinator body, told apart by its keys.
