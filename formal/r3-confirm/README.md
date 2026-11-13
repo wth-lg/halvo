@@ -121,8 +121,8 @@ alone. Its PASS is a statement about the commit:
 - It runs twelve controls, and each must report its invariant and no other: the control copy
   `Control.cfg`, which must report P1, and eleven copies of `Confirm.tla` that the script
   makes with exact replacements of their lines, each run under the bounds of `Rebinds.cfg`
-  with its one invariant in the list. A replacement that no longer finds its lines fails the
-  check.
+  with its one invariant in the list, three at a time with one worker each. A replacement
+  that no longer finds its lines fails the check.
 
 | Control | Invariant | The wrong design that the copy makes |
 |---|---|---|
@@ -154,7 +154,7 @@ formal traces count=400 same=yes
 formal control violated=1
 formal control name=P2 invariant=P2 reported=P2 status=12 states=<n> seconds=<n>
 ... one such line for each of P3 to P11 and P10-live ...
-formal controls count=12 reported=12
+formal controls count=12 reported=12 seconds=<n>
 PASS 30-r3-formal
 ```
 
