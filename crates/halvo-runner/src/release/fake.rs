@@ -210,9 +210,16 @@ fn stopped(record: &Record) -> Option<(LogEvent, Option<Cause>)> {
 }
 
 /// A5.2, A6.3: values read again that equal the row's let the request leave once, and `commit` follows its reply.
+/// The confirmation request that reaches the confirmer holds `cut` as null: this runner reads no list of
+/// messages, so it cuts none (CP-171 J5).
 #[test]
 fn values_read_again_that_equal_the_rows_let_the_request_leave_once() {
     let (record, released) = run(vec![delete("a", Source::Extract)], Plan::plain());
+    assert_eq!(
+        record.confirms().iter().map(|c| c.cut).collect::<Vec<_>>(),
+        [None],
+        "the one confirmation request holds cut as null"
+    );
     assert_eq!(released, 1);
     assert_eq!(
         record.states(),

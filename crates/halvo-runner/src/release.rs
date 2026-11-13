@@ -404,6 +404,7 @@ impl Runner {
             v: V1,
             run: self.args.run.clone(),
             agent: self.args.agent.clone(),
+            cut: None,
             effects: asked
                 .iter()
                 .map(|(at, bound)| ConfirmEffect {
