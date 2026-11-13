@@ -462,8 +462,9 @@ async fn step(ex: &mut Executor, ctx: &Ctx, name: &str) -> Res<()> {
     }
 }
 
-/// One step in a browser of its own: the reset of its variants, the start, the step within
-/// twice the step's bound, and the stop that removes the profile. Gives the cause of a miss.
+/// One step in a browser of its own: the reset of its variants, the start, the step within four
+/// times the step's bound (`STEP_TIMEOUT`), and the stop that removes the profile. Gives the cause
+/// of a miss.
 async fn one(
     browser: &Path,
     headless: bool,

@@ -103,7 +103,9 @@ impl Start for std::process::Command {
 }
 
 /// The identity of the two pipes of a browser's debugging channel, by which a check finds a
-/// process that holds an end of them: on macOS the system's handles of the four ends, as
+/// process that holds an end of them, in the order of `checks::ENDS` on both systems (the
+/// browser's read end, the executor's write end, the executor's read end, the browser's write
+/// end): on macOS the system's handles of the four ends, as
 /// `proc_pidfdinfo` reports them for a pipe; on Windows the values, in this process, of the copies
 /// of the four ends that `OnPipe::kept` holds, to which a check compares another process's handle
 /// with `CompareObjectHandles` (no query that waits on a pipe with a pending read). The Windows
@@ -880,9 +882,9 @@ mod sys {
             return Err(fault);
         };
         let handles = [
+            kept_reads as usize,
             kept_we_write as usize,
             kept_we_read as usize,
-            kept_reads as usize,
             kept_writes as usize,
         ];
         let mut with_pipes = Spec {

@@ -248,7 +248,9 @@ pub fn names_a_port(command_line: &str) -> bool {
         .contains("remote-debugging-port")
 }
 
-/// The four ends of the executor's pipe, by the order of `PipeIds::handles`.
+/// The four ends of the executor's pipe, by the order of `PipeIds::handles`, the same on macOS and
+/// on Windows: the browser's read end, the executor's write end, the executor's read end, the
+/// browser's write end.
 pub const ENDS: [&str; 4] = [
     "browser_read",
     "executor_write",
