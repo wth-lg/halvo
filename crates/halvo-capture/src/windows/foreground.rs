@@ -56,19 +56,25 @@ pub fn current_foreground_app() -> Option<String> {
 
 #[cfg(target_os = "windows")]
 pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
+    if hwnd.0.is_null() {
+        return None;
+    }
+    let mut pid: u32 = 0;
+    // SAFETY: `pid` is a live local that the call writes.
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    process_path(pid)
+}
+
+#[cfg(target_os = "windows")]
+fn process_path(pid: u32) -> Option<String> {
     use windows::core::PWSTR;
-    // SAFETY: `pid`, `buf` and `len` are live locals that the calls write,
-    // `len` is the length of `buf`, and the process handle that OpenProcess
-    // returns is closed once, after the query.
+    // SAFETY: `buf` and `len` are live locals that the call writes, `len` is
+    // the length of `buf`, and the process handle that OpenProcess returns is
+    // closed once, after the query.
     unsafe {
-        if hwnd.0.is_null() {
-            return None;
-        }
-        let mut pid: u32 = 0;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        if pid == 0 {
-            return None;
-        }
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut buf = [0u16; MAX_PATH as usize];
         let mut len = buf.len() as u32;
@@ -87,9 +93,82 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     }
 }
 
+/// The app in front as one read gives it: the process that a foreground
+/// change is keyed on, and its executable path when the path can be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FrontApp {
+    pub(crate) pid: u32,
+    pub(crate) path: Option<String>,
+}
+
+/// What one foreground event changes: the foreground record to emit, with its
+/// app or none, and whether the title of the window in front is read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Change {
+    pub(crate) emit: Option<Option<String>>,
+    pub(crate) read_title: bool,
+}
+
+/// The state of the foreground callback between two events.
+#[derive(Debug, Default)]
+pub(crate) struct FrontTracker {
+    last_pid: Option<u32>,
+}
+
+impl FrontTracker {
+    /// The change of one foreground event for `hwnd`, whose app `resolve`
+    /// reads; it writes the app in front into `cell`.
+    pub(crate) fn on_window<W>(
+        &mut self,
+        cell: &Mutex<Option<String>>,
+        hwnd: W,
+        resolve: impl Fn(W) -> Option<FrontApp>,
+    ) -> Change {
+        let Some(front) = resolve(hwnd) else {
+            return Change {
+                emit: None,
+                read_title: false,
+            };
+        };
+        let Some(path) = front.path else {
+            return Change {
+                emit: None,
+                read_title: false,
+            };
+        };
+        if let Ok(mut last) = cell.lock() {
+            *last = Some(path.clone());
+        }
+        self.last_pid = Some(front.pid);
+        Change {
+            emit: Some(Some(path)),
+            read_title: true,
+        }
+    }
+}
+
+/// The process that a frame-host window hosts: the first of its child
+/// windows' processes that is not the frame host's own.
+pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
+    let _ = (frame_pid, child_pids);
+    None
+}
+
+/// Whether `path` names the frame host of packaged apps.
+pub(crate) fn is_frame_host(path: &str) -> bool {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    name.eq_ignore_ascii_case("ApplicationFrameHost.exe")
+}
+
+/// The executable path as an event carries it.
+pub(crate) fn capped_app(path: String) -> String {
+    path
+}
+
 struct ForegroundState {
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
+    tracker: FrontTracker,
 }
 
 /// Foreground-app capture source. `begin` installs the WinEvent hook on its
@@ -150,17 +229,70 @@ unsafe extern "system" fn foreground_proc(
     _thread: u32,
     time: u32,
 ) {
-    let Some(app) = foreground_app_for(hwnd) else {
-        return;
-    };
     FOREGROUND_CTX.with(|cell| {
-        if let Some(state) = cell.borrow().as_ref() {
-            if let Ok(mut last) = state.last_app.lock() {
-                *last = Some(app.clone());
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            let change = state
+                .tracker
+                .on_window(&state.last_app, hwnd, resolve_front);
+            if let Some(Some(app)) = change.emit {
+                state.producer.push(foreground_packet(app, time));
             }
-            state.producer.push(foreground_packet(app, time));
         }
     });
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn resolve_front(hwnd: HWND) -> Option<FrontApp> {
+    if hwnd.0.is_null() {
+        return None;
+    }
+    let mut pid: u32 = 0;
+    // SAFETY: `pid` is a live local that the call writes.
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    let path = foreground_app_for(hwnd).map(capped_app);
+    if path.as_deref().is_some_and(is_frame_host) {
+        if let Some(hosted) = hosted_pid(pid, &child_pids(hwnd)) {
+            return Some(FrontApp {
+                pid: hosted,
+                path: process_path(hosted).map(capped_app),
+            });
+        }
+    }
+    Some(FrontApp { pid, path })
+}
+
+#[cfg(target_os = "windows")]
+fn child_pids(hwnd: HWND) -> Vec<u32> {
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::LPARAM;
+    use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
+
+    unsafe extern "system" fn add(child: HWND, found: LPARAM) -> BOOL {
+        let mut pid: u32 = 0;
+        // SAFETY: `pid` is a live local that the call writes, and `found`
+        // is the address of the vector that `child_pids` holds across the
+        // enumeration, which runs on this thread.
+        unsafe {
+            GetWindowThreadProcessId(child, Some(&mut pid));
+            (*(found.0 as *mut Vec<u32>)).push(pid);
+        }
+        BOOL::from(true)
+    }
+
+    let mut found: Vec<u32> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and reads `found`
+    // only while this call runs.
+    unsafe {
+        let _ = EnumChildWindows(
+            Some(hwnd),
+            Some(add),
+            LPARAM(&mut found as *mut Vec<u32> as isize),
+        );
+    }
+    found
 }
 
 impl CaptureSource for ForegroundAppSource {
@@ -169,7 +301,11 @@ impl CaptureSource for ForegroundAppSource {
         let installer = self.installer;
         self.life
             .begin(&ctx, "halvo-foreground-forward", move |producer| {
-                let state = ForegroundState { producer, last_app };
+                let state = ForegroundState {
+                    producer,
+                    last_app,
+                    tracker: FrontTracker::default(),
+                };
                 super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
                     run_foreground_hook(state, installer, ready, &signal)
                 })
@@ -220,6 +356,79 @@ mod tests {
         assert_eq!(packet.kind, Modality::ForegroundApp);
         assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
         assert_eq!(packet.tick, 5);
+    }
+
+    fn app(pid: u32, path: &str) -> Option<FrontApp> {
+        Some(FrontApp {
+            pid,
+            path: Some(path.to_string()),
+        })
+    }
+
+    #[test]
+    fn a_lookup_that_fails_after_a_success_leaves_the_cell_none() {
+        let cell = Mutex::new(None);
+        let mut tracker = FrontTracker::default();
+        let resolver = |step: u32| match step {
+            0 => app(10, "C:\\apps\\editor.exe"),
+            _ => None,
+        };
+        let first = tracker.on_window(&cell, 0, resolver);
+        assert_eq!(first.emit, Some(Some("C:\\apps\\editor.exe".to_string())));
+        assert_eq!(
+            cell.lock().unwrap().as_deref(),
+            Some("C:\\apps\\editor.exe")
+        );
+        let _ = tracker.on_window(&cell, 1, resolver);
+        assert_eq!(*cell.lock().unwrap(), None, "the cell kept a stale app");
+    }
+
+    #[test]
+    fn a_new_process_whose_path_cannot_be_read_gives_a_record_with_no_app() {
+        let cell = Mutex::new(Some("C:\\apps\\editor.exe".to_string()));
+        let mut tracker = FrontTracker::default();
+        let change = tracker.on_window(&cell, 0, |_| {
+            Some(FrontApp {
+                pid: 11,
+                path: None,
+            })
+        });
+        assert_eq!(change.emit, Some(None));
+        assert_eq!(*cell.lock().unwrap(), None);
+    }
+
+    #[test]
+    fn a_frame_host_window_names_the_process_that_it_hosts() {
+        assert_eq!(hosted_pid(40, &[40, 40, 77, 81]), Some(77));
+        assert_eq!(hosted_pid(40, &[40]), None);
+        assert_eq!(hosted_pid(40, &[]), None);
+        assert!(is_frame_host(
+            "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+        ));
+        assert!(is_frame_host("applicationframehost.EXE"));
+        assert!(!is_frame_host("C:\\Windows\\explorer.exe"));
+    }
+
+    #[test]
+    fn a_path_of_2000_bytes_keeps_at_most_1024_bytes_that_end_in_the_executable_name() {
+        let mut path = String::from("C:\\");
+        while path.len() + 4 <= 1_991 {
+            path.push_str("\u{e9}d\\");
+        }
+        while path.len() < 1_991 {
+            path.push('a');
+        }
+        path.push_str("\\tool.exe");
+        assert_eq!(path.len(), 2_000);
+        let kept = capped_app(path.clone());
+        assert!(
+            kept.len() <= crate::floor::text::TEXT_MAX_BYTES,
+            "{}",
+            kept.len()
+        );
+        assert!(kept.ends_with("\\tool.exe"));
+        assert!(path.ends_with(&kept));
+        assert!(kept.len() >= crate::floor::text::TEXT_MAX_BYTES - 1);
     }
 
     #[test]
