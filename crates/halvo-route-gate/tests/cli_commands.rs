@@ -74,8 +74,19 @@ fn assert_refused(args: &[&str], line: &str) {
 fn refusals_of_usage() {
     assert_refused(&[], "REFUSED usage: no command");
     assert_refused(&["simulate"], "REFUSED usage: unknown command");
-    assert_refused(&["spend-sim"], "REFUSED usage: not built");
-    assert_refused(&["spend-sim", "--seed", "1"], "REFUSED usage: not built");
+    assert_refused(&["spend-sim"], "REFUSED usage: --seed is required");
+    assert_refused(
+        &["spend-sim", "--seed", "0"],
+        "REFUSED usage: --seed takes a whole number from 1",
+    );
+    let sim = run(&["spend-sim", "--seed", "1"]);
+    assert_eq!(
+        (sim.code, sim.stdout.lines().count(), sim.stderr.as_str()),
+        (Some(0), 7, "")
+    );
+    assert!(sim
+        .stdout
+        .ends_with("\nspend cases=6 overruns=0 above_cap=0 admit_sum=ok result=pass\n"));
     assert_refused(&["probe"], "REFUSED usage: --rounds is required");
     assert_refused(
         &["probe", "--seed", "1"],

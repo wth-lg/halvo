@@ -15,6 +15,7 @@ pub mod product;
 pub mod routers;
 pub mod score;
 pub mod selftest;
+pub mod spendsim;
 pub mod table;
 
 /// A router under test: its pick for each cell. It returns `none` for a `replay` cell, and
