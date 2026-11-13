@@ -18,20 +18,47 @@ mod carbon {
     /// makes one, and each call of the three takes it.
     pub(super) struct OneCall<'a> {
         _held: MutexGuard<'a, ()>,
+        _not_send_or_sync: std::marker::PhantomData<*const ()>,
+    }
+
+    const _: fn() = || {
+        trait AmbiguousIfSendOrSync<Marker> {
+            fn check() {}
+        }
+        impl<T: ?Sized> AmbiguousIfSendOrSync<()> for T {}
+        struct IsSend;
+        impl<T: ?Sized + Send> AmbiguousIfSendOrSync<IsSend> for T {}
+        struct IsSync;
+        impl<T: ?Sized + Sync> AmbiguousIfSendOrSync<IsSync> for T {}
+        let _ = <OneCall<'static> as AmbiguousIfSendOrSync<_>>::check;
+    };
+
+    #[cfg(test)]
+    thread_local! {
+        static SYSTEM_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    #[cfg(test)]
+    pub(super) fn system_reads_on_this_thread() -> u64 {
+        SYSTEM_READS.with(std::cell::Cell::get)
     }
 
     pub(super) fn one_carbon_call_at_a_time<T>(call: impl FnOnce(&OneCall<'_>) -> T) -> T {
         let one = OneCall {
             _held: CARBON_CALLS.lock().unwrap_or_else(PoisonError::into_inner),
+            _not_send_or_sync: std::marker::PhantomData,
         };
         call(&one)
     }
 
     pub(super) fn is_secure_event_input_enabled(_one: &OneCall<'_>) -> u8 {
+        #[cfg(test)]
+        SYSTEM_READS.with(|reads| reads.set(reads.get() + 1));
         // SAFETY: a parameterless C predicate with no side effects.
         // CarbonEventsCore.h marks it "Not thread safe" (line 3056 of the SDK on
         // this Mac): no other of the three calls runs at the same time, because
-        // each needs a OneCall, which exists only while its holder holds the lock.
+        // each needs a OneCall, which exists only while its holder holds the lock
+        // and, being neither Send nor Sync, cannot reach another thread.
         unsafe { IsSecureEventInputEnabled() }
     }
 
@@ -40,7 +67,8 @@ mod carbon {
         // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
         // thread safe" (line 2996 of the SDK on this Mac): no other of the three
         // calls runs at the same time, because each needs a OneCall, which exists
-        // only while its holder holds the lock.
+        // only while its holder holds the lock and, being neither Send nor Sync,
+        // cannot reach another thread.
         unsafe { EnableSecureEventInput() }
     }
 
@@ -49,9 +77,15 @@ mod carbon {
         // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
         // thread safe" (line 3032 of the SDK on this Mac): no other of the three
         // calls runs at the same time, because each needs a OneCall, which exists
-        // only while its holder holds the lock.
+        // only while its holder holds the lock and, being neither Send nor Sync,
+        // cannot reach another thread.
         unsafe { DisableSecureEventInput() }
     }
+}
+
+#[cfg(test)]
+pub(crate) fn system_reads_on_this_thread() -> u64 {
+    carbon::system_reads_on_this_thread()
 }
 
 pub fn secure_input_active() -> bool {
