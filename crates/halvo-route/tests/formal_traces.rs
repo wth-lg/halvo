@@ -704,6 +704,18 @@ fn the_floor_refuses_a_file_without_the_directed_traces() {
 }
 
 #[test]
+fn the_floor_refuses_199_drawn_traces() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().skip(1).collect();
+    let fewer = &lines[..lines.len() - 1];
+    let fault = check(&with_header(fewer.len(), fewer)).expect_err("199 drawn traces");
+    assert!(
+        fault.contains("the file holds 199 drawn traces, fewer than 200"),
+        "{fault}"
+    );
+}
+
+#[test]
 fn the_floor_refuses_one_trace_written_206_times() {
     let text = committed();
     let lines: Vec<&str> = text.lines().collect();
