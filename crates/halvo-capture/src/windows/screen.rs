@@ -40,9 +40,25 @@ pub(crate) struct CaptureSupport {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ScreenChoice {
-    pub(crate) interval: MinimumUpdateIntervalSettings,
-    pub(crate) drop_within: Option<Duration>,
+pub(crate) enum ScreenChoice {
+    Interval(Duration),
+    DropWithin(Duration),
+}
+
+impl ScreenChoice {
+    fn interval(self) -> MinimumUpdateIntervalSettings {
+        match self {
+            ScreenChoice::Interval(every) => MinimumUpdateIntervalSettings::Custom(every),
+            ScreenChoice::DropWithin(_) => MinimumUpdateIntervalSettings::Default,
+        }
+    }
+
+    fn drop_within(self) -> Option<Duration> {
+        match self {
+            ScreenChoice::Interval(_) => None,
+            ScreenChoice::DropWithin(within) => Some(within),
+        }
+    }
 }
 
 fn probe_support() -> Result<CaptureSupport, CaptureError> {
@@ -100,15 +116,9 @@ pub(crate) fn choose_settings(
         return Err(CaptureError::Start(CURSOR_FLOOR.to_string()));
     }
     if support.minimum_update_interval {
-        return Ok(ScreenChoice {
-            interval: MinimumUpdateIntervalSettings::Custom(min_interval),
-            drop_within: None,
-        });
+        return Ok(ScreenChoice::Interval(min_interval));
     }
-    Ok(ScreenChoice {
-        interval: MinimumUpdateIntervalSettings::Default,
-        drop_within: Some(min_interval),
-    })
+    Ok(ScreenChoice::DropWithin(min_interval))
 }
 
 fn keep_frame(
@@ -262,7 +272,7 @@ impl CaptureSource for ScreenSource {
         let flags = ScreenFlags {
             producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
-            drop_within: choice.drop_within,
+            drop_within: choice.drop_within(),
             closed: Arc::clone(&closed),
         };
         let settings = Settings::new(
@@ -270,7 +280,7 @@ impl CaptureSource for ScreenSource {
             CursorCaptureSettings::WithoutCursor,
             DrawBorderSettings::Default,
             SecondaryWindowSettings::Default,
-            choice.interval,
+            choice.interval(),
             DirtyRegionSettings::Default,
             ColorFormat::Bgra8,
             flags,
@@ -506,13 +516,9 @@ mod tests {
             cursor_setting: true,
         });
         assert_eq!(calls.get(), 1, "the probe was not asked once");
-        assert_eq!(
-            choice,
-            Ok(ScreenChoice {
-                interval: MinimumUpdateIntervalSettings::Default,
-                drop_within: Some(Duration::from_millis(500)),
-            })
-        );
+        let choice = choice.expect("a build with the cursor setting gets a choice");
+        assert_eq!(choice.interval(), MinimumUpdateIntervalSettings::Default);
+        assert_eq!(choice.drop_within(), Some(Duration::from_millis(500)));
     }
 
     #[test]
@@ -522,13 +528,12 @@ mod tests {
             cursor_setting: true,
         });
         assert_eq!(calls.get(), 1, "the probe was not asked once");
+        let choice = choice.expect("a build with the cursor setting gets a choice");
         assert_eq!(
-            choice,
-            Ok(ScreenChoice {
-                interval: MinimumUpdateIntervalSettings::Custom(Duration::from_millis(500)),
-                drop_within: None,
-            })
+            choice.interval(),
+            MinimumUpdateIntervalSettings::Custom(Duration::from_millis(500))
         );
+        assert_eq!(choice.drop_within(), None);
     }
 
     #[test]
