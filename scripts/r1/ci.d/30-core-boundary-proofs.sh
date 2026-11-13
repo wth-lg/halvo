@@ -249,7 +249,8 @@ build() {
 # the JSON messages of a build on stdin; nothing when the messages name none.
 depinfo_of() {
   tr -d '\r' | grep -F '"reason":"compiler-artifact"' | grep -F '"name":"halvo_capture"' |
-    grep -F '"kind":["lib"]' | sed -n 's/.*"filenames":\["\([^"]*\)".*/\1/p' | awk 'NR == 1 {
+    grep -F '"kind":["lib"]' | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
+    grep -F '/deps/' | awk 'NR == 1 {
       n = split($0, part, "/")
       file = part[n]
       sub(/^lib/, "", file)
@@ -349,7 +350,7 @@ measure() {
   if [ "$here" = Darwin ]; then
     module_builds "$out" || fail "a build of the lib for its dep-info failed: see product-build.err and test-build.err"
     module_verdict "$out/product-build.json" "$out/test-build.json" "$out" ||
-      fail "the lib's test build reads a file of $src/daemon/ that its product build does not read and that is no test support"
+      fail "the daemon files that the compiler read for the lib's two builds break the rule: see the line above"
   else
     printf 'daemon files read: run in the macos job, where a build without tests holds src/daemon/\n'
   fi
@@ -491,11 +492,11 @@ module_case() {
   if [ -n "${4:-}" ]; then
     printf '{"reason":"build-finished","success":true}\n' >"$dir/product.json"
   else
-    printf '%s%s"]}\n' "$artifact" "$dir/libhalvo_capture-p.rlib" >"$dir/product.json"
+    printf '%s%s","%s"]}\n' "$artifact" "$dir/libhalvo_capture.rlib" "$dir/deps/libhalvo_capture-p.rmeta" >"$dir/product.json"
   fi
-  printf '%s%s"]}\n' "$artifact" "$dir/halvo_capture-t" >"$dir/test.json"
-  plant "$dir/halvo_capture-p.d" "$dir/halvo_capture-p.d: $2"
-  plant "$dir/halvo_capture-t.d" "$dir/halvo_capture-t.d: $3"
+  printf '%s%s"]}\n' "$artifact" "$dir/deps/halvo_capture-t" >"$dir/test.json"
+  plant "$dir/deps/halvo_capture-p.d" "$dir/deps/halvo_capture-p.d: $2"
+  plant "$dir/deps/halvo_capture-t.d" "$dir/deps/halvo_capture-t.d: $3"
   module_verdict "$dir/product.json" "$dir/test.json" "$dir"
 }
 
