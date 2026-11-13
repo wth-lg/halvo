@@ -2570,6 +2570,12 @@ mod tests {
             fields.lease = lease;
             assert_eq!(DaemonStatus::new(fields).is_ok(), ok, "faulted {lease:?}");
         }
+        let mut faulted_paused = with_sources(Platform::Macos, Capture::Faulted, failed);
+        faulted_paused.desired = crate::model::CaptureState::Paused;
+        assert!(
+            DaemonStatus::new(faulted_paused).is_err(),
+            "faulted with a fresh lease and desired paused"
+        );
     }
 
     #[test]

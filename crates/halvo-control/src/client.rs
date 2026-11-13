@@ -1097,6 +1097,18 @@ mod tests {
     }
 
     #[test]
+    fn in_the_scripted_daemon_a_claim_on_a_paused_status_with_a_lapsed_lease_renews_the_lease() {
+        let (client, _) = client(scripted(|f| {
+            paused(f);
+            f.lease = crate::proto::Lease::Lapsed;
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().lease, crate::proto::Lease::Fresh);
+        assert_eq!(claimed.fields().capture, crate::proto::Capture::Paused);
+        assert_eq!(running_sources(&claimed), 0);
+    }
+
+    #[test]
     fn in_the_scripted_daemon_a_claim_renews_a_lapsed_lease_and_a_plain_read_does_not() {
         let mut fields = sample_status(Platform::Macos).into_fields();
         fields.capture = crate::proto::Capture::NoIndicator;
