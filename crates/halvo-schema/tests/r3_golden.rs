@@ -1098,7 +1098,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 2);
+    assert_eq!(executable::KINDS.len(), 8);
 }
 
 #[test]

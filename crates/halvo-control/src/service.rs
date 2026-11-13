@@ -182,9 +182,7 @@ pub fn login_item_state(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LoginItemState::Absent),
         Err(e) => return Err(e),
     };
-    // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
-    let owner = unsafe { libc::geteuid() };
-    if !is_the_plist_of(&meta, owner) {
+    if !is_the_plist_of(&meta, user::EffectiveUser::current()) {
         return Ok(LoginItemState::Stale);
     }
     if std::fs::read(&path)? == spec.plist().as_bytes() {
@@ -195,10 +193,33 @@ pub fn login_item_state(
 }
 
 #[cfg(target_os = "macos")]
-fn is_the_plist_of(meta: &std::fs::Metadata, owner: u32) -> bool {
+mod user {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct EffectiveUser(u32);
+
+    impl EffectiveUser {
+        pub(crate) fn current() -> Self {
+            // SAFETY: geteuid reads the process's effective user id; it takes no pointer and
+            // cannot fail.
+            Self(unsafe { libc::geteuid() })
+        }
+
+        pub(crate) fn uid(self) -> u32 {
+            self.0
+        }
+
+        #[cfg(test)]
+        pub(crate) fn another(self) -> Self {
+            Self(self.0.wrapping_add(1))
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn is_the_plist_of(meta: &std::fs::Metadata, owner: user::EffectiveUser) -> bool {
     use std::os::unix::fs::MetadataExt;
 
-    meta.is_file() && meta.mode() & 0o7777 == 0o644 && meta.uid() == owner
+    meta.is_file() && meta.mode() & 0o7777 == 0o644 && meta.uid() == owner.uid()
 }
 
 #[cfg(target_os = "macos")]
@@ -297,20 +318,32 @@ fn replace_with_temp(
     std::fs::File::open(dir)?.sync_all()
 }
 
+/// What a remove of the login item did: its file's outcome, and the error of the sweep of
+/// the temporary files of dead installs when that sweep failed.
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct LoginItemRemoval {
+    pub outcome: RemoveOutcome,
+    pub sweep: Option<std::io::Error>,
+}
+
 /// Takes the login item's file away, then the temporary files of dead installs. An error
-/// of that sweep is returned after the file is gone.
+/// of the file's removal is the error of the call; an error of the sweep is reported beside
+/// the outcome.
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
-) -> std::io::Result<RemoveOutcome> {
-    let removed = match std::fs::remove_file(login_item_path(spec, dir)) {
+) -> std::io::Result<LoginItemRemoval> {
+    let outcome = match std::fs::remove_file(login_item_path(spec, dir)) {
         Ok(()) => RemoveOutcome::Removed,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => RemoveOutcome::Absent,
         Err(e) => return Err(e),
     };
-    remove_temp_files_of_dead_installs(spec, dir)?;
-    Ok(removed)
+    Ok(LoginItemRemoval {
+        outcome,
+        sweep: remove_temp_files_of_dead_installs(spec, dir).err(),
+    })
 }
 
 pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -392,8 +425,7 @@ mod registry {
         ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, ERROR_UNSUPPORTED_TYPE, WIN32_ERROR,
     };
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegCreateKeyExW, RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY,
-        HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
+        RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ,
     };
 
     use super::{InstallOutcome, RemoveOutcome, StartValueSpec};
@@ -406,13 +438,55 @@ mod registry {
         std::io::Error::from_raw_os_error(code.0 as i32)
     }
 
-    struct Key(HKEY);
+    mod key {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::ERROR_SUCCESS;
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegCreateKeyExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE,
+            REG_OPTION_NON_VOLATILE,
+        };
 
-    impl Drop for Key {
-        fn drop(&mut self) {
-            // SAFETY: a Key holds the handle that RegCreateKeyExW opened, and this drop closes it
-            // once.
-            let _ = unsafe { RegCloseKey(self.0) };
+        use super::{os_error, wide, StartValueSpec};
+
+        /// The open key of a start value's spec under HKEY_CURRENT_USER; only `create` makes one.
+        pub(super) struct Key(HKEY);
+
+        impl Key {
+            pub(super) fn create(spec: &StartValueSpec) -> std::io::Result<Key> {
+                let key = wide(spec.key());
+                let mut handle = HKEY::default();
+                // SAFETY: `key` is a NUL-terminated wide string that lives across the call, the
+                // class is null, and `handle` is a live HKEY that the call writes.
+                let created = unsafe {
+                    RegCreateKeyExW(
+                        HKEY_CURRENT_USER,
+                        PCWSTR(key.as_ptr()),
+                        None,
+                        PCWSTR::null(),
+                        REG_OPTION_NON_VOLATILE,
+                        KEY_SET_VALUE,
+                        None,
+                        &mut handle,
+                        None,
+                    )
+                };
+                if created != ERROR_SUCCESS {
+                    return Err(os_error(created));
+                }
+                Ok(Key(handle))
+            }
+
+            pub(super) fn handle(&self) -> HKEY {
+                self.0
+            }
+        }
+
+        impl Drop for Key {
+            fn drop(&mut self) {
+                // SAFETY: only `create` makes a Key, from a handle that RegCreateKeyExW opened,
+                // and this drop closes it once.
+                let _ = unsafe { RegCloseKey(self.0) };
+            }
         }
     }
 
@@ -475,35 +549,23 @@ mod registry {
         if stored.as_deref() == Some(data.as_str()) {
             return Ok(InstallOutcome::Unchanged);
         }
-        let (key, name) = (wide(spec.key()), wide(spec.value_name()));
-        let mut handle = HKEY::default();
-        // SAFETY: `key` is a NUL-terminated wide string that lives across the call, the class is
-        // null, and `handle` is a live HKEY that the call writes.
-        let created = unsafe {
-            RegCreateKeyExW(
-                HKEY_CURRENT_USER,
-                PCWSTR(key.as_ptr()),
-                None,
-                PCWSTR::null(),
-                REG_OPTION_NON_VOLATILE,
-                KEY_SET_VALUE,
-                None,
-                &mut handle,
-                None,
-            )
-        };
-        if created != ERROR_SUCCESS {
-            return Err(os_error(created));
-        }
-        let handle = Key(handle);
+        let name = wide(spec.value_name());
+        let handle = key::Key::create(spec)?;
         let bytes: Vec<u8> = wide(&data)
             .iter()
             .flat_map(|unit| unit.to_le_bytes())
             .collect();
-        // SAFETY: `handle.0` is the key that RegCreateKeyExW opened, `name` ends in a NUL, and
-        // `name` and `bytes` live across the call.
-        let set =
-            unsafe { RegSetValueExW(handle.0, PCWSTR(name.as_ptr()), None, REG_SZ, Some(&bytes)) };
+        // SAFETY: `handle` holds the key that RegCreateKeyExW opened with KEY_SET_VALUE, `name`
+        // ends in a NUL, and `name` and `bytes` live across the call.
+        let set = unsafe {
+            RegSetValueExW(
+                handle.handle(),
+                PCWSTR(name.as_ptr()),
+                None,
+                REG_SZ,
+                Some(&bytes),
+            )
+        };
         if set != ERROR_SUCCESS {
             return Err(os_error(set));
         }
@@ -826,7 +888,7 @@ mod login_item_tests {
             LoginItemState::Stale
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Removed
         );
         assert_eq!(
@@ -834,7 +896,7 @@ mod login_item_tests {
             LoginItemState::Absent
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Absent
         );
     }
@@ -941,12 +1003,78 @@ mod login_item_tests {
             InstallOutcome::Written
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Removed
         );
         assert!(!login_item_path(&spec, &dir).exists());
         assert!(odd.is_dir());
         assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
+    }
+
+    fn under_a_link() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = root.path().canonicalize().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        (root, real, link)
+    }
+
+    #[test]
+    fn the_sweep_keeps_a_link_to_a_regular_file_at_a_dead_install_s_name() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let (root, _real, link) = under_a_link();
+        let dir = agents(&link.join("home"));
+        std::fs::create_dir_all(dir.path()).unwrap();
+        assert!(dir.path().starts_with(&link));
+        let spec = login_item();
+        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let target = root.path().join("a regular file");
+        std::fs::write(&target, b"not the installer's").unwrap();
+        let at_dead_name = dir.path().join(format!(".{}.{dead}.tmp", spec.file_name()));
+        std::os::unix::fs::symlink(&target, &at_dead_name).unwrap();
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert!(std::fs::symlink_metadata(&at_dead_name)
+            .unwrap()
+            .is_symlink());
+        assert_eq!(
+            remove_login_item(&spec, &dir).unwrap().outcome,
+            RemoveOutcome::Removed
+        );
+        assert!(std::fs::symlink_metadata(&at_dead_name)
+            .unwrap()
+            .is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"not the installer's");
+    }
+
+    #[test]
+    fn the_scratch_form_holds_its_directory_as_it_resolves_and_not_as_it_was_given() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let (_root, real, link) = under_a_link();
+        let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
+        let scratch = ScratchDir::against(&link, &user).unwrap();
+        let target =
+            LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
+        assert_eq!(target.path(), real);
+        let data = DataDir::from_flag(&real).unwrap();
+        let spec = LoginItemSpec::new("com.halvo.check-l", Path::new(APP), Some(&data)).unwrap();
+        install_login_item(&spec, &target).unwrap();
+        assert!(real.join("com.halvo.check-l.plist").is_file());
+        let turned = link.with_file_name("turned");
+        std::fs::create_dir(&turned).unwrap();
+        std::fs::remove_file(&link).unwrap();
+        std::os::unix::fs::symlink(&turned, &link).unwrap();
+        assert_eq!(
+            remove_login_item(&spec, &target).unwrap().outcome,
+            RemoveOutcome::Removed
+        );
+        assert!(!real.join("com.halvo.check-l.plist").exists());
+        assert_eq!(std::fs::read_dir(&turned).unwrap().count(), 0);
     }
 
     #[test]
@@ -956,14 +1084,46 @@ mod login_item_tests {
         let dir = agents(home.path());
         let spec = login_item();
         install_login_item(&spec, &dir).unwrap();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
-        let removed = remove_login_item(&spec, &dir);
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let removed = {
+            let _back = ModeFor::set(dir.path(), 0o555, 0o755);
+            remove_login_item(&spec, &dir)
+        };
         assert_eq!(
-            removed.map_err(|e| e.kind()),
+            removed.map(|r| r.outcome).map_err(|e| e.kind()),
             Err(std::io::ErrorKind::PermissionDenied)
         );
         assert!(login_item_path(&spec, &dir).exists());
+    }
+
+    struct ModeFor<'a> {
+        path: &'a Path,
+        back: u32,
+    }
+
+    impl<'a> ModeFor<'a> {
+        fn set(path: &'a Path, mode: u32, back: u32) -> Self {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+            Self { path, back }
+        }
+    }
+
+    impl Drop for ModeFor<'_> {
+        fn drop(&mut self) {
+            let _ = std::fs::set_permissions(self.path, std::fs::Permissions::from_mode(self.back));
+        }
+    }
+
+    #[test]
+    fn a_mode_set_for_a_test_is_put_back_when_the_test_panics() {
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("d");
+        std::fs::create_dir(&dir).unwrap();
+        let unwound = std::panic::catch_unwind(|| {
+            let _back = ModeFor::set(&dir, 0o300, 0o755);
+            panic!("a panic inside the call");
+        });
+        assert!(unwound.is_err());
+        assert_eq!(mode(&dir), 0o755);
     }
 
     #[test]
@@ -973,13 +1133,15 @@ mod login_item_tests {
         let dir = agents(home.path());
         let spec = login_item();
         install_login_item(&spec, &dir).unwrap();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o300)).unwrap();
-        let removed = remove_login_item(&spec, &dir);
-        let left = login_item_path(&spec, &dir).exists();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let (removed, left) = {
+            let _back = ModeFor::set(dir.path(), 0o300, 0o755);
+            let removed = remove_login_item(&spec, &dir).unwrap();
+            (removed, login_item_path(&spec, &dir).exists())
+        };
+        assert_eq!(removed.outcome, RemoveOutcome::Removed);
         assert_eq!(
-            removed.map_err(|e| e.kind()),
-            Err(std::io::ErrorKind::PermissionDenied)
+            removed.sweep.map(|e| e.kind()),
+            Some(std::io::ErrorKind::PermissionDenied)
         );
         assert!(!left, "the login item stayed");
     }
@@ -1010,9 +1172,10 @@ mod login_item_tests {
             std::fs::symlink_metadata(&path).unwrap()
         };
         let plist = made("plist", 0o644);
-        let me = plist.uid();
+        let me = user::EffectiveUser::current();
+        assert_eq!(plist.uid(), me.uid());
         assert!(is_the_plist_of(&plist, me));
-        assert!(!is_the_plist_of(&plist, me + 1), "another owner");
+        assert!(!is_the_plist_of(&plist, me.another()), "another owner");
         for mode in [0o664, 0o640, 0o600, 0o444, 0o755, 0o4644] {
             let other = made(&format!("mode-{mode:o}"), mode);
             assert!(!is_the_plist_of(&other, me), "mode {mode:o}");
@@ -1117,7 +1280,7 @@ mod login_item_tests {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let root = tempfile::tempdir().unwrap();
         let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
-        let scratch = ScratchDir::new(root.path(), &user).unwrap();
+        let scratch = ScratchDir::against(root.path(), &user).unwrap();
         let target =
             LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
         let data = DataDir::from_flag(root.path()).unwrap();
@@ -1147,12 +1310,12 @@ mod login_item_tests {
         let user_dir = std::fs::read_dir(root.path()).unwrap().count();
         assert_eq!(user_dir, 1);
         assert_eq!(
-            ScratchDir::new(root.path().join("missing"), &user),
+            ScratchDir::against(root.path().join("missing"), &user),
             Err(PathError::Unresolved)
         );
         let gone = root.path().join("gone");
         std::fs::create_dir(&gone).unwrap();
-        let scratch = ScratchDir::new(&gone, &user).unwrap();
+        let scratch = ScratchDir::against(&gone, &user).unwrap();
         let target =
             LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
         std::fs::remove_dir(&gone).unwrap();
@@ -1176,7 +1339,7 @@ mod login_item_tests {
             upper.join("check"),
             link.join("check"),
         ] {
-            let scratch = ScratchDir::new(&inside, &user).unwrap();
+            let scratch = ScratchDir::against(&inside, &user).unwrap();
             assert_eq!(
                 LoginItemDir::scratch_form(&scratch, &account),
                 Err(PathError::InsideLaunchAgents),
@@ -1185,7 +1348,7 @@ mod login_item_tests {
             );
         }
         std::fs::create_dir(home.path().join("scratch")).unwrap();
-        let outside = ScratchDir::new(home.path().join("scratch"), &user).unwrap();
+        let outside = ScratchDir::against(home.path().join("scratch"), &user).unwrap();
         assert_eq!(
             LoginItemDir::scratch_form(&outside, &account)
                 .unwrap()

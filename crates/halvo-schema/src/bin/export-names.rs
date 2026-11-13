@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 pub(crate) const LISTS: &[&[&str]] = &[
     halvo_schema::category::NAMES,
+    halvo_schema::coordinator::NAMES,
     halvo_schema::executable::NAMES,
     halvo_schema::ids::NAMES,
     halvo_schema::kinds::NAMES,
