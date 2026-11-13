@@ -36,7 +36,6 @@ pub(crate) struct Attached {
 pub(crate) struct Rule {
     pub allowed: Vec<String>,
     pub mode: Mode,
-    pub policy: Option<String>,
 }
 
 /// The bound of the held requests of one arm (CP-176 A1 (b)): a new state-changing request beyond
@@ -339,29 +338,70 @@ fn must_arm(kind: &str) -> bool {
     matches!(kind, "page" | "iframe")
 }
 
-fn intercept_all(policy: bool) -> FetchEnableParams {
+/// Every request at the request stage, and every document and script, a worker's script among
+/// them, at the response stage, where the executor adds the policy line of A4.2 (CP-176 A2 (a)).
+fn intercept_all() -> FetchEnableParams {
     let mut b = FetchEnableParams::builder().pattern(
         RequestPattern::builder()
             .url_pattern("*")
             .request_stage(RequestStage::Request)
             .build(),
     );
-    if policy {
-        for kind in [
-            ResourceType::Document,
-            ResourceType::Script,
-            ResourceType::Other,
-        ] {
-            b = b.pattern(
-                RequestPattern::builder()
-                    .url_pattern("*")
-                    .resource_type(kind)
-                    .request_stage(RequestStage::Response)
-                    .build(),
-            );
-        }
+    for kind in [
+        ResourceType::Document,
+        ResourceType::Script,
+        ResourceType::Other,
+    ] {
+        b = b.pattern(
+            RequestPattern::builder()
+                .url_pattern("*")
+                .resource_type(kind)
+                .request_stage(RequestStage::Response)
+                .build(),
+        );
     }
     b.build()
+}
+
+/// How a response is given the policy line (CP-176 A2 (b)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PolicyWay {
+    /// A document: fulfilled with its own status, headers and body and the line.
+    Fulfil,
+    /// A script, a worker's script among them: goes on with the line added to its headers.
+    AddLine,
+    /// A response that carries no document or script (a redirect, 204, 304): goes on as it is.
+    PassOn,
+}
+
+/// The way of a response of `status`, a document when `document`.
+pub(crate) fn policy_way(document: bool, status: i64) -> PolicyWay {
+    if matches!(status, 204 | 304) || (300..400).contains(&status) {
+        PolicyWay::PassOn
+    } else if document {
+        PolicyWay::Fulfil
+    } else {
+        PolicyWay::AddLine
+    }
+}
+
+/// What becomes of a response once its way was tried: sent when the browser took it, failed and
+/// never sent on otherwise (CP-176 A2 (b)); with the count that `policy_counts` gives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PolicyEnd {
+    Sent(&'static str),
+    Failed(&'static str),
+}
+
+pub(crate) fn policy_end(way: PolicyWay, taken: bool) -> PolicyEnd {
+    match (way, taken) {
+        (PolicyWay::Fulfil, true) => PolicyEnd::Sent("fulfilled"),
+        (PolicyWay::AddLine, true) => PolicyEnd::Sent("line_added"),
+        (PolicyWay::PassOn, true) => PolicyEnd::Sent("passed"),
+        (PolicyWay::Fulfil, false) => PolicyEnd::Failed("document_failed"),
+        (PolicyWay::AddLine, false) => PolicyEnd::Failed("script_failed"),
+        (PolicyWay::PassOn, false) => PolicyEnd::Failed("pass_failed"),
+    }
 }
 
 impl Wire {
@@ -625,13 +665,8 @@ impl Wire {
         }
     }
 
-    fn rule(&self) -> Option<Rule> {
-        self.book.lock().ok().and_then(|b| b.rule.clone())
-    }
-
     async fn arm(&self, session: &str, kind: &str) -> Res<()> {
-        let policy = self.rule().map(|r| r.policy.is_some()).unwrap_or(false);
-        match self.call(Some(session), intercept_all(policy)).await {
+        match self.call(Some(session), intercept_all()).await {
             Ok(_) => Ok(()),
             Err(f) if must_arm(kind) => Err(f),
             Err(f) => {
@@ -665,8 +700,7 @@ impl Wire {
             )
         };
         self.answer_pauses(fail, false).await;
-        let policy = self.rule().map(|r| r.policy.is_some()).unwrap_or(false);
-        self.call(None, intercept_all(policy))
+        self.call(None, intercept_all())
             .await
             .map_err(|f| Fault::new("rule", format!("kind=browser {}", f.1)))?;
         for (session, kind) in sessions {
@@ -723,46 +757,65 @@ impl Wire {
         }
     }
 
+    /// Gives a response the policy line of A4.2 by its way (`policy_way`), in every mode of the
+    /// rule; a response that the browser did not take that way is failed (`policy_end`).
     async fn respond(&self, session: Option<String>, ev: EventRequestPaused, code: i64) {
-        let policy = self.rule().and_then(|r| r.policy);
         let mut headers = ev.response_headers.clone().unwrap_or_default();
-        if let Some(p) = &policy {
-            headers.push(HeaderEntry::new("Content-Security-Policy", p.clone()));
-        }
+        headers.push(HeaderEntry::new(
+            "Content-Security-Policy",
+            crate::WS_POLICY.to_string(),
+        ));
         let id = ev.request_id.clone();
-        if matches!(ev.resource_type, ResourceType::Document) {
-            if let Ok(b) = self
-                .call(session.as_deref(), GetResponseBodyParams::new(id.clone()))
-                .await
-            {
-                use base64::Engine;
-                let body = if b.base64_encoded {
-                    b.body
-                } else {
-                    base64::engine::general_purpose::STANDARD.encode(b.body.as_bytes())
-                };
-                let fulfil = FulfillRequestParams::builder()
-                    .request_id(id.clone())
-                    .response_code(code)
-                    .response_headers(headers.clone())
-                    .body(body)
-                    .build();
-                if let Ok(f) = fulfil {
-                    if self.call(session.as_deref(), f).await.is_ok() {
-                        self.count_policy("fulfilled");
-                        return;
+        let way = policy_way(matches!(ev.resource_type, ResourceType::Document), code);
+        let taken = match way {
+            PolicyWay::Fulfil => {
+                match self
+                    .call(session.as_deref(), GetResponseBodyParams::new(id.clone()))
+                    .await
+                {
+                    Ok(b) => {
+                        use base64::Engine;
+                        let body = if b.base64_encoded {
+                            b.body
+                        } else {
+                            base64::engine::general_purpose::STANDARD.encode(b.body.as_bytes())
+                        };
+                        match FulfillRequestParams::builder()
+                            .request_id(id.clone())
+                            .response_code(code)
+                            .response_headers(headers)
+                            .body(body)
+                            .build()
+                        {
+                            Ok(f) => self.call(session.as_deref(), f).await.is_ok(),
+                            Err(_) => false,
+                        }
                     }
+                    Err(_) => false,
                 }
             }
-            self.count_policy("document_not_fulfilled");
-        }
-        let mut cont = ContinueResponseParams::new(id);
-        cont.response_code = Some(code);
-        cont.response_headers = Some(headers);
-        if self.call(session.as_deref(), cont).await.is_ok() {
-            self.count_policy("continued");
-        } else {
-            self.count_policy("not_continued");
+            PolicyWay::AddLine => {
+                let mut cont = ContinueResponseParams::new(id.clone());
+                cont.response_code = Some(code);
+                cont.response_headers = Some(headers);
+                self.call(session.as_deref(), cont).await.is_ok()
+            }
+            PolicyWay::PassOn => self
+                .call(session.as_deref(), ContinueResponseParams::new(id.clone()))
+                .await
+                .is_ok(),
+        };
+        match policy_end(way, taken) {
+            PolicyEnd::Sent(what) => self.count_policy(what),
+            PolicyEnd::Failed(what) => {
+                self.count_policy(what);
+                let _ = self
+                    .call(
+                        session.as_deref(),
+                        FailRequestParams::new(id, ErrorReason::BlockedByClient),
+                    )
+                    .await;
+            }
         }
     }
 
@@ -1017,8 +1070,58 @@ mod tests {
         Rule {
             allowed: allowed.iter().map(|a| a.to_string()).collect(),
             mode,
-            policy: None,
         }
+    }
+
+    /// CP-176 A2 (b): a document is fulfilled with the line and a script goes on with it; a
+    /// redirect, a 204 and a 304 go on as they are; a document or script that the browser did not
+    /// take with the line is failed and never sent on.
+    #[test]
+    fn a2_a_response_that_cannot_be_given_the_line_is_failed() {
+        assert_eq!(policy_way(true, 200), PolicyWay::Fulfil);
+        assert_eq!(policy_way(true, 404), PolicyWay::Fulfil);
+        assert_eq!(policy_way(false, 200), PolicyWay::AddLine);
+        for status in [204, 301, 302, 303, 304, 307, 308] {
+            assert_eq!(policy_way(true, status), PolicyWay::PassOn, "{status}");
+            assert_eq!(policy_way(false, status), PolicyWay::PassOn, "{status}");
+        }
+        assert_eq!(
+            policy_end(PolicyWay::Fulfil, false),
+            PolicyEnd::Failed("document_failed")
+        );
+        assert_eq!(
+            policy_end(PolicyWay::AddLine, false),
+            PolicyEnd::Failed("script_failed")
+        );
+        assert_eq!(
+            policy_end(PolicyWay::PassOn, false),
+            PolicyEnd::Failed("pass_failed")
+        );
+        assert_eq!(
+            policy_end(PolicyWay::Fulfil, true),
+            PolicyEnd::Sent("fulfilled")
+        );
+        assert_eq!(
+            policy_end(PolicyWay::AddLine, true),
+            PolicyEnd::Sent("line_added")
+        );
+    }
+
+    /// CP-176 A2 (a): every arm intercepts every document and script at the response stage, so
+    /// the line is added in every mode.
+    #[test]
+    fn a2_every_arm_intercepts_documents_and_scripts_at_the_response_stage() {
+        let p = serde_json::to_value(intercept_all()).unwrap();
+        let patterns = p["patterns"].as_array().unwrap();
+        for kind in ["Document", "Script", "Other"] {
+            assert!(
+                patterns
+                    .iter()
+                    .any(|x| x["resourceType"] == kind && x["requestStage"] == "Response"),
+                "{kind}: {p}"
+            );
+        }
+        assert!(patterns.iter().any(|x| x["requestStage"] == "Request"));
     }
 
     /// A pause of a request of `method` to `origin` + `path` with the browser's number `network`,

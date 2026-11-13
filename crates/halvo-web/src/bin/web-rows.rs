@@ -35,6 +35,11 @@
 //! - `block_frame_post --browser PATH --kind chrome|edge --port N`: the row of A13.7 through the
 //!   product's executor: a state-changing request of the payment frame is paused and failed by
 //!   the request rule, and the fixture counts nothing.
+//! - `ws_allowed --browser PATH --kind chrome|edge --ws-port N`: the row of CP-176 A2 (c) through
+//!   the product's executor, against `rows/ws-listener.mjs` on port N: no WebSocket handshake
+//!   reaches the listener from a document, a frame or a worker, each of which tried and was
+//!   refused; the row's own handshake outside the browser is counted (the control); and the
+//!   executor failed no document while it added the policy line.
 //! - `hold_release --browser PATH --kind chrome|edge --port N`: the row of CP-176 A1 (f) through
 //!   the product's executor: a state-changing request stays held while a snapshot of the page is
 //!   read, is let through once by its id, and a second one that the page sent meanwhile is failed,
@@ -700,6 +705,153 @@ async fn hold_release(argv: &[String]) -> (usize, usize) {
     (usize::from(fine), 1)
 }
 
+/// The contexts of the listener's page that the row requires: a document, a frame and a worker.
+const WS_CONTEXTS: [&str; 3] = ["page", "frame", "worker"];
+
+/// The row's own WebSocket handshake to the listener, outside the browser: the control that the
+/// listener counts a handshake at all.
+fn own_handshake(port: u16) -> bool {
+    use std::io::{Read, Write};
+    let Ok(mut s) = std::net::TcpStream::connect(("127.0.0.1", port)) else {
+        return false;
+    };
+    let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+    let req = format!(
+        "GET /ws?ctx=control HTTP/1.1\r\nHost: utility.agent.test:{port}\r\nConnection: Upgrade\r\n\
+         Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    );
+    if s.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut sink = Vec::new();
+    let _ = s.read_to_end(&mut sink);
+    true
+}
+
+/// The contexts of `map` in the listener's counts with a count above 0.
+fn contexts(counts: &serde_json::Value, map: &str) -> Vec<String> {
+    counts[map]
+        .as_object()
+        .map(|o| {
+            o.iter()
+                .filter(|(_, v)| v.as_i64().unwrap_or(0) > 0)
+                .map(|(k, _)| k.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The row of CP-176 A2 (c): the listener's page through the product's executor on the pipe, in
+/// the mode that fails, which lets the page's reads through. ok when the row's own handshake was
+/// counted, no handshake came from the browser, the page, its frame and its worker each fetched
+/// and reported a failed WebSocket, and the executor failed no document.
+async fn ws_allowed(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--ws-port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "ws-allowed"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let control = own_handshake(port)
+        && fixture_json(port, "GET", "/count")
+            .is_some_and(|c| c["ws"]["control"].as_i64() == Some(1));
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row ws_allowed machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let origin = format!("http://utility.agent.test:{port}");
+    let opened = match ex.arm_rule(vec![origin.clone()], Mode::Fail).await {
+        Ok(()) => ex.open(&format!("{origin}/page")).await.is_ok(),
+        Err(_) => false,
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut counts = serde_json::Value::Null;
+    while Instant::now() < deadline {
+        counts = fixture_json(port, "GET", "/count").unwrap_or(serde_json::Value::Null);
+        let refused = contexts(&counts, "e");
+        if WS_CONTEXTS.iter().all(|c| refused.iter().any(|r| r == c)) {
+            tokio::time::sleep(Duration::from_millis(1_000)).await;
+            counts = fixture_json(port, "GET", "/count").unwrap_or(counts);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    let policy = ex.policy_counts();
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let handshakes: i64 = counts["ws"]
+        .as_object()
+        .map(|o| {
+            o.iter()
+                .filter(|(k, _)| k.as_str() != "control")
+                .map(|(_, v)| v.as_i64().unwrap_or(0))
+                .sum()
+        })
+        .unwrap_or(-1);
+    let (tried, refused, data_blob) = (
+        contexts(&counts, "f"),
+        contexts(&counts, "e"),
+        contexts(&counts, "r"),
+    );
+    let all = |got: &[String]| WS_CONTEXTS.iter().all(|c| got.iter().any(|g| g == c));
+    let count = |k: &str| policy.get(k).copied().unwrap_or(0);
+    let fine = control
+        && opened
+        && handshakes == 0
+        && all(&tried)
+        && all(&refused)
+        && count("document_failed") == 0
+        && count("fulfilled") >= 1
+        && stopped.removed;
+    let join = |v: &[String]| {
+        let mut v = v.to_vec();
+        v.sort();
+        if v.is_empty() {
+            "-".to_string()
+        } else {
+            v.join(",")
+        }
+    };
+    println!(
+        "row ws_allowed machine={machine} browser={kind} control={} handshakes={handshakes} \
+         tried={} refused={} data_blob={} fulfilled={} line_added={} passed={} \
+         document_failed={} script_failed={} removed={} result={}",
+        if control { "yes" } else { "no" },
+        join(&tried),
+        join(&refused),
+        join(&data_blob),
+        count("fulfilled"),
+        count("line_added"),
+        count("passed"),
+        count("document_failed"),
+        count("script_failed"),
+        if stopped.removed { "yes" } else { "no" },
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
+}
+
 /// One crash reading with the product's means on a relay at `--relay-port`, which the egress check
 /// of A13.3's third item wraps in the crash row's hosted step, so that its denials count what the
 /// run tried to send (CP-165 (2) (b)); exit 0 when the reading ran.
@@ -1254,6 +1406,7 @@ fn main() -> ExitCode {
         "checks" => runtime.block_on(checks_row(&argv)),
         "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
         "hold_release" => runtime.block_on(hold_release(&argv)),
+        "ws_allowed" => runtime.block_on(ws_allowed(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");

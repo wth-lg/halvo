@@ -598,7 +598,6 @@ impl Executor {
             .arm_rule(wire::Rule {
                 allowed: Vec::new(),
                 mode: Mode::Fail,
-                policy: None,
             })
             .await;
         if let Err(f) = armed {
@@ -1474,7 +1473,6 @@ impl Executor {
             .arm_rule(wire::Rule {
                 allowed: allowed_origins,
                 mode,
-                policy: None,
             })
             .await
     }
@@ -1496,28 +1494,11 @@ impl Executor {
         self.wire.fail_held(id).await
     }
 
-    /// Arms the rule as `arm_rule` does, and with it a policy that the executor adds to the
-    /// response of every document and every script of every target, as a header line of its own:
-    /// a document is answered by fulfilment with its own status, headers and body and the line,
-    /// and a script, a worker's script among them, goes on with the line added. The site's own
-    /// policy stays. `policy_counts` tells how often each was done.
-    pub async fn arm_rule_with_policy(
-        &mut self,
-        allowed_origins: Vec<String>,
-        mode: Mode,
-        policy: &str,
-    ) -> Res<()> {
-        self.wire
-            .arm_rule(wire::Rule {
-                allowed: allowed_origins,
-                mode,
-                policy: Some(policy.to_string()),
-            })
-            .await
-    }
-
-    /// How often the policy was added: by fulfilment (`fulfilled`), on a response that went on
-    /// (`continued`), and the failures of each.
+    /// How often the executor gave a response the policy line of A4.2 (CP-176 A2): a document by
+    /// fulfilment (`fulfilled`), a script with the line added (`line_added`), a response with no
+    /// document passed on as it is (`passed`), and the responses that it failed because the
+    /// browser did not take them that way (`document_failed`, `script_failed`, `pass_failed`). The
+    /// line is added from the start's arm on, in every mode; no call takes it out.
     pub fn policy_counts(&self) -> std::collections::BTreeMap<String, u64> {
         self.wire.policy_counts()
     }
