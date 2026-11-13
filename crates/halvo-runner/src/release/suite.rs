@@ -22,7 +22,7 @@ use halvo_schema::executable::frame::{
     StoreReplyFrame,
 };
 use halvo_schema::executable::names::{
-    Answer, Autonomy, FieldName, HandbackOutcome, HandbackReason,
+    AllowedClass, Answer, Autonomy, FieldName, HandbackOutcome, HandbackReason, YesNo,
 };
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
@@ -331,7 +331,9 @@ fn data_dir() -> PathBuf {
 /// `cancel_before_begin_answer` it writes a `cancel` before the answer to a `begin` row; and from the load of the
 /// count `observe_from_load` on, the configuration's autonomy is `observe`, and from the load of the count
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
-/// `other_digest` every approval names a digest that is not its effect's.
+/// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
+/// holds give a configuration under which `decide` gives `run` for `delete` (`unattended`, `allow` `delete`,
+/// `untrusted` no).
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
@@ -341,6 +343,7 @@ pub(crate) struct Plan {
     pub(crate) wall_zero_from_load: Option<usize>,
     pub(crate) one_approval_id: bool,
     pub(crate) other_digest: bool,
+    pub(crate) runs_at: Option<fn(usize) -> bool>,
 }
 
 impl Plan {
@@ -355,6 +358,7 @@ impl Plan {
             wall_zero_from_load: None,
             one_approval_id: false,
             other_digest: false,
+            runs_at: None,
         }
     }
 }
@@ -396,6 +400,11 @@ fn supervise(
                             }
                             if plan.wall_zero_from_load.is_some_and(|from| loads >= from) {
                                 config.limits.wall_s = 0;
+                            }
+                            if plan.runs_at.is_some_and(|runs| runs(loads)) {
+                                config.autonomy = Autonomy::Unattended;
+                                config.allow = vec![AllowedClass::Delete];
+                                config.caps.untrusted = YesNo::No;
                             }
                             config
                         },

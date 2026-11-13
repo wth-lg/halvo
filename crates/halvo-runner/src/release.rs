@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::time::Instant as Clock;
 
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
@@ -90,16 +91,21 @@ impl Runner {
     /// The confirm path of A5.2 and A6.3 for the paused requests of one step: the adapter effects of a run
     /// together, or a browser effect alone. The load before the `propose` gives `decide`, the origins of `admit` and
     /// the limits; each effect is proposed after `admit`, and the effects that are `held` stand in one confirmation
-    /// request. For each effect in turn a load precedes the `begin`: a `decide` on it that gives `refuse` ends the
-    /// effect; the bound values are read again while the request is paused, and when their digest is not the row's
-    /// the effect takes a `rebind` after `admit`, its request is failed and made again, and the person is asked
-    /// again with the new values, at most `LIMITS.rebinds` times, then the effect is ended and the run ends `failed`
-    /// with `changed`. `begin` carries the digest of the values read again; the request is let through once under
-    /// the lock of the link, where a held `cancel` lets nothing through, and `commit` is stored only after its
-    /// reply. A request with no reply leaves its effect `releasing`, and the run ends `effect_unknown`.
+    /// request, whose answers are applied before any later load is acted on. For each effect in turn a load precedes
+    /// the `begin`: a `decide` on it that gives `refuse` ends the effect; one that gives `confirm` for a `cleared`
+    /// effect ends it and every other effect that is still `cleared`, proposes them again from that load and asks
+    /// for them in one confirmation request (CP-143 (4) (iv)); one that gives `run` changes nothing for an
+    /// `approved` effect. The bound values are read again while the request is paused, and when their digest is not
+    /// the row's an `approved` effect takes a `rebind` after `admit`, its request is failed and made again, and the
+    /// person is asked again with the new values, at most `LIMITS.rebinds` times, then the effect is ended and the
+    /// run ends `failed` with `changed`; a `cleared` one is ended and proposed again. The new effects of one step
+    /// are at most `LIMITS.rebinds`, after which the run ends `failed` with `changed`. `begin` carries the digest of
+    /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
+    /// lets nothing through, and `commit` is stored only after its reply. A request with no reply leaves its effect
+    /// `releasing`, and the run ends `effect_unknown`.
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
         let loaded = self.load()?;
-        let mut open = Vec::new();
+        let mut open = VecDeque::new();
         for mut request in requests {
             self.check()?;
             self.within_wall()?;
@@ -110,25 +116,51 @@ impl Runner {
             let at = self.propose(decide(&loaded.config, class, Checkpoint::No), &bound)?;
             match self.effects[at].state {
                 EffectState::Refused => return Err(refused(&loaded.config)),
-                EffectState::Held | EffectState::Cleared => open.push(Open { at, request, bound }),
+                EffectState::Held | EffectState::Cleared => {
+                    open.push_back(Open { at, request, bound })
+                }
                 _ => return Err(failed(Cause::Effect)),
             }
         }
-        let held: Vec<usize> = (0..open.len())
-            .filter(|&i| self.effects[open[i].at].state == EffectState::Held)
-            .collect();
-        if !held.is_empty() {
-            let asked: Vec<(usize, &Bound)> =
-                held.iter().map(|&i| (open[i].at, &open[i].bound)).collect();
-            self.confirm(&asked)?;
-        }
+        self.ask_held(open.iter())?;
+        let mut renewed = 0;
         let mut declined = false;
-        for one in open {
+        while let Some(one) = open.pop_front() {
             if self.effects[one.at].state == EffectState::Rejected {
                 declined = true;
                 continue;
             }
-            self.let_through(one)?;
+            let Some((first, again)) = self.let_through(one, &mut renewed)? else {
+                continue;
+            };
+            let (cleared, rest): (Vec<Open>, Vec<Open>) = open
+                .drain(..)
+                .partition(|o| self.effects[o.at].state == EffectState::Cleared);
+            let batch: Vec<Open> = std::iter::once(first).chain(cleared).collect();
+            if renewed >= LIMITS.rebinds {
+                for o in &batch {
+                    self.advance(o.at, EffectMove::End)?;
+                }
+                return Err(failed(Cause::Changed));
+            }
+            renewed += 1;
+            let mut asked = Vec::new();
+            for mut o in batch {
+                self.advance(o.at, EffectMove::End)?;
+                let class = o.request.class();
+                o.request = o.request.renew().map_err(failed)?;
+                o.bound = o.request.bound().map_err(failed)?;
+                admit(class, &o.bound, &facts_of(o.request.as_ref(), &again))
+                    .map_err(|refusal| failed(refusal.cause()))?;
+                o.at = self.propose(decide(&again.config, class, Checkpoint::No), &o.bound)?;
+                match self.effects[o.at].state {
+                    EffectState::Refused => return Err(refused(&again.config)),
+                    EffectState::Held | EffectState::Cleared => asked.push(o),
+                    _ => return Err(failed(Cause::Effect)),
+                }
+            }
+            self.ask_held(asked.iter())?;
+            open = asked.into_iter().chain(rest).collect();
         }
         if declined {
             return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
@@ -136,19 +168,40 @@ impl Runner {
         Ok(())
     }
 
-    /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect. A `cleared` effect whose
-    /// values changed is ended and a new effect is proposed from the load's values, at most `LIMITS.rebinds` times
-    /// (A5.2).
-    fn let_through(&mut self, mut one: Open) -> Result<(), Stop> {
-        let mut renewed = 0;
+    /// Asks the person about the effects of `open` that are `held`, together in one confirmation request.
+    fn ask_held<'a>(&mut self, open: impl Iterator<Item = &'a Open>) -> Result<(), Stop> {
+        let asked: Vec<(usize, Bound)> = open
+            .filter(|o| self.effects[o.at].state == EffectState::Held)
+            .map(|o| (o.at, o.bound.clone()))
+            .collect();
+        if asked.is_empty() {
+            return Ok(());
+        }
+        let asked: Vec<(usize, &Bound)> = asked.iter().map(|(at, b)| (*at, b)).collect();
+        self.confirm(&asked)
+    }
+
+    /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect, or gives the effect back
+    /// with the later load when that load gives `confirm` for a `cleared` effect. A `cleared` effect whose values
+    /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the new effects of the
+    /// step (A5.2).
+    fn let_through(
+        &mut self,
+        mut one: Open,
+        renewed: &mut u32,
+    ) -> Result<Option<(Open, LoadReply)>, Stop> {
         loop {
             let again = self.load()?;
             self.check()?;
             self.within_wall()?;
             let class = one.request.class();
-            if decide(&again.config, class, Checkpoint::No).decision() == Decision::Refuse {
+            let decision = decide(&again.config, class, Checkpoint::No).decision();
+            if decision == Decision::Refuse {
                 self.advance(one.at, EffectMove::End)?;
                 return Err(refused(&again.config));
+            }
+            if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
+                return Ok(Some((one, again)));
             }
             let now = match one.request.bound() {
                 Ok(now) => now,
@@ -165,7 +218,7 @@ impl Runner {
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
                 return match left.reply() {
-                    Replied::Reply => self.advance(one.at, EffectMove::Commit).map(|_| ()),
+                    Replied::Reply => self.advance(one.at, EffectMove::Commit).map(|_| None),
                     Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))
                     }
@@ -173,7 +226,7 @@ impl Runner {
             }
             let cleared = self.effects[one.at].state == EffectState::Cleared;
             let count = if cleared {
-                renewed
+                *renewed
             } else {
                 self.effects[one.at].rebinds()
             };
@@ -187,7 +240,7 @@ impl Runner {
             }
             if cleared {
                 self.advance(one.at, EffectMove::End)?;
-                renewed += 1;
+                *renewed += 1;
                 one.request = one.request.renew().map_err(failed)?;
                 one.at = self.propose(decide(&again.config, class, Checkpoint::No), &now)?;
                 one.bound = now;

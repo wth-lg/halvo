@@ -299,3 +299,75 @@ fn a_decision_with_another_digest_is_a_frame_refusal() {
     assert_eq!(record.status, 2);
     assert!(record.finish().is_none());
 }
+
+/// CP-143 (4) (iv), the review's case confirm-1: a later load that gives `confirm` for a `cleared` effect asks more
+/// than the load under which it was cleared; the effect is ended and proposed again as `held`, and its request
+/// leaves only after the person's answer.
+#[test]
+fn a_later_load_that_asks_a_confirmation_for_a_cleared_effect_is_answered_before_anything_leaves() {
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 1);
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    assert_eq!(record.effects()[1].cause, Some(Cause::Ended));
+    assert_eq!(record.confirms().len(), 1);
+    let confirm = record
+        .frames
+        .iter()
+        .position(|f| matches!(f, halvo_schema::executable::FromRunner::Confirm(_)));
+    let releasing = record.frames.iter().position(|f| {
+        matches!(f, halvo_schema::executable::FromRunner::Store(s)
+            if matches!(s.request.body(), halvo_schema::executable::RunnerCall::Effect(b)
+                if b.record.state == EffectState::Releasing))
+    });
+    assert!(
+        confirm.is_some_and(|c| releasing.is_some_and(|r| c < r)),
+        "the confirmation comes before the begin"
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// A5.1, A5.2, CP-143 (4) (iv): the new effects of one step are at most `LIMITS.rebinds`, whether a `cleared`
+/// effect's values changed or a later load asks a confirmation; two value changes and then a load that asks more
+/// end the run `failed` with `changed`, with nothing let through.
+#[test]
+fn the_new_effects_of_one_step_are_at_most_two_in_all() {
+    let plan = Plan {
+        runs_at: Some(|load| load <= 3),
+        ..Plan::plain()
+    };
+    let reads = ["a", "b", "c"]
+        .map(|id| delete(id, Source::Extract))
+        .to_vec();
+    let (record, released) = run(reads, plan);
+    assert_eq!(released, 0);
+    assert!(record.confirms().is_empty());
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected
+        ]
+    );
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+}
