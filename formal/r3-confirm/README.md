@@ -65,8 +65,8 @@ java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -
 
 The first two commands are what the check runs, and both are needed: neither alone shows
 every invariant failing on its break. Each ends with status 0 and prints `Model checking
-completed. No error has been found.`; the first prints `637933 distinct states found`, the
-second `61728 distinct states found`. The third is the control copy. It ends with status 12
+completed. No error has been found.`; the first prints `933498 distinct states found`, the
+second `64669 distinct states found`. The third is the control copy. It ends with status 12
 and prints `Error: Invariant P1 is violated.` with a behaviour of four states. A check that
 passes proves nothing until the control copy fails. The option `-deadlock` turns off TLC's
 search for states with no next state: an effect has final states.
@@ -87,7 +87,7 @@ TLA2TOOLS_JAR="$JAR" sh formal/r3-confirm/export.sh --out DIR
 The first form writes the two files into this directory, the second into `DIR`. With the
 seed and the count of `Export.cfg`, or with the same `--seed` and `--count`, a second run
 writes the same bytes. The script prints one line, `export rows=3840 traces=400
-directed=304 seed=20261113`; `directed` is a key of that line and no key of the file.
+directed=377 seed=20261113`; `directed` is a key of that line and no key of the file.
 `sh formal/r3-confirm/export.sh --help` prints the options, the exit statuses and the three
 causes of a refusal. The script runs TLC in a directory from `mktemp -d` under `TMPDIR`, or
 under `/tmp` when that is not set, and leaves that directory in place.
@@ -113,7 +113,7 @@ alone. Its PASS is a statement about the commit:
   after a redirect, expands no brackets or braces in the address, and ends within 60 s with
   every try: two tries of at most 25 s each and a pause of 5 s.
 - It runs TLC with three workers on `Confirm.cfg` and `Rebinds.cfg`, and requires no
-  invariant violated and the distinct states 637,933 and 61,728, the counts of the section
+  invariant violated and the distinct states 933,498 and 64,669, the counts of the section
   "What the check reaches". A change of the model that makes the system reach less, or more,
   fails the check until the counts in the check and in that section are written again.
 - It exports the two files again with the seed and the count of `Export.cfg` and compares
@@ -146,8 +146,8 @@ formal subject commit=<commit> files=formal/r3-confirm,scripts/r3/ci.d/30-r3-for
 formal configs files=5 same=5
 formal java major=<n>
 formal jar source=fetch bytes=2274532 same=yes
-formal states=699661 invariants=11 violated=0
-formal reach confirm+rebinds=637933+61728 same=yes
+formal states=998167 invariants=11 violated=0
+formal reach confirm+rebinds=933498+64669 same=yes
 formal export status=0
 formal table rows=3840 same=yes
 formal traces count=400 same=yes
@@ -246,7 +246,7 @@ of a move are read from top to bottom, and the first that fits gives the answer.
 | | else | `ok`, `rejected` |
 | `end` | the state is not `held`, `cleared` or `approved` | `effect` |
 | | else | `ok`, `rejected` |
-| `begin` with the digest that is read again | there is no effect, or the state is `refused`, `rejected`, `committed` or `releasing` | `effect` |
+| `begin` with the digest that is read again | there is no effect, or the state is `refused`, `rejected`, `committed`, `releasing` or `not_made` | `effect` |
 | | the state is `unknown` | `unknown` |
 | | the state is `held` | `approval` |
 | | the state is `cleared` and the class is `purchase`, `payment` or `sign` | `approval` |
@@ -256,6 +256,14 @@ of a move are read from top to bottom, and the first that fits gives the answer.
 | | else | `ok`, `committed` |
 | `lose` | the state is not `releasing` | `effect` |
 | | else | `ok`, `unknown` |
+| `not_made` with a cause: `not_sent`, `not_replaced`, `unauthorized` or `throttled` | the state is not `releasing` | `effect` |
+| | the cause cannot be true for the class: `not_replaced` for any class but `local_edit`, `not_sent` for `local_edit`, `unauthorized` and `throttled` for any class but `send` and `delete` | `class` |
+| | else | `ok`, `not_made` |
+
+`not_made` is the runner's move for an effect that it knows was not made (A5.2; the
+coordinator's rulings CP-135 (4), CP-139 (c)). Its row of `class` is the coordinator's ruling
+CP-144 (4): a cause stands only where its plain words can be true, so a file edit that was not
+made has `not_replaced`, and `not_sent` stands for an effect that has a request.
 
 The decision of a `propose` is a free value here: the step relation makes a `cleared`
 effect of the class `payment` when it is told `run`, and then refuses its `begin`. In the
@@ -270,7 +278,7 @@ The first line is `{"seed":<n>,"count":<n>}`. Each of the `count` lines after it
 trace: the life of one effect, from no effect, in at most 12 moves.
 
 ```
-{"n":<n>,"effect":"e1","bound":"<digest>","moves":[{"class":"<class>","move":"<move>","decision":<decision>,"entry":<effect id>,"digest":<digest>,"bound_class":<class>,"used":<used>,"answer":"<answer>","state":<state>,"bound":"<digest>"},...]}
+{"n":<n>,"effect":"e1","bound":"<digest>","moves":[{"class":"<class>","move":"<move>","decision":<decision>,"entry":<effect id>,"digest":<digest>,"bound_class":<class>,"used":<used>,"cause":<cause>,"answer":"<answer>","state":<state>,"bound":"<digest>"},...]}
 ```
 
 | Key | Meaning |
@@ -279,12 +287,13 @@ trace: the life of one effect, from no effect, in at most 12 moves.
 | `effect` | The id of the effect of the trace. It is `e1` in every trace. |
 | `bound` of the trace | The digest of the effect before the first move. |
 | `class` | The class of the effect. It is the same in every move of a trace. |
-| `move` | `propose`, `rebind`, `approve`, `reject`, `end`, `begin`, `commit` or `lose`. |
+| `move` | `propose`, `rebind`, `approve`, `reject`, `end`, `begin`, `commit`, `lose` or `not_made`. |
 | `decision` | For `propose`: `run`, `confirm`, `handback` or `refuse`. Else `null`. |
 | `entry` | For `approve`: the effect id of the entry, `e1` for this effect or `e2` for another. Else `null`. |
 | `digest` | For `rebind` the new digest, for `approve` the digest of the entry, for `begin` the digest that is read again. Else `null`. |
 | `bound_class` | For `rebind`: the class of the new bound object. Else `null`. |
 | `used` | For `approve`: `yes` or `no`. Else `null`. |
+| `cause` | For `not_made`: `not_sent`, `not_replaced`, `unauthorized` or `throttled`. Else `null`. |
 | `answer` | `ok`, or the cause: `effect`, `class`, `changed`, `approval`, `digest`, `used`, `unknown`. |
 | `state` | The state of the effect after the move, `null` while there is no effect. A refused move leaves it as it was. |
 | `bound` of a move | The digest of the effect after the move: the move's digest after a `rebind` with the answer `ok`, else as before. |
@@ -296,16 +305,26 @@ To replay a trace with `effect_step`, keep a state, a digest and a count. Start 
 state, the `bound` of the trace and the count 0. For each move, call `effect_step` with the
 effect as it stands (the trace's `effect`, the kept state, the move's `class`, the kept
 digest, the kept count) and with the move built from `move`, `decision`, `entry`, `digest`,
-`bound_class` and `used`. The call must accept exactly when `answer` is `ok`, and the next
-state must be `state`. Then keep `state` and the move's `bound`, and add one to the count
+`bound_class`, `used` and `cause`. The call must accept exactly when `answer` is `ok`, and
+the next state must be `state`. Then keep `state` and the move's `bound`, and add one to the count
 when the move is a `rebind` with the answer `ok`. No key holds the count: it is the number
 of the trace's earlier accepted rebinds. The test `formal_traces` compares no causes
 (A5.6); the file holds the model's cause.
 
+Until U1.8 (b), no replay holds the code's own step for `not_made`, because `effect_step` has
+no such move and the schema no such state yet (the coordinator's ruling CP-144). The tests
+`formal_traces` and `step_traces` give no `not_made` move to `effect_step`, and no move of a
+trace after its first accepted `not_made`. `formal_traces` checks those moves against the row
+of `not_made` in the table above instead: accepted only from `releasing` and for a cause that
+can be true for the class, and every later move refused with the state `not_made`. An ignored
+test, `not_made_has_no_stand_in_left`, fails while that stop or the crate's stand-in for the
+four causes is left, and (b) takes its ignore away.
+
 `Step` compares the class of a `rebind` with the effect's, a digest and an effect id only
 for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
-membership in the classes that need an approval and those that make no effect, and the
-directed traces try every class at every place. So `formal_traces` gives `d1`, `d2`, `e1`
+membership in the classes that need an approval and those that make no effect, and for
+`not_made` in `local_edit` and in `send` and `delete`, and the directed traces try every class
+at every place. So `formal_traces` gives `d1`, `d2`, `e1`
 and `e2` 134 sets of values: three that differ in every digit, in the first digit and in the
 last digit, and for each of the 64 digits of a digest one pair that differs there alone,
 with a pair of effect ids that differs in one of their 32 digits alone, each set in both
@@ -314,21 +333,32 @@ is not the effect's with each of the other classes, each move at a count below t
 every count below two, and each move at a count of two with the counts three and 2^32 - 1.
 Each of these moves must have the answer and the next state of the trace's own move.
 
-The first 304 traces are directed and do not depend on the seed. For each of the seven
-classes that can make an effect there are eleven places: no effect, the eight states, and
-`held` and `approved` after two accepted rebinds. A fixed path leads to each place; the
-path to the last one has its first rebind from `approved` and its second from `held`. Then
-the 22 moves are tried in a fixed order: `propose` with each of the four decisions;
-`rebind` with each digest and with the effect's class or another; `approve` with each
-entry, each digest and each `used`; `reject`; `end`; `begin` with each digest; `commit`;
-`lose`. For `read`, `prepare` and `credential` no place but the first can be reached, and
-the 22 moves are tried there. A trace ends at its twelfth move or at a move that is
-accepted, and the next trace goes on with the next move. So each of the 1,760 triples of
-class, place and move that can be met is in the file: 7 x 11 x 22 and 3 x 1 x 22. Fourteen
-of them are the `rebind` that is refused with `changed`. The other 96 traces are drawn
-from the seed: a class, a first digest, 4 to 12 moves, each move with 60 chances in 100
-one that the state accepts when there is one, else any of the 22. The export fails when
-`--count` is below 304.
+The first 377 traces are directed and do not depend on the seed. The first five of them
+are named (`Named`), and each starts with the path to `releasing`: `propose` with `confirm`,
+`approve`, `begin`. Traces 1 to 4 then make `not_made` with one cause each, for a class that
+the cause fits: `not_sent` for `submit`, `not_replaced` for `local_edit`, `unauthorized` for
+`send` and `throttled` for `delete`; then `begin`, `commit`, `lose`, `end` and the same
+`not_made` again are refused, and the state stays `not_made`. Trace 5 is the end of a run:
+`end` is refused while the effect is `releasing`, `lose` moves it to `unknown`, and then
+`not_made` with each of the four causes is refused, so the moves of a run's end never make
+`not_made`. The test `formal_traces` requires a trace of each of these shapes.
+
+The other 372 directed traces try every move at every place. For each of the seven classes
+that can make an effect there are twelve places: no effect, the nine states, and `held` and
+`approved` after two accepted rebinds. A fixed path leads to each place; the path to the
+last one has its first rebind from `approved` and its second from `held`, and the path to
+`not_made` makes it with `not_replaced` for `local_edit` and with `not_sent` for the other
+classes. Then the 26 moves are tried in a fixed order: `propose` with each of the four
+decisions; `rebind` with each digest and with the effect's class or another; `approve` with
+each entry, each digest and each `used`; `reject`; `end`; `begin` with each digest;
+`commit`; `lose`; `not_made` with each of the four causes. For `read`, `prepare` and
+`credential` no place but the first can be reached, and the 26 moves are tried there. A
+trace ends at its twelfth move or at a move that is accepted, and the next trace goes on
+with the next move. So each of the 2,262 triples of class, place and move that can be met
+is in the file: 7 x 12 x 26 and 3 x 1 x 26. Fourteen of them are the `rebind` that is
+refused with `changed`. The other 23 traces are drawn from the seed: a class, a first
+digest, 4 to 12 moves, each move with 60 chances in 100 one that the state accepts when
+there is one, else any of the 26. The export fails when `--count` is below 377.
 
 ## The system and the invariants
 
@@ -413,8 +443,8 @@ The check runs two configurations of one model text, and a person runs a third:
 
 | File | Effects | Rebinds for each effect | Distinct states | Depth |
 |---|---|---|---|---|
-| `Confirm.cfg` | 2 | 1 | 637,933 | 21 |
-| `Rebinds.cfg` | 1 | 2 | 61,728 | 16 |
+| `Confirm.cfg` | 2 | 1 | 933,498 | 21 |
+| `Rebinds.cfg` | 1 | 2 | 64,669 | 16 |
 | `Full.cfg` | 2 | 2 | 1,500,352 | 25 |
 
 Each has two approvals and two digests, and the line `SYMMETRY` counts states that differ
@@ -444,9 +474,11 @@ cannot tell apart:
   and nothing else, and P5 reads the autonomy.
 - An effect is proposed only for the first class of each set of classes that are alike
   (`Lead`): they are of one kind, and the configuration gives them the same decision at
-  each checkpoint. There are three kinds (`Kind`): `purchase`, `payment` and `sign`, which
+  each checkpoint. There are five kinds (`Kind`): `purchase`, `payment` and `sign`, which
   need an approval at `begin`; `read`, `prepare` and `credential`, for which `Step` refuses
-  `propose`; and the other four. The assumption `KindIsEnough` says that `Step` answers
+  `propose`; `local_edit`, the only class that `not_replaced` fits and `not_sent` does not;
+  `submit`, which neither `not_replaced` nor `unauthorized` and `throttled` fit; and `send`
+  and `delete`. The assumption `KindIsEnough` says that `Step` answers
   every move for a class as it answers it for the class's kind, in every state and at
   every count.
 
@@ -456,7 +488,8 @@ reads the configuration in a new place, `Norm` has to keep what that move reads,
 does not check that by itself.
 
 So a trace of TLC shows `purchase` where the same holds for `payment` and `sign`, and
-`send` where the same holds for a class that the configuration treats as it treats `send`.
+`send` where the same holds for `delete` when the configuration treats it as it treats
+`send`.
 
 ## When the policy changes
 

@@ -11,7 +11,8 @@ Autonomies == <<"observe", "draft_and_confirm", "unattended">>
 Classes == <<"read", "prepare", "local_edit", "send", "delete", "submit", "purchase", "payment", "sign", "credential">>
 Allowable == <<"delete", "send", "submit">>
 YesNo == <<"yes", "no">>
-States == <<"none", "refused", "cleared", "held", "rejected", "approved", "releasing", "committed", "unknown">>
+States == <<"none", "refused", "cleared", "held", "rejected", "approved", "releasing", "committed", "unknown", "not_made">>
+Causes == <<"not_sent", "not_replaced", "unauthorized", "throttled">>
 
 Members(q) == {q[i] : i \in DOMAIN q}
 
@@ -31,8 +32,14 @@ Decide(aut, cls, allow, caps, ck) ==
   ELSE IF cls \in allow /\ aut = "unattended" /\ (caps.untrusted = "no" \/ caps.private = "no") THEN "run"
   ELSE "confirm"
 
-Mv(k, dec, id, dig, cls, used) == [k |-> k, dec |-> dec, eff |-> id, dig |-> dig, cls |-> cls, used |-> used]
+Mv(k, dec, id, dig, cls, used) == [k |-> k, dec |-> dec, eff |-> id, dig |-> dig, cls |-> cls, used |-> used, why |-> "-"]
 Bare(k) == Mv(k, "-", "-", "-", "-", "-")
+Gone(w) == [Bare("not_made") EXCEPT !.why = w]
+
+Fits(w, c) ==
+  CASE w = "not_replaced" -> c = "local_edit"
+    [] w = "not_sent" -> c # "local_edit"
+    [] w \in {"unauthorized", "throttled"} -> c \in {"send", "delete"}
 
 Accept(s) == [answer |-> "ok", st |-> s]
 Refuse(x, c) == [answer |-> c, st |-> x.st]
@@ -64,7 +71,7 @@ Step(x, m) ==
          IF x.st \notin {"held", "cleared", "approved"} THEN Refuse(x, "effect")
          ELSE Accept("rejected")
     [] m.k = "begin" ->
-         IF x.st \in {"none", "refused", "rejected", "committed", "releasing"} THEN Refuse(x, "effect")
+         IF x.st \in {"none", "refused", "rejected", "committed", "releasing", "not_made"} THEN Refuse(x, "effect")
          ELSE IF x.st = "unknown" THEN Refuse(x, "unknown")
          ELSE IF x.st = "held" THEN Refuse(x, "approval")
          ELSE IF x.st = "cleared" /\ x.cls \in ApprovalClasses /\ ~BeginUnguarded THEN Refuse(x, "approval")
@@ -76,6 +83,10 @@ Step(x, m) ==
     [] m.k = "lose" ->
          IF x.st # "releasing" THEN Refuse(x, "effect")
          ELSE Accept("unknown")
+    [] m.k = "not_made" ->
+         IF x.st # "releasing" THEN Refuse(x, "effect")
+         ELSE IF ~Fits(m.why, x.cls) THEN Refuse(x, "class")
+         ELSE Accept("not_made")
 
 Rebound(m, r) == m.k = "rebind" /\ r.answer = "ok"
 DigestAfter(x, m, r) == IF Rebound(m, r) THEN m.dig ELSE x.dig
@@ -94,9 +105,14 @@ Moves(c) ==
     Mv("approve", "-", "e2", "d2", "-", "no"), Mv("approve", "-", "e2", "d2", "-", "yes"),
     Bare("reject"), Bare("end"),
     Mv("begin", "-", "-", "d1", "-", "-"), Mv("begin", "-", "-", "d2", "-", "-"),
-    Bare("commit"), Bare("lose")>>
+    Bare("commit"), Bare("lose"),
+    Gone("not_sent"), Gone("not_replaced"), Gone("unauthorized"), Gone("throttled")>>
 
-Kind(c) == IF c \in ApprovalClasses THEN "payment" ELSE IF c \in NoEffect THEN "read" ELSE "send"
+Kind(c) ==
+  IF c \in ApprovalClasses THEN "payment"
+  ELSE IF c \in NoEffect THEN "read"
+  ELSE IF c \in {"local_edit", "submit"} THEN c
+  ELSE "send"
 
 ASSUME KindIsEnough ==
   \A c \in Members(Classes), s \in Members(States), d \in {"d1", "d2"}, n \in 0..Limit :
@@ -387,6 +403,7 @@ Path(c, s) ==
     [] s = "releasing" -> <<Confirmed, Allowed, Begun>>
     [] s = "committed" -> <<Confirmed, Allowed, Begun, Bare("commit")>>
     [] s = "unknown" -> <<Confirmed, Allowed, Begun, Bare("lose")>>
+    [] s = "not_made" -> <<Confirmed, Allowed, Begun, Gone(IF c = "local_edit" THEN "not_replaced" ELSE "not_sent")>>
     [] s = "held at the limit" -> <<Confirmed, Away(c), Back(c)>>
     [] s = "approved at the limit" -> <<Confirmed, Allowed, Away(c), Back(c), Allowed>>
 
@@ -417,8 +434,19 @@ Flat(qq) == IF Len(qq) = 0 THEN <<>> ELSE Head(qq) \o Flat(Tail(qq))
 
 Reached(c) == IF c \in NoEffect THEN <<"none">> ELSE Places
 
+Shut(c, w) ==
+  [cls |-> c, dig |-> "d1",
+   moves |-> Path(c, "releasing") \o <<Gone(w), Begun, Bare("commit"), Bare("lose"), Bare("end"), Gone(w)>>]
+
+Named ==
+  <<Shut("submit", "not_sent"), Shut("local_edit", "not_replaced"), Shut("send", "unauthorized"),
+    Shut("delete", "throttled"),
+    [cls |-> "send", dig |-> "d1",
+     moves |-> Path("send", "releasing") \o <<Bare("end"), Bare("lose")>>
+                 \o <<Gone("not_sent"), Gone("not_replaced"), Gone("unauthorized"), Gone("throttled")>>]>>
+
 Directed(u) ==
-  Flat([i \in 1..Len(Classes) |->
+  Named \o Flat([i \in 1..Len(Classes) |->
           Flat([j \in 1..Len(Reached(Classes[i])) |-> Sweep(Classes[i], Reached(Classes[i])[j], 1)])])
 
 Modulus == 46337
@@ -454,6 +482,7 @@ MoveText(x, m, r) ==
       \o "," \o Quoted("digest") \o ":" \o Optional(m.dig)
       \o "," \o Quoted("bound_class") \o ":" \o Optional(m.cls)
       \o "," \o Quoted("used") \o ":" \o Optional(m.used)
+      \o "," \o Quoted("cause") \o ":" \o Optional(m.why)
       \o "," \o Quoted("answer") \o ":" \o Quoted(r.answer)
       \o "," \o Quoted("state") \o ":" \o StateText(r.st)
       \o "," \o Quoted("bound") \o ":" \o Quoted(DigestAfter(x, m, r)) \o "}"
