@@ -16,8 +16,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::{UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowTextW, CHILDID_SELF, EVENT_OBJECT_NAMECHANGE,
-    EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
+    GetForegroundWindow, GetWindowTextW, InternalGetWindowText, CHILDID_SELF,
+    EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
 
 /// The most UTF-16 units that one title read asks for: the byte cap of a
@@ -57,8 +57,13 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
     let mut buf = [0u16; TITLE_READ_UNITS + 1];
     // SAFETY: `buf` is a live buffer whose length the call takes from the
     // slice; a handle that is no longer a window gives 0.
-    let written = unsafe { GetWindowTextW(hwnd, &mut buf) };
-    let written = usize::try_from(written).unwrap_or(0).min(TITLE_READ_UNITS);
+    let mut written = usize::try_from(unsafe { GetWindowTextW(hwnd, &mut buf) }).unwrap_or(0);
+    if written == 0 {
+        // SAFETY: as above; the call reads the stored text and sends no
+        // message.
+        written = usize::try_from(unsafe { InternalGetWindowText(hwnd, &mut buf) }).unwrap_or(0);
+    }
+    let written = written.min(TITLE_READ_UNITS);
     let mut title = String::from_utf16_lossy(&buf[..written]);
     let mut end = title.len().min(crate::floor::text::TEXT_MAX_BYTES);
     while !title.is_char_boundary(end) {
@@ -341,6 +346,11 @@ mod tests {
 
     impl TitledWindow {
         fn new(title: &[u16]) -> TitledWindow {
+            Self::made(title).0
+        }
+
+        /// The window and whether SetWindowTextW answered success.
+        fn made(title: &[u16]) -> (TitledWindow, bool) {
             use windows::Win32::UI::WindowsAndMessaging::{
                 CreateWindowExW, SetWindowTextW, WINDOW_EX_STYLE, WINDOW_STYLE,
             };
@@ -368,9 +378,8 @@ mod tests {
             text.push(0);
             // SAFETY: `text` is a NUL-terminated wide string that outlives the
             // call, and `hwnd` is the window made above on this thread.
-            unsafe { SetWindowTextW(hwnd, windows::core::PCWSTR(text.as_ptr())) }
-                .expect("the title is set");
-            TitledWindow(hwnd)
+            let set = unsafe { SetWindowTextW(hwnd, windows::core::PCWSTR(text.as_ptr())) }.is_ok();
+            (TitledWindow(hwnd), set)
         }
     }
 
@@ -403,20 +412,57 @@ mod tests {
         assert!(!last.shows_new(1, "Inbox"));
     }
 
+    /// The facts of one long title: whether it was set, the length that the
+    /// system holds, and what each read gives.
+    fn title_facts(units: usize) -> (String, usize, usize) {
+        use windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW;
+        let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), units).collect();
+        let (window, set) = TitledWindow::made(&long);
+        // SAFETY: the calls read the text of the window made above, into live
+        // buffers whose lengths they take from the slices.
+        let (held, capped, whole, internal) = unsafe {
+            let held = usize::try_from(GetWindowTextLengthW(window.0)).unwrap_or(0);
+            let mut capped = [0u16; TITLE_READ_UNITS + 1];
+            let capped = GetWindowTextW(window.0, &mut capped);
+            let mut whole = vec![0u16; held + 1];
+            let whole = GetWindowTextW(window.0, &mut whole);
+            let mut internal = [0u16; TITLE_READ_UNITS + 1];
+            let internal = InternalGetWindowText(window.0, &mut internal);
+            (held, capped, whole, internal)
+        };
+        let read = read_window_title(window.0);
+        let facts = format!(
+            "units={units} set={set} held={held} get_window_text_capped={capped} \
+             get_window_text_whole={whole} internal_get_window_text_capped={internal} \
+             read_bytes={}",
+            read.len()
+        );
+        (facts, held, read.len())
+    }
+
     #[test]
     fn a_title_of_100000_units_is_read_up_to_the_cap() {
-        let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), 100_000).collect();
-        let window = TitledWindow::new(&long);
-        let title = read_window_title(window.0);
-        let units = title.encode_utf16().count();
+        let mut lines = Vec::new();
+        let mut failing = Vec::new();
+        let mut longest_held = 0;
+        for units in [100, 1_024, 1_025, 2_000, 32_767, 100_000] {
+            let (facts, held, read) = title_facts(units);
+            longest_held = longest_held.max(held);
+            let wanted = held.min(crate::floor::text::TEXT_MAX_BYTES);
+            if read != wanted {
+                failing.push(units);
+            }
+            eprintln!("TITLE-READ {facts}");
+            lines.push(facts);
+        }
+        let facts = lines.join("; ");
         assert!(
-            !title.is_empty(),
-            "INCONCLUSIVE: the title was not read ({units} units)"
+            longest_held > crate::floor::text::TEXT_MAX_BYTES,
+            "INCONCLUSIVE: the system held no title above the cap: {facts}"
         );
         assert!(
-            title.len() <= crate::floor::text::TEXT_MAX_BYTES,
-            "a title of {} bytes",
-            title.len()
+            failing.is_empty(),
+            "the read gave other than the held title cut at the cap for {failing:?} units: {facts}"
         );
     }
 
