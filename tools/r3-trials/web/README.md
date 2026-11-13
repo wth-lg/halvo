@@ -360,7 +360,11 @@ debugging port on the loopback address, a control that holds no verdict open.
 
 `src/start.rs` holds every start of a child of the trial's process. `StartLock` is the one lock
 that each start takes, and `clippy.toml` refuses `Command::spawn`, `output` and `status`
-elsewhere in the crate, so a start that skips the lock does not pass clippy.
+elsewhere in the crate, so a start that skips the lock does not pass clippy where clippy runs on
+this crate. No hosted job runs it there today (the crate has its own workspace, outside the root's
+members); the test `a_start_waits_while_the_start_lock_is_held` pins that `Start::start` takes the
+lock. tokio's process feature is off (Cargo.toml), so `tokio::process::Command::spawn` is not in
+the crate and `clippy.toml` needs no line for it.
 
 - macOS: the two pipes are made, and each of their four ends is copied to a number of 10 or more
   with close-on-exec, under the lock. The browser is started by `posix_spawn` with
@@ -384,11 +388,23 @@ elsewhere in the crate, so a start that skips the lock does not pass clippy.
   debugger in its first navigation when that domain is enabled on it.
 - The browser's first reply on the pipe has a deadline, `FIRST_REPLY_WAIT` (30 s). When it passes,
   the executor ends the browser and the start fails with `NO_CHANNEL_MESSAGE`, or with
-  `browser_start` when the first process has already ended. A failed start ends the first process,
-  then each process that began after the start and names the profile (`checks::naming_profile`;
-  its detail says how many as `leftovers_ended_<n>`). On `mac`, before that second end, one failed
-  run of `start_probe` left a browser process with the profile, the pipe flag and no parent for
-  four hours: the end of the first process did not reach it.
+  `browser_start` when the first process has already ended. Every way out of a run ends what the run
+  left (`checks::end_runs_own`, CP-126 E1): the stop after a cell's run (before the guard's wait,
+  and again after the stop's own wait), a failed start, an executor dropped without its stop (a
+  failed cell, and INT and TERM, which reach the program because run.sh ends by exec and drop the
+  row that runs), and a start that a signal cut off. A process is the run's own (`checks::Mark`)
+  when it began at or after the run's start less 1 s, its program lies inside the browser's app
+  bundle on macOS or its install directory on Windows (`StartOptions.program`, the browser itself
+  under the egress wrap), and one of its arguments names the run's profile as a whole path
+  (`names_profile`). Each pass reads the process table, records each such process by number and
+  creation time and ends it by `procs::kill`, which reads the creation time again just before the
+  kill and leaves a number that another process took alone; the routine stops on a pass that finds
+  none (only a process that names the profile can make another one that names it), or after 100
+  passes. Each run line prints `left_before` (the first pass) and `left_after` (the last), and a run
+  with `left_after` above 0 is no ok run. The egress check's shell, its runner and its `log stream`
+  run other programs and are left alone, as is a browser that names another profile. On `mac` one
+  failed run of `start_probe` at 3268a2d3 left a browser process with the profile, the pipe flag and
+  no parent for four hours, which the end of the first process did not reach (037b242c).
 - The start names the browser's first process to the relay, starts the guard of the relay's port
   and asks for `http://halvo-start-probe.invalid/`, an origin that no run binds; it goes on only
   when the relay recorded that refusal within `PROBE_WAIT` (10 s), else it ends the browser with
@@ -478,9 +494,14 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   nothing and leaves no file: run 43333071145). Before each hosted Mac cell the workflow reads the
   policy back: a headless start with no debugging channel (the policy that closes the pipe would
   stop any other read) prints `chrome://policy/`, else `edge://policy/`, to a PDF, and PDFKit reads
-  its text. The page counts when the text holds "policy name" in any case; the cell runs only when
-  the text holds the policy's name, whole, across line breaks or in word pieces up to 12 lines
-  apart, and one more `Platform` source than a read of the page before the write, else the workflow
+  its text. Whether the text names the policy is decided by `r3_web::policy` (CP-126 E3), which
+  `web-trial --policy-named NAME FILE` gives the jobs: on a policy page (a line that begins with
+  "policy name"), the name as a whole word that begins a row, or the pieces of a broken name, each a
+  whole word, in the page's order and spelling the name and nothing more. A longer name, the name
+  inside another policy's value and the text squashed to letters alone name nothing. Run
+  43347520562's reader tested for the name as a part of the text; the fixed rule gives the same
+  answers on that run's saved pages. A hosted Mac cell runs only when the page names the policy
+  and shows one more `Platform` source than a read of the page before the write, else the workflow
   prints `notrun cause=policy_not_seen`. The words of the name's line and the five lines after it
   are printed as words of a closed list (false, direct, Platform, Machine, Mandatory, OK, other).
   Chrome's printed page has the columns Policy name and Source alone, so the value comes from the
@@ -500,6 +521,15 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   also in the text squashed to letters and digits and in word pieces. The one process that the
   harness ends without a recorded id is cfprefsd (`sudo killall cfprefsd`): ending it is how the
   preferences daemon reads the new file.
+- On hosted-win an `org_` cell (CP-126 E7) runs after a start without the setting that replied
+  (`web-trial --org-control BROWSER DIR`, `org_control at=before`), the value that the job reads
+  back from the key after its write, and the browser's own policy page printed headless with no
+  debugging channel and read as text with pypdf, which the job installs for the read (BSD-3-Clause);
+  the call gets the three as `R3_ORG_CONTROL_BEFORE`, `R3_ORG_VALUE_READ` with
+  `R3_ORG_VALUE_WANT`, and `R3_ORG_PAGE_NAMED`, and prints them on the cell line. A run is ok only
+  with a reply, the value as the cell needs it, and the page naming the setting where it could be
+  read (`page_named=unread` with its cause where it could not). After the removal a second control
+  start runs (`org_control at=after`), which the collector puts beside the cell.
 - Flags of the third round that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain`
   (the product's browser keeps its cookies with the system's key store, A8.3), the six rows'
   `--isolate-origins=` (it names the payment site, CP-93 (5)), the port control's
