@@ -907,16 +907,26 @@ self_test_pre_push() {
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
-  upper=$(printf '%s' "$clean" | tr 'a-f' 'A-F')
-  for bad_line in "refs/heads/x $clean refs/heads/x $upper" "refs/heads/x $upper refs/heads/x $no_commit"; do
+  utf8_locale=$(locale -a 2>/dev/null | grep -m 1 -E '^(en_US|C)\.(UTF-8|utf8)$') || utf8_locale=
+  [ -n "$utf8_locale" ] || printf 'case a-line-with-one-field-that-is-no-object-id under a UTF-8 locale not run: this system names no UTF-8 locale\n'
+  for case_locale in C ${utf8_locale:+"$utf8_locale"}; do
+    one_field_got=2
+    line_number=0
+    for bad_line in "refs/heads/x $clean refs/heads/x A${clean#?}" "refs/heads/x A${clean#?} refs/heads/x $no_commit" \
+      "refs/heads/x $clean refs/heads/x F${clean#?}" "refs/heads/x F${clean#?} refs/heads/x $no_commit"; do
+      line_number=$((line_number + 1))
+      status=0
+      (cd "$work/clone" && printf '%s\n' "$bad_line" | LC_ALL=$case_locale sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/one-field-$case_locale-$line_number.txt" 2>&1 || status=$?
+      if [ "$status" != 2 ] || ! grep -qF 'cannot read this line' "$work/out/one-field-$case_locale-$line_number.txt"; then
+        one_field_got="line-$line_number-exit-$status"
+      fi
+      cat "$work/out/one-field-$case_locale-$line_number.txt" >>"$work/out/a-line-with-one-field-that-is-no-object-id-$case_locale.txt"
+    done
+    judge "a-line-with-one-field-that-is-no-object-id-$case_locale" "$one_field_got" 2 'cannot read this line'
     status=0
-    (cd "$work/clone" && printf '%s\n' "$bad_line" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >>"$work/out/a-line-with-one-field-that-is-no-object-id.txt" 2>&1 || status=$?
-    [ "$status" = 2 ] || one_field_status=$status
+    (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' "${clean%?}" "$no_commit" | LC_ALL=$case_locale sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-an-object-id-of-39-characters-$case_locale.txt" 2>&1 || status=$?
+    judge "a-line-with-an-object-id-of-39-characters-$case_locale" "$status" 2 'cannot read this line'
   done
-  judge a-line-with-one-field-that-is-no-object-id "${one_field_status:-2}" 2 'cannot read this line'
-  status=0
-  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' "${clean%?}" "$no_commit" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-an-object-id-of-39-characters.txt" 2>&1 || status=$?
-  judge a-line-with-an-object-id-of-39-characters "$status" 2 'cannot read this line'
 
   exempt_tree=$work/tree-with-an-exempt-commit-named-by-a-later-one
   mkdir -p "$exempt_tree/.githooks" "$exempt_tree/scripts"
