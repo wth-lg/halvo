@@ -166,10 +166,10 @@ fn printable(word: &str) -> &str {
 }
 
 #[cfg(test)]
+#[forbid(unsafe_code)]
 mod tests {
-    use std::alloc::{GlobalAlloc, Layout, System};
     use std::process::Command;
-    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::sync::atomic::Ordering;
 
     use halvo_route::policy::{Basis, PickCell, Row};
     use halvo_route::tier::Level;
@@ -186,48 +186,9 @@ mod tests {
 
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
-    struct Counting;
-
-    static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
-    static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-    static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
-    static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-    static BYTES: AtomicU64 = AtomicU64::new(0);
-
-    thread_local! {
-        static MARK: u8 = const { 0 };
-    }
-
-    fn this_thread() -> usize {
-        MARK.with(|mark| std::ptr::from_ref(mark).addr())
-    }
-
-    #[allow(unsafe_code)]
-    unsafe impl GlobalAlloc for Counting {
-        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let me = this_thread();
-            let first =
-                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
-                    Ok(_) => me,
-                    Err(first) => first,
-                };
-            let (calls, bytes) = if me == first {
-                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
-            } else {
-                (&ALLOCATIONS, &BYTES)
-            };
-            calls.fetch_add(1, Ordering::SeqCst);
-            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
-            System.alloc(layout)
-        }
-
-        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            System.dealloc(ptr, layout)
-        }
-    }
-
-    #[global_allocator]
-    static COUNTING: Counting = Counting;
+    use super::counting::{
+        this_thread, ALLOCATIONS, BYTES, FIRST_ALLOCATIONS, FIRST_BYTES, FIRST_THREAD,
+    };
 
     fn first_thread() -> (u64, u64) {
         (
@@ -845,4 +806,53 @@ mod tests {
             );
         }
     }
+}
+
+#[cfg(test)]
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
+    struct Counting;
+
+    pub(super) static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
+    pub(super) static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
+    pub(super) static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static BYTES: AtomicU64 = AtomicU64::new(0);
+
+    thread_local! {
+        static MARK: u8 = const { 0 };
+    }
+
+    pub(super) fn this_thread() -> usize {
+        MARK.with(|mark| std::ptr::from_ref(mark).addr())
+    }
+
+    #[allow(unsafe_code)]
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            let me = this_thread();
+            let first =
+                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
+                    Ok(_) => me,
+                    Err(first) => first,
+                };
+            let (calls, bytes) = if me == first {
+                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
+            } else {
+                (&ALLOCATIONS, &BYTES)
+            };
+            calls.fetch_add(1, Ordering::SeqCst);
+            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
+            System.alloc(layout)
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            System.dealloc(ptr, layout)
+        }
+    }
+
+    #[global_allocator]
+    static COUNTING: Counting = Counting;
 }
