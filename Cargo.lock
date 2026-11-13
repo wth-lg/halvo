@@ -1441,6 +1441,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-agent-client"
+version = "0.0.0"
+dependencies = [
+ "halvo-schema",
+]
+
+[[package]]
 name = "halvo-agent-gate"
 version = "0.0.0"
 dependencies = [
