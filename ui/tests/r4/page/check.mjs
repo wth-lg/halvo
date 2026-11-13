@@ -1,11 +1,11 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileRules } from './files.mjs';
-import { RECORD_FILE, committedRecord, factsOf, firstDiff, packagesCheck, pushLine, readRecord, recordForm, rotation, stampFault, stampOf, treeBeside } from './record.mjs';
+import { RECORD_FILE, committedRecord, factsOf, firstDiff, packagesCheck, readRecord, recordForm, treeBeside } from './record.mjs';
 import { joined, pageCheck, stage } from './run.mjs';
 
 const USAGE =
-  'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | whole --repo DIR --out FILE | record --repo DIR | push --repo DIR --commit SHA --own K --needs M | selftest --repo DIR --acorn DIR --work DIR';
+  'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | whole --repo DIR --out FILE | record --repo DIR | selftest --repo DIR --acorn DIR --work DIR';
 const FIX = 'fix: sh scripts/r4/ci.d/40-r4-page.sh --record, run through the helper for timed runs, and commit ui/tests/r4/page/record.txt';
 
 function arg(list, name) {
@@ -88,19 +88,21 @@ if (command === 'files') {
 } else if (command === 'page') {
   const write = rest.includes('--write');
   if (rest.length !== (write ? 3 : 2)) refuse();
+  if (!write) packages(repo);
   const r = await pageCheck({ repo, write, needs: !write, log });
+  log('page ran states=' + r.results.length + ' of ' + r.all.length + ' needs_states=' + (r.needs && r.needs.parsed ? r.needs.states : '-') + ' test_items=' + (r.needs && r.needs.parsed ? r.needs.items : '-'));
   log(joined(r.all.length, r.results, r.needs));
   end(r.cause);
 } else if (command === 'whole') {
   const out = arg(rest, '--out');
   if (!out || rest.length !== 4) refuse();
   packages(repo);
-  const { stamp, files } = stampOf(repo);
+  const f = factsOf(repo);
   const text = committedRecord(repo);
-  const fault = stampFault(text, stamp, files);
-  console.log('page record fault=' + (fault || 'none') + ' stamp=' + stamp + ' files=' + files);
-  if (fault) {
-    console.log(FIX);
+  const rec = readRecord(text, f);
+  console.log('page record fault=' + (rec.fault || 'none') + ' stamp=' + f.stamp + ' files=' + f.files + (rec.diff ? ' line=' + rec.diff.line : ''));
+  if (rec.fault) {
+    if (rec.fault !== 'form') console.log(FIX);
     end('record');
   }
   const w = await whole(repo, log);
@@ -123,23 +125,6 @@ if (command === 'files') {
   const others = treeBeside(repo);
   console.log('page record written stamp=' + w.facts.stamp + ' files=' + w.facts.files + ' other_changes=' + others.length);
   end(others.length ? 'dirty' : null);
-} else if (command === 'push') {
-  const commit = arg(rest, '--commit');
-  const own = count(arg(rest, '--own'));
-  const needsCount = arg(rest, '--needs') === '0' ? 0 : count(arg(rest, '--needs'));
-  if (rest.length !== 8 || !/^[0-9a-f]{40}$/.test(commit || '') || own === null || needsCount === null) refuse();
-  packages(repo);
-  const f = factsOf(repo);
-  const rec = readRecord(committedRecord(repo), f);
-  console.log('page record fault=' + (rec.fault || 'none') + ' stamp=' + f.stamp + ' files=' + f.files + (rec.diff ? ' line=' + rec.diff.line : ''));
-  if (rec.fault === 'stamp' || rec.fault === 'missing') console.log(FIX);
-  if (rec.fault) end('record');
-  const only = rotation(commit, f.all).slice(0, own);
-  const needsOnly = rotation(commit, [...f.all, ...f.items]).slice(0, needsCount);
-  const r = await pageCheck({ repo, needs: true, only, needsOnly, log });
-  console.log('page live own=' + only.length + ' of ' + f.all.length + ' needs=' + needsOnly.length + ' of ' + (f.all.length + f.items.length) + ' recorded=' + rec.own + ' recorded_' + rec.browser.replace(/^browser /, '').replace(' ', ' recorded_'));
-  console.log(pushLine(f.all.length, rec.line, r.results, r.needs));
-  end(r.cause);
 } else if (command === 'selftest') {
   const acorn = arg(rest, '--acorn');
   const work = arg(rest, '--work');

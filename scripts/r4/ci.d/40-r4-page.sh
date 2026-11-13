@@ -1,11 +1,9 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every view file keeps to the rules of a view file; the macos job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ again and requires the committed record to be its record byte for byte, and the windows job requires the record to name the stamp of the files that the run reads and to be the record of a passing run, and runs again the states that its commit draws.
+# rule: Every view file keeps to the rules of a view file, and each job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ in its own browser; the macos job also requires the committed record to be the record of its run byte for byte.
 set -u
 name=40-r4-page
 nested=self-test-of-$name
-own_per_push=4
-needs_per_push=4
 
 usage() {
   printf 'FAIL %s (usage)\n' "$name"
@@ -17,12 +15,14 @@ help() {
 usage: sh scripts/r4/ci.d/40-r4-page.sh [--self-test | --record | --help]
 
 Through the driver: sh scripts/ci/run-ci-d.sh <macos|windows> 40-r4-page.
-The job macos, and a call without the driver's job name, makes the whole run
-again from the commit's files and compares its record with the committed
-ui/tests/r4/page/record.txt byte for byte. The job windows checks the stamp,
-reads the record and runs again the 4 states and 4 page.mjs names that the
-SHA-256 of the commit draws, in Chromium. --record writes the committed record
-and is run through the helper for timed runs.
+Each job makes the whole run from the commit's files in the browser that
+tools/r4-page/browser.txt names for its machine: every state of
+ui/tests/fixtures/coord/ with its views, the status region, and page.mjs on
+every state and every test item. The job macos, and a call without the
+driver's job name, reads ui/tests/r4/page/record.txt first and then requires
+it to be the record of its run byte for byte. The job windows compares nothing
+with the record. --record writes the committed record and is run through the
+helper for timed runs.
 
 The stamp holds every tracked file under ui/ and tools/r4-page/,
 docs/r4/page-features.txt and this script, as the index holds them. Before a
@@ -37,9 +37,8 @@ Limits, each with its manual step:
   trusted by fetch.sh's marker and by their versions alone.
   Step for both: fetch into a new empty directory with
   sh tools/r4-page/fetch.sh DIR, run this script with --record through the
-  helper for timed runs, and read the difference of the record. In WebKit the
-  whole run of the macos job shows such a change at once; in Chromium it shows
-  on the states that a push draws.
+  helper for timed runs, and read the difference of the record. The whole run
+  of each job shows such a change on every state in its own engine.
 - The rules of a view file read the text, decoded names and string literals,
   a member named write or writeln, a with statement and a computed key that
   joins string literals. A key built at run time, an alias of window, eval,
@@ -184,8 +183,7 @@ measure() {
   files_step
   browsers
   if [ "${CI_D_JOB:-}" = windows ]; then
-    commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null) || fail setup
-    node_to "$artifacts/page.txt" "$page/check.mjs" push --repo "$repo" --commit "$commit" --own "$own_per_push" --needs "$needs_per_push"
+    node_to "$artifacts/page.txt" "$page/check.mjs" page --repo "$repo"
   else
     node_to "$artifacts/page.txt" "$page/check.mjs" whole --repo "$repo" --out "$artifacts/record-fresh.txt"
   fi
@@ -240,9 +238,9 @@ case ${R4_STUB:-} in
     echo 'check result=ok'
     exit 0
     ;;
-  whole-record | push-record)
+  whole-record | page-record)
     case "${R4_STUB%-record} $* " in
-      "whole "*" whole "* | "push "*" push "*)
+      "whole "*" whole "* | "page "*" page "*)
         echo 'page record fault=stamp'
         echo 'check result=record'
         exit 1
@@ -411,7 +409,7 @@ self_test() {
   script_case a-run-that-changes-a-tracked-file FAIL:dirty env R4_STUB=dirty R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-dirty" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-run-that-changes-a-tracked-file-outside-the-inputs FAIL:dirty env R4_STUB=dirty-outside R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-dirty-outside" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-whole-run-that-fails-on-the-record FAIL:record env R4_STUB=whole-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
-  script_case a-windows-push-that-fails-on-the-record FAIL:record env CI_D_JOB=windows R4_STUB=push-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record-windows" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
+  script_case a-windows-run-that-fails FAIL:record env CI_D_JOB=windows R4_STUB=page-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record-windows" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   empty_after a-run-that-passes-leaves-no-temporary-directory pass-tmp R4_STUB=pass R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts"
   signal_case
   [ "$wrong" -eq 0 ] || fail cases

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ACTS_FILE, FIXTURES_DIR, NAMES, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
-import { RECORD_FILE, committedRecord, factsOf, packagesCheck, pushLine, readRecord, recordForm, rotation, stampOf, treeBeside } from './record.mjs';
+import { RECORD_FILE, committedRecord, factsOf, packagesCheck, readRecord, recordForm, stampOf, treeBeside } from './record.mjs';
 import { loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -201,8 +201,6 @@ function recordFault(dir) {
   return readRecord(committedRecord(dir), factsOf(dir)).fault || 'pass';
 }
 
-const OK_LINE = ' violations=0 review=0 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok';
-
 const line = (start, change) => (text) => text.split('\n').map((l) => (l.startsWith(start) ? change(l) : l)).join('\n');
 const drop = (start) => (text) => text.split('\n').filter((l) => !l.startsWith(start)).join('\n');
 
@@ -371,15 +369,6 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   const pw = join(versionDiffers, 'node_modules', 'playwright', 'package.json');
   writeFileSync(pw, JSON.stringify({ ...JSON.parse(readFileSync(pw, 'utf8')), version: '0.0.1' }));
   report('packages-a-version-differs', 'browser', packagesCheck(repo, versionDiffers).cause || 'pass');
-  const a = rotation('0'.repeat(40), states);
-  const b = rotation('1'.repeat(40), states);
-  report('rotation-reads-every-state-once', 'pass', a.slice().sort().join() === states.join() ? 'pass' : 'fail');
-  report('rotation-of-one-commit-is-the-same', 'pass', rotation('0'.repeat(40), states).join() === a.join() ? 'pass' : 'fail');
-  report('rotation-of-another-commit-reads-others-first', 'pass', a.slice(0, 3).join() !== b.slice(0, 3).join() ? 'pass' : 'fail');
-  const okLine = 'page states=' + states.length + OK_LINE;
-  const missed = [{ line: { ...one.line, violations: 0, review: 0, keyboard: 'miss', structure: 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' } }];
-  report('push-line-shows-a-miss-of-the-push', 'pass', / keyboard=miss /.test(pushLine(states.length, okLine, missed, null)) ? 'pass' : 'fail');
-  report('push-line-of-a-clean-push', 'pass', pushLine(states.length, okLine, [], null) === okLine ? 'pass' : 'fail');
 }
 
 /** The cases that run the views in the browser of the machine: an unchanged control and one planted fault per check and per region rule. */
@@ -497,6 +486,9 @@ export async function wholeCases({ repo, work, report }) {
   git(byHand, 'add', '-A');
   const f = stampOf(byHand);
   writeFileSync(join(byHand, RECORD_FILE), text.replace(/^stamp=\S+ files=\d+$/m, 'stamp=' + f.stamp + ' files=' + f.files));
+  const windows = runCheck(repo, ['page', '--repo', byHand]);
+  const ran = windows.lines.some((l) => l === 'page ran states=' + SMALL_STATES.length + ' of ' + SMALL_STATES.length + ' needs_states=' + SMALL_STATES.length + ' test_items=1');
+  report('windows-form-runs-every-state-and-fails-on-a-broken-one', 'page', ran ? windows.cause : 'ran-' + windows.cause);
   report('whole-a-hand-record-over-a-wrong-structure-file', 'page', runCheck(repo, ['whole', '--repo', byHand, '--out', join(work, 'fresh-a.txt')]).cause);
   const stale = join(work, 'whole-a-stale-record-fails-before-the-run');
   cpSync(fx, stale, { recursive: true });

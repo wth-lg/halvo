@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FIXTURES_DIR, statesOf } from './files.mjs';
-import { KEYS, joined, plan } from './run.mjs';
+import { plan } from './run.mjs';
 
 export const RECORD_FILE = join('ui', 'tests', 'r4', 'page', 'record.txt');
 const RECORD_PATH = 'ui/tests/r4/page/record.txt';
@@ -158,24 +158,4 @@ export function readRecord(text, facts) {
   if (diff) return { fault: 'form', diff };
   const lines = want.split('\n');
   return { fault: null, browser: lines[2], line: lines[lines.length - 3], own: facts.runs.length };
-}
-
-/** The names of a list in the order of the SHA-256 of the commit and the name, so that each commit reads others and a second run of one commit reads the same. */
-export function rotation(commit, names) {
-  const key = (n) => createHash('sha256').update(commit + '\0' + n).digest('hex');
-  return names.slice().sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
-}
-
-/** The line of contracts.md I9.3 for a push: the record's line, with what a run of this push missed and its violations added. */
-export function pushLine(count, recordLine, results, needs) {
-  const v = Object.fromEntries(recordLine.split(' ').slice(1).map((kv) => kv.split('=')));
-  const live = joined(count, results, needs);
-  const l = Object.fromEntries(live.split(' ').slice(1).map((kv) => kv.split('=')));
-  const out = { violations: Number(v.violations) + Number(l.violations), review: Number(v.review) };
-  for (const k of KEYS) out[k] = v[k] === 'ok' || v[k] === 'same' ? l[k] : v[k];
-  const off = new Set([...(v.modes_off === '-' ? [] : v.modes_off.split(',')), ...(l.modes_off === '-' ? [] : l.modes_off.split(','))]);
-  return (
-    'page states=' + count + ' violations=' + out.violations + ' review=' + out.review + ' keyboard=' + out.keyboard + ' structure=' + out.structure +
-    ' size=' + out.size + ' modes=' + out.modes + ' modes_off=' + (off.size ? [...off].sort().join(',') : '-') + ' markup=' + out.markup
-  );
 }
