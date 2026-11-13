@@ -290,7 +290,7 @@ fn each_routine_reads_the_days_of_its_own_key() {
 }
 
 #[test]
-fn an_unreadable_row_of_the_family_makes_the_step_return_nothing() {
+fn an_unreadable_learn_run_or_learn_routine_row_makes_the_step_return_nothing() {
     let mut store = Store::default();
     store.put_routine(&fresh(1, DAY));
     assert_eq!(store.step(DAY + 30).len(), 1);
@@ -300,6 +300,18 @@ fn an_unreadable_row_of_the_family_makes_the_step_return_nothing() {
         broken.rows.push((bad.0, bad.1.to_owned()));
         assert!(broken.step(DAY + 30).is_empty(), "{}", bad.0);
     }
+}
+
+#[test]
+fn an_unreadable_learn_edit_row_does_not_stop_the_step() {
+    let first = fresh(1, DAY);
+    let mut store = Store::default();
+    store.put_routine(&first);
+    store.rows.push(("learn_edit", "{}".to_owned()));
+    assert_eq!(
+        only_row(&store.step(DAY + 30)),
+        with_figures(&first, 2, DAY + 30, &figures(&first))
+    );
 }
 
 #[test]

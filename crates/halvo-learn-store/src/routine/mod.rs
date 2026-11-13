@@ -17,12 +17,14 @@ mod tests;
 const REWRITE_DAYS: u32 = 30;
 
 /// The routine step of the learning run (contracts.md L4.5, L6), a `WriterStep` that a host puts after the
-/// recurrence step. After each committed batch it reads the bounded summaries and the rows of the family `learn`.
-/// For the newest `learn_routine` row of each workflow and agent it applies `routine_step` of halvo-learn to that
-/// row's figures, the occurrence days of L6.1 and the day of the host's clock, and returns the new row, with
-/// `rev` + 1 and `day` today, where its mark, `period` or `last` differs from the newest row's or the newest row
-/// is 30 or more days old. It returns `learn_routine` rows alone, and nothing when a row of the family cannot be
-/// read or the clock gives day 0.
+/// recurrence step. After each committed batch it reads the bounded summaries and the rows of the kinds
+/// `learn_routine` and `learn_run` of the family `learn`; it reads no `learn_edit` row. For the newest
+/// `learn_routine` row of each workflow and agent it applies `routine_step` of halvo-learn to that row's figures,
+/// the occurrence days of L6.1 and the day of the host's clock, and returns the new row, with `rev` + 1 and `day`
+/// today, where its mark, `period` or `last` differs from the newest row's or the newest row is 30 or more days
+/// old. A summary is an occurrence when its category and its whole site value, the source included, equal the
+/// row's, or, where both have no site, its app equals the row's. It returns `learn_routine` rows alone, and
+/// nothing when a `learn_routine` or `learn_run` row cannot be read or the clock gives day 0.
 pub struct LearnStep<C> {
     clock: C,
 }
