@@ -608,6 +608,167 @@ mod tests {
         );
     }
 
+    /// What a [`Held`] transport does once its bytes are read.
+    #[derive(Debug, Clone, Copy)]
+    enum Then {
+        /// Every read times out, as a socket whose peer keeps the connection.
+        Silence,
+        /// One more byte, then the end.
+        Byte,
+        /// An error of the transport that is no timeout.
+        Fails,
+        /// The end of the stream.
+        End,
+    }
+
+    /// A transport that gives `bytes` and then does as `then` says, and records each timeout
+    /// that it is asked for.
+    #[derive(Clone)]
+    struct Held {
+        bytes: Vec<u8>,
+        at: std::sync::Arc<std::sync::Mutex<usize>>,
+        then: Then,
+        timeouts: std::sync::Arc<std::sync::Mutex<Vec<Duration>>>,
+    }
+
+    impl Held {
+        fn new(bytes: Vec<u8>, then: Then) -> Self {
+            Self {
+                bytes,
+                at: std::sync::Arc::default(),
+                then,
+                timeouts: std::sync::Arc::default(),
+            }
+        }
+
+        fn last_timeout(&self) -> Duration {
+            *self.timeouts.lock().unwrap().last().unwrap()
+        }
+    }
+
+    impl Read for Held {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let mut at = self.at.lock().unwrap();
+            if *at < self.bytes.len() {
+                let n = buf.len().min(self.bytes.len() - *at);
+                buf[..n].copy_from_slice(&self.bytes[*at..*at + n]);
+                *at += n;
+                return Ok(n);
+            }
+            match self.then {
+                Then::Silence => Err(ErrorKind::WouldBlock.into()),
+                Then::Byte if *at == self.bytes.len() && !buf.is_empty() => {
+                    *at += 1;
+                    buf[0] = b'x';
+                    Ok(1)
+                }
+                Then::Byte | Then::End => Ok(0),
+                Then::Fails => Err(ErrorKind::ConnectionReset.into()),
+            }
+        }
+    }
+
+    impl Write for Held {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Transport for Held {
+        fn set_timeout(&mut self, timeout: Duration) -> std::io::Result<()> {
+            self.timeouts.lock().unwrap().push(timeout);
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Connector for Held {
+        type Transport = Held;
+
+        fn endpoint(&self) -> String {
+            "held".into()
+        }
+
+        fn connect(&self, _: Duration) -> Result<Held, ClientError> {
+            Ok(self.clone())
+        }
+    }
+
+    fn status_frame() -> Vec<u8> {
+        framed(&crate::proto::encode_reply(&Reply::Status(sample_status(
+            Platform::Macos,
+        ))))
+    }
+
+    #[test]
+    fn the_wait_after_a_whole_reply_frame_is_250_ms() {
+        assert_eq!(crate::REPLY_END_WAIT_MS, 250);
+    }
+
+    #[test]
+    fn a_reply_frame_and_then_silence_is_the_reply_after_a_wait_of_the_named_constant() {
+        let held = Held::new(status_frame(), Then::Silence);
+        let client = Client::new(held.clone());
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        assert_eq!(
+            held.last_timeout(),
+            Duration::from_millis(crate::REPLY_END_WAIT_MS)
+        );
+    }
+
+    #[test]
+    fn the_wait_after_a_reply_frame_never_passes_the_request_s_deadline() {
+        let held = Held::new(status_frame(), Then::Silence);
+        let mut deadlines = Deadlines::V1;
+        deadlines.read = Duration::from_millis(100);
+        let client = Client::with_deadlines(held.clone(), deadlines);
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        assert!(held.last_timeout() <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn a_byte_inside_the_wait_after_a_reply_frame_is_trailing() {
+        let client = Client::new(Held::new(status_frame(), Then::Byte));
+        match client.status() {
+            Err(ClientError::Protocol(text)) => assert!(text.contains("bytes follow the frame")),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_error_of_the_transport_after_a_reply_frame_is_the_reply() {
+        let client = Client::new(Held::new(status_frame(), Then::Fails));
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn the_end_of_the_stream_after_a_reply_frame_is_the_reply() {
+        let client = Client::new(Held::new(status_frame(), Then::End));
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn half_a_reply_frame_held_open_is_the_deadline_and_half_a_frame_then_the_end_is_truncated() {
+        let mut half = status_frame();
+        half.truncate(half.len() / 2);
+        let held = Client::new(Held::new(half.clone(), Then::Silence));
+        assert!(matches!(held.status(), Err(ClientError::Deadline { .. })));
+        let ended = Client::new(Held::new(half, Then::End));
+        match ended.status() {
+            Err(ClientError::Protocol(text)) => assert!(text.contains("ended inside a frame")),
+            other => panic!("{other:?}"),
+        }
+        let prefix = Client::new(Held::new(vec![0, 0], Then::Silence));
+        assert!(matches!(prefix.status(), Err(ClientError::Deadline { .. })));
+    }
+
     #[test]
     fn the_plain_read_sends_no_claim_and_the_claim_method_sends_one() {
         let (client, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));

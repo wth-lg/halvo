@@ -361,6 +361,43 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn a_peer_that_sends_its_whole_reply_and_keeps_the_connection_gives_the_reply_inside_the_deadline(
+    ) {
+        use std::io::{Read, Write};
+
+        let (_base, dir) = short_data_dir();
+        crate::testing::make_private_dir(&dir.run_dir()).unwrap();
+        let listener = std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap();
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let _ = stream.read_to_end(&mut request);
+            let body = crate::proto::encode_reply(&crate::proto::Reply::Status(sample_status(
+                Platform::Macos,
+            )));
+            let mut frame = (body.len() as u32).to_be_bytes().to_vec();
+            frame.extend_from_slice(&body);
+            stream.write_all(&frame).unwrap();
+            let _ = held.recv_timeout(Duration::from_secs(10));
+        });
+        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let started = Instant::now();
+        let reply = client.status();
+        let took = started.elapsed();
+        let _ = release.send(());
+        server.join().unwrap();
+        assert_eq!(reply.unwrap(), sample_status(Platform::Macos));
+        assert!(
+            took < Duration::from_millis(1_500),
+            "the reply took {took:?} against a deadline of 2 s"
+        );
+    }
+
     const CHILD_DATA_DIR: &str = "HALVO_CONTROL_TEST_CHILD_DATA_DIR";
 
     #[test]

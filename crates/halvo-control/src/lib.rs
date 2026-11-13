@@ -25,6 +25,10 @@ pub const STOP_WAIT_MS: u64 = 20_000;
 
 pub const SESSION_END_BUDGET_MS: u64 = 3_000;
 
+/// How long the client waits after a whole reply frame for what follows it, and never past
+/// the request's deadline (ruling PL-8 part (1)(b)).
+pub const REPLY_END_WAIT_MS: u64 = 250;
+
 /// The exit statuses of halvo-capture that a starter, ctl and the gate read (contracts.md 0.4).
 pub mod exit {
     pub const CLEAN: i32 = 0;
