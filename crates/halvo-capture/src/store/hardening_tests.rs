@@ -7032,26 +7032,58 @@ fn root_and_key_file_after_the_first_call(
 #[test]
 fn delete_all_on_a_damaged_page_destroys_the_root_and_the_key_file_in_its_first_call() {
     let dir = tempfile::tempdir().unwrap();
-    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
-    for i in 0..40u8 {
-        store.write_segment(&mut Cursor::new(vec![i; 64])).unwrap();
+    let (segment, key_id) = store
+        .write_segment(&mut Cursor::new(b"with events"))
+        .unwrap();
+    for i in 1..=10u64 {
+        let event = crate::event::CaptureStreamEvent::new_raw(
+            crate::event::CapturedAt {
+                wall_clock: std::time::SystemTime::now(),
+                sequence: crate::event::MonotonicSequence::new(i),
+            },
+            crate::event::Modality::ForegroundApp,
+            format!("com.example.app-{i}"),
+            segment.clone(),
+            key_id,
+        );
+        store.append_event(&event).unwrap();
     }
+    let index_page: i64 = store
+        .db()
+        .unwrap()
+        .connection()
+        .query_row(
+            "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'events'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     store.db().unwrap().checkpoint_truncate().unwrap();
+    drop(store);
     let mut db = std::fs::File::options()
         .write(true)
         .open(store_dir.join("store.db"))
         .unwrap();
-    std::io::Seek::seek(&mut db, std::io::SeekFrom::Start(4096 + 100)).unwrap();
+    std::io::Seek::seek(
+        &mut db,
+        std::io::SeekFrom::Start((index_page as u64 - 1) * 4096 + 100),
+    )
+    .unwrap();
     db.write_all(&[0xA5; 512]).unwrap();
     db.sync_all().unwrap();
     drop(db);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let first = store.delete_all();
     let (root_left, key_left) =
         root_and_key_file_after_the_first_call(&store_dir, &roots_dir, root_id);
     println!("case delete_all={first:?} store_key_file_exists={key_left} root_exists={root_left}");
     assert!(!root_left && !key_left, "{first:?}");
-    assert!(!segment_path(&store_dir, segment_id).exists());
+    assert_eq!(
+        files_under(&store_dir.join("segments")),
+        Vec::<PathBuf>::new()
+    );
 }
 
 #[test]
@@ -7404,41 +7436,54 @@ fn two_processes_that_create_on_one_directory_never_both_answer_ok() {
 }
 
 #[test]
-fn two_creates_in_one_process_on_one_directory_never_both_answer_ok() {
+fn a_second_create_in_one_process_is_refused_while_a_first_is_under_way() {
     const RUNS: usize = 20;
     let mut both_ok = 0;
     for _ in 0..RUNS {
         let dir = tempfile::tempdir().unwrap();
-        let barrier = Arc::new(std::sync::Barrier::new(2));
-        let creators: Vec<_> = (0..2)
-            .map(|index| {
-                let (dir, barrier) = (dir.path().to_path_buf(), Arc::clone(&barrier));
-                std::thread::spawn(move || {
-                    let custody = file_root_custody(
-                        &dir.join(format!("roots-{index}")),
-                        TestProtector::new(0x5a).0,
-                        RootId::fresh().unwrap(),
-                    );
-                    barrier.wait();
-                    let created = EncryptedStore::create(
-                        &dir.join("store"),
-                        Box::new(custody),
+        let store_dir = dir.path().join("store");
+        let second_answer = Arc::new(std::sync::Mutex::new(None));
+        let act = {
+            let (store_dir, roots, second_answer) = (
+                store_dir.clone(),
+                dir.path().join("roots-1"),
+                Arc::clone(&second_answer),
+            );
+            move || {
+                let _ = std::fs::remove_file(store_dir.join("writer.lock"));
+                let (store_dir, roots) = (store_dir.clone(), roots.clone());
+                let second = std::thread::spawn(move || {
+                    EncryptedStore::create(
+                        &store_dir,
+                        Box::new(file_root_custody(
+                            &roots,
+                            TestProtector::new(0x5a).0,
+                            RootId::fresh().unwrap(),
+                        )),
                         DEFAULT_RETENTION,
-                    );
-                    let ok = created.is_ok();
-                    std::thread::sleep(Duration::from_millis(20));
-                    ok
+                    )
+                    .is_ok()
                 })
-            })
-            .collect();
-        let oks = creators
-            .into_iter()
-            .map(|c| c.join().unwrap())
-            .filter(|ok| *ok)
-            .count();
-        if oks == 2 {
+                .join()
+                .unwrap();
+                *second_answer.lock().unwrap() = Some(second);
+            }
+        };
+        let seam = super::failpoint::at(super::db::SEAM_BEFORE_THE_MODE_STEP, nth_call(1, act));
+        let first = EncryptedStore::create(
+            &store_dir,
+            Box::new(file_root_custody(
+                &dir.path().join("roots-0"),
+                TestProtector::new(0x5a).0,
+                RootId::fresh().unwrap(),
+            )),
+            DEFAULT_RETENTION,
+        );
+        drop(seam);
+        if *second_answer.lock().unwrap() == Some(true) {
             both_ok += 1;
         }
+        drop(first);
     }
     println!("CREATE-RACE-IN-PROCESS runs={RUNS} both_ok={both_ok}");
     assert_eq!(both_ok, 0);
