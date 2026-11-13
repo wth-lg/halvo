@@ -6,6 +6,7 @@ mod card;
 mod outcome;
 mod scripted;
 mod serve;
+mod system;
 
 pub const ALLOW: ConfirmAnswer = ConfirmAnswer::Allow;
 pub const REJECT: ConfirmAnswer = ConfirmAnswer::Reject;

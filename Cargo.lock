@@ -1525,9 +1525,13 @@ name = "halvo-coord-app"
 version = "0.0.0"
 dependencies = [
  "halvo-coord",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",
+ "windows",
 ]
 
 [[package]]
