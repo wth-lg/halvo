@@ -224,6 +224,16 @@ impl<T> HeldKeys<T> {
         }
     }
 
+    /// Takes the reading of a key event that came late or untimed: the
+    /// callback ran late, so every held key is dropped and none is released.
+    pub fn late_reading(&mut self, at: Monotonic, cause: Cause) -> Step<T> {
+        self.previous = Some(at);
+        Step::Dropped {
+            keys: self.drop_all(),
+            cause,
+        }
+    }
+
     /// Admits a key that arrived at `arrival` under `reading`, the reading
     /// taken for its own event, with its timing.
     pub fn admit(
@@ -293,6 +303,20 @@ mod tests {
             );
         }
         hold
+    }
+
+    #[test]
+    fn a_late_reading_drops_a_key_that_is_due_and_releases_none() {
+        let mut hold = held(&[0, 1]);
+        assert_eq!(
+            hold.late_reading(at(1_000), Cause::LateKey),
+            Step::Dropped {
+                keys: 2,
+                cause: Cause::LateKey
+            }
+        );
+        assert!(hold.is_empty());
+        assert_eq!(hold.reading(Reading::Off, at(1_010)), Step::Waiting);
     }
 
     #[test]

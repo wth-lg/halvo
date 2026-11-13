@@ -615,24 +615,36 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
     if kind == Kind::Ignore {
         return;
     }
-    let arrival = (ctx.clocks.monotonic)();
-    let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
-    let step = state.keys.reading(reading, at);
-    if kind == Kind::Key {
-        let lag = match event.timing {
-            Timing::InTime { lag } => lag,
-            _ => Duration::ZERO,
+    if ctx.stop.load(Ordering::SeqCst) {
+        state.keys.drop_all();
+    } else {
+        let arrival = (ctx.clocks.monotonic)();
+        let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
+        let step = match (kind, event.timing) {
+            (Kind::Key | Kind::Reading, Timing::Late { .. }) => {
+                state.keys.late_reading(at, Cause::LateKey)
+            }
+            (Kind::Key | Kind::Reading, Timing::Untimed) => {
+                state.keys.late_reading(at, Cause::UntimedKey)
+            }
+            _ => state.keys.reading(reading, at),
         };
-        let key = HeldKey {
-            instant: SystemTime::now()
-                .checked_sub(lag)
-                .unwrap_or(SystemTime::UNIX_EPOCH),
-            app: ctx.foreground.get(),
-        };
-        let admission = state.keys.admit(reading, event.timing, arrival, key);
-        ctx.admitted(admission, event.timing);
+        if kind == Kind::Key {
+            let lag = match event.timing {
+                Timing::InTime { lag } => lag,
+                _ => Duration::ZERO,
+            };
+            let key = HeldKey {
+                instant: SystemTime::now()
+                    .checked_sub(lag)
+                    .unwrap_or(SystemTime::UNIX_EPOCH),
+                app: ctx.foreground.get(),
+            };
+            let admission = state.keys.admit(reading, event.timing, arrival, key);
+            ctx.admitted(admission, event.timing);
+        }
+        ctx.release(&mut state, step);
     }
-    ctx.release(&mut state, step);
     ctx.settle_timer(&mut state);
     drop(state);
     if kind == Kind::Pointer {
@@ -649,9 +661,13 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
 fn on_reading_tick(ctx: &TapContext) {
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
-    let (reading, at) = ctx.reading(&mut state, false);
-    let step = state.keys.reading(reading, at);
-    ctx.release(&mut state, step);
+    if ctx.stop.load(Ordering::SeqCst) {
+        state.keys.drop_all();
+    } else {
+        let (reading, at) = ctx.reading(&mut state, false);
+        let step = state.keys.reading(reading, at);
+        ctx.release(&mut state, step);
+    }
     ctx.settle_timer(&mut state);
 }
 
@@ -3559,6 +3575,119 @@ mod tests {
         assert_eq!(steps, ["enable", "make refused", "disable"]);
         assert_eq!(threads.len(), 1);
         assert!(!threads.contains(&std::thread::current().id()));
+    }
+
+    #[test]
+    fn a_late_key_at_the_bound_drops_the_key_its_own_reading_would_release() {
+        let held = held(100);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 90);
+        assert_eq!(
+            held_now(&held.ctx),
+            1,
+            "the key waits until it is 100 ms old"
+        );
+        advance(10);
+        on_tap_event(
+            &held.ctx,
+            TapEvent {
+                timing: Timing::Late {
+                    lag: Duration::from_millis(40),
+                },
+                ..event(CGEventType::KeyDown)
+            },
+        );
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(held.counters.figures().keys_withheld);
+        assert!(held.counters.stalled(), "a late key is a timing fault");
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn an_untimed_key_at_the_bound_drops_every_held_key_with_the_oldest() {
+        let held = held(100);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 90);
+        advance(10);
+        on_tap_event(
+            &held.ctx,
+            TapEvent {
+                timing: Timing::Untimed,
+                ..event(CGEventType::KeyDown)
+            },
+        );
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_late_key_up_drops_every_held_key() {
+        let held = held(100);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 50);
+        advance(5);
+        on_tap_event(
+            &held.ctx,
+            TapEvent {
+                timing: Timing::Late {
+                    lag: Duration::from_millis(40),
+                },
+                ..event(CGEventType::KeyUp)
+            },
+        );
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(held.counters.stalled());
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_reading_of_on_after_a_stop_is_asked_withholds_nothing() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        tick(&held.ctx);
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::KeyUp));
+        assert_eq!(held_now(&held.ctx), 0);
+        assert_eq!(keystrokes(&held.writer), 0);
+        assert!(!held.counters.figures().keys_withheld);
+    }
+
+    #[test]
+    fn a_key_event_after_a_stop_is_asked_moves_nothing() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::KeyUp));
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(!held.counters.figures().keys_withheld);
+        assert_eq!(held.counters.suppressed_keys(), 0);
+    }
+
+    #[test]
+    fn a_gap_after_a_stop_is_asked_leaves_the_source_unstalled() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        advance(40);
+        on_reading_tick(&held.ctx);
+        advance(40);
+        on_tap_event(&held.ctx, event(CGEventType::KeyDown));
+        assert_eq!(
+            held_now(&held.ctx),
+            0,
+            "no key is held after the stop is asked"
+        );
+        assert!(!held.counters.stalled());
+        assert!(!held.counters.figures().keys_withheld);
+        assert!(lock(&held.ctx.hold).timer.is_none());
     }
 
     #[test]
