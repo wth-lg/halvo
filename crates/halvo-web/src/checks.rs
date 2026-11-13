@@ -1310,6 +1310,7 @@ mod tests {
                 pid: std::process::id(),
                 ppid: 1,
                 started_us: 0,
+                pgid: 0,
                 exe: None,
             };
             let _ = check_named(&Subject {
@@ -1342,6 +1343,7 @@ mod tests {
             pid: std::process::id(),
             ppid: 1,
             started_us: 0,
+            pgid: 0,
             exe: None,
         };
         let subject = Subject {
@@ -1438,6 +1440,7 @@ mod tests {
             pid,
             ppid,
             started_us: if pid == 100 { 10 } else { 20 },
+            pgid: 0,
             exe: Some(std::path::PathBuf::from(exe)),
         };
         let table = vec![
@@ -1474,6 +1477,7 @@ mod tests {
             pid,
             ppid: 1,
             started_us: 10,
+            pgid: 0,
             exe: Some(std::path::PathBuf::from("/b/x")),
         };
         let reads = std::cell::Cell::new(0);

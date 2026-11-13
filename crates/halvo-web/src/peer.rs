@@ -619,6 +619,7 @@ mod tests {
             pid,
             ppid,
             started_us,
+            pgid: 0,
             exe: None,
         }
     }

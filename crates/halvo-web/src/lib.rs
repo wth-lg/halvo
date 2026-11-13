@@ -4,6 +4,7 @@
 pub mod checks;
 #[cfg(test)]
 mod child;
+pub mod guard;
 pub mod peer;
 pub mod pipe;
 pub mod procs;

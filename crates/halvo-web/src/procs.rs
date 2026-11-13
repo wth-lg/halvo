@@ -1,12 +1,14 @@
 use std::path::{Component, Path, PathBuf};
 
 /// One row of the process table: the pid, the parent pid, the creation time in microseconds since
-/// the Unix epoch (0 when the system does not give it) and the executable's path where it is readable.
+/// the Unix epoch (0 when the system does not give it), the process group (macOS; 0 where the
+/// system gives none) and the executable's path where it is readable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proc {
     pub pid: u32,
     pub ppid: u32,
     pub started_us: u64,
+    pub pgid: u32,
     pub exe: Option<PathBuf>,
 }
 
@@ -140,6 +142,7 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
             pid: pid as u32,
             ppid: info.pbi_ppid,
             started_us: started_of(&info),
+            pgid: info.pbi_pgid,
             exe,
         });
     }
@@ -258,6 +261,7 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
             pid: entry.th32ProcessID,
             ppid: entry.th32ParentProcessID,
             started_us: started_of_pid(entry.th32ProcessID),
+            pgid: 0,
             exe: Some(PathBuf::from(String::from_utf16_lossy(
                 &entry.szExeFile[..len],
             ))),
@@ -373,6 +377,7 @@ mod tests {
             pid,
             ppid,
             started_us,
+            pgid: 0,
             exe: Some(PathBuf::from(exe)),
         }
     }
