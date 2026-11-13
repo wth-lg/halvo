@@ -15,7 +15,17 @@ use crate::commands::{self, capture::AppState};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The script that tells the page that the window hides: the close handler of
+/// `build` sends it before it hides the window, and the page then disarms
+/// Delete everything. The page test ui/tests/page/window-scripts.test.js runs
+/// this text in the stub page, and the Rust test
+/// `the_close_handler_tells_the_page_before_it_hides_the_window` reads the
+/// text of the handler, because the mock runtime runs no script. Only the real
+/// window shows that the engine runs the script before the window hides.
 pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.window('hidden')";
+/// The script that tells the page that the window shows, sent by the tray's
+/// `show_main_window` after it shows the window. The same page test runs this text; only the real window shows
+/// that the engine runs it.
 pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
 
 pub struct Parts<R: Runtime> {
@@ -130,6 +140,14 @@ pub fn is_origin(url: &Url, (scheme, host): (&str, &str)) -> bool {
         && url.password().is_none()
 }
 
+/// Builds the window main from the configuration and hands it the navigation
+/// rule `may_navigate`. The Rust test
+/// `the_set_up_hands_may_navigate_to_the_window_main_and_no_other_window_builder_stands`
+/// reads the text of the sources, because the mock runtime calls no navigation
+/// hook: one window builder, no web view builder, no child web view, and the
+/// one hook line. `each_arm_of_the_rule_refuses_the_near_misses_of_its_origin`
+/// calls the rule itself. Only the real window shows that the engine puts each
+/// navigation to the hook.
 fn main_window<R: Runtime>(
     app: &AppHandle<R>,
     visible: bool,

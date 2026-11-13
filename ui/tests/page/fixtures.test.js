@@ -72,6 +72,10 @@ test("a missing permission shows its row and the Ask now step", async () => {
     steps.map((li) => li.childNodes[0].textContent),
     missing.walkback.map((s) => s.text + " "),
   );
+  for (const shown of [...reasons, ...steps.map((li) => li.childNodes[0].textContent)]) {
+    assert.match(shown, /^[A-Z][a-z]|^lets |^Screen /, `a reason or a step that the page draws: ${JSON.stringify(shown)}`);
+    assert.doesNotMatch(shown, /undefined/);
+  }
 });
 
 test("every permission granted shows every row as On and no steps", async () => {
