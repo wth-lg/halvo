@@ -2465,6 +2465,7 @@ mod driver {
         };
         Ok(Run {
             left,
+            procs: None,
             ok,
             cause: if ok { "-".into() } else { cause },
             ms: 0,
@@ -2529,6 +2530,8 @@ mod driver {
         checks: Option<Vec<checks::Count>>,
         /// What the end of the run's own processes found and left (CP-126 E1 (d)).
         left: Option<checks::Ended>,
+        /// How many processes the stop read as the run's: the browser's tree and the adopted ones.
+        procs: Option<usize>,
     }
 
     /// The counts of the end of a run's own processes that a failed start put into its fault's
@@ -2773,6 +2776,7 @@ mod driver {
             peers,
             checks: checked,
             left: Some(stopped.ended),
+            procs: Some(stopped.pids.len() + stopped.adopted.len()),
         })
     }
 
@@ -2815,13 +2819,14 @@ mod driver {
                 match run_once(ctx, name, i).await {
                     Ok(r) => {
                         out(&format!(
-                            "run candidate={CANDIDATE} machine={} browser={} step={name} i={i} result={} ms={} version={} cause={} left_before={} left_after={}",
+                            "run candidate={CANDIDATE} machine={} browser={} step={name} i={i} result={} ms={} version={} cause={} procs={} left_before={} left_after={}",
                             ctx.machine,
                             ctx.kind,
                             if r.ok { "ok" } else { "miss" },
                             r.ms,
                             r.version.replace(' ', "_"),
                             r.cause,
+                            r.procs.map_or("-".to_string(), |n| n.to_string()),
                             r.left.map_or("-".to_string(), |e| e.before.to_string()),
                             r.left.map_or("-".to_string(), |e| e.after.to_string())
                         ));
