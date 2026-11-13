@@ -76,7 +76,7 @@ judge() {
       ;;
   esac
   case $out in
-    *"$leak"*) verdict=known-fault ;;
+    *"$leak"*) verdict='known-fault' ;;
     *) cause='the listed known fault failed without its assertion of a recorded key' ;;
   esac
 }
