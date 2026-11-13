@@ -3,11 +3,25 @@ use std::io::{self, PipeReader, PipeWriter};
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
+use halvo_schema::StoreId;
 use halvo_seam::conformance::{self, Subject};
 use halvo_seam::fixture::{FixtureTransport, Replace};
+use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
+use halvo_seam::message::{
+    decode_client, Cause, ClientMessage, OpenCursor, Refusal, ServerError, ServerMessage, ZERO,
+};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Fault {
+    StoreChangedOnReadNamesAnotherId,
+    StoreChangedAtZeroNamesAnotherId,
+}
+
+use Fault::*;
 
 struct Fixture {
     test: &'static str,
+    fault: Option<Fault>,
     files: Vec<PathBuf>,
     first_live: u64,
     idle: Option<FixtureTransport>,
@@ -19,11 +33,19 @@ impl Fixture {
     fn new(test: &'static str) -> Fixture {
         Fixture {
             test,
+            fault: None,
             files: Vec::new(),
             first_live: 1,
             idle: None,
             serving: None,
             replace: None,
+        }
+    }
+
+    fn wrong(test: &'static str, fault: Fault) -> Fixture {
+        Fixture {
+            fault: Some(fault),
+            ..Fixture::new(test)
         }
     }
 
@@ -76,8 +98,14 @@ impl Subject for Fixture {
         let mut transport = self.idle.take().ok_or("no store is loaded")?;
         let (requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
+        let fault = self.fault;
         self.serving = Some(std::thread::spawn(move || {
-            let _ = transport.serve(requests_in, replies_out);
+            match fault {
+                None => {
+                    let _ = transport.serve(requests_in, replies_out);
+                }
+                Some(fault) => serve_wrong(&mut transport, fault, requests_in, replies_out),
+            }
             transport
         }));
         Ok((requests_out, replies_in))
@@ -99,6 +127,74 @@ impl Subject for Fixture {
         self.files = Vec::new();
         self.first_live = 1;
         Ok(())
+    }
+}
+
+fn other(store: &StoreId) -> StoreId {
+    let s = store.as_str();
+    let first = if s.starts_with('0') { "1" } else { "0" };
+    StoreId::parse(&format!("{first}{}", &s[1..])).unwrap()
+}
+
+fn error(cause: Cause) -> ServerMessage {
+    ServerMessage::Error(ServerError::new(cause, "wrong server").unwrap())
+}
+
+fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> ServerMessage {
+    let reply = t.handle(&ClientMessage::OpenCursor(open.clone()));
+    match (fault, reply) {
+        (StoreChangedAtZeroNamesAnotherId, ServerMessage::Error(e)) if open.position() == ZERO => {
+            match e.cause() {
+                Cause::StoreChanged(id) => error(Cause::StoreChanged(other(id))),
+                _ => ServerMessage::Error(e),
+            }
+        }
+        (_, reply) => reply,
+    }
+}
+
+fn read_reply(t: &mut FixtureTransport, fault: Fault) -> ServerMessage {
+    match (fault, t.handle(&ClientMessage::ReadBatch)) {
+        (StoreChangedOnReadNamesAnotherId, ServerMessage::Error(e)) => match e.cause() {
+            Cause::StoreChanged(id) => error(Cause::StoreChanged(other(id))),
+            _ => ServerMessage::Error(e),
+        },
+        (_, reply) => reply,
+    }
+}
+
+fn serve_wrong(
+    t: &mut FixtureTransport,
+    fault: Fault,
+    mut input: PipeReader,
+    mut output: PipeWriter,
+) {
+    while let Ok(Some(payload)) = read_frame(&mut input, CLIENT_FRAME_MAX) {
+        let reply = match decode_client(&payload) {
+            Ok(ClientMessage::OpenCursor(open)) => open_reply(t, fault, &open),
+            Ok(ClientMessage::ReadBatch) => read_reply(t, fault),
+            Ok(message) => t.handle(&message),
+            Err(Refusal::BadRequest) => error(Cause::BadRequest),
+            Err(Refusal::BadFrame) => break,
+        };
+        let Ok(bytes) = reply.to_payload() else {
+            break;
+        };
+        if write_frame(&mut output, &bytes, SERVER_FRAME_MAX).is_err() {
+            break;
+        }
+    }
+}
+
+fn wrong(test: &'static str, fault: Fault, want: [Option<&str>; 4]) {
+    let mut subject = Fixture::wrong(test, fault);
+    let results = conformance::run(&mut subject);
+    for ((case, got), want) in results.iter().zip(want) {
+        match (want, got) {
+            (None, Ok(())) => {}
+            (Some(check), Err(e)) if e.contains(&format!("check {check}: ")) => {}
+            _ => panic!("{fault:?}, case {case}: want {want:?}, got {got:?}"),
+        }
     }
 }
 
@@ -124,4 +220,20 @@ fn conformance_filters() {
 fn conformance_store_changed() {
     let mut subject = Fixture::new("conformance_store_changed");
     conformance::store_changed(&mut subject).unwrap();
+}
+
+#[test]
+fn conformance_check_store_changed_names_the_current_id() {
+    let test = "conformance_check_store_changed_names_the_current_id";
+    let check = Some("store_changed_names_the_current_id");
+    wrong(
+        test,
+        StoreChangedAtZeroNamesAnotherId,
+        [None, None, None, check],
+    );
+    wrong(
+        test,
+        StoreChangedOnReadNamesAnotherId,
+        [None, None, None, check],
+    );
 }

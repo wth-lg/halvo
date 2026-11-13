@@ -38,6 +38,13 @@ pub trait Subject {
 /// The names of the four cases, in the order in which `run` runs them.
 pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 
+/// The names of the checks of C5.13 item 12, in the order of its servers S1 to S5. The four cases make them
+/// beside the checks of items 4 to 9, so `run` makes them too, and the failure text of each holds
+/// `check <name>: `. `store_changed_names_the_current_id`, in the case `store_changed`: every `store-changed`
+/// names the id of the store that the server serves next, after `replace_live` and to an open with the old id
+/// at the zero position as at another position.
+pub const CHECKS: [&str; 1] = ["store_changed_names_the_current_id"];
+
 /// The most `read_batch` messages of one read to the watermark.
 pub const MAX_READS: usize = 1_000;
 
@@ -761,9 +768,10 @@ fn old_store<S: Subject>(
 
 /// The case `store_changed` (C5.13 item 9): first, on the connection of the reference read, a cursor opened
 /// with S that took one Batch gets `store-changed` with another id at its next `read_batch` after
-/// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing. Then,
-/// after `load(B)`, the old store id, at a position other than zero and at the zero position, gets
-/// `store-changed` with another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
+/// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing from the
+/// store that the error named. Then, after `load(B)`, the old store id, at a position other than zero and at
+/// the zero position, gets `store-changed` with the new store's id and opens no cursor, a null store with a
+/// non-zero position gets `bad-request`, and the new
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
 /// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
@@ -787,8 +795,8 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
         }
     }
     subject.replace_live()?;
-    match conn.error(READ_BATCH, "read_batch after replace_live")? {
-        Cause::StoreChanged(id) if id != rf.s => {}
+    let replaced = match conn.error(READ_BATCH, "read_batch after replace_live")? {
+        Cause::StoreChanged(id) if id != rf.s => id,
         Cause::StoreChanged(_) => {
             return Err("store-changed after replace_live names the old store id".to_owned())
         }
@@ -798,7 +806,7 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
                 other.name()
             ))
         }
-    }
+    };
     let cause = conn.error(READ_BATCH, "a second read_batch after replace_live")?;
     if cause != Cause::BadRequest {
         return Err(format!(
@@ -814,12 +822,18 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             empty.entries.len()
         ));
     }
+    if empty.store != replaced {
+        return Err(format!(
+            "check {}: store-changed after replace_live names another id than the store that an open with a null store serves then",
+            CHECKS[0]
+        ));
+    }
     drop(conn);
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
     let mut conn = connect(subject)?;
     let new = old_store(&mut conn, &rf.s, p, "an open_cursor with the old store id")?;
-    old_store(
+    let at_zero = old_store(
         &mut conn,
         &rf.s,
         ZERO,
@@ -840,6 +854,12 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
         .map_err(|e| format!("the new store with a null store id: {e}"))?;
     if first.store != new {
         return Err("the new store's reply names another id than store-changed did".to_owned());
+    }
+    if first.store != at_zero {
+        return Err(format!(
+            "check {}: store-changed to an open_cursor with the old store id at the zero position names another id than the new store's reply",
+            CHECKS[0]
+        ));
     }
     let matches = first.entries.len() == data.len()
         && first
