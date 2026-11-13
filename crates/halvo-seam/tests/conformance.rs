@@ -26,6 +26,8 @@ enum Fault {
     OpenAtTheWatermarkGetsBadPosition,
     OpenAtTheWatermarkRewindsTheCursor,
     OpenWithSTakesItsRange,
+    OpenWithSAndKindsTakesItsRange,
+    OpenMidReadMovesTheCursorOnByOne,
     OpenWhileOpenMovesTheCursor,
     OpenWhileOpenTakesItsRange,
     OpenWithAnotherIdWhileOpenClosesIt,
@@ -343,6 +345,20 @@ impl Wrong {
                 }
                 reply
             }
+            OpenWithSAndKindsTakesItsRange if refused && names_s && open.kinds().is_some() => {
+                if let Some(first) = self.last.clone() {
+                    let taken = OpenCursor::at(
+                        t.store().clone(),
+                        self.position,
+                        first.kinds().cloned(),
+                        open.range(),
+                    )
+                    .unwrap();
+                    t.handle(&ClientMessage::Close);
+                    t.handle(&ClientMessage::OpenCursor(taken));
+                }
+                reply
+            }
             OpenWithAnotherIdWhileOpenClosesIt
                 if refused && open.store().is_some_and(|s| s != t.store()) =>
             {
@@ -372,6 +388,26 @@ impl Wrong {
             OpenWhileOpenServedOnANullStoreConnection if refused && first_null => {
                 t.handle(&ClientMessage::Close);
                 t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            OpenMidReadMovesTheCursorOnByOne
+                if refused && self.cursor_reads > 0 && !self.at_watermark =>
+            {
+                if let Some(first) = self.last.clone() {
+                    let on = Position {
+                        seg: self.position.seg,
+                        idx: self.position.idx + 1,
+                    };
+                    let moved = OpenCursor::at(
+                        t.store().clone(),
+                        on,
+                        first.kinds().cloned(),
+                        first.range(),
+                    )
+                    .unwrap();
+                    t.handle(&ClientMessage::Close);
+                    t.handle(&ClientMessage::OpenCursor(moved));
+                }
+                reply
             }
             OpenMidReadReplacesTheCursor
                 if refused && self.cursor_reads > 0 && !self.at_watermark =>
@@ -680,6 +716,7 @@ fn conformance_check_open_while_open() {
                 [check, None, check, None],
             ),
             (OpenWithSTakesItsRange, [check, None, check, None]),
+            (OpenWithSAndKindsTakesItsRange, [check, None, check, None]),
             (OpenWhileOpenMovesTheCursor, [check, None, check, check]),
             (OpenWhileOpenTakesItsRange, [check, None, check, None]),
             (
@@ -697,6 +734,7 @@ fn conformance_check_open_while_open() {
                 [None, None, check, check],
             ),
             (OpenMidReadReplacesTheCursor, [None, None, None, check]),
+            (OpenMidReadMovesTheCursorOnByOne, [None, None, None, check]),
             (OpenWithKindsWhileOpenServes, [check, None, check, None]),
             (
                 PhantomAfterTheRefusedOpenAtTheWatermark,
