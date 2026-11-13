@@ -160,9 +160,6 @@ impl IdSource for Counting {
     }
 }
 
-/// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
-/// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
-/// `<target>/<profile>/deps/<binary>`.
 /// A data directory of a unit test, removed when the guard is dropped.
 struct UnitDir(PathBuf);
 
@@ -194,24 +191,37 @@ fn process_nanos() -> u128 {
     })
 }
 
-/// A new data directory under the target's tmp directory, named by the test's name, the process id, the process's one
-/// reading of the clock and the counter, and made with `create_dir`: a leaf that exists already fails the test at once
-/// with its path.
+/// The name of a unit directory: the test's name, the process id, the process's one reading of the clock and the
+/// counter, so that a process id that the system hands out again meets no directory of an earlier process.
+fn unit_leaf_name(name: &str, pid: u32, nanos: u128, n: usize) -> String {
+    format!("derived-unit-{name}-{pid}-{nanos}-{n}")
+}
+
+/// Makes `parent` where it is missing and then the new directory `leaf` under it, which must not exist.
+fn make_unit_leaf(parent: &Path, leaf: &str) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(parent)?;
+    let path = parent.join(leaf);
+    std::fs::create_dir(&path)?;
+    Ok(path)
+}
+
+/// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
+/// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
+/// `<target>/<profile>/deps/<binary>`. The directory is named by `unit_leaf_name` and made by `make_unit_leaf`: a leaf
+/// that exists already fails the test at once with its path.
 fn data_dir(name: &str) -> UnitDir {
     static COUNT: AtomicUsize = AtomicUsize::new(0);
     let n = COUNT.fetch_add(1, Ordering::Relaxed);
     let exe = std::env::current_exe().unwrap();
     let parent = exe.ancestors().nth(3).unwrap().join("tmp");
-    let path = parent.join(format!(
-        "derived-unit-{name}-{}-{}-{n}",
-        std::process::id(),
-        process_nanos()
-    ));
-    std::fs::create_dir_all(&parent).unwrap();
-    if let Err(e) = std::fs::create_dir(&path) {
-        panic!("the unit directory {} cannot be made: {e}", path.display());
+    let leaf = unit_leaf_name(name, std::process::id(), process_nanos(), n);
+    match make_unit_leaf(&parent, &leaf) {
+        Ok(path) => UnitDir(path),
+        Err(e) => panic!(
+            "the unit directory {} cannot be made: {e}",
+            parent.join(&leaf).display()
+        ),
     }
-    UnitDir(path)
 }
 
 fn open_unit(dir: &Path) -> Store {
@@ -656,4 +666,28 @@ fn two_unit_directories_of_one_name_in_one_process_get_two_paths() {
     let second = data_dir("twice");
     assert_ne!(first.path(), second.path());
     assert!(first.path().is_dir() && second.path().is_dir());
+}
+
+/// A second making of a unit leaf that exists fails, and leaves the first one's content as it was.
+#[test]
+fn a_second_making_of_a_unit_leaf_that_exists_fails() {
+    let parent = data_dir("leaf-parent");
+    let made = make_unit_leaf(parent.path(), "leaf").unwrap();
+    std::fs::write(made.join("kept"), b"kept").unwrap();
+    assert_eq!(
+        make_unit_leaf(parent.path(), "leaf")
+            .err()
+            .map(|e| e.kind()),
+        Some(std::io::ErrorKind::AlreadyExists)
+    );
+    assert_eq!(std::fs::read(made.join("kept")).unwrap(), b"kept");
+}
+
+/// The name of a unit directory, for one process id and one counter, differs for two readings of the clock.
+#[test]
+fn the_unit_leaf_name_differs_for_two_readings_of_the_clock() {
+    assert_ne!(
+        unit_leaf_name("same", 4242, 1_000, 7),
+        unit_leaf_name("same", 4242, 1_001, 7)
+    );
 }

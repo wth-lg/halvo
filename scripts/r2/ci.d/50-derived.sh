@@ -170,6 +170,8 @@ esac
 #= tests/privacy.rs the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed
 #= tests/privacy.rs every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search
 #= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
+#= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
+#= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
