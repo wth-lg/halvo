@@ -16,6 +16,7 @@ use crate::fixture;
 use crate::lines::{Kind, Run};
 use crate::model::{self, Child};
 use crate::step::{self, Arg, Source, Step, Target, Verb};
+use crate::words;
 
 /// The most requests of one compile run to the model.
 pub const CALLS_MAX: usize = 32;
@@ -203,39 +204,6 @@ pub fn snapshot_text(lines: &[SnapshotLine]) -> String {
         .map(|l| l.render())
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-/// The user text of an action request (A9.5): the goal, the slot names, the kept names, the
-/// steps so far and the question; page text goes in the snapshot alone.
-pub fn action_prompt(
-    goal: &str,
-    slots: &[String],
-    kept: &[String],
-    history: &[String],
-    ask: &str,
-) -> String {
-    let list = |v: &[String]| {
-        if v.is_empty() {
-            "none".to_string()
-        } else {
-            v.join(", ")
-        }
-    };
-    let mut out = format!(
-        "{}\nSlots: {}\nKept: {}\nDone so far:",
-        goal.trim_end(),
-        list(slots),
-        list(kept)
-    );
-    if history.is_empty() {
-        out.push_str(" nothing");
-    }
-    for (i, h) in history.iter().enumerate() {
-        out.push_str(&format!("\n{}. {h}", i + 1));
-    }
-    out.push('\n');
-    out.push_str(ask);
-    out
 }
 
 /// The extracts that an effect step of the task needs (A9.4).
@@ -662,7 +630,7 @@ fn handback_step(n: usize) -> Step {
 enum Done {
     /// The action ran and makes this step (its verb, target and args, and whether a request left).
     Step(Verb, Target, Vec<Arg>, bool),
-    /// The harness refused the action or the page did not take it: the history names why.
+    /// The harness refused the action or the page did not take it: the cause, which the list names.
     Refused(String),
     /// The compile cannot go on (A9.4: `provenance`).
     Failed(&'static str),
@@ -685,9 +653,7 @@ async fn carry_out(
     let reference = line.reference.clone();
     if refuses_typing(action, line.credential) {
         tally.refuse_typing();
-        return Ok(Done::Refused(
-            "refused: that is a credential field; the person signs in after handback".into(),
-        ));
+        return Ok(Done::Refused(words::CREDENTIAL.into()));
     }
     let clicks = clicks(action);
     let kept_all = needed_extracts(&ctx.task)
@@ -695,7 +661,7 @@ async fn carry_out(
         .all(|k| kept.contains_key(*k));
     let allow = allow_of(action, confirm, kept_all);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
-        return Ok(Done::Refused(format!("refused: {e}")));
+        return Ok(Done::Refused(e));
     }
     let frames = frames_of(ex, &reference).await;
     let outcome = match action {
@@ -703,7 +669,7 @@ async fn carry_out(
         Action::Press { key, .. } => guarded(ctx, ex.press(&reference, key.as_str())).await?,
         Action::Fill { slot, .. } | Action::Select { slot, .. } => {
             let Some(value) = ctx.slot(slot).filter(|_| slot != "start") else {
-                return Ok(Done::Refused(format!("refused: no slot {slot}")));
+                return Ok(Done::Refused(words::no_slot(slot)));
             };
             if matches!(action, Action::Fill { .. }) {
                 guarded(ctx, ex.fill(&reference, &value)).await?
@@ -733,12 +699,10 @@ async fn carry_out(
             }
             Err(e) => Err(e),
         },
-        Action::Handback | Action::Done => return Ok(Done::Refused("refused: no target".into())),
+        Action::Handback | Action::Done => return Ok(Done::Refused(words::NO_TARGET.into())),
     };
     if let Err(e) = outcome {
-        return Ok(Done::Refused(format!(
-            "refused: the page did not take it ({e})"
-        )));
+        return Ok(Done::Refused(words::page_refused(&e)));
     }
     if clicks {
         settle(ex, &frames).await;
@@ -914,13 +878,13 @@ async fn compile_steps(
         return Ok(false);
     }
     let mut kept: HashMap<String, String> = HashMap::new();
-    let mut history: Vec<String> = vec!["navigate start".into()];
+    let mut history: Vec<String> = vec![words::NAVIGATE_START.into()];
     let mut seen: HashSet<(String, String)> = HashSet::new();
     for call in 1..=CALLS_MAX {
         let lines = match read_page(ex, ctx).await? {
             Ok((lines, handbacks)) => {
                 for _ in 0..handbacks {
-                    history.push("handback".into());
+                    history.push(words::HANDBACK.into());
                     steps.push(handback_step(steps.len() + 1));
                 }
                 lines
@@ -933,12 +897,12 @@ async fn compile_steps(
             }
         };
         let text = snapshot_text(&lines);
-        let prompt = action_prompt(
+        let prompt = words::frame(
             &ctx.prompts.goal,
             &slot_names(ctx),
             &kept_names(&kept),
             &history,
-            "Give the next action.",
+            words::NEXT,
         );
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
@@ -963,11 +927,7 @@ async fn compile_steps(
         let parsed = match action::parse(&reply.text) {
             Ok(a) => a,
             Err(r) => {
-                history.push(format!(
-                    "{} (refused: {})",
-                    reply.text.chars().take(120).collect::<String>(),
-                    r.cause()
-                ));
+                history.push(words::reply_refused(&reply.text, r));
                 continue;
             }
         };
@@ -978,7 +938,7 @@ async fn compile_steps(
                     Ok(signed) => ctx.trace(&format!("handback signed_in={signed}")),
                     Err(e) => ctx.trace(&format!("handback: {e}")),
                 }
-                history.push("handback".into());
+                history.push(words::HANDBACK.into());
                 steps.push(handback_step(steps.len() + 1));
                 None
             }
@@ -986,10 +946,7 @@ async fn compile_steps(
                 let reference = other.reference().unwrap_or_default();
                 match lines.iter().find(|l| l.reference == reference) {
                     None => {
-                        history.push(format!(
-                            "{} (refused: no {reference} on this page)",
-                            other.describe()
-                        ));
+                        history.push(words::refused(other, &words::no_reference(reference)));
                         None
                     }
                     Some(line) => {
@@ -1005,7 +962,7 @@ async fn compile_steps(
                     .reference()
                     .and_then(|r| lines.iter().find(|l| l.reference == r))
                     .and_then(|l| place_of(&lines, l));
-                history.push(parsed.describe());
+                history.push(words::action_words(&parsed));
                 steps.push(Step {
                     n: steps.len() + 1,
                     verb,
@@ -1014,7 +971,7 @@ async fn compile_steps(
                     request,
                 });
             }
-            Some(Done::Refused(why)) => history.push(format!("{} ({why})", parsed.describe())),
+            Some(Done::Refused(why)) => history.push(words::refused(&parsed, &why)),
             Some(Done::Failed(cause)) => {
                 ctx.trace(&format!("compile failed cause={cause}"));
                 return Ok(false);
@@ -1130,7 +1087,7 @@ async fn replay_steps(
                 match carry_out(ex, ctx, tally, &mut kept, &action, &line, s.request).await? {
                     Done::Step(..) => {}
                     Done::Refused(why) => {
-                        ctx.trace(&format!("step {} {why}", s.n));
+                        ctx.trace(&format!("step {} refused: {why}", s.n));
                         return Ok(false);
                     }
                     Done::Failed(cause) => {
@@ -1221,13 +1178,8 @@ async fn repair(
             }
         };
         let text = snapshot_text(&lines);
-        let ask_text = format!(
-            "Step {} of the saved steps found no control on this page: {} {}. Give the action that does this step on this page.",
-            s.n,
-            wanted.word(),
-            t.desc()
-        );
-        let prompt = action_prompt(
+        let ask_text = words::repair_question(s.n, wanted.word(), &t.desc());
+        let prompt = words::frame(
             &ctx.prompts.goal,
             &slot_names(ctx),
             &kept_names(kept),
@@ -1253,11 +1205,7 @@ async fn repair(
         let given = match action::parse(&reply.text) {
             Ok(a) => a,
             Err(r) => {
-                history.push(format!(
-                    "{} (refused: {})",
-                    reply.text.chars().take(120).collect::<String>(),
-                    r.cause()
-                ));
+                history.push(words::reply_refused(&reply.text, r));
                 continue;
             }
         };
@@ -1268,19 +1216,13 @@ async fn repair(
             Some(l) if same_step(&wanted, &given) => {
                 if refuses_typing(&given, l.credential) {
                     tally.refuse_typing();
-                    history.push(format!(
-                        "{} (refused: that is a credential field)",
-                        given.describe()
-                    ));
+                    history.push(words::refused(&given, words::CREDENTIAL_RECOVERY));
                     continue;
                 }
                 ctx.trace(&format!("recovery named {}", target_of(l).desc().len()));
                 return Ok(Some(l.clone()));
             }
-            _ => history.push(format!(
-                "{} (refused: not that step on this page)",
-                given.describe()
-            )),
+            _ => history.push(words::refused(&given, words::NOT_THAT_STEP)),
         }
     }
     Ok(None)
@@ -1649,26 +1591,6 @@ mod tests {
         assert_eq!(strip_port("http://pay.agent.test"), "http://pay.agent.test");
         assert_eq!(strip_port("x:y"), "x:y");
         assert_eq!(strip_port("http://a.test:8x"), "http://a.test:8x");
-    }
-
-    #[test]
-    fn the_prompt_holds_the_goal_the_names_and_the_steps_and_no_page_text() {
-        let p = action_prompt(
-            "Task: pay.\n",
-            &["payee".into(), "instrument".into()],
-            &[],
-            &["navigate start".into(), "handback".into()],
-            "Give the next action.",
-        );
-        assert_eq!(
-            p,
-            "Task: pay.\nSlots: payee, instrument\nKept: none\nDone so far:\n1. navigate start\n2. handback\nGive the next action."
-        );
-        let q = action_prompt("Task.", &[], &["amount_due".into()], &[], "Go.");
-        assert_eq!(
-            q,
-            "Task.\nSlots: none\nKept: amount_due\nDone so far: nothing\nGo."
-        );
     }
 
     #[test]

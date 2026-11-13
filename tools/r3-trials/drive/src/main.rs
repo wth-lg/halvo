@@ -5,6 +5,7 @@ mod fixture;
 mod lines;
 mod model;
 mod step;
+mod words;
 
 use std::io::Write;
 use std::path::PathBuf;

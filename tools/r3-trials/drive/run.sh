@@ -35,8 +35,9 @@ For reply it is one write run, and it prints its attempt line (kind=write) and
 On mac each run is preceded by the line
 "load model=<token> machine=mac task=<t> seed=<n> kind=<k> i=<n> load1=<x>", the
 1-minute load when the run started. --prompt-lines prints one line
-"prompt file=<name> sha256=<hex>" for each file of tools/r3-trials/drive/prompts/ and
-runs nothing. No verdict line is printed.
+"prompt file=<name> sha256=<hex>" for each file of tools/r3-trials/drive/prompts/, then
+the line "prompt file=src/words.rs sha256=<hex>" for the module that holds the harness's
+own words in a request (ruling CP-179 (2) (a)), and runs nothing. No verdict line is printed.
 
 --driver names the driver binary of a candidate of A13.2 that needs one; the verdict
 of docs/r3/trials/web-executor.md is cdp, which needs none, so --driver is refused.
@@ -93,6 +94,8 @@ while [ $# -gt 0 ]; do
         hex=$(sha_of "tools/r3-trials/drive/prompts/$name") || refuse usage "prompts/$name cannot be read"
         echo "prompt file=$name sha256=$hex"
       done
+      hex=$(sha_of tools/r3-trials/drive/src/words.rs) || refuse usage "src/words.rs cannot be read"
+      echo "prompt file=src/words.rs sha256=$hex"
       exit 0
       ;;
     --model | --task | --seed | --browser | --port | --driver)

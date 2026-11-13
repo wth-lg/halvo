@@ -55,19 +55,6 @@ impl Action {
             Action::Handback | Action::Done => None,
         }
     }
-
-    /// The action as one short line for the history of a prompt: the verb and its fields.
-    pub fn describe(&self) -> String {
-        match self {
-            Action::Click { reference } => format!("click {reference}"),
-            Action::Fill { reference, slot } => format!("fill {reference} slot {slot}"),
-            Action::Select { reference, slot } => format!("select {reference} slot {slot}"),
-            Action::Press { reference, key } => format!("press {reference} key {}", key.as_str()),
-            Action::Extract { reference, name } => format!("extract {reference} name {name}"),
-            Action::Handback => "handback".to_string(),
-            Action::Done => "done".to_string(),
-        }
-    }
 }
 
 /// Why a reply is no action: `action_form` when it is no JSON object of the grammar's five keys,
@@ -77,15 +64,6 @@ impl Action {
 pub enum Refused {
     Form,
     Fields,
-}
-
-impl Refused {
-    pub fn cause(self) -> &'static str {
-        match self {
-            Refused::Form => "action_form",
-            Refused::Fields => "action_fields",
-        }
-    }
 }
 
 const KEYS: [&str; 5] = ["action", "ref", "slot", "key", "name"];
@@ -311,12 +289,11 @@ mod tests {
     }
 
     #[test]
-    fn the_history_line_names_the_fields() {
+    fn an_action_gives_its_verb_word_and_its_reference() {
         let a = Action::Press {
             reference: "e2".into(),
             key: Key::Tab,
         };
-        assert_eq!(a.describe(), "press e2 key Tab");
         assert_eq!(a.word(), "press");
         assert_eq!(a.reference(), Some("e2"));
         assert_eq!(Action::Done.reference(), None);
