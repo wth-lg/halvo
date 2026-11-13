@@ -1170,3 +1170,27 @@ pub(crate) fn a_second_allow_for_an_instrument_not_offered_leaves_no_payment(
     );
     assert_eq!(record.done(), Some(Outcome::EffectUnknown));
 }
+
+/// CP-159 G4, its control: a delete that the service answers with its one success status, 204, is made; the
+/// effect is `committed`, the event is gone and the run ends `completed`.
+pub(crate) fn a_delete_answered_204_is_committed(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::NoReply);
+    let record = run_path(
+        maker.category(Case::NoReply),
+        maker.bindings(&fixture, Case::NoReply),
+        request,
+        Plan::plain(),
+    );
+    assert_eq!(record.states().last(), Some(&EffectState::Committed));
+    let after = fixture.state();
+    assert_eq!(
+        after["calendar"]["deleted"]
+            .as_array()
+            .expect("deleted")
+            .len(),
+        1
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}

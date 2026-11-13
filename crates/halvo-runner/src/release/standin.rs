@@ -12,7 +12,8 @@ use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, WebOrigin}
 use halvo_schema::Category;
 
 use super::suite::{
-    a_delete_answered_401_is_not_committed, a_payment_answered_400_is_not_committed,
+    a_delete_answered_204_is_committed, a_delete_answered_401_is_not_committed,
+    a_payment_answered_400_is_not_committed,
     a_second_allow_for_an_instrument_not_offered_leaves_no_payment, answer_of, changed_on_page,
     commit_without_reply, http, origins_that_keep_the_pay_origin_let_the_request_leave,
     pay_origin_gone_at_the_load_before_the_begin, payee_changed_at_the_load_before_the_begin,
@@ -340,4 +341,9 @@ fn a_delete_answered_401_gets_no_committed_row() {
 #[test]
 fn a_second_allow_for_an_instrument_not_offered_makes_no_payment() {
     a_second_allow_for_an_instrument_not_offered_leaves_no_payment(&mut Standin);
+}
+
+#[test]
+fn a_delete_answered_204_is_made() {
+    a_delete_answered_204_is_committed(&mut Standin);
 }
