@@ -415,6 +415,15 @@ pub(crate) fn policy_way(document: bool, status: i64, location: bool) -> PolicyW
     }
 }
 
+/// The headers of the executor's own storage page: its type and the policy line of A4.2, which
+/// every document carries (CP-186 S3).
+pub(crate) fn storage_page_headers() -> Vec<HeaderEntry> {
+    vec![
+        HeaderEntry::new("Content-Type", "text/html; charset=utf-8"),
+        HeaderEntry::new("Content-Security-Policy", crate::WS_POLICY.to_string()),
+    ]
+}
+
 /// Whether `headers` hold a Location line, its name read without regard to the case of its
 /// letters.
 pub(crate) fn has_location(headers: &[HeaderEntry]) -> bool {
@@ -867,7 +876,7 @@ impl Wire {
         let params = FulfillRequestParams::builder()
             .request_id(ev.request_id.clone())
             .response_code(200)
-            .response_header(HeaderEntry::new("Content-Type", "text/html; charset=utf-8"))
+            .response_headers(storage_page_headers())
             .body(body)
             .build();
         if let Ok(p) = params {
@@ -1230,6 +1239,15 @@ mod tests {
             ),
             (Act::Continue, false)
         );
+    }
+
+    /// CP-186 S3: the executor's own storage page carries the policy line of A4.2.
+    #[test]
+    fn s3_the_storage_page_carries_the_policy_line() {
+        let headers = storage_page_headers();
+        assert!(headers
+            .iter()
+            .any(|h| h.name == "Content-Security-Policy" && h.value == crate::WS_POLICY));
     }
 
     /// CP-186 T1, with the review's case rule/01: a 3xx response that a browser shows from its body
