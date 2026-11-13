@@ -21,6 +21,10 @@ enum Fault {
     OpenWhileOpenClosesTheCursor,
     OpenWhileOpenGetsBadPosition,
     OpenWhileOpenMovesTheCursor,
+    OpenWhileOpenTakesItsRange,
+    OpenWithAnotherIdWhileOpenClosesIt,
+    OpenAtTheWatermarkReplacesTheCursor,
+    OpenWhileOpenServesAfterARestart,
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
     PhantomRecordAtTheWatermarkAfterAShred,
@@ -47,6 +51,7 @@ struct Fixture {
     connections: i64,
     since_open: i64,
     set_a: bool,
+    restarted: bool,
 }
 
 impl Fixture {
@@ -62,6 +67,7 @@ impl Fixture {
             connections: 0,
             since_open: 0,
             set_a: false,
+            restarted: false,
         }
     }
 
@@ -109,6 +115,7 @@ impl Subject for Fixture {
         };
         self.files = Vec::new();
         self.set_a = batch_files == conformance::SET_A;
+        self.restarted = false;
         for (i, text) in batch_files.iter().enumerate() {
             let path = dir.join(format!("day-{:03}.jsonl", i + 1));
             fs::write(&path, text).map_err(|e| format!("write failed: {e}"))?;
@@ -126,6 +133,7 @@ impl Subject for Fixture {
         let fault = self.fault;
         let shredded = self.first_live > 1;
         let set_a = self.set_a;
+        let restarted = self.restarted;
         self.connections += 1;
         self.since_open += 1;
         let further = self.since_open > 1;
@@ -140,6 +148,8 @@ impl Subject for Fixture {
                         fault,
                         shredded,
                         set_a,
+                        restarted,
+                        at_watermark: false,
                         connection,
                         further,
                         reads: 0,
@@ -156,6 +166,7 @@ impl Subject for Fixture {
 
     fn restart(&mut self) -> Result<(), String> {
         self.settle()?;
+        self.restarted = true;
         self.reopen()
     }
 
@@ -194,6 +205,8 @@ struct Wrong {
     fault: Fault,
     shredded: bool,
     set_a: bool,
+    restarted: bool,
+    at_watermark: bool,
     connection: i64,
     further: bool,
     reads: i64,
@@ -211,9 +224,42 @@ impl Wrong {
             return error(Cause::BadPosition);
         }
         let reply = open_reply(t, self.fault, open);
+        let refused = matches!(&reply, ServerMessage::Error(e) if *e.cause() == Cause::BadRequest);
+        let reply = match self.fault {
+            OpenWhileOpenTakesItsRange if refused && open.range().is_some() => {
+                if let Some(first) = self.last.clone() {
+                    let taken = OpenCursor::at(
+                        t.store().clone(),
+                        first.position(),
+                        first.kinds().cloned(),
+                        open.range(),
+                    )
+                    .unwrap();
+                    t.handle(&ClientMessage::Close);
+                    t.handle(&ClientMessage::OpenCursor(taken));
+                }
+                reply
+            }
+            OpenWithAnotherIdWhileOpenClosesIt
+                if refused && open.store().is_some_and(|s| s != t.store()) =>
+            {
+                t.handle(&ClientMessage::Close);
+                error(Cause::StoreChanged(t.store().clone()))
+            }
+            OpenAtTheWatermarkReplacesTheCursor if refused && self.at_watermark => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            OpenWhileOpenServesAfterARestart if refused && self.restarted => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            _ => reply,
+        };
         if matches!(reply, ServerMessage::Batch(_)) {
             self.last = Some(open.clone());
             self.opens += 1;
+            self.at_watermark = false;
         }
         reply
     }
@@ -258,6 +304,7 @@ impl Wrong {
         for x in &mut b.expiry {
             x.at = Instant(x.at.0.saturating_add(shift * 1_000_000_000));
         }
+        self.at_watermark = b.next == b.watermark;
         let Some(open) = self
             .last
             .as_ref()
@@ -412,10 +459,20 @@ fn conformance_check_open_while_open() {
     wrong(
         "conformance_check_open_while_open",
         &[
-            (OpenWhileOpenServes, [None, None, check, None]),
-            (OpenWhileOpenClosesTheCursor, [None, None, check, None]),
-            (OpenWhileOpenGetsBadPosition, [None, None, check, None]),
-            (OpenWhileOpenMovesTheCursor, [None, None, check, None]),
+            (OpenWhileOpenServes, [check, None, check, None]),
+            (OpenWhileOpenClosesTheCursor, [check, None, check, None]),
+            (OpenWhileOpenGetsBadPosition, [check, None, check, None]),
+            (OpenWhileOpenMovesTheCursor, [check, None, check, None]),
+            (OpenWhileOpenTakesItsRange, [check, None, check, None]),
+            (
+                OpenWithAnotherIdWhileOpenClosesIt,
+                [check, None, check, None],
+            ),
+            (
+                OpenAtTheWatermarkReplacesTheCursor,
+                [check, None, check, None],
+            ),
+            (OpenWhileOpenServesAfterARestart, [check, None, None, None]),
         ],
     );
 }
