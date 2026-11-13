@@ -9,7 +9,7 @@ use common::{
     FAR, NOTE, OWN, TRACE,
 };
 use halvo_derived::test_host::open_keyless;
-use halvo_derived::{Committed, Host, Report, Store, Takes};
+use halvo_derived::{Committed, Counts, Host, Report, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{RequestId, WorkflowId};
 use halvo_schema_core::kinds::{self, KindEntry};
@@ -630,5 +630,121 @@ fn privacy_redact() {
         (holding("[card]"), holding("[iban]")),
         (2, 2),
         "(rows that hold the card token, rows that hold the IBAN token)"
+    );
+}
+
+/// The test-only count of privacy_listed, through the test's own connection and by no statement of the store: the
+/// id of every stored workflow, read from its record, in ascending order; the stored rows per retention class; and
+/// the summary ids of the support rows of each workflow, in ascending order.
+struct Counted {
+    workflows: Vec<String>,
+    counts: Counts,
+    support: Vec<(String, String)>,
+}
+
+fn counted(conn: &Connection) -> Counted {
+    let mut statement = conn.prepare("SELECT body FROM rows WHERE kind = 'workflow'").unwrap();
+    let mut workflows: Vec<String> = statement
+        .query_map([], |r| r.get::<_, String>(0))
+        .unwrap()
+        .map(|body| {
+            let record: serde_json::Value = serde_json::from_str(&body.unwrap()).unwrap();
+            record["id"].as_str().unwrap().to_owned()
+        })
+        .collect();
+    workflows.sort();
+    let class = |code: i64| -> u64 {
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM rows WHERE class = ?1", [code], |r| r.get(0))
+            .unwrap();
+        u64::try_from(n).unwrap()
+    };
+    let mut statement = conn
+        .prepare("SELECT workflow, summary FROM rows WHERE kind = 'support'")
+        .unwrap();
+    let mut support: Vec<(String, String)> = statement
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    support.sort();
+    Counted {
+        workflows,
+        counts: Counts {
+            window: class(0),
+            bounded: class(1),
+            kept: class(2),
+        },
+        support,
+    }
+}
+
+/// privacy_listed: after an expiry, the stored-workflows section, which is the interface read `workflows` page by
+/// page, and the Inventory's derived section, which is the report's count per class, show the same workflow ids, the
+/// same support sets and the same counts as the test-only count through the test's own connection, over workflows in
+/// the states proposed, approved and dismissed and rows that the expiry removed.
+#[test]
+fn privacy_listed() {
+    let scratch = Scratch::new("privacy-listed");
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })),
+    )
+    .unwrap();
+    let apps = ["com.example.one", "com.example.two", "com.example.three", "com.example.four"];
+    let mut batch = Vec::new();
+    for (app, n) in apps.iter().zip((1..).step_by(2)) {
+        let early = if n == 7 { DAY - 92 } else { DAY - 1 };
+        batch.push(titled(n, early, app, "Pay bill"));
+        batch.push(titled(n + 1, DAY, app, "Pay bill"));
+    }
+    for episode in &mut batch[..2] {
+        episode.expires = Instant(i64::from(DAY + 1) * DAY_NS);
+    }
+    let outcome = store
+        .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(outcome.proposals.stored, 4);
+    let id_of = |app: &str| -> WorkflowId {
+        listed(&store)
+            .into_iter()
+            .find(|item| matches!(&item.workflow, Workflow::Full(full) if full.app.as_str() == app))
+            .map(|item| item.workflow.id().clone())
+            .unwrap()
+    };
+    let (approved, dismissed) = (id_of(apps[1]), id_of(apps[2]));
+    let role = InterfaceRole::claim();
+    store
+        .decide(&InterfaceDecision::approve(&role, RequestId::from_random([4; 16]), approved))
+        .unwrap();
+    store
+        .decide(&InterfaceDecision::dismiss(&role, RequestId::from_random([5; 16]), dismissed))
+        .unwrap();
+    clock.set_day(DAY + 1);
+    assert_eq!(
+        store.expire().unwrap(),
+        5,
+        "two evidence rows past their expiry, and a summary past its bound with its evidence and its support row"
+    );
+    let items = listed(&store);
+    let report = store.report().unwrap();
+    drop(store);
+    let own = counted(&raw(&scratch));
+    let read: Vec<String> = items.iter().map(|item| item.workflow.id().as_str().to_owned()).collect();
+    assert_eq!(read, own.workflows, "the workflow ids of the read and of the count");
+    let read_support: Vec<(String, String)> = items
+        .iter()
+        .flat_map(|item| {
+            let id = item.workflow.id().as_str().to_owned();
+            item.summaries.iter().map(move |s| (id.clone(), s.as_str().to_owned()))
+        })
+        .collect();
+    assert_eq!(read_support, own.support, "the support sets of the read and of the count");
+    assert_eq!(report.counts, own.counts, "the report's counts and the count");
+    assert_eq!(
+        (own.counts.kept, own.support.len()),
+        (4, 5),
+        "(workflows, support rows) that the count finds"
     );
 }

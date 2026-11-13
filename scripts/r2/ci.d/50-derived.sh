@@ -142,6 +142,7 @@ esac
 #= tests/privacy.rs privacy_bounded
 #= tests/privacy.rs privacy_kept
 #= tests/privacy.rs privacy_redact
+#= tests/privacy.rs privacy_listed
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
