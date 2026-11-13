@@ -46,11 +46,15 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// sent while a cursor is open, without the `close` that C5.6 asks for, gets `bad-request`, and the cursor
 /// that was open then serves the whole reference read. `open_at_the_watermark_after_a_shred`, in the case
 /// `shredded`: after `shred_oldest`, an `open_cursor` with S at W, and at the highest watermark of the replies
-/// after the shred where that is above W, is no error, and its read serves no entry.
-pub const CHECKS: [&str; 3] = [
+/// after the shred where that is above W, is no error, and its read serves no entry. `one_expiry_instant`, in
+/// every case: each `expiry` entry for a segment of one store id holds the instant that the first entry for
+/// that segment held in the case, in every reply to `read_batch`, on every cursor and connection and after a
+/// restart; the check makes no claim across two cases.
+pub const CHECKS: [&str; 4] = [
     "store_changed_names_the_current_id",
     "open_while_open",
     "open_at_the_watermark_after_a_shred",
+    "one_expiry_instant",
 ];
 
 /// The most `read_batch` messages of one read to the watermark.
@@ -198,20 +202,51 @@ pub fn run<S: Subject>(subject: &mut S) -> Vec<(&'static str, Result<(), String>
     ]
 }
 
+type Instants = Vec<(StoreId, u64, Instant)>;
+
 struct Conn<S: Subject> {
     writer: S::Writer,
     reader: S::Reader,
+    instants: Instants,
 }
 
 const READ_BATCH: &str = r#"{"msg":"read_batch"}"#;
 const CLOSE: &str = r#"{"msg":"close"}"#;
 
-fn connect<S: Subject>(subject: &mut S) -> Result<Conn<S>, String> {
+fn connect<S: Subject>(subject: &mut S, instants: Instants) -> Result<Conn<S>, String> {
     let (writer, reader) = subject.connect()?;
-    Ok(Conn { writer, reader })
+    Ok(Conn {
+        writer,
+        reader,
+        instants,
+    })
 }
 
 impl<S: Subject> Conn<S> {
+    fn end(self) -> Instants {
+        self.instants
+    }
+
+    fn one_instant(&mut self, b: &Batch) -> Result<(), String> {
+        for x in &b.expiry {
+            let seen = self
+                .instants
+                .iter()
+                .find(|(store, seg, _)| store == &b.store && *seg == x.seg);
+            match seen {
+                Some((_, _, at)) if *at != x.at => {
+                    return Err(format!(
+                        "check {}: segment {} of one store got the expiry instant {} in one reply and {} in another",
+                        CHECKS[3], x.seg, at.0, x.at.0
+                    ))
+                }
+                Some(_) => {}
+                None => self.instants.push((b.store.clone(), x.seg, x.at)),
+            }
+        }
+        Ok(())
+    }
+
     fn send(&mut self, payload: &str) -> Result<ServerMessage, String> {
         write_frame(&mut self.writer, payload.as_bytes(), CLIENT_FRAME_MAX)
             .map_err(|e| format!("a frame could not be written: {e:?}"))?;
@@ -417,6 +452,7 @@ fn drain<S: Subject>(
             _ => return Err("read_batch got a reply other than batch or error".to_owned()),
         };
         check(&b, &reading.store, cursor, last, watermark)?;
+        conn.one_instant(&b)?;
         if !b.records.is_empty() && reading.first_full_next.is_none() {
             reading.first_full_next = Some(b.next);
         }
@@ -480,7 +516,7 @@ struct Reference {
 
 fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String> {
     subject.load(&SET_A)?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, Vec::new())?;
     let reading =
         read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the reference read: {e}"))?;
     let data = records_of(&SET_A)?;
@@ -534,9 +570,9 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
 /// `bad-position`, and a legal open after them works.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
-    drop(conn);
+    let instants = conn.end();
     subject.restart()?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let second =
         rf.r.iter()
             .find(|e| e.pos.seg != rf.r[0].pos.seg)
@@ -612,7 +648,7 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
 /// no `expiry` names it; last, the check `open_at_the_watermark_after_a_shred` of `CHECKS`.
 pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
-    drop(conn);
+    let instants = conn.end();
     let s = rf.r[0].pos.seg;
     let p =
         rf.r.iter()
@@ -620,7 +656,7 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
             .map(|e| e.pos)
             .ok_or("the reference read is empty")?;
     subject.shred_oldest()?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let want: Vec<Entry> = rf.r.iter().filter(|e| e.pos.seg > s).cloned().collect();
     let mut top = rf.w;
     for start in [p, ZERO] {
@@ -847,8 +883,11 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let opened = open(&mut conn, Some(&rf.s), ZERO, None, None)
         .map_err(|e| format!("the open before replace_live: {e}"))?;
     match conn.send(READ_BATCH)? {
-        ServerMessage::Batch(b) => check(&b, &opened.store, ZERO, None, opened.watermark)
-            .map_err(|e| format!("the read before replace_live: {e}"))?,
+        ServerMessage::Batch(b) => {
+            check(&b, &opened.store, ZERO, None, opened.watermark)
+                .map_err(|e| format!("the read before replace_live: {e}"))?;
+            conn.one_instant(&b)?;
+        }
         ServerMessage::Error(e) => {
             return Err(format!(
                 "the read before replace_live got the error {}",
@@ -895,10 +934,10 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             CHECKS[0]
         ));
     }
-    drop(conn);
+    let instants = conn.end();
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let new = old_store(&mut conn, &rf.s, p, "an open_cursor with the old store id")?;
     let at_zero = old_store(
         &mut conn,
@@ -945,9 +984,9 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     if !same(&again.entries, &first.entries) {
         return Err("the new store served other entries with its new id".to_owned());
     }
-    drop(conn);
+    let instants = conn.end();
     subject.load(&SET_C)?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let c =
         read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the read of set C: {e}"))?;
     let stops: Vec<usize> = (0..c.batches.len())

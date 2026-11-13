@@ -3,7 +3,7 @@ use std::io::{self, PipeReader, PipeWriter};
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
-use halvo_schema::StoreId;
+use halvo_schema::{Instant, StoreId};
 use halvo_seam::conformance::{self, Subject};
 use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
@@ -18,6 +18,8 @@ enum Fault {
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
     WatermarkRefusedAfterAShred,
+    ExpiryMovesFromReadToRead,
+    ExpiryMovesFromConnectionToConnection,
 }
 
 use Fault::*;
@@ -30,6 +32,7 @@ struct Fixture {
     idle: Option<FixtureTransport>,
     serving: Option<JoinHandle<FixtureTransport>>,
     replace: Option<Replace>,
+    connections: i64,
 }
 
 impl Fixture {
@@ -42,6 +45,7 @@ impl Fixture {
             idle: None,
             serving: None,
             replace: None,
+            connections: 0,
         }
     }
 
@@ -103,13 +107,20 @@ impl Subject for Fixture {
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
         let fault = self.fault;
         let shredded = self.first_live > 1;
+        self.connections += 1;
+        let connection = self.connections;
         self.serving = Some(std::thread::spawn(move || {
             match fault {
                 None => {
                     let _ = transport.serve(requests_in, replies_out);
                 }
                 Some(fault) => {
-                    let mut wrong = Wrong { fault, shredded };
+                    let mut wrong = Wrong {
+                        fault,
+                        shredded,
+                        connection,
+                        reads: 0,
+                    };
                     wrong.serve(&mut transport, requests_in, replies_out);
                 }
             }
@@ -150,9 +161,28 @@ fn error(cause: Cause) -> ServerMessage {
 struct Wrong {
     fault: Fault,
     shredded: bool,
+    connection: i64,
+    reads: i64,
 }
 
 impl Wrong {
+    fn read(&mut self, t: &mut FixtureTransport) -> ServerMessage {
+        let mut b = match read_reply(t, self.fault) {
+            ServerMessage::Batch(b) => b,
+            reply => return reply,
+        };
+        self.reads += 1;
+        let shift = match self.fault {
+            ExpiryMovesFromReadToRead => self.reads,
+            ExpiryMovesFromConnectionToConnection => self.connection,
+            _ => 0,
+        };
+        for x in &mut b.expiry {
+            x.at = Instant(x.at.0.saturating_add(shift * 1_000_000_000));
+        }
+        ServerMessage::Batch(b)
+    }
+
     fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
         if self.fault == WatermarkRefusedAfterAShred
             && self.shredded
@@ -167,7 +197,7 @@ impl Wrong {
         while let Ok(Some(payload)) = read_frame(&mut input, CLIENT_FRAME_MAX) {
             let reply = match decode_client(&payload) {
                 Ok(ClientMessage::OpenCursor(open)) => self.open(t, &open),
-                Ok(ClientMessage::ReadBatch) => read_reply(t, self.fault),
+                Ok(ClientMessage::ReadBatch) => self.read(t),
                 Ok(message) => t.handle(&message),
                 Err(Refusal::BadRequest) => error(Cause::BadRequest),
                 Err(Refusal::BadFrame) => break,
@@ -215,9 +245,9 @@ fn read_reply(t: &mut FixtureTransport, fault: Fault) -> ServerMessage {
     }
 }
 
-fn wrong(test: &'static str, faults: &[Fault], want: [Option<&str>; 4]) {
+fn wrong(test: &'static str, servers: &[(Fault, [Option<&str>; 4])]) {
     let mut missed = Vec::new();
-    for &fault in faults {
+    for &(fault, want) in servers {
         let mut subject = Fixture::wrong(test, fault);
         let results = conformance::run(&mut subject);
         for ((case, got), want) in results.iter().zip(want) {
@@ -259,36 +289,48 @@ fn conformance_store_changed() {
 
 #[test]
 fn conformance_check_store_changed_names_the_current_id() {
-    let test = "conformance_check_store_changed_names_the_current_id";
     let check = Some("store_changed_names_the_current_id");
     wrong(
-        test,
+        "conformance_check_store_changed_names_the_current_id",
         &[
-            StoreChangedOnReadNamesAnotherId,
-            StoreChangedAtZeroNamesAnotherId,
+            (StoreChangedOnReadNamesAnotherId, [None, None, None, check]),
+            (StoreChangedAtZeroNamesAnotherId, [None, None, None, check]),
         ],
-        [None, None, None, check],
     );
 }
 
 #[test]
 fn conformance_check_open_while_open() {
-    let test = "conformance_check_open_while_open";
     let check = Some("open_while_open");
     wrong(
-        test,
-        &[OpenWhileOpenServes, OpenWhileOpenClosesTheCursor],
-        [None, None, check, None],
+        "conformance_check_open_while_open",
+        &[
+            (OpenWhileOpenServes, [None, None, check, None]),
+            (OpenWhileOpenClosesTheCursor, [None, None, check, None]),
+        ],
     );
 }
 
 #[test]
 fn conformance_check_open_at_the_watermark_after_a_shred() {
-    let test = "conformance_check_open_at_the_watermark_after_a_shred";
     let check = Some("open_at_the_watermark_after_a_shred");
     wrong(
-        test,
-        &[WatermarkRefusedAfterAShred],
-        [None, check, None, None],
+        "conformance_check_open_at_the_watermark_after_a_shred",
+        &[(WatermarkRefusedAfterAShred, [None, check, None, None])],
+    );
+}
+
+#[test]
+fn conformance_check_one_expiry_instant() {
+    let check = Some("one_expiry_instant");
+    wrong(
+        "conformance_check_one_expiry_instant",
+        &[
+            (ExpiryMovesFromReadToRead, [check, check, check, check]),
+            (
+                ExpiryMovesFromConnectionToConnection,
+                [check, check, None, None],
+            ),
+        ],
     );
 }
