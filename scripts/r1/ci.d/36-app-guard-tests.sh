@@ -8,6 +8,10 @@ a_call_whose_origin_header_is_no_address_is_refused
 an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused
 the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_deletes_nothing
 a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window'
+app_modules='app
+commands
+launch
+tray'
 test_command='test --workspace --locked --test page_guard'
 tree_command='tree -p halvo -e normal --target all -f {p} {f} --prefix none --locked'
 esc=$(printf '\033')
@@ -56,12 +60,23 @@ tests_decide() {
   done
   others=$(grep -E '^test .* \.\.\. ' "$2.lf" | grep -c -v -E '^test [^ ]+ \.\.\. ok$')
   [ "$others" = 0 ] || broke "rule 1: $others tests of the run do not pass"
-  unlisted=$(GUARD_TESTS="$guard_tests" awk '
-    BEGIN { n = split(ENVIRON["GUARD_TESTS"], names, "\n"); for (i = 1; i <= n; i++) known[names[i]] = 1 }
-    /^test [^ :]+ \.\.\. / { if (!($2 in known)) print $2 }
+  unlisted=$(GUARD_TESTS="$guard_tests" APP_MODULES="$app_modules" awk '
+    BEGIN {
+      n = split(ENVIRON["GUARD_TESTS"], names, "\n"); for (i = 1; i <= n; i++) known[names[i]] = 1
+      n = split(ENVIRON["APP_MODULES"], names, "\n"); for (i = 1; i <= n; i++) modules[names[i]] = 1
+    }
+    /^test [^ ]+ \.\.\. / {
+      if ($2 in known) next
+      cut = index($2, "::")
+      if (cut > 0 && (substr($2, 1, cut - 1) in modules)) next
+      print $2
+    }
   ' "$2.lf")
   for test in $unlisted; do
-    broke "rule 1: $test of tests/page_guard.rs is not in the list of this check, so add it to guard_tests"
+    case $test in
+      *::*) broke "rule 1: $test of tests/page_guard.rs stands in a module that is not on app_modules, so write it at the top level of the file and add it to guard_tests, or, when the file brings in one more module of the app by a path attribute, add that module's name to app_modules" ;;
+      *) broke "rule 1: $test of tests/page_guard.rs is not in the list of this check, so add it to guard_tests" ;;
+    esac
   done
   printf 'tests of page_guard.rs passed by name: %s of 5\n' "$passed"
 }
@@ -401,7 +416,11 @@ self_test() {
 
   check_tests all-pass PASS 0 "$keep" "$keep"
   check_tests crlf-and-windows-paths PASS 0 "s/\$/$cr/" "s|Running tests/|Running tests\\\\|; s|target/debug/deps/|target\\\\debug\\\\deps\\\\|; s/\$/$cr/"
-  check_tests_adding another-module-test-passes PASS 0 out "$keep" '^test tray::' 'test commands::tests::a_new_test_of_a_module ... ok' 18
+  check_tests_adding another-module-test-passes PASS 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test commands::tests::a_new_test_of_a_module ... ok' 18
+  check_tests_adding a-test-of-the-module-app-passes PASS 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test app::tests::a_test_of_the_app_module ... ok' 18
+  check_tests_adding a-test-in-a-module-of-the-file "FAIL rule 1: more::a_guard_test_in_a_module of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test more::a_guard_test_in_a_module ... ok' 18
+  check_tests_adding a-test-two-modules-deep "FAIL rule 1: more::deeper::a_guard_test_two_modules_deep of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test more::deeper::a_guard_test_two_modules_deep ... ok' 18
+  check_tests_adding a-module-that-begins-like-an-app-module "FAIL rule 1: tray_more::tests::a_test_of_a_module_named_like_tray of tests/page_guard.rs stands in a module that is not on app_modules" 0 out 's/^running 12 tests$/running 13 tests/; s/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' '^test tray::' 'test tray_more::tests::a_test_of_a_module_named_like_tray ... ok' 18
   check_tests_adding m33-built-to-zero-tests "FAIL rule 3: tests/page_guard.rs was built to 0 tests in the job" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
   check_tests_adding m33-names-missing "FAIL rule 1: a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing is missing" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
   check_tests one-guard-test-ignored "FAIL rule 1: a_call_whose_origin_header_is_no_address_is_refused is ignored" 0 's/^test a_call_whose_origin_header_is_no_address_is_refused \.\.\. ok$/test a_call_whose_origin_header_is_no_address_is_refused ... ignored/' "$keep"
