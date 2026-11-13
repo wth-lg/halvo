@@ -228,7 +228,11 @@ impl Runner {
     }
 
     /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect, or gives the effect back
-    /// with the later load when that load gives `confirm` for a `cleared` effect. A `cleared` effect whose values
+    /// with the later load when that load gives `confirm` for a `cleared` effect. Before each `begin`, and before the
+    /// digests are compared, the origin of the paused request must be an origin of the later load's bindings or the
+    /// allowed `new_origin` (none: the runner's confirmations name none in the mode `replay`), else the effect is
+    /// ended and the run ends `refused` with `origin` (A9.2); then `admit` is asked with that load's origins, and its
+    /// refusal ends the run `failed` with `provenance` (CP-159 G1). A `cleared` effect whose values
     /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the
     /// step proposes effects again (A5.2, CP-157 E4).
     fn let_through(
@@ -256,6 +260,19 @@ impl Runner {
                     return Err(failed(cause));
                 }
             };
+            let facts = facts_of(one.request.as_ref(), &again);
+            if facts
+                .request_origin
+                .as_ref()
+                .is_some_and(|o| !facts.origins.contains(o) && facts.new_origin.as_ref() != Some(o))
+            {
+                self.advance(one.at, EffectMove::End)?;
+                return Err(Stop::End(Outcome::Refused, Some(Cause::Origin)));
+            }
+            if admit(class, &now, &facts).is_err() {
+                self.advance(one.at, EffectMove::End)?;
+                return Err(failed(Cause::Provenance));
+            }
             let read = digest(&now).map_err(|_| failed(Cause::StepFailed))?;
             if &read == self.effects[one.at].digest() {
                 self.advance(one.at, EffectMove::Begin { digest: read })?;
@@ -279,10 +296,6 @@ impl Runner {
             if count >= LIMITS.rebinds {
                 self.advance(one.at, EffectMove::End)?;
                 return Err(failed(Cause::Changed));
-            }
-            if admit(class, &now, &facts_of(one.request.as_ref(), &again)).is_err() {
-                self.advance(one.at, EffectMove::End)?;
-                return Err(failed(Cause::Provenance));
             }
             if cleared {
                 self.advance(one.at, EffectMove::End)?;

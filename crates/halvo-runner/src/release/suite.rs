@@ -329,6 +329,9 @@ fn data_dir() -> PathBuf {
 /// A change of the slots that the load of a count gives.
 pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 
+/// A change of the origins of the bindings that the load of a count gives.
+pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
+
 /// What the in-memory supervisor does beside answering: `on_confirm` runs with the count of confirmation requests so
 /// far, before the decision is written; `answer` is the answer for every effect of a decision; with
 /// `stop_after_begin` it closes both ends of the link once it has answered a `begin` row; with
@@ -337,8 +340,8 @@ pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
 /// holds give a configuration under which `decide` gives `run` for `delete` and `submit` (`unattended`, `allow`
-/// `delete` and `submit`, `untrusted` no); `slots_at` changes the slots of the bindings that the load of a count gives; the supervisor
-/// writes one `cancel` before its reply to the first frame for which `cancel_before` holds; `wall_s` is the
+/// `delete` and `submit`, `untrusted` no); `slots_at` and `origins_at` change the slots and the origins of the
+/// bindings that the load of a count gives; the supervisor writes one `cancel` before its reply to the first frame for which `cancel_before` holds; `wall_s` is the
 /// `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
@@ -351,6 +354,7 @@ pub(crate) struct Plan {
     pub(crate) other_digest: bool,
     pub(crate) runs_at: Option<fn(usize) -> bool>,
     pub(crate) slots_at: Option<SlotsAt>,
+    pub(crate) origins_at: Option<OriginsAt>,
     pub(crate) cancel_before: Option<fn(&FromRunner) -> bool>,
     pub(crate) wall_s: Option<u32>,
     pub(crate) clock: Arc<AtomicU64>,
@@ -370,6 +374,7 @@ impl Plan {
             other_digest: false,
             runs_at: None,
             slots_at: None,
+            origins_at: None,
             cancel_before: None,
             wall_s: None,
             clock: Arc::default(),
@@ -428,7 +433,13 @@ fn supervise(
                         playbook: None,
                         bindings: Some(LoadedBindings {
                             rev: NonZeroU32::MIN,
-                            origins: bindings.0.clone(),
+                            origins: {
+                                let mut origins = bindings.0.clone();
+                                if let Some(change) = plan.origins_at.as_mut() {
+                                    change(loads, &mut origins);
+                                }
+                                origins
+                            },
                             slots: {
                                 let mut slots = bindings.1.clone();
                                 if let Some(change) = plan.slots_at.as_mut() {
@@ -940,4 +951,105 @@ pub(crate) fn payee_changed_at_the_load_before_the_begin(maker: &mut dyn Maker) 
         record.logs().last().map(|l| (l.event, l.cause)),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
+}
+
+/// Runs the payment of [`Case::AmountChanges`] with the origins of the bindings changed by `change` from the load
+/// before the `begin` on; the record and the fixture's state before and after it.
+fn pay_with_origins(
+    maker: &mut dyn Maker,
+    mut change: impl FnMut(&OriginsOf, &mut Vec<WebOrigin>) + Send + 'static,
+) -> (Record, serde_json::Value, serde_json::Value) {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let before = fixture.state();
+    let of = OriginsOf {
+        port: fixture.port(),
+    };
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            origins_at: Some(Box::new(move |load, origins| {
+                if load >= 2 {
+                    change(&of, origins);
+                }
+            })),
+            ..Plan::plain()
+        },
+    );
+    let after = fixture.state();
+    (record, before, after)
+}
+
+/// The origin of a host of the fixture on its port.
+pub(crate) struct OriginsOf {
+    port: u16,
+}
+
+impl OriginsOf {
+    pub(crate) fn origin(&self, name: &str) -> WebOrigin {
+        WebOrigin::parse(&format!("http://{name}.agent.test:{}", self.port)).expect("an origin")
+    }
+}
+
+/// The ruling CP-159 G1 (A9.2, A9.3), adversary 2's origin case: the origin of the paused request, the payment
+/// frame's, is no longer in the bindings of the load before the `begin`, and the digest is the same. No `begin` row
+/// and no payment; the effect is ended and the run ends `refused` with the cause `origin`.
+pub(crate) fn pay_origin_gone_at_the_load_before_the_begin(maker: &mut dyn Maker) {
+    let (record, before, after) = pay_with_origins(maker, |f, origins| {
+        let pay = f.origin("pay");
+        origins.retain(|o| *o != pay);
+    });
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Rejected
+        ],
+        "no begin row; the effect is ended"
+    );
+    assert_eq!(record.effects()[2].cause, Some(Cause::Ended));
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+    assert_eq!(
+        count(&after, "state_changing"),
+        count(&before, "state_changing"),
+        "no byte of the request leaves"
+    );
+    assert_eq!(record.done(), Some(Outcome::Refused));
+    assert_eq!(
+        record.logs().last().map(|l| (l.event, l.cause)),
+        Some((LogEvent::Stopped, Some(Cause::Origin)))
+    );
+}
+
+/// The ruling CP-159 G1, its controls: a later load whose bindings still hold the payment frame's origin lets one
+/// request leave, also when the origin of the page that holds the frame is gone from them.
+pub(crate) fn origins_that_keep_the_pay_origin_let_the_request_leave(maker: &mut dyn Maker) {
+    for drop_page in [false, true] {
+        let (record, _, after) = pay_with_origins(maker, move |f, origins| {
+            if drop_page {
+                let utility = f.origin("utility");
+                origins.retain(|o| *o != utility);
+            } else {
+                origins.push(f.origin("shop"));
+            }
+        });
+        let paid = after["utility"]["payments"]
+            .as_array()
+            .expect("payments")
+            .len();
+        assert_eq!(paid, 1, "one payment (page origin dropped: {drop_page})");
+        assert_eq!(record.done(), Some(Outcome::Completed));
+        assert_eq!(
+            record.states().last(),
+            Some(&EffectState::Committed),
+            "page origin dropped: {drop_page}"
+        );
+    }
 }

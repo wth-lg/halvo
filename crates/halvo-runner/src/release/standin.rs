@@ -13,9 +13,10 @@ use halvo_schema::Category;
 
 use super::suite::{
     answer_of, changed_on_page, commit_without_reply, http,
-    payee_changed_at_the_load_before_the_begin, request_bytes, send_bytes, slot,
-    slot_changed_at_the_load_before_the_begin, stopped_between_begin_and_commit, Case, Fixture,
-    Maker,
+    origins_that_keep_the_pay_origin_let_the_request_leave,
+    pay_origin_gone_at_the_load_before_the_begin, payee_changed_at_the_load_before_the_begin,
+    request_bytes, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
+    stopped_between_begin_and_commit, Case, Fixture, Maker,
 };
 use super::{Left, Paused, Replied};
 
@@ -299,4 +300,14 @@ fn a_slot_changed_at_the_load_before_the_begin_is_asked_again_and_leaves() {
 #[test]
 fn a_payee_changed_at_the_load_before_the_begin_ends_the_effect_with_no_second_card() {
     payee_changed_at_the_load_before_the_begin(&mut Standin);
+}
+
+#[test]
+fn the_pay_origin_gone_at_the_load_before_the_begin_ends_the_run_refused_origin() {
+    pay_origin_gone_at_the_load_before_the_begin(&mut Standin);
+}
+
+#[test]
+fn origins_that_keep_the_pay_origin_let_the_request_leave_once() {
+    origins_that_keep_the_pay_origin_let_the_request_leave(&mut Standin);
 }
