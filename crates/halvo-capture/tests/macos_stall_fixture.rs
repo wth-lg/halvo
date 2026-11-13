@@ -45,6 +45,7 @@ const SHORT_BOUND: Duration = Duration::from_millis(1_000);
 const LONG_BOUND: Duration = Duration::from_millis(3_000);
 const JUST_UNDER: u64 = 850;
 const ROUNDS: usize = 3;
+const FAULT_ROUNDS: usize = 5;
 const MARGIN: Duration = Duration::from_millis(750);
 
 fn uptime_ns() -> u64 {
@@ -496,11 +497,14 @@ fn round(
             round.why_not = "the secure field did not turn secure input on";
             return round;
         }
-        fixture.ask("hide", "hidden");
+        if fixture.ask("away", "away=") != "away=1" {
+            round.why_not = "no Finder to yield the front to";
+            return round;
+        }
         if !until(Duration::from_secs(3), || {
             frontmost_pid() != Some(fixture.pid) && !secure_input_active()
         }) {
-            round.why_not = "the hidden fixture kept the front or secure input";
+            round.why_not = "the fixture kept the front or secure input after it yielded";
             return round;
         }
     } else {
@@ -514,7 +518,7 @@ fn round(
             return round;
         }
     }
-    let centre = (how == Move::Click).then(|| secure_field_centre(fixture));
+    let centre = matches!(how, Move::Click | Move::Return).then(|| secure_field_centre(fixture));
     let step = letter_step(wait_ms);
     let ahead_from = SystemTime::now();
     let command = if how == Move::Itself {
@@ -533,7 +537,7 @@ fn round(
             fixture.keys(step, &letters);
         }
         Move::Return => {
-            activate_from_here(fixture.pid);
+            fixture.click(&centre.expect("the centre of the secure field"));
             fixture.keys(step, &letters);
         }
         Move::Itself => fixture.keys(step, &letters),
@@ -545,7 +549,9 @@ fn round(
     let landed = until(Duration::from_secs(3), || {
         let state = fixture.state();
         round.secure = state.secure;
-        state.secure == LETTERS.len() && (how == Move::WholePassword || state.focus == "secure")
+        state.secure == LETTERS.len()
+            && (how == Move::WholePassword || state.focus == "secure")
+            && (how != Move::Return || state.front)
     });
     if !landed {
         round.why_not = "the letters did not land in the secure field";
@@ -689,7 +695,16 @@ fn a_key_typed_ahead_into_a_secure_field_is_not_recorded() {
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded() {
     let name = "known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded";
-    judge(name, &phase(name, Move::Tab, &[(1_500, SHORT_BOUND)]));
+    judge(
+        name,
+        &phase_with(
+            name,
+            Move::Tab,
+            &[(1_500, SHORT_BOUND)],
+            source_for,
+            FAULT_ROUNDS,
+        ),
+    );
 }
 
 #[test]
@@ -698,7 +713,13 @@ fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
     let name = "known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded";
     judge(
         name,
-        &phase(name, Move::WholePassword, &[(300, SHORT_BOUND)]),
+        &phase_with(
+            name,
+            Move::WholePassword,
+            &[(300, SHORT_BOUND)],
+            source_for,
+            FAULT_ROUNDS,
+        ),
     );
 }
 
@@ -720,7 +741,43 @@ fn a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded() {
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_on_a_return_to_a_secure_field_is_not_recorded";
-    judge(name, &phase(name, Move::Return, &stall_waits()));
+    judge_three_ways(
+        name,
+        &phase_with(name, Move::Return, &stall_waits(), source_for, 1),
+    );
+}
+
+fn judge_three_ways(name: &str, rounds: &[Round]) {
+    let failed = rounds.iter().filter(|r| r.counted && r.ahead > 0).count();
+    let held = rounds.iter().filter(|r| r.counted && r.ahead == 0).count();
+    let not_driven = rounds.len() - failed - held;
+    for round in rounds.iter().filter(|round| !round.counted) {
+        println!(
+            "{name} notdriven wait_ms={} why={}",
+            round.wait_ms,
+            round.why_not.replace(' ', "_")
+        );
+    }
+    let verdict = match (failed, not_driven) {
+        (0, 0) => "held",
+        (0, _) => "notdriven",
+        _ => "failed",
+    };
+    println!("{name} verdict={verdict} held={held} failed={failed} notdriven={not_driven}");
+    let inexact: Vec<String> = rounds
+        .iter()
+        .filter(|round| round.counted && round.markers != MARKERS.len())
+        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.markers))
+        .collect();
+    assert!(
+        failed == 0,
+        "{name}: recorded keys beside the markers in rounds that counted: {failed} rounds"
+    );
+    assert!(
+        inexact.is_empty(),
+        "{name}: records of the markers other than one for each marker: {}",
+        inexact.join(", ")
+    );
 }
 
 #[test]

@@ -20,7 +20,7 @@ the_probe_reports_what_the_stall_phases_rest_on not-run
 a_key_typed_ahead_into_a_secure_field_is_not_recorded phase
 a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded phase
 a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded phase
-a_key_typed_on_a_return_to_a_secure_field_is_not_recorded phase
+a_key_typed_on_a_return_to_a_secure_field_is_not_recorded three-way
 the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded phase
 the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field phase
 at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys phase
@@ -46,7 +46,7 @@ judge() {
   out=$(tr -d '\r' <"$3")
   summary=$(printf '%s\n' "$out" | sed -n 's/^test result: //p' | tail -n 1)
   case $2 in
-    phase)
+    phase | three-way)
       if [ "$1" -ne 0 ]; then
         cause="exit $1"
         return 0
@@ -169,6 +169,7 @@ measure() {
   known=0
   fixed=0
   failed=0
+  not_driven=0
   index=0
   while read -r test kind; do
     [ "$kind" != not-run ] || continue
@@ -178,8 +179,20 @@ measure() {
     run_test "$test" "$log"
     code=$?
     seconds=$(($(date +%s) - started))
-    tr -d '\r' <"$log" | grep -E "^$test (fixture|round|control)=" | sed 's/^/    | /'
+    tr -d '\r' <"$log" | grep -E "^$test (fixture=|round=|control=|verdict=|notdriven )" | sed 's/^/    | /'
     judge "$code" "$kind" "$log"
+    three=
+    if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
+      three=$(tr -d '\r' <"$log" | sed -n -E "s/^$test verdict=(held|notdriven) .*/\1/p" | tail -n 1)
+      case $three in
+        held) ;;
+        notdriven) not_driven=$((not_driven + 1)) ;;
+        *)
+          verdict=FAIL
+          cause='the three-way phase printed no verdict line of held or notdriven'
+          ;;
+      esac
+    fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       known-fault) known=$((known + 1)) ;;
@@ -187,14 +200,14 @@ measure() {
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
-    line="MS $test result=$verdict seconds=$seconds"
+    line="MS $test result=$verdict${three:+ verdict=$three} seconds=$seconds"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   done <"$work/expected"
 
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
-  line="MS total=$index pass=$passed known_fault=$known fail=$((failed + fixed))"
+  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
@@ -276,7 +289,7 @@ EOF
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 if [ "$*" = --list ]; then
-  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\n'
+  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\n'
   spec extra-test && printf 'unlisted: test\n'
   exit 0
 fi
@@ -289,6 +302,11 @@ spec "fail-$test" && { printf "thread 'x' panicked at y:\n%s: rounds that did no
 spec "leak-$test" && { printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 150 ms: 3\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"; exit 101; }
 spec "empty-$test" && { printf 'test result: ok. 0 passed; 0 failed; 1 ignored\n'; exit 0; }
 case $test in
+  three_*)
+    spec "silent-$test" || { spec "notdriven-$test" && printf '%s verdict=notdriven held=3 failed=0 notdriven=2\n' "$test" || printf '%s verdict=held held=5 failed=0 notdriven=0\n' "$test"; }
+    printf 'test result: ok. 1 passed; 0 failed; 0 ignored\n'
+    exit 0
+    ;;
   known_*)
     spec "pass-$test" && { printf 'test result: ok. 1 passed; 0 failed; 0 ignored\n'; exit 0; }
     printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 1500 ms: 9\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"
@@ -308,7 +326,7 @@ self_test() {
   }
   mkdir -p "$work/bin" "$work/repo/target/ci-artifacts/12-test" || exit 2
   write_stubs
-  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\n' >"$work/expected-small"
+  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\n' >"$work/expected-small"
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   git -C "$work/repo" add tracked.txt || exit 2
@@ -322,7 +340,9 @@ test a_rule ... ok'
   wrong=
   rejected=0
   limit=
-  check all-pass PASS 'MS total=3 pass=2 known_fault=1 fail=0' ''
+  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 fail=0' ''
+  check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
+  check three-way-without-a-verdict FAIL 'printed no verdict line of held or notdriven' 'silent-three_one'
   check phase-fails FAIL 'FAIL 51-macos-stall (1 tests failed)' 'fail-phase_one'
   check phase-runs-no-test FAIL 'phase_two: exit 0, and not one test ran and passed' 'empty-phase_two'
   check known-fault-passes FAIL 'FIXED-BUT-LISTED' 'pass-known_one'

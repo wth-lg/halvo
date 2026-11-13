@@ -13,6 +13,8 @@
 //                    answers woke at=<ns>
 //   hide             hides the app; answers hidden
 //   activate         asks to be the app in front; answers asked
+//   away             yields the front to the Finder; answers away=<0|1>, 1 when
+//                    the Finder runs
 //   keys <ms> <k>... posts keys at the HID level from the thread that reads
 //                    the commands, so also while the main thread waits; each
 //                    <k> is a key code, pressed and let go, or a key code with
@@ -147,6 +149,16 @@ static void handle(NSString *line) {
     } else if ([verb isEqualToString:@"hide"]) {
         [NSApp hide:nil];
         say(@"hidden");
+    } else if ([verb isEqualToString:@"away"]) {
+        NSRunningApplication *finder =
+            [NSRunningApplication runningApplicationsWithBundleIdentifier:@"com.apple.finder"].firstObject;
+        if (finder) {
+            if (@available(macOS 14.0, *)) {
+                [NSApp yieldActivationToApplication:finder];
+            }
+            [finder activateWithOptions:0];
+        }
+        say([NSString stringWithFormat:@"away=%d", finder ? 1 : 0]);
     } else if ([verb isEqualToString:@"activate"]) {
         [NSApp activateIgnoringOtherApps:YES];
         [window makeKeyAndOrderFront:nil];
