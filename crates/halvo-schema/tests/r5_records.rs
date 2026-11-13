@@ -10,7 +10,9 @@ use halvo_schema::learning::names::{EditCause, Mark, RunCause, EDIT_STATES, RUN_
 use halvo_schema::learning::record::{
     Day, EditId, EditState, LearnEdit, LearnRoutine, LearnRun, LearnedTarget, RunStatus, Verdict,
 };
-use halvo_schema::learning::{Refusal, CLEAN_BOUND, LOCATORS_BOUND, RUNS_BOUND, TARGET_BYTES};
+use halvo_schema::learning::{
+    Refusal, CLEAN_BOUND, KINDS, LOCATORS_BOUND, RUNS_BOUND, TARGET_BYTES,
+};
 use halvo_schema::{AgentId, AppId, SeedCategory, WorkflowId};
 
 const RUN_EXAMPLE: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","run":"9f8e7d6c5b4a39281706f5e4d3c2b1a0","rev":2,"day":20767,"mode":"replay","state":"verified","cause":null,"base":1,"assisted":1,"kept":1,"failed_step":null}"#;
@@ -180,6 +182,20 @@ fn refusal_edit_extra_key() {
             "{what}: the generic check of the crate takes the line"
         );
     }
+}
+
+#[test]
+fn the_active_reverted_and_withdrawn_rows_pass_the_check_of_the_registered_entry() {
+    let registered = KINDS.iter().find(|k| k.name == "learn_edit").unwrap();
+    for line in [EDIT_ACTIVE, EDIT_REVERTED, EDIT_WITHDRAWN] {
+        assert_eq!(check_record(registered, line), Ok(()), "{line}");
+    }
+}
+
+#[test]
+fn the_stand_in_of_the_edit_kind_is_the_registered_entry() {
+    let registered: Vec<&KindEntry> = KINDS.iter().filter(|k| k.name == "learn_edit").collect();
+    assert_eq!(registered, [&learn_edit_stand_in()]);
 }
 
 #[test]
