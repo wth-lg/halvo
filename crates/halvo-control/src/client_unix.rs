@@ -102,6 +102,7 @@ impl UnixConnector {
     }
 
     /// The connector to the control socket under `run/` of `data_dir`.
+    #[cfg(test)]
     pub(crate) fn at(data_dir: &DataDir) -> Self {
         Self {
             socket: data_dir.control_socket(),
