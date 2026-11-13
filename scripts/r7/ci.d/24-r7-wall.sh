@@ -163,7 +163,7 @@ judge() {
       if (glob ~ /[a-z]/) return 1
       under = "backend"
       for (k = i + 1; k <= n && sg[k] !~ /[*?[]/ && sg[k] != ""; k++) under = under "/" lower(sg[k])
-      return under != "backend" && (under in backend_dir)
+      return under != "backend" && ((under in backend_dir) || (under in backend_file))
     }
     function through_link(sg, n,   k) {
       for (k = 1; k <= n; k++) if (sg[k] in link_name) return 1
@@ -295,9 +295,10 @@ judge() {
         return
       }
       for (i = from; i <= n; i++) if (sg[i] != "" && sg[i] != "." && sg[i] != "..") break
-      if (i < n && glob_hit(lower(sg[i]), sg, i, n)) problem(where, "reads under backend/ by a glob: " tok fix_md)
+      if (i < n && tok_pos > pattern_end && glob_hit(lower(sg[i]), sg, i, n)) problem(where, "reads under backend/ by a glob: " tok fix_md)
     }
     function token(tok, s, pos,   c, kind, sg, n, i, from, climbs, low, linked) {
+      tok_pos = pos
       sub(/^\\+/, "", tok)
       if (match(tok, /^(file|link|portal|workspace):/)) tok = substr(tok, RLENGTH + 1)
       kind = ""
@@ -356,30 +357,46 @@ judge() {
       if (low ~ listed) { problem(where, "lists backend as a member" fix_md); return }
       words(s)
     }
-    function arm_globs(s,   n, pat, out, w) {
-      if (path !~ /\.(sh|bash)$/ && index(path, ".githooks/") != 1) return s
-      if (match(s, arm_cont)) n = length(s)
-      else if (match(s, arm_re)) n = RLENGTH
-      else return s
-      pat = substr(s, 1, n)
-      out = ""
-      while (match(pat, arm_word)) {
-        w = substr(pat, RSTART, RLENGTH)
-        if (w ~ /[*?[]/) gsub(/./, " ", w)
-        out = out substr(pat, 1, RSTART - 1) w
-        pat = substr(pat, RSTART + RLENGTH)
+    function case_line(raw,   t, d, k) {
+      if (!parse(raw)) return
+      t = gtext
+      sub(/\r$/, "", t)
+      if (t ~ /^[ \t]*#/) return
+      d = 0
+      while (match(t, case_open)) { d++; t = substr(t, RSTART + RLENGTH) }
+      t = gtext
+      while (match(t, case_close)) { d--; t = substr(t, RSTART + RLENGTH) }
+      if (d == 0) return
+      k = ++case_n[gpath]
+      case_at[gpath, k] = gnumber + 0
+      case_d[gpath, k] = d
+    }
+    function case_depth(p, num,   k, d) {
+      d = 0
+      for (k = 1; k <= case_n[p]; k++) {
+        if (case_at[p, k] >= num) break
+        d += case_d[p, k]
+        if (d < 0) d = 0
       }
-      return out pat substr(s, n + 1)
+      return d
+    }
+    function arm_end(s) {
+      if (path !~ /\.(sh|bash)$/ && index(path, ".githooks/") != 1) return 0
+      if (case_depth(path, number + 0) < 1) return 0
+      if (match(s, arm_cont)) return length(s)
+      if (match(s, arm_re)) return RLENGTH
+      return 0
     }
     function line_of(s,   rest, off, tok, before, pos) {
       chain_mode = 0
-      s = arm_globs(s)
+      pattern_end = 0
       s = normal(s)
       if (side == "app") {
         app_line(s)
         if (refused[side] + 0 > seen_refused) return
       }
       s = split_defaults(s)
+      pattern_end = arm_end(s)
       rest = s
       off = 0
       while (match(rest, token_chars)) {
@@ -494,6 +511,8 @@ judge() {
       operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
       archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
       string_re = "\"[^\"]*\"|" q "[^" q "]*" q "|`[^`]*`"
+      case_open = "(^|[;&|({ \t])case[ \t]+[^ \t;&|]+[ \t]+in([ \t;]|$)"
+      case_close = "(^|[;&|( \t])esac([ \t;&|)]|$)"
       arm_word = "[^ \t()|;&<>$`]+"
       arm_re = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[)]"
       arm_cont = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[|][ \t]*\\\\[ \t]*\r?$"
@@ -533,7 +552,7 @@ judge() {
     FILENAME == ARGV[4] {
       known[$0] = 1
       files++
-      if (index(lower($0), "backend/") == 1) backend_files++
+      if (index(lower($0), "backend/") == 1) { backend_files++; backend_file[lower($0)] = 1 }
       d = $0
       while ((k = match(d, /\/[^\/]*$/)) > 0) { d = substr(d, 1, k - 1); tracked_dir[d] = 1 }
       st = $0
@@ -547,6 +566,7 @@ judge() {
       else if ($1 == "package") backend_package[$2] = 1
       else if ($1 == "run") run_able[$2] = 1
       else if ($1 == "quoted") quoted[++quoted_paths] = $2
+      else if ($1 == "caseline") case_line(substr($0, 10))
       next
     }
     {
@@ -656,6 +676,10 @@ check_in() {
   git -c core.quotepath=off grep --cached -I -n -i -E -e "ackend|[*?][^[:space:]]*/$linked" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' >>"$work/lines"
   found=$?
   [ "$found" -le 1 ] || return 2
+  git -c core.quotepath=off grep --cached -I -n -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines"
+  found=$?
+  [ "$found" -le 1 ] || return 2
+  awk -v t="$tab" '{ print "caseline" t $0 }' "$work/case-lines" >>"$work/facts" || return 2
   git -c core.quotepath=off grep --cached -I -n -E -e 'dirname[(]fileURLToPath[(]import[.]meta[.]url[)][)]|__dirname|import[.]meta[.]dirname|[$][(]dirname "[$]0"[)]' -- . >"$work/anchor-lines"
   found=$?
   [ "$found" -le 1 ] || return 2
@@ -829,15 +853,19 @@ known-limit-<name> of the self-test:
   known limit unread-variable: in backend/, a variable that the file assigns twice or from another form than the five: a climb after it is placed by the index alone, so a path that the index does not track passes.
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
-A case arm's pattern is not read as a path (P7-88): the shell holds the
-pattern against a word and never opens it against the file system, so it
-reads no file. In a shell script (.sh, .bash, or a file under .githooks/), a
-line that starts with words joined by | and closed by ) is read as an arm: a
-glob word of its pattern is not read, a literal word is read as before, and
-everything after the parenthesis is read as code by every rule. A line of
-such words that ends in | and a backslash is read as the first line of a
-pattern. A line that only looks like an arm, as the closing line of a
-command substitution that began on an earlier line, is read as an arm too.
+A case arm's pattern is not read as a glob (P7-88, P7-89): the shell holds
+the pattern against a word and never opens it against the file system, so a
+glob in it reads no file. In a shell script (.sh, .bash, or a file under
+.githooks/), a line between a case word's "in" and its "esac", with blocks
+inside blocks counted, that starts with words joined by | and closed by ),
+is an arm, and a line of such words that ends in | and a backslash is the
+first line of a pattern. The glob rule passes over the pattern of an arm;
+every other rule reads it as before, and everything after the parenthesis is
+read as code by every rule. A line outside a case block is never read as an
+arm. Inside a case block, a line that only looks like an arm, as the closing
+line of a subshell or of a command substitution that began on an earlier
+line, is read as an arm too, and a case or esac in a string or a here-document
+is counted as one.
 
 Exit status: 0 PASS, 1 FAIL. --self-test runs its cases on throwaway
 repositories under TMPDIR and removes them when it ends.
@@ -1567,6 +1595,31 @@ esac' 'scripts/sort.sh:2: reads under backend/: backend/test/ledger/cases.ts by 
 esac' 'read:scripts/sort2.sh'
   case_with p788-a-parenthesis-in-a-command-substitution-is-code scripts/count3.sh 'files=$(ls */test/*)' 'scripts/count3.sh:1: reads under backend/'
   case_with p788-a-case-word-under-backend-is-read scripts/word.sh 'case backend/test/ledger/cases.ts in' 'scripts/word.sh:1: '
+
+  case_with p789-e1-a-literal-pattern-under-backend-is-read scripts/pick.sh 'git ls-files | while read -r f; do
+  case $f in
+    backend/*) cat "$f" ;;
+  esac
+done' 'scripts/pick.sh:3: reads under backend/: backend/* by backend/*'
+  case_with p789-e2-a-wrapped-pipeline-line-is-code scripts/wrap.sh 'printf "%s\n" \
+  */test/ledger/*.ts | \
+  xargs cat' 'scripts/wrap.sh:2: reads under backend/ by a glob'
+  case_with p789-e2-a-one-word-glob-command-before-a-pipe-is-code scripts/run1.sh 'b*/scripts/stack.sh | \
+  tee out.txt' 'scripts/run1.sh:1: reads under backend/ by a glob'
+  case_with p789-e2-a-subshell-closing-line-is-code scripts/sub.sh '(cd "$here" &&
+  b*/scripts/stack.sh)' 'scripts/sub.sh:2: reads under backend/ by a glob'
+  case_with p789-e2-an-array-closed-on-the-glob-line-is-code scripts/arr.sh 'files=(
+  */test/ledger/*.ts)
+cat "${files[@]}"' 'scripts/arr.sh:2: reads under backend/ by a glob'
+  pass_with p789-e2-an-outer-arm-after-a-nested-case-is-an-arm scripts/nested.sh 'case $1 in
+  a)
+    case $2 in
+      x) : ;;
+    esac
+    ;;
+  */test/*) return 0 ;;
+esac' 'read:scripts/nested.sh'
+  case_with p789-e3-a-glob-that-ends-in-a-backend-file scripts/e3.sh 'cat */test/ledger/cases.ts' 'scripts/e3.sh:1: reads under backend/ by a glob'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
