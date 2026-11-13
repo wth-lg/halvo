@@ -12,8 +12,9 @@ use halvo_schema::Category;
 
 use super::suite::{
     a_delete_answered_204_is_committed, a_delete_answered_401_is_not_committed,
-    a_payment_answered_400_is_not_committed,
-    a_second_allow_for_an_instrument_not_offered_leaves_no_payment, answer_of, changed_on_page,
+    a_payment_answered_400_is_not_committed, a_rebind_then_a_reject_holds_no_approval,
+    a_second_allow_for_an_instrument_not_offered_leaves_no_payment,
+    an_approved_effect_that_a_later_load_refuses_holds_no_approval, answer_of, changed_on_page,
     commit_without_reply, http, origins_that_keep_the_pay_origin_let_the_request_leave,
     pay_origin_gone_at_the_load_before_the_begin, payee_changed_at_the_load_before_the_begin,
     request_bytes, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
@@ -345,4 +346,14 @@ fn a_second_allow_for_an_instrument_not_offered_makes_no_payment() {
 #[test]
 fn a_delete_answered_204_is_made() {
     a_delete_answered_204_is_committed(&mut Standin);
+}
+
+#[test]
+fn a_rebind_then_a_reject_stores_no_approval_in_the_rejected_row() {
+    a_rebind_then_a_reject_holds_no_approval(&mut Standin);
+}
+
+#[test]
+fn an_approved_effect_that_a_later_load_refuses_stores_no_approval() {
+    an_approved_effect_that_a_later_load_refuses_holds_no_approval(&mut Standin);
 }

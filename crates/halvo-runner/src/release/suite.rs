@@ -1197,3 +1197,92 @@ pub(crate) fn a_delete_answered_204_is_committed(maker: &mut dyn Maker) {
     );
     assert_eq!(record.done(), Some(Outcome::Completed));
 }
+
+/// CP-162 (5) (d), CP-165 (4) (c), CP-166 E8, the verify step's case rr_wf1_01: the amount changes after the first
+/// Allow, the effect takes a `rebind` and the person rejects the second card. The rows are `held`, `approved`,
+/// `held` and `rejected`, and the `rejected` row holds no approval: the first was voided by the `rebind`.
+pub(crate) fn a_rebind_then_a_reject_holds_no_approval(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let port = fixture.port();
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            on_confirm: Box::new(move |n| {
+                if n == 1 {
+                    let changed = http(port, "POST", "control.agent.test", "/change", &[], b"");
+                    assert_eq!(changed.status, 200);
+                }
+            }),
+            answer_for: Some(|card, _| {
+                if card == 2 {
+                    Answer::RejectOnce
+                } else {
+                    Answer::AllowOnce
+                }
+            }),
+            ..Plan::plain()
+        },
+    );
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Held,
+            EffectState::Rejected
+        ]
+    );
+    let rows = record.effects();
+    assert!(rows[1].approval.is_some());
+    assert_eq!(
+        rows[3].approval, None,
+        "the rejected row holds no voided approval"
+    );
+    let after = fixture.state();
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+}
+
+/// CP-162 (5) (d), CP-165 (4) (c), CP-166 E8: an `approved` effect that a later load refuses is ended, and its
+/// `rejected` row with the cause `ended` holds no approval, which was never used.
+pub(crate) fn an_approved_effect_that_a_later_load_refuses_holds_no_approval(
+    maker: &mut dyn Maker,
+) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            observe_from_load: Some(2),
+            ..Plan::plain()
+        },
+    );
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Rejected
+        ]
+    );
+    let rows = record.effects();
+    assert_eq!(rows[2].cause, Some(Cause::Ended));
+    assert_eq!(
+        rows[2].approval, None,
+        "the ended row holds no unused approval"
+    );
+    let after = fixture.state();
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+}

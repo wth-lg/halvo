@@ -147,7 +147,8 @@ impl Runner {
     }
 
     /// The move `rebind` of the effect at `at` to the bound object `bound`: its row and every later row carry the
-    /// digest of `bound` and its kept fields (A5.2, A7.4, CP-157 E2).
+    /// digest of `bound` and its kept fields (A5.2, A7.4, CP-157 E2). The approval is void and the effect holds none
+    /// until the person answers again, so a later `rejected` row holds none (CP-162 (5) (d), CP-166 E8).
     pub(crate) fn rebind(&mut self, at: usize, bound: &Bound) -> Result<EffectState, Stop> {
         let new = digest(bound).map_err(|_| failed(Cause::StepFailed))?;
         let e = &self.effects[at];
@@ -167,6 +168,8 @@ impl Runner {
         e.digest = new;
         e.kept = kept_of(bound);
         e.rebinds += 1;
+        e.approval = None;
+        e.allowed_origin = None;
         self.store_row(at, next, None)?;
         Ok(next)
     }
@@ -232,6 +235,7 @@ impl Runner {
             fields: e.fields,
             approval: match state {
                 EffectState::Held | EffectState::Cleared | EffectState::Refused => None,
+                EffectState::Rejected if row_cause == Some(Cause::Ended) => None,
                 _ => e.approval.clone(),
             },
             cause: row_cause,
