@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
+# scratch: round CP-174 adds a step that runs 31 named tests 200 times each
 
 on:
   push:
@@ -12,110 +15,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -133,28 +35,75 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: Fixture self-test (scratch, U4.2)
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: node tools/fixture-server/variants/selftest.mjs
+      - name: Each test of rounds CP-166 and CP-174, 200 times by its exact name (scratch, U4.2)
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          bins=$(cargo test -p halvo-runner --locked --no-run --message-format=json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{for(const l of s.split('\n')){if(!l.startsWith('{'))continue;const m=JSON.parse(l);if(m.reason==='compiler-artifact'&&m.executable&&m.profile&&m.profile.test&&m.package_id.includes('halvo-runner'))console.log(m.target.name+' '+m.executable)}})")
+          echo "$bins"
+          lib=$(cygpath -u "$(echo "$bins" | awk '$1 == "halvo_runner" {print $2}')")
+          enforce=$(cygpath -u "$(echo "$bins" | awk '$1 == "enforce" {print $2}')")
+          test -x "$lib" && test -x "$enforce"
+          cd crates/halvo-runner
+          export CARGO_MANIFEST_DIR="$PWD"
+          short=0
+          start=$(date +%s)
+          while read -r target name; do
+            bin=$lib
+            if [ "$target" = enforce ]; then bin=$enforce; fi
+            ok=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              i=$((i + 1))
+              if out=$("$bin" --exact "$name" 2>&1) && printf '%s\n' "$out" | grep -q 'test result: ok. 1 passed; 0 failed'; then
+                ok=$((ok + 1))
+              else
+                printf 'run %s of %s did not pass:\n%s\n' "$i" "$name" "$out"
+              fi
+            done
+            echo "passes $name $ok of 200"
+            if [ "$ok" -ne 200 ]; then short=$((short + 1)); fi
+          done <<'NAMES'
+          lib release::fake::a_reject_on_the_card_after_a_rebind_ends_that_effect_alone_and_the_effect_behind_leaves
+          lib release::fake::a_reject_on_the_card_of_a_batch_ends_that_effect_alone_and_the_effect_behind_leaves
+          lib release::fake::a_reject_after_an_effect_has_left_ends_the_run_declined
+          lib release::fake::after_a_reject_an_effect_whose_request_gets_no_reply_ends_the_run_effect_unknown
+          lib release::fake::an_effect_that_the_runner_ended_and_proposed_again_does_not_end_the_run_declined
+          lib release::fake::after_a_reject_a_later_load_that_refuses_ends_the_run_refused
+          lib release::fake::a_cancel_before_a_reject_once_reply_is_read_after_the_rejected_row
+          lib release::fake::a_cancel_before_an_allow_once_reply_is_read_before_the_approved_row
+          lib release::fake::a_cancel_before_a_reply_that_rejects_one_effect_and_allows_the_other_stores_the_reject_alone
+          lib release::fake::a_cancel_before_the_answer_to_the_rejected_row_is_read_before_the_approved_row
+          lib release::fake::a_cancel_before_a_reject_on_the_card_after_a_rebind_ends_the_run_before_the_effect_behind
+          enforce the_same_source_under_another_spelling_at_the_load_before_the_prepare_ends_changed
+          enforce a_relative_source_at_the_load_before_the_prepare_ends_step_failed
+          lib release::fake::a_payment_to_an_origin_that_no_binding_holds_gets_no_card
+          lib release::fake::a_purchase_to_an_origin_that_no_binding_holds_gets_no_card
+          lib release::fake::a_submit_to_an_origin_that_no_binding_holds_gets_no_card
+          lib release::fake::a_cancel_with_the_first_load_is_read_before_the_first_propose
+          lib release::fake::a_wall_s_of_the_first_load_is_read_before_the_first_propose
+          lib release::fake::a_cancel_with_the_load_before_the_begin_is_read_before_the_begin
+          lib release::fake::a_further_time_after_a_batch_ends_every_open_effect_changed
+          lib release::fake::a_cleared_effect_whose_value_changes_at_every_read_ends_changed_after_two_times
+          lib release::fake::reject_once_for_one_effect_and_allow_once_for_the_other_lets_the_allowed_one_leave_once
+          lib release::fake::reject_once_lets_no_request_of_its_effect_leave
+          lib release::standin::the_stand_in_reads_its_own_success_status_alone_as_made
+          lib release::standin::a_rebind_then_a_reject_stores_no_approval_in_the_rejected_row
+          lib release::standin::an_approved_effect_that_a_later_load_refuses_stores_no_approval
+          enforce no_permission_and_another_source_end_as_no_permission_alone
+          enforce observe_and_another_source_end_refused_with_autonomy
+          enforce a_source_that_is_no_absolute_path_at_the_load_before_the_begin_ends_changed
+          enforce the_same_source_under_another_spelling_ends_changed
+          enforce a_write_step_whose_file_names_another_slot_edits_that_file_alone
+          NAMES
+          echo "repeat seconds $(( $(date +%s) - start )) tests 31 runs 6200 short $short"
+          test "$short" -eq 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
