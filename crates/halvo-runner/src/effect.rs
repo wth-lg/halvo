@@ -2,10 +2,11 @@ use std::num::NonZeroU32;
 
 use halvo_policy::{digest, effect_step, Decided, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
+use halvo_schema::executable::frame::Approval;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    ActionClass, AgentEffect, Bound, Cause, Digest, EffectId, EffectState, KeptField, Outcome,
-    RunnerCall, RunnerReply,
+    ActionClass, AgentEffect, ApprovalId, Bound, Cause, Digest, EffectId, EffectState, KeptField,
+    Outcome, RunnerCall, RunnerReply,
 };
 use halvo_schema::{RequestId, RunnerRequest};
 
@@ -29,13 +30,39 @@ pub(crate) struct Tracked {
     kept: Vec<KeptField>,
     fields: u32,
     seq: u32,
+    rebinds: u32,
+    approval: Option<ApprovalId>,
     pub(crate) state: EffectState,
 }
 
 impl Tracked {
-    /// The digest of the effect's rows.
+    /// The id of the effect.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) fn id(&self) -> &EffectId {
+        &self.id
+    }
+
+    /// The digest of the effect's last row.
     pub(crate) fn digest(&self) -> &Digest {
         &self.digest
+    }
+
+    /// The count of the effect's `rebind` rows.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) fn rebinds(&self) -> u32 {
+        self.rebinds
     }
 }
 
@@ -71,6 +98,8 @@ impl Runner {
             kept: kept_of(bound),
             fields: bound.fields().len() as u32,
             seq: 0,
+            rebinds: 0,
+            approval: None,
             state,
         });
         let at = self.effects.len() - 1;
@@ -86,7 +115,7 @@ impl Runner {
     }
 
     /// One move of the effect at `at` through the step relation and, when it takes it, the row that the move
-    /// stores: the next state.
+    /// stores: the next state. A `rebind` row holds the new digest and no approval.
     pub(crate) fn advance(&mut self, at: usize, step: EffectMove) -> Result<EffectState, Stop> {
         let e = &self.effects[at];
         let now = Effect {
@@ -94,12 +123,53 @@ impl Runner {
             state: e.state,
             class: e.class,
             digest: e.digest.clone(),
-            rebinds: 0,
+            rebinds: e.rebinds,
         };
         let cause = matches!(step, EffectMove::End).then_some(Cause::Ended);
+        let rebound = match &step {
+            EffectMove::Rebind { digest, .. } => Some(digest.clone()),
+            _ => None,
+        };
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
+        if let Some(digest) = rebound {
+            let e = &mut self.effects[at];
+            e.digest = digest;
+            e.rebinds += 1;
+            e.approval = None;
+        }
         self.store_row(at, next, cause)?;
         Ok(next)
+    }
+
+    /// The move `approve` of the effect at `at` with the person's `allow_once`: its row holds the approval, which
+    /// counts as used when any row of this run held it before (A5.2; the store's handler decides `used` from every
+    /// row of the family).
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) fn approve(&mut self, at: usize, approval: &Approval) -> Result<(), Stop> {
+        let used = self.approvals.contains(&approval.approval);
+        let step = EffectMove::Approve {
+            entry: approval.effect.clone(),
+            digest: approval.digest.clone(),
+            used,
+        };
+        let e = &self.effects[at];
+        let now = Effect {
+            id: e.id.clone(),
+            state: e.state,
+            class: e.class,
+            digest: e.digest.clone(),
+            rebinds: e.rebinds,
+        };
+        let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
+        self.approvals.push(approval.approval.clone());
+        self.effects[at].approval = Some(approval.approval.clone());
+        self.store_row(at, next, None)
     }
 
     fn store_row(
@@ -124,7 +194,10 @@ impl Runner {
             digest: e.digest.clone(),
             kept: e.kept.clone(),
             fields: e.fields,
-            approval: None,
+            approval: match state {
+                EffectState::Held | EffectState::Cleared | EffectState::Refused => None,
+                _ => e.approval.clone(),
+            },
             cause: row_cause,
         };
         let call = RunnerCall::Effect(PutEffect {

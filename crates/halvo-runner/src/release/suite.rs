@@ -1,0 +1,610 @@
+//! The suite of the port [`Paused`] (the coordinator's ruling CP-142): the cases `commit_without_reply` and
+//! `changed_on_page` of A5.4, written for any request maker. Each case starts the fixture server of A10 with its
+//! variant, takes one paused request from the maker, runs the runner's confirm path on it in this process against
+//! an in-memory supervisor and store, and checks what the fixture recorded and which rows and frames the runner
+//! wrote. A maker of this crate calls [`commit_without_reply`] and [`changed_on_page`] from its own tests with its
+//! own [`Maker`].
+
+use std::collections::HashMap;
+use std::ffi::OsString;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::num::NonZeroU32;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
+
+use halvo_policy::{effect_step, preset, Effect, EffectMove};
+use halvo_schema::executable::body::{LoadReply, LoadedBindings, Stored};
+use halvo_schema::executable::frame::{
+    Approval, ConfirmDecision, ConfirmReply, ConfirmRequest, HandbackReply, StoreReply,
+    StoreReplyFrame,
+};
+use halvo_schema::executable::names::{Answer, FieldName, HandbackOutcome, HandbackReason};
+use halvo_schema::executable::record::Slot;
+use halvo_schema::executable::text::{Name, OwnValue, V1};
+use halvo_schema::executable::{
+    AgentConfig, AgentEffect, AgentRun, ApprovalId, EffectId, EffectState, FromRunner,
+    HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
+};
+use halvo_schema::{AgentId, Category, WorkflowId};
+
+use super::Paused;
+use crate::link::{encode, Link};
+use crate::run::Runner;
+
+/// The case of A5.4 for which a maker pauses a request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Case {
+    /// `commit_without_reply`: the paused request is the first state-changing request at the fixture after its
+    /// reset with the variant `no_reply`, which holds it with no reply.
+    NoReply,
+    /// `changed_on_page`: a `payment` of the bill whose amount the payment frame shows, under the variant
+    /// `amount_changes`.
+    AmountChanges,
+}
+
+/// A request maker as the suite drives it.
+pub(crate) trait Maker {
+    /// The category whose preset is the run's configuration.
+    fn category(&self, case: Case) -> Category;
+    /// The origins and the slots of the bindings of a run that makes the request of `case`.
+    fn bindings(&self, fixture: &Fixture, case: Case) -> (Vec<WebOrigin>, Vec<Slot>);
+    /// A state-changing request of `case` against `fixture`, paused.
+    fn paused(&mut self, fixture: &Fixture, case: Case) -> Box<dyn Paused>;
+}
+
+/// An answer of the fixture server: the status and the body.
+#[derive(Debug)]
+pub(crate) struct Answered {
+    pub(crate) status: u16,
+    pub(crate) headers: Vec<(String, String)>,
+    pub(crate) body: String,
+}
+
+/// The bytes of one HTTP/1.1 request to `host` of the fixture on `port`, which closes its connection.
+pub(crate) fn request_bytes(
+    port: u16,
+    method: &str,
+    host: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &[u8],
+) -> Vec<u8> {
+    let mut head = format!(
+        "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nContent-Length: {}\r\n",
+        body.len()
+    );
+    for (name, value) in headers {
+        head.push_str(&format!("{name}: {value}\r\n"));
+    }
+    head.push_str("\r\n");
+    let mut bytes = head.into_bytes();
+    bytes.extend_from_slice(body);
+    bytes
+}
+
+/// Opens a connection to the fixture on `port` and writes `bytes`.
+pub(crate) fn send_bytes(port: u16, bytes: &[u8]) -> TcpStream {
+    let mut stream = TcpStream::connect(SocketAddr::from((Ipv4Addr::LOCALHOST, port)))
+        .expect("connect to the fixture");
+    stream.write_all(bytes).expect("write the request");
+    stream
+}
+
+/// The answer on `stream` within `wait`, or none when no answer came.
+pub(crate) fn answer_of(mut stream: TcpStream, wait: Duration) -> Option<Answered> {
+    stream.set_read_timeout(Some(wait)).ok()?;
+    let mut bytes = Vec::new();
+    let _ = stream.read_to_end(&mut bytes);
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let (head, body) = text.split_once("\r\n\r\n")?;
+    let mut lines = head.lines();
+    let status = lines.next()?.split(' ').nth(1)?.parse().ok()?;
+    let headers: Vec<(String, String)> = lines
+        .filter_map(|l| l.split_once(':'))
+        .map(|(n, v)| (n.trim().to_ascii_lowercase(), v.trim().to_string()))
+        .collect();
+    let chunked = headers
+        .iter()
+        .any(|(n, v)| n == "transfer-encoding" && v.eq_ignore_ascii_case("chunked"));
+    let body = if chunked {
+        dechunk(body)?
+    } else {
+        body.to_string()
+    };
+    Some(Answered {
+        status,
+        headers,
+        body,
+    })
+}
+
+/// The body of a chunked answer.
+fn dechunk(mut rest: &str) -> Option<String> {
+    let mut body = String::new();
+    loop {
+        let (size, after) = rest.split_once("\r\n")?;
+        let size = usize::from_str_radix(size.split(';').next()?.trim(), 16).ok()?;
+        if size == 0 {
+            return Some(body);
+        }
+        body.push_str(after.get(..size)?);
+        rest = after.get(size + 2..)?;
+    }
+}
+
+/// One request to the fixture and its answer within ten seconds.
+pub(crate) fn http(
+    port: u16,
+    method: &str,
+    host: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &[u8],
+) -> Answered {
+    let stream = send_bytes(
+        port,
+        &request_bytes(port, method, host, path, headers, body),
+    );
+    answer_of(stream, Duration::from_secs(10)).expect("the fixture answers")
+}
+
+/// The fixture server of A10, started with a pipe on its standard input, so that it ends with this process, and
+/// ended when dropped.
+pub(crate) struct Fixture {
+    child: Child,
+    port: u16,
+    seed: serde_json::Value,
+}
+
+fn variants_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/fixture-server/variants")
+}
+
+impl Fixture {
+    /// Starts the server on a free port with the seed 1.
+    pub(crate) fn start() -> Fixture {
+        let dir = variants_dir();
+        let mut child = Command::new("node")
+            .arg(dir.join("server.mjs"))
+            .args(["--port", "0", "--seed", "1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("node starts the fixture server");
+        let stdout = child.stdout.take().expect("its standard output");
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut line = String::new();
+            let _ = BufReader::new(stdout).read_line(&mut line);
+            let _ = tx.send(line);
+        });
+        let line = rx.recv_timeout(Duration::from_secs(60)).unwrap_or_default();
+        let port = line
+            .trim_end()
+            .strip_prefix("listening 127.0.0.1:")
+            .and_then(|p| p.parse::<u16>().ok());
+        let seed = std::fs::read(dir.join("data").join("seed-1.json")).expect("read the seed");
+        let mut fixture = Fixture {
+            child,
+            port: 0,
+            seed: serde_json::from_slice(&seed).expect("the seed's json"),
+        };
+        fixture.port = port.expect("the fixture prints listening 127.0.0.1:<port>");
+        fixture
+    }
+
+    pub(crate) fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// The seed's data.
+    pub(crate) fn seed(&self) -> &serde_json::Value {
+        &self.seed
+    }
+
+    /// The origin of the fixture's host `name`.
+    pub(crate) fn origin(&self, name: &str) -> WebOrigin {
+        WebOrigin::parse(&format!("http://{name}.agent.test:{}", self.port)).expect("an origin")
+    }
+
+    /// One request to the control host.
+    pub(crate) fn control(&self, method: &str, path: &str) -> Answered {
+        http(self.port, method, "control.agent.test", path, &[], b"")
+    }
+
+    /// Sets the seed 1 again with exactly `variants`.
+    pub(crate) fn reset(&self, variants: &[&str]) {
+        let mut path = "/reset?seed=1".to_string();
+        for v in variants {
+            path.push_str(&format!("&variant={v}"));
+        }
+        assert_eq!(self.control("POST", &path).status, 200, "the reset");
+    }
+
+    /// The state object of A10.6.
+    pub(crate) fn state(&self) -> serde_json::Value {
+        serde_json::from_str(&self.control("GET", "/state").body).expect("the state object")
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// What the in-memory supervisor saw and its store holds at the run's end.
+pub(crate) struct Record {
+    pub(crate) frames: Vec<FromRunner>,
+    /// The state of each effect after the store's handler of the run's end, which makes a `releasing` effect
+    /// `unknown` (A7.5).
+    pub(crate) after_end: HashMap<EffectId, EffectState>,
+    pub(crate) status: i32,
+}
+
+impl Record {
+    pub(crate) fn effects(&self) -> Vec<AgentEffect> {
+        self.frames
+            .iter()
+            .filter_map(|f| match f {
+                FromRunner::Store(s) => match s.request.body() {
+                    RunnerCall::Effect(b) => Some(b.record.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub(crate) fn states(&self) -> Vec<EffectState> {
+        self.effects().iter().map(|e| e.state).collect()
+    }
+
+    pub(crate) fn confirms(&self) -> Vec<ConfirmRequest> {
+        self.frames
+            .iter()
+            .filter_map(|f| match f {
+                FromRunner::Confirm(c) => Some(c.request.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub(crate) fn handbacks(&self) -> Vec<HandbackReason> {
+        self.frames
+            .iter()
+            .filter_map(|f| match f {
+                FromRunner::Handback(h) => Some(h.request.reason),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub(crate) fn done(&self) -> Option<Outcome> {
+        self.frames.iter().find_map(|f| match f {
+            FromRunner::Done(d) => Some(d.outcome),
+            _ => None,
+        })
+    }
+
+    pub(crate) fn finish(&self) -> Option<AgentRun> {
+        self.frames.iter().find_map(|f| match f {
+            FromRunner::Store(s) => match s.request.body() {
+                RunnerCall::Finish(b) => Some(b.record.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+    }
+}
+
+/// The data directory that the suite's runner is given: a path that it never makes, since the confirm path does
+/// no file step.
+fn data_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("port-suite-data-dir-never-made")
+}
+
+/// The in-memory supervisor and store: it reads the runner's frames until the end of the runner's output and
+/// answers each; `on_confirm` runs with the count of confirmation requests so far, before the decision is written,
+/// and every effect of a decision is `allow_once`.
+fn supervise(
+    mut from_runner: impl Read,
+    mut to_runner: impl Write,
+    config: AgentConfig,
+    bindings: (Vec<WebOrigin>, Vec<Slot>),
+    mut on_confirm: impl FnMut(usize),
+) -> (Vec<FromRunner>, HashMap<EffectId, EffectState>) {
+    let mut frames = Vec::new();
+    let mut last: HashMap<EffectId, AgentEffect> = HashMap::new();
+    let mut after_end = HashMap::new();
+    let mut confirms = 0usize;
+    loop {
+        let mut head = [0u8; 4];
+        if from_runner.read_exact(&mut head).is_err() {
+            break;
+        }
+        let mut body = vec![0u8; u32::from_be_bytes(head) as usize];
+        if from_runner.read_exact(&mut body).is_err() {
+            break;
+        }
+        let frame = FromRunner::parse(&body).expect("the runner writes frames that parse");
+        let reply = match &frame {
+            FromRunner::Store(s) => {
+                let answer = match s.request.body() {
+                    RunnerCall::Load(_) => RunnerReply::Load(LoadReply {
+                        config: config.clone(),
+                        playbook: None,
+                        bindings: Some(LoadedBindings {
+                            rev: NonZeroU32::MIN,
+                            origins: bindings.0.clone(),
+                            slots: bindings.1.clone(),
+                        }),
+                        sessions: Vec::new(),
+                    }),
+                    RunnerCall::Effect(b) => {
+                        last.insert(b.record.effect.clone(), b.record.clone());
+                        RunnerReply::Stored(Stored { stored: 1 })
+                    }
+                    RunnerCall::Log(b) => RunnerReply::Stored(Stored {
+                        stored: b.records.len() as u32,
+                    }),
+                    RunnerCall::Finish(_) => {
+                        for (id, row) in &last {
+                            let now = Effect {
+                                id: id.clone(),
+                                state: row.state,
+                                class: row.class,
+                                digest: row.digest.clone(),
+                                rebinds: 0,
+                            };
+                            let state =
+                                effect_step(Some(&now), EffectMove::Lose).unwrap_or(row.state);
+                            after_end.insert(id.clone(), state);
+                        }
+                        RunnerReply::Stored(Stored { stored: 1 })
+                    }
+                    _ => RunnerReply::Stored(Stored { stored: 1 }),
+                };
+                Some(ToRunner::StoreReply(StoreReplyFrame {
+                    reply: StoreReply {
+                        id: Some(s.request.id().clone()),
+                        outcome: Ok(answer),
+                    },
+                }))
+            }
+            FromRunner::Confirm(c) => {
+                confirms += 1;
+                let approvals = c
+                    .request
+                    .effects
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| Approval {
+                        approval: ApprovalId::from_random([(confirms * 16 + i) as u8; 16]),
+                        effect: e.effect.clone(),
+                        digest: e.digest.clone(),
+                        answer: Answer::AllowOnce,
+                    })
+                    .collect();
+                on_confirm(confirms);
+                Some(ToRunner::ConfirmReply(ConfirmReply {
+                    decision: ConfirmDecision { v: V1, approvals },
+                }))
+            }
+            FromRunner::Handback(_) => Some(ToRunner::HandbackReply(HandbackReply {
+                result: HandbackResult {
+                    v: V1,
+                    outcome: HandbackOutcome::Declined,
+                    secret: None,
+                },
+            })),
+            _ => None,
+        };
+        frames.push(frame);
+        if let Some(reply) = reply {
+            let json = reply.to_json().expect("a frame");
+            if to_runner.write_all(&encode(&json)).is_err() {
+                break;
+            }
+        }
+    }
+    for (id, row) in last {
+        after_end.entry(id).or_insert(row.state);
+    }
+    (frames, after_end)
+}
+
+/// Runs the runner's confirm path on `request` in this process, with the preset of `category` and `bindings`,
+/// against the in-memory supervisor, and ends the run as the runner ends one.
+fn run_path(
+    category: Category,
+    bindings: (Vec<WebOrigin>, Vec<Slot>),
+    request: Box<dyn Paused>,
+    on_confirm: impl FnMut(usize) + Send + 'static,
+) -> Record {
+    let run = RunId::from_random([0x51; 16]);
+    let agent = AgentId::from_random([0x52; 16]);
+    let workflow = WorkflowId::from_random([0x53; 16]);
+    let config = preset(category, workflow.clone(), agent.clone()).expect("a preset");
+    let data = data_dir().to_string_lossy().into_owned();
+    let words = [
+        "--run",
+        run.as_str(),
+        "--agent",
+        agent.as_str(),
+        "--workflow",
+        workflow.as_str(),
+        "--mode",
+        "replay",
+        "--browser",
+        "none",
+        "--data-dir",
+        &data,
+    ];
+    let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+    let args = crate::args::parse(&words).expect("the arguments");
+    let (to_runner_read, to_runner) = std::io::pipe().expect("a pipe");
+    let (from_runner, from_runner_write) = std::io::pipe().expect("a pipe");
+    let link = Link::start(
+        Box::new(to_runner_read),
+        Box::new(from_runner_write),
+        Box::new(|| {}),
+    );
+    let supervisor =
+        std::thread::spawn(move || supervise(from_runner, to_runner, config, bindings, on_confirm));
+    let mut runner = Runner::new(args, link);
+    let end = runner.release(vec![request]).map(|()| Outcome::Completed);
+    let status = runner.close(end);
+    let (frames, after_end) = supervisor.join().expect("the supervisor");
+    assert!(
+        !data_dir().exists(),
+        "the suite's runner writes nothing under its data directory"
+    );
+    Record {
+        frames,
+        after_end,
+        status,
+    }
+}
+
+/// The value of the field `name` in the bound object of an effect of a confirmation request.
+fn field(request: &ConfirmRequest, name: FieldName) -> String {
+    request.effects[0]
+        .bound
+        .fields()
+        .iter()
+        .find(|f| f.name == name)
+        .map(|f| f.value.joined())
+        .expect("the field")
+}
+
+fn count(state: &serde_json::Value, key: &str) -> u64 {
+    state["requests"][key].as_u64().expect("a count")
+}
+
+/// A5.4 `commit_without_reply`: on the fixture variant `no_reply` the state-changing request of an effect leaves
+/// once and gets no reply; no `committed` row exists for the effect, the runner hands back `effect_unknown` before
+/// its `finish` and ends `effect_unknown`, and after the run's end the effect is `unknown`.
+pub(crate) fn commit_without_reply(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&["no_reply"]);
+    let request = maker.paused(&fixture, Case::NoReply);
+    let before = fixture.state();
+    let record = run_path(
+        maker.category(Case::NoReply),
+        maker.bindings(&fixture, Case::NoReply),
+        request,
+        |_| {},
+    );
+    let after = fixture.state();
+    assert_eq!(
+        count(&after, "state_changing") - count(&before, "state_changing"),
+        1,
+        "the effect's request left once"
+    );
+    let states = record.states();
+    assert_eq!(
+        states,
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing
+        ],
+        "a row before the request and none after it"
+    );
+    assert!(
+        !states.contains(&EffectState::Committed),
+        "no committed row"
+    );
+    assert_eq!(record.confirms().len(), 1, "one confirmation");
+    assert_eq!(record.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(record.done(), Some(Outcome::EffectUnknown));
+    assert_eq!(record.finish().map(|f| f.unknown), Some(1));
+    assert_eq!(record.status, 0, "the finish is stored");
+    let effect = record.effects()[0].effect.clone();
+    assert_eq!(
+        record.after_end.get(&effect),
+        Some(&EffectState::Unknown),
+        "the effect is unknown once the run has ended"
+    );
+}
+
+/// A5.4 `changed_on_page`: on the fixture variant `amount_changes` the amount changes after the approval; the
+/// request is failed before it leaves, the effect takes a `rebind`, and a new confirmation is asked with the new
+/// amount; after its approval one request leaves, with the new amount, and its `begin` carries the digest that the
+/// person was shown.
+pub(crate) fn changed_on_page(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let before = fixture.state();
+    let port = fixture.port();
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        move |n| {
+            if n == 1 {
+                let changed = http(port, "POST", "control.agent.test", "/change", &[], b"");
+                assert_eq!(changed.status, 200, "the amount changes after the approval");
+            }
+        },
+    );
+    let after = fixture.state();
+    let due = fixture.seed()["utility"]["amount_due"]
+        .as_u64()
+        .expect("the amount due");
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 2, "a new confirmation is asked");
+    let money = |minor: u64| format!("{}.{:02}", minor / 100, minor % 100);
+    assert_eq!(field(&confirms[0], FieldName::Amount), money(due));
+    assert_eq!(
+        field(&confirms[1], FieldName::Amount),
+        money(due + 100),
+        "the new confirmation shows the new amount"
+    );
+    assert_eq!(confirms[0].effects[0].effect, confirms[1].effects[0].effect);
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    let effects = record.effects();
+    assert_eq!(effects[2].approval, None, "the rebind voids the approval");
+    assert_ne!(effects[1].approval, effects[3].approval, "a new approval");
+    assert_eq!(effects[4].digest, confirms[1].effects[0].digest);
+    assert_eq!(effects[4].approval, effects[3].approval);
+    let paid: Vec<u64> = after["utility"]["payments"]
+        .as_array()
+        .expect("the payments")
+        .iter()
+        .map(|p| p["amount"].as_u64().expect("an amount"))
+        .collect();
+    assert_eq!(paid, [due + 100], "one payment, with the confirmed amount");
+    assert_eq!(
+        count(&after, "state_changing") - count(&before, "state_changing"),
+        1,
+        "the request with the old amount never left"
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+    assert_eq!(record.finish().map(|f| f.confirmations), Some(2));
+}
+
+/// A slot of the bindings.
+pub(crate) fn slot(name: &str, value: &str) -> Slot {
+    Slot {
+        name: Name::parse(name).expect("a name"),
+        value: OwnValue::new(value),
+    }
+}

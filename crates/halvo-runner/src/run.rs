@@ -10,7 +10,7 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    ActionClass, AgentLog, AgentRun, Cause, EffectState, ExecutableStep, FromRunner,
+    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
     HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply, StoreRequest,
     ToRunner, WebOrigin,
 };
@@ -82,6 +82,15 @@ pub(crate) struct Runner {
     pub(crate) confirmations: u32,
     pub(crate) playbook: Option<NonZeroU32>,
     pub(crate) effects: Vec<Tracked>,
+    /// The approval ids that a row of this run held.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
     pub(crate) read_under: Option<ReadUnder>,
 }
@@ -96,7 +105,7 @@ pub(crate) fn run(args: Args, link: Link) -> i32 {
 
 impl Runner {
     /// A runner of `args` on `link`, before its run.
-    fn new(args: Args, link: Link) -> Runner {
+    pub(crate) fn new(args: Args, link: Link) -> Runner {
         Runner {
             args,
             link,
@@ -110,6 +119,7 @@ impl Runner {
             confirmations: 0,
             playbook: None,
             effects: Vec::new(),
+            approvals: Vec::new(),
             kept: HashMap::new(),
             read_under: None,
         }
@@ -333,7 +343,7 @@ impl Runner {
         u32::try_from(spent.as_secs()).unwrap_or(u32::MAX)
     }
 
-    fn close(mut self, end: Result<Outcome, Stop>) -> i32 {
+    pub(crate) fn close(mut self, end: Result<Outcome, Stop>) -> i32 {
         let (mut outcome, mut cause) = match end {
             Ok(outcome) => (outcome, None),
             Err(Stop::End(outcome, cause)) => (outcome, cause),

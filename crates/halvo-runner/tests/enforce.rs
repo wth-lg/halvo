@@ -9,8 +9,8 @@ use halvo_schema::executable::names::{
 };
 use halvo_schema::executable::text::{OwnValue, SecretText};
 use halvo_schema::executable::{
-    ActionClass, AgentEffect, Bound, BoundField, Cause, EffectState, FromRunner, Outcome,
-    RunnerReply, ToRunner, WebOrigin,
+    ActionClass, AgentEffect, Bound, BoundField, Cause, EffectState, ExecutableStep, FromRunner,
+    Outcome, RunnerReply, ToRunner, WebOrigin,
 };
 use halvo_schema::Category;
 
@@ -649,4 +649,39 @@ fn a_cancel_before_any_begin_ends_the_run_declined() {
     assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
     assert_eq!(seen.states(), [EffectState::Cleared]);
     assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-142 (3): the confirm path's request maker of the suite is test code alone; the binary still fails a `web`
+/// step with `step_failed` and an `api` call with the cause `adapter`, with no effect row and no confirmation.
+#[test]
+fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() {
+    let click = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"text","value":"v","name":null}]},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}"#;
+    let mut web = Supervisor::new(156, Category::UtilityBillPayment, Vec::new());
+    web.steps = vec![ExecutableStep::parse(click.as_bytes()).expect("a step")];
+    let seen = web.serve(|_, _| Act::Answer, LONG);
+    let failed: Vec<(LogEvent, Option<Cause>)> = seen
+        .logs()
+        .iter()
+        .map(|l| (l.event, l.cause))
+        .filter(|(e, _)| *e == LogEvent::StepFailed)
+        .collect();
+    assert_eq!(failed, [(LogEvent::StepFailed, Some(Cause::StepFailed))]);
+    assert!(seen.effects().is_empty() && !seen.tags().contains(&"confirm"));
+
+    let api = api_agent(157);
+    let seen = api.serve(
+        |frame, _| match frame {
+            FromRunner::Secret(_) => Act::With(ToRunner::SecretReply(stored_token())),
+            _ => Act::Answer,
+        },
+        LONG,
+    );
+    let failed: Vec<Option<Cause>> = seen
+        .logs()
+        .iter()
+        .filter(|l| l.event == LogEvent::StepFailed)
+        .map(|l| l.cause)
+        .collect();
+    assert_eq!(failed, [Some(Cause::Adapter)]);
+    assert!(seen.effects().is_empty() && !seen.tags().contains(&"confirm"));
 }
