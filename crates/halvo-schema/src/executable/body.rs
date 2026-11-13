@@ -23,8 +23,8 @@ use super::Refusal;
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
 pub const STEPS_PER_REQUEST_MAX: usize = 16;
 
-/// The most bytes of the reply of `list_checkpoints` and of every reply of a coordinator body, as they arrive: the
-/// bound of a reply less the 53 bytes of its envelope beside a request id.
+/// The most bytes of the reply of `list_checkpoints` and of every reply of a runner or coordinator body, as they
+/// arrive: the bound of a reply less the 53 bytes of its envelope beside a request id.
 pub const CHECKPOINTS_REPLY_MAX: usize = REPLY_MAX - 53;
 
 macro_rules! op_enum {
@@ -350,6 +350,7 @@ object_type! {
         let origins: Vec<&WebOrigin> = r.sessions.iter().map(|s| &s.origin).collect();
         each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))
     }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -359,6 +360,7 @@ object_type! {
         pub steps: Vec<ExecutableStep> = "steps" => list(ExecutableStep::from_raw),
     }
     rules(r) { steps_in_order("StepsReply", &r.steps) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -372,6 +374,7 @@ object_type! {
         pub data: SessionData = "data" => from_json,
     }
     rules(r) { part_of("SessionReply", r.part, r.of, Some(&r.data)) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
 object_type! {
@@ -395,6 +398,7 @@ pub enum RunnerReply {
 
 impl RunnerReply {
     pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
+        reply_bytes("RunnerReply", raw.get().len())?;
         let obj = json::object("RunnerReply", raw)?;
         if obj.has("config") {
             LoadReply::from_raw(raw).map(RunnerReply::Load)
@@ -409,8 +413,11 @@ impl RunnerReply {
         }
     }
 
-    /// Reads one reply and refuses every other input.
+    /// Reads one reply as it arrives and refuses every other input. An input of more than `CHECKPOINTS_REPLY_MAX`
+    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
+    /// `reply_bytes`.
     pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        reply_bytes("RunnerReply", bytes.len())?;
         Self::from_raw(json::whole("RunnerReply", bytes)?)
     }
 
@@ -687,16 +694,16 @@ pub enum CoordinatorReply {
     Stored(Stored),
 }
 
-fn reply_bytes(len: usize) -> Result<(), Refusal> {
+fn reply_bytes(type_name: &'static str, len: usize) -> Result<(), Refusal> {
     if len > CHECKPOINTS_REPLY_MAX {
-        return Err(Refusal::length("CoordinatorReply", "reply_bytes"));
+        return Err(Refusal::length(type_name, "reply_bytes"));
     }
     Ok(())
 }
 
 impl CoordinatorReply {
     pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
-        reply_bytes(raw.get().len())?;
+        reply_bytes("CoordinatorReply", raw.get().len())?;
         let obj = json::object("CoordinatorReply", raw)?;
         if obj.has("rev") {
             RevReply::from_raw(raw).map(CoordinatorReply::Rev)
@@ -717,7 +724,7 @@ impl CoordinatorReply {
     /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
     /// `reply_bytes`.
     pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
-        reply_bytes(bytes.len())?;
+        reply_bytes("CoordinatorReply", bytes.len())?;
         Self::from_raw(json::whole("CoordinatorReply", bytes)?)
     }
 
