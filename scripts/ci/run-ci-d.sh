@@ -349,6 +349,7 @@ st_group() {
 # shellcheck disable=SC2329
 st_interrupt() {
   trap '' INT TERM
+  [ -z "$st_sleep" ] || kill -s TERM "$st_sleep" 2>/dev/null
   st_groups=
   for st_i in $st_running; do
     eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i"
@@ -481,10 +482,13 @@ st_wait_below() {
     st_flush
     [ "$st_count" -ge "$1" ] || return 0
     if [ "$st_naps" -lt 10 ]; then
-      sleep 0.1
+      sleep 0.1 &
     else
-      sleep 0.5
+      sleep 0.5 &
     fi
+    st_sleep=$!
+    wait "$st_sleep"
+    st_sleep=
     st_naps=$((st_naps + 1))
   done
 }
@@ -524,6 +528,11 @@ own_case() {
   want_exit=$2
   want_line=$3
   shift 3
+  own_run "$@"
+  own_judge
+}
+
+own_run() {
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
@@ -548,6 +557,13 @@ own_case() {
           n=$((n + 1))
         done
       done
+      case_before=0
+      if [ -f "$fixture/pids" ]; then
+        while IFS= read -r case_left; do
+          [ -z "$case_left" ] || ! kill -0 "$case_left" 2>/dev/null || case_before=$((case_before + 1))
+        done <"$fixture/pids"
+      fi
+      printf '%s\n' "$case_before" >"$fixture/before"
       kill -s "$case_signal" "$case_pid"
     fi
     wait "$case_pid"
@@ -568,13 +584,25 @@ own_case() {
       n=$((n + 1))
     done
   fi
+}
+
+own_judge() {
+  before=
+  if [ -n "$case_signal" ]; then
+    [ ! -s "$fixture/before" ] || read -r before <"$fixture/before"
+    printf 'case run-ci-d/%s processes by recorded id: %s before the signal, %s after\n' "$case_name" "${before:-none}" "$left"
+  fi
   if [ "$want_exit" -eq 0 ]; then want=PASS; else want=FAIL; fi
   if [ "$got_exit" -ne "$want_exit" ]; then
     got=exit-$got_exit
   elif ! printf '%s\n' "$got_out" | grep -qxF -e "$want_line"; then
     got=line-missing
+  elif [ -n "$case_absent" ] && printf '%s\n' "$got_out" | grep -qxF -e "$case_absent"; then
+    got=line-present
   elif [ "$left" -gt 0 ]; then
     got=$left-processes-left
+  elif [ -n "$case_signal" ] && [ "${before:-0}" -lt "$case_signal_min" ]; then
+    got=${before:-no}-processes-before-the-signal
   else
     got=$want
     if [ -n "$case_first" ]; then
@@ -607,6 +635,8 @@ own_case() {
   case_no_perl=
   case_signal=
   case_wait=
+  case_absent=
+  case_signal_min=
 }
 
 # shellcheck disable=SC2016
@@ -633,6 +663,8 @@ own_self_test() {
   case_no_perl=
   case_signal=
   case_wait=
+  case_absent=
+  case_signal_min=
   perl_bin=$(command -v perl) || perl_bin=perl
   mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
@@ -889,15 +921,39 @@ own_self_test() {
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-leading-blanks 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
-  for signal in INT:130 QUIT:131 HUP:129; do
-    new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s ${signal%:*} \"\$\$\"; sleep 1; $passes" &&
-      add_script r1 20-b.sh "$good" "$meets"
-    case_jobs=2
-    own_case "self-test-that-sends-${signal%:*}-to-itself-beside-another" 1 "FAIL self-test:10-a (exit ${signal#*:})" macos --self-test 10-a 20-b
-    new_repo && add_script r1 10-a.sh "$good$nl# self-test: alone" "$prelude; kill -s ${signal%:*} \"\$\$\"; sleep 1; $passes" &&
-      add_script r1 20-b.sh "$good" "$prelude; $passes"
-    case_jobs=2
-    own_case "self-test-that-sends-${signal%:*}-to-itself-alone" 1 "FAIL self-test:10-a (exit ${signal#*:})" macos --self-test 10-a 20-b
+  prelude_any=${prelude#*exit 3; }
+  for signal in INT QUIT HUP TERM; do
+    for place in beside-another alone; do
+      sends="kill -s $signal \"\$\$\"; sleep 1; printf 'line after the kill\\n'; if [ \"\${1:-}\" = --self-test ]; then $passes; else printf 'PASS %s\\n' \"\$me\"; fi"
+      if [ "$place" = alone ]; then
+        new_repo && add_script r1 10-a.sh "$good$nl# self-test: alone" "$prelude_any; $sends" &&
+          add_script r1 20-b.sh "$good" "$prelude; $passes"
+      else
+        new_repo && add_script r1 10-a.sh "$good" "$prelude_any; [ \"\${1:-}\" != --self-test ] || meet || $ran_alone; $sends" &&
+          add_script r1 20-b.sh "$good" "$meets"
+      fi
+      own_run macos 10-a
+      foreground=$(printf '%s\n' "$got_out" | grep -E '^(PASS|FAIL) 10-a( |$)' | tail -n 1)
+      after=no
+      ! printf '%s\n' "$got_out" | grep -qxF -e 'line after the kill' || after=yes
+      case_jobs=2
+      case $foreground:$after in
+        'PASS 10-a:yes')
+          case_first='line after the kill'
+          case_then='PASS self-test:10-a (1 failing fixtures rejected)'
+          own_case "self-test-that-sends-$signal-to-itself-$place-runs-on-as-in-the-foreground" 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+          ;;
+        'FAIL 10-a (exit '*'):no')
+          case_absent='line after the kill'
+          own_case "self-test-that-sends-$signal-to-itself-$place-ends-as-in-the-foreground" 1 "FAIL self-test:10-a (${foreground#FAIL 10-a (}" macos --self-test 10-a 20-b
+          ;;
+        *)
+          printf 'case run-ci-d/self-test-that-sends-%s-to-itself-%s want=PASS got=no-foreground-end-of-%s-%s\n' "$signal" "$place" "${foreground:-none}" "$after"
+          wrong="$wrong self-test-that-sends-$signal-to-itself-$place"
+          case_jobs=
+          ;;
+      esac
+    done
   done
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_no_perl=yes
@@ -909,6 +965,7 @@ own_self_test() {
     case_signal=${signal%:*}
     case_wait='started.10-a started.20-b'
     case_max_s=30
+    case_signal_min=4
     own_case "step-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every self-test that it started is ended)" macos --self-test 10-a 20-b
   done
   new_repo && add_script r1 10-a.sh "$good" "$prelude; ( sleep 2; printf 'late detail of %s on stderr\\n' \"\$me\" >&2 ) >/dev/null & $passes" &&
@@ -942,6 +999,7 @@ st_x=
 st_l=
 st_word=
 st_nm=
+st_sleep=
 cr=$(printf '\r')
 tab=$(printf '\t')
 if [ "$mode" = self-test ]; then
