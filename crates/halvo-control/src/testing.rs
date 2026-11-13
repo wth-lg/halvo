@@ -553,7 +553,11 @@ impl ScriptedDaemon {
                 let answers = self.stop_answers.clone();
                 self.edit(|f| {
                     for line in &mut f.sources {
-                        if line.unstopped || (!pausing && line.state != SourceState::Off) {
+                        let asked = !matches!(
+                            line.state,
+                            SourceState::Off | SourceState::Stopped { by_user: true }
+                        );
+                        if line.unstopped || (!pausing && asked) {
                             let answer = answers
                                 .iter()
                                 .find(|(name, _)| *name == line.name)
@@ -1135,5 +1139,49 @@ mod tests {
         }
         assert!(walked > 0 && marked > 0, "walked {walked}, marked {marked}");
         println!("statuses read: {walked}, of them beside a mark: {marked}");
+    }
+
+    #[test]
+    fn a_pause_keeps_the_person_s_stop_of_a_source_whatever_the_stop_answers_and_a_resume_ends_it()
+    {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        for line in &mut f.sources {
+            if line.name == SourceName::Screen {
+                line.state = SourceState::Stopped { by_user: true };
+            }
+        }
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Screen,
+            SourceName::Input,
+        ];
+        f.capture = Capture::Partial;
+        let start = DaemonStatus::new(f).expect("a screen stream that the person stopped");
+        for answer in [
+            StopAnswer::Ok,
+            StopAnswer::ThreadEnded,
+            StopAnswer::Timeout,
+            StopAnswer::Os,
+        ] {
+            let mut daemon = ScriptedDaemon::new(start.clone());
+            daemon.set_stop_answer(SourceName::Screen, answer);
+            let paused = changed(daemon.handle(Request::Pause));
+            assert_eq!(
+                line(&paused, SourceName::Screen),
+                SourceLine {
+                    name: SourceName::Screen,
+                    state: SourceState::Stopped { by_user: true },
+                    unstopped: false,
+                },
+                "{answer:?}"
+            );
+            assert_eq!(paused.fields().capture, Capture::Paused, "{answer:?}");
+            let resumed = changed(daemon.handle(Request::Resume));
+            assert_eq!(
+                line(&resumed, SourceName::Screen).state,
+                SourceState::Running,
+                "{answer:?}"
+            );
+        }
     }
 }
