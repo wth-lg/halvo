@@ -28,6 +28,7 @@ Exit 0: done and every check holds; 1: a check missed; 2: a refusal, one line
 """
 
 import os
+import re
 import sys
 
 MACHINES = ("mac", "hosted-win")
@@ -79,11 +80,12 @@ def words(line, head, keys):
 
 
 def last_block(text):
-    """The lines of the last fenced block, and the line numbers of its fences."""
+    """The lines of the one fenced block, and the line numbers of its two fences; a file with
+    another count of fence lines is refused, as the importer refuses it."""
     lines = text.split("\n")
     fences = [i for i, line in enumerate(lines) if line.lstrip(" \t").startswith("```")]
-    if len(fences) < 2 or len(fences) % 2:
-        raise Refusal("source", "driver.md has %d fence lines" % len(fences))
+    if len(fences) != 2:
+        raise Refusal("source", "the file has %d fence lines, not 2" % len(fences))
     return lines[fences[-2] + 1 : fences[-1]], fences[-2:]
 
 
@@ -94,6 +96,14 @@ def candidates(cells_text):
             value = line[len("verdict candidates=") :]
             return [] if value == "-" else value.split(",")
     raise Refusal("source", "model-cells.md has no verdict line")
+
+
+RANGES = {"compile": ("1",), "replay": ("1", "2", "3"), "recover": ("1",), "write": ("1",)}
+
+
+def token_ok(model):
+    """A model token of A0.7 that is neither none nor synthetic."""
+    return model not in ("none", "synthetic") and re.fullmatch(r"[a-z0-9_]{1,32}", model) is not None
 
 
 def read_lines(body):
@@ -109,6 +119,8 @@ def read_lines(body):
             ints = ("i", "steps", "wall_s", "tokens_in", "tokens_out")
             if v is None or v["pass"] not in ("yes", "no") or any(count(v[k]) is None for k in ints) or v["seed"] not in SEEDS:
                 raise Refusal("source", "an attempt line is not of the form of A13.6: " + line[:80])
+            if not token_ok(v["model"]) or v["i"] not in RANGES.get(v["kind"], ()):
+                raise Refusal("source", "an attempt line has another model token or i: " + line[:80])
             pair = (v["task"], v["kind"])
             if pair not in [(t, k) for t in TASKS for k in ("compile", "replay", "recover")] + [("reply", "write")]:
                 raise Refusal("source", "an attempt line pairs another task and kind: " + line[:80])
@@ -129,6 +141,8 @@ def read_lines(body):
                 or any(count(v[k]) is None for k in ints)
             ):
                 raise Refusal("source", "a drive line is not of the form of A13.6: " + line[:80])
+            if not token_ok(v["model"]):
+                raise Refusal("source", "a drive line has another model token: " + line[:80])
             key = (v["model"], v["machine"], v["task"], v["seed"])
             if key in drives:
                 raise Refusal("source", "a drive line stands twice: " + line[:80])
@@ -137,10 +151,14 @@ def read_lines(body):
             v = words(line, "reply", REPLY)
             if v is None or v["of"] != "2" or v["seed"] not in SEEDS or any(count(v[k]) is None for k in ("bodies", "wall_s", "model_tokens")):
                 raise Refusal("source", "a reply line is not of the form of A13.6: " + line[:80])
+            if not token_ok(v["model"]) or count(v["bodies"]) > 2:
+                raise Refusal("source", "a reply line has another model token or more bodies than 2: " + line[:80])
             key = (v["model"], v["machine"], v["seed"])
             if key in replies:
                 raise Refusal("source", "a reply line stands twice: " + line[:80])
             replies[key] = v
+        elif word == "bound":
+            raise Refusal("source", "a bound line stands in the driver block: " + line[:80])
     for key, d in drives.items():
         runs = []
         for kind, i in RUNS:
@@ -171,6 +189,34 @@ def read_lines(body):
         if not agrees:
             raise Refusal("source", "a reply line disagrees with its write attempt: " + " ".join(key))
     return attempts, drives, replies
+
+
+def limits_fit(body, computed):
+    """Whether every limits line names a job that the verdict gives: bill and order its driver,
+    reply its writer (A13.6)."""
+    driver = re.search(r"driver=(\S+)", computed).group(1)
+    writer = re.search(r"writer=(\S+)", computed).group(1)
+    for line in body:
+        if line.startswith("limits "):
+            task = re.search(r" task=(\S+)", line + " ")
+            task = task.group(1) if task else ""
+            if (task in TASKS and driver == "none") or (task == "reply" and writer == "none") or task not in TASKS + ("reply",):
+                return False
+    return True
+
+
+def outcome(driver_text, cells_text, argv):
+    """The verdict line that the rule gives, and the exit of the call: --check is 1 when the block's
+    last line is not that line; every call refuses a limits line that the verdict gives no job for."""
+    order = candidates(cells_text)
+    body, fences = last_block(driver_text)
+    _, drives, replies = read_lines(body)
+    computed = verdict(order, drives, replies)
+    if not limits_fit(body, computed):
+        raise Refusal("source", "a limits line names a job that the verdict gives to none")
+    if argv == ["--check"]:
+        return (0 if same_verdict(body, computed) else 1), computed, body, fences
+    return 0, computed, body, fences
 
 
 def drives_pass(model, drives):
@@ -328,6 +374,15 @@ def self_test():
         ("a task paired with another kind", good + ["attempt model=m_a machine=mac task=reply seed=1 kind=compile i=1 pass=yes steps=0 wall_s=1 tokens_in=0 tokens_out=0"]),
         ("a drive line of another of", [l.replace(" of=3 ", " of=4 ") if l.startswith("drive") else l for l in good]),
         ("a seed 4", good + ["reply model=m_a machine=mac seed=4 bodies=2 of=2 wall_s=1 model_tokens=1"]),
+        ("a reply line twice", good + [l for l in good if l.startswith("reply ")][:1]),
+        ("a compile i=2", good + ["attempt model=m_a machine=mac task=bill seed=1 kind=compile i=2 pass=no steps=0 wall_s=0 tokens_in=0 tokens_out=0"]),
+        ("a replay i=4", good + ["attempt model=m_a machine=mac task=bill seed=1 kind=replay i=4 pass=no steps=0 wall_s=0 tokens_in=0 tokens_out=0"]),
+        ("a recover i=2", good + ["attempt model=m_a machine=mac task=bill seed=1 kind=recover i=2 pass=no steps=0 wall_s=0 tokens_in=0 tokens_out=0"]),
+        ("a bound line", good + ["bound model=m_a machine=mac bound_bytes=1 fits=yes"]),
+        ("the token synthetic", good + ["attempt model=synthetic machine=mac task=bill seed=1 kind=compile i=1 pass=no steps=0 wall_s=0 tokens_in=0 tokens_out=0"]),
+        ("the token none", good + ["reply model=none machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1"]),
+        ("a drive line of the token none", good + ["drive model=none machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
+        ("bodies above 2", [l.replace("bodies=2 of=2", "bodies=20 of=2") if l.startswith("reply model=m_a machine=mac seed=1 ") else l for l in good]),
         ("a drive line of the task reply", good + ["drive model=m_a machine=mac task=reply seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
     ]
     for name, body in bad_cases:
@@ -336,6 +391,31 @@ def self_test():
             failures.append("%s: not refused" % name)
         except Refusal:
             refused += 1
+    two = full("m_a", ("mac", "bill", "1", miss)) + full("m_b", ("mac", "bill", "1", miss))
+    expect("under path B two writers give the first", run(two), "verdict driver=none path=B writer=m_a")
+    lost_one = 0
+    for machine in MACHINES:
+        for task in TASKS:
+            for seed in SEEDS:
+                if run(full("m_a", (machine, task, seed, miss))) != "verdict driver=none path=B writer=m_a":
+                    lost_one += 1
+    expect("one missed cell of the twelve takes the driver out", lost_one, 0)
+    expect("bodies are a count, not a first letter", writes("m_a", {(m, s): {"bodies": "20"} for m in MACHINES for s in SEEDS}), False)
+    cells = "```text\nbound x\nverdict candidates=m_a,m_b\n```\n"
+
+    def call(lines, argv):
+        try:
+            return outcome("t\n```text\n" + "\n".join(lines) + "\n```\n", cells, argv)[0]
+        except Refusal:
+            return "refused"
+
+    right = full("m_a") + ["verdict driver=m_a path=A writer=m_a"]
+    expect("the check of the right verdict exits 0", call(right, ["--check"]), 0)
+    expect("the check of another verdict exits 1", call(full("m_a") + ["verdict driver=none path=B writer=none"], ["--check"]), 1)
+    expect("a second fenced block is refused", call(right + ["```", "```text", "verdict driver=m_a path=A writer=m_a"], ["--check"]), "refused")
+    expect("a limits line of a driver that is none is refused", call(full("m_z") + ["limits task=bill steps=1 wall_s=1 model_tokens=1", "verdict driver=none path=B writer=none"], ["--check"]), "refused")
+    expect("a limits line of a writer that is none is refused", call(full("m_z") + ["limits task=reply wall_s=1 model_tokens=1", "verdict driver=none path=B writer=none"], ["--check"]), "refused")
+    expect("a limits line of the verdict's driver is taken", call(full("m_a") + ["limits task=bill steps=1 wall_s=1 model_tokens=1", "verdict driver=m_a path=A writer=m_a"], ["--check"]), 0)
     expect("a verdict line in --check", same_verdict(["x", "verdict driver=none path=B writer=none"], "verdict driver=none path=B writer=none"), True)
     expect("a verdict line not last", same_verdict(["verdict driver=none path=B writer=none", "x"], "verdict driver=none path=B writer=none"), False)
     expect("another verdict line", same_verdict(["verdict driver=none path=B writer=m_a"], "verdict driver=none path=B writer=none"), False)
@@ -372,18 +452,14 @@ def main(argv):
             raise Refusal("source", "%s cannot be read: %s" % (path, error.strerror))
 
     driver_path = "docs/r3/trials/driver.md"
-    order = candidates(read("docs/r3/trials/model-cells.md"))
     text = read(driver_path)
-    body, fences = last_block(text)
-    _, drives, replies = read_lines(body)
-    computed = verdict(order, drives, replies)
+    code, computed, body, fences = outcome(text, read("docs/r3/trials/model-cells.md"), argv)
     if argv == []:
         print(computed)
         return 0
     if argv == ["--check"]:
-        same = same_verdict(body, computed)
-        print("verdict check same=%s" % ("yes" if same else "no"))
-        return 0 if same else 1
+        print("verdict check same=%s" % ("yes" if code == 0 else "no"))
+        return code
     lines = text.split("\n")
     kept = [line for line in body if not line.startswith("verdict ")]
     new = lines[: fences[0] + 1] + kept + [computed] + lines[fences[1] :]
