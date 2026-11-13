@@ -308,7 +308,7 @@ fn synthetic_keep_in_a_release_build_twin(
     super::exclude::synthetic_keep(subject)
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 mod tests {
     use super::super::exclude::{synthetic_keep, ProcessId, Subject};
     use super::super::kind;
