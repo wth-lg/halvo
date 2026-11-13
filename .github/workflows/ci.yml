@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,31 +71,54 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 12-test
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
+      - name: Loops of the probe and of the start binary of halvo-agent-client (scratch)
+        if: always()
+        shell: bash
+        env:
+          RUNS: 200
+          PROBE: the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_read_with_it_finds_the_unreaped_one
+        run: |
+          set -u
+          cargo test --locked -p halvo-agent-client --test start --no-run >target/scratch-build.txt 2>&1 || { tail -30 target/scratch-build.txt; exit 1; }
+          bin=$(sed -n 's#.*Executable tests/start\.rs (\(.*\))#\1#p' target/scratch-build.txt | head -1)
+          [ -f "$bin" ] || { echo "no binary: $bin"; exit 1; }
+          cd crates/halvo-agent-client || exit 1
+          bin="../../$bin"
+          "$bin" --exact "$PROBE" --nocapture >../../target/scratch-first.txt 2>&1 || true
+          grep -h '^exit-read' ../../target/scratch-first.txt | sed 's/^/probe first run: /'
+          grep -h '^test result:' ../../target/scratch-first.txt | sed 's/^/probe first run: /'
+          fail=0
+          loop() {
+            local name=$1 want=$2
+            shift 2
+            local i=0 ok=0 line t0
+            t0=$(date +%s)
+            while [ "$i" -lt "$RUNS" ]; do
+              i=$((i + 1))
+              "$bin" "$@" >../../target/scratch-loop.txt 2>&1
+              line=$(grep -E '^test result: ' ../../target/scratch-loop.txt | tail -1)
+              case $line in
+                "test result: ok. $want passed;"*) ok=$((ok + 1)) ;;
+                *)
+                  echo "loop $name run $i result=[$line]"
+                  grep -E '^test .* FAILED' ../../target/scratch-loop.txt
+                  grep -E -A6 'panicked at' ../../target/scratch-loop.txt
+                  ;;
+              esac
+            done
+            echo "loop $name runs=$i ok_with_count=$ok expected=$want seconds=$(($(date +%s) - t0))"
+            [ "$ok" -eq "$RUNS" ] || fail=1
+          }
+          loop probe 1 --exact "$PROBE"
+          want=$("$bin" --list | grep -c ': test$' || true)
+          loop start "$want"
+          exit "$fail"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -133,28 +145,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
