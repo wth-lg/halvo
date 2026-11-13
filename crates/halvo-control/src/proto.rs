@@ -200,11 +200,79 @@ pub fn encode_reply(reply: &Reply) -> Vec<u8> {
 
 type Object = serde_json::Map<String, serde_json::Value>;
 
+struct Unique(serde_json::Value);
+
+impl<'de> Deserialize<'de> for Unique {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visit;
+
+        impl<'de> serde::de::Visitor<'de> for Visit {
+            type Value = Unique;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a JSON value whose objects hold each key once")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Unique, E> {
+                Ok(Unique(v.into()))
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Unique, E> {
+                Ok(Unique(v.into()))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Unique, E> {
+                Ok(Unique(v.into()))
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Unique, E> {
+                Ok(Unique(v.into()))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Unique, E> {
+                Ok(Unique(v.into()))
+            }
+
+            fn visit_unit<E>(self) -> Result<Unique, E> {
+                Ok(Unique(serde_json::Value::Null))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Unique, A::Error> {
+                let mut items = Vec::new();
+                while let Some(Unique(item)) = seq.next_element()? {
+                    items.push(item);
+                }
+                Ok(Unique(serde_json::Value::Array(items)))
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Unique, A::Error> {
+                let mut object = Object::new();
+                while let Some((key, Unique(value))) = map.next_entry::<String, Unique>()? {
+                    if object.insert(key, value).is_some() {
+                        return Err(serde::de::Error::custom("a key occurs twice"));
+                    }
+                }
+                Ok(Unique(serde_json::Value::Object(object)))
+            }
+        }
+
+        deserializer.deserialize_any(Visit)
+    }
+}
+
 fn read_envelope(frame: &[u8]) -> Option<(Option<u64>, Object)> {
     if frame.first() != Some(&b'{') || frame.last() != Some(&b'}') {
         return None;
     }
-    let mut object: Object = serde_json::from_slice(frame).ok()?;
+    let Unique(serde_json::Value::Object(mut object)) = serde_json::from_slice(frame).ok()? else {
+        return None;
+    };
     if object.len() != 2 {
         return None;
     }
@@ -1946,6 +2014,28 @@ mod tests {
                 "v={v}"
             );
         }
+    }
+
+    #[test]
+    fn a_frame_with_a_key_twice_is_invalid_argument_at_any_depth() {
+        for text in [
+            r#"{"v":1,"body":{"op":"run_start","op":"pause"}}"#,
+            r#"{"v":1,"body":{"op":"status","indicator":false,"indicator":true}}"#,
+            r#"{"v":2,"body":{"op":"pause"},"v":1}"#,
+            r#"{"v":1,"body":{"op":"pause"},"body":{"op":"stop"}}"#,
+            r#"{"v":1,"body":{"op":"delete_all","store":null,"store":"00000000000000000000000000000001"}}"#,
+        ] {
+            assert_eq!(
+                decode_request(text.as_bytes()).unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{text}"
+            );
+        }
+        let nested = r#"{"v":1,"body":{"op":"no_such_op","x":{"a":1,"a":2}}}"#;
+        assert_eq!(
+            decode_request(nested.as_bytes()).unwrap_err().code(),
+            ErrorCode::InvalidArgument
+        );
     }
 
     #[test]
