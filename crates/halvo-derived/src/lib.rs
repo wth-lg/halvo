@@ -72,6 +72,9 @@
 //!   from `Committed::dropped` alone; the commit refuses nothing for it.
 //! - A stop between a batch's transaction and its steps leaves the batch committed with no proposal and no step
 //!   record; the same batch sent again answers `repeated` and runs no step, and the store notes no owed step.
+//! - A request is not one transaction of the database: each typed commit and the state call commits on its own, and a
+//!   stop between two of them leaves the earlier ones stored; so does an error answer or a panic of a handler behind an
+//!   earlier store of the same request.
 //! - An open fails while its entries give a stored kind another retention class, or a workflow key under which a
 //!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
 //! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until

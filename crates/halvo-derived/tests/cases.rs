@@ -5,16 +5,17 @@ use std::rc::Rc;
 
 use common::{
     bodies, domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request,
-    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS, OWN,
+    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS,
+    NOTE, OWN,
 };
-use halvo_derived::{Cause, Error, Host, Refusal, Store, Takes};
+use halvo_derived::{Cause, Error, Handler, HandlerCx, Host, MoveTo, Refusal, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
-use halvo_schema_core::ids::RequestId;
+use halvo_schema_core::ids::{AgentId, RequestId, WorkflowId};
 use halvo_schema_core::record::{
     Confidence, Instant, Proposal, Recurrence, RowRead, SummaryRead, Trigger, TypedRecord,
     Workflow, WorkflowState, WriterStep,
 };
-use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole};
+use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole, RawRequest};
 use halvo_schema_core::site::{AppId, DomainSource, SiteDomain, SiteValue};
 
 const DAY: u32 = 20_767;
@@ -325,4 +326,250 @@ fn a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
         want,
         "the summaries of the support rows"
     );
+}
+
+/// Where the handler of the stop tests ends its own process: nowhere, before its typed commit, or after its typed
+/// commit and before its state call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StopAt {
+    Nowhere,
+    BeforeCommit,
+    AfterCommit,
+}
+
+impl StopAt {
+    fn word(self) -> &'static str {
+        match self {
+            StopAt::Nowhere => "nowhere",
+            StopAt::BeforeCommit => "before",
+            StopAt::AfterCommit => "after",
+        }
+    }
+
+    fn of(word: &str) -> StopAt {
+        match word {
+            "before" => StopAt::BeforeCommit,
+            "after" => StopAt::AfterCommit,
+            _ => StopAt::Nowhere,
+        }
+    }
+}
+
+/// A test handler of the `coordinator_write` op `twice` whose body names a workflow: one typed commit of a record of
+/// the test-only kind `test_note`, then the state call that makes the workflow active with an agent. Where its stop
+/// says so, it ends its own process with exit code 9, before the commit or between the commit and the state call; with
+/// `panic` it panics after the commit.
+struct Twice {
+    stop: StopAt,
+    panic: bool,
+}
+
+impl Handler for Twice {
+    fn handle(
+        &self,
+        request: &RawRequest,
+        cx: &mut HandlerCx<'_>,
+    ) -> Result<Box<serde_json::value::RawValue>, ErrorName> {
+        let body: serde_json::Value = serde_json::from_str(request.body().get()).unwrap();
+        let workflow = body["workflow"].as_str().unwrap().to_owned();
+        if self.stop == StopAt::BeforeCommit {
+            std::process::exit(9);
+        }
+        let note = TypedRecord {
+            kind: "test_note",
+            json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{DAY},"n":1}}"#),
+        };
+        cx.commit(&[note]).map_err(|_| ErrorName::State)?;
+        if self.stop == StopAt::AfterCommit {
+            std::process::exit(9);
+        }
+        assert!(!self.panic, "the handler panics after its typed commit");
+        let agent = AgentId::parse(&"4".repeat(32)).unwrap();
+        cx.state(
+            &WorkflowId::parse(&workflow).unwrap(),
+            MoveTo::Active,
+            Some(agent),
+        )
+        .map_err(|_| ErrorName::State)?;
+        Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+fn twice_host(clock: &TestClock, stop: StopAt, panic: bool) -> Host {
+    Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+        "test",
+        Takes::Coordinator(&["twice"]),
+        Box::new(Twice { stop, panic }),
+    )
+}
+
+fn open_twice(
+    scratch_path: &std::path::Path,
+    clock: &TestClock,
+    stop: StopAt,
+    panic: bool,
+) -> Store {
+    let mut entries = registry();
+    entries.push(&NOTE);
+    Store::open(
+        scratch_path,
+        &key(),
+        &entries,
+        twice_host(clock, stop, panic),
+        &mut Seq(1 << 40),
+    )
+    .unwrap()
+}
+
+fn twice_body(workflow: &str) -> String {
+    format!(r#"{{"op":"twice","workflow":"{workflow}"}}"#)
+}
+
+/// A store under `scratch` with one approved workflow, and that workflow's id.
+fn approved(scratch: &Scratch, clock: &TestClock) -> String {
+    let mut store = open_twice(scratch.path(), clock, StopAt::Nowhere, false);
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    let workflow = listed(&store)[0].workflow.id().clone();
+    store
+        .decide(&InterfaceDecision::approve(
+            &InterfaceRole::claim(),
+            RequestId::from_random([2; 16]),
+            workflow.clone(),
+        ))
+        .unwrap();
+    workflow.as_str().to_owned()
+}
+
+/// What the next open of a store holds after one `twice` request: the rows of `test_note`, whether the workflow is
+/// active, and whether it has an agent.
+fn after_twice(scratch: &Scratch, clock: &TestClock) -> (usize, bool, bool) {
+    drop(open_twice(scratch.path(), clock, StopAt::Nowhere, false));
+    let notes = bodies(scratch, "test_note").len();
+    match serde_json::from_str::<Workflow>(&bodies(scratch, "workflow")[0]).unwrap() {
+        Workflow::Full(full) => (
+            notes,
+            full.state == WorkflowState::Active,
+            full.agent.is_some(),
+        ),
+        Workflow::Dismissed(_) => (notes, false, false),
+    }
+}
+
+const STOP_DIR: &str = "HALVO_DERIVED_STOP_DIR";
+const STOP_WORKFLOW: &str = "HALVO_DERIVED_STOP_WORKFLOW";
+const STOP_AT: &str = "HALVO_DERIVED_STOP_AT";
+const STOP_TEST: &str =
+    "a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call";
+
+/// A child process of the stop test: this test binary run again for that one test, with the store's directory, the
+/// workflow and the place of the stop in its environment. It ends itself; dropped on any path of the test, a panic
+/// among them, the guard ends that one process through the handle that it got at its start, if it still runs, and
+/// waits for it, and touches no other process.
+struct Child(std::process::Child);
+
+impl Child {
+    fn start(dir: &std::path::Path, workflow: &str, stop: StopAt) -> Child {
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([STOP_TEST, "--exact", "--test-threads=1"])
+            .env(STOP_DIR, dir)
+            .env(STOP_WORKFLOW, workflow)
+            .env(STOP_AT, stop.word())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        Child(child)
+    }
+
+    /// The exit code of the child, waited for at most 120 seconds.
+    fn code(mut self) -> Option<i32> {
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_secs(120) {
+            if let Some(status) = self.0.try_wait().unwrap() {
+                return status.code();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        None
+    }
+}
+
+impl Drop for Child {
+    fn drop(&mut self) {
+        if let Ok(None) = self.0.try_wait() {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+}
+
+/// A stop inside one handled request (S-69, part 6): a child process sends one `coordinator_write` whose handler makes
+/// a typed commit and then the state call, and ends itself between the two; the next open holds the row of the typed
+/// commit and a workflow that is not active and has no agent. The two controls: a child that makes no stop stores
+/// both, and a child that stops before the first store stores nothing.
+#[test]
+fn a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call() {
+    if let (Some(dir), Some(workflow), Some(at)) = (
+        std::env::var_os(STOP_DIR),
+        std::env::var_os(STOP_WORKFLOW),
+        std::env::var_os(STOP_AT),
+    ) {
+        let clock = TestClock::at_day(DAY);
+        let stop = StopAt::of(&at.to_string_lossy());
+        let mut store = open_twice(std::path::Path::new(&dir), &clock, stop, false);
+        let answer = store.handle(&raw_request(
+            "coordinator_write",
+            &twice_body(&workflow.to_string_lossy()),
+        ));
+        std::process::exit(if answer.is_ok() { 0 } else { 3 });
+    }
+    let mut seen = Vec::new();
+    for stop in [StopAt::AfterCommit, StopAt::Nowhere, StopAt::BeforeCommit] {
+        let scratch = Scratch::new("stop-inside");
+        let clock = TestClock::at_day(DAY);
+        let workflow = approved(&scratch, &clock);
+        let code = Child::start(scratch.path(), &workflow, stop).code();
+        seen.push((stop, code, after_twice(&scratch, &clock)));
+    }
+    assert_eq!(
+        seen,
+        vec![
+            (StopAt::AfterCommit, Some(9), (1, false, false)),
+            (StopAt::Nowhere, Some(0), (1, true, true)),
+            (StopAt::BeforeCommit, Some(9), (0, false, false)),
+        ],
+        "(where the child stops, its exit code, (rows of test_note, active, with an agent) at the next open)"
+    );
+}
+
+/// A panic of a handler behind its typed commit (reports/verifier-35.md line 102): the request unwinds, the commit
+/// made before the panic stays stored, the workflow is neither active nor given an agent, and the next request of the
+/// same store is answered.
+#[test]
+fn a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered() {
+    let scratch = Scratch::new("handler-panic");
+    let clock = TestClock::at_day(DAY);
+    let workflow = approved(&scratch, &clock);
+    let mut store = open_twice(scratch.path(), &clock, StopAt::Nowhere, true);
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        store.handle(&raw_request("coordinator_write", &twice_body(&workflow)))
+    }));
+    assert!(unwound.is_err(), "the handler panics");
+    assert_eq!(
+        store
+            .handle(&raw_request("coordinator_write", r#"{"op":"none"}"#))
+            .err(),
+        Some(Error::Refused(ErrorName::Unsupported)),
+        "the next request of the same store after the panic is answered"
+    );
+    drop(store);
+    assert_eq!(after_twice(&scratch, &clock), (1, false, false));
 }

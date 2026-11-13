@@ -159,6 +159,8 @@ esac
 #= tests/privacy.rs the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint
 #= tests/privacy.rs the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint
 #= src/lib.rs tests::the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open
+#= tests/cases.rs a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call
+#= tests/cases.rs a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
