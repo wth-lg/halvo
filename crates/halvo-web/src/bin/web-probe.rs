@@ -10,7 +10,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use halvo_web::cdp::{
-    split_url, Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine,
+    split_url, Executor, Fault, Locator, Mode, Outcome, PausedRequest, Res, Resolved, SnapshotLine,
     StartOptions,
 };
 use halvo_web::relay::{Names, Relay, RelayHandle};
@@ -138,14 +138,50 @@ async fn path_now(ex: &Executor) -> Res<String> {
     Ok(split_url(&ex.frame_url(&main).await?).1)
 }
 
-async fn click_and_wait(ex: &mut Executor, reference: &str) -> Res<()> {
+/// Arms the rule for the fixture's two origins in the mode that holds (CP-176 A1): reads of them
+/// pass, and each state-changing request waits for `post_and_wait` to let it through.
+async fn arm_sites(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+    ex.arm_rule(
+        vec![origin(UTILITY, ctx.port), origin(PAY, ctx.port)],
+        Mode::Hold,
+    )
+    .await
+}
+
+/// Clicks `reference`, waits for the state-changing request `method` `path` that the click sends
+/// to be held, lets it through by its id, and waits for the frame to load. The rule is armed again
+/// first, so that the release of an earlier post of the step does not fail this one.
+async fn post_and_wait(
+    ex: &mut Executor,
+    ctx: &Ctx,
+    reference: &str,
+    method: &str,
+    path: &str,
+) -> Res<()> {
+    arm_sites(ex, ctx).await?;
     let frame = ex.frame_of(reference).await?;
     let before = ex.loader(&frame).await?;
     ex.click(reference).await?;
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    let id = loop {
+        if let Some(h) = ex
+            .paused()
+            .into_iter()
+            .find(|h| h.method == method && h.path == path)
+        {
+            break h.id;
+        }
+        if Instant::now() > deadline {
+            return Err(Fault::new("timeout", "held"));
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    };
+    ex.let_through(id).await?;
     ex.wait_loaded_after(&frame, Some(&before)).await
 }
 
 async fn signin(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+    arm_sites(ex, ctx).await?;
     ex.open(&ctx.u("/signin")).await?;
     submit_signin(ex, ctx).await
 }
@@ -158,7 +194,7 @@ async fn submit_signin(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     ex.fill(&pw, &ctx.seed_str(&["credentials", "password"]))
         .await?;
     let button = ex.resolve_one(&[role("button", "Sign in")], &[]).await?;
-    click_and_wait(ex, &button).await
+    post_and_wait(ex, ctx, &button, "POST", "/signin").await
 }
 
 async fn signin_form(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -192,16 +228,17 @@ async fn table_read(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     Ok(())
 }
 
-async fn watch_requests(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
-    ex.arm_rule(vec![origin(UTILITY, ctx.port), origin(PAY, ctx.port)], true)
-        .await
-}
-
+/// The one request `method` `path` that the rule held and let through since its last arm.
 fn sent(ex: &Executor, method: &str, path: &str) -> Res<PausedRequest> {
     let mut found: Vec<PausedRequest> = ex
-        .paused()
+        .requests()
         .into_iter()
-        .filter(|p| p.method == method && p.path == path && p.outcome == Outcome::Continued)
+        .filter(|p| {
+            p.method == method
+                && p.path == path
+                && p.id.is_some()
+                && p.outcome == Outcome::Continued
+        })
         .collect();
     match found.len() {
         1 => Ok(found.remove(0)),
@@ -213,7 +250,6 @@ fn sent(ex: &Executor, method: &str, path: &str) -> Res<PausedRequest> {
 async fn form_fill(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     signin(ex, ctx).await?;
     ex.open(&ctx.u("/prefs")).await?;
-    watch_requests(ex, ctx).await?;
     let before = counter(ctx, &["utility", "prefs_saved"])?;
     let boxed = ex
         .resolve_one(&[role("checkbox", "Paperless billing")], &[])
@@ -222,13 +258,12 @@ async fn form_fill(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     let save = ex
         .resolve_one(&[role("button", "Save preferences")], &[])
         .await?;
-    click_and_wait(ex, &save).await?;
+    post_and_wait(ex, ctx, &save, "POST", "/prefs").await?;
     check(
         counter(ctx, &["utility", "prefs_saved"])? == before + 1,
         "prefs_saved",
     )?;
-    let post = sent(ex, "POST", "/prefs")?;
-    check(post.body_holds(b"paperless=yes"), "box_set_in_request")
+    sent(ex, "POST", "/prefs").map(|_| ())
 }
 
 fn payments(ctx: &Ctx) -> Res<Vec<Value>> {
@@ -291,7 +326,7 @@ async fn payment_frame(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     let pay = ex
         .resolve_one(&[role("button", "Pay now")], &["Payment"])
         .await?;
-    click_and_wait(ex, &pay).await?;
+    post_and_wait(ex, ctx, &pay, "POST", "/charge").await?;
     let heading = ex
         .resolve(&[role("heading", "Payment received")], &["Payment"])
         .await?;
@@ -317,9 +352,8 @@ async fn file_upload(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
         .await?;
     ex.upload(&input, &file).await?;
     check(ex.file_sizes(&input).await? == vec![1024], "file_in_input")?;
-    watch_requests(ex, ctx).await?;
     let send = ex.resolve_one(&[role("button", "Upload")], &[]).await?;
-    click_and_wait(ex, &send).await?;
+    post_and_wait(ex, ctx, &send, "POST", "/upload").await?;
     check(
         counter(ctx, &["utility", "uploads"])? == before + 1,
         "uploads",
@@ -334,7 +368,7 @@ async fn session_expiry(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     let save = ex
         .resolve_one(&[role("button", "Save preferences")], &[])
         .await?;
-    click_and_wait(ex, &save).await?;
+    post_and_wait(ex, ctx, &save, "POST", "/prefs").await?;
     check(
         counter(ctx, &["utility", "prefs_saved"])? == 1,
         "prefs_saved",
@@ -359,7 +393,7 @@ async fn changed_page_1(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
         return Err(Fault::new("resolve", "none"));
     };
     check(locator == 1, "second_locator")?;
-    click_and_wait(ex, &reference).await?;
+    post_and_wait(ex, ctx, &reference, "POST", "/charge").await?;
     paid_once_more(ctx, before, &instrument(ctx, 0))
 }
 
@@ -367,7 +401,7 @@ async fn block_request(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     signin(ex, ctx).await?;
     ex.open(&ctx.u("/prefs")).await?;
     let u = origin(UTILITY, ctx.port);
-    ex.arm_rule(vec![u.clone(), origin(PAY, ctx.port)], false)
+    ex.arm_rule(vec![u.clone(), origin(PAY, ctx.port)], Mode::Fail)
         .await?;
     let before = counter(ctx, &["requests", "state_changing"])?;
     let save = ex
@@ -377,7 +411,7 @@ async fn block_request(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     ex.click(&save).await?;
     let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
     let failed = loop {
-        if let Some(p) = ex.paused().into_iter().find(|p| !p.let_through) {
+        if let Some(p) = ex.requests().into_iter().find(|p| !p.let_through) {
             break p;
         }
         if Instant::now() > deadline {
@@ -412,6 +446,7 @@ fn mark(lines: &[SnapshotLine], name: &str) -> Option<bool> {
 }
 
 async fn credential_mark(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+    arm_sites(ex, ctx).await?;
     ex.open(&ctx.u("/signin")).await?;
     let signin_page = ex.snapshot().await?;
     check(mark(&signin_page, "Email") == Some(false), "email")?;
@@ -438,7 +473,7 @@ async fn credential_mark(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     ex.fill(&field, &ctx.seed_str(&["credentials", "captcha"]))
         .await?;
     let go = ex.resolve_one(&[role("button", "Continue")], &[]).await?;
-    click_and_wait(ex, &go).await?;
+    post_and_wait(ex, ctx, &go, "POST", "/challenge").await?;
     check(path_now(ex).await? == "/verify", "verify_page")?;
     let verify = ex.snapshot().await?;
     check(

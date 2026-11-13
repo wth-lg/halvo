@@ -35,6 +35,10 @@
 //! - `block_frame_post --browser PATH --kind chrome|edge --port N`: the row of A13.7 through the
 //!   product's executor: a state-changing request of the payment frame is paused and failed by
 //!   the request rule, and the fixture counts nothing.
+//! - `hold_release --browser PATH --kind chrome|edge --port N`: the row of CP-176 A1 (f) through
+//!   the product's executor: a state-changing request stays held while a snapshot of the page is
+//!   read, is let through once by its id, and a second one that the page sent meanwhile is failed,
+//!   with no byte of it at the fixture.
 //!
 //! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
 //!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
@@ -46,7 +50,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use halvo_web::cdp::{CrashMeans, Executor, StartOptions};
+use halvo_web::cdp::{CrashMeans, Executor, Mode, StartOptions};
 use halvo_web::crash_row;
 use halvo_web::guard::GuardProgram;
 use halvo_web::procs;
@@ -170,6 +174,12 @@ async fn crash_reading_at(
                 .map(str::to_string)
         })
         .unwrap_or_else(|| "-".into());
+    let _ = ex
+        .arm_rule(
+            vec![format!("http://utility.agent.test:{port}")],
+            Mode::Fail,
+        )
+        .await;
     let _ = ex
         .open(&format!("http://utility.agent.test:{port}/signin"))
         .await;
@@ -303,6 +313,12 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     };
     let start = check_line(machine, &kind, "start", &subject);
     let _ = ex
+        .arm_rule(
+            vec![format!("http://utility.agent.test:{port}")],
+            Mode::Fail,
+        )
+        .await;
+    let _ = ex
         .open(&format!("http://utility.agent.test:{port}/signin"))
         .await;
     let session = check_line(machine, &kind, "session", &subject);
@@ -357,11 +373,32 @@ fn counts_of(port: u16) -> Option<(i64, usize)> {
 
 const SEED: &str = include_str!("../../../../tools/fixture-server/variants/data/seed-1.json");
 
+/// The id of the held request `method` `path`, read until `STEP_TIMEOUT`.
+async fn held(ex: &Executor, method: &str, path: &str) -> Result<u64, &'static str> {
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    loop {
+        if let Some(h) = ex
+            .paused()
+            .into_iter()
+            .find(|h| h.method == method && h.path == path)
+        {
+            return Ok(h.id);
+        }
+        if Instant::now() > deadline {
+            return Err("held_none");
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 async fn frame_post_steps(ex: &mut Executor, port: u16) -> Result<(bool, bool), &'static str> {
     use halvo_web::cdp::Locator;
     let seed: serde_json::Value = serde_json::from_str(SEED).map_err(|_| "seed")?;
     let utility = format!("http://utility.agent.test:{port}");
     let pay = format!("http://pay.agent.test:{port}");
+    ex.arm_rule(vec![utility.clone(), pay.clone()], Mode::Hold)
+        .await
+        .map_err(|f| f.0)?;
     ex.open(&format!("{utility}/signin"))
         .await
         .map_err(|f| f.0)?;
@@ -379,8 +416,10 @@ async fn frame_post_steps(ex: &mut Executor, port: u16) -> Result<(bool, bool), 
         .await
         .map_err(|f| f.0)?;
     ex.click(&sign_in).await.map_err(|f| f.0)?;
+    let id = held(ex, "POST", "/signin").await?;
+    ex.let_through(id).await.map_err(|f| f.0)?;
     tokio::time::sleep(Duration::from_millis(1_000)).await;
-    ex.arm_rule(vec![utility.clone(), pay.clone()], false)
+    ex.arm_rule(vec![utility.clone(), pay.clone()], Mode::Fail)
         .await
         .map_err(|f| f.0)?;
     ex.open(&format!("{utility}/pay")).await.map_err(|f| f.0)?;
@@ -393,7 +432,7 @@ async fn frame_post_steps(ex: &mut Executor, port: u16) -> Result<(bool, bool), 
     let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
     let failed = loop {
         if let Some(p) = ex
-            .paused()
+            .requests()
             .into_iter()
             .find(|p| p.method == "POST" && p.origin == pay && p.path == "/charge")
         {
@@ -470,6 +509,187 @@ async fn block_frame_post(argv: &[String]) -> (usize, usize) {
     };
     println!(
         "row block_frame_post machine={machine} browser={kind} {line} result={}",
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
+}
+
+/// The fixture's counts of state-changing requests and of requests of every kind.
+fn requests_of(port: u16) -> Option<(i64, i64)> {
+    let state = fixture_json(port, "GET", "/state")?;
+    Some((
+        state["requests"]["state_changing"].as_i64()?,
+        state["requests"]["total"].as_i64()?,
+    ))
+}
+
+/// What `hold_release` read: whether the first request was still held after the snapshot,
+/// whether the release went through, the fixture's new state-changing requests, and the outcomes
+/// of the two requests.
+struct HoldRead {
+    held_through_snapshot: bool,
+    released: bool,
+    counted: i64,
+    first: Option<halvo_web::cdp::Outcome>,
+    second: Option<halvo_web::cdp::Outcome>,
+}
+
+async fn hold_release_steps(ex: &mut Executor, port: u16) -> Result<HoldRead, &'static str> {
+    use halvo_web::cdp::Locator;
+    let seed: serde_json::Value = serde_json::from_str(SEED).map_err(|_| "seed")?;
+    let utility = format!("http://utility.agent.test:{port}");
+    let pay = format!("http://pay.agent.test:{port}");
+    ex.arm_rule(vec![utility.clone(), pay.clone()], Mode::Hold)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{utility}/signin"))
+        .await
+        .map_err(|f| f.0)?;
+    for (name, key) in [("Email", "user"), ("Password", "password")] {
+        let r = ex
+            .resolve_one(&[Locator::Role("textbox", name.into())], &[])
+            .await
+            .map_err(|f| f.0)?;
+        ex.fill(&r, seed["credentials"][key].as_str().unwrap_or(""))
+            .await
+            .map_err(|f| f.0)?;
+    }
+    let sign_in = ex
+        .resolve_one(&[Locator::Role("button", "Sign in".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&sign_in).await.map_err(|f| f.0)?;
+    let id = held(ex, "POST", "/signin").await?;
+    ex.let_through(id).await.map_err(|f| f.0)?;
+    tokio::time::sleep(Duration::from_millis(1_000)).await;
+    ex.arm_rule(vec![utility.clone(), pay.clone()], Mode::Hold)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{utility}/bill")).await.map_err(|f| f.0)?;
+    let (before, _) = requests_of(port).ok_or("state")?;
+    let link = ex
+        .resolve_one(&[Locator::Role("link", "Pay bill".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&link).await.map_err(|f| f.0)?;
+    let first = held(ex, "POST", "/track").await?;
+    let lines = ex.snapshot().await.map_err(|f| f.0)?;
+    let held_through_snapshot = !lines.is_empty() && ex.paused().iter().any(|h| h.id == first);
+    ex.open(&format!("{utility}/bill")).await.map_err(|f| f.0)?;
+    let link = ex
+        .resolve_one(&[Locator::Role("link", "Pay bill".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&link).await.map_err(|f| f.0)?;
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    let second = loop {
+        if let Some(h) = ex
+            .paused()
+            .into_iter()
+            .find(|h| h.id != first && h.method == "POST" && h.path == "/track")
+        {
+            break h.id;
+        }
+        if Instant::now() > deadline {
+            return Err("second_held_none");
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    };
+    let released = ex.let_through(first).await.is_ok();
+    tokio::time::sleep(Duration::from_millis(2_000)).await;
+    let (after, _) = requests_of(port).ok_or("state")?;
+    let outcome = |id: u64| {
+        ex.requests()
+            .into_iter()
+            .find(|r| r.id == Some(id))
+            .map(|r| r.outcome)
+    };
+    Ok(HoldRead {
+        held_through_snapshot,
+        released,
+        counted: after - before,
+        first: outcome(first),
+        second: outcome(second),
+    })
+}
+
+/// The row of CP-176 A1 (f) through the product's executor, on the fixture's bill page with the
+/// variant `get_effect`, whose link `Pay bill` sends a state-changing `POST /track` by the page's
+/// own script: the first request stays held while a snapshot of the page is read; the page sends a
+/// second one meanwhile; the first is let through once by its id and the second is failed. ok when
+/// the fixture counts exactly one more state-changing request, the first went on and the second
+/// was failed.
+async fn hold_release(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "hold-release"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    if fixture_json(port, "POST", "/reset?seed=1&variant=get_effect").is_none() {
+        println!("row hold_release machine={machine} browser={kind} result=notrun cause=fixture");
+        return (0, 1);
+    }
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    for host in ["utility.agent.test", "pay.agent.test"] {
+        relay
+            .handle()
+            .allow(host, port, halvo_web::relay::Entry::Listed);
+    }
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row hold_release machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let steps = hold_release_steps(&mut ex, port).await;
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let _ = fixture_json(port, "POST", "/reset?seed=1");
+    let _ = std::fs::remove_dir(&dir);
+    use halvo_web::cdp::Outcome;
+    let name = |o: Option<Outcome>| match o {
+        Some(Outcome::Continued) => "continued",
+        Some(Outcome::Failed) => "failed",
+        Some(Outcome::Held) => "held",
+        Some(Outcome::Refused) => "refused",
+        None => "-",
+    };
+    let (line, fine) = match steps {
+        Ok(r) => (
+            format!(
+                "held_through_snapshot={} released={} first={} second={} counted={} removed={}",
+                if r.held_through_snapshot { "yes" } else { "no" },
+                if r.released { "yes" } else { "no" },
+                name(r.first),
+                name(r.second),
+                r.counted,
+                if stopped.removed { "yes" } else { "no" }
+            ),
+            r.held_through_snapshot
+                && r.released
+                && r.first == Some(Outcome::Continued)
+                && r.second == Some(Outcome::Failed)
+                && r.counted == 1
+                && stopped.removed,
+        ),
+        Err(cause) => (format!("cause={cause}"), false),
+    };
+    println!(
+        "row hold_release machine={machine} browser={kind} {line} result={}",
         if fine { "ok" } else { "miss" }
     );
     (usize::from(fine), 1)
@@ -919,6 +1139,12 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
     };
     let tunnels = relay.tunnels();
     let _ = ex
+        .arm_rule(
+            vec![format!("http://utility.agent.test:{echo_port}")],
+            Mode::Fail,
+        )
+        .await;
+    let _ = ex
         .open(&format!("http://utility.agent.test:{echo_port}/"))
         .await;
     let mut control = false;
@@ -1022,6 +1248,7 @@ fn main() -> ExitCode {
         "crash" => runtime.block_on(crash(&argv)),
         "checks" => runtime.block_on(checks_row(&argv)),
         "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
+        "hold_release" => runtime.block_on(hold_release(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");

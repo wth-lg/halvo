@@ -19,7 +19,7 @@ use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use super::{body_of, split_url, Fault, Outcome, PausedRequest, Res, STEP_TIMEOUT};
+use super::{split_url, Fault, HeldRequest, Mode, Outcome, PausedRequest, Res, STEP_TIMEOUT};
 use crate::pipe::PipeLink;
 
 /// The transport of the wire: the browser's debugging pipe, its one client.
@@ -35,33 +35,225 @@ pub(crate) struct Attached {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Rule {
     pub allowed: Vec<String>,
-    pub state_changing: bool,
-    pub hold: bool,
+    pub mode: Mode,
     pub policy: Option<String>,
 }
 
-impl Rule {
-    pub(crate) fn lets_through(&self, method: &str, origin: &str) -> bool {
-        self.allowed.iter().any(|a| a == origin) && (self.state_changing || !changes_state(method))
+/// The bound of the held requests of one arm (CP-176 A1 (b)): a new state-changing request beyond
+/// it is failed.
+pub const MAX_HELD: usize = 16;
+
+/// How many state-changing requests of one arm the rule keeps by their number once failed, so
+/// that the second pause of each follows the first; beyond it a failed request is not kept and its
+/// second pause is failed on its own.
+const KEPT_FAILED: usize = 1024;
+
+/// One pause of a request as the browser gave it: the session that paused it (`None`: the
+/// browser's level) and the interception's id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Pause {
+    pub session: Option<String>,
+    pub id: String,
+}
+
+/// The facts of one paused request that the rule reads.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Facts {
+    /// The browser's number of the request (`networkId`), the same at both levels.
+    pub network: Option<String>,
+    /// Whether the pause is a hop of a redirect (`redirectedRequestId`).
+    pub redirected: bool,
+    pub method: String,
+    pub url: String,
+    pub origin: String,
+    pub path: String,
+    pub frame: String,
+    pub worker_script: bool,
+    /// The host and port that the runner's hook of the main document gets when the request is let
+    /// through.
+    pub hook: Option<(String, u16)>,
+}
+
+/// What the rule answers one pause.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Act {
+    Continue,
+    Fail,
+    /// Held with no answer under the executor's id.
+    Hold(u64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HoldState {
+    Waiting,
+    Released,
+    Failed,
+}
+
+/// One state-changing request of an arm, by the browser's number, its address, its method and
+/// whether it is a redirect's hop, with every pause of it.
+struct Held {
+    request: HeldRequest,
+    key: (String, String, String, bool),
+    state: HoldState,
+    pauses: Vec<Pause>,
+    hook: Option<(String, u16)>,
+}
+
+/// The state-changing requests of one arm (CP-176 A1): what is held, whether a release was made
+/// since the arm, and the executor's next id, which is never given twice in its life.
+#[derive(Default)]
+pub(crate) struct Holds {
+    held: Vec<Held>,
+    released: bool,
+    next: u64,
+}
+
+/// What a release answers: the pauses to let go on, the pauses to fail, and the hook's host and
+/// port of a document that it let through.
+pub(crate) type Released = (Vec<Pause>, Vec<Pause>, Option<(String, u16)>);
+
+impl Holds {
+    /// The answer to one pause of `f` under `rule`, and whether the request is new (a record of its
+    /// own). A request that changes no state passes to an allowed origin and is failed elsewhere.
+    /// A state-changing request is failed outside the list and in `Mode::Fail`; in `Mode::Hold` it
+    /// is held under a new id, unless the browser gave it no number, a release was made since the
+    /// arm, or `MAX_HELD` requests wait, which fail it. A second pause of one request (the same
+    /// number, address, method and hop) follows the answer of the first.
+    pub(crate) fn on_pause(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
+        let allowed = !f.worker_script && rule.is_some_and(|r| r.allowed.contains(&f.origin));
+        if !changes_state(&f.method) {
+            return (if allowed { Act::Continue } else { Act::Fail }, true);
+        }
+        let Some(network) = &f.network else {
+            return (Act::Fail, true);
+        };
+        let key = (
+            network.clone(),
+            f.url.clone(),
+            f.method.clone(),
+            f.redirected,
+        );
+        if let Some(h) = self.held.iter_mut().find(|h| h.key == key) {
+            let act = match h.state {
+                HoldState::Waiting => {
+                    h.pauses.push(pause);
+                    Act::Hold(h.request.id)
+                }
+                HoldState::Released => Act::Continue,
+                HoldState::Failed => Act::Fail,
+            };
+            return (act, false);
+        }
+        let waiting = self
+            .held
+            .iter()
+            .filter(|h| h.state == HoldState::Waiting)
+            .count();
+        let holds = allowed
+            && rule.is_some_and(|r| r.mode == Mode::Hold)
+            && !self.released
+            && waiting < MAX_HELD;
+        self.next += 1;
+        let request = HeldRequest {
+            id: self.next,
+            method: f.method.clone(),
+            origin: f.origin.clone(),
+            path: f.path.clone(),
+            frame: f.frame.clone(),
+        };
+        let (state, act) = if holds {
+            (HoldState::Waiting, Act::Hold(self.next))
+        } else {
+            (HoldState::Failed, Act::Fail)
+        };
+        if !holds && self.held.len() >= KEPT_FAILED {
+            return (act, true);
+        }
+        self.held.push(Held {
+            request,
+            key,
+            state,
+            pauses: if holds { vec![pause] } else { Vec::new() },
+            hook: f.hook.clone(),
+        });
+        (act, true)
+    }
+
+    /// Lets the held request `id` through, once: its pauses go on, and every other waiting request
+    /// is failed, as is every state-changing request after it until the next arm. The test and the
+    /// mark happen in one call under the caller's lock.
+    pub(crate) fn release(&mut self, id: u64) -> Result<Released, &'static str> {
+        if self.released {
+            return Err("released");
+        }
+        let Some(at) = self
+            .held
+            .iter()
+            .position(|h| h.request.id == id && h.state == HoldState::Waiting)
+        else {
+            return Err("not_held");
+        };
+        self.released = true;
+        self.held[at].state = HoldState::Released;
+        let go = std::mem::take(&mut self.held[at].pauses);
+        let hook = self.held[at].hook.clone();
+        let mut fail = Vec::new();
+        for h in self
+            .held
+            .iter_mut()
+            .filter(|h| h.state == HoldState::Waiting)
+        {
+            h.state = HoldState::Failed;
+            fail.append(&mut h.pauses);
+        }
+        Ok((go, fail, hook))
+    }
+
+    /// Fails the held request `id`.
+    pub(crate) fn fail(&mut self, id: u64) -> Result<Vec<Pause>, &'static str> {
+        let h = self
+            .held
+            .iter_mut()
+            .find(|h| h.request.id == id && h.state == HoldState::Waiting)
+            .ok_or("not_held")?;
+        h.state = HoldState::Failed;
+        Ok(std::mem::take(&mut h.pauses))
+    }
+
+    /// Ends the arm: every waiting request is failed and the release is over. Gives the pauses to
+    /// fail.
+    pub(crate) fn end_arm(&mut self) -> Vec<Pause> {
+        let mut fail = Vec::new();
+        for h in self
+            .held
+            .iter_mut()
+            .filter(|h| h.state == HoldState::Waiting)
+        {
+            fail.append(&mut h.pauses);
+        }
+        self.held.clear();
+        self.released = false;
+        fail
+    }
+
+    /// The requests that wait, each once.
+    pub(crate) fn waiting(&self) -> Vec<HeldRequest> {
+        self.held
+            .iter()
+            .filter(|h| h.state == HoldState::Waiting)
+            .map(|h| h.request.clone())
+            .collect()
     }
 }
 
-/// Whether the rule lets a paused request through: never a service worker's script (A4.2: no
-/// service worker runs in the agent's browser), else as the rule says; with no rule, nothing.
-pub(crate) fn decision(
-    rule: Option<&Rule>,
-    method: &str,
-    origin: &str,
-    headers: &serde_json::Value,
-) -> bool {
-    let worker_script = headers
-        .as_object()
-        .map(|h| {
-            h.iter()
-                .any(|(k, v)| k.eq_ignore_ascii_case("service-worker") && v == "script")
-        })
-        .unwrap_or(false);
-    !worker_script && rule.is_some_and(|r| r.lets_through(method, origin))
+/// Whether a request is a service worker's script by its headers, which the rule never lets
+/// through (A4.2: no service worker runs in the agent's browser).
+pub(crate) fn is_worker_script(headers: &serde_json::Value) -> bool {
+    headers.as_object().is_some_and(|h| {
+        h.iter()
+            .any(|(k, v)| k.eq_ignore_ascii_case("service-worker") && v == "script")
+    })
 }
 
 pub(crate) fn changes_state(method: &str) -> bool {
@@ -75,7 +267,8 @@ pub(crate) struct Book {
     pub rule: Option<Rule>,
     pub version: u64,
     pub home: Option<String>,
-    pub paused: Vec<PausedRequest>,
+    pub requests: Vec<PausedRequest>,
+    pub holds: Holds,
     pub answered: HashSet<String>,
     pub on_main_document: Option<Hook>,
     pub policy_counts: std::collections::BTreeMap<String, u64>,
@@ -263,11 +456,132 @@ impl Wire {
             .unwrap_or_default()
     }
 
-    pub(crate) fn paused(&self) -> Vec<PausedRequest> {
+    /// Every request that the rule paused, once each, with its answer.
+    pub(crate) fn requests(&self) -> Vec<PausedRequest> {
         self.book
             .lock()
-            .map(|b| b.paused.clone())
+            .map(|b| b.requests.clone())
             .unwrap_or_default()
+    }
+
+    /// The state-changing requests that are held now.
+    pub(crate) fn held(&self) -> Vec<HeldRequest> {
+        self.book
+            .lock()
+            .map(|b| b.holds.waiting())
+            .unwrap_or_default()
+    }
+
+    /// Sets the outcome of the records of the requests `ids`.
+    fn mark(&self, ids: &[(u64, Outcome)]) {
+        if let Ok(mut b) = self.book.lock() {
+            for r in b.requests.iter_mut() {
+                if let Some((_, o)) = ids.iter().find(|(id, _)| r.id == Some(*id)) {
+                    r.outcome = *o;
+                    r.let_through = *o == Outcome::Continued;
+                }
+            }
+        }
+    }
+
+    /// Answers `pauses`: each goes on (`go`) or is failed.
+    async fn answer_pauses(&self, pauses: Vec<Pause>, go: bool) -> bool {
+        let mut all = true;
+        for p in pauses {
+            let id = chromiumoxide::cdp::browser_protocol::fetch::RequestId::from(p.id);
+            let done = if go {
+                self.call(p.session.as_deref(), ContinueRequestParams::new(id))
+                    .await
+                    .is_ok()
+            } else {
+                self.call(
+                    p.session.as_deref(),
+                    FailRequestParams::new(id, ErrorReason::BlockedByClient),
+                )
+                .await
+                .is_ok()
+            };
+            all &= done;
+        }
+        all
+    }
+
+    /// Lets the held request `id` through once and fails every other held request (CP-176 A1 (b)).
+    pub(crate) async fn release(&self, id: u64) -> Res<()> {
+        let (go, fail, hook, others, runner_hook) = {
+            let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
+            let before: Vec<u64> = b.holds.waiting().iter().map(|h| h.id).collect();
+            let (go, fail, hook) = b
+                .holds
+                .release(id)
+                .map_err(|cause| Fault::new("let_through", cause))?;
+            let others: Vec<u64> = before.into_iter().filter(|o| *o != id).collect();
+            (go, fail, hook, others, b.on_main_document.clone())
+        };
+        if let (Some((host, port)), Some(h)) = (hook, runner_hook) {
+            h(&host, port);
+        }
+        let went = self.answer_pauses(go, true).await;
+        self.answer_pauses(fail, false).await;
+        let mut marks: Vec<(u64, Outcome)> =
+            others.into_iter().map(|o| (o, Outcome::Failed)).collect();
+        marks.push((
+            id,
+            if went {
+                Outcome::Continued
+            } else {
+                Outcome::Refused
+            },
+        ));
+        self.mark(&marks);
+        if went {
+            Ok(())
+        } else {
+            Err(Fault::new("let_through", "browser"))
+        }
+    }
+
+    /// Fails the held request `id`.
+    pub(crate) async fn fail_held(&self, id: u64) -> Res<()> {
+        let fail = {
+            let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
+            b.holds
+                .fail(id)
+                .map_err(|cause| Fault::new("fail", cause))?
+        };
+        self.answer_pauses(fail, false).await;
+        self.mark(&[(id, Outcome::Failed)]);
+        Ok(())
+    }
+
+    /// Fails every held request at once with no wait for the browser's answer, for the stop and the
+    /// drop of the executor (CP-176 A1 (b)).
+    pub(crate) fn fail_all_held_now(&self) {
+        let (fail, ids) = match self.book.lock() {
+            Ok(mut b) => {
+                let ids: Vec<u64> = b.holds.waiting().iter().map(|h| h.id).collect();
+                (b.holds.end_arm(), ids)
+            }
+            Err(_) => return,
+        };
+        for p in fail {
+            let id = chromiumoxide::cdp::browser_protocol::fetch::RequestId::from(p.id);
+            let params = FailRequestParams::new(id, ErrorReason::BlockedByClient);
+            if let Ok(value) = serde_json::to_value(&params) {
+                let (reply, _) = oneshot::channel();
+                let _ = self.tx.send(Order {
+                    method: chromiumoxide::types::Method::identifier(&params),
+                    session: p.session,
+                    params: value,
+                    reply,
+                });
+            }
+        }
+        self.mark(
+            &ids.into_iter()
+                .map(|i| (i, Outcome::Failed))
+                .collect::<Vec<_>>(),
+        );
     }
 
     pub(crate) fn set_main_document_hook(&self, hook: Option<Hook>) {
@@ -313,20 +627,26 @@ impl Wire {
     /// then on on every new target before it runs. Neither level alone sees every request: the
     /// browser level misses keepalive requests and beacons, and a target's own level misses the
     /// first requests of a frame that runs before the target is prepared. The paused requests of
-    /// an earlier rule are dropped.
+    /// an earlier rule are dropped from the record, and every request that it held is failed
+    /// (CP-176 A1 (b)).
     pub(crate) async fn arm_rule(&self, rule: Rule) -> Res<()> {
-        let sessions: Vec<(String, String)> = {
+        let (sessions, fail): (Vec<(String, String)>, Vec<Pause>) = {
             let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
             b.rule = Some(rule);
             b.version += 1;
-            b.paused.clear();
+            b.requests.clear();
             b.answered.clear();
-            b.sessions
-                .iter()
-                .filter(|(_, a)| a.ready)
-                .map(|(s, a)| (s.clone(), a.kind.clone()))
-                .collect()
+            let fail = b.holds.end_arm();
+            (
+                b.sessions
+                    .iter()
+                    .filter(|(_, a)| a.ready)
+                    .map(|(s, a)| (s.clone(), a.kind.clone()))
+                    .collect(),
+                fail,
+            )
         };
+        self.answer_pauses(fail, false).await;
         let policy = self.rule().map(|r| r.policy.is_some()).unwrap_or(false);
         self.call(None, intercept_all(policy))
             .await
@@ -471,62 +791,89 @@ impl Wire {
         }
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
-        let (body, body_complete) = body_of(&ev.request);
-        let let_through = decision(
-            self.rule().as_ref(),
-            &method,
-            &origin,
-            ev.request.headers.inner(),
-        );
         let id = ev.request_id.clone();
-        let hold = self.rule().map(|r| r.hold).unwrap_or(false);
         let document = matches!(ev.resource_type, ResourceType::Document);
-        if let_through && document {
-            let (home, hook) = match self.book.lock() {
-                Ok(b) => (b.home.clone(), b.on_main_document.clone()),
-                Err(_) => (None, None),
+        let worker_script = is_worker_script(ev.request.headers.inner());
+        let (act, new, runner_hook, home) = {
+            let Ok(mut b) = self.book.lock() else {
+                return;
             };
-            if let (Some(home), Some(hook)) = (home, hook) {
-                if home == *ev.frame_id.inner() {
-                    if let Some((host, port)) = host_port(&origin) {
-                        hook(&host, port);
+            let home = b.home.clone();
+            let facts = Facts {
+                network: ev.network_id.as_ref().map(|n| n.inner().clone()),
+                redirected: ev.redirected_request_id.is_some(),
+                method: method.clone(),
+                url: ev.request.url.clone(),
+                origin: origin.clone(),
+                path: path.clone(),
+                frame: ev.frame_id.inner().clone(),
+                worker_script,
+                hook: (document && home.as_deref() == Some(ev.frame_id.inner().as_str()))
+                    .then(|| host_port(&origin))
+                    .flatten(),
+            };
+            let rule = b.rule.clone();
+            let pause = Pause {
+                session: session.clone(),
+                id: id.inner().clone(),
+            };
+            let (act, new) = b.holds.on_pause(rule.as_ref(), &facts, pause);
+            if let (Act::Hold(h), true) = (act, new) {
+                b.requests.push(PausedRequest {
+                    id: Some(h),
+                    method: method.clone(),
+                    origin: origin.clone(),
+                    path: path.clone(),
+                    frame: facts.frame.clone(),
+                    resource: format!("{:?}", ev.resource_type),
+                    let_through: false,
+                    outcome: Outcome::Held,
+                });
+            }
+            (act, new, b.on_main_document.clone(), facts.hook)
+        };
+        if act == Act::Continue {
+            if let (Some((host, port)), Some(hook)) = (home, runner_hook) {
+                hook(&host, port);
+            }
+        }
+        let answered = match act {
+            Act::Hold(_) => Ok(Outcome::Held),
+            Act::Continue => self
+                .call(session.as_deref(), ContinueRequestParams::new(id))
+                .await
+                .map(|_| Outcome::Continued),
+            Act::Fail => self
+                .call(
+                    session.as_deref(),
+                    FailRequestParams::new(id, ErrorReason::BlockedByClient),
+                )
+                .await
+                .map(|_| Outcome::Failed),
+        };
+        if !new || matches!(act, Act::Hold(_)) {
+            return;
+        }
+        if let Ok(mut b) = self.book.lock() {
+            if !changes_state(&method) {
+                if let Some(network) = &ev.network_id {
+                    if !b
+                        .answered
+                        .insert(format!("{} {}", network.inner(), ev.request.url))
+                    {
+                        return;
                     }
                 }
             }
-        }
-        let answered = if !let_through && hold {
-            Ok(Outcome::Held)
-        } else if let_through {
-            self.call(session.as_deref(), ContinueRequestParams::new(id))
-                .await
-                .map(|_| Outcome::Continued)
-        } else {
-            self.call(
-                session.as_deref(),
-                FailRequestParams::new(id, ErrorReason::BlockedByClient),
-            )
-            .await
-            .map(|_| Outcome::Failed)
-        };
-        if let Ok(mut b) = self.book.lock() {
-            if let Some(network) = &ev.network_id {
-                if !b
-                    .answered
-                    .insert(format!("{} {}", network.inner(), ev.request.url))
-                {
-                    return;
-                }
-            }
-            b.paused.push(PausedRequest {
+            b.requests.push(PausedRequest {
+                id: None,
                 method,
                 origin,
                 path,
                 frame: ev.frame_id.inner().clone(),
                 resource: format!("{:?}", ev.resource_type),
-                let_through,
+                let_through: act == Act::Continue,
                 outcome: answered.unwrap_or(Outcome::Refused),
-                body,
-                body_complete,
             });
         }
     }
@@ -646,50 +993,314 @@ async fn run_pipe(mut link: PipeLink, mut orders: mpsc::UnboundedReceiver<Order>
 mod tests {
     use super::*;
 
-    /// M60, A4.2: every method but GET, HEAD and OPTIONS changes state, PUT among them.
-    fn reads_only(allowed: &[&str]) -> Rule {
+    const U: &str = "http://utility.agent.test:18090";
+
+    fn rule(allowed: &[&str], mode: Mode) -> Rule {
         Rule {
             allowed: allowed.iter().map(|a| a.to_string()).collect(),
-            state_changing: true,
-            hold: false,
+            mode,
             policy: None,
+        }
+    }
+
+    /// A pause of a request of `method` to `origin` + `path` with the browser's number `network`,
+    /// in the frame `F1`.
+    fn facts(method: &str, origin: &str, path: &str, network: Option<&str>) -> Facts {
+        Facts {
+            network: network.map(str::to_string),
+            redirected: false,
+            method: method.to_string(),
+            url: format!("{origin}{path}"),
+            origin: origin.to_string(),
+            path: path.to_string(),
+            frame: "F1".to_string(),
+            worker_script: false,
+            hook: None,
+        }
+    }
+
+    fn pause(id: &str) -> Pause {
+        Pause {
+            session: Some("S".to_string()),
+            id: id.to_string(),
         }
     }
 
     /// CP-170 E7 (d), m04: an origin that an allowed origin begins is no allowed origin.
     #[test]
     fn an_origin_that_an_allowed_origin_begins_is_refused() {
-        let rule = reads_only(&["http://pay.agent.test", "http://pay.agent.test:80"]);
-        let none = serde_json::json!({});
-        assert!(decision(Some(&rule), "GET", "http://pay.agent.test", &none));
+        let r = rule(
+            &["http://pay.agent.test", "http://pay.agent.test:80"],
+            Mode::Fail,
+        );
+        let mut h = Holds::default();
+        let get = |o: &str| facts("GET", o, "/", Some("n"));
+        assert_eq!(
+            h.on_pause(Some(&r), &get("http://pay.agent.test"), pause("a"))
+                .0,
+            Act::Continue
+        );
         for other in [
             "http://pay.agent.test.evil.example",
             "http://pay.agent.test:8080",
             "http://pay.agent.test:80.evil.example",
         ] {
-            assert!(!decision(Some(&rule), "GET", other, &none), "{other}");
+            assert_eq!(
+                h.on_pause(Some(&r), &get(other), pause("b")).0,
+                Act::Fail,
+                "{other}"
+            );
         }
-        assert!(!decision(None, "GET", "http://pay.agent.test", &none));
+        assert_eq!(
+            h.on_pause(None, &get("http://pay.agent.test"), pause("c"))
+                .0,
+            Act::Fail
+        );
     }
 
     /// CP-170 E7 (e), m07: a service worker's script is not let through, also from an allowed
-    /// origin.
+    /// origin; the product reads it from the request's headers with `is_worker_script`.
     #[test]
     fn a_service_worker_s_script_is_not_let_through() {
-        let rule = reads_only(&["http://utility.agent.test"]);
-        let script = serde_json::json!({"Service-Worker": "script"});
-        assert!(!decision(
-            Some(&rule),
-            "GET",
-            "http://utility.agent.test",
-            &script
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        assert!(is_worker_script(
+            &serde_json::json!({"Service-Worker": "script"})
         ));
-        let plain = serde_json::json!({"Accept": "*/*"});
-        assert!(decision(
-            Some(&rule),
-            "GET",
-            "http://utility.agent.test",
-            &plain
+        assert!(!is_worker_script(&serde_json::json!({"Accept": "*/*"})));
+        let script = Facts {
+            worker_script: true,
+            ..facts("GET", U, "/sw.js", Some("n1"))
+        };
+        assert_eq!(h.on_pause(Some(&r), &script, pause("a")).0, Act::Fail);
+        let plain = facts("GET", U, "/app.js", Some("n2"));
+        assert_eq!(h.on_pause(Some(&r), &plain, pause("b")).0, Act::Continue);
+    }
+
+    /// CP-176 A1 (a): in the mode that fails, a state-changing request to an allowed origin is
+    /// failed at once; a read passes; nothing is held.
+    #[test]
+    fn a1_the_mode_that_fails_fails_every_state_changing_request() {
+        let r = rule(&[U], Mode::Fail);
+        let mut h = Holds::default();
+        let post = facts("POST", U, "/prefs", Some("n1"));
+        assert_eq!(h.on_pause(Some(&r), &post, pause("a")), (Act::Fail, true));
+        assert_eq!(
+            h.on_pause(Some(&r), &facts("GET", U, "/bill", Some("n2")), pause("b"))
+                .0,
+            Act::Continue
+        );
+        assert!(h.waiting().is_empty());
+        assert_eq!(h.release(1), Err("not_held"));
+    }
+
+    /// CP-176 A1 (b) and (f): two requests of one method, origin and path are held under two ids;
+    /// only the one let through by its id goes on, and the other is failed.
+    #[test]
+    fn a1_of_two_like_requests_only_the_one_let_through_by_its_id_leaves() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let (a, _) = h.on_pause(
+            Some(&r),
+            &facts("POST", U, "/prefs", Some("n1")),
+            pause("p1"),
+        );
+        let (b, _) = h.on_pause(
+            Some(&r),
+            &facts("POST", U, "/prefs", Some("n2")),
+            pause("p2"),
+        );
+        let (Act::Hold(ia), Act::Hold(ib)) = (a, b) else {
+            panic!("{a:?} {b:?}");
+        };
+        assert_ne!(ia, ib);
+        let waiting = h.waiting();
+        assert_eq!(waiting.len(), 2);
+        assert_eq!(
+            (waiting[1].method.as_str(), waiting[1].path.as_str()),
+            ("POST", "/prefs")
+        );
+        let (go, fail, _) = h.release(ib).unwrap();
+        assert_eq!(go, vec![pause("p2")]);
+        assert_eq!(fail, vec![pause("p1")]);
+        assert!(h.waiting().is_empty());
+        assert_eq!(h.release(ia), Err("released"));
+    }
+
+    /// CP-176 A1 (c) and (f): one request paused at both levels is one held request; both pauses
+    /// go on at its release, and a pause of it after the release follows the release.
+    #[test]
+    fn a1_one_request_paused_twice_is_held_once_and_follows_its_answer() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let post = facts("POST", U, "/prefs", Some("n1"));
+        let (first, new) = h.on_pause(Some(&r), &post, pause("browser"));
+        let Act::Hold(id) = first else {
+            panic!("{first:?}")
+        };
+        assert!(new);
+        assert_eq!(
+            h.on_pause(Some(&r), &post, pause("target")),
+            (Act::Hold(id), false)
+        );
+        assert_eq!(h.waiting().len(), 1);
+        let (go, fail, _) = h.release(id).unwrap();
+        assert_eq!(go, vec![pause("browser"), pause("target")]);
+        assert!(fail.is_empty());
+        assert_eq!(
+            h.on_pause(Some(&r), &post, pause("late")),
+            (Act::Continue, false)
+        );
+    }
+
+    /// CP-176 A1 (c) and (f): a pause that the browser gives no number cannot be let through and
+    /// is failed.
+    #[test]
+    fn a1_a_pause_with_no_number_is_failed() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        assert_eq!(
+            h.on_pause(Some(&r), &facts("POST", U, "/prefs", None), pause("a")),
+            (Act::Fail, true)
+        );
+        assert!(h.waiting().is_empty());
+    }
+
+    /// CP-176 A1 (c) and (f): a hop of 307 after a release is another state-changing request: it
+    /// is failed, as a record of its own; a hop that became a GET passes by the list.
+    #[test]
+    fn a1_a_307_hop_after_a_release_is_failed_and_a_get_hop_passes() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let (Act::Hold(id), _) = h.on_pause(
+            Some(&r),
+            &facts("POST", U, "/prefs", Some("n1")),
+            pause("a"),
+        ) else {
+            panic!()
+        };
+        h.release(id).unwrap();
+        let hop = Facts {
+            redirected: true,
+            ..facts("POST", U, "/saved", Some("n1"))
+        };
+        assert_eq!(h.on_pause(Some(&r), &hop, pause("b")), (Act::Fail, true));
+        assert_eq!(h.on_pause(Some(&r), &hop, pause("c")), (Act::Fail, false));
+        let get = Facts {
+            redirected: true,
+            ..facts("GET", U, "/saved", Some("n1"))
+        };
+        assert_eq!(h.on_pause(Some(&r), &get, pause("d")).0, Act::Continue);
+    }
+
+    /// CP-176 A1 (a) and (f): an OPTIONS before a request passes to an allowed origin and uses
+    /// nothing up: the release that follows still lets its request through.
+    #[test]
+    fn a1_an_options_passes_and_uses_nothing_up() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        assert_eq!(
+            h.on_pause(
+                Some(&r),
+                &facts("OPTIONS", U, "/api", Some("n0")),
+                pause("o")
+            )
+            .0,
+            Act::Continue
+        );
+        let (Act::Hold(id), _) =
+            h.on_pause(Some(&r), &facts("PUT", U, "/api", Some("n1")), pause("a"))
+        else {
+            panic!()
+        };
+        assert_eq!(h.release(id).unwrap().0, vec![pause("a")]);
+    }
+
+    /// CP-176 A1 (a) and (f): a request of another frame is held with its frame, and the release
+    /// of one id fails it.
+    #[test]
+    fn a1_a_request_of_another_frame_is_held_with_its_frame_and_failed_at_a_release() {
+        let r = rule(&[U, "http://pay.agent.test:18090"], Mode::Hold);
+        let mut h = Holds::default();
+        let (Act::Hold(main), _) = h.on_pause(
+            Some(&r),
+            &facts("POST", U, "/prefs", Some("n1")),
+            pause("a"),
+        ) else {
+            panic!()
+        };
+        let other = Facts {
+            frame: "F2".to_string(),
+            ..facts("POST", "http://pay.agent.test:18090", "/charge", Some("n2"))
+        };
+        assert!(matches!(
+            h.on_pause(Some(&r), &other, pause("b")).0,
+            Act::Hold(_)
+        ));
+        assert_eq!(h.waiting()[1].frame, "F2");
+        let (go, fail, _) = h.release(main).unwrap();
+        assert_eq!((go, fail), (vec![pause("a")], vec![pause("b")]));
+    }
+
+    /// CP-176 A1 (b) and (f): a held request beyond `MAX_HELD` is failed at once.
+    #[test]
+    fn a1_a_held_request_beyond_the_bound_is_failed() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        for n in 0..MAX_HELD {
+            let net = format!("n{n}");
+            assert!(matches!(
+                h.on_pause(
+                    Some(&r),
+                    &facts("POST", U, "/prefs", Some(&net)),
+                    pause(&net)
+                )
+                .0,
+                Act::Hold(_)
+            ));
+        }
+        assert_eq!(
+            h.on_pause(
+                Some(&r),
+                &facts("POST", U, "/prefs", Some("over")),
+                pause("over")
+            ),
+            (Act::Fail, true)
+        );
+        assert_eq!(h.waiting().len(), MAX_HELD);
+    }
+
+    /// CP-176 A1 (b) and (f): a new arm fails every held request and ends the release; a request
+    /// failed by `fail` goes nowhere.
+    #[test]
+    fn a1_held_requests_are_failed_at_a_new_arm() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        for n in ["n1", "n2", "n3"] {
+            h.on_pause(Some(&r), &facts("POST", U, "/prefs", Some(n)), pause(n));
+        }
+        assert_eq!(h.fail(3), Ok(vec![pause("n3")]));
+        assert_eq!(h.fail(3), Err("not_held"));
+        assert_eq!(h.end_arm(), vec![pause("n1"), pause("n2")]);
+        assert!(h.waiting().is_empty());
+        let (Act::Hold(id), _) = h.on_pause(
+            Some(&r),
+            &facts("POST", U, "/prefs", Some("n4")),
+            pause("n4"),
+        ) else {
+            panic!()
+        };
+        assert_eq!(id, 4, "an id is never given twice");
+        h.release(id).unwrap();
+        h.end_arm();
+        assert!(matches!(
+            h.on_pause(
+                Some(&r),
+                &facts("POST", U, "/prefs", Some("n5")),
+                pause("n5")
+            )
+            .0,
+            Act::Hold(_)
         ));
     }
 
@@ -716,27 +1327,6 @@ mod tests {
             Some(("utility.agent.test".to_string(), 443))
         );
         assert_eq!(host_port("data:text/html,x"), None);
-    }
-
-    #[test]
-    fn the_rule_passes_a_read_of_an_allowed_origin_and_nothing_else_when_it_holds_state() {
-        let rule = Rule {
-            allowed: vec!["http://utility.agent.test:18190".into()],
-            state_changing: false,
-            hold: false,
-            policy: None,
-        };
-        assert!(rule.lets_through("GET", "http://utility.agent.test:18190"));
-        assert!(rule.lets_through("HEAD", "http://utility.agent.test:18190"));
-        assert!(!rule.lets_through("POST", "http://utility.agent.test:18190"));
-        assert!(!rule.lets_through("GET", "http://evil.agent.test:18190"));
-        assert!(!rule.lets_through("GET", "http://utility.agent.test:18191"));
-        let open = Rule {
-            state_changing: true,
-            ..rule
-        };
-        assert!(open.lets_through("POST", "http://utility.agent.test:18190"));
-        assert!(!open.lets_through("POST", "http://evil.agent.test:18190"));
     }
 
     #[test]

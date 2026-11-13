@@ -150,10 +150,13 @@ pub enum Outcome {
     Held,
 }
 
-/// A request that the rule paused before it left: its method, origin and path, the id of the
-/// frame that made it, whether the rule let it through, and how the browser took the answer.
+/// A request that the rule paused before it left: the executor's id when it was held, its method,
+/// origin and path, the id of the frame that made it, whether the rule let it through, and how the
+/// browser took the answer. The executor never reads, keeps or returns a request's body
+/// (CP-176 A1 (e)).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PausedRequest {
+    pub id: Option<u64>,
     pub method: String,
     pub origin: String,
     pub path: String,
@@ -161,33 +164,29 @@ pub struct PausedRequest {
     pub resource: String,
     pub let_through: bool,
     pub outcome: Outcome,
-    pub body: Vec<u8>,
-    pub body_complete: bool,
 }
 
-impl PausedRequest {
-    pub fn body_holds(&self, needle: &[u8]) -> bool {
-        !needle.is_empty() && self.body.windows(needle.len()).any(|w| w == needle)
-    }
+/// The mode of the request rule (CP-176 A1 (a)), a closed type that later units extend without a
+/// change of `Executor::arm_rule`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    /// Every state-changing request is failed at once (the state S0 of A9.2).
+    Fail,
+    /// A state-changing request to an allowed origin stays paused with no answer, returned by
+    /// `Executor::paused`, until `let_through` or `fail` answers it or a new arm, the stop or the
+    /// drop of the executor fails it.
+    Hold,
 }
 
-pub(crate) fn body_of(
-    request: &chromiumoxide::cdp::browser_protocol::network::Request,
-) -> (Vec<u8>, bool) {
-    use base64::Engine;
-    let mut body = Vec::new();
-    let mut complete = true;
-    for entry in request.post_data_entries.iter().flatten() {
-        let decoded = entry.bytes.as_ref().and_then(|b| {
-            let text: &str = b.as_ref();
-            base64::engine::general_purpose::STANDARD.decode(text).ok()
-        });
-        match decoded {
-            Some(bytes) => body.extend(bytes),
-            None => complete = false,
-        }
-    }
-    (body, complete)
+/// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
+/// and frame, and nothing else.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldRequest {
+    pub id: u64,
+    pub method: String,
+    pub origin: String,
+    pub path: String,
+    pub frame: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -310,6 +309,7 @@ pub enum Resolved {
 /// made and closes its channel, as the end of the executor's process would.
 impl Drop for Executor {
     fn drop(&mut self) {
+        self.wire.fail_all_held_now();
         if !self.child.exited() {
             self.child.kill();
         }
@@ -592,6 +592,18 @@ impl Executor {
             }
             tokio::time::sleep(POLL).await;
         }
+        // CP-176 A1 (d): no request before a rule: the rule is armed with no origin in the mode
+        // that fails before the start returns.
+        let armed = wire
+            .arm_rule(wire::Rule {
+                allowed: Vec::new(),
+                mode: Mode::Fail,
+                policy: None,
+            })
+            .await;
+        if let Err(f) = armed {
+            return Err(fail(&mut child, &wire_task, Fault::new("rule", f.1)));
+        }
         Ok(Executor {
             guard,
             kept,
@@ -677,6 +689,7 @@ impl Executor {
     /// Closes the browser over its channel and waits up to 10 s for its first process to end,
     /// then ends it with the system's hard kill through the child that the start made.
     pub async fn stop(mut self) -> (Vec<u32>, crate::checks::Ended) {
+        self.wire.fail_all_held_now();
         let _ = self
             .wire
             .call_within(None, CloseParams::default(), Duration::from_secs(5))
@@ -1448,25 +1461,39 @@ impl Executor {
             .unwrap_or_default())
     }
 
-    /// Arms the request rule: from now on every request of the browser, of every target that it
-    /// has and of every target that it opens later, before that target runs, is paused before it
-    /// leaves and let through only when its origin is one of `allowed_origins` and, for a
-    /// state-changing request, when `state_changing` is true; it is failed otherwise. `paused`
-    /// returns each paused request with its outcome. Arming again replaces the rule and drops the
-    /// paused requests of the earlier one.
-    pub async fn arm_rule(
-        &mut self,
-        allowed_origins: Vec<String>,
-        state_changing: bool,
-    ) -> Res<()> {
+    /// Arms the request rule (CP-176 A1): from now on every request of the browser, of every
+    /// target that it has and of every target that it opens later, before that target runs, is
+    /// paused before it leaves. A request that changes no state goes on when its origin is one of
+    /// `allowed_origins` and is failed otherwise. A state-changing request is failed outside the
+    /// list and in `Mode::Fail`; in `Mode::Hold` it stays paused and `paused` returns it, until
+    /// `let_through` or `fail`. Arming again replaces the rule, fails every request that the
+    /// earlier one held, ends its release and drops its record (`requests`). The start leaves the
+    /// rule armed with no origin in `Mode::Fail`, so no request leaves before the runner arms.
+    pub async fn arm_rule(&mut self, allowed_origins: Vec<String>, mode: Mode) -> Res<()> {
         self.wire
             .arm_rule(wire::Rule {
                 allowed: allowed_origins,
-                state_changing,
-                hold: false,
+                mode,
                 policy: None,
             })
             .await
+    }
+
+    /// The state-changing requests that the rule holds now, each with the executor's id.
+    pub fn paused(&self) -> Vec<HeldRequest> {
+        self.wire.held()
+    }
+
+    /// Lets the held request `id` through, once (CP-176 A1 (b)): from this call until the next arm
+    /// every other state-changing request, held or new, is failed at once. Refused with the cause
+    /// `not_held` for an id that is not held and `released` after a release of this arm.
+    pub async fn let_through(&mut self, id: u64) -> Res<()> {
+        self.wire.release(id).await
+    }
+
+    /// Fails the held request `id`.
+    pub async fn fail(&mut self, id: u64) -> Res<()> {
+        self.wire.fail_held(id).await
     }
 
     /// Arms the rule as `arm_rule` does, and with it a policy that the executor adds to the
@@ -1477,14 +1504,13 @@ impl Executor {
     pub async fn arm_rule_with_policy(
         &mut self,
         allowed_origins: Vec<String>,
-        state_changing: bool,
+        mode: Mode,
         policy: &str,
     ) -> Res<()> {
         self.wire
             .arm_rule(wire::Rule {
                 allowed: allowed_origins,
-                state_changing,
-                hold: false,
+                mode,
                 policy: Some(policy.to_string()),
             })
             .await
@@ -1494,20 +1520,6 @@ impl Executor {
     /// (`continued`), and the failures of each.
     pub fn policy_counts(&self) -> std::collections::BTreeMap<String, u64> {
         self.wire.policy_counts()
-    }
-
-    /// For the trial of a driver that dies while a request is paused (U0.7, CP-22), and no
-    /// operation of A11.1: arms a rule that lets through the reads of `allowed_origins` and leaves
-    /// every other request paused with no answer, recorded with the outcome `Held`.
-    pub async fn hold_requests(&mut self, allowed_origins: Vec<String>) -> Res<()> {
-        self.wire
-            .arm_rule(wire::Rule {
-                allowed: allowed_origins,
-                state_changing: false,
-                hold: true,
-                policy: None,
-            })
-            .await
     }
 
     /// Calls `hook` with the host and port of every document request of the executor's own page
@@ -1549,8 +1561,9 @@ impl Executor {
             .collect())
     }
 
-    pub fn paused(&self) -> Vec<PausedRequest> {
-        self.wire.paused()
+    /// Every request that the rule paused since its arm, once each, with its answer.
+    pub fn requests(&self) -> Vec<PausedRequest> {
+        self.wire.requests()
     }
 
     pub async fn add_recorder(&mut self) -> Res<()> {
@@ -1574,12 +1587,16 @@ impl Executor {
     }
 }
 
+/// The origin and the path of `url`: the origin without a user and a password of its address,
+/// the path without its query and fragment (CP-176 A1 (e)).
 pub fn split_url(url: &str) -> (String, String) {
     let Some((scheme, rest)) = url.split_once("://") else {
         return (String::new(), url.to_string());
     };
     let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let origin = format!("{scheme}://{}", &rest[..end]);
+    let authority = &rest[..end];
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let origin = format!("{scheme}://{host}");
     let tail = &rest[end..];
     let path_end = tail.find(['?', '#']).unwrap_or(tail.len());
     let path = if tail[..path_end].is_empty() {
@@ -2070,6 +2087,23 @@ pub(crate) mod tests {
         assert_eq!(
             split_url("http://pay.agent.test:18090"),
             ("http://pay.agent.test:18090".to_string(), "/".to_string())
+        );
+    }
+
+    /// CP-176 A1 (e): the origin of a request carries no user and no password of its address, and
+    /// the path no query and no fragment.
+    #[test]
+    fn a1_split_url_cuts_a_user_and_password_from_the_origin() {
+        assert_eq!(
+            split_url("http://ann:secret@utility.agent.test:18090/prefs?x=1#f"),
+            (
+                "http://utility.agent.test:18090".to_string(),
+                "/prefs".to_string()
+            )
+        );
+        assert_eq!(
+            split_url("https://a@b@pay.agent.test/charge"),
+            ("https://pay.agent.test".to_string(), "/charge".to_string())
         );
     }
 
