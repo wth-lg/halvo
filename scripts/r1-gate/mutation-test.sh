@@ -45,7 +45,8 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       measuring Mac that did not run, on a row that the budget left unrun, on a
       name of mutants.expected that no row file holds or retires, and on a
       required row, of any place, whose name mutants.expected lacks. With
-      --only it says nothing of the rows that --only leaves out.
+      --only, --strict reads no state of a row that --only leaves out; the
+      name rules still read every row.
       --only runs the named rows in the order given, each name once.
       --budget starts no row once SECONDS have passed since the first row
       started, lets a running row end, prints NOT-RUN mutation:<name> (the
@@ -65,21 +66,26 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   rows file beside its file; it names each place.
   --keep-scratch keeps the runner's scratch directory and prints
   scratch mutation: <path>; without it the runner removes its scratch when it
-  ends, on every path. --remove-scratch is accepted and is the default.
+  ends, on every path but a KILL of the runner itself, after which the
+  throwaway copy and its build directory stay. --remove-scratch is accepted and
+  is the default.
   sh scripts/r1-gate/mutation-test.sh --self-test [-v]
       Prove the classifier, the row rules and the stop on fixtures.
 
-TERM, INT or HUP stops the runner in every mode. From the first signal on it
-starts no new step of any kind, prints exactly one STOPPED line, prints no
-FAIL, PASS, OPEN, NOT-RUN or count line for a step that the signal ended, and
-exits with 143, 130 or 129 for that first signal. A later signal changes
-nothing. The line by phase:
+TERM, INT or HUP stops the runner in every mode but --self-test, which keeps
+the traps of lib.sh and exits with the signal's status and no STOPPED line.
+From the first signal on the runner starts no new step of the run (it still
+waits for the running test as below, and it removes its scratch), prints
+exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
+a step that the signal ended, and exits with 143, 130 or 129 for that first
+signal. A later signal changes nothing. The line by phase:
 
   phase                                         STOPPED line
   before the flags are read                     STOPPED mutation (signal S; no row had started)
   the copy of HEAD                              STOPPED mutation (signal S; no row had started)
   the read of the rows files, the name check    STOPPED mutation (signal S; no row had started)
   the print of --list                           STOPPED mutation (signal S; no row had started)
+  the --only selection                          STOPPED mutation (signal S; no row had started)
   the unmutated build                           STOPPED mutation:<row> (signal S; no test was running)
   a gate check                                  STOPPED mutation:<row> (signal S; no test was running)
   a short step of a row                         STOPPED mutation:<row> (signal S; no test was running)
@@ -277,6 +283,10 @@ gate_lines() {
   return 0
 }
 
+stop_past_bound() {
+  [ "$1" -ge "$2" ]
+}
+
 test_ended() {
   case $(ps -o stat= -p "$1" 2> /dev/null) in ''|Z*) return 0 ;; esac
   return 1
@@ -305,7 +315,7 @@ test_wait() {
       [ -z "$test_group" ] || kill -s TERM -- "-$test_group" 2> /dev/null
     fi
     stop_clock=$(date +%s)
-    if [ "$stop_clock" -ge "$stop_deadline" ]; then
+    if stop_past_bound "$stop_clock" "$stop_deadline"; then
       [ -z "$test_group" ] || kill -s KILL -- "-$test_group" 2> /dev/null
       kill -s KILL "$test_pid" 2> /dev/null
       wait "$test_pid"
@@ -1312,6 +1322,102 @@ rule_cases() {
   printf 'first\nsecond\n' > "$gate_scratch/budget-strict/scripts/r1-gate/mutants.expected"
   t strict-fails-on-a-row-that-the-budget-left-unrun FAIL with_budget 0 with_only 'first second' fixture_run budget-strict yes yes
   t strict-names-a-row-that-the-budget-left-unrun PASS with_budget 0 with_only 'first second' fixture_says budget-strict 'FAIL mutation:second (strict: the budget left the row unrun)' yes yes
+  t the-bound-is-passed-at-it-and-after-it-and-not-before PASS bound_compare
+  fixture_tree empty-line
+  row empty-line/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\n\n' > "$gate_scratch/empty-line/scripts/r1-gate/mutants.expected"
+  t an-empty-line-of-the-list-is-no-name PASS fixture_run empty-line yes yes
+  killed_cases
+}
+
+bound_compare() {
+  stop_past_bound 59 60 && { printf 'one second under the bound reads as past it\n'; return 1; }
+  stop_past_bound 60 60 || { printf 'the bound itself does not read as past it\n'; return 1; }
+  stop_past_bound 61 60 || { printf 'one second over the bound does not read as past it\n'; return 1; }
+  return 0
+}
+
+killed_cases() {
+  for killed_fixture in killed-control killed-measured killed-build; do
+    fixture_tree "$killed_fixture"
+  done
+  mkdir -p "$gate_scratch/killed-control/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/killed-control/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/killed-control/scripts/r1-gate/lib.sh"
+  stub_cargo killed-control 0
+  stub_killable_store killed-control
+  row killed-control/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t a-killed-gate-check-of-the-control-pass-is-no-gate-line PASS with_cargo_home killed-control killed_by_case killed-control run 'FAIL step:check-store (ended by signal KILL; the runner got no signal)'
+  stub_killable_store killed-measured
+  row killed-measured/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t a-killed-gate-check-of-a-measured-row-is-no-gate-line PASS killed_by_case killed-measured run 'FAIL step:check-store (ended by signal KILL; the runner got no signal)'
+  stub_killable_cc killed-build
+  row killed-build/scripts/r1-gate/mutants.rows held x.c 's/1/2/' leak required X-1
+  t a-killed-build-of-a-mutant-is-no-build-failure PASS killed_by_case killed-build apply-only 'FAIL step:build of the mutant (ended by signal KILL; the runner got no signal)'
+}
+
+stub_killable_store() {
+  mkdir -p "$gate_scratch/$1/bin"
+  for stub in deletion no-ll-hook; do
+    # shellcheck disable=SC2016
+    printf '#!/bin/sh\nprintf "%s\\n" >> "${0%%/*}/../../bin/starts"\nprintf "PASS %s\\n"\n' "$stub" "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+printf '%s\n' "$$" > "$here/killme.tmp"
+mv "$here/killme.tmp" "$here/killme.pid"
+exec sleep 30
+STUB
+}
+
+stub_killable_cc() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf 'int x = 1;\n' > "$gate_scratch/$1/scripts/r1-gate/x.c"
+  cat > "$gate_scratch/$1/bin/cc" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+printf '%s\n' "$$" > "$here/killme.tmp"
+mv "$here/killme.tmp" "$here/killme.pid"
+exec sleep 30
+STUB
+  chmod +x "$gate_scratch/$1/bin/cc"
+}
+
+killed_by_case() {
+  killed_fx=$gate_scratch/$1; killed_mode=$2; killed_line=$3
+  fixture_commit "$killed_fx"
+  perl -e 'setpgrp(0, 0); $SIG{$_} = "DEFAULT" for qw(INT TERM HUP QUIT); exec { $ARGV[0] } @ARGV or exit 127' sh -c 'killed_arg_fixture=$1; killed_arg_mode=$2; set -- --help; . "$0" > /dev/null 2>&1
+    PATH=$killed_arg_fixture/bin:$PATH; list=no; apply_only=no; strict=no; only=; budget=
+    [ "$killed_arg_mode" = run ] || apply_only=yes
+    work=$killed_arg_fixture.work; mkdir -p "$work"; stop_traps; run_rows "$killed_arg_fixture" "$killed_arg_fixture" HEAD' "$DIR/mutation-test.sh" "$killed_fx" "$killed_mode" > "$killed_fx.out" 2>&1 &
+  killed_runner=$!
+  killed_polls=0
+  until [ -s "$killed_fx/bin/killme.pid" ]; do
+    killed_polls=$((killed_polls + 1))
+    [ "$killed_polls" -lt 300 ] || { kill -s KILL -- "-$killed_runner"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$killed_polls"; return 1; }
+    sleep 0.1
+  done
+  read -r killed_victim < "$killed_fx/bin/killme.pid"
+  kill -s KILL "$killed_victim"
+  killed_polls=0
+  while kill -0 "$killed_runner" 2> /dev/null; do
+    killed_polls=$((killed_polls + 1))
+    [ "$killed_polls" -lt 400 ] || { kill -s KILL -- "-$killed_runner"; printf 'the runner did not end within %s polls of 0.1 s\n' "$killed_polls"; return 1; }
+    sleep 0.1
+  done
+  wait "$killed_runner"
+  killed_status=$?
+  killed_defects=''
+  [ "$killed_status" -eq 2 ] || killed_defects="$killed_defects; the runner exited $killed_status, not 2"
+  grep -F -x -q -e "$killed_line" "$killed_fx.out" || killed_defects="$killed_defects; the runner printed no line $killed_line"
+  ! grep -q '^mutation rows: ' "$killed_fx.out" || killed_defects="$killed_defects; the runner printed its count line"
+  ! grep -q '^PASS mutation:' "$killed_fx.out" || killed_defects="$killed_defects; the runner counted a row as caught"
+  ! grep -q '^STOPPED ' "$killed_fx.out" || killed_defects="$killed_defects; the runner printed a STOPPED line"
+  [ -n "$killed_defects" ] || return 0
+  printf '%s\n' "${killed_defects#; }"
+  return 1
 }
 
 stub_cp() {
