@@ -14,6 +14,11 @@ sqlite.DatabaseSync.prototype.prepare = function prepareOnce(query) {
   }
   return statement;
 };
+const close = sqlite.DatabaseSync.prototype.close;
+sqlite.DatabaseSync.prototype.close = function closeAndForget() {
+  prepared.delete(this);
+  return close.call(this);
+};
 
 const { propertyRun, searchCases, searchOne } = await import("./property.ts");
 const cases = searchCases();
