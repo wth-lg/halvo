@@ -323,6 +323,8 @@ impl Drop for ScreenSource {
 trait Session: Send + 'static {
     fn finished(&self) -> bool;
     fn end(self) -> Result<(), CaptureError>;
+    #[allow(dead_code)]
+    fn ask_to_end(self);
 }
 
 impl Session for Control {
@@ -332,6 +334,27 @@ impl Session for Control {
 
     fn end(self) -> Result<(), CaptureError> {
         self.stop().map_err(|_| CaptureError::ThreadEnded)
+    }
+
+    fn ask_to_end(self) {
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::Foundation::{HANDLE, LPARAM, WPARAM};
+        use windows::Win32::System::Threading::GetThreadId;
+        use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
+        self.halt_handle().store(true, Ordering::Relaxed);
+        let thread = self.into_thread_handle();
+        // SAFETY: GetThreadId reads the capture thread's handle, which
+        // `thread` holds open for the call.
+        let id = unsafe { GetThreadId(HANDLE(thread.as_raw_handle())) };
+        if id != 0 {
+            // SAFETY: PostThreadMessageW takes a thread id and two plain
+            // values; `thread` holds the capture thread's handle across the
+            // call, so the id names that thread.
+            unsafe {
+                let _ = PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0));
+            }
+        }
+        drop(thread);
     }
 }
 
@@ -633,6 +656,8 @@ mod tests {
                 Err(CaptureError::ThreadEnded)
             }
         }
+
+        fn ask_to_end(self) {}
     }
 
     fn fake(finished: bool, ends_well: bool, end_takes_ms: u64) -> FakeSession {
@@ -761,6 +786,8 @@ mod tests {
             self.ended.store(true, Ordering::SeqCst);
             Ok(())
         }
+
+        fn ask_to_end(self) {}
     }
 
     impl Drop for Watched {
@@ -829,6 +856,89 @@ mod tests {
             "the drop did not stop the session"
         );
         assert!(!life.is_busy());
+    }
+
+    struct Asked {
+        ended: Arc<AtomicBool>,
+        asked: Arc<AtomicBool>,
+    }
+
+    impl Session for Asked {
+        fn finished(&self) -> bool {
+            false
+        }
+
+        fn end(self) -> Result<(), CaptureError> {
+            self.ended.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn ask_to_end(self) {
+            self.asked.store(true, Ordering::SeqCst);
+        }
+    }
+
+    static REFUSED_SPAWNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+    fn always_refuses(_body: StopBody) -> std::io::Result<()> {
+        REFUSED_SPAWNS.fetch_add(1, Ordering::SeqCst);
+        Err(std::io::Error::from_raw_os_error(8))
+    }
+
+    #[test]
+    fn a_drop_whose_stop_thread_is_always_refused_still_ends_the_session() {
+        let ended = Arc::new(AtomicBool::new(false));
+        let asked = Arc::new(AtomicBool::new(false));
+        let mut life = ScreenLife::with_spawner(always_refuses);
+        life.started(Asked {
+            ended: Arc::clone(&ended),
+            asked: Arc::clone(&asked),
+        });
+        let before = REFUSED_SPAWNS.load(Ordering::SeqCst);
+        life.on_drop(Duration::from_millis(300));
+        drop(life);
+        let tried = REFUSED_SPAWNS.load(Ordering::SeqCst) - before;
+        assert_eq!(tried, 1, "the drop tried its stop thread once");
+        assert!(
+            asked.load(Ordering::SeqCst),
+            "the session went with the source and nothing asked it to end"
+        );
+        assert!(
+            !ended.load(Ordering::SeqCst),
+            "the drop ran the session's joining stop"
+        );
+    }
+
+    #[test]
+    fn a_dropped_screen_source_whose_stop_thread_is_refused_ends_its_capture() {
+        use std::sync::mpsc::RecvTimeoutError;
+        let _serial = crate::windows::tests::serial();
+        let (sink, writer) = crate::sink::channel(64);
+        let mut source = ScreenSource::new(Arc::default());
+        source.life = ScreenLife::with_spawner(always_refuses);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let first = writer.recv_timeout(Duration::from_secs(10)).is_ok();
+        drop(source);
+        let dropped = Instant::now();
+        let bound = Duration::from_secs(15);
+        let mut frames_after = 0u32;
+        let closed = loop {
+            let left = bound.saturating_sub(dropped.elapsed());
+            match writer.recv_timeout(left) {
+                Ok(_) => frames_after += 1,
+                Err(RecvTimeoutError::Disconnected) => break true,
+                Err(RecvTimeoutError::Timeout) => break false,
+            }
+        };
+        assert!(matches!(started, Ok(Started::Running)), "{started:?}");
+        assert!(
+            first,
+            "INCONCLUSIVE: no frame arrived in 10 s before the drop"
+        );
+        assert!(
+            closed,
+            "the capture went on after the drop: the sink stayed open for {bound:?}, {frames_after} frames after the drop"
+        );
     }
 
     #[test]
