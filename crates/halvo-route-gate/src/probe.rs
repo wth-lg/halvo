@@ -169,7 +169,7 @@ fn printable(word: &str) -> &str {
 mod tests {
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::process::Command;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     use halvo_route::policy::{Basis, PickCell, Row};
     use halvo_route::tier::Level;
@@ -188,14 +188,36 @@ mod tests {
 
     struct Counting;
 
+    static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
+    static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
     static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
     static BYTES: AtomicU64 = AtomicU64::new(0);
+
+    thread_local! {
+        static MARK: u8 = const { 0 };
+    }
+
+    fn this_thread() -> usize {
+        MARK.with(|mark| std::ptr::from_ref(mark).addr())
+    }
 
     #[allow(unsafe_code)]
     unsafe impl GlobalAlloc for Counting {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            ALLOCATIONS.fetch_add(1, Ordering::SeqCst);
-            BYTES.fetch_add(layout.size() as u64, Ordering::SeqCst);
+            let me = this_thread();
+            let first =
+                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
+                    Ok(_) => me,
+                    Err(first) => first,
+                };
+            let (calls, bytes) = if me == first {
+                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
+            } else {
+                (&ALLOCATIONS, &BYTES)
+            };
+            calls.fetch_add(1, Ordering::SeqCst);
+            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
             System.alloc(layout)
         }
 
@@ -207,17 +229,91 @@ mod tests {
     #[global_allocator]
     static COUNTING: Counting = Counting;
 
-    fn allocations<T>(work: impl FnOnce() -> T) -> ((u64, u64), T) {
-        let before = (
+    fn first_thread() -> (u64, u64) {
+        (
+            FIRST_ALLOCATIONS.load(Ordering::SeqCst),
+            FIRST_BYTES.load(Ordering::SeqCst),
+        )
+    }
+
+    fn other_threads() -> (u64, u64) {
+        (
             ALLOCATIONS.load(Ordering::SeqCst),
             BYTES.load(Ordering::SeqCst),
-        );
+        )
+    }
+
+    fn since(before: (u64, u64), after: (u64, u64)) -> (u64, u64) {
+        (after.0 - before.0, after.1 - before.1)
+    }
+
+    struct Apart(());
+
+    const ON_THE_FIRST_THREAD: &str =
+        "the test runs on the process's first thread, whose calls the windows leave out";
+    const NO_FIRST_THREAD: &str = "no thread made a call of the allocator before the test began";
+
+    fn apart(first: usize, me: usize, first_calls: u64) -> Result<Apart, &'static str> {
+        if first_calls == 0 {
+            return Err(NO_FIRST_THREAD);
+        }
+        if me == first {
+            return Err(ON_THE_FIRST_THREAD);
+        }
+        Ok(Apart(()))
+    }
+
+    fn apart_from_the_harness(start: (u64, u64)) -> Apart {
+        match apart(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0) {
+            Ok(apart) => apart,
+            Err(why) => panic!("{why}"),
+        }
+    }
+
+    struct Window {
+        first: (u64, u64),
+        others: (u64, u64),
+    }
+
+    fn allocations<T>(_: &Apart, work: impl FnOnce() -> T) -> (Window, T) {
+        let before = (first_thread(), other_threads());
         let held = work();
-        let after = (
-            ALLOCATIONS.load(Ordering::SeqCst),
-            BYTES.load(Ordering::SeqCst),
+        let after = (first_thread(), other_threads());
+        let window = Window {
+            first: since(before.0, after.0),
+            others: since(before.1, after.1),
+        };
+        (window, held)
+    }
+
+    fn one_round_and_many<T>(
+        apart: &Apart,
+        rounds: impl Fn(u64) -> T,
+    ) -> ((Window, T), (Window, T)) {
+        black_box(rounds(1));
+        let one = allocations(apart, || rounds(1));
+        let many = allocations(apart, || rounds(CHECK_ROUNDS));
+        (one, many)
+    }
+
+    fn the_same_count(one: &Window, many: &Window) -> bool {
+        many.others == one.others
+    }
+
+    fn print_windows(start: (u64, u64), windows: [(&str, &Window); 2]) {
+        let end = first_thread();
+        let on_first = this_thread() == FIRST_THREAD.load(Ordering::SeqCst);
+        for (name, window) in windows {
+            println!(
+                "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
+                window.first.0, window.first.1, window.others.0, window.others.1
+            );
+        }
+        println!(
+            "first_thread start_calls={} start_bytes={} end_calls={} end_bytes={} \
+             test_on_first_thread={on_first}",
+            start.0, start.1, end.0, end.1
         );
-        ((after.0 - before.0, after.1 - before.1), held)
     }
 
     fn in_a_child_alone(name: &str) -> bool {
@@ -229,9 +325,12 @@ mod tests {
             .env(CHILD, "1")
             .output()
             .expect("the test binary runs");
-        let text = String::from_utf8_lossy(&output.stdout);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let err = String::from_utf8_lossy(&output.stderr);
+        let text =
+            format!("the child's standard output:\n{out}\nthe child's standard error:\n{err}");
         assert!(output.status.success(), "{text}");
-        assert!(text.contains("test result: ok. 1 passed"), "{text}");
+        assert!(out.contains("test result: ok. 1 passed"), "{text}");
         false
     }
 
@@ -276,13 +375,14 @@ mod tests {
 
     #[test]
     fn probe_allocates_nothing_per_round() {
+        let start = first_thread();
         if !in_a_child_alone("probe::tests::probe_allocates_nothing_per_round") {
             return;
         }
+        let apart = apart_from_the_harness(start);
         let data = Data::release();
-        assert!(run(&data, 1).ok);
-        let one = allocations(|| run(&data, 1));
-        let many = allocations(|| run(&data, CHECK_ROUNDS));
+        let (one, many) = one_round_and_many(&apart, |rounds| run(&data, rounds));
+        print_windows(start, [("rounds=1", &one.0), ("rounds=many", &many.0)]);
         assert_eq!(
             (one.1, many.1),
             (
@@ -296,7 +396,62 @@ mod tests {
                 }
             )
         );
-        assert_eq!(many.0, one.0);
+        assert!(
+            the_same_count(&one.0, &many.0),
+            "1 round {:?}, many rounds {:?}",
+            one.0.others,
+            many.0.others
+        );
+    }
+
+    #[test]
+    fn the_measure_sees_a_round_that_allocates() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::the_measure_sees_a_round_that_allocates") {
+            return;
+        }
+        let apart = apart_from_the_harness(start);
+        let data = Data::release();
+        let late = |rounds: u64| rounds == CHECK_ROUNDS;
+        let measuring = one_round_and_many(&apart, |rounds| {
+            let probe = run(&data, rounds);
+            if late(rounds) {
+                black_box(Box::new(rounds));
+            }
+            probe
+        });
+        let started = one_round_and_many(&apart, |rounds| {
+            let probe = run(&data, rounds);
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| {
+                        if late(rounds) {
+                            black_box(Box::new(rounds));
+                        }
+                    })
+                    .join()
+            })
+            .expect("the started thread ends");
+            probe
+        });
+        let sized = one_round_and_many(&apart, |rounds| {
+            black_box(Vec::<u8>::with_capacity(
+                usize::try_from(rounds).expect("a size"),
+            ));
+            run(&data, rounds)
+        });
+        for (name, (one, many)) in [
+            ("measuring", measuring),
+            ("started", started),
+            ("sized", sized),
+        ] {
+            assert!(
+                !the_same_count(&one.0, &many.0),
+                "{name}: 1 round {:?}, many rounds {:?}",
+                one.0.others,
+                many.0.others
+            );
+        }
     }
 
     #[test]
@@ -366,19 +521,88 @@ mod tests {
 
     #[test]
     fn the_count_sees_allocations_of_every_thread() {
+        let start = first_thread();
         if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
             return;
         }
-        let (count, _) = allocations(|| std::hint::black_box(Box::new(1_u64)) == Box::new(1));
-        assert_eq!(count, (2, 16));
-        let (count, _) = allocations(|| {
+        let apart = apart_from_the_harness(start);
+        let (boxes, _) = allocations(&apart, || {
+            std::hint::black_box(Box::new(1_u64)) == Box::new(1)
+        });
+        let (started, _) = allocations(&apart, || {
             std::thread::scope(|scope| {
                 scope
                     .spawn(|| std::hint::black_box(vec![0_u8; 4096]))
                     .join()
             })
         });
+        print_windows(start, [("boxes", &boxes), ("started", &started)]);
+        assert_eq!(boxes.others, (2, 16));
+        let count = started.others;
         assert!(count.0 >= 1 && count.1 >= 4096, "{count:?}");
+    }
+
+    #[test]
+    fn a_child_that_fails_on_purpose() {
+        if std::env::var_os(CHILD).is_some() {
+            assert_eq!(std::hint::black_box((1, 2)), (1, 3));
+        }
+    }
+
+    #[test]
+    fn a_failed_child_says_what_it_saw() {
+        let failed = std::panic::catch_unwind(|| {
+            in_a_child_alone("probe::tests::a_child_that_fails_on_purpose")
+        })
+        .expect_err("the child fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("left: (1, 2)"), "{text}");
+        assert!(text.contains("right: (1, 3)"), "{text}");
+        assert!(
+            text.contains("test result: FAILED. 0 passed; 1 failed"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_child_that_runs_no_test_fails_the_parent() {
+        let failed = std::panic::catch_unwind(|| in_a_child_alone("probe::tests::no_such_test"))
+            .expect_err("a child that runs no test fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("test result: ok. 0 passed"), "{text}");
+    }
+
+    #[test]
+    fn a_window_leaves_out_the_calls_of_the_first_thread() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::a_window_leaves_out_the_calls_of_the_first_thread") {
+            return;
+        }
+        let apart = apart_from_the_harness(start);
+        let size = 1 << 20;
+        FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
+        let (window, _) = allocations(&apart, || black_box(vec![0_u8; size]));
+        assert_eq!(window.first, (1, size as u64));
+        assert!(window.others.1 < size as u64, "{:?}", window.others);
+    }
+
+    #[test]
+    fn a_window_is_refused_when_no_thread_called_before_the_test() {
+        let refused = std::panic::catch_unwind(|| apart_from_the_harness((0, 0)))
+            .err()
+            .expect("the guard refuses");
+        assert_eq!(
+            refused.downcast_ref::<String>().map(String::as_str),
+            Some(NO_FIRST_THREAD)
+        );
+    }
+
+    #[test]
+    fn a_window_leaves_out_only_a_first_thread_that_is_not_the_test() {
+        assert!(apart(7, 8, 1).is_ok());
+        assert_eq!(apart(7, 7, 1).err(), Some(ON_THE_FIRST_THREAD));
+        assert_eq!(apart(7, 8, 0).err(), Some(NO_FIRST_THREAD));
+        assert_eq!(apart(0, 8, 0).err(), Some(NO_FIRST_THREAD));
     }
 
     #[test]
