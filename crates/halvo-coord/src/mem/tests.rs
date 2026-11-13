@@ -1,5 +1,5 @@
 use super::*;
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Stamp, Tray};
 use crate::types::*;
 
 fn id<T>(parse: fn(&str) -> Result<T, Cause>, n: u8) -> T {
@@ -167,6 +167,54 @@ fn clock_gives_what_the_test_set() {
     assert_eq!(p.today(), Ok(20_760));
     p.set_clock(1_793_707_205_000, 20_760);
     assert_eq!(p.now(), Ok(1_793_707_205_000));
+}
+
+const DAY_20760: u64 = 1_793_664_000_000;
+const HOUR: u64 = 3_600_000;
+
+#[test]
+fn clock_gives_the_local_day_of_an_instant_in_its_zone() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 12 * HOUR, 20_760);
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR - 1), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR), Ok(20_761));
+    assert_eq!(p.day(DAY_20760), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 - 1), Ok(20_759));
+    p.set_zone(5 * HOUR as i64);
+    assert_eq!(p.day(DAY_20760 + 19 * HOUR - 1), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 + 19 * HOUR), Ok(20_761));
+    p.set_zone(-(7 * HOUR as i64));
+    assert_eq!(p.day(DAY_20760 + 7 * HOUR - 1), Ok(20_759));
+    assert_eq!(p.day(DAY_20760 + 7 * HOUR), Ok(20_760));
+    assert_eq!(p.today(), Ok(20_760));
+    p.set_now(DAY_20760 + 31 * HOUR);
+    assert_eq!(p.today(), Ok(20_761));
+    p.set_clock(DAY_20760 + 2 * HOUR, 20_700);
+    assert_eq!(p.today(), Ok(20_700));
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR), Ok(20_701));
+}
+
+#[test]
+fn today_is_the_day_of_one_read_of_now() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 24 * HOUR - 1, 20_760);
+    p.step_reads(1);
+    assert_eq!(p.today(), Ok(20_760));
+    assert_eq!(p.now(), Ok(DAY_20760 + 24 * HOUR));
+    assert_eq!(p.today(), Ok(20_761));
+}
+
+#[test]
+fn a_stamp_takes_the_day_of_the_instant_that_it_read() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 24 * HOUR - 1, 20_760);
+    p.step_reads(1);
+    let stamp = Stamp::read(&p).unwrap();
+    assert_eq!(stamp.now(), DAY_20760 + 24 * HOUR - 1);
+    assert_eq!(stamp.day(), 20_760);
+    assert_eq!(stamp.at(), (DAY_20760 + 24 * HOUR - 1) as i64 * 1_000_000);
+    assert_eq!(p.today(), Ok(20_761));
+    let p: Ports<Config> = Ports::new(10_000_000_000_000, 115_740);
+    assert_eq!(Stamp::read(&p).map(Stamp::at), Ok(i64::MAX));
+    let p: Ports<Config> = Ports::new(u64::MAX, 0);
+    assert_eq!(Stamp::read(&p), Err(PortError::NoService));
 }
 
 fn spec() -> RunSpec {

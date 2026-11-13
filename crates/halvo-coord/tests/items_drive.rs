@@ -377,6 +377,10 @@ impl Clock for Faulty<'_> {
     fn today(&self) -> Result<u32, PortError> {
         self.inner.today()
     }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
+    }
 }
 
 impl Rng for Faulty<'_> {

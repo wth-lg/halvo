@@ -217,6 +217,10 @@ impl Clock for Lossy<'_> {
     fn today(&self) -> Result<u32, PortError> {
         self.inner.today()
     }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
+    }
 }
 
 fn ledger() -> Ledger {
