@@ -1167,8 +1167,9 @@ mod tests {
         let again = source.shutdown();
         assert_eq!(next, Ok("b".to_string()));
         assert!(
-            reached <= FOREGROUND_POLL + Duration::from_millis(100),
-            "the next change reached the sink {reached:?} after it happened"
+            reached < FOREGROUND_POLL * 2,
+            "the next change reached the sink {reached:?} after it happened, while the title read \
+             was still blocked"
         );
         assert_eq!(
             shut,
