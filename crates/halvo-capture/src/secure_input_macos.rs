@@ -16,9 +16,10 @@ extern "C" {
 pub fn secure_input_active() -> bool {
     // SAFETY: a parameterless C predicate with no side effects. CarbonEventsCore.h
     // marks it "Not thread safe" (line 3056 of the SDK on this Mac), so no other
-    // thread may call it or the hold and release below at the same time. That is
-    // not held until macos-2: the tap thread reads it on every event while the
-    // run thread may hold or release.
+    // thread may call it or the hold and release below at the same time. In the
+    // product the input source's tap thread is the one thread that calls the
+    // three: it reads this on every event and takes and gives back the hold of
+    // its plan. Tests read it from their own threads, as the hold tests below do.
     secure_input_on(unsafe { IsSecureEventInputEnabled() })
 }
 
@@ -46,12 +47,12 @@ fn enable_secure_event_input() -> i32 {
     // SAFETY: parameterless Carbon call that returns an OSStatus, as
     // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
     // thread safe" (line 2996 of the SDK on this Mac), so no other thread may
-    // call it or the release and the predicate at the same time. That is not
-    // held until macos-2: the tap thread may read the predicate meanwhile.
+    // call it or the release and the predicate at the same time. In the product
+    // only the input source's tap thread calls it, by the plan of its hold.
     unsafe { EnableSecureEventInput() }
 }
 
-fn hold_with(
+pub(crate) fn hold_with(
     enable: fn() -> i32,
     release: fn() -> i32,
 ) -> Result<SecureInputHold, SecureInputRefused> {
@@ -68,8 +69,8 @@ pub(crate) fn disable_secure_event_input() -> i32 {
     // SAFETY: parameterless Carbon call that returns an OSStatus, as
     // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
     // thread safe" (line 3032 of the SDK on this Mac), so no other thread may
-    // call it or the hold and the predicate at the same time. That is not held
-    // until macos-2: the tap thread may read the predicate meanwhile.
+    // call it or the hold and the predicate at the same time. In the product
+    // only the input source's tap thread calls it, when its hold drops.
     unsafe { DisableSecureEventInput() }
 }
 
@@ -198,7 +199,7 @@ pub(crate) mod test_support {
             // SAFETY: parameterless Carbon call that returns an OSStatus. `self`
             // holds the lock that every test that holds or releases takes;
             // another test may read the predicate meanwhile, which the header
-            // does not allow and which macos-2 settles, as for the hold above.
+            // does not allow; tests alone call the three from several threads.
             let system = unsafe { EnableSecureEventInput() };
             if system == 0 {
                 // SAFETY: as above; it balances the hold that the line above took.

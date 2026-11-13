@@ -16,11 +16,24 @@ use std::time::Duration;
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::Modality;
 use crate::sink::{self, SinkWriter};
-use crate::source::CaptureSource;
+use crate::source::{CaptureError, CaptureSource, HealthReason, SourceState};
 use foreground::{foreground_state, FOREGROUND_POLL};
 
 /// The bounded sink capacity.
 pub const SINK_CAPACITY: usize = 2048;
+
+pub(crate) fn source_failure(error: CaptureError) -> SourceState {
+    let reason = match &error {
+        CaptureError::PermissionDenied(_) => HealthReason::Permission,
+        CaptureError::Timeout { .. } => HealthReason::Timeout,
+        CaptureError::ThreadEnded => HealthReason::ThreadEnded,
+        CaptureError::NotImplemented(_) => HealthReason::NotImplemented,
+        CaptureError::Os { .. } | CaptureError::Start(_) | CaptureError::AlreadyStarted => {
+            HealthReason::OsError
+        }
+    };
+    SourceState::Failed { reason, error }
+}
 
 #[derive(Debug)]
 struct SourceStartFailure {
@@ -53,8 +66,13 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
     let (foreground_writer, foreground_reader) = foreground_state();
 
     let mut screen = screen::ScreenSource::new(screen::SCREEN_FRAME_CAP, foreground_reader.clone());
-    let mut input = input::InputSource::new(foreground_reader);
-    let secure_violations = input.violations_handle();
+    let input_counters = input::InputCounters::new();
+    let plan = if hold_secure_input {
+        input::HoldPlan::After(Duration::ZERO)
+    } else {
+        input::HoldPlan::Never
+    };
+    let mut input = input::InputSource::new(foreground_reader, input_counters.clone(), plan);
     let mut foreground = foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer);
     let mut audio = audio::SystemAudioSource::disabled();
     let mut mic = mic::MicrophoneSource::disabled();
@@ -74,15 +92,7 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         eprintln!("halvo-capture: {failure}");
     }
 
-    let secure_hold = secure_input_byte::hold_or_error(
-        hold_secure_input.then(crate::secure_input_macos::hold_secure_input),
-    );
-
-    if secure_hold.is_ok() {
-        std::thread::sleep(Duration::from_secs(seconds));
-    }
-
-    let refused = secure_hold.map(drop);
+    std::thread::sleep(Duration::from_secs(seconds));
 
     foreground.stop();
     screen.stop();
@@ -95,7 +105,7 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         .join()
         .map_err(|_| DaemonError::Store("drain thread panicked".into()))?;
 
-    refused?;
+    secure_input_byte::refusal_or_none(input.hold_refusal())?;
 
     Ok(TimedRunReport {
         seconds,
@@ -104,7 +114,7 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         pointer: counts.pointer.load(),
         foreground_app: counts.foreground_app.load(),
         window_title: counts.window_title.load(),
-        secure_input_keystrokes: secure_violations.count(),
+        secure_input_keystrokes: input_counters.suppressed_keys(),
     })
 }
 
