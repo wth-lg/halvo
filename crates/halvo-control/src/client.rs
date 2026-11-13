@@ -7,7 +7,7 @@ use crate::proto::{
     decode_reply, encode_request, AlreadyDeleted, CapSet, DaemonStatus, Deleted, ErrorReply,
     InventoryReply, Reply, Request, Stopped,
 };
-use crate::wire::{read_one_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
+use crate::wire::{read_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 /// A connected stream to the daemon that carries one request and its reply.
 pub trait Transport: Read + Write {
@@ -65,7 +65,10 @@ pub enum ClientError {
     Io(std::io::Error),
 }
 
-/// How long the client waits for each request, from the connect to the end of the reply.
+/// How long the client waits for each request, from the connect to the end of the reply. After
+/// a whole reply frame the client waits at most [`crate::REPLY_END_WAIT_MS`] inside this
+/// deadline for the end of the stream; the server's reader, `wire::read_one_frame`, requires the
+/// end of the stream after a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Deadlines {
     pub read: Duration,
@@ -164,6 +167,34 @@ fn is_timeout(error: &std::io::Error) -> bool {
     matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock)
 }
 
+/// The client's reader of a reply. It reads one frame inside the request's deadline, then
+/// waits at most [`crate::REPLY_END_WAIT_MS`], and never past that deadline, for what follows:
+/// a byte is [`FrameError::Trailing`], and the end of the stream, the end of the wait and any
+/// error of the transport give the frame.
+fn read_reply<T: Transport>(timed: &mut Timed<'_, T>) -> Result<Vec<u8>, FrameError> {
+    let frame = read_frame(timed, REPLY_MAX_BYTES)?;
+    let Ok(time_left) = left(timed.deadline) else {
+        return Ok(frame);
+    };
+    let mut wait = time_left.min(Duration::from_millis(crate::REPLY_END_WAIT_MS));
+    let wait_until = Instant::now() + wait;
+    let mut probe = [0u8; 1];
+    loop {
+        if timed.transport.set_timeout(wait).is_err() {
+            return Ok(frame);
+        }
+        match timed.transport.read(&mut probe) {
+            Ok(0) => return Ok(frame),
+            Ok(_) => return Err(FrameError::Trailing),
+            Err(e) if e.kind() == ErrorKind::Interrupted => match left(wait_until) {
+                Ok(rest) => wait = rest,
+                Err(_) => return Ok(frame),
+            },
+            Err(_) => return Ok(frame),
+        }
+    }
+}
+
 impl<C: Connector> Client<C> {
     pub fn new(connector: C) -> Self {
         Self::with_deadlines(connector, Deadlines::V1)
@@ -214,7 +245,7 @@ impl<C: Connector> Client<C> {
                 ClientError::Io(e)
             }
         })?;
-        let frame = read_one_frame(&mut timed, REPLY_MAX_BYTES).map_err(frame_error)?;
+        let frame = read_reply(&mut timed).map_err(frame_error)?;
         let reply = decode_reply(&frame).map_err(|e| ClientError::Protocol(e.to_string()))?;
         #[cfg(feature = "r2")]
         let reply = crate::r2::decode_sections(reply)?;

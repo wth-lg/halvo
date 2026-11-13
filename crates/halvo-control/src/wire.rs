@@ -60,7 +60,10 @@ pub fn read_frame<R: Read>(reader: &mut R, max: usize) -> Result<Vec<u8>, FrameE
     Ok(body)
 }
 
-/// Reads the one frame of a connection and requires the stream to end after it.
+/// Reads the one frame of a connection and requires the stream to end after it: a byte after
+/// the frame is [`FrameError::Trailing`] and a timeout of that wait is an error. The server reads
+/// a request with it; the client reads a reply with its own reader in client.rs, which waits a
+/// bounded time after the frame and takes the frame when the stream stays open.
 pub fn read_one_frame<R: Read>(reader: &mut R, max: usize) -> Result<Vec<u8>, FrameError> {
     let body = read_frame(reader, max)?;
     let mut probe = [0u8; 1];
