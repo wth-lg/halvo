@@ -761,3 +761,56 @@ fn the_wait_for_a_confirmation_is_no_time_of_wall_s() {
     assert_eq!(left.len(), 1);
     assert_eq!(record.done(), Some(Outcome::Completed));
 }
+
+/// A6.5, CP-157 E3: the run's time reaches `wall_s` while a `cleared` effect whose values changed is made again
+/// (the clock of the test's own, moved by `renew`); the wall is read before the new effect's `propose`, so no second
+/// `cleared` row follows, and the run ends `limit` with `wall`.
+#[test]
+fn the_wall_is_read_before_the_renewed_propose() {
+    let reads = vec![vec![
+        delete("a", Source::Extract),
+        delete("b", Source::Extract),
+    ]];
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        wall_s: Some(5),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 6000, plan);
+    assert_eq!(released, 0);
+    assert_eq!(
+        record.states(),
+        [EffectState::Cleared, EffectState::Rejected],
+        "no propose after the wall"
+    );
+    assert_eq!(record.done(), Some(Outcome::Limit));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Wall)))
+    );
+}
+
+/// CP-143 (4) (iv), CP-157 E1: an effect of the batch that case (iv) proposes again is proposed with the values read
+/// again from its renewed request, and the person is shown those values in the one confirmation request.
+#[test]
+fn the_batch_is_proposed_with_the_values_read_again() {
+    let reads = vec![
+        vec![delete("a", Source::Extract)],
+        vec![delete("b", Source::Extract), delete("c", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 1, "one confirmation request");
+    let shown: Vec<String> = confirms[0]
+        .effects
+        .iter()
+        .map(|e| e.bound.fields()[0].value.joined())
+        .collect();
+    assert_eq!(shown, ["a", "c"], "the batch shows the values read again");
+    assert_eq!(released, 2);
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}

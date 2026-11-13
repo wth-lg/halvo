@@ -151,7 +151,6 @@ impl Runner {
         let e = &mut self.effects[at];
         e.digest = new;
         e.kept = kept_of(bound);
-        e.fields = bound.fields().len() as u32;
         e.rebinds += 1;
         self.store_row(at, next, None)?;
         Ok(next)
