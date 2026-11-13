@@ -116,6 +116,20 @@ pub fn changed(before: &Listing, after: &Listing) -> Vec<File> {
     out
 }
 
+/// The listed place, other than the run's own profile and temporary directory, under which the
+/// row's scratch directory `scratch` lies, if any (CP-186 S6): the row's profiles would then be
+/// listed twice and their files read as left outside. Both paths are compared through their links
+/// where they exist.
+pub fn scratch_under_place(scratch: &Path, places: &[Place]) -> Option<&'static str> {
+    let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let scratch = real(scratch);
+    places
+        .iter()
+        .filter(|p| !p.inside_profile)
+        .find(|p| scratch.starts_with(real(&p.root)))
+        .map(|p| p.name)
+}
+
 /// The removals of a reading (CP-186 T3), in three counts. `deciding`: a file that stood in
 /// `origin`, the listing taken before the row's first reading, removed at a place that is neither
 /// inside the profile, nor a report place of the system, nor the system's temporary directory.
@@ -735,6 +749,24 @@ mod tests {
         ] {
             assert!(!dump(rel), "{rel}");
         }
+    }
+
+    /// CP-186 S6, with the review's case crash/04: a scratch directory under a listed place other
+    /// than the run's profile is named; one beside the places is not.
+    #[test]
+    fn s6_a_scratch_directory_under_a_listed_place_is_named() {
+        let base = crate::child::scratch("scratch-under");
+        let places = vec![
+            place("profile", base.join("row").join("p-means"), true, false),
+            place(SYSTEM_TEMP, base.clone(), false, false),
+            place("crashpad", base.join("elsewhere"), false, false),
+        ];
+        assert_eq!(
+            scratch_under_place(&base.join("row"), &places),
+            Some(SYSTEM_TEMP)
+        );
+        let beside = crate::child::scratch("scratch-beside");
+        assert_eq!(scratch_under_place(&beside, &places), None);
     }
 
     /// CP-186 T3, the review's case crash/03: a file that stood before and is gone after is in the

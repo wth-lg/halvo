@@ -1138,6 +1138,14 @@ async fn crash(argv: &[String]) -> (usize, usize) {
             None => "unread",
         }
     );
+    let probe_places = crash_row::places(&dir.join("p-origin"), &dir.join("p-origin-tmp"));
+    if let Some(under) = crash_row::scratch_under_place(&dir, &probe_places) {
+        println!(
+            "row crash machine={machine} browser={kind} result=notrun cause=scratch_under_place place={under}"
+        );
+        let _ = std::fs::remove_dir(&dir);
+        return (0, 1);
+    }
     let origin = origin_of(&dir);
     let baseline = match crash_reading(
         &browser,
