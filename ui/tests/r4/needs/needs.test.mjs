@@ -1117,6 +1117,25 @@ async function bound(origin, dir) {
   } finally {
     await h.close();
   }
+  const caretCases = [
+    ['a_replacement_on_a_full_line_is_refused', 'a'.repeat(500) + 'b'.repeat(524), [600, 601], 'z', [600, 601]],
+    ['a_refused_letter_among_repeated_letters_leaves_the_caret', xs(1024), [10, 10], 'x', [10, 10]],
+    ['a_refused_emoji_before_an_emoji_leaves_the_caret', xs(1020) + cp(0x1f600), [1020, 1020], cp(0x1f601), [1020, 1020]],
+  ];
+  for (const [t, start, at, typed, caret] of caretCases) {
+    const k = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+    try {
+      await k.page.locator(line).fill(start);
+      await k.page.locator(line).evaluate((x, a) => x.setSelectionRange(a[0], a[1]), at);
+      await k.page.locator(line).pressSequentially(typed);
+      const f = await typedFacts(k, p.name);
+      if (f.value !== start) faults.push(t + ':line_changed');
+      if (JSON.stringify(f.caret) !== JSON.stringify(caret)) faults.push(t + ':caret=' + f.caret.join('-'));
+      shows(t, f, true);
+    } finally {
+      await k.close();
+    }
+  }
   const m = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
   const mid = 'a_letter_put_into_the_middle_of_a_full_line';
   try {
