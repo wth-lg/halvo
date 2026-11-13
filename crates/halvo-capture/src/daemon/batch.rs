@@ -482,10 +482,7 @@ mod tests {
         let block = buffer.block();
         assert_eq!(block.1, 1_048_576);
         let line = [b'x'; 4095];
-        let mut pushed = 0;
-        while buffer.push_line(&line) {
-            pushed += 1;
-        }
+        let pushed = (0..300).filter(|_| buffer.push_line(&line)).count();
         assert_eq!(pushed, 256);
         assert_eq!(buffer.len(), 1_048_576);
         assert!(!buffer.push_line(b""), "a full buffer took a line end");

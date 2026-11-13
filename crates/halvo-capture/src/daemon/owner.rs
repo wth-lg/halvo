@@ -1133,6 +1133,28 @@ mod tests {
     }
 
     #[test]
+    fn a_recovered_drain_writes_its_spill_before_it_spills_more() {
+        let mut harness = Harness::over(ModelStore::new(), open_floor(), 2048);
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        resumed(&mut harness);
+        for _ in 0..2500 {
+            harness.emit(foreground_now());
+            harness.pass();
+        }
+        assert_eq!(harness.owner.snapshot().events_pending, 2500);
+        harness.store.fail_every_write(None);
+        for _ in 0..2000 {
+            harness.emit(foreground_now());
+        }
+        let snapshot = settled(&mut harness);
+        assert_eq!(snapshot.events_lost, 0, "a recovered drain lost events");
+        assert_eq!(snapshot.events_persisted, 4500);
+        assert!(snapshot.is_conserved());
+    }
+
+    #[test]
     fn an_event_of_a_listed_app_never_reaches_a_batch() {
         let mut harness = Harness::over(ModelStore::new(), floor_rooted_at_the_test_app(), 64);
         resumed(&mut harness);

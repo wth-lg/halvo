@@ -296,6 +296,27 @@ mod tests {
     }
 
     #[test]
+    fn one_loop_pass_runs_one_chunk_while_more_is_due() {
+        let store = crate::daemon::model_store::ModelStore::new();
+        let chunk = |more_due| {
+            Ok(Pass {
+                shredded: Vec::new(),
+                more_due,
+                owed: false,
+            })
+        };
+        store.script_expire(vec![chunk(true), chunk(true), chunk(true), chunk(false)]);
+        let mut harness = Harness::over(store, crate::daemon::model_store::open_floor(), 16);
+        for pass in 1..=3 {
+            harness.emit(foreground(&AT_NOON, Duration::ZERO));
+            harness.pass();
+            assert_eq!(harness.store.expire_calls().len(), 1 + pass, "pass {pass}");
+        }
+        harness.passes(2);
+        assert_eq!(harness.store.expire_calls().len(), 4);
+    }
+
+    #[test]
     fn a_wall_clock_step_back_does_not_delay_expiry() {
         let mut harness = Harness::new();
         harness.ask(Command::ClosePause);
