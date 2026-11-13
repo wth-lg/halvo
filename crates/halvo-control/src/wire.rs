@@ -269,7 +269,9 @@ mod tests {
         }
 
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            // SAFETY: the pointer came from `alloc` above with this layout.
+            // SAFETY: the block is one that this allocator handed out through alloc, alloc_zeroed
+            // or realloc, each of which passes to System, and `layout` is the one that the block
+            // has now.
             unsafe { System.dealloc(ptr, layout) }
         }
 
