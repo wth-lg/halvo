@@ -3114,7 +3114,7 @@ fn a_lost_allow_then_allow_sends_allow_once_in_the_second_move_in_both_forms() {
 fn a_lost_allow_then_dont_allow_sends_decline_and_never_allow_in_both_forms() {
     use halvo_coord::types::BindResult;
     for order in ORDERS {
-        let (c, _run, item) = second_step();
+        let (c, run, item) = second_step();
         first_press(&c, &item, Choice::Allow, First::Lost(order));
         assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
         assert_eq!(step_rows(&c, &item), ["allow", "decline"], "{order:?}");
@@ -3122,6 +3122,18 @@ fn a_lost_allow_then_dont_allow_sends_decline_and_never_allow_in_both_forms() {
             bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
             [BindResult::Decline],
             "{order:?}"
+        );
+        c.ports().ports.end_runner(&run);
+        assert_eq!(
+            c.on_run(&run, RunEvent::Ended(Some(Outcome::Declined))),
+            Ok(()),
+            "{order:?}"
+        );
+        assert_eq!(run_ends_of(&c, &run), [RunEnd::Declined], "{order:?}");
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow", "decline"],
+            "{order:?}: no lapse at the end"
         );
     }
 }
@@ -3285,13 +3297,24 @@ fn a_stored_allow_that_the_run_did_not_take_then_allow_sends_allow_once_with_one
 #[test]
 fn a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_decline() {
     use halvo_coord::types::BindResult;
-    let (c, _run, item) = second_step();
+    let (c, run, item) = second_step();
     first_press(&c, &item, Choice::Allow, First::Taken);
     let m = mark(&c);
     assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
     assert_eq!(step_rows(&c, &item), ["allow", "decline"]);
     assert_eq!(binds_since(&c, m), [BindResult::Decline]);
     assert_eq!(allows(&c), 0);
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Declined))),
+        Ok(())
+    );
+    assert_eq!(run_ends_of(&c, &run), [RunEnd::Declined]);
+    assert_eq!(
+        step_rows(&c, &item),
+        ["allow", "decline"],
+        "no lapse at the end"
+    );
     let (c, _run, item) = second_step();
     first_press(&c, &item, Choice::Allow, First::Taken);
     c.ports().ports.refuse(Method::Log, PortError::NoService);
@@ -3489,30 +3512,48 @@ fn two_second_steps_of_one_run_keep_their_own_rows_and_a_second_bind_ends_the_ru
     assert_eq!(step_rows(&c, &a), ["lapsed:run_ended"]);
     assert!(binds_since(&c, m).is_empty());
     assert!(c.snapshot().items.is_empty());
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(run_ends_of(&c, &run), [RunEnd::Kind]);
+    assert_eq!(step_rows(&c, &a), ["lapsed:run_ended"]);
+}
+
+/// A second step whose allow the run took, then the way `way`: the run's end, the person's Stop,
+/// or the quit; the item gets no `item_lapsed` (ruling RD-46 (5) T18).
+fn a_taken_allow_then(way: &str) {
+    let (c, run, item) = second_step();
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{way}");
+    match way {
+        "end" => {
+            c.ports().ports.end_runner(&run);
+            let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+        }
+        "stop" => {
+            let _ = c.control(&agent(0), Action::Stop);
+            c.ports().ports.end_runner(&run);
+            let _ = c.on_run(&run, RunEvent::Ended(None));
+        }
+        _ => {
+            let _ = c.quit_stop();
+            c.quit_kill();
+        }
+    }
+    assert_eq!(step_rows(&c, &item), ["allow"], "{way}");
 }
 
 #[test]
-fn a_taken_allow_gets_no_lapse_at_the_runs_end_at_a_stop_or_at_the_quit() {
-    for way in ["end", "stop", "quit"] {
-        let (c, run, item) = second_step();
-        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{way}");
-        match way {
-            "end" => {
-                c.ports().ports.end_runner(&run);
-                let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
-            }
-            "stop" => {
-                let _ = c.control(&agent(0), Action::Stop);
-                c.ports().ports.end_runner(&run);
-                let _ = c.on_run(&run, RunEvent::Ended(None));
-            }
-            _ => {
-                let _ = c.quit_stop();
-                c.quit_kill();
-            }
-        }
-        assert_eq!(step_rows(&c, &item), ["allow"], "{way}");
-    }
+fn a_taken_allow_gets_no_lapse_at_the_runs_end() {
+    a_taken_allow_then("end");
+}
+
+#[test]
+fn a_taken_allow_gets_no_lapse_at_the_persons_stop() {
+    a_taken_allow_then("stop");
+}
+
+#[test]
+fn a_taken_allow_gets_no_lapse_at_the_quit() {
+    a_taken_allow_then("quit");
 }
 
 #[test]
