@@ -3470,6 +3470,8 @@ mod driver {
         ended: checks::Ended,
         /// The watch of `relay_port_free` (CP-145 (1)), where the row has one.
         watch: Option<r3_web::killwatch::Watched>,
+        /// Who ended the browser (CP-148 (3)): `guard ended_ms=<ms>`, `self` or `row`.
+        ended_by: String,
     }
 
     /// The processes of a kill's run that run now: those of the tree read before the kill and
@@ -3804,6 +3806,19 @@ mod driver {
         let ended = checks::end_runs_own(&mark);
         let mut temp = profile.clone().into_os_string();
         temp.push("-tmp");
+        // CP-148 (3): who ended the browser: the guard (its record in the run's temporary
+        // directory), the browser by itself, or the row at the cap
+        let ended_by =
+            match std::fs::read_to_string(Path::new(&temp).join(r3_web::cdp::GUARD_RECORD)) {
+                Ok(r) => format!(
+                    "guard ended_ms={}",
+                    r.split_whitespace()
+                        .find_map(|w| w.strip_prefix("ms="))
+                        .unwrap_or("-")
+                ),
+                Err(_) if gone_ms.is_some() => "self".to_string(),
+                Err(_) => "row".to_string(),
+            };
         let removed = remove_made_dir(&profile) && remove_made_dir(Path::new(&temp));
         if !removed {
             eprintln!("driver step={} i={i} profile_removed=no", form.step);
@@ -3823,6 +3838,7 @@ mod driver {
             left,
             ended,
             watch,
+            ended_by,
         })
     }
 
@@ -3862,7 +3878,7 @@ mod driver {
                 majors.push(m);
             }
             out(&format!(
-                "run {head} step={name} i={i} result={} cause={} watched={} gone_ms={} free_ms={} max_gap_ms={} version={} left={} left_before={} left_after={}",
+                "run {head} step={name} i={i} result={} cause={} watched={} gone_ms={} free_ms={} max_gap_ms={} version={} left={} left_before={} left_after={} ended_by={}",
                 outcome.result(),
                 outcome.cause(),
                 if k.watched { "yes" } else { "no" },
@@ -3872,7 +3888,8 @@ mod driver {
                 k.version,
                 if k.left { "yes" } else { "no" },
                 k.ended.before,
-                k.ended.after
+                k.ended.after,
+                k.ended_by
             ));
         }
         majors.sort_unstable();

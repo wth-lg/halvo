@@ -98,42 +98,95 @@ pub const GUARD_FLAG: &str = "--relay-guard";
 /// closes its copy of the listener. While the executor lives it holds the listener too, and only
 /// the executor accepts.
 pub fn guard_main(argv: &[String]) -> i32 {
-    let (Some(pid), Some(started_us)) = (
-        argv.first().and_then(|v| v.parse::<u32>().ok()),
-        argv.get(1).and_then(|v| v.parse::<u64>().ok()),
-    ) else {
+    let num = |i: usize| argv.get(i).and_then(|v| v.parse::<u64>().ok());
+    let (Some(pid), Some(started_us), Some(epid), Some(estart)) = (num(0), num(1), num(2), num(3))
+    else {
         return 2;
     };
+    let record = argv.get(4).map(std::path::PathBuf::from);
     let start = std::time::Instant::now();
     guard_loop(
-        pid,
+        pid as u32,
         started_us,
-        &mut || procs::table().ok(),
-        &mut || start.elapsed().as_millis(),
-        &mut |unread| {
-            std::thread::sleep(if unread {
-                crate::killwatch::PASS_WAIT
-            } else {
-                GUARD_POLL
-            })
+        Some((epid as u32, estart)),
+        GuardIo {
+            read: &mut || procs::table().ok(),
+            now_ms: &mut || start.elapsed().as_millis(),
+            pause: &mut |unread| {
+                std::thread::sleep(if unread {
+                    crate::killwatch::PASS_WAIT
+                } else {
+                    GUARD_POLL
+                })
+            },
+            end: &mut |p, force| {
+                if force {
+                    procs::kill(p)
+                } else {
+                    procs::ask_end(p)
+                }
+            },
+            record: &mut |ms, asked, forced| {
+                if let Some(r) = &record {
+                    let _ = std::fs::write(
+                        r,
+                        format!("ended_by=guard ms={ms} asked={asked} forced={forced}\n"),
+                    );
+                }
+            },
         },
     )
 }
 
-/// The guard's loop, with its reading of the process table (`None`: it could not be read), its
-/// clock and its pause given (the pause is told whether the last read was unread). A table that
-/// could not be read is not an empty one (the coordinator's point on an unread table): the guard
-/// keeps the port and reads again in the watch's steps; when the table stays unread for
-/// `killwatch::CAP`, it ends with exit 3 and the line `guard_end cause=table_unread`.
-pub fn guard_loop(
-    pid: u32,
-    started_us: u64,
-    read: &mut dyn FnMut() -> Option<Vec<Proc>>,
-    now_ms: &mut dyn FnMut() -> u128,
-    pause: &mut dyn FnMut(bool),
-) -> i32 {
+/// How long the guard waits, once its executor is gone, for the browser to end by itself (CP-148).
+pub const GRACE: Duration = Duration::from_millis(3_000);
+
+/// How long the guard waits after it asked the run's processes to end before it ends them by force.
+pub const TERM_WAIT: Duration = Duration::from_millis(2_000);
+
+/// How long the guard keeps the port after it read the tree gone: longer than one pass of the row's
+/// watch on the development Mac under load (the longest kept pass was 476 ms), so that the watch can
+/// see the order (CP-148 (3)).
+pub const PORT_MARGIN: Duration = Duration::from_millis(1_000);
+
+/// What the guard needs from the system, given for tests: the process table (`None`: it could not
+/// be read), the clock, the pause (told whether the last read was unread), the end of one process of
+/// the run (`false`: ask it, `true`: by force; each reads the creation time again), and the record
+/// of the guard's own act (milliseconds since the executor was read gone, how many it asked, how
+/// many it ended by force), called once.
+pub struct GuardIo<'a> {
+    pub read: &'a mut dyn FnMut() -> Option<Vec<Proc>>,
+    pub now_ms: &'a mut dyn FnMut() -> u128,
+    pub pause: &'a mut dyn FnMut(bool),
+    pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
+    pub record: &'a mut dyn FnMut(u128, usize, usize),
+}
+
+/// The guard's loop. It keeps the relay's port while a process of the browser's tree runs. A table
+/// that could not be read is not an empty one (the coordinator's point on an unread table): the
+/// guard keeps the port and reads again in the watch's steps; when the table stays unread for
+/// `killwatch::CAP`, it ends with exit 3 and the line `guard_end cause=table_unread`. When the
+/// executor (`executor`, by number and start time) is gone and a process of the tree still runs
+/// (CP-148), it waits `GRACE`, asks each process of the run that still runs (by number and start
+/// time in the table of that moment) to end, ends by force each one that still runs `TERM_WAIT`
+/// later, and reads on until none runs. It ends nothing while the executor runs, and no process
+/// whose number another process took. Once it read the tree gone it keeps the port `PORT_MARGIN`
+/// more, then exits 0.
+pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: GuardIo<'_>) -> i32 {
+    let GuardIo {
+        read,
+        now_ms,
+        pause,
+        end,
+        record,
+    } = io;
     let mut known: Vec<Proc> = Vec::new();
     let mut unread_since: Option<u128> = None;
+    let mut executor_gone_at: Option<u128> = None;
+    let mut asked_at: Option<u128> = None;
+    let (mut asked, mut forced) = (0usize, 0usize);
+    let (mut acted, mut recorded) = (false, false);
+    let mut gone_at: Option<u128> = None;
     loop {
         let Some(table) = read() else {
             let now = now_ms();
@@ -166,11 +219,59 @@ pub fn guard_loop(
                 known.push(p);
             }
         }
-        let living = known
+        // the processes of the run that run now, each by number and start time in this table
+        let members: Vec<Proc> = known
             .iter()
-            .any(|k| table.iter().any(|t| procs::same(t, k)));
-        if root.is_none() && !living {
-            return 0;
+            .filter(|k| table.iter().any(|t| procs::same(t, k)))
+            .cloned()
+            .collect();
+        let now = now_ms();
+        if root.is_none() && members.is_empty() {
+            if acted && !recorded {
+                record(
+                    now.saturating_sub(executor_gone_at.unwrap_or(now)),
+                    asked,
+                    forced,
+                );
+                recorded = true;
+            }
+            let since = *gone_at.get_or_insert(now);
+            if now.saturating_sub(since) >= PORT_MARGIN.as_millis() {
+                return 0;
+            }
+            pause(false);
+            continue;
+        }
+        gone_at = None;
+        let executor_runs = executor.is_none_or(|(epid, estart)| {
+            table
+                .iter()
+                .any(|t| t.pid == epid && t.started_us == estart)
+        });
+        if !executor_runs {
+            let since = *executor_gone_at.get_or_insert(now);
+            if now.saturating_sub(since) >= GRACE.as_millis() {
+                match asked_at {
+                    None => {
+                        for p in &members {
+                            if end(p, false) {
+                                asked += 1;
+                            }
+                        }
+                        // a process that cannot be asked (Windows) is ended by force after the wait
+                        acted = true;
+                        asked_at = Some(now);
+                    }
+                    Some(at) if now.saturating_sub(at) >= TERM_WAIT.as_millis() => {
+                        for p in &members {
+                            if end(p, true) {
+                                forced += 1;
+                            }
+                        }
+                    }
+                    Some(_) => {}
+                }
+            }
         }
         pause(false);
     }
@@ -478,15 +579,22 @@ impl RelayHandle {
         &self,
         program: &std::path::Path,
         root: &Proc,
+        record: &std::path::Path,
     ) -> Option<crate::start::Started> {
         let listener = self.shared.listener.lock().ok()?;
         let raw = (*listener)?;
+        // the executor (this process) by number and start time, so that the guard ends the run when
+        // the executor is gone (CP-148)
+        let me = procs::own()?;
         let spec = crate::start::Spec {
             program,
             args: vec![
                 GUARD_FLAG.into(),
                 root.pid.to_string().into(),
                 root.started_us.to_string().into(),
+                me.pid.to_string().into(),
+                me.started_us.to_string().into(),
+                record.as_os_str().to_owned(),
             ],
             env: Vec::new(),
             stderr: None,
@@ -755,61 +863,246 @@ async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
 mod tests {
     use super::*;
 
-    /// The coordinator's point on an unread table: a guard whose read of the process table fails
-    /// once keeps the port, reads again, and ends only when the browser's first process is gone.
-    #[test]
-    fn a_table_that_could_not_be_read_once_is_no_empty_table_for_the_guard() {
-        let root = Proc {
-            pid: 999_999,
-            ppid: 1,
-            started_us: 7,
-            exe: None,
-        };
-        let mut reads = 0;
-        let code = guard_loop(
-            999_999,
-            7,
-            &mut || {
-                reads += 1;
-                match reads {
-                    1 => None,
-                    2..=4 => Some(vec![root.clone()]),
-                    _ => Some(Vec::new()),
-                }
-            },
-            &mut || 0,
-            &mut |_| {},
-        );
-        assert_eq!(code, 0);
-        assert_eq!(reads, 5, "the guard ended before the tree was read gone");
-    }
-
-    /// A table that stays unread ends the guard at the watch's cap with its own cause, not sooner
-    /// and not never.
-    #[test]
-    fn a_table_that_stays_unread_ends_the_guard_at_the_cap() {
+    /// A guard run on stand-in tables: `table(t)` gives the table at `t` ms (None: unread), the
+    /// pause adds `step` ms, and each end of a process calls `ended(p, force, t)`, which may change
+    /// what later tables hold. Returns the exit, the ms at the exit, the ends and the record.
+    #[allow(clippy::type_complexity)]
+    fn run_guard(
+        executor: Option<(u32, u64)>,
+        step: u128,
+        table: &dyn Fn(u128, &[(u32, bool, u128)]) -> Option<Vec<Proc>>,
+    ) -> (
+        i32,
+        u128,
+        Vec<(u32, bool, u128)>,
+        Option<(u128, usize, usize)>,
+    ) {
         let clock = std::cell::Cell::new(0u128);
+        let ends = std::cell::RefCell::new(Vec::new());
+        let mut record = None;
         let mut reads = 0u64;
         let code = guard_loop(
             999_999,
             7,
-            &mut || {
-                reads += 1;
-                assert!(reads < 1_000_000, "the guard reads on past its cap");
-                None
-            },
-            &mut || clock.get(),
-            &mut |unread| {
-                assert!(unread);
-                clock.set(clock.get() + crate::killwatch::PASS_WAIT.as_millis())
+            executor,
+            GuardIo {
+                read: &mut || {
+                    reads += 1;
+                    assert!(reads < 1_000_000, "the guard reads on without end");
+                    table(clock.get(), &ends.borrow())
+                },
+                now_ms: &mut || clock.get(),
+                pause: &mut |_| clock.set(clock.get() + step),
+                end: &mut |p, force| {
+                    ends.borrow_mut().push((p.pid, force, clock.get()));
+                    true
+                },
+                record: &mut |ms, a, f| record = Some((ms, a, f)),
             },
         );
+        (code, clock.get(), ends.into_inner(), record)
+    }
+
+    fn row(pid: u32, started_us: u64) -> Proc {
+        Proc {
+            pid,
+            ppid: 1,
+            started_us,
+            exe: None,
+        }
+    }
+
+    /// The coordinator's point on an unread table: a guard whose read of the process table fails
+    /// once keeps the port, reads again, and ends only when the browser's first process is gone.
+    #[test]
+    fn a_table_that_could_not_be_read_once_is_no_empty_table_for_the_guard() {
+        let (code, _, ends, _) = run_guard(None, 20, &|t, _| match t {
+            0 => None,
+            1..=100 => Some(vec![row(999_999, 7)]),
+            _ => Some(Vec::new()),
+        });
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+    }
+
+    /// A table that stays unread ends the guard at the watch's cap with its own cause.
+    #[test]
+    fn a_table_that_stays_unread_ends_the_guard_at_the_cap() {
+        let (code, at, _, _) = run_guard(None, 2, &|_, _| None);
         assert_eq!(code, 3);
+        assert!(at >= crate::killwatch::CAP.as_millis(), "ended at {at} ms");
+    }
+
+    /// CP-148: the executor gone and a browser that never ends by itself: after the grace the guard
+    /// asks it to end, after the wait it ends it by force, and it frees the port only after the tree
+    /// is gone and its margin has passed.
+    #[test]
+    fn a_browser_that_never_ends_is_ended_after_the_grace_and_the_port_freed_after_it() {
+        // the executor (pid 5) runs until 1,000 ms; the browser goes only when it is forced
+        let (code, at, ends, record) = run_guard(Some((5, 50)), 10, &|t, ends| {
+            let mut v = Vec::new();
+            if !ends.iter().any(|(p, force, _)| *p == 999_999 && *force) {
+                v.push(row(999_999, 7));
+            }
+            if t < 1_000 {
+                v.push(row(5, 50));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        let asked = ends
+            .iter()
+            .find(|e| !e.1)
+            .expect("the guard asked the browser to end");
+        let forced = ends
+            .iter()
+            .find(|e| e.1)
+            .expect("the guard ended the browser by force");
         assert!(
-            clock.get() >= crate::killwatch::CAP.as_millis(),
-            "ended at {} ms",
-            clock.get()
+            asked.2 >= 1_000 + GRACE.as_millis(),
+            "asked at {} ms",
+            asked.2
         );
+        assert!(
+            forced.2 >= asked.2 + TERM_WAIT.as_millis(),
+            "forced at {} ms",
+            forced.2
+        );
+        assert!(
+            at >= forced.2 + PORT_MARGIN.as_millis(),
+            "the port freed at {at} ms"
+        );
+        let (ms, a, f) = record.expect("the guard recorded its act");
+        assert!(ms >= GRACE.as_millis() && a == 1 && f == 1, "{ms} {a} {f}");
+    }
+
+    /// CP-148: a browser that ends by itself inside the grace is left to itself.
+    #[test]
+    fn a_browser_that_ends_inside_the_grace_is_left_to_itself() {
+        let (code, _, ends, record) = run_guard(Some((5, 50)), 10, &|t, _| {
+            let mut v = Vec::new();
+            if t < 1_000 + GRACE.as_millis() - 500 {
+                v.push(row(999_999, 7));
+            }
+            if t < 1_000 {
+                v.push(row(5, 50));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(
+            ends.is_empty(),
+            "the guard ended a browser that ended by itself: {ends:?}"
+        );
+        assert!(record.is_none());
+    }
+
+    /// CP-148: while the executor runs the guard ends nothing, however long the browser runs.
+    #[test]
+    fn the_guard_ends_nothing_while_its_executor_runs() {
+        let (code, _, ends, _) = run_guard(Some((5, 50)), 10, &|t, _| {
+            let mut v = vec![row(5, 50)];
+            if t < 60_000 {
+                v.push(row(999_999, 7));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+    }
+
+    /// CP-148 (2): a number of the tree that another process took is left alone: the browser ends,
+    /// and the same pid comes back with another start time while the executor is gone.
+    #[test]
+    fn a_number_of_the_tree_that_another_process_took_is_left_alone() {
+        let (code, _, ends, _) = run_guard(Some((5, 50)), 10, &|t, _| {
+            let mut v = Vec::new();
+            if t < 2_000 {
+                v.push(row(999_999, 7));
+            } else {
+                // another process with the browser's number
+                v.push(row(999_999, 8));
+            }
+            if t < 1_000 {
+                v.push(row(5, 50));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(
+            ends.is_empty(),
+            "the guard ended a process that took the tree's number: {ends:?}"
+        );
+    }
+
+    /// CP-148 on real processes (macOS): a stand-in browser that never ends by itself and a stand-in
+    /// executor; the executor is killed; the guard asks the browser to end after its grace, and
+    /// returns only after the browser is gone.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_guard_ends_a_real_stand_in_after_its_executor_is_killed() {
+        use crate::start::Start;
+        let mut browser = std::process::Command::new("/bin/sleep")
+            .arg("60")
+            .start()
+            .unwrap();
+        let mut executor = std::process::Command::new("/bin/sleep")
+            .arg("60")
+            .start()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let table = procs::table().unwrap();
+        let b = table
+            .iter()
+            .find(|p| p.pid == browser.id())
+            .unwrap()
+            .clone();
+        let e = table
+            .iter()
+            .find(|p| p.pid == executor.id())
+            .unwrap()
+            .clone();
+        let start = std::time::Instant::now();
+        let killer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(500));
+            let _ = executor.kill();
+            let _ = executor.wait();
+        });
+        let mut record = None;
+        let code = guard_loop(
+            b.pid,
+            b.started_us,
+            Some((e.pid, e.started_us)),
+            GuardIo {
+                read: &mut || {
+                    // the stand-in is this test's child: reap it once it ended, as its parent would
+                    let _ = browser.try_wait();
+                    procs::table().ok()
+                },
+                now_ms: &mut || start.elapsed().as_millis(),
+                pause: &mut |_| std::thread::sleep(GUARD_POLL),
+                end: &mut |p, force| {
+                    if force {
+                        procs::kill(p)
+                    } else {
+                        procs::ask_end(p)
+                    }
+                },
+                record: &mut |ms, a, f| record = Some((ms, a, f)),
+            },
+        );
+        let took = start.elapsed();
+        killer.join().unwrap();
+        let status = browser.wait().unwrap();
+        assert_eq!(code, 0);
+        assert!(
+            took >= Duration::from_millis(500) + GRACE,
+            "returned after {took:?}"
+        );
+        assert!(took < Duration::from_secs(20), "returned after {took:?}");
+        assert!(!procs::running(&b), "the stand-in browser still runs");
+        assert!(!status.success(), "{status:?}");
+        assert!(record.is_some());
     }
 
     #[test]

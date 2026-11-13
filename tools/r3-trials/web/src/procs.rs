@@ -165,6 +165,34 @@ pub fn kill(p: &Proc) -> bool {
     unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
 }
 
+/// Asks the process of `p` to end (SIGTERM) after reading its creation time again, and only when
+/// that is the creation time of `p` (CP-148: the guard asks before it ends by force). Returns whether
+/// it sent the ask.
+#[cfg(target_os = "macos")]
+pub fn ask_end(p: &Proc) -> bool {
+    if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+        return false;
+    }
+    // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
+    // read back just above with the creation time of `p`.
+    unsafe { libc::kill(p.pid as libc::c_int, libc::SIGTERM) == 0 }
+}
+
+/// On Windows there is no way to ask a windowless process to end: nothing is sent, and the guard's
+/// end by force (`kill`, `TerminateProcess`) follows after its wait (CP-148 (5)).
+#[cfg(not(target_os = "macos"))]
+pub fn ask_end(_p: &Proc) -> bool {
+    false
+}
+
+/// This process's own row of the process table, with its creation time.
+pub fn own() -> Option<Proc> {
+    table()
+        .ok()?
+        .into_iter()
+        .find(|p| p.pid == std::process::id())
+}
+
 #[cfg(windows)]
 fn open(pid: u32, access: u32) -> Option<windows_sys::Win32::Foundation::HANDLE> {
     let h = unsafe { windows_sys::Win32::System::Threading::OpenProcess(access, 0, pid) };
@@ -309,6 +337,35 @@ pub fn kill(_p: &Proc) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CP-148: the guard's ask to end reads the creation time again and sends nothing to a process
+    /// whose number now names another start.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn ask_end_leaves_a_process_whose_start_time_differs() {
+        use crate::start::Start;
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("5")
+            .start()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let row = table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == child.id())
+            .unwrap();
+        let other = Proc {
+            started_us: row.started_us + 1,
+            ..row.clone()
+        };
+        let sent = ask_end(&other);
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let alive = matches!(child.try_wait(), Ok(None));
+        let asked = ask_end(&row);
+        let _ = child.wait();
+        assert!(!sent && alive, "the ask reached a process of another start");
+        assert!(asked, "the ask did not reach the process of its own start");
+    }
     use crate::start::Start;
 
     fn p(pid: u32, ppid: u32, started_us: u64, exe: &str) -> Proc {

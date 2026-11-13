@@ -37,6 +37,11 @@ pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionS
 pub use wire::host_port;
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// The file in a run's temporary directory where the relay's guard records that it ended the run
+/// after its executor was gone (CP-148): `ended_by=guard ms=<since the executor was read gone>
+/// asked=<n> forced=<n>`.
+pub const GUARD_RECORD: &str = "guard_ended";
 const POLL: Duration = Duration::from_millis(50);
 
 /// How long the executor waits for the browser's first reply on its debugging channel before it
@@ -446,7 +451,9 @@ impl Executor {
             relay.trust(root.clone());
         }
         let mut guard = match (&opts.relay, &root, std::env::current_exe()) {
-            (Some(relay), Some(r), Ok(program)) => relay.start_guard(&program, r),
+            (Some(relay), Some(r), Ok(program)) => {
+                relay.start_guard(&program, r, &temp.join(GUARD_RECORD))
+            }
             _ => None,
         };
         let (wire, wire_task) = wire::Wire::open(link);
