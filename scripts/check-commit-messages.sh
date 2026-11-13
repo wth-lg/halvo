@@ -779,6 +779,7 @@ self_test_pre_push() {
   nl='
 '
   trailer='Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>'
+  no_commit=0000000000000000000000000000000000000000
 
   commit_on_base() {
     git -C "$work/clone" commit-tree "$tree" -p "$base" -m "$1"
@@ -873,6 +874,15 @@ self_test_pre_push() {
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
+  for bad_line in "refs/heads/x $clean refs/heads/x not-an-object-id" "refs/heads/x not-an-object-id refs/heads/x $no_commit"; do
+    status=0
+    (cd "$work/clone" && printf '%s\n' "$bad_line" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >>"$work/out/a-line-with-one-field-that-is-no-object-id.txt" 2>&1 || status=$?
+    [ "$status" = 2 ] || one_field_status=$status
+  done
+  judge a-line-with-one-field-that-is-no-object-id "${one_field_status:-2}" 2 'cannot read this line'
+  status=0
+  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' "${clean%?}" "$no_commit" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-an-object-id-of-39-characters.txt" 2>&1 || status=$?
+  judge a-line-with-an-object-id-of-39-characters "$status" 2 'cannot read this line'
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: pre-push self-test FAIL: %d of %d pushes behaved otherwise. Outputs are in %s.\n' "$failures" "$pushes" "$work/out"

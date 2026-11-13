@@ -42,6 +42,8 @@ commit_range() {
 # commit_range_read_push_line <line>
 # Reads one line that git writes to the standard input of a pre-push hook into
 # push_local_ref, push_local_object, push_remote_ref and push_remote_object.
+# Returns 1 when push_local_object or push_remote_object is no object id of 40
+# or 64 lower-case hexadecimal characters.
 commit_range_read_push_line() {
   push_remote_object=${1##* }
   commit_range_rest=${1% *}
