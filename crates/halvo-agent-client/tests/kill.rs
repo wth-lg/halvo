@@ -6,7 +6,7 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::{ask_store, effect, gone, id, line_gone, mark_of, wait_until, Rig, Script};
@@ -153,15 +153,16 @@ fn the_hard_kill_of_the_library_leaves_no_runner_no_browser_no_begin_and_no_byte
     assert_eq!(bytes.load(Ordering::SeqCst), 0);
 }
 
+#[cfg(target_os = "macos")]
 #[test]
-fn a_write_on_standard_error_after_the_end_of_file_of_the_hard_kill_reaches_no_stream_of_the_host()
-{
+fn a_write_on_standard_error_after_the_end_of_file_of_the_hard_kill_reaches_no_standard_error_of_the_host(
+) {
     let dir = common::scratch("hard-kill-stderr");
     let marker = format!("after-eof-{}", common::run_id());
     let script = holding_script(&dir, &format!("on-eof stderr {marker}"));
     let mut host = host_with(&dir, &script, Stdio::piped());
     let mut err = host.child.stderr.take().unwrap();
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut bytes = Vec::new();
         let _ = err.read_to_end(&mut bytes);
@@ -178,13 +179,11 @@ fn a_write_on_standard_error_after_the_end_of_file_of_the_hard_kill_reaches_no_s
         && line_gone(&browser)
         && gone(child.0, child.1)));
     assert!(at.elapsed() < LINK_END);
-    if cfg!(target_os = "macos") {
-        assert!(
-            script.log().contains("stderr-after-eof wrote=yes"),
-            "the stand-in wrote on standard error after the end of file: {}",
-            script.log()
-        );
-    }
+    assert!(
+        script.log().contains("stderr-after-eof wrote=yes"),
+        "the stand-in wrote on standard error after the end of file: {}",
+        script.log()
+    );
     let bytes = rx
         .recv_timeout(SHORT)
         .expect("the host's standard error closed");

@@ -17,7 +17,6 @@ const FLOOD: usize = 2 * 1024 * 1024 + 1;
 
 const CONFIRM: &str = r#"send {"t":"confirm","request":{"v":1,"run":"{run}","agent":"{agent}","effects":[{"effect":"60606060606060606060606060606060","class":"payment","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bound":{"class":"payment","fields":[{"name":"payee","from":"slot","origin":null,"value":["Northwind Power"]},{"name":"amount","from":"extract","origin":"http://utility.test:18090","value":["84.20"]},{"name":"instrument","from":"slot","origin":null,"value":["card 4242"]},{"name":"origin","from":"const","origin":null,"value":["http://pay.test:18090"]}]},"new_origin":null}]}}"#;
 
-/// One stream of the host, read to its end by a thread of its own.
 struct Captured {
     bytes: Arc<Mutex<Vec<u8>>>,
     closed: Arc<AtomicBool>,
@@ -122,6 +121,39 @@ fn marker() -> String {
     format!("stderr-marker-{}", common::run_id())
 }
 
+fn kind_of(log: &str) -> String {
+    log.lines()
+        .find_map(|l| l.strip_prefix("stderr-kind "))
+        .unwrap_or("none")
+        .to_owned()
+}
+
+fn kind_by_hand(dir: &Path, stderr: Stdio) -> String {
+    let script = Script::new(dir, &["stderr-kind", "exit 0"]);
+    let mut child = Command::new(common::peer())
+        .arg("--run")
+        .arg("kind")
+        .arg("--browser")
+        .arg(&script.path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(stderr)
+        .spawn()
+        .unwrap();
+    let input = child.stdin.take();
+    let mut host = Host {
+        child,
+        dir: dir.to_path_buf(),
+    };
+    assert!(
+        wait_until(SHORT, || host.child.try_wait().is_ok_and(|s| s.is_some())),
+        "the stand-in ended: {}",
+        script.log()
+    );
+    drop(input);
+    kind_of(&script.log())
+}
+
 #[test]
 fn the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_stream_no_file_and_no_run_end_of_the_host(
 ) {
@@ -131,6 +163,7 @@ fn the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_s
         &dir,
         &[
             "hello",
+            "stderr-kind",
             &format!("stderr-marker {marker}"),
             "log marked",
             "exit 0",
@@ -144,6 +177,17 @@ fn the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_s
         out.lines(),
         script.log()
     );
+    let end = out
+        .lines()
+        .into_iter()
+        .find(|l| l.starts_with("end "))
+        .unwrap_or_default();
+    for word in ["RunEnd {", "outcome: ", "finish: ", "end_run: "] {
+        assert!(
+            end.contains(word),
+            "the host's end line holds the Debug text of a RunEnd: {end:?}"
+        );
+    }
     assert!(
         script
             .log()
@@ -180,6 +224,11 @@ fn the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_s
             path.display()
         );
     }
+    let kind = kind_of(&script.log());
+    assert_eq!(
+        kind, "null",
+        "the runner's standard error is {kind}, not the null device"
+    );
 }
 
 #[test]
@@ -240,16 +289,19 @@ fn count(hay: &[u8], needle: &[u8]) -> usize {
 }
 
 #[test]
-fn the_stand_in_started_by_hand_prints_each_form_of_the_marker_the_flood_and_the_write_after_the_end_of_file(
+fn the_stand_in_started_by_hand_names_its_standard_error_and_writes_each_form_of_the_marker_the_flood_and_the_write_after_the_end_of_file(
 ) {
     let dir = common::scratch("stderr-control");
     let marker = marker();
     let after = format!("after-eof-{}", common::run_id());
+    let asked = dir.join("asked");
+    fs::write(&asked, b"").unwrap();
     let script = Script::new(
         &dir,
         &[
             &format!("on-eof stderr {after}"),
-            &format!("stderr-flood {FLOOD}"),
+            "stderr-kind",
+            &format!("stderr-flood {FLOOD} {}", asked.display()),
             &format!("stderr-marker {marker}"),
             "log ready",
             "idle",
@@ -272,6 +324,7 @@ fn the_stand_in_started_by_hand_prints_each_form_of_the_marker_the_flood_and_the
         dir: dir.clone(),
     };
     assert!(script.wait_log("ready", SHORT), "{}", script.log());
+    assert_eq!(kind_of(&script.log()), "pipe", "a pipe reads as pipe");
     let m = marker.as_bytes();
     let mut mixed = vec![0xff, 0xfe, 0x80];
     mixed.extend_from_slice(m);
@@ -303,4 +356,21 @@ fn the_stand_in_started_by_hand_prints_each_form_of_the_marker_the_flood_and_the
     );
     assert!(err.wait_closed(), "the stand-in's standard error closed");
     assert!(host.child.wait().is_ok_and(|s| s.code() == Some(1)));
+    let file = fs::File::create(dir.join("stderr-file")).unwrap();
+    assert_eq!(
+        kind_by_hand(&dir, Stdio::from(file)),
+        "file",
+        "a file reads as file"
+    );
+    if cfg!(target_os = "macos") {
+        let zero = fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/zero")
+            .unwrap();
+        assert_eq!(
+            kind_by_hand(&dir, Stdio::from(zero)),
+            "other",
+            "a character device that is not the null device reads as other"
+        );
+    }
 }

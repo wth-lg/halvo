@@ -2,8 +2,8 @@
 //! two streams: `host DATA_DIR SCRIPT OWNER_LOG [HOLD_DIR]` starts one run whose runner is this binary with SCRIPT,
 //! prints `started <run id>`, answers every act with yes, logs each request that reaches its owner as one line of
 //! OWNER_LOG, and prints `end <RunEnd as Debug>` when the run has ended. With HOLD_DIR, `Confirmer::answers` prints
-//! `answers-in`, makes the file HOLD_DIR/asked, waits until the file HOLD_DIR/release exists and prints
-//! `answers-out` before it answers.
+//! `answers-in`, makes the file HOLD_DIR/asked, waits until the file HOLD_DIR/release exists or 60 seconds have
+//! passed, and prints `answers-out` before it answers.
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};

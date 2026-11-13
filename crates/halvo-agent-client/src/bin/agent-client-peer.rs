@@ -63,6 +63,52 @@ fn flood_stderr(total: usize) -> usize {
     wrote
 }
 
+#[cfg(unix)]
+fn stderr_kind() -> &'static str {
+    use std::os::fd::AsFd;
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let Ok(fd) = io::stderr().as_fd().try_clone_to_owned() else {
+        return "other";
+    };
+    let Ok(meta) = std::fs::File::from(fd).metadata() else {
+        return "other";
+    };
+    let kind = meta.file_type();
+    if kind.is_char_device() {
+        match std::fs::metadata("/dev/null") {
+            Ok(null) if null.rdev() == meta.rdev() => "null",
+            _ => "other",
+        }
+    } else if kind.is_fifo() {
+        "pipe"
+    } else if kind.is_file() {
+        "file"
+    } else {
+        "other"
+    }
+}
+
+#[cfg(windows)]
+fn stderr_kind() -> &'static str {
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileType(file: *mut std::ffi::c_void) -> u32;
+        fn GetConsoleMode(console: *mut std::ffi::c_void, mode: *mut u32) -> i32;
+    }
+    const FILE_TYPE_DISK: u32 = 1;
+    const FILE_TYPE_CHAR: u32 = 2;
+    const FILE_TYPE_PIPE: u32 = 3;
+    let handle = io::stderr().as_raw_handle();
+    let mut mode = 0u32;
+    match unsafe { GetFileType(handle) } {
+        FILE_TYPE_CHAR if unsafe { GetConsoleMode(handle, &mut mode) } == 0 => "null",
+        FILE_TYPE_PIPE => "pipe",
+        FILE_TYPE_DISK => "file",
+        _ => "other",
+    }
+}
+
 fn wait_for_file(path: &Path, within: Duration) -> bool {
     let deadline = std::time::Instant::now() + within;
     while !path.exists() {
@@ -336,6 +382,7 @@ impl Peer {
                 }
             }
             "stderr-marker" => self.stderr_marker(rest),
+            "stderr-kind" => self.log.line(&format!("stderr-kind {}", stderr_kind())),
             "stderr-flood" => {
                 let (total, after) = rest.split_once(' ').unwrap_or((rest, ""));
                 if !after.is_empty() && !wait_for_file(Path::new(after), Duration::from_secs(30)) {
