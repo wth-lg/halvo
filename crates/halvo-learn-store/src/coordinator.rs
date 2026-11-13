@@ -54,7 +54,12 @@ impl LearnHandlers {
         read: &LearnedRead,
     ) -> Result<Refinements, ErrorName> {
         let probe = RunId::from_random(self.ids.bytes());
-        let newest = agent::newest(host, &read.agent, &probe)?;
+        let Some(loaded) = agent::load(host, &read.agent, &probe)? else {
+            return Ok(Refinements {
+                refinements: Vec::new(),
+            });
+        };
+        let newest = loaded.playbook.map(|p| p.number);
         let edits = Edits::read(host.rows())?;
         let mut entries: Vec<(Refinement, String)> = Vec::new();
         for edit in edits.of_agent(&read.agent) {
