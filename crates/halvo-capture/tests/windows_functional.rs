@@ -3161,6 +3161,46 @@ fn title_len(hwnd: HWND) -> i32 {
     unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW(hwnd) }
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x15_a_held_key() {
+    with_deadline("x15", Duration::from_secs(60), || {
+        const REPEATS: u32 = 6;
+        env_report("x15");
+        source_built_by_test("x15", "keyboard");
+        let (sink, events) = capture(4096);
+        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let mut accepted = 0;
+        for _ in 0..REPEATS {
+            accepted += send(&[key_input(VK_F15, false)]);
+            std::thread::sleep(Duration::from_millis(30));
+        }
+        accepted += send(&[key_input(VK_F15, true)]);
+        let seen = events.drain_for(Duration::from_secs(1));
+        let _ = keyboard.shutdown();
+        let keystrokes = count(&seen, Modality::Keystroke);
+        say(
+            "x15",
+            format!(
+                "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} \
+                 key_up_packets=1 sendinput_events_accepted={accepted}",
+                show(&start),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            accepted,
+            REPEATS + 1,
+            "INCONCLUSIVE: SendInput did not insert every packet"
+        );
+        assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
+        let evidence: String = format!("TF x15 keystroke_events={keystrokes}");
+        println!("{evidence}");
+        assert!(keystrokes == 1, "{evidence}");
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -3320,48 +3360,6 @@ mod known_defect {
             .output()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
             .unwrap_or_default()
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x15_a_held_key() {
-        with_deadline("x15", Duration::from_secs(60), || {
-            const REPEATS: u32 = 6;
-            env_report("x15");
-            source_built_by_test("x15", "keyboard");
-            let (sink, events) = capture(4096);
-            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-            let start = keyboard.begin(SourceContext::new(sink.clone()));
-            let mut accepted = 0;
-            for _ in 0..REPEATS {
-                accepted += send(&[key_input(VK_F15, false)]);
-                std::thread::sleep(Duration::from_millis(30));
-            }
-            accepted += send(&[key_input(VK_F15, true)]);
-            let seen = events.drain_for(Duration::from_secs(1));
-            let _ = keyboard.shutdown();
-            let keystrokes = count(&seen, Modality::Keystroke);
-            say(
-                "x15",
-                format!(
-                    "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} \
-                     key_up_packets=1 sendinput_events_accepted={accepted}",
-                    show(&start),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert_eq!(
-                accepted,
-                REPEATS + 1,
-                "INCONCLUSIVE: SendInput did not insert every packet"
-            );
-            assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
-            defect!(
-                "RR-windows-16",
-                keystrokes == 1,
-                format!("TF x15 keystroke_events={keystrokes}")
-            );
-        });
     }
 
     #[test]

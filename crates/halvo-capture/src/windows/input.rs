@@ -89,6 +89,10 @@ impl Default for KeyState {
 /// The virtual-key code of a packet that names no key.
 pub(crate) const NO_KEY: u16 = 0xFF;
 
+/// Control, Alt and the Windows keys, which make a key pressed with them a
+/// shortcut; Shift does not.
+const CHORD_KEYS: [u16; 8] = [0x11, 0xA2, 0xA3, 0x12, 0xA4, 0xA5, 0x5B, 0x5C];
+
 fn is_modifier(vkey: u16) -> bool {
     matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5 | 0x5B | 0x5C)
 }
@@ -110,12 +114,25 @@ pub(crate) fn class_of(vkey: u16) -> KeyClass {
 /// The keystroke event of one keyboard packet: the class of a key-down
 /// transition, or `None` for a packet that is no event.
 pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyClass> {
-    let _ = &mut state.down;
-    if key.released || key.vkey > NO_KEY {
+    if key.vkey >= NO_KEY {
+        return None;
+    }
+    let down = &mut state.down[usize::from(key.vkey)];
+    if key.released {
+        *down = false;
+        return None;
+    }
+    if std::mem::replace(down, true) {
         return None;
     }
     if is_modifier(key.vkey) {
         return Some(KeyClass::Other);
+    }
+    if CHORD_KEYS
+        .iter()
+        .any(|&chord| state.down[usize::from(chord)])
+    {
+        return Some(KeyClass::Shortcut);
     }
     Some(class_of(key.vkey))
 }
