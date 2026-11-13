@@ -1,3 +1,4 @@
+#!/bin/sh
 # The place of a built development body of halvo-sample, and the step that makes sure it is there. Checks
 # source this file; it holds functions alone.
 
