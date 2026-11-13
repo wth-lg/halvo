@@ -96,9 +96,10 @@ fn drift_arm_prints_one_line_per_case() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let lines = stdout(&out);
     assert_eq!(lines.len(), 2);
-    assert!(lines[0].starts_with(
-        "case name=decoy-pay-1 kind=fault form=decoy arm=admit store=memory occurrences=8 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1 "
-    ), "{}", lines[0]);
+    assert_eq!(
+        lines[0],
+        "case name=decoy-pay-1 kind=fault form=decoy arm=admit store=memory occurrences=8 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1 edit_rows=8 expired_runs=6"
+    );
     assert!(
         lines[1].starts_with("case name=renamed-pay "),
         "{}",

@@ -19,10 +19,14 @@ impl GateHost {
         GateHost { store, day }
     }
 
-    /// The instant and the day of a request: noon UTC of the clock's day.
+    /// The instant and the day of a request: noon UTC of the clock's day, or the last instant that an `i64` of
+    /// nanoseconds holds for a day past it (a case's day reaches 4,294,967,295, L9.2; the handlers read the day).
     pub fn now(&self) -> Now {
+        let at = i64::from(self.day)
+            .saturating_mul(NANOS_PER_DAY)
+            .saturating_add(NANOS_PER_DAY / 2);
         Now {
-            at: Instant(i64::from(self.day) * NANOS_PER_DAY + NANOS_PER_DAY / 2),
+            at: Instant(at),
             day: self.day,
         }
     }
