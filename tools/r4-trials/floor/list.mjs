@@ -20,6 +20,20 @@ const NAME = /^[a-z0-9_]{1,32}$/;
 const VERSION = /^[0-9]+(?:\.[0-9]+){0,2}$/;
 const EVAL = /\b(?:eval|Function)\s*\(/;
 const SOURCE = /^# https:\/\/\S+.*, Safari ([0-9]+(?:\.[0-9]+){0,2}) of ([0-9]{4}-[0-9]{2}-[0-9]{2})$/;
+const LANGUAGE = new Set(['true', 'false', 'null', 'undefined', 'NaN', 'Infinity', 'typeof', 'void', 'new', 'in', 'instanceof',
+  'delete', 'function', 'return', 'var', 'let', 'const', 'if', 'else', 'this']);
+
+function isDate(day) {
+  const parsed = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === day;
+}
+
+/** Whether an expression, with its string literals taken out, names anything other than the
+ * literals and keywords of the language, so that it can be false on some page. */
+export function namesThePage(cell) {
+  const bare = cell.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, '""');
+  return (bare.match(/[A-Za-z_$][\w$]*/g) ?? []).some((word) => !LANGUAGE.has(word));
+}
 
 /** Compares two versions field by field as numbers, a missing field being 0. */
 export function compareVersions(a, b) {
@@ -33,11 +47,12 @@ export function compareVersions(a, b) {
 }
 
 /** The feature lines of the list as `{ kind, name, version, cell, line }`, with one problem per
- * line that breaks the form of I11.4: four cells separated by tabs, a name of I0.6's form used
- * once, a version, an allow line at or under the floor and a deny line above it, the comment
- * directly above naming a page and the date of the version that the line gives, an allow
- * expression that parses and calls neither eval nor Function, which the policy of the trial
- * app's pages refuses, and a deny pattern that compiles with the flags g and u. */
+ * line that breaks the form of I11.4: four cells separated by tabs, none with a space at either
+ * end, a name of I0.6's form used once, a version, an allow line at or under the floor and a deny
+ * line above it, the comment directly above naming a page and a real date of the version that the
+ * line gives, an allow expression that parses, names something of the page and calls neither eval
+ * nor Function, which the policy of the trial app's pages refuses, and a deny pattern that
+ * compiles with the flags g and u. */
 export function parseList(text) {
   const features = [];
   const problems = [];
@@ -58,6 +73,7 @@ export function parseList(text) {
       return;
     }
     const [kind, name, version, cell] = cells;
+    if (cells.some((c) => c !== c.trim())) problems.push(`${at}: a cell starts or ends with a space`);
     if (kind !== 'allow' && kind !== 'deny') problems.push(`${at}: kind ${JSON.stringify(kind)} is neither allow nor deny`);
     if (!NAME.test(name)) problems.push(`${at}: the name is not of I0.6's form`);
     else if (names.has(name)) problems.push(`${at}: the name ${name} is used twice`);
@@ -70,7 +86,7 @@ export function parseList(text) {
       problems.push(`${at}: ${name}: a deny line has the version ${version}, at or under the floor ${FLOOR}`);
     }
     const above = SOURCE.exec(lines[i - 1] ?? '');
-    if (!above) problems.push(`${at}: ${name}: the line above names no page and date of its version`);
+    if (!above || !isDate(above[2])) problems.push(`${at}: ${name}: the line above names no page and date of its version`);
     else if (above[1] !== version) problems.push(`${at}: ${name}: the comment above gives the version ${above[1]}, the line ${version}`);
     if (cell === '') problems.push(`${at}: ${name}: the fourth cell is empty`);
     if (kind === 'allow') {
@@ -80,6 +96,7 @@ export function parseList(text) {
         problems.push(`${at}: ${name}: the expression does not parse`);
       }
       if (EVAL.test(cell)) problems.push(`${at}: ${name}: the expression calls eval or Function, which the policy of the app's pages refuses`);
+      if (!namesThePage(cell)) problems.push(`${at}: ${name}: the expression names nothing of the page, so it cannot be false`);
     } else if (kind === 'deny') {
       try {
         new RegExp(cell, 'gu');
