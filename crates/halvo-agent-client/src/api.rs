@@ -131,6 +131,36 @@ pub struct RunEnd {
     pub end_run: EndRun,
 }
 
+/// How a runner's process ended, as the system gave it to the library when the library reaped it: the status that
+/// it exited with, of which 2 is a refusal (A0.3), or on macOS the signal that ended it. A runner that the library
+/// ended exits by the signal SIGKILL on macOS and with the status 1 on Windows; a runner that the system reaped for
+/// the library's process, as it does for a process that ignores SIGCHLD on macOS, leaves the library no status.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunnerExit {
+    /// The runner exited with this status.
+    Status(i32),
+    /// A signal of this number ended the runner (macOS).
+    #[cfg_attr(
+        windows,
+        expect(dead_code, reason = "no signal ends a process on Windows")
+    )]
+    Signal(i32),
+}
+
+impl RunnerExit {
+    /// Whether the runner refused: it exited with the status 2.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "RunEnd and the start's answer carry it from the unit that edits src/supervisor.rs (U4.9's report)"
+        )
+    )]
+    pub fn is_refusal(self) -> bool {
+        self == RunnerExit::Status(2)
+    }
+}
+
 /// The calls before a runner starts and after it has ended, however it ended.
 pub trait MarkSink: Send + Sync {
     fn start(&self, run: &RunId);

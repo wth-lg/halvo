@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::frame::Browser;
 use halvo_schema::executable::text::CreationTime;
 
-use crate::api::Reaped;
+use crate::api::{Reaped, RunnerExit};
 use crate::marks::{Group, Mark, ProcLine};
 use crate::sys;
 
@@ -26,6 +26,7 @@ pub(crate) struct RunProc {
     #[cfg(windows)]
     link: Option<(ChildStdin, ChildStdout)>,
     reaped: bool,
+    exit: Option<RunnerExit>,
     line: Option<ProcLine>,
     browser: Option<ProcLine>,
     #[cfg(windows)]
@@ -38,6 +39,22 @@ pub(crate) enum SpawnFailed {
     NotMade,
     /// A process was made and its line cannot be read; the caller ends it.
     Made(RunProc),
+}
+
+/// The status that the runner exited with, or the signal that ended it.
+#[cfg(target_os = "macos")]
+fn runner_exit(status: std::process::ExitStatus) -> Option<RunnerExit> {
+    use std::os::unix::process::ExitStatusExt;
+    status
+        .code()
+        .map(RunnerExit::Status)
+        .or_else(|| status.signal().map(RunnerExit::Signal))
+}
+
+/// The exit code of the runner, as the status of a C runtime reads it.
+#[cfg(windows)]
+fn runner_exit(code: u32) -> Option<RunnerExit> {
+    Some(RunnerExit::Status(i32::from_ne_bytes(code.to_ne_bytes())))
 }
 
 fn created(us: u64) -> Option<CreationTime> {
@@ -115,6 +132,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         let proc = RunProc {
             child,
             reaped: false,
+            exit: None,
             line,
             browser: None,
         };
@@ -153,6 +171,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
             child: process,
             link: Some((ChildStdin::from(stdin), ChildStdout::from(stdout))),
             reaped: false,
+            exit: None,
             line: None,
             browser: None,
             job,
@@ -264,6 +283,18 @@ impl RunProc {
         self.line
     }
 
+    /// How the runner ended, once the library has reaped it; none before, and none when the system reaped it.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "RunEnd and the start's answer carry it from the unit that edits src/supervisor.rs (U4.9's report)"
+        )
+    )]
+    pub(crate) fn exit(&self) -> Option<RunnerExit> {
+        self.exit
+    }
+
     /// The two ends of the link.
     pub(crate) fn take_link(&mut self) -> Option<(ChildStdin, ChildStdout)> {
         #[cfg(target_os = "macos")]
@@ -335,13 +366,14 @@ impl RunProc {
             sys::ChildState::Running => return false,
             sys::ChildState::Exited => {
                 self.end_own_group();
-                let _ = self.child.try_wait();
+                self.exit = self.child.try_wait().ok().flatten().and_then(runner_exit);
                 self.reaped = true;
             }
             sys::ChildState::Gone => self.reaped = true,
         }
         #[cfg(windows)]
-        if self.child.try_wait().is_some() {
+        if let Some(code) = self.child.try_wait() {
+            self.exit = runner_exit(code);
             self.reaped = true;
         }
         self.reaped
@@ -382,7 +414,14 @@ impl RunProc {
         self.end_leftovers();
         if !self.reaped {
             let _ = self.child.kill();
-            let _ = self.child.wait();
+            #[cfg(target_os = "macos")]
+            {
+                self.exit = self.child.wait().ok().and_then(runner_exit);
+            }
+            #[cfg(windows)]
+            {
+                self.exit = self.child.wait().and_then(runner_exit);
+            }
             self.reaped = true;
         }
     }
@@ -597,6 +636,102 @@ fn end_descendant(d: &sys::Info, runner_group: u32) {
         end_group(d.pid);
     } else {
         sys::kill_pid(d.pid);
+    }
+}
+
+#[cfg(test)]
+mod exit_tests {
+    use super::*;
+
+    struct Ends(RunProc);
+
+    impl Drop for Ends {
+        fn drop(&mut self) {
+            self.0.end_all();
+        }
+    }
+
+    fn started(mut cmd: Command) -> Ends {
+        match spawn(&mut cmd) {
+            Ok(p) => Ends(p),
+            Err(SpawnFailed::Made(p)) => {
+                drop(Ends(p));
+                panic!("the runner was made and its line could not be read");
+            }
+            Err(SpawnFailed::NotMade) => panic!("no runner was made"),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn exits_with_two() -> Command {
+        let mut c = Command::new("/bin/sh");
+        c.args(["-c", "exit 2"]);
+        c
+    }
+
+    #[cfg(target_os = "macos")]
+    fn waits() -> Command {
+        let mut c = Command::new("/bin/sleep");
+        c.arg("60");
+        c
+    }
+
+    #[cfg(windows)]
+    fn shell(args: &[&str]) -> Command {
+        use std::os::windows::ffi::OsStringExt;
+        let mut path = std::path::PathBuf::from(OsString::from_wide(
+            &sys::system_directory().expect("the system directory"),
+        ));
+        path.push("cmd.exe");
+        let mut c = Command::new(path);
+        c.args(args);
+        c
+    }
+
+    #[cfg(windows)]
+    fn exits_with_two() -> Command {
+        shell(&["/d", "/c", "exit 2"])
+    }
+
+    #[cfg(windows)]
+    fn waits() -> Command {
+        shell(&["/d", "/k"])
+    }
+
+    #[test]
+    fn a_runner_that_exits_with_the_status_2_gives_a_refusal_and_a_runner_that_the_library_killed_does_not(
+    ) {
+        let mut refused = started(exits_with_two());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !refused.0.exited() && Instant::now() < deadline {
+            thread::sleep(POLL);
+        }
+        assert_eq!(
+            refused.0.exit(),
+            Some(RunnerExit::Status(2)),
+            "how a runner that exited with the status 2 ended"
+        );
+        assert!(refused.0.exit().is_some_and(RunnerExit::is_refusal));
+        let mut killed = started(waits());
+        assert!(!killed.0.exited(), "the waiting runner runs");
+        killed.0.end_all();
+        let ended = killed.0.exit();
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            ended,
+            Some(RunnerExit::Signal(9)),
+            "how a runner that the library killed ended"
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            ended,
+            Some(RunnerExit::Status(1)),
+            "how a runner that the library killed ended"
+        );
+        assert!(
+            !ended.is_some_and(RunnerExit::is_refusal),
+            "a runner that the library killed reads as a refusal"
+        );
     }
 }
 
