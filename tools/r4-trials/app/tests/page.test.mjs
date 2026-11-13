@@ -130,7 +130,7 @@ test('the window event stops and starts the interval and the loop', async () => 
   page.ctx.__r4Window('show');
   assert.equal(page.intervals.size, 1);
   assert.equal(page.frames.size, 1);
-  assert.deepEqual(page.reports(), ['window shown after_hide=0 hidden_ticks=0']);
+  assert.deepEqual(page.reports(), ['window shown after_hide=0 hidden_ticks=0 hide_seen=yes']);
 });
 
 test('the button calls bump and shows its count', async () => {
@@ -192,7 +192,7 @@ test('the get way waits, stops at closed and calls again after the show', async 
   assert.deepEqual(page.reports(), [
     'sync mark=10000',
     'sync closed last=10000',
-    'window shown after_hide=0 hidden_ticks=0',
+    'window shown after_hide=0 hidden_ticks=0 hide_seen=yes',
     'sync mark=30000',
     'sync end last=30000 order=ok after_hide=0 hidden_ticks=0'
   ]);
@@ -234,7 +234,7 @@ test('a hidden page whose call never gets closed prints no closed line', async (
   pending.shift()({ seq: 3, of: 3, payload: 'x', hidden: false });
   await settle();
   assert.deepEqual(page.reports(), [
-    'window shown after_hide=2 hidden_ticks=0',
+    'window shown after_hide=2 hidden_ticks=0 hide_seen=yes',
     'sync end last=3 order=ok after_hide=2 hidden_ticks=0'
   ]);
 });
@@ -268,7 +268,8 @@ test('the channel way counts what came while hidden and a step back as a miss', 
   fn({ message: { seq: 4, of: 4 }, index: 3 });
   await settle();
   assert.deepEqual(page.reports(), [
-    'window shown after_hide=1 hidden_ticks=0',
+    'window shown after_hide=1 hidden_ticks=0 hide_seen=yes',
+    'sync order_miss seq=2 last=2',
     'sync end last=4 order=miss after_hide=1 hidden_ticks=0'
   ]);
 });
@@ -301,7 +302,7 @@ test('a change that the core sent after the hide is counted when it arrives befo
   fn({ message: { seq: 3, of: 3, hidden: false }, index: 2 });
   await settle();
   assert.deepEqual(page.reports(), [
-    'window shown after_hide=1 hidden_ticks=0',
+    'window shown after_hide=1 hidden_ticks=0 hide_seen=yes',
     'sync end last=3 order=ok after_hide=1 hidden_ticks=0'
   ]);
 });
@@ -332,7 +333,7 @@ test('ticks after the page became hidden count as hidden ticks before the window
   page.callbacks.get(id)({ message: { seq: 2, of: 2 }, index: 1 });
   await settle();
   assert.deepEqual(page.reports(), [
-    'window shown after_hide=1 hidden_ticks=3',
+    'window shown after_hide=1 hidden_ticks=3 hide_seen=yes',
     'sync end last=2 order=ok after_hide=1 hidden_ticks=3'
   ]);
 });
@@ -348,7 +349,7 @@ test('a page hidden without the window event counts its ticks as hidden', async 
   page.ctx.__r4AppCounts(1);
   assert.deepEqual(page.named('counts').at(-1).args, { token: 1, ticks: 6, frames: 0 });
   page.ctx.__r4Window('show');
-  assert.deepEqual(page.reports(), ['window shown after_hide=0 hidden_ticks=5']);
+  assert.deepEqual(page.reports(), ['window shown after_hide=0 hidden_ticks=5 hide_seen=no']);
 });
 
 test('a change after the end line is reported with the order', async () => {
@@ -361,6 +362,53 @@ test('a change after the end line is reported with the order', async () => {
   await settle();
   assert.deepEqual(page.reports(), [
     'sync end last=2 order=ok after_hide=0 hidden_ticks=0',
+    'sync order_miss seq=1 last=2',
     'sync after_end seq=1 last=2 order=miss'
+  ]);
+});
+
+test('a way that gets no change for 150 ticks of a shown page reports where it stands, once per stall', async () => {
+  const page = makePage({ config: { sync: 'channel' }, subscribe: null });
+  page.load();
+  await settle();
+  const fn = page.callbacks.get(Number(page.named('subscribe')[0].args.channel.slice('__CHANNEL__:'.length)));
+  fn({ message: { seq: 1, of: 4, hidden: false }, index: 0 });
+  page.tick(149);
+  await settle();
+  assert.deepEqual(page.reports(), []);
+  page.tick(1);
+  await settle();
+  assert.deepEqual(page.reports(), ['sync stalled last=1 order=ok after_hide=0 hidden_ticks=0']);
+  page.tick(300);
+  fn({ message: { seq: 3, of: 4, hidden: false }, index: 1 });
+  page.tick(150);
+  await settle();
+  assert.deepEqual(page.reports().slice(1), ['sync stalled last=3 order=ok after_hide=0 hidden_ticks=0']);
+  fn({ message: { seq: 4, of: 4, hidden: false }, index: 2 });
+  page.tick(400);
+  await settle();
+  assert.deepEqual(page.reports().slice(2), ['sync end last=4 order=ok after_hide=0 hidden_ticks=0']);
+});
+
+test('a page without a sync way reports no stall', async () => {
+  const page = makePage({ config: { sync: null } });
+  page.load();
+  await settle();
+  page.tick(400);
+  await settle();
+  assert.deepEqual(page.reports(), []);
+});
+
+test('the show line says whether the page saw the hide', async () => {
+  const page = makePage({ config: { sync: 'channel' }, subscribe: null });
+  page.load();
+  await settle();
+  page.ctx.__r4Window('show');
+  page.ctx.__r4Window('hide');
+  page.ctx.__r4Window('show');
+  await settle();
+  assert.deepEqual(page.reports(), [
+    'window shown after_hide=0 hidden_ticks=0 hide_seen=no',
+    'window shown after_hide=0 hidden_ticks=0 hide_seen=yes'
   ]);
 });

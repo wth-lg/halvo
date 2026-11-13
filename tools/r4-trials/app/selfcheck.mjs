@@ -18,6 +18,9 @@ import { countAlive, readTree, readWindowMatch } from './system/system.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+/** The readers of the system that the self-check uses where it is handed none. */
+export const SYSTEM_READERS = Object.freeze({ window: readWindowMatch, tree: readTree, alive: countAlive });
+
 export const ARMS = ['main', 'a', 'a2', 'b'];
 export const WAYS = ['get', 'channel', 'events'];
 export const SYSTEM = process.platform === 'win32' ? 'windows' : 'macos';
@@ -140,9 +143,11 @@ export function armLine(arm, keys) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Starts the app with `args` and waits for its port line. */
+/** Starts the app with `args` and waits for its port line; a `bin` that ends in `.mjs` runs under
+ * this Node. */
 export async function launch(bin, args) {
-  const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
+  const [command, first] = bin.endsWith('.mjs') ? [process.execPath, [bin]] : [bin, []];
+  const child = spawn(command, [...first, ...args], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
   const app = { child, pid: child.pid, lines: [], firstLine: null, port: null, exitCode: undefined, waiters: [] };
   let buffer = '';
   child.stdout.setEncoding('utf8');
@@ -296,7 +301,8 @@ function words(result) {
   return result.answer;
 }
 
-async function windowRun(options, arm, pages) {
+/** The keys of the window run of `arm`, read through `readers` (`SYSTEM_READERS` or a stand-in). */
+export async function windowRun(options, arm, pages, readers = SYSTEM_READERS) {
   const keys = {
     show: 'miss',
     hide: arm === 'b' ? '-' : 'miss',
@@ -324,7 +330,7 @@ async function windowRun(options, arm, pages) {
       let tries = 0;
       while (tries < READ_TRIES) {
         tries += 1;
-        ({ state, by } = readWindowMatch(app.pid));
+        ({ state, by } = readers.window(app.pid));
         if (state === expected) break;
         await sleep(READ_EVERY_MS);
       }
@@ -336,7 +342,7 @@ async function windowRun(options, arm, pages) {
     const firstMs = Number(first.parsed?.pairs.show_ms);
     shows.push(/^control port=\d+$/.test(app.firstLine ?? '') && first.ms <= firstMs + 1500);
     shows.push(stepKey('show', first.answer, await look('onscreen')) === 'ok');
-    const tree = readTree(app.pid);
+    const tree = readers.tree(app.pid);
     trace(`read=tree count=${tree.count} webview=${tree.webview}`);
     const s1 = (await send('sample')).parsed;
     keys.pid = s1?.word === 'ok' && Number(s1.pairs.pid) === app.pid ? 'ok' : 'miss';
@@ -375,7 +381,7 @@ async function windowRun(options, arm, pages) {
     keys.show = shows.every(Boolean) ? 'ok' : 'miss';
     await sleep(500);
     keys.quiet = quietKey(arm, SYSTEM, app.lines, { made: arm === 'a2' ? 1 : 0, hides, shows: 3 });
-    const atQuit = readTree(app.pid);
+    const atQuit = readers.tree(app.pid);
     trace(`read=tree count=${atQuit.count} webview=${atQuit.webview}`);
     const procs = [...tree.procs, ...atQuit.procs.filter((p) => !tree.procs.some((q) => q.pid === p.pid && q.start === p.start))];
     const quit = await send('quit');
@@ -384,7 +390,7 @@ async function windowRun(options, arm, pages) {
     let alive = -1;
     while (Date.now() < deadline) {
       exited = app.exitCode !== undefined;
-      alive = countAlive(procs);
+      alive = readers.alive(procs);
       if (exited && alive === 0) break;
       await sleep(250);
     }
