@@ -2924,6 +2924,11 @@ mod tests {
         let mut paused = sample_status(Platform::Macos).into_fields();
         paused.capture = Capture::AwaitingResume;
         paused.desired = crate::model::CaptureState::Paused;
+        for line in &mut paused.sources {
+            if line.state == SourceState::Running {
+                line.state = SourceState::Stopped { by_user: false };
+            }
+        }
         assert!(
             DaemonStatus::new(paused).is_err(),
             "awaiting_resume says that desired is running"
