@@ -281,7 +281,6 @@ fn a_mutation_in_flight_answers_busy_as_an_action_error() {
 
 type Answer = fn() -> ClientError;
 
-/// A connector whose every connect answers what `answer` makes.
 #[derive(Clone)]
 struct Answering(Answer);
 

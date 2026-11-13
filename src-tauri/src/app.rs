@@ -27,7 +27,6 @@ pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.wind
 /// that the engine runs it.
 pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
 
-/// The install of the tray item, which only `tray::install` performs in a shipped build.
 pub type TrayInstall<R> = fn(&AppHandle<R>) -> tauri::Result<TrayInstalled>;
 
 pub struct Parts<R: Runtime> {

@@ -9,11 +9,8 @@ use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
 
-/// How many calls of the client are in flight at a time, whoever sends them.
 pub const PLACES: usize = 4;
 
-/// The bytes that the replies of the calls in flight can hold at most: one reply of at most
-/// `wire::REPLY_MAX_BYTES` for each place (docs/baseline/ledger.d/app-2.txt).
 #[cfg(test)]
 pub const REPLY_BYTES_IN_FLIGHT: usize = PLACES * halvo_control::wire::REPLY_MAX_BYTES;
 
@@ -24,16 +21,12 @@ struct Line {
     in_flight: usize,
 }
 
-/// The places of the client's calls: a call waits for a free place in the order in which the
-/// calls were made.
 #[derive(Debug, Default)]
 pub struct Places {
     line: Mutex<Line>,
     turn: Condvar,
 }
 
-/// A call as it was made: its number in the order of the calls and the instant at which its
-/// deadline starts. Dropped before it enters, it leaves the line.
 #[derive(Debug)]
 pub struct Made {
     places: Arc<Places>,
@@ -42,7 +35,6 @@ pub struct Made {
     entered: bool,
 }
 
-/// A place that a call holds until it is dropped.
 #[derive(Debug)]
 pub struct Place {
     places: Arc<Places>,
@@ -53,7 +45,6 @@ impl Places {
         self.line.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Makes a call: it takes the next number and joins the line now.
     pub fn make(self: &Arc<Self>) -> Made {
         let mut line = self.line();
         let number = line.next;
@@ -67,7 +58,6 @@ impl Places {
         }
     }
 
-    /// The number that the next call made will take.
     pub fn next_number(&self) -> u64 {
         self.line().next
     }
@@ -102,7 +92,6 @@ impl Made {
         self.number
     }
 
-    /// Waits for a place until `until` and takes it when this call is first in the line.
     fn enter(mut self, until: Instant) -> Option<Place> {
         let places = Arc::clone(&self.places);
         let mut line = places.line();
@@ -142,8 +131,6 @@ impl Drop for Place {
     }
 }
 
-/// The calls that the app makes of the capture service. Each call carries the moment it was
-/// made, from which its deadline runs.
 pub trait Control: Send + Sync {
     fn places(&self) -> &Arc<Places>;
     fn status(&self, made: Made, claim: bool) -> Result<DaemonStatus, ClientError>;
@@ -159,7 +146,6 @@ pub trait Control: Send + Sync {
     ) -> Result<RequestOutcome, ClientError>;
 }
 
-/// The deadlines of one call: `left` for each request.
 fn every(left: Duration) -> Deadlines {
     Deadlines {
         read: left,
@@ -173,7 +159,6 @@ fn every(left: Duration) -> Deadlines {
     }
 }
 
-/// The client of protocol v1 behind the places.
 #[derive(Debug)]
 pub struct Gated<C> {
     connector: C,
@@ -264,8 +249,6 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
     }
 }
 
-/// The connector of an app whose data directory or control endpoint could not be resolved:
-/// every call fails as a channel that failed.
 #[derive(Debug, Clone, Copy)]
 pub struct Unresolved;
 
@@ -283,8 +266,6 @@ impl Connector for Unresolved {
     }
 }
 
-/// The control of the data directory that `resolve` gives, or of none when it fails. It
-/// cannot fail itself.
 pub fn control_of<E>(
     resolve: impl FnOnce() -> Result<halvo_control::paths::DataDir, E>,
 ) -> (Arc<dyn Control>, Option<halvo_control::paths::DataDir>) {

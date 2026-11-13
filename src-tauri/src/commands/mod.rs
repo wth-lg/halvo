@@ -17,12 +17,9 @@ use crate::view_state::Status;
 
 use names::Names;
 
-/// A module's registration (contracts.md C10.1). Each call has an empty default, and the app
-/// makes it for every module of the list; a call does not wait.
 pub trait Registration: Send + Sync {
     fn names(&self) -> &'static Names;
 
-    /// Made once in every pass of the poller, also a pass whose service gave no status.
     fn on_status(&self, _status: &Status) {}
 }
 

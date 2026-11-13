@@ -91,14 +91,12 @@
     return w.ERROR_OTHER;
   }
 
-  /** The action channel: an error stays until the next action clears it or the person dismisses it. It shows only the page's own words. */
   Halvo.showError = function (e) {
     var text = wordsOf(e);
     document.getElementById("error").textContent = text;
     document.getElementById("dismiss-error").classList.toggle("hidden", text === "");
   };
 
-  /** The poll's channel: the line that the last read of the status sets or clears. */
   Halvo.showConnection = function (text) {
     document.getElementById("connection").textContent = text || "";
   };

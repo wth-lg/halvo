@@ -9,11 +9,6 @@ pub fn engine_allows(address: &str) -> bool {
     crate::app::may_navigate(address)
 }
 
-/// Puts `engine_allows` in front of every navigation of the window's engine: a handler of
-/// the start of a navigation and of a frame's navigation on Windows, and on macOS a navigation
-/// delegate, which WebKit asks for every frame, that decides first
-/// and hands every other call to the delegate of the runtime. A window whose engine cannot be
-/// reached is reported on stderr and keeps the runtime's rule.
 pub fn guard<R: Runtime>(window: &WebviewWindow<R>) {
     let installed = window.with_webview(|webview| {
         if let Err(e) = platform::install(&webview) {
@@ -44,7 +39,6 @@ mod platform {
             // take_pwstr takes over and frees.
             unsafe { args.Uri(&mut uri) }?;
             if !super::engine_allows(&take_pwstr(uri)) {
-                // SAFETY: SetCancel sets a flag of the event's arguments during the event.
                 unsafe { args.SetCancel(true) }?;
             }
             Ok(())
@@ -92,8 +86,6 @@ mod platform {
                 action: &WKNavigationAction,
                 handler: &Block<dyn Fn(WKNavigationActionPolicy)>,
             ) {
-                // SAFETY: the action and its request are the engine's for the duration of
-                // this call.
                 let address = unsafe { action.request() }
                     .URL()
                     .and_then(|url| url.absoluteString())
@@ -138,10 +130,8 @@ mod platform {
         // SAFETY: the runtime hands the pointer of its WKWebView, alive while the closure of
         // with_webview runs on the main thread.
         let view = unsafe { pointer.as_ref() }.ok_or("no web view")?;
-        // SAFETY: a property read of the web view on the main thread.
         let inner = unsafe { view.navigationDelegate() }.ok_or("no navigation delegate")?;
         let guard = Guard::alloc(mtm).set_ivars(Ivars { inner });
-        // SAFETY: init of NSObject on an allocated instance of a subclass with its ivars set.
         let guard: Retained<Guard> = unsafe { msg_send![super(guard), init] };
         // SAFETY: a property write of the web view on the main thread; the delegate is weak,
         // so the guard is kept for the life of the process below.
@@ -162,7 +152,6 @@ mod platform {
 mod tests {
     use super::*;
 
-    /// A file of src-tauri/src, read when the test runs, with its line ends made LF.
     fn source(name: &str) -> String {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src")

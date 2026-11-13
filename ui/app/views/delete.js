@@ -34,7 +34,6 @@
     if (armedAt !== null) pressed = true;
   }
 
-  /** Whether the page offers Delete everything for a view (contracts.md C10.2). */
   function offered(s) {
     if (!s || s.service !== "running" || !s.store) return false;
     var store = s.store;

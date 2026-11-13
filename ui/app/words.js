@@ -2,7 +2,6 @@
   "use strict";
   var Halvo = window.Halvo || (window.Halvo = {});
 
-  /** Every sentence that the page shows, once. The ones marked I-73 and I-77 are the owner's proposals of those entries, word for word. */
   Halvo.words = {
     CONNECTING: "Connecting to Halvo's capture service",
     NOT_RUNNING: "Capture service not running",
@@ -100,7 +99,6 @@
     DISMISS: "Dismiss",
   };
 
-  /** The words of an error that a command returned: an object with the key error, by its value alone. */
   Halvo.errorWords = function (e) {
     var w = Halvo.words;
     var code = e && typeof e === "object" ? e.error : null;

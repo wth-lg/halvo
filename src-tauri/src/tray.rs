@@ -12,8 +12,6 @@ const TOGGLE_ID: &str = "toggle-capture";
 const OPEN_ID: &str = "open-data-view";
 const QUIT_ID: &str = "quit";
 
-/// The proof that the tray item is installed; only `install` makes one. The poller claims
-/// the indicator only while it holds one.
 #[derive(Debug)]
 pub struct TrayInstalled(());
 
@@ -44,8 +42,6 @@ fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -
     }
 }
 
-/// The tray's texts for a view: the heading follows `capture`, the toggle follows `desired`,
-/// and no value reads as capturing or paused unless the status says so.
 pub fn labels(view: &StatusView) -> TrayLabels {
     let mut labels = match (view.service, view.capture) {
         (Service::Connecting, _) => line(
@@ -120,7 +116,6 @@ pub fn labels(view: &StatusView) -> TrayLabels {
     labels
 }
 
-/// Installs the tray item with the texts of the view that stands now.
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
     let initial = labels(&app.state::<AppState>().views.view());
     let status_item = MenuItem::with_id(app, "status", initial.status_text, false, None::<&str>)?;

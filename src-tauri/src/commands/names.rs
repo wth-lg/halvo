@@ -3,8 +3,7 @@ pub struct Names {
     pub module: &'static str,
     pub commands: &'static [&'static str],
     /// The commands that the page calls at load and whose replies
-    /// `--check-page` waits for. None of them writes: each reads the view that
-    /// the poller holds or asks the capture service.
+    /// `--check-page` waits for.
     pub reads: &'static [&'static str],
 }
 

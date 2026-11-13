@@ -21,7 +21,6 @@ pub fn reads() -> Vec<&'static str> {
         .collect()
 }
 
-/// The services that the page can show once a status has been read.
 pub const SERVICES: [&str; 6] = [
     "running",
     "not_running",
@@ -32,8 +31,7 @@ pub const SERVICES: [&str; 6] = [
 ];
 
 /// The line that the check prints for `seen`, the JSON text of the probe's
-/// string, or None while the page lacks the reply of a read command, shows
-/// another version than `version`, or shows no service that a status was read for.
+/// string.
 pub fn line(seen: &str, version: &str) -> Option<String> {
     let text = seen.strip_prefix('"')?.strip_suffix('"')?;
     let (shown, rest) = text.strip_prefix("version=")?.split_once(" service=")?;

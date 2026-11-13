@@ -24,8 +24,6 @@ fn error(kind: &str, stage: &str, domain: &str, code: i64) -> SourceError {
     }
 }
 
-/// The macOS sample status of halvo-control with `edit` applied; the onboarding object
-/// follows the permission lines.
 pub fn status_with(platform: Platform, edit: impl FnOnce(&mut StatusFields)) -> DaemonStatus {
     let mut f = sample_status(platform).into_fields();
     edit(&mut f);
@@ -87,8 +85,6 @@ fn timeout_record(f: &mut StatusFields) {
     }];
 }
 
-/// One view for each state of the service, of capture and of the store that the page draws,
-/// with the name of its fixture `capture_status-<name>.json`.
 pub fn states() -> Vec<(&'static str, StatusView)> {
     let mac = Platform::Macos;
     let of = |status: DaemonStatus| StatusView::of(&status);

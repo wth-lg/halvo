@@ -18,7 +18,6 @@ use crate::view_state::{
     DeleteView, InventoryView, StatusView,
 };
 
-/// What the commands share: the control of the capture service and the newest view.
 pub struct AppState {
     pub control: Arc<dyn Control>,
     pub views: Arc<Views>,
@@ -28,8 +27,6 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// The state of an app whose data directory `resolve` gives; a directory that cannot be
-    /// resolved is a channel that fails at each call, never an error here.
     pub fn new<E>(
         resolve: impl FnOnce() -> Result<DataDir, E>,
         open_pane: fn(Permission) -> Result<(), String>,
@@ -53,7 +50,6 @@ impl AppState {
     }
 }
 
-/// The capture module's registration, with the defaults of each call.
 pub struct Capture;
 
 impl Registration for Capture {
@@ -126,8 +122,6 @@ pub async fn set_capture_state<R: Runtime>(
     Ok(CaptureSet { view, reached })
 }
 
-/// Whether a reply to a pause or a resume is a change that holds: the verb's end is reached
-/// and the state file was written (contracts.md C2.5).
 pub fn holds(change: CaptureChange, status: &DaemonStatus) -> bool {
     reaches_the_end(change, status) && status.fields().state_file == StateFile::Ok
 }

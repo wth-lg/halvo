@@ -51,12 +51,10 @@
     window_title: "Window titles",
   };
 
-  /** The service that the page shows, which --check-page reads. */
   Halvo.service = function () {
     return shownService;
   };
 
-  /** Takes the view of a mutation's reply: every status read sent before it is dropped when it arrives. */
   Halvo.mutated = function (view) {
     droppedBefore = sent;
     status.set(view);

@@ -54,8 +54,6 @@ fn no_pane(_permission: Permission) -> Result<(), String> {
     Ok(())
 }
 
-/// The daemon of the fixtures: the macOS sample status of halvo-control, with gate-2's
-/// inventory, on both systems.
 pub fn fixture_daemon() -> ScriptedDaemon {
     let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
     daemon.set_inventory(sample_inventory(Vec::new()));
@@ -85,13 +83,11 @@ pub struct TestApp {
 }
 
 impl TestApp {
-    /// Runs one pass of the poller, as the app does every 3 s.
     pub fn poll(&self) -> crate::view_state::StatusView {
         let state = self.app.state::<AppState>();
         poller::pass(state.control.as_ref(), &state.views, None)
     }
 
-    /// The requests that reached the scripted daemon and that remove something.
     pub fn deleting_requests(&self) -> usize {
         self.daemon
             .requests()
@@ -182,8 +178,6 @@ fn calls() -> Vec<Call> {
         .expect("calls.json lists calls")
 }
 
-/// Runs calls.json in its order against one app and one scripted daemon, with a pass of the
-/// poller before each call, and gives each reply with the fixture that it names.
 fn replies_of_calls() -> Vec<(String, Result<Value, Value>)> {
     let test = test_app(scratch_dir("fixtures"));
     let window = main_window(&test.app);

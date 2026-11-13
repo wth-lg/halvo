@@ -6,10 +6,7 @@ use halvo_control::client::{ClientError, Connector, NoTransport};
 
 use super::control::{Control, Gated, PLACES, REPLY_BYTES_IN_FLIGHT};
 
-/// How long a test waits for a thread to reach a step before it fails; a step that comes
-/// sooner ends the wait.
 const BOUND: Duration = Duration::from_secs(20);
-/// How long a test waits for a step that must not come.
 const MARGIN: Duration = Duration::from_millis(300);
 
 #[derive(Debug, Default)]
@@ -18,8 +15,6 @@ struct Gate {
     released: usize,
 }
 
-/// A connector whose connect holds its call's place until the test releases it, and records
-/// the name of the thread of each call in the order of the connects.
 #[derive(Debug, Clone, Default)]
 struct Held {
     gate: Arc<(Mutex<Gate>, Condvar)>,
@@ -39,7 +34,6 @@ impl Held {
         self.gate.1.notify_all();
     }
 
-    /// Waits up to `limit` until `n` calls have connected; returns whether they had.
     fn wait_for_connects(&self, n: usize, limit: Duration) -> bool {
         let until = Instant::now() + limit;
         let mut gate = self.gate();
@@ -218,7 +212,6 @@ fn the_ledger_line_of_the_unit_states_the_bytes_of_the_replies_in_flight() {
     );
 }
 
-/// A connector that records the timeout of each connect and answers at once.
 #[derive(Debug, Clone, Default)]
 struct Timeouts(Arc<Mutex<Vec<Duration>>>);
 

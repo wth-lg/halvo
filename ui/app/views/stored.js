@@ -115,7 +115,6 @@
     );
   }
 
-  /** The local time at which a UTC day starts on this computer's clock. */
   function dayStart() {
     var offset = new Date(0).getTimezoneOffset();
     var minutes = (((-offset) % 1440) + 1440) % 1440;
@@ -128,7 +127,6 @@
     return Halvo.ipc.call("inventory").then(inventory.set).catch(Halvo.showError);
   }
 
-  /** Clears the rows and the totals after a delete, whatever the next read answers. */
   Halvo.clearStored = function () {
     lastInventory = null;
     body.replaceChildren();

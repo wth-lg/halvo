@@ -8,7 +8,6 @@ use halvo_control::proto::{
 use halvo_control::texts::{texts, Texts};
 use serde::Serialize;
 
-/// What the app knows of the capture service (contracts.md C10.2 `service`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Service {
@@ -68,8 +67,6 @@ pub struct SourceView {
     pub error: Option<String>,
 }
 
-/// The view of the capture service (contracts.md C10.2). With any `service` but `running`
-/// every field that the daemon reports is null.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StatusView {
     pub service: Service,
@@ -95,7 +92,6 @@ pub struct StatusView {
     pub ext: Option<Vec<Section>>,
 }
 
-/// The name by which a module's registration receives the view (contracts.md C10.1).
 pub type Status = StatusView;
 
 pub const APP_PLATFORM: Platform = if cfg!(windows) {
@@ -105,7 +101,6 @@ pub const APP_PLATFORM: Platform = if cfg!(windows) {
 };
 
 impl StatusView {
-    /// The view of a service that gave no status: every daemon field null.
     pub fn without_status(service: Service) -> Self {
         StatusView {
             service,
@@ -132,7 +127,6 @@ impl StatusView {
         }
     }
 
-    /// The view of a status that the daemon reported.
     pub fn of(status: &DaemonStatus) -> Self {
         let f = status.fields();
         StatusView {
@@ -202,8 +196,6 @@ impl StatusView {
     }
 }
 
-/// An error of a command that the page words itself (contracts.md C10.1: a bad argument,
-/// `busy`, a deadline, or a reply that the app cannot use).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "error", rename_all = "snake_case")]
 pub enum ActionError {
@@ -232,16 +224,12 @@ impl ActionError {
     }
 }
 
-/// How the app reads an error of the client: the service that the view shows for it when a
-/// status was asked, and the action error that a command returns for it, if any.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
     pub service: Service,
     pub action: Option<ActionError>,
 }
 
-/// The one reading of the client's errors. Each variant has its own arm, so a new variant of
-/// `ClientError` or of `ErrorCode` is an arm that the compiler asks for.
 pub fn read_error(error: &ClientError) -> Reading {
     let (service, action) = match error {
         ClientError::Unsupported => (Service::Unsupported, None),
@@ -287,7 +275,6 @@ pub fn read_error(error: &ClientError) -> Reading {
     Reading { service, action }
 }
 
-/// The view for the answer to a status request.
 pub fn view_of(answer: &Result<DaemonStatus, ClientError>) -> StatusView {
     match answer {
         Ok(status) => StatusView::of(status),
@@ -295,8 +282,6 @@ pub fn view_of(answer: &Result<DaemonStatus, ClientError>) -> StatusView {
     }
 }
 
-/// The view that a command returns for the answer to a request whose reply carries a status:
-/// a state of the service is a view, and an action error is the command's error.
 pub fn command_view(answer: Result<DaemonStatus, ClientError>) -> Result<StatusView, ActionError> {
     match answer {
         Ok(status) => Ok(StatusView::of(&status)),
@@ -310,8 +295,6 @@ pub fn command_view(answer: Result<DaemonStatus, ClientError>) -> Result<StatusV
     }
 }
 
-/// The reply of `set_capture_state` (contracts.md C10.4): the view of the reply, and whether
-/// the reply reached the end of the verb by `proto::reaches_the_end`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CaptureSet {
     #[serde(flatten)]
@@ -319,7 +302,6 @@ pub struct CaptureSet {
     pub reached: bool,
 }
 
-/// The reply of `set_storage_cap` (contracts.md C10.4).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CapSetView {
     #[serde(flatten)]
@@ -342,7 +324,6 @@ pub struct TotalsView {
     pub disk_bytes: u64,
 }
 
-/// The reply of `inventory` (contracts.md C10.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct InventoryView {
     pub available: bool,
@@ -395,8 +376,6 @@ impl InventoryView {
     }
 }
 
-/// The view of an inventory answer: a store that is not open, and a service that does not
-/// answer, read as not available; an action error stays the command's error.
 pub fn inventory_view(
     answer: Result<InventoryReply, ClientError>,
 ) -> Result<InventoryView, ActionError> {
@@ -409,7 +388,6 @@ pub fn inventory_view(
     }
 }
 
-/// The reply of `delete_all` (contracts.md C10.5).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum DeleteView {
@@ -433,14 +411,10 @@ pub enum DeleteView {
     DeleteRefused,
 }
 
-/// Whether a delete left nothing: the root is destroyed and the delete followed nothing
-/// (ruling ST-30 (2)(e), (2)(f)).
 pub fn left_nothing(report: &DeleteFields) -> bool {
     report.root_destroyed == RootDestroyed::Yes && report.not_followed == 0
 }
 
-/// The command that removes the root file that a delete left, for the root of `root_id`
-/// under `roots_dir`.
 pub fn cleanup_command(roots_dir: &std::path::Path, root_id: StoreId) -> String {
     let file = roots_dir.join(format!("{root_id}.{}", halvo_control::paths::ROOT_FILE_EXT));
     let text = file.display().to_string();
@@ -482,8 +456,6 @@ impl DeleteView {
     }
 }
 
-/// The view of a delete answer: a service that does not answer is the command's error, and
-/// never a delete that is done.
 pub fn delete_view(
     answer: Result<DeleteOutcome, ClientError>,
     roots_dir: Option<&std::path::Path>,
