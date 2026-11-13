@@ -126,12 +126,9 @@ pub fn guard_main(argv: &[String]) -> i32 {
                     procs::ask_end(p)
                 }
             },
-            record: &mut |ms, asked, forced| {
+            record: &mut |act| {
                 if let Some(r) = &record {
-                    let _ = std::fs::write(
-                        r,
-                        format!("ended_by=guard ms={ms} asked={asked} forced={forced}\n"),
-                    );
+                    let _ = std::fs::write(r, act.line() + "\n");
                 }
             },
         },
@@ -159,7 +156,38 @@ pub struct GuardIo<'a> {
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(bool),
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
-    pub record: &'a mut dyn FnMut(u128, usize, usize),
+    pub record: &'a mut dyn FnMut(&GuardAct),
+}
+
+/// What the guard did after its executor was gone, recorded once when it read the tree gone.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GuardAct {
+    /// Milliseconds from the read of the executor gone to the read of the tree gone.
+    pub ms: u128,
+    pub asked: usize,
+    pub forced: usize,
+    /// Whether the browser's first process was among the processes that it asked or forced.
+    pub first: bool,
+    /// The file names of the programs of the processes that it asked or forced.
+    pub programs: Vec<String>,
+}
+
+impl GuardAct {
+    /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..`.
+    pub fn line(&self) -> String {
+        format!(
+            "ended_by=guard ms={} asked={} forced={} first={} programs={}",
+            self.ms,
+            self.asked,
+            self.forced,
+            if self.first { "yes" } else { "no" },
+            if self.programs.is_empty() {
+                "-".to_string()
+            } else {
+                self.programs.join(",")
+            }
+        )
+    }
 }
 
 /// The guard's loop. It keeps the relay's port while a process of the browser's tree runs. A table
@@ -186,6 +214,7 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
     let mut asked_at: Option<u128> = None;
     let (mut asked, mut forced) = (0usize, 0usize);
     let (mut acted, mut recorded) = (false, false);
+    let mut act = GuardAct::default();
     let mut gone_at: Option<u128> = None;
     loop {
         let Some(table) = read() else {
@@ -228,11 +257,10 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
         let now = now_ms();
         if root.is_none() && members.is_empty() {
             if acted && !recorded {
-                record(
-                    now.saturating_sub(executor_gone_at.unwrap_or(now)),
-                    asked,
-                    forced,
-                );
+                act.ms = now.saturating_sub(executor_gone_at.unwrap_or(now));
+                act.asked = asked;
+                act.forced = forced;
+                record(&act);
                 recorded = true;
             }
             let since = *gone_at.get_or_insert(now);
@@ -257,6 +285,7 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
                             if end(p, false) {
                                 asked += 1;
                             }
+                            note(&mut act, p, pid, started_us);
                         }
                         // a process that cannot be asked (Windows) is ended by force after the wait
                         acted = true;
@@ -267,6 +296,7 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
                             if end(p, true) {
                                 forced += 1;
                             }
+                            note(&mut act, p, pid, started_us);
                         }
                     }
                     Some(_) => {}
@@ -274,6 +304,20 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
             }
         }
         pause(false);
+    }
+}
+
+/// Notes in the guard's record a process that it asked or forced: its program's file name, and
+/// whether it is the browser's first process.
+fn note(act: &mut GuardAct, p: &Proc, pid: u32, started_us: u64) {
+    act.first |= p.pid == pid && p.started_us == started_us;
+    let name = p
+        .exe
+        .as_ref()
+        .and_then(|e| e.file_name())
+        .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"));
+    if !act.programs.contains(&name) {
+        act.programs.push(name);
     }
 }
 
@@ -897,7 +941,7 @@ mod tests {
                     ends.borrow_mut().push((p.pid, force, clock.get()));
                     true
                 },
-                record: &mut |ms, a, f| record = Some((ms, a, f)),
+                record: &mut |act| record = Some((act.ms, act.asked, act.forced)),
             },
         );
         (code, clock.get(), ends.into_inner(), record)
@@ -958,22 +1002,19 @@ mod tests {
             .iter()
             .find(|e| e.1)
             .expect("the guard ended the browser by force");
-        assert!(
-            asked.2 >= 1_000 + GRACE.as_millis(),
-            "asked at {} ms",
-            asked.2
-        );
-        assert!(
-            forced.2 >= asked.2 + TERM_WAIT.as_millis(),
-            "forced at {} ms",
-            forced.2
-        );
-        assert!(
-            at >= forced.2 + PORT_MARGIN.as_millis(),
-            "the port freed at {at} ms"
-        );
+        assert!(asked.2 >= 1_000 + 3_000, "asked at {} ms", asked.2);
+        assert!(forced.2 >= asked.2 + 2_000, "forced at {} ms", forced.2);
+        assert!(at >= forced.2 + 1_000, "the port freed at {at} ms");
         let (ms, a, f) = record.expect("the guard recorded its act");
-        assert!(ms >= GRACE.as_millis() && a == 1 && f == 1, "{ms} {a} {f}");
+        assert!(ms >= 3_000 && a == 1 && f == 1, "{ms} {a} {f}");
+        assert_eq!(
+            (GRACE, TERM_WAIT, PORT_MARGIN),
+            (
+                Duration::from_millis(3_000),
+                Duration::from_millis(2_000),
+                Duration::from_millis(1_000)
+            )
+        );
     }
 
     /// CP-148: a browser that ends by itself inside the grace is left to itself.
@@ -981,7 +1022,7 @@ mod tests {
     fn a_browser_that_ends_inside_the_grace_is_left_to_itself() {
         let (code, _, ends, record) = run_guard(Some((5, 50)), 10, &|t, _| {
             let mut v = Vec::new();
-            if t < 1_000 + GRACE.as_millis() - 500 {
+            if t < 1_000 + 2_500 {
                 v.push(row(999_999, 7));
             }
             if t < 1_000 {
@@ -1088,7 +1129,7 @@ mod tests {
                         procs::ask_end(p)
                     }
                 },
-                record: &mut |ms, a, f| record = Some((ms, a, f)),
+                record: &mut |act| record = Some(act.clone()),
             },
         );
         let took = start.elapsed();
@@ -1102,7 +1143,12 @@ mod tests {
         assert!(took < Duration::from_secs(20), "returned after {took:?}");
         assert!(!procs::running(&b), "the stand-in browser still runs");
         assert!(!status.success(), "{status:?}");
-        assert!(record.is_some());
+        let act = record.expect("the guard recorded its act");
+        assert!(
+            act.first,
+            "the guard did not name the stand-in browser: {act:?}"
+        );
+        assert_eq!(act.programs, ["sleep"]);
     }
 
     #[test]

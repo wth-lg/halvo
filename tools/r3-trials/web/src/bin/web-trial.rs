@@ -3810,12 +3810,21 @@ mod driver {
         // directory), the browser by itself, or the row at the cap
         let ended_by =
             match std::fs::read_to_string(Path::new(&temp).join(r3_web::cdp::GUARD_RECORD)) {
-                Ok(r) => format!(
-                    "guard ended_ms={}",
-                    r.split_whitespace()
-                        .find_map(|w| w.strip_prefix("ms="))
-                        .unwrap_or("-")
-                ),
+                // the guard ended the browser when its first process was among what it ended;
+                // else the browser ended by itself and the guard ended other processes of its tree
+                Ok(r) => {
+                    let key = |k: &str| {
+                        r.split_whitespace()
+                            .find_map(|w| w.strip_prefix(k))
+                            .unwrap_or("-")
+                            .to_string()
+                    };
+                    if key("first=") == "yes" {
+                        format!("guard ended_ms={}", key("ms="))
+                    } else {
+                        format!("self guard_ended={}", key("programs="))
+                    }
+                }
                 Err(_) if gone_ms.is_some() => "self".to_string(),
                 Err(_) => "row".to_string(),
             };
