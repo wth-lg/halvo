@@ -50,7 +50,9 @@ pub enum Command {
     /// Start discarding and answer the barrier `b`.
     OpenPause,
     /// Receive and discard what the sink holds, stop discarding and answer the
-    /// barrier `r`; sources may start after it.
+    /// barrier `r`; sources may start after it. An event whose emit began
+    /// before the owner handled this command is discarded, whenever its send
+    /// lands.
     ClosePause,
     /// Receive what the sink holds, flush, and answer the snapshot.
     Settle,
@@ -772,6 +774,53 @@ mod tests {
             "an event waiting behind the pause was kept"
         );
         assert_eq!(snapshot.discarded_by_barrier, 1);
+    }
+
+    #[test]
+    fn an_emit_that_began_inside_the_pause_is_discarded_whenever_its_send_lands() {
+        let mut harness = Harness::new();
+        let (marked_tx, marked_rx) = std::sync::mpsc::channel();
+        let (go_tx, go_rx) = std::sync::mpsc::channel::<()>();
+        let sink = harness.sink.clone();
+        let event = key();
+        let id = event.id().uuid();
+        let emitter = thread::spawn(move || {
+            sink.emit_held(event, move || {
+                marked_tx.send(()).unwrap();
+                go_rx.recv().unwrap();
+            })
+        });
+        marked_rx.recv().unwrap();
+        let r = resumed(&mut harness);
+        go_tx.send(()).unwrap();
+        assert_eq!(emitter.join().unwrap(), sink::Emitted::Queued);
+        harness.pass();
+        let snapshot = settled(&mut harness);
+        assert!(
+            !harness
+                .store
+                .records()
+                .iter()
+                .any(|record| record.id() == id),
+            "an emit that began inside the pause and landed after r was stored"
+        );
+        assert_eq!(snapshot.events_received(), 1);
+        assert_eq!(snapshot.discarded_by_barrier, 1);
+        harness.emit(key());
+        harness.pass();
+        let after = settled(&mut harness);
+        assert_eq!(
+            after.events_persisted, 1,
+            "an emit after the resume was not kept"
+        );
+        let seqs: Vec<u64> = harness
+            .store
+            .records()
+            .iter()
+            .map(|record| record.seq())
+            .collect();
+        assert_eq!(seqs, [1]);
+        assert_ne!(r, resumed(&mut harness));
     }
 
     #[test]

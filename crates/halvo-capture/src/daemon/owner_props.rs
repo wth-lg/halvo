@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -24,6 +24,8 @@ use crate::sink;
 #[derive(Debug, Clone)]
 enum Op {
     Emit(u8),
+    HoldEmit(u8),
+    Release,
     Pass,
     OpenPause,
     ClosePause,
@@ -36,6 +38,8 @@ enum Op {
 fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         8 => (0u8..4).prop_map(Op::Emit),
+        1 => (0u8..4).prop_map(Op::HoldEmit),
+        1 => Just(Op::Release),
         3 => Just(Op::Pass),
         1 => Just(Op::OpenPause),
         2 => Just(Op::ClosePause),
@@ -61,11 +65,13 @@ enum Fate {
     Discarded,
 }
 
-/// What the model expects: the gate of the owner and the events that its sink
-/// holds, received in the order of their emits.
+/// What the model expects: the gate of the owner, the count of resumes, and
+/// the events that its sink holds, each with the count of resumes when its
+/// emit began, received in the order in which their sends landed.
 struct Model {
     writing: bool,
-    queue: VecDeque<Uuid>,
+    resumes: u64,
+    queue: VecDeque<(Uuid, u64)>,
     fates: HashMap<Uuid, Fate>,
     emitted_in_pause: HashSet<Uuid>,
 }
@@ -74,6 +80,7 @@ impl Model {
     fn new() -> Model {
         Model {
             writing: false,
+            resumes: 0,
             queue: VecDeque::new(),
             fates: HashMap::new(),
             emitted_in_pause: HashSet::new(),
@@ -81,8 +88,8 @@ impl Model {
     }
 
     fn receive_one(&mut self) {
-        if let Some(id) = self.queue.pop_front() {
-            let fate = if self.writing {
+        if let Some((id, begun)) = self.queue.pop_front() {
+            let fate = if self.writing && begun == self.resumes {
                 Fate::Persisted
             } else {
                 Fate::Discarded
@@ -98,12 +105,44 @@ impl Model {
     }
 }
 
+/// An emit held by the sink's seam after it read its resume mark: its id, the
+/// count of resumes that it read, the sender that lets it go and its thread.
+type Held = (
+    Uuid,
+    u64,
+    mpsc::Sender<()>,
+    thread::JoinHandle<sink::Emitted>,
+);
+
+fn hold(harness: &Harness, event: FloorEvent, begun: u64) -> Held {
+    let id = event.id().uuid();
+    let (marked_tx, marked_rx) = mpsc::channel();
+    let (go_tx, go_rx) = mpsc::channel::<()>();
+    let sink = harness.sink.clone();
+    let thread = thread::spawn(move || {
+        sink.emit_held(event, move || {
+            marked_tx.send(()).unwrap();
+            go_rx.recv().unwrap();
+        })
+    });
+    marked_rx.recv().unwrap();
+    (id, begun, go_tx, thread)
+}
+
+fn release(model: &mut Model, held: Held) {
+    let (id, begun, go, thread) = held;
+    go.send(()).unwrap();
+    assert_eq!(thread.join().unwrap(), sink::Emitted::Queued);
+    model.queue.push_back((id, begun));
+}
+
 fn run(ops: &[Op]) -> Result<(), TestCaseError> {
     let store = ModelStore::new();
     let clocks = ManualClocks::at(super::model_store::noon());
     let mut harness = Harness::with_clocks(store.clone(), open_floor(), 4096, clocks.clone());
     let mut model = Model::new();
     let mut paused = true;
+    let mut held: VecDeque<Held> = VecDeque::new();
     for op in ops {
         match op {
             Op::Emit(kind) => {
@@ -113,7 +152,19 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
                     model.emitted_in_pause.insert(id);
                 }
                 harness.emit(event);
-                model.queue.push_back(id);
+                model.queue.push_back((id, model.resumes));
+            }
+            Op::HoldEmit(kind) => {
+                let event = event_of(*kind);
+                if paused {
+                    model.emitted_in_pause.insert(event.id().uuid());
+                }
+                held.push_back(hold(&harness, event, model.resumes));
+            }
+            Op::Release => {
+                if let Some(next) = held.pop_front() {
+                    release(&mut model, next);
+                }
             }
             Op::Pass => {
                 harness.pass();
@@ -128,6 +179,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
             Op::ClosePause => {
                 harness.ask(Command::ClosePause);
                 model.receive_all();
+                model.resumes += 1;
                 model.writing = true;
                 paused = false;
                 model.receive_one();
@@ -147,6 +199,9 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
             }
             Op::Advance(seconds) => clocks.advance(Duration::from_secs(u64::from(*seconds))),
             Op::Restart => {
+                while let Some(next) = held.pop_front() {
+                    release(&mut model, next);
+                }
                 store.clear_write_scripts();
                 let Answer::ShutDown(snapshot) = harness.ask(Command::Shutdown) else {
                     return Err(TestCaseError::fail("no shutdown answer"));
@@ -156,6 +211,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
                 prop_assert_eq!(snapshot.events_pending, 0);
                 harness = Harness::with_clocks(store.clone(), open_floor(), 4096, clocks.clone());
                 model.writing = false;
+                model.resumes = 0;
                 paused = true;
             }
         }
@@ -164,6 +220,9 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
             stored.is_disjoint(&model.emitted_in_pause),
             "an event emitted inside a pause is readable"
         );
+    }
+    while let Some(next) = held.pop_front() {
+        release(&mut model, next);
     }
     store.clear_write_scripts();
     let Answer::Settled(snapshot) = harness.ask(Command::Settle) else {
@@ -200,6 +259,113 @@ proptest! {
     ) {
         run(&ops)?;
     }
+}
+
+fn stored_ids(store: &ModelStore) -> HashSet<Uuid> {
+    store.records().iter().map(|r| r.id()).collect()
+}
+
+/// One trial: the owner is paused; the sink holds `fill` queued events and a
+/// keystroke whose emit started inside the pause is blocked on the full sink.
+/// ClosePause is then asked. Returns whether that keystroke is stored.
+fn blocked_keystroke_trial(capacity: usize, fill: usize, blocked: usize) -> (bool, String) {
+    let store = ModelStore::new();
+    let mut h = Harness::over(store.clone(), open_floor(), capacity);
+    // The owner starts discarding: this is the pause.
+    for _ in 0..fill {
+        h.emit(key());
+    }
+    let mut ids = Vec::new();
+    let mut threads = Vec::new();
+    let (marked_tx, marked_rx) = mpsc::channel();
+    for _ in 0..blocked {
+        let event = key();
+        ids.push(event.id().uuid());
+        let sink = h.sink.clone();
+        let marked = marked_tx.clone();
+        threads.push(thread::spawn(move || {
+            sink.emit_held(event, move || marked.send(()).unwrap())
+        }));
+    }
+    for _ in 0..blocked {
+        marked_rx.recv().unwrap();
+    }
+    let blocked_now = threads.iter().filter(|t| !t.is_finished()).count();
+    let answer = h.ask(Command::ClosePause);
+    for t in threads {
+        assert_eq!(t.join().unwrap(), sink::Emitted::Queued);
+    }
+    h.passes(4);
+    let settled = h.ask(Command::Settle);
+    let stored = stored_ids(&store);
+    let kept = ids.iter().filter(|id| stored.contains(id)).count();
+    (
+        kept > 0,
+        format!("blocked_at_close={blocked_now} answer={answer:?} kept_of_blocked={kept} settle={settled:?}"),
+    )
+}
+
+/// Q1 and lens 1: a keystroke emitted inside the pause and blocked in its
+/// emit on a full sink while ClosePause drains is stored.
+#[test]
+fn a_keystroke_blocked_in_its_emit_through_a_resume_is_discarded() {
+    let trials = 200;
+    let mut kept = 0;
+    let mut example = String::new();
+    for _ in 0..trials {
+        let (k, text) = blocked_keystroke_trial(1, 1, 1);
+        if k {
+            kept += 1;
+            if example.is_empty() {
+                example = text;
+            }
+        }
+    }
+    println!("BLOCKED capacity=1 trials={trials} kept={kept} example: {example}");
+    assert_eq!(
+        kept, 0,
+        "a keystroke emitted inside the pause was stored in {kept} of {trials} trials"
+    );
+}
+
+/// The same at the product's sink capacity of 2,048 with five blocked
+/// emitters, as five sources would be.
+#[test]
+fn the_same_at_capacity_2048_with_five_blocked_sources() {
+    let trials = 40;
+    let mut kept = 0;
+    let mut example = String::new();
+    for _ in 0..trials {
+        let (k, text) = blocked_keystroke_trial(2048, 2048, 5);
+        if k {
+            kept += 1;
+            if example.is_empty() {
+                example = text;
+            }
+        }
+    }
+    println!("BLOCKED capacity=2048 blocked=5 trials={trials} kept={kept} example: {example}");
+    assert_eq!(
+        kept, 0,
+        "a keystroke emitted inside the pause was stored in {kept} of {trials} trials"
+    );
+}
+
+#[test]
+fn an_emit_held_through_a_resume_is_discarded_by_the_model_and_the_owner() {
+    run(&[
+        Op::HoldEmit(1),
+        Op::ClosePause,
+        Op::Release,
+        Op::Pass,
+        Op::HoldEmit(0),
+        Op::OpenPause,
+        Op::ClosePause,
+        Op::Release,
+        Op::Emit(3),
+        Op::Settle,
+    ])
+    .unwrap();
 }
 
 #[test]
