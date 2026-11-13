@@ -85,7 +85,7 @@ bound_of() {
 }
 
 read_bound() {
-  awk -v crate="$1" -v list_code="$list_code" -v ignored_code="$ignored_code" -v run_code="$run_code" '
+  awk -v crate="$1" -v marker="$2" -v list_code="$list_code" -v ignored_code="$ignored_code" -v run_code="$run_code" '
     function target_of(line,    paren, bin) {
       sub(/^ *Running /, "", line)
       gsub(/\\/, "/", line)
@@ -97,17 +97,22 @@ read_bound() {
       sub(/-[0-9a-f]+$/, "", bin)
       return bin " " substr(line, 1, paren - 1)
     }
-    FILENAME == ARGV[1] || FILENAME == ARGV[2] || FILENAME == ARGV[3] {
-      sub(/\r$/, "")
+    { sub(/\r$/, "") }
+    $0 == marker {
+      section++
+      target = ""
+      next
+    }
+    section < 3 {
       if ($0 ~ /^ *Doc-tests /) {
         target = ""
       } else if ($0 ~ /^ *Running /) {
         target = target_of($0)
       } else {
-        if (FILENAME == ARGV[1] && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
-        if (FILENAME == ARGV[2] && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
-        if (FILENAME == ARGV[3] && $0 ~ /^test [^ ]+ \.\.\. ok$/) passed[target " " substr($0, 6, length($0) - 12)] = 1
-        if (FILENAME == ARGV[3] && $0 ~ /^test result: ok\. /) summary[target] = 1
+        if (section == 0 && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
+        if (section == 1 && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
+        if (section == 2 && $0 ~ /^test [^ ]+ \.\.\. ok$/) passed[target " " substr($0, 6, length($0) - 12)] = 1
+        if (section == 2 && $0 ~ /^test result: ok\. /) summary[target] = 1
       }
       next
     }
@@ -129,7 +134,7 @@ read_bound() {
       if (miss == "") print $4 " ok " $1 " " $2 " " $3
       else print $4 " miss=" substr(miss, 2) " " $1 " " $2 " " $3
     }
-  ' "$artifacts/list-$1.txt" "$artifacts/ignored-$1.txt" "$artifacts/exact-$1.txt" -
+  '
 }
 
 run_bound() {
@@ -148,10 +153,10 @@ run_bound() {
   done <<EOF
 $sources
 EOF
-  cargo test --locked -p "$package" "$@" -- --list >"$artifacts/list-$package.txt" 2>&1 </dev/null
+  list_out=$(cargo test --locked -p "$package" "$@" -- --list 2>&1 </dev/null)
   list_code=$?
   tree_same "after-list-$package" tests
-  cargo test --locked -p "$package" "$@" -- --list --ignored >"$artifacts/ignored-$package.txt" 2>&1 </dev/null
+  ignored_out=$(cargo test --locked -p "$package" "$@" -- --list --ignored 2>&1 </dev/null)
   ignored_code=$?
   tree_same "after-ignored-$package" tests
   set -- "$@" -- --exact
@@ -160,10 +165,21 @@ EOF
   done <<EOF
 $wanted
 EOF
-  cargo test --locked -p "$package" "$@" >"$artifacts/exact-$package.txt" 2>&1 </dev/null
+  exact_out=$(cargo test --locked -p "$package" "$@" 2>&1 </dev/null)
   run_code=$?
   tree_same "after-exact-$package" tests
-  found=$(printf '%s\n' "$wanted" | read_bound "$package")
+  marker='== r6 bound reader =='
+  while :; do
+    case "$list_out $ignored_out $exact_out" in
+      *"$marker"*) marker="$marker=" ;;
+      *) break ;;
+    esac
+  done
+  found=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$list_out" "$marker" "$ignored_out" "$marker" "$exact_out" "$marker" "$wanted" |
+    read_bound "$package" "$marker")
+  printf '%s\n' "$list_out" >"$artifacts/list-$package.txt"
+  printf '%s\n' "$ignored_out" >"$artifacts/ignored-$package.txt"
+  printf '%s\n' "$exact_out" >"$artifacts/exact-$package.txt"
   bound_lines="$bound_lines$found
 "
 }
@@ -370,6 +386,8 @@ case $* in
   "$route -- --exact $route_names")
     cat "$STUB_DIR/exact-halvo-route.txt"
     [ "$STUB_CHANGE" != exact ] || printf '1 .M N... 100644 100644 100644 0 0 scripts/r6/required-tests.txt\n' >>"$STUB_TREE/status"
+    [ "$STUB_CHANGE" != ignored-file ] ||
+      printf '     Running tests/refusal_spend.rs (target/debug/deps/refusal_spend-0123456789abcdef)\n' >"$CI_D_ARTIFACTS/ignored-halvo-route.txt"
     exit "$STUB_EXACT_EXIT"
     ;;
   "$gate -- --list")
@@ -566,6 +584,12 @@ tests required=3 ok=1' "FAIL $name (tests)"
   STUB_CHANGE=bound
   check a-test-writes-the-counted-lines FAIL 'refusals expected=19 ok=18
 tests required=3 ok=2' "FAIL $name (tests)"
+
+  stub_case a-bound-test-rewrites-the-ignored-list
+  printf '     Running tests/refusal_spend.rs (target/debug/deps/refusal_spend-0123456789abcdef)\nrefusal_no_hold: test\n' \
+    >"$STUB_DIR/ignored-halvo-route.txt" || exit 2
+  STUB_CHANGE=ignored-file
+  check a-bound-test-rewrites-the-ignored-list FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
   STUB_CHANGE=exact
   check bound-run-changes-the-tree FAIL "FAIL $name (tests)"
 }
