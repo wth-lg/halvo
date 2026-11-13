@@ -1046,6 +1046,8 @@ fn the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes() {
 
 const SECOND: &str = "HALVO_DERIVED_SECOND_PROCESS_DIR";
 const SECOND_TEST: &str = "a_second_process_is_refused_also_with_the_lock_file_unlinked";
+const SECOND_TOKEN: &str = "HALVO_DERIVED_SECOND_PROCESS_TOKEN";
+const TOKEN_FILE: &str = "second-process-token";
 const LOCKED: i32 = 40;
 const OPENED: i32 = 41;
 const OTHER: i32 = 42;
@@ -1058,10 +1060,11 @@ const OTHER: i32 = 42;
 struct Second(std::process::Child);
 
 impl Second {
-    fn start(dir: &Path) -> Second {
+    fn start(dir: &Path, token: &str) -> Second {
         let child = Command::new(std::env::current_exe().unwrap())
             .args([SECOND_TEST, "--exact", "--test-threads=1"])
             .env(SECOND, dir)
+            .env(SECOND_TOKEN, token)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -1092,12 +1095,23 @@ impl Drop for Second {
     }
 }
 
+/// The child branch runs only where the token in the child's environment equals the one that the parent wrote into its
+/// own scratch directory, so that a variable set from outside cannot turn a run of the binary into the child: a run
+/// with a token that the parent did not write runs the test as a parent, which skips this last step.
 /// A second process is refused while a store holds the derived database: with the writer lock file in place, and
 /// again after the lock file is unlinked, when the second process takes a new lock file and the database's exclusive
 /// lock refuses it. The control: after the store is closed, a second process opens it.
 #[test]
 fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
-    if let Some(dir) = std::env::var_os(SECOND) {
+    let outside = std::env::var_os(SECOND);
+    let child = match (&outside, std::env::var_os(SECOND_TOKEN)) {
+        (Some(dir), Some(token)) => std::fs::read(Path::new(dir).join(TOKEN_FILE))
+            .ok()
+            .filter(|written| written.as_slice() == token.as_encoded_bytes())
+            .map(|_| dir.clone()),
+        _ => None,
+    };
+    if let Some(dir) = child {
         let host = Host::new(Box::new(TestClock::at_day(DAY)), Box::new(NoProposals));
         let opened = Store::open(Path::new(&dir), &key(), &registry(), host, &mut Seq(1));
         std::process::exit(match opened {
@@ -1107,6 +1121,15 @@ fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
         });
     }
     let scratch = Scratch::new("second-process");
+    let token = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    std::fs::write(scratch.path().join(TOKEN_FILE), &token).unwrap();
     let clock = TestClock::at_day(DAY);
     let store = open_host(
         &scratch,
@@ -1116,23 +1139,30 @@ fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
     let lock = scratch.path().join("derived").join("writer.lock");
     assert!(lock.exists(), "the lock file of the open store");
     assert_eq!(
-        Second::start(scratch.path()).code(),
+        Second::start(scratch.path(), &token).code(),
         Some(LOCKED),
         "a second process with the lock file in place"
     );
     std::fs::remove_file(&lock).unwrap();
     assert!(!lock.exists(), "the lock file after it is unlinked");
     assert_eq!(
-        Second::start(scratch.path()).code(),
+        Second::start(scratch.path(), &token).code(),
         Some(LOCKED),
         "a second process with the lock file unlinked"
     );
     drop(store);
     assert_eq!(
-        Second::start(scratch.path()).code(),
+        Second::start(scratch.path(), &token).code(),
         Some(OPENED),
         "the control: a second process after the store is closed"
     );
+    if outside.is_none() {
+        assert_eq!(
+            Second::start(scratch.path(), "a token that the parent did not write").code(),
+            Some(0),
+            "a run with the directory set from outside and no matching token runs the test as a parent and passes"
+        );
+    }
 }
 
 /// The writer lock refuses an open on its own: while another holder has the lock of `derived/writer.lock` and no
