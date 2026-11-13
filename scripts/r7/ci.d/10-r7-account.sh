@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/ and the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right and member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/ and the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right and member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. In the windows job the self-test runs every case that ends before the source reader, the cases about what differs on Windows (the drive and cygpath spellings, a line ending, includes-inside, the hosted store of that job) and three controls that reach the reader (unchanged, dep-info-path-outside, tracked-file-under-the-target); it leaves every other case that reaches the reader to the macos job, which runs all of them, prints one line for each, and a whole run fails when a job did not run a case of its list. The windows job therefore no longer shows that the reader refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -20,6 +20,8 @@ required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlit
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
 real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash'
 real_builds_windows='includes-inside'
+windows_left_out='self-hosted-runner actions-not-true hosted-macos patch-in-workspace patch-as-dotted-key patch-in-quoted-header repository-through-a-link dep-info-absent dep-info-absolute-path-outside dep-info-missing-file dep-info-missing-directory dep-info-head-elsewhere dep-info-head-names-a-missing-file dep-info-unopenable member-without-dep-info dep-info-name-starting-with-a-hash dep-info-link-then-dot-dot dep-info-target-outside-out dep-info-file-beside-out dep-info-in-another-out-directory dep-info-out-directory-without-build dep-info-out-directory-not-named-out dep-info-out-directory-two-levels-deep dep-info-in-a-sibling-of-account dep-info-escaped-space dep-info-name-with-a-colon-and-a-newline dep-info-name-with-a-newline'
+windows_must_run='unchanged dep-info-path-outside tracked-file-under-the-target crlf-line-ends dep-info-windows-separators dep-info-windows-drive target-in-the-drive-spelling target-in-another-spelling includes-inside hosted-windows'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -834,6 +836,37 @@ selected() {
   return 1
 }
 
+runs_here() {
+  selected "$1" || return 1
+  case " $windows_left_out " in
+    *" $1 "*)
+      if [ "$job" = windows ]; then
+        printf 'case %s/%s not run: the windows job leaves it to the macos job\n' "$name" "$1"
+        left_out=$((left_out + 1))
+        return 1
+      fi
+      ;;
+  esac
+  return 0
+}
+
+split_holds() {
+  case $1 in
+    macos) need=$windows_left_out ;;
+    windows) need=$windows_must_run ;;
+    *) return 1 ;;
+  esac
+  for needed in $need; do
+    case $2 in
+      *" $needed "*) ;;
+      *)
+        printf 'the %s job did not run %s\n' "$1" "$needed"
+        return 1
+        ;;
+    esac
+  done
+}
+
 job_real_builds() {
   case $1 in
     macos) real_builds=$real_builds_macos ;;
@@ -851,13 +884,14 @@ real_build() {
   case " $real_builds " in
     *" $1 "*) return 0 ;;
   esac
-  selected "$1" && printf 'case %s/%s not run: the %s job runs no real build of it\n' "$name" "$1" "$CI_D_JOB"
+  selected "$1" && printf 'case %s/%s not run: the %s job runs no real build of it\n' "$name" "$1" "$job"
   return 1
 }
 
 run_case() {
   case=$1
-  selected "$case" || return 0
+  runs_here "$case" || return 0
+  ran=$ran$case' '
   want=$2
   mode=$3
   shift 3
@@ -902,6 +936,7 @@ run_case() {
 }
 
 stub_case() {
+  runs_here "$1" || return 0
   make_fixture "$1" || fail "cannot make the fixture $1"
   run_case "$@"
 }
@@ -921,6 +956,9 @@ self_test() {
     macos | windows) ;;
     *) fail 'CI_D_JOB names neither macos nor windows' ;;
   esac
+  job=$CI_D_JOB
+  ran=' '
+  left_out=0
   enter_repository
   real_runs=0
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account-self-test.XXXXXX") || fail 'mktemp -d failed'
@@ -1092,7 +1130,7 @@ $calls_after"
 
   stub_case dep-info-absent "FAIL $name ($cause_no_dep_info)" stub STUB_NO_DEP_INFO=1
   stub_case dep-info-path-outside "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../outside/code.rs'
-  make_fixture dep-info-absolute-path-outside &&
+  runs_here dep-info-absolute-path-outside && make_fixture dep-info-absolute-path-outside &&
     run_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP="$fixture/outside/code.rs"
   stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs' STAND_IN_CYGPATH=1
   make_fixture dep-info-windows-drive && drive_name=$(windows_name "$fixture/outside/code.rs") &&
@@ -1100,21 +1138,25 @@ $calls_after"
   stub_case dep-info-missing-file "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/src/gone.rs'
   stub_case dep-info-missing-directory "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/gone/lib.rs'
   stub_case dep-info-head-elsewhere "FAIL $name ($cause_elsewhere)" stub STUB_HEAD=crates/halvo-wire/Cargo.toml
-  make_fixture dep-info-unopenable && probe_file=$fixture/mode-000 && : >"$probe_file" && chmod 000 "$probe_file"
-  if [ -r "$probe_file" ]; then
-    printf 'case %s/dep-info-unopenable not run: this system reads a file of mode 000\n' "$name"
-  else
-    run_case dep-info-unopenable "FAIL $name ($cause_unopenable)" stub STUB_UNREADABLE=1
+  if runs_here dep-info-unopenable; then
+    make_fixture dep-info-unopenable && probe_file=$fixture/mode-000 && : >"$probe_file" && chmod 000 "$probe_file"
+    if [ -r "$probe_file" ]; then
+      printf 'case %s/dep-info-unopenable not run: this system reads a file of mode 000\n' "$name"
+    else
+      run_case dep-info-unopenable "FAIL $name ($cause_unopenable)" stub STUB_UNREADABLE=1
+    fi
   fi
   stub_case member-without-dep-info "FAIL $name ($cause_member)" stub STUB_SKIP_SECRETS=1
-  make_fixture dep-info-name-starting-with-a-hash && mkdir -p "$fixture/account/#m/src" &&
+  runs_here dep-info-name-starting-with-a-hash && make_fixture dep-info-name-starting-with-a-hash && mkdir -p "$fixture/account/#m/src" &&
     run_case dep-info-name-starting-with-a-hash "FAIL $name ($cause_source)" stub STUB_DEP='#m/src/../../../outside/code.rs'
-  make_fixture dep-info-link-then-dot-dot && mkdir -p "$fixture/elsewhere/d" "$fixture/elsewhere/account/crates/halvo-wire/src" &&
-    : >"$fixture/elsewhere/account/crates/halvo-wire/src/lib.rs" && ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
-  if [ -L "$fixture/sneak" ]; then
-    run_case dep-info-link-then-dot-dot "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../sneak/../account/crates/halvo-wire/src/lib.rs'
-  else
-    printf 'case %s/dep-info-link-then-dot-dot not run: this system made no symbolic link\n' "$name"
+  if runs_here dep-info-link-then-dot-dot; then
+    make_fixture dep-info-link-then-dot-dot && mkdir -p "$fixture/elsewhere/d" "$fixture/elsewhere/account/crates/halvo-wire/src" &&
+      : >"$fixture/elsewhere/account/crates/halvo-wire/src/lib.rs" && ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
+    if [ -L "$fixture/sneak" ]; then
+      run_case dep-info-link-then-dot-dot "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../sneak/../account/crates/halvo-wire/src/lib.rs'
+    else
+      printf 'case %s/dep-info-link-then-dot-dot not run: this system made no symbolic link\n' "$name"
+    fi
   fi
   make_fixture link-as-account-target && mkdir "$fixture/elsewhere" && ln -s ../elsewhere "$fixture/account/target" 2>/dev/null
   if [ -L "$fixture/account/target" ]; then
@@ -1122,7 +1164,7 @@ $calls_after"
   else
     printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
   fi
-  if [ "$CI_D_JOB" = macos ]; then
+  if [ "$job" = macos ]; then
     stub_case dep-info-link-in-a-source-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=src
     stub_case dep-info-link-in-an-out-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=out
     make_fixture dep-info-backslash-in-a-directory-name && mkdir "$fixture/account/crates/halvo-wire/src/a\\b" &&
@@ -1131,7 +1173,7 @@ $calls_after"
       run_case dep-info-letter-and-colon-directory "FAIL $name ($cause_source)" stub STUB_DEP='c:x/src/../../../outside/code.rs'
   else
     for case_name in dep-info-link-in-a-source-directory dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name dep-info-letter-and-colon-directory; do
-      selected "$case_name" && printf 'case %s/%s not run: the %s job cannot hold its names or links\n' "$name" "$case_name" "$CI_D_JOB"
+      selected "$case_name" && printf 'case %s/%s not run: the %s job cannot hold its names or links\n' "$name" "$case_name" "$job"
     done
   fi
   stub_case dep-info-target-outside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/deps/code.rs
@@ -1145,19 +1187,21 @@ $calls_after"
     cp "$fixture/outside/code.rs" "$fixture/target/account/debug/build/fake-0/out/code.rs" &&
     git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -f target/account/debug/build/fake-0/out/code.rs >/dev/null 2>&1 &&
     run_case tracked-file-under-the-target "FAIL $name ($cause_tracked)" stub
-  make_fixture dep-info-in-a-sibling-of-account && mkdir "$fixture/account-tools" && cp "$fixture/outside/code.rs" "$fixture/account-tools/code.rs" &&
+  runs_here dep-info-in-a-sibling-of-account && make_fixture dep-info-in-a-sibling-of-account && mkdir "$fixture/account-tools" && cp "$fixture/outside/code.rs" "$fixture/account-tools/code.rs" &&
     run_case dep-info-in-a-sibling-of-account "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../account-tools/code.rs'
   make_fixture metadata-path-in-a-sibling-of-account && write_crate "$fixture/account-tools/sibling" sibling &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "sibling = { path = \"../../../account-tools/sibling\" }" } }' &&
     relock && run_case metadata-path-in-a-sibling-of-account "FAIL $name ($cause_path)" stub
-  make_fixture dep-info-escaped-space && mkdir "$fixture/account/crates/halvo-wire/s " &&
+  runs_here dep-info-escaped-space && make_fixture dep-info-escaped-space && mkdir "$fixture/account/crates/halvo-wire/s " &&
     run_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
   stub_case dep-info-name-with-a-colon-and-a-newline "FAIL $name ($cause_elsewhere)" stub STUB_DEP="crates/halvo-wire/src/../../../../x: y${nl}z.txt"
-  make_fixture repository-through-a-link && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && ln -s "${fixture##*/}" "$work/link-to-the-repository" 2>/dev/null
-  if [ -L "$work/link-to-the-repository" ]; then
-    run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
-  else
-    printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
+  if runs_here repository-through-a-link; then
+    make_fixture repository-through-a-link && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && ln -s "${fixture##*/}" "$work/link-to-the-repository" 2>/dev/null
+    if [ -L "$work/link-to-the-repository" ]; then
+      run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
+    else
+      printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
+    fi
   fi
   make_fixture target-in-another-spelling && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out"
   spelling=
@@ -1175,7 +1219,7 @@ $calls_after"
   make_fixture target-in-the-drive-spelling && mkdir -p "$fixture/target/account" && drive_target=$(windows_name "$fixture/target/account") &&
     run_case target-in-the-drive-spelling "PASS $name" stub STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
-  job_real_builds "$CI_D_JOB" || wrong="$wrong real-builds-of-the-$CI_D_JOB-job"
+  job_real_builds "$job" || wrong="$wrong real-builds-of-the-$job-job"
   want_packages=1
   real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
 pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
@@ -1318,7 +1362,7 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   run=whole
   [ -z "${R7_ACCOUNT_CASES:-}" ] || run=part
   if no_real_build "$run" "$real_runs"; then
-    printf 'the %s job ran no real build\n' "$CI_D_JOB"
+    printf 'the %s job ran no real build\n' "$job"
     wrong="$wrong no-real-build"
   fi
   saved_macos=$real_builds_macos
@@ -1339,6 +1383,24 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   got=accepted
   job_real_builds windows && real_build include-outside >/dev/null || got=refused
   harness_case windows-job-runs-a-macos-build "$got"
+  if [ "$run" = whole ] && ! split_holds "$job" "$ran"; then
+    wrong="$wrong split-of-the-$job-job"
+  fi
+  [ "$job" != windows ] || printf 'cases left to the macos job: %s\n' "$left_out"
+  got=accepted
+  split_holds macos ' ' >/dev/null || got=refused
+  harness_case macos-job-misses-a-left-out-case "$got"
+  got=accepted
+  split_holds windows ' ' >/dev/null || got=refused
+  harness_case windows-job-misses-a-case-of-its-list "$got"
+  saved_job=$job
+  saved_left_out=$left_out
+  job=windows
+  got=accepted
+  runs_here dep-info-absent >/dev/null || got=refused
+  job=$saved_job
+  left_out=$saved_left_out
+  harness_case windows-job-runs-a-left-out-case "$got"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
