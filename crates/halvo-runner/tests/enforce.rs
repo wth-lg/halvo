@@ -931,6 +931,62 @@ fn the_same_source_under_another_spelling_ends_changed() {
     assert_eq!(files.workbook_bytes(), before);
 }
 
+/// Serves a fill run whose slot `source` holds `text` from the second load on, the load before the `prepare`; the
+/// run and whether the workbook stayed byte for byte as it was.
+fn source_at_the_edits_load(tag: &str, n: u8, text: impl Fn(&FillFiles) -> String) -> (Seen, bool) {
+    let files = FillFiles::new(tag, 1);
+    let before = files.workbook_bytes();
+    let sup = fill(n, &files);
+    let value = text(&files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 2 {
+                set_slot(l, "source", &value);
+            }
+        },
+        |_| {},
+    );
+    let same = files.workbook_bytes() == before;
+    (seen, same)
+}
+
+/// CP-174 F3, the verifier's case w5: the source at the load before the `prepare` is held as a text, so the same
+/// file spelled with `/./` from that load on ends the run `failed` with `changed`, with no effect row and the
+/// workbook as it was.
+#[test]
+fn the_same_source_under_another_spelling_at_the_load_before_the_prepare_ends_changed() {
+    let (seen, same) = source_at_the_edits_load("source-spelling-early", 167, |f| {
+        f.dir
+            .join(".")
+            .join("source.csv")
+            .to_string_lossy()
+            .into_owned()
+    });
+    assert!(same, "the workbook byte for byte as it was");
+    assert!(seen.states().is_empty(), "no effect row");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+}
+
+/// CP-174 F3, the verifier's case w6: a source that is no absolute path at the load before the `prepare` is a
+/// failed step: the run ends `failed` with `step_failed`, with no effect row and the workbook as it was.
+#[test]
+fn a_relative_source_at_the_load_before_the_prepare_ends_step_failed() {
+    let (seen, same) =
+        source_at_the_edits_load("source-relative-early", 168, |_| "source.csv".to_string());
+    assert!(same, "the workbook byte for byte as it was");
+    assert!(seen.states().is_empty(), "no effect row");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+}
+
 /// CP-166 E4 (d), the review's item 4: a stored write step whose `file` names the slot `dest`, while the slot
 /// `workbook` names another file. The edit is prepared, bound and replaced in the file that the step names, at both
 /// loads, and no byte beside the other file is written.
