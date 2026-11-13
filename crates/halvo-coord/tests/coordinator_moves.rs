@@ -5110,6 +5110,44 @@ fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement
     }
 }
 
+/// A confirm request of agent `n`'s run with `count` effects of the class `send`.
+fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
+    let RunEvent::Confirm(one) = ask_confirm(run, n) else {
+        unreachable!()
+    };
+    let effects = (0..count)
+        .map(|k| halvo_coord::types::AskedEffect {
+            effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0x100 + k)).unwrap(),
+            ..one.effects()[0].clone()
+        })
+        .collect();
+    RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(n), effects).unwrap())
+}
+
+/// RD-73 7.4: a confirm request with more effects than `request_records`, today 8, ends its run
+/// with the cause `kind` at the raise: no card, no `item_raised`, the request answered `state`,
+/// and the end stored; a request of `request_records` effects shows its card.
+#[test]
+fn rd73_a_confirm_request_of_more_effects_than_request_records_ends_its_run_with_kind() {
+    let limits = Limits::PRODUCT;
+    let most = limits.request_records as usize;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    let before = items_raised(&c);
+    let m = mark(&c);
+    assert_eq!(
+        c.on_run(&run, ask_confirm_of(&run, 0, most + 1)),
+        Err(Cause::State)
+    );
+    assert_eq!(items_raised(&c), before, "no item_raised");
+    assert!(c.snapshot().items.is_empty(), "no card");
+    ends_with(&c, m, &run, RunEnd::Kind, T0);
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    assert_eq!(c.on_run(&run, ask_confirm_of(&run, 0, most)), Ok(()));
+    assert_eq!(open_item(&c).1, ItemKind::Confirm, "the card of 8 effects");
+}
+
 /// RD-52 (b) rule 2 for the switch-on: a `hold_cleared` whose reply is lost and whose read shows
 /// the hold ended counts as stored, and `set_state` is sent; where the read does not show it, the
 /// store's cause and no `set_state`.

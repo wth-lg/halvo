@@ -263,7 +263,8 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
 /// of ruling IG-32 among the requests outside the closed list, before the budget: a request
 /// that names an effect that has begun, or whose newest released decision is `reject_once`, in
 /// `table`, the guard's table of this life (`Table::asks_too_late`), shows no card and ends the
-/// run with `kind`.
+/// run with `kind`; so does a request with more effects than `request_records`, whose answer no
+/// one body could record (ruling RD-73 7.4).
 pub fn raise_confirm<C>(
     facts: &Facts<C>,
     table: &Table,
@@ -275,8 +276,9 @@ pub fn raise_confirm<C>(
         .effects()
         .iter()
         .any(|e| table.asks_too_late(ask.run(), &e.effect));
+    let too_many = ask.effects().len() > limits.request_records as usize;
     match raise {
-        Raise::Run(_) | Raise::End(RunEnd::Budget) if late => Raise::End(RunEnd::Kind),
+        Raise::Run(_) | Raise::End(RunEnd::Budget) if late || too_many => Raise::End(RunEnd::Kind),
         other => other,
     }
 }
