@@ -930,14 +930,21 @@ mod tests {
             File::create(base.join("probe")).is_err(),
             "the test could not make the directory unwritable"
         );
-        match take_lock_from(Ok(Some(base.clone().into_os_string()))) {
-            Err(LockError::Io {
-                call: "create_dir_all",
-                ..
-            }) => {}
-            other => panic!("a base that cannot be written: {other:?}"),
+        if std::fs::create_dir(base.join("probe-dir")).is_ok() {
+            let _ = writeln!(
+                io::stderr(),
+                "model-lock unwritable base: not tried here, because this system let the test make a directory in a directory that it may not write; the lock directory below is tried"
+            );
+        } else {
+            match take_lock_from(Ok(Some(base.clone().into_os_string()))) {
+                Err(LockError::Io {
+                    call: "create_dir_all",
+                    ..
+                }) => {}
+                other => panic!("a base that cannot be written: {other:?}"),
+            }
+            assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
         }
-        assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
 
         let dir = fresh_dir("unwritable-dir");
         let lock = lock_path_in(&dir);
