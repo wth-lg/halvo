@@ -480,6 +480,9 @@ impl Harness {
 
     fn reopen(&mut self) -> Result<(), TestCaseError> {
         self.store = None;
+        if !self.deleted_since_last_create {
+            widen_the_database_file(&self.dir);
+        }
         match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
             Ok(store) => {
                 prop_assert!(!self.deleted_since_last_create, "a deleted store reopened");
@@ -1036,6 +1039,19 @@ fn require_owner_only_modes(store_dir: &Path) -> Result<(), TestCaseError> {
 fn require_owner_only_modes(_store_dir: &Path) -> Result<(), TestCaseError> {
     Ok(())
 }
+
+#[cfg(unix)]
+fn widen_the_database_file(store_dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(
+        store_dir.join("store.db"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .expect("store.db of a store that no process holds takes a wider mode");
+}
+
+#[cfg(not(unix))]
+fn widen_the_database_file(_store_dir: &Path) {}
 
 fn names_in(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dir)
