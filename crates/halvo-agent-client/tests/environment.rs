@@ -1,3 +1,5 @@
+#![deny(clippy::undocumented_unsafe_blocks)]
+
 mod common;
 
 use std::fs;
@@ -178,6 +180,7 @@ fn answered_by_the_system() -> Vec<(&'static str, String)> {
     }
     const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
     let mut buf = vec![0u8; 1024];
+    // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, and confstr writes at most that.
     let n = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, buf.as_mut_ptr(), buf.len()) };
     assert!(
         n > 1 && n <= buf.len(),
@@ -275,6 +278,14 @@ fn a_write_of_the_runner_by_a_relative_name_makes_no_file_and_leaves_nothing_und
         "a write by a relative name left a file in the test's working directory"
     );
     let made = logged(&log, "relative made=");
+    eprintln!(
+        "u49-relative: the write by a relative name made a file in the system directory: {made}; removed: {}",
+        if log.contains("relative removed=yes") {
+            "yes"
+        } else {
+            "no"
+        }
+    );
     if cfg!(windows) && made == "yes" {
         assert!(
             log.contains("relative removed=yes"),

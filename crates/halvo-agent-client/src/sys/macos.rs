@@ -1,4 +1,5 @@
 #![allow(unsafe_code)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::ffi::{c_void, OsString};
 use std::io;
@@ -75,11 +76,13 @@ extern "C" {
 /// The per-user temporary directory that the system answers by `confstr`, read from no variable of this process;
 /// none when it cannot be read.
 pub(crate) fn user_temp_dir() -> Option<OsString> {
+    // SAFETY: with a null buffer and a length of 0, confstr writes nothing and returns the length that it needs.
     let len = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, std::ptr::null_mut(), 0) };
     if len < 2 {
         return None;
     }
     let mut buf = vec![0u8; len];
+    // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, and confstr writes at most that.
     let got = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, buf.as_mut_ptr().cast(), buf.len()) };
     if got != len {
         return None;
@@ -98,9 +101,11 @@ pub(crate) fn user_temp_dir() -> Option<OsString> {
 /// start that outruns its room fails closed.
 pub(crate) fn close_beyond_three(cmd: &mut Command) {
     let own = i32::try_from(std::process::id()).unwrap_or(0);
+    // SAFETY: with a null buffer and a size of 0, proc_pidinfo writes nothing and returns the size that the list needs.
     let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
     let room = usize::try_from(held).unwrap_or(0) / size_of::<ProcFdInfo>() * 2 + 64;
     let mut list = vec![ProcFdInfo::default(); room];
+    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock.
     unsafe {
         cmd.pre_exec(move || close_at_exec_beyond_three(&mut list));
     }
@@ -165,6 +170,7 @@ pub(crate) fn info(pid: u32) -> Read {
     };
     let mut buf = MaybeUninit::<ProcBsdInfo>::zeroed();
     let size = size_of::<ProcBsdInfo>() as i32;
+    // SAFETY: `buf` is live and writable for `size` bytes, the size of the struct passed, and the call writes at most that.
     let got = unsafe { proc_pidinfo(p, PROC_PIDTBSDINFO, 0, buf.as_mut_ptr().cast(), size) };
     if got != size {
         return match io::Error::last_os_error().raw_os_error() {
@@ -172,6 +178,7 @@ pub(crate) fn info(pid: u32) -> Read {
             _ => Read::Unknown,
         };
     }
+    // SAFETY: the call above wrote all `size` bytes of `buf`, as `got == size` shows, and every field of the struct is plain data.
     let i = unsafe { buf.assume_init() };
     let started_us = i
         .pbi_start_tvsec
@@ -203,6 +210,7 @@ pub(crate) enum ChildState {
 
 pub(crate) fn child_state(pid: u32) -> ChildState {
     let mut info = [0u64; 16];
+    // SAFETY: `info` is live and writable for 128 bytes, more than the siginfo_t that waitid writes, and WNOWAIT leaves the child unreaped.
     let r = unsafe {
         waitid(
             P_PID,
@@ -229,6 +237,7 @@ pub(crate) fn child_state(pid: u32) -> ChildState {
 /// 0, -1 and a negative number of another form as the caller's own group or as every process.
 pub(crate) fn kill_group(pgid: u32) -> bool {
     match as_pid(pgid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, -1 and other forms that kill reads otherwise out.
         Some(g) => unsafe { kill(-g, SIGKILL) == 0 },
         None => false,
     }
@@ -237,6 +246,7 @@ pub(crate) fn kill_group(pgid: u32) -> bool {
 /// Sends SIGSTOP to the process group `pgid`, with the guard of `kill_group`.
 pub(crate) fn stop_group(pgid: u32) -> bool {
     match as_pid(pgid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, -1 and other forms that kill reads otherwise out.
         Some(g) => unsafe { kill(-g, SIGSTOP) == 0 },
         None => false,
     }
@@ -245,6 +255,7 @@ pub(crate) fn stop_group(pgid: u32) -> bool {
 /// Sends SIGKILL to the one process `pid`, never to a number below 2 or above the largest pid.
 pub(crate) fn kill_pid(pid: u32) -> bool {
     match as_pid(pid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, 1 and numbers beyond the largest pid out.
         Some(p) => unsafe { kill(p, SIGKILL) == 0 },
         None => false,
     }
@@ -252,12 +263,14 @@ pub(crate) fn kill_pid(pid: u32) -> bool {
 
 /// Every process of the table whose information can be read.
 pub(crate) fn table() -> io::Result<Vec<Info>> {
+    // SAFETY: with a null buffer and a size of 0, proc_listallpids writes nothing and returns the count of processes.
     let needed = unsafe { proc_listallpids(std::ptr::null_mut(), 0) };
     if needed <= 0 {
         return Err(io::Error::last_os_error());
     }
     let mut pids = vec![0i32; usize::try_from(needed).unwrap_or(0) + 512];
     let bytes = i32::try_from(pids.len() * size_of::<i32>()).unwrap_or(i32::MAX);
+    // SAFETY: `pids` is live and writable for `bytes` bytes, the size passed, and the call writes at most that.
     let got = unsafe { proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
     if got <= 0 {
         return Err(io::Error::last_os_error());
@@ -275,6 +288,7 @@ pub(crate) fn table() -> io::Result<Vec<Info>> {
 
 pub(crate) fn random16() -> io::Result<[u8; 16]> {
     let mut buf = [0u8; 16];
+    // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, which is at most the 256 that getentropy takes.
     if unsafe { getentropy(buf.as_mut_ptr().cast(), buf.len()) } != 0 {
         return Err(io::Error::last_os_error());
     }

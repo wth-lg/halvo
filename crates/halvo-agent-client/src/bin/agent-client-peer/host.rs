@@ -132,6 +132,7 @@ fn held_open(file: std::fs::File) -> Option<String> {
     }
     const F_DUPFD: i32 = 0;
     let fd = file.into_raw_fd();
+    // SAFETY: F_DUPFD takes the number of the open file `fd` and a lowest number, and reads no memory of this process.
     let high = unsafe { fcntl(fd, F_DUPFD, 200) };
     (high >= 200).then(|| high.to_string())
 }
@@ -144,6 +145,7 @@ fn held_open(file: std::fs::File) -> Option<String> {
         fn SetHandleInformation(handle: *mut std::ffi::c_void, mask: u32, flags: u32) -> i32;
     }
     let handle = file.into_raw_handle();
+    // SAFETY: `handle` is the open handle of `file`, which this process keeps for its life, and the call changes its flag alone.
     (unsafe { SetHandleInformation(handle, 1, 1) } != 0).then(|| (handle as usize).to_string())
 }
 

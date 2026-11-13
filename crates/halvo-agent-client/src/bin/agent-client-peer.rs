@@ -1,10 +1,15 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
 //! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
-//! prints MARKER on standard error and exits. On macOS `holder-parent LOG` starts `holder`, a process of a group of
-//! its own that sleeps with the standard input and output it was given, logs it to LOG and exits; on Windows
-//! `hold PID IN OUT LOG` copies the two handles IN and OUT of the process PID into itself, logs how many to LOG and
-//! sleeps.
+//! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
+//! process of a group of its own that sleeps with the standard input and output it was given and then exits with
+//! the status 0, logs it to LOG and exits, or ends it and exits with 1 when it cannot read its creation time or
+//! write the line; on Windows `hold PID IN OUT LOG [SECONDS]` copies the two handles IN and OUT of the process PID
+//! into itself, logs how many to LOG, sleeps and exits with the status 0. Each sleeps SECONDS, 240 by default. As
+//! `console-report HOST RUNNER LOG` it appends to LOG whether HOST and RUNNER are attached to its console and whether
+//! that console has a window.
+
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -106,7 +111,9 @@ fn stderr_kind() -> &'static str {
     const FILE_TYPE_PIPE: u32 = 3;
     let handle = io::stderr().as_raw_handle();
     let mut mode = 0u32;
+    // SAFETY: `handle` is this process's standard error handle, which stays open for the call, and GetFileType only reads it.
     match unsafe { GetFileType(handle) } {
+        // SAFETY: `handle` stays open for the call, and `mode` is a live place for the answer.
         FILE_TYPE_CHAR if unsafe { GetConsoleMode(handle, &mut mode) } == 0 => "null",
         FILE_TYPE_PIPE => "pipe",
         FILE_TYPE_DISK => "file",
@@ -222,6 +229,7 @@ fn pipes_beyond_three() -> usize {
     (1..=0x1000usize)
         .map(|n| (n * 4) as *mut c_void)
         .filter(|h| !own.contains(h))
+        // SAFETY: GetFileType takes any value and answers FILE_TYPE_UNKNOWN for one that is no open handle; this process's own three, on which a read may wait, are left out above.
         .filter(|h| unsafe { GetFileType(*h) } == FILE_TYPE_PIPE)
         .count()
 }
@@ -250,11 +258,13 @@ fn hold(args: &[String]) -> ! {
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(0)
     };
+    // SAFETY: OpenProcess takes plain values and returns a new handle or null.
     let runner = unsafe { OpenProcess(PROCESS_DUP_HANDLE, 0, num(1) as u32) };
     let mut held = 0;
     if !runner.is_null() {
         for value in [num(2), num(3)] {
             let mut copy: *mut c_void = std::ptr::null_mut();
+            // SAFETY: `runner` is the live handle opened above, GetCurrentProcess gives a pseudo handle that needs no close, and `copy` is a live place for the new handle.
             let ok = unsafe {
                 DuplicateHandle(
                     runner,
@@ -291,6 +301,7 @@ fn write_inherited(number: &str, text: &[u8]) -> &'static str {
     }
     match number.parse::<i32>() {
         Ok(fd) if fd > 2 => {
+            // SAFETY: `text` is live and readable for its length, the length passed; a number that is no open descriptor only makes the call fail.
             if unsafe { write(fd, text.as_ptr().cast(), text.len()) } > 0 {
                 "wrote"
             } else {
@@ -330,10 +341,12 @@ fn write_inherited(number: &str, text: &[u8]) -> &'static str {
         return "own";
     }
     let mut flags = 0u32;
+    // SAFETY: GetHandleInformation takes any value and fails for one that is no open handle; `flags` is a live place for the answer.
     if unsafe { GetHandleInformation(handle, &mut flags) } == 0 || flags & 1 == 0 {
         return "absent";
     }
     let mut wrote = 0u32;
+    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call.
     let ok = unsafe {
         WriteFile(
             handle,
@@ -363,6 +376,7 @@ fn in_system_directory() -> bool {
         fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
     }
     let mut buf = [0u16; 1024];
+    // SAFETY: `buf` is live and writable for its length in units, the size passed, and the call writes at most that.
     let n = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) } as usize;
     if n == 0 || n >= buf.len() {
         return false;
@@ -487,12 +501,14 @@ fn browser_in_group_of_last_child(
 #[cfg(unix)]
 fn close_stdout() {
     use std::os::fd::FromRawFd;
+    // SAFETY: the step closes standard output on purpose: descriptor 1 is open, and nothing of this process writes to it after the step.
     drop(unsafe { std::os::fd::OwnedFd::from_raw_fd(1) });
 }
 
 #[cfg(windows)]
 fn close_stdout() {
     use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    // SAFETY: the step closes standard output on purpose: its handle is open, and nothing of this process writes to it after the step.
     drop(unsafe {
         std::os::windows::io::OwnedHandle::from_raw_handle(io::stdout().as_raw_handle())
     });

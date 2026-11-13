@@ -1,4 +1,5 @@
 #![allow(unsafe_code)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::ffi::c_void;
 use std::io;
@@ -268,11 +269,13 @@ extern "system" {
 type DirectoryCall = unsafe extern "system" fn(*mut u16, u32) -> u32;
 
 fn directory(call: DirectoryCall) -> Option<Vec<u16>> {
+    // SAFETY: with a null buffer and a size of 0 the call writes nothing and returns the size that it needs, with its NUL.
     let needed = unsafe { call(std::ptr::null_mut(), 0) };
     if needed < 2 {
         return None;
     }
     let mut buf = vec![0u16; needed as usize];
+    // SAFETY: `buf` is live and writable for `needed` units, the size passed, and the call writes at most that.
     let got = unsafe { call(buf.as_mut_ptr(), needed) };
     if got == 0 || got >= needed {
         return None;
@@ -301,6 +304,7 @@ extern "system" {
 /// `%USERPROFILE%` from this process's environment); none when it cannot be read.
 pub(crate) fn local_app_data() -> Option<Vec<u16>> {
     let mut raw: Handle = std::ptr::null_mut();
+    // SAFETY: GetCurrentProcess gives a pseudo handle that needs no close; `raw` is a live place for the token's handle.
     let opened = unsafe {
         OpenProcessToken(
             GetCurrentProcess(),
@@ -313,6 +317,7 @@ pub(crate) fn local_app_data() -> Option<Vec<u16>> {
     }
     let token = owned(raw).ok()?;
     let mut path: *mut u16 = std::ptr::null_mut();
+    // SAFETY: the known folder's id is a live constant, `token` is a token of this process opened for query and impersonation, and `path` is a live place for the buffer that the call allocates.
     let result = unsafe {
         SHGetKnownFolderPath(
             &FOLDERID_LOCAL_APP_DATA,
@@ -323,13 +328,16 @@ pub(crate) fn local_app_data() -> Option<Vec<u16>> {
     };
     let found = if result == 0 && !path.is_null() {
         let mut len = 0usize;
+        // SAFETY: `path` is the NUL-terminated buffer that SHGetKnownFolderPath returned on success, so every unit up to its NUL is readable.
         while unsafe { *path.add(len) } != 0 {
             len += 1;
         }
+        // SAFETY: the `len` units from `path` were read just above, stand before its NUL, and are copied before the buffer is freed.
         Some(unsafe { std::slice::from_raw_parts(path, len) }.to_vec())
     } else {
         None
     };
+    // SAFETY: `path` is null or the buffer that SHGetKnownFolderPath allocated for its caller, freed once here; a null pointer is no fault.
     unsafe { CoTaskMemFree(path.cast()) };
     found.filter(|p| !p.is_empty())
 }
@@ -339,13 +347,16 @@ pub(crate) struct Job(OwnedHandle);
 
 impl Job {
     pub(crate) fn new() -> io::Result<Job> {
+        // SAFETY: null attributes and a null name ask for an unnamed job with the default security.
         let raw = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
         if raw.is_null() {
             return Err(io::Error::last_os_error());
         }
+        // SAFETY: `raw` is the new job's handle, not null as checked, and owned by nothing else.
         let job = Job(unsafe { OwnedHandle::from_raw_handle(raw) });
         let mut limit = ExtendedLimit::default();
         limit.basic.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        // SAFETY: `limit` is a live ExtendedLimit and the length passed is its size, which the static assert holds at 144 bytes.
         let ok = unsafe {
             SetInformationJobObject(
                 job.raw(),
@@ -365,6 +376,7 @@ impl Job {
     }
 
     pub(crate) fn assign(&self, process: RawHandle) -> io::Result<()> {
+        // SAFETY: both handles are live: the job's is owned by `self` and `process` by the caller's RunProc.
         if unsafe { AssignProcessToJobObject(self.raw(), process) } == 0 {
             return Err(io::Error::last_os_error());
         }
@@ -372,11 +384,13 @@ impl Job {
     }
 
     pub(crate) fn terminate(&self) -> bool {
+        // SAFETY: the job's handle is live, owned by `self`.
         unsafe { TerminateJobObject(self.raw(), 1) != 0 }
     }
 
     pub(crate) fn active_processes(&self) -> Option<u32> {
         let mut acc = BasicAccounting::default();
+        // SAFETY: `acc` is a live BasicAccounting and the length passed is its size, which the static assert holds at 48 bytes.
         let ok = unsafe {
             QueryInformationJobObject(
                 self.raw(),
@@ -398,6 +412,7 @@ impl Job {
             return false;
         }
         let mut inside: Bool = 0;
+        // SAFETY: both handles are live for the call, and `inside` is a live place for its answer.
         let ok = unsafe { IsProcessInJob(h.as_raw_handle(), self.raw(), &mut inside) };
         ok != 0 && inside != 0
     }
@@ -420,6 +435,7 @@ impl Process {
 
     /// The exit code once the process has exited; none while it runs or when the code cannot be read.
     pub(crate) fn try_wait(&self) -> Option<u32> {
+        // SAFETY: the process handle is live, owned by `self`.
         if unsafe { WaitForSingleObject(self.raw(), 0) } != WAIT_OBJECT_0 {
             return None;
         }
@@ -428,6 +444,7 @@ impl Process {
 
     /// Waits until the process has exited and gives its exit code.
     pub(crate) fn wait(&self) -> Option<u32> {
+        // SAFETY: the process handle is live, owned by `self`.
         if unsafe { WaitForSingleObject(self.raw(), INFINITE) } != WAIT_OBJECT_0 {
             return None;
         }
@@ -436,12 +453,14 @@ impl Process {
 
     /// Ends the process with the exit code 1; false when the system refused.
     pub(crate) fn kill(&self) -> bool {
+        // SAFETY: the process handle is live, owned by `self`.
         unsafe { TerminateProcess(self.raw(), 1) != 0 }
     }
 }
 
 fn exit_code(handle: RawHandle) -> Option<u32> {
     let mut code = 0u32;
+    // SAFETY: `handle` is live for the call, as its callers hold it, and `code` is a live place for the answer.
     (unsafe { GetExitCodeProcess(handle, &mut code) } != 0).then_some(code)
 }
 
@@ -456,6 +475,7 @@ pub(crate) struct Started {
 
 /// Lets the first thread of a process that `start` made suspended run.
 pub(crate) fn resume(thread: &OwnedHandle) -> io::Result<()> {
+    // SAFETY: the thread handle is live, owned by the caller.
     if unsafe { ResumeThread(thread.as_raw_handle()) } == u32::MAX {
         return Err(io::Error::last_os_error());
     }
@@ -473,11 +493,13 @@ struct HandleList {
 impl HandleList {
     fn new(handles: [Handle; 3]) -> io::Result<HandleList> {
         let mut size = 0usize;
+        // SAFETY: with a null list the call writes nothing but the size that a list of one attribute needs into `size`.
         unsafe { InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut size) };
         if size == 0 {
             return Err(io::Error::last_os_error());
         }
         let mut buf = vec![0usize; size.div_ceil(size_of::<usize>())];
+        // SAFETY: `buf` is live, aligned as usize, and holds at least `size` bytes, the size that the call asked for.
         if unsafe { InitializeProcThreadAttributeList(buf.as_mut_ptr().cast(), 1, 0, &mut size) }
             == 0
         {
@@ -488,6 +510,7 @@ impl HandleList {
             _buf: buf,
             handles: Box::new(handles),
         };
+        // SAFETY: the list was initialized above and `handles` is boxed in the list, so the three handles that the attribute points to live as long as the list, as the call requires.
         let ok = unsafe {
             UpdateProcThreadAttribute(
                 list.ptr(),
@@ -512,6 +535,7 @@ impl HandleList {
 
 impl Drop for HandleList {
     fn drop(&mut self) {
+        // SAFETY: the list was initialized when `self` was made and is deleted once, here.
         unsafe { DeleteProcThreadAttributeList(self.ptr()) };
     }
 }
@@ -532,6 +556,7 @@ fn owned(raw: Handle) -> io::Result<OwnedHandle> {
     if raw.is_null() || raw == INVALID_HANDLE_VALUE {
         return Err(io::Error::last_os_error());
     }
+    // SAFETY: `raw` is a new handle, neither null nor INVALID_HANDLE_VALUE as checked, and owned by nothing else.
     Ok(unsafe { OwnedHandle::from_raw_handle(raw) })
 }
 
@@ -548,6 +573,7 @@ fn pipe(ours_reads: bool) -> io::Result<(OwnedHandle, OwnedHandle)> {
     } else {
         PIPE_ACCESS_OUTBOUND
     };
+    // SAFETY: `name` is a live NUL-terminated name and null attributes give a handle that is not inheritable.
     let ours = owned(unsafe {
         CreateNamedPipeW(
             name.as_ptr(),
@@ -566,6 +592,7 @@ fn pipe(ours_reads: bool) -> io::Result<(OwnedHandle, OwnedHandle)> {
         GENERIC_READ | FILE_WRITE_ATTRIBUTES
     };
     let attributes = inheritable();
+    // SAFETY: `name` is a live NUL-terminated name and `attributes` a live SECURITY_ATTRIBUTES of its own size.
     let theirs = owned(unsafe {
         CreateFileW(
             name.as_ptr(),
@@ -583,6 +610,7 @@ fn pipe(ours_reads: bool) -> io::Result<(OwnedHandle, OwnedHandle)> {
 fn null_device() -> io::Result<OwnedHandle> {
     let name = wide("NUL");
     let attributes = inheritable();
+    // SAFETY: `name` is a live NUL-terminated name and `attributes` a live SECURITY_ATTRIBUTES of its own size.
     owned(unsafe {
         CreateFileW(
             name.as_ptr(),
@@ -649,6 +677,7 @@ pub(crate) fn start(
     if environment.is_some() {
         flags |= CREATE_UNICODE_ENVIRONMENT;
     }
+    // SAFETY: `application`, `command_line` and `directory` end in a NUL, `environment` ends in two, `startup` is a live STARTUPINFOEXW whose list lives until after the call, and `info` is a live place for the answer.
     let ok = unsafe {
         CreateProcessW(
             application.as_ptr(),
@@ -669,9 +698,11 @@ pub(crate) fn start(
     drop(list);
     Ok(Started {
         process: Process {
+            // SAFETY: CreateProcessW succeeded, so `info.process` is a new handle that nothing else owns.
             handle: unsafe { OwnedHandle::from_raw_handle(info.process) },
             pid: info.pid,
         },
+        // SAFETY: CreateProcessW succeeded, so `info.thread` is a new handle that nothing else owns.
         thread: unsafe { OwnedHandle::from_raw_handle(info.thread) },
         stdin,
         stdout,
@@ -679,10 +710,12 @@ pub(crate) fn start(
 }
 
 fn open(pid: u32, access: u32) -> io::Result<OwnedHandle> {
+    // SAFETY: OpenProcess takes plain values and returns a new handle or null.
     let raw = unsafe { OpenProcess(access, 0, pid) };
     if raw.is_null() {
         return Err(io::Error::last_os_error());
     }
+    // SAFETY: `raw` is a new handle, not null as checked, and owned by nothing else.
     Ok(unsafe { OwnedHandle::from_raw_handle(raw) })
 }
 
@@ -690,6 +723,7 @@ fn open(pid: u32, access: u32) -> io::Result<OwnedHandle> {
 /// it; none when it cannot be read or is not after the epoch.
 pub(crate) fn created_of(handle: RawHandle) -> Option<u64> {
     let (mut created, mut exited, mut kernel, mut user) = Default::default();
+    // SAFETY: `handle` is live for the call, as its callers hold it, and the four places are live FILETIMEs.
     let ok = unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut kernel, &mut user) };
     if ok == 0 {
         return None;
@@ -704,6 +738,7 @@ pub(crate) fn created_of(handle: RawHandle) -> Option<u64> {
 
 fn still_active(handle: RawHandle) -> bool {
     let mut code = 0u32;
+    // SAFETY: `handle` is live for the call, as its callers hold it, and `code` is a live place for the answer.
     let ok = unsafe { GetExitCodeProcess(handle, &mut code) };
     ok != 0 && code == STILL_ACTIVE
 }
@@ -772,9 +807,11 @@ pub(crate) fn end(pid: u32, created_us: u64, wait_ms: u32) -> End {
     if created_of(raw) != Some(created_us) || !still_active(raw) {
         return End::Gone;
     }
+    // SAFETY: `raw` is the live handle `h`, opened above with the right to end the process.
     if unsafe { TerminateProcess(raw, 1) } == 0 {
         return End::Stays;
     }
+    // SAFETY: `raw` is the live handle `h`, opened above with the right to wait.
     if unsafe { WaitForSingleObject(raw, wait_ms) } == WAIT_OBJECT_0 {
         End::Ended
     } else {
@@ -784,6 +821,7 @@ pub(crate) fn end(pid: u32, created_us: u64, wait_ms: u32) -> End {
 
 pub(crate) fn random16() -> io::Result<[u8; 16]> {
     let mut buf = [0u8; 16];
+    // SAFETY: `buf` is live and writable for its length, the length passed, and a null algorithm with the flag for the system's preferred generator is a form that the call takes.
     let status = unsafe {
         BCryptGenRandom(
             std::ptr::null_mut(),
