@@ -791,6 +791,16 @@ fn names_file_is_byte_for_byte_the_same_when_the_later_lists_leave_out_the_regis
         "the names file differs from tests/golden/names.txt when the later lists leave out the registry's names"
     );
     assert!(export_names::names_file() == export_names::names_with(export_names::LATER));
+    assert!(export_names::names_with(&[]) != export_names::names_file());
+    let source = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bin/export-names.rs"),
+    )
+    .unwrap();
+    assert!(
+        source.matches("halvo_schema::kinds::registry()").count() == 1
+            && !source.contains("KINDS"),
+        "src/bin/export-names.rs takes the kind and family names from halvo_schema::kinds::registry() and names no KINDS list"
+    );
 }
 
 #[test]
