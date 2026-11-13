@@ -1,0 +1,20 @@
+scripts/r4/words/lint.mjs	/Users/ann	a fixture of the words lint: a sentence that names a made-up path and a second word class
+scripts/r4/words/never-read-cases.txt	/Users/sam	a case of the words lint for a path in a sentence; sam is a made-up name
+scripts/r4/words/never-read-cases.txt	/Users/ann	cases of the words lint for a path between quotes and brackets; ann is a made-up name
+scripts/r4/words/never-read-cases.txt	\Users\Ann	a case of the words lint for a Windows path; Ann is a made-up name
+account/crates/halvo-secrets/tests/hosted.rs	/Users/runner	the account of the hosting service's macOS runners, which is public and no person's: the hosted store tests check that they run as that user
+crates/halvo-control/src/paths.rs	C:\Users\a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	/Users/a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	/Users/a	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	\Users\a	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	C:\Users\a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	/Users/a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	/Users/a	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-agent-store/tests/bindings.rs	/Users/p	a made-up account name, p, in the tests of the agent store's bindings
+crates/halvo-agent-store/tests/bindings.rs	C:\\Users\\p	a made-up account name, p, in the tests of the agent store's bindings
+crates/halvo-agent-store/tests/bindings.rs	c:/Users/p	a made-up account name, p, in the tests of the agent store's bindings
+crates/halvo-agent-store/tests/bindings.rs	C:\\Users\\Book.xlsx	a made-up file name, Book.xlsx, right under the Users directory, in the tests of the agent store's bindings
+crates/halvo-agent-store/tests/bindings.rs	\\Users\\Book.xlsx	a made-up file name, Book.xlsx, right under the Users directory, in the tests of the agent store's bindings
+crates/halvo-coord/src/types/reply.rs	/home/pat	a made-up account name, pat, in a documentation test of the card's file field
+crates/halvo-coord/src/types/reply.rs	C:\\Users\\pat	a made-up account name, pat, in a documentation test of the card's file field
+scripts/r1-gate/fixtures/c2-unreachable.txt	/Users/example	a made-up account name, example, in a fixture of the gate's status text; the file comes with the capture run's unit gate-2 in the same landing, so this entry stands ahead of it

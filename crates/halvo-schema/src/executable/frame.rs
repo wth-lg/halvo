@@ -428,7 +428,7 @@ object_type! {
 /// ```compile_fail
 /// use halvo_schema::executable::frame::SecretReply;
 /// use halvo_schema::executable::text::SecretText;
-/// let _ = SecretReply::None(SecretText::new("tok"));
+/// let _ = SecretReply::None(SecretText::parse("tok").unwrap());
 /// ```
 ///
 /// ```compile_fail
@@ -442,7 +442,7 @@ object_type! {
 /// ```
 /// use halvo_schema::executable::frame::SecretReply;
 /// use halvo_schema::executable::text::SecretText;
-/// let _ = SecretReply::Stored(SecretText::new("tok"));
+/// let _ = SecretReply::Stored(SecretText::parse("tok").unwrap());
 /// ```
 ///
 /// ```
