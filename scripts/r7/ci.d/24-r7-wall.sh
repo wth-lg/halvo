@@ -358,13 +358,17 @@ judge() {
       if (low ~ listed) { problem(where, "lists backend as a member" fix_md); return }
       words(s)
     }
-    function case_line(raw,   t, d, k) {
+    function case_line(raw,   t, d, k, opens) {
       if (!parse(raw)) return
       t = gtext
       sub(/\r$/, "", t)
       if (t ~ /^[ \t]*#/) return
+      if (t ~ arm_ends) arm_end_at[gpath, gnumber + 0] = 1
+      if (t ~ arm_cont) cont_at[gpath, gnumber + 0] = 1
       d = 0
       while (match(t, case_open)) { d++; t = substr(t, RSTART + RLENGTH) }
+      opens = d
+      if (opens) open_at[gpath, gnumber + 0] = 1
       t = gtext
       while (match(t, case_close)) { d--; t = substr(t, RSTART + RLENGTH) }
       if (d == 0) return
@@ -381,9 +385,17 @@ judge() {
       }
       return d
     }
+    function pattern_place(p, n,   k) {
+      for (k = n - 1; k > 0; k--) {
+        if (((p, k) in open_at) || ((p, k) in arm_end_at)) return 1
+        if (!((p, k) in cont_at)) return 0
+      }
+      return 0
+    }
     function arm_end(s) {
       if (path !~ /\.(sh|bash)$/ && index(path, ".githooks/") != 1) return 0
       if (case_depth(path, number + 0) < 1) return 0
+      if (!pattern_place(path, number + 0)) return 0
       if (match(s, arm_cont)) return length(s)
       if (match(s, arm_re)) return RLENGTH
       return 0
@@ -513,6 +525,7 @@ judge() {
       archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
       string_re = "\"[^\"]*\"|" q "[^" q "]*" q "|`[^`]*`"
       case_open = "(^|[;&|({ \t])case[ \t]+[^ \t;&|]+[ \t]+in([ \t;]|$)"
+      arm_ends = "(;;&?|;&)[ \t]*(#.*)?$"
       case_close = "(^|[;&|( \t])esac([ \t;&|)]|$)"
       arm_word = "[^ \t()|;&<>$`]+"
       arm_re = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[)]"
@@ -677,7 +690,7 @@ check_in() {
   git -c core.quotepath=off grep --cached -I -n -i -E -e "ackend|[*?][^[:space:]]*/$linked" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' >>"$work/lines"
   found=$?
   [ "$found" -le 1 ] || return 2
-  git -c core.quotepath=off grep --cached -I -n -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines"
+  git -c core.quotepath=off grep --cached -I -n -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -e '(;;&?|;&)[[:space:]]*(#.*)?$' -e '[|][[:space:]]*\\[[:space:]]*$' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines"
   found=$?
   [ "$found" -le 1 ] || return 2
   awk -v t="$tab" '{ print "caseline" t $0 }' "$work/case-lines" >>"$work/facts" || return 2
@@ -871,10 +884,13 @@ is an arm, and a line of such words that ends in | and a backslash is the
 first line of a pattern. The glob rule passes over the pattern of an arm;
 every other rule reads it as before, and everything after the parenthesis is
 read as code by every rule. A line outside a case block is never read as an
-arm. Inside a case block, a line that only looks like an arm, as the closing
-line of a subshell or of a command substitution that began on an earlier
-line, is read as an arm too, and a case or esac in a string or a here-document
-is counted as one.
+arm. Inside a case block a line is read as a pattern only where a pattern
+can stand (P7-92): on the line after the line that holds case ... in, on the
+line after a line that ends an arm (;;, ;& or ;;&), and on the line after a
+pattern line that ends in | and a backslash; every other line of the block,
+as a line of an arm's body, is code for every rule. A line in a pattern's
+place that only looks like an arm is read as one, and a case or esac in a
+string or a here-document is counted as one.
 
 Exit status: 0 PASS, 1 FAIL. --self-test runs its cases on throwaway
 repositories under TMPDIR and removes them when it ends.
@@ -1631,6 +1647,48 @@ esac' 'read:scripts/nested.sh'
   case_with p789-e3-a-glob-that-ends-in-a-backend-file scripts/e3.sh 'cat */test/ledger/cases.ts' 'scripts/e3.sh:1: reads under backend/ by a glob'
 
   pass_with p789-limit-a-quoted-glob-that-a-program-opens scripts/attrs.sh 'hits=$(git grep -n -e TODO -- "*/test/ledger/cases.ts")' 'read:scripts/attrs.sh'
+
+  case_with p792-k1-a-wrapped-pipeline-in-an-arm-body scripts/k1.sh 'case "$1" in
+  list)
+    printf "%s\n" \
+      */test/ledger/*.ts | \
+      xargs cat
+    ;;
+esac' 'scripts/k1.sh:4: reads under backend/ by a glob'
+  case_with p792-k2-an-array-closed-on-the-glob-in-an-arm-body scripts/k2.sh 'case "$1" in
+  show)
+    files=(
+      */test/ledger/*.ts)
+    cat "${files[@]}"
+    ;;
+esac' 'scripts/k2.sh:4: reads under backend/ by a glob'
+  case_with p792-k3-a-subshell-closed-on-the-glob-in-an-arm-body scripts/k3.sh 'case "$1" in
+  show)
+    (cat \
+      */test/ledger/*.ts)
+    ;;
+esac' 'scripts/k3.sh:4: reads under backend/ by a glob'
+  case_with p792-n7-a-one-word-glob-command-before-a-pipe-in-an-arm-body scripts/n7.sh 'case $mode in
+  run)
+    b*/scripts/stack.sh | \
+      tee out.txt
+    ;;
+esac' 'scripts/n7.sh:3: reads under backend/ by a glob'
+  pass_with p792-k8-a-pattern-list-over-three-lines scripts/k8.sh 'case $1 in
+  */test/* | \
+  */spec/* | \
+  */bench/*) return 0 ;;
+esac' 'read:scripts/k8.sh'
+  pass_with p792-k10-a-case-inside-a-case scripts/k10.sh 'kind_of() {
+  case $1 in
+    a)
+      case $2 in
+        x) : ;;
+      esac
+      ;;
+    */test/*) return 0 ;;
+  esac
+}' 'read:scripts/k10.sh'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
