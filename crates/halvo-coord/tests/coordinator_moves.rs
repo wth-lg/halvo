@@ -3830,8 +3830,7 @@ fn failures_held(spec: &[support::A]) -> Coordinator<Both> {
         let mut events = both.ports.events.borrow_mut();
         let last = events
             .iter()
-            .filter(|e| e.agent == agent(0))
-            .last()
+            .rfind(|e| e.agent == agent(0))
             .cloned()
             .unwrap();
         events.push(halvo_coord::types::Event {
