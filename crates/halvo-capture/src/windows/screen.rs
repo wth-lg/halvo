@@ -335,25 +335,34 @@ impl Session for Control {
     }
 }
 
+type StopBody = Box<dyn FnOnce() + Send + 'static>;
+
+type StopSpawner = fn(StopBody) -> std::io::Result<()>;
+
+fn spawn_stop_thread(body: StopBody) -> std::io::Result<()> {
+    std::thread::Builder::new()
+        .name("halvo-screen-stop".to_string())
+        .spawn(body)
+        .map(|_| ())
+}
+
 struct Stopping {
     done: std::sync::mpsc::Receiver<Result<(), CaptureError>>,
     ended_before: bool,
 }
 
 impl Stopping {
-    fn start<S: Session>(session: S) -> Result<Self, CaptureError> {
+    fn start<S: Session>(session: S, spawn: StopSpawner) -> Result<Self, CaptureError> {
         let ended_before = session.finished();
         let (done, stopped) = std::sync::mpsc::channel();
-        std::thread::Builder::new()
-            .name("halvo-screen-stop".to_string())
-            .spawn(move || {
-                let _ = done.send(session.end());
-            })
-            .map_err(|e| CaptureError::Os {
-                stage: "spawn the screen stop thread",
-                domain: "io",
-                code: i64::from(e.raw_os_error().unwrap_or(0)),
-            })?;
+        spawn(Box::new(move || {
+            let _ = done.send(session.end());
+        }))
+        .map_err(|e| CaptureError::Os {
+            stage: "spawn the screen stop thread",
+            domain: "io",
+            code: i64::from(e.raw_os_error().unwrap_or(0)),
+        })?;
         Ok(Self {
             done: stopped,
             ended_before,
@@ -376,6 +385,7 @@ struct ScreenLife<S> {
     stopping: Option<Stopping>,
     timed_out: Option<CaptureError>,
     stopped: bool,
+    spawn: StopSpawner,
 }
 
 impl<S> Default for ScreenLife<S> {
@@ -385,6 +395,17 @@ impl<S> Default for ScreenLife<S> {
             stopping: None,
             timed_out: None,
             stopped: false,
+            spawn: spawn_stop_thread,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<S> ScreenLife<S> {
+    fn with_spawner(spawn: StopSpawner) -> Self {
+        Self {
+            spawn,
+            ..Self::default()
         }
     }
 }
@@ -401,7 +422,7 @@ impl<S: Session> ScreenLife<S> {
 
     fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
         if let Some(session) = self.session.take() {
-            self.stopping = Some(Stopping::start(session)?);
+            self.stopping = Some(Stopping::start(session, self.spawn)?);
         }
         let Some(stopping) = &self.stopping else {
             return Ok(());
@@ -628,7 +649,7 @@ mod tests {
     #[test]
     fn a_stop_reports_a_session_that_had_ended_before_or_did_not_end_well() {
         let stop = |session| {
-            Stopping::start(session)
+            Stopping::start(session, spawn_stop_thread)
                 .expect("the stop thread")
                 .wait(Duration::from_secs(2))
         };
@@ -695,6 +716,90 @@ mod tests {
         );
         assert_eq!(third, Ok(()), "the stop that ended late was not joined");
         assert_eq!(after, SourceState::Stopped(StopCause::Request));
+        assert!(!life.is_busy());
+    }
+
+    struct Watched {
+        ended: Arc<AtomicBool>,
+        dropped: Arc<AtomicBool>,
+    }
+
+    impl Session for Watched {
+        fn finished(&self) -> bool {
+            false
+        }
+
+        fn end(self) -> Result<(), CaptureError> {
+            self.ended.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    impl Drop for Watched {
+        fn drop(&mut self) {
+            self.dropped.store(true, Ordering::SeqCst);
+        }
+    }
+
+    static STOP_SPAWNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+    fn refuses_twice(body: StopBody) -> std::io::Result<()> {
+        if STOP_SPAWNS.fetch_add(1, Ordering::SeqCst) < 2 {
+            return Err(std::io::Error::from_raw_os_error(8));
+        }
+        spawn_stop_thread(body)
+    }
+
+    #[test]
+    fn a_stop_whose_thread_cannot_be_spawned_keeps_the_session() {
+        let ended = Arc::new(AtomicBool::new(false));
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut life = ScreenLife::with_spawner(refuses_twice);
+        life.started(Watched {
+            ended: Arc::clone(&ended),
+            dropped: Arc::clone(&dropped),
+        });
+        let first = life.shutdown(Duration::from_millis(300));
+        let busy = life.is_busy();
+        let state = life.state(false, false);
+        let kept = !dropped.load(Ordering::SeqCst);
+        let ended_at_first = ended.load(Ordering::SeqCst);
+        let second = life.shutdown(Duration::from_millis(300));
+        let busy_after_second = life.is_busy();
+        life.on_drop(Duration::from_secs(2));
+        let refused = CaptureError::Os {
+            stage: "spawn the screen stop thread",
+            domain: "io",
+            code: 8,
+        };
+        assert_eq!(first, Err(refused.clone()));
+        assert!(
+            busy,
+            "the source whose stop thread could not start would take a new begin"
+        );
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: refused.clone(),
+            }
+        );
+        assert!(kept, "the session was dropped without a stop");
+        assert!(!ended_at_first, "the session ended without a stop thread");
+        assert_eq!(second, Err(refused));
+        assert!(
+            busy_after_second,
+            "a second refused stop let the session go"
+        );
+        assert_eq!(
+            STOP_SPAWNS.load(Ordering::SeqCst),
+            3,
+            "the second shutdown and the drop each try the stop again"
+        );
+        assert!(
+            ended.load(Ordering::SeqCst),
+            "the drop did not stop the session"
+        );
         assert!(!life.is_busy());
     }
 
