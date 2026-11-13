@@ -795,6 +795,7 @@ mod tests {
     use core_foundation::runloop::{CFRunLoopTimer, CFRunLoopTimerRef};
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
     use std::cell::RefCell;
+    use std::sync::atomic::AtomicUsize;
     use std::sync::mpsc::RecvTimeoutError;
     use std::sync::{Mutex, PoisonError};
     use std::time::Duration;
@@ -938,6 +939,152 @@ mod tests {
             "during an accepted hold the production reader does not read Active"
         );
         drop(hold);
+    }
+
+    struct CountingMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for CountingMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_key_down_read_off_does_not_answer_for_the_key_up_and_modifier_that_follow() {
+        static READS: AtomicUsize = AtomicUsize::new(0);
+        fn off_then_on() -> SecureInputState {
+            if READS.fetch_add(1, Ordering::SeqCst) == 0 {
+                SecureInputState::Inactive
+            } else {
+                SecureInputState::Active
+            }
+        }
+        let (ctx, writer) = context(off_then_on);
+        for etype in [
+            CGEventType::KeyDown,
+            CGEventType::KeyUp,
+            CGEventType::FlagsChanged,
+        ] {
+            on_tap_event(&ctx, etype);
+        }
+        let suppressed = ctx.counters.suppressed_keys();
+        drop(ctx);
+        let recorded = events_until_the_sink_closes(&writer);
+        assert_eq!(
+            (recorded.len(), suppressed),
+            (1, 2),
+            "a key-down read off, then a key-up and a modifier read on: (recorded, suppressed)"
+        );
+        assert_eq!(READS.load(Ordering::SeqCst), 3, "reads of the secure state");
+    }
+
+    #[test]
+    fn the_reader_that_the_tap_gets_asks_the_system_once_for_each_call() {
+        let reader = tap_settings().secure;
+        let before = crate::secure_input_macos::system_reads_on_this_thread();
+        for _ in 0..6 {
+            let _ = reader();
+        }
+        assert_eq!(
+            crate::secure_input_macos::system_reads_on_this_thread() - before,
+            6,
+            "calls that reached the system from this thread for 6 reads"
+        );
+    }
+
+    static TIMED_TAP_ENABLED: Mutex<Option<Instant>> = Mutex::new(None);
+    static TIMED_HOLD_TAKEN: Mutex<Option<Instant>> = Mutex::new(None);
+
+    fn timed_take() -> i32 {
+        *TIMED_HOLD_TAKEN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+        0
+    }
+
+    fn timed_give_back() -> i32 {
+        0
+    }
+
+    fn timed_hold() -> Result<SecureInputHold, SecureInputRefused> {
+        crate::secure_input_macos::hold_with(timed_take, timed_give_back)
+    }
+
+    struct TimingMaker;
+
+    impl TapMaker for TimingMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            *TIMED_TAP_ENABLED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_plan_with_a_delay_holds_no_sooner_than_its_delay_after_the_tap_is_enabled() {
+        let delay = Duration::from_millis(300);
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::After(delay));
+        source.hold = timed_hold;
+        source
+            .begin_with(handle, TimingMaker, || {})
+            .expect("the source starts with a timing tap");
+        let started = Instant::now();
+        while TIMED_HOLD_TAKEN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_none()
+        {
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "the plan took no hold in 5 s"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        source.shutdown().expect("the source stops");
+        let enabled = TIMED_TAP_ENABLED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .expect("the tap was enabled");
+        let taken = TIMED_HOLD_TAKEN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .expect("the hold was taken");
+        assert!(
+            taken >= enabled + delay,
+            "the hold was taken {:?} after the tap was enabled, before the plan's {delay:?}",
+            taken.saturating_duration_since(enabled)
+        );
     }
 
     #[test]
@@ -1454,13 +1601,19 @@ mod tests {
         let mut source = source_with(HoldPlan::Never);
         let (ended_tx, ended_rx) = channel();
         let first = source.begin_with(handle.clone(), FakeMaker(ended_tx), || {});
-        let second = source.begin(SourceContext::new(handle));
+        let opened = Arc::new(AtomicUsize::new(0));
+        let second = source.begin_with(handle, CountingMaker(opened.clone()), || {});
         let running = source.health().state;
         let called = Instant::now();
         let shut = source.shutdown();
         let took = called.elapsed();
         assert_eq!(first, Ok(Started::Running), "the first begin");
         assert_eq!(second, Err(CaptureError::AlreadyStarted), "a second begin");
+        assert_eq!(
+            opened.load(Ordering::SeqCst),
+            0,
+            "a second begin made a tap"
+        );
         assert_eq!(running, SourceState::Running, "the state while it runs");
         assert!(
             shut == Ok(()) && took <= INPUT_STOP_DEADLINE,
@@ -1544,7 +1697,7 @@ mod tests {
         assert_eq!(
             source.health().state,
             state,
-            "a tap thread that ended on its own reads as stopped once shutdown ran"
+            "a tap thread that ended on its own still reads failed after shutdown answered ThreadEnded"
         );
     }
 
@@ -1561,7 +1714,8 @@ mod tests {
         let called = Instant::now();
         let first = source.shutdown();
         let took = called.elapsed();
-        let again = source.begin(SourceContext::new(handle));
+        let opened = Arc::new(AtomicUsize::new(0));
+        let again = source.begin_with(handle, CountingMaker(opened.clone()), || {});
         let second = source.shutdown();
         assert_eq!(
             first,
@@ -1575,6 +1729,11 @@ mod tests {
             "the first shutdown returned after {took:?}"
         );
         assert_eq!(again, Err(CaptureError::AlreadyStarted));
+        assert_eq!(
+            opened.load(Ordering::SeqCst),
+            0,
+            "a begin after the timeout made a tap"
+        );
         assert_eq!(second, Ok(()));
     }
 
