@@ -2958,6 +2958,79 @@ fn x3_attribution_before_the_first_foreground_change() {
     });
 }
 
+fn processes_named(image: &str) -> usize {
+    let filter = format!("IMAGENAME eq {image}");
+    let out = Command::new("tasklist.exe")
+        .args(["/FI", &filter, "/FO", "CSV", "/NH"])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        .unwrap_or_default();
+    out.lines()
+        .filter(|line| {
+            line.to_ascii_lowercase()
+                .contains(&image.to_ascii_lowercase())
+        })
+        .count()
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x14_foreground_app_of_a_hosted_app() {
+    with_deadline("x14", Duration::from_secs(120), || {
+        env_report("x14");
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let start = foreground.begin(SourceContext::new(sink.clone()));
+        let launched = Command::new("cmd.exe")
+            .args(["/c", "start", "ms-settings:"])
+            .status()
+            .is_ok_and(|status| status.success());
+        let mut seen = Vec::new();
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(12) {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        let settings_processes = processes_named("SystemSettings.exe");
+        let foreground_now = current_foreground_app().unwrap_or_default();
+        let _ = foreground.shutdown();
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", "SystemSettings.exe", "/F"])
+            .output();
+        summarize("x14", "after-opening-settings", &seen);
+        let named = |file: &str| {
+            seen.iter()
+                .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
+                .count()
+        };
+        let frame_host = named("ApplicationFrameHost.exe");
+        let settings = named("SystemSettings.exe");
+        say(
+            "x14",
+            format!(
+                "foreground_start={} settings_launched={launched} \
+                 settings_processes_running={settings_processes} \
+                 foreground_now_is_frame_host={} foreground_now_is_settings={} \
+                 events_naming_applicationframehost={frame_host}",
+                show(&start),
+                file_name(&foreground_now).eq_ignore_ascii_case("ApplicationFrameHost.exe"),
+                file_name(&foreground_now).eq_ignore_ascii_case("SystemSettings.exe"),
+            ),
+        );
+        assert!(start.is_ok(), "the foreground source must start");
+        assert!(
+            settings_processes >= 1,
+            "INCONCLUSIVE: the Settings app did not start on this machine"
+        );
+        assert!(
+            frame_host + settings >= 1,
+            "INCONCLUSIVE: no foreground event for the Settings window"
+        );
+        let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
+        println!("{evidence}");
+        assert!(settings == 1, "{evidence}");
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -3248,81 +3321,6 @@ mod known_defect {
             .output()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
             .unwrap_or_default()
-    }
-
-    fn processes_named(image: &str) -> usize {
-        let filter = format!("IMAGENAME eq {image}");
-        let out = Command::new("tasklist.exe")
-            .args(["/FI", &filter, "/FO", "CSV", "/NH"])
-            .output()
-            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
-            .unwrap_or_default();
-        out.lines()
-            .filter(|line| {
-                line.to_ascii_lowercase()
-                    .contains(&image.to_ascii_lowercase())
-            })
-            .count()
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x14_foreground_app_of_a_hosted_app() {
-        with_deadline("x14", Duration::from_secs(120), || {
-            env_report("x14");
-            let (sink, events) = capture(4096);
-            let mut foreground = ForegroundAppSource::new();
-            let start = foreground.begin(SourceContext::new(sink.clone()));
-            let launched = Command::new("cmd.exe")
-                .args(["/c", "start", "ms-settings:"])
-                .status()
-                .is_ok_and(|status| status.success());
-            let mut seen = Vec::new();
-            let began = Instant::now();
-            while began.elapsed() < Duration::from_secs(12) {
-                seen.extend(events.drain_for(Duration::from_millis(200)));
-            }
-            let settings_processes = processes_named("SystemSettings.exe");
-            let foreground_now = current_foreground_app().unwrap_or_default();
-            let _ = foreground.shutdown();
-            let _ = Command::new("taskkill.exe")
-                .args(["/IM", "SystemSettings.exe", "/F"])
-                .output();
-            summarize("x14", "after-opening-settings", &seen);
-            let named = |file: &str| {
-                seen.iter()
-                    .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
-                    .count()
-            };
-            let frame_host = named("ApplicationFrameHost.exe");
-            let settings = named("SystemSettings.exe");
-            say(
-                "x14",
-                format!(
-                    "foreground_start={} settings_launched={launched} \
-                     settings_processes_running={settings_processes} \
-                     foreground_now_is_frame_host={} foreground_now_is_settings={} \
-                     events_naming_applicationframehost={frame_host}",
-                    show(&start),
-                    file_name(&foreground_now).eq_ignore_ascii_case("ApplicationFrameHost.exe"),
-                    file_name(&foreground_now).eq_ignore_ascii_case("SystemSettings.exe"),
-                ),
-            );
-            assert!(start.is_ok(), "the foreground source must start");
-            assert!(
-                settings_processes >= 1,
-                "INCONCLUSIVE: the Settings app did not start on this machine"
-            );
-            assert!(
-                frame_host + settings >= 1,
-                "INCONCLUSIVE: no foreground event for the Settings window"
-            );
-            defect!(
-                "RR-windows-10",
-                settings >= 1,
-                format!("TF x14 events_naming_systemsettings={settings}")
-            );
-        });
     }
 
     #[test]

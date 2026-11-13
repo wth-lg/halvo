@@ -154,6 +154,12 @@ impl FrontTracker {
                 read_title: false,
             };
         };
+        if self.last_pid == Some(front.pid) {
+            return Change {
+                emit: None,
+                read_title: true,
+            };
+        }
         self.last_pid = Some(front.pid);
         Change {
             emit: Some(front.path),
@@ -255,6 +261,23 @@ unsafe extern "system" fn foreground_proc(
     _thread: u32,
     time: u32,
 ) {
+    on_foreground_window(hwnd, time);
+}
+
+/// The interval of the poll that reads the window in front again, so that a
+/// hosted app that its frame host shows after the foreground event is named
+/// (contracts.md C13.2, RD-38).
+#[cfg(target_os = "windows")]
+pub(crate) const FOREGROUND_POLL_MS: u32 = 400;
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn foreground_poll(_hwnd: HWND, _msg: u32, _id: usize, time: u32) {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    on_foreground_window(unsafe { GetForegroundWindow() }, time);
+}
+
+#[cfg(target_os = "windows")]
+fn on_foreground_window(hwnd: HWND, time: u32) {
     FOREGROUND_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             let change = state
@@ -368,10 +391,22 @@ fn run_foreground_hook(
         return;
     }
     super::ensure_message_queue();
+    // SAFETY: SetTimer with no window makes a timer of this thread, whose
+    // callback has the TIMERPROC signature; the pump below dispatches it.
+    let poll = unsafe {
+        windows::Win32::UI::WindowsAndMessaging::SetTimer(
+            None,
+            0,
+            FOREGROUND_POLL_MS,
+            Some(foreground_poll),
+        )
+    };
     ready.report(Ok(()));
     super::pump_messages(signal);
-    // SAFETY: `hook` is the valid handle that this thread installed above.
+    // SAFETY: `poll` is the timer of this thread made above, or 0, which
+    // names no timer; `hook` is the valid handle that this thread installed.
     unsafe {
+        let _ = windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll);
         let _ = UnhookWinEvent(hook);
     }
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);

@@ -35,7 +35,6 @@ helper_limited_listener
 keys_queued_before_a_stop_are_delivered_or_counted
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
 known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
-known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
 known_defect::x15_a_held_key RR-windows-16
 known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
 known_defect::x1_keystrokes_typed_into_a_password_field RR-windows-01
@@ -44,6 +43,7 @@ pointer_moves_coalesce
 stop_with_a_full_sink
 x12_screen_source_fifteen_start_stop_cycles
 x13_frames_on_a_static_screen
+x14_foreground_app_of_a_hosted_app
 x3_attribution_before_the_first_foreground_change
 x5_screen_source_stop_and_start_again
 x7_capture_border_on_the_screen
