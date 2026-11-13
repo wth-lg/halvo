@@ -93,19 +93,20 @@ describe("the review's cases on one cut in every order (unit 5.1, PA-2)", () => 
 });
 
 describe("the review's case on the remainder after a cut (unit 5.1)", () => {
-  test("after a cancel and a newer event that makes the subscription active again, the remainders of later intervals are carried, and one remainder is written off", async () => {
+  test("after a cancel, an active event stamped later than it changes nothing: the later uses are refused, the meter's total is the 1 minor unit used before the cut, and nothing is left to write off", async () => {
     const w = await world();
     await w.use("r0", 10_000);
     await w.clock(START + 10 * MINUTE);
     await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_c", providerTime: START + 10 * MINUTE, state: "cancelled", endedAt: START + 10 * MINUTE }));
     await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_a", providerTime: START + 11 * MINUTE, state: "active" }));
     await w.clock(START + 12 * MINUTE);
-    await w.use("r2", 15_000);
+    const later = [(await w.use("r2", 15_000)) as { reserved: unknown }];
     await w.clock(START + 2 * HOUR);
-    await w.use("r3", 5_000);
+    later.push((await w.use("r3", 5_000)) as { reserved: unknown });
     await w.clock(START + 4 * HOUR);
     const tables = await w.tables();
-    expect(w.meter.exactTotal(ACCOUNT, 0, Number.MAX_SAFE_INTEGER)).toBe(3);
+    expect(later.map((each) => each.reserved)).toEqual(Array(2).fill({ outcome: "refused", reason: "not-active" }));
+    expect(w.meter.exactTotal(ACCOUNT, 0, Number.MAX_SAFE_INTEGER)).toBe(1);
     expect((tables.metering_account ?? []).map((row) => [row.carry, row.written_off])).toEqual([[0, 0]]);
     w.close();
   });

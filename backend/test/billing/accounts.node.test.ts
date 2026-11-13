@@ -189,17 +189,17 @@ describe("applyEvent", () => {
     });
   });
 
-  test("a subscription event replaces the state only when it is newer: a later time, or the same time and a higher rank", () => {
+  test("a cancel replaces every state that is not cancelled whatever the times, nothing but a cancel replaces cancelled, and among cancels the newer replaces: a later time, or the same time and a higher rank", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
       accounts.complete(sql, SESSION);
       const at = (eventId: string, providerTime: number, state: "active" | "payment-failed" | "cancelled", period = null) =>
         accounts.applyEvent(sql, subscriptionEvent({ eventId, providerTime, state, period }), 600);
       expect(at("e1", 100, "payment-failed")).toEqual({ kind: "state", state: "payment-failed", was: "active", period: null });
-      expect(at("e2", 99, "cancelled")).toEqual({ kind: "none" });
-      expect(at("e3", 100, "active")).toEqual({ kind: "state", state: "active", was: "payment-failed", period: null });
+      expect(at("e2", 99, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "payment-failed", period: null });
+      expect(at("e3", 100, "active")).toEqual({ kind: "none" });
       expect(at("e4", 100, "payment-failed")).toEqual({ kind: "none" });
-      expect(at("e5", 100, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "active", period: null });
+      expect(at("e5", 100, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "cancelled", period: null });
       expect(at("e6", 100, "active")).toEqual({ kind: "none" });
       expect(at("e7", 101, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "cancelled", period: null });
       expect(account(sql)[0]).toEqual(expect.objectContaining({ state: "cancelled", provider_time: 101 }));
@@ -234,11 +234,11 @@ describe("applyEvent", () => {
     });
   });
 
-  test("a subscription event for a pending checkout is kept for its own subscription id, only when newer", () => {
+  test("a subscription event for a pending checkout is kept for its own subscription id, only when newer, and a cancel is newer than a kept state that is not cancelled", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e1", providerTime: 10 }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", providerTime: 9, state: "cancelled" }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", providerTime: 9, state: "cancelled" }), 600)).toEqual({ kind: "kept" });
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e3", providerTime: 11, subscriptionId: "sub_other" }), 600)).toEqual({ kind: "kept" });
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e4", providerTime: 10, state: "cancelled", period: null }), 600)).toEqual({ kind: "kept" });
       expect(accounts.subscription(sql)).toBeNull();

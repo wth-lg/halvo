@@ -14,6 +14,6 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search, setting 31, faults []: a cancelled account changed its state"
+    "first failure: the fault-sequence search, setting 31, faults []: a carry after the write-off"
   ]
 }
