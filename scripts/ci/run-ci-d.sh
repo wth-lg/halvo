@@ -765,6 +765,11 @@ own_case() {
 
 own_run() {
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
+  witness=
+  if [ -n "$case_witness" ]; then
+    "$perl_bin" -e 'setpgrp(0, 0); sleep 120' </dev/null >/dev/null 2>&1 &
+    witness=$!
+  fi
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
     unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S CI_D_CHECK_JOBS
@@ -780,9 +785,10 @@ own_run() {
     CARGO_HOME=$tmp/cargo-home
     CALLER_VALUE=kept
     export CALLER_VALUE
+    [ -z "$case_env" ] || mkdir -p "$tmp/case-home" || exit 99
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
     case_pid=$!
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
     if [ -n "$case_signal" ]; then
@@ -815,11 +821,24 @@ own_run() {
       while IFS= read -r case_left; do
         [ -z "$case_left" ] || ! kill -0 "$case_left" 2>/dev/null || left=$((left + 1))
       done <"$fixture/pids"
-      [ "$left" -gt 0 ] && [ "$n" -lt 30 ] || break
+      [ "$left" -gt 0 ] && [ "$n" -lt 100 ] || break
       sleep 0.1
       n=$((n + 1))
     done
   fi
+  witness_left=no
+  if [ -n "$witness" ]; then
+    ! kill -0 "$witness" 2>/dev/null || witness_left=yes
+    kill "$witness" 2>/dev/null
+    wait "$witness" 2>/dev/null
+  fi
+}
+
+own_unflag() {
+  [ -f "$fixture/flagged" ] || return 0
+  while IFS= read -r own_flagged; do
+    [ ! -e "$own_flagged" ] || chflags nouchg "$own_flagged"
+  done <"$fixture/flagged"
 }
 
 tmpdirs_gone() {
@@ -852,6 +871,8 @@ own_judge() {
     got=line-missing
   elif [ -n "$case_absent" ] && printf '%s\n' "$got_out" | grep -qxF -e "$case_absent"; then
     got=line-present
+  elif [ -n "$case_witness" ] && [ "$witness_left" != yes ]; then
+    got='witness-ended'
   elif [ "$left" -gt 0 ]; then
     got=$left-processes-left
   elif [ -n "$case_signal" ] && [ "${before:-0}" -lt "$case_signal_min" ]; then
@@ -908,6 +929,8 @@ case_reset() {
   case_procs=
   case_made=
   case_once=
+  case_witness=
+  case_env=
 }
 
 # shellcheck disable=SC2016
@@ -944,6 +967,7 @@ own_self_test() {
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   if [ -n "${RUN_CI_D_NESTED:-}" ]; then
     [ "$RUN_CI_D_NESTED" != fail ] || wrong="$wrong nested-run-asked-to-fail"
+    [ "$RUN_CI_D_NESTED" != slow ] || sleep 6
     if [ -n "$wrong" ]; then
       record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
     else
@@ -1000,6 +1024,9 @@ own_self_test() {
   case_first="PASS 10-a${nl}FAIL .20-hidden ($name_refusal)"
   case_then='ci.d macos: 1 passed, 1 failed, 0 skipped'
   own_case hidden-entry-after-the-others 1 "FAIL .20-hidden ($name_refusal)" macos
+  case_first='scripts/r1/ci.d/10-a.sh'
+  case_then="FAIL .20-hidden ($name_refusal)"
+  own_case list-puts-hidden-entries-last 1 "FAIL .20-hidden ($name_refusal)" --list macos
   new_repo && add_script r1 10-.sh "$good" 'printf "PASS 10-\n"'
   own_case file-name-without-a-name 1 "FAIL 10- ($name_refusal)" macos
   new_repo && add_script r1 10-A.sh "$good" 'printf "PASS 10-A\n"'
@@ -1081,6 +1108,19 @@ own_self_test() {
   own_case script-restores-a-file-that-differed-before 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" config core.checkStat minimal; printf "PASS 10-a\n"'
   own_case script-changes-the-git-settings 1 'FAIL run-ci-d (10-a changed the git settings of the checkout: config)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'a=$(git -C "$CI_D_REPO" rev-parse --git-path info/attributes) && mkdir -p "${a%/*}" && printf "* -text\n" >>"$a"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" "$pass_b"
+  case_absent='FAIL run-ci-d (20-b changed the git settings of the checkout: info/attributes)'
+  own_case script-changes-the-git-attributes 1 'FAIL run-ci-d (10-a changed the git settings of the checkout: info/attributes)' macos
+  real_git=$(command -v git) || real_git=git
+  for git_read in 'ls-files -v' 'status --porcelain'; do
+    mkdir -p "$tmp/git-fails-after-10-a" &&
+      printf '#!/bin/sh\ncase "$*" in *"%s"*) [ ! -e failing-git ] || exit 128 ;; esac\nexec %s "$@"\n' "$git_read" "$real_git" >"$tmp/git-fails-after-10-a/git" &&
+      chmod +x "$tmp/git-fails-after-10-a/git"
+    new_repo && add_script r1 10-a.sh "$good" ': >"$CI_D_REPO/failing-git"; printf "PASS 10-a\n"' && add_script r1 20-b.sh "$good" "$pass_b"
+    case_path=$tmp/git-fails-after-10-a
+    own_case "git-${git_read%% *}-fails-at-the-read-after-a-script" 1 'FAIL run-ci-d (git cannot read the tracked files after 10-a)' macos
+  done
   new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"'
   own_case script-adds-a-replace-ref 1 "FAIL run-ci-d (10-a changed the git settings of the checkout: refs/replace/$fixture_head)" macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && git -C "$fixture" update-index --skip-worktree tracked.txt
@@ -1090,6 +1130,29 @@ own_self_test() {
     add_script r1 20-b.sh "$good" 'sleep 3; printf "PASS 20-b\n"'
   case_gone=1
   own_case child-that-a-script-leaves-is-ended 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" '( trap "sleep 1; : >\"\$CI_D_REPO/term-done\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; trap "" TERM; sleep 60 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"'
+  case_limit=2
+  case_max_s=30
+  case_made=term-done
+  case_witness=yes
+  own_case child-whose-term-trap-takes-a-second-finishes-it-before-kill 1 'FAIL 10-a (time limit 2 s)' macos
+  new_repo && track_file &&
+    add_script r1 10-a.sh "$good" '( trap "printf \"x\\n\" >>\"\$CI_D_REPO/tracked.txt\"; exit 0" TERM; sleep 60 & wait ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" "$pass_b"
+  case_absent='FAIL run-ci-d (20-b changed a tracked file: tracked.txt)'
+  case_witness=yes
+  own_case group-ended-before-the-tracked-files-are-read 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" 'printf "line of 20-b\n"; printf "PASS 20-b\n"'
+  case_first="line of 20-b${nl}PASS 20-b"
+  case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
+  case_absent='FAIL run-ci-d (20-b changed a tracked file: tracked.txt)'
+  own_case later-scripts-run-after-a-change-of-a-tracked-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file &&
+    add_script r1 10-a.sh "$good" "perl -e 'setpgrp(0, 0); exec @ARGV' sh -c 'n=0; while [ ! -e \"\$0/started.20-b\" ] && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; printf \"x\\n\" >>\"\$0/tracked.txt\"; : >\"\$0/changed\"' \"\$CI_D_REPO\" >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$good" ': >"$CI_D_REPO/started.20-b"; n=0; while [ ! -e "$CI_D_REPO/changed" ] && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n + 1)); done; printf "PASS 20-b\n"'
+  case_witness=yes
+  own_case child-in-a-group-of-its-own-is-named-at-the-next-read 1 'FAIL run-ci-d (20-b changed a tracked file: tracked.txt)' macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -1126,8 +1189,9 @@ own_self_test() {
   case_then='PASS 10-a'
   case_once='line of 10-a'
   own_case seconds-line-after-the-output-of-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] && [ "${SECOND_CALLER_VALUE:-}" = kept ] && [ "${HOME##*/}" = case-home ] && [ "${job:-}" != from-the-caller ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
+  case_env=yes
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   leaves='[ -d "$TMPDIR" ] && [ -z "$(ls -A "$TMPDIR")" ] || { printf "FAIL %s (its TMPDIR is no empty directory)\n" "$me"; exit 1; }; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; mkdir "$TMPDIR/left" && : >"$TMPDIR/left/file"'
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'" &&
@@ -1148,6 +1212,25 @@ own_self_test() {
     own_case tmpdir-that-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
   fi
   chmod 755 "$tmp/read-only"
+  if command -v chflags >/dev/null 2>&1 && mkdir "$tmp/flag-probe" && : >"$tmp/flag-probe/f" && chflags uchg "$tmp/flag-probe/f" 2>/dev/null; then
+    chflags nouchg "$tmp/flag-probe/f"
+    trap 'own_unflag' EXIT
+    trap 'own_unflag; exit 143' TERM
+    trap 'own_unflag; exit 130' INT
+    trap 'own_unflag; exit 129' HUP
+    locks='mkdir "$TMPDIR/locked" && : >"$TMPDIR/locked/file" && chflags uchg "$TMPDIR/locked/file" && printf "%s\n" "$TMPDIR/locked/file" >>"$CI_D_REPO/flagged"'
+    new_repo && add_script r1 10-a.sh "$good" "[ \"\${1:-}\" = --self-test ] || exit 3; $locks; printf 'PASS self-test:10-a (1 failing fixtures rejected)\\n'"
+    case_absent='FAIL self-test:10-a (it ended without an exit status)'
+    own_case self-test-tmpdir-that-cannot-be-removed 1 'FAIL self-test:10-a (its TMPDIR cannot be removed)' macos --self-test 10-a
+    own_unflag
+    new_repo && add_script r1 10-a.sh "$good" "$locks; printf 'PASS 10-a\\n'"
+    case_absent='FAIL 10-a (it ended without an exit status)'
+    case_then='ci.d macos: 1 passed, 1 failed, 0 skipped'
+    case_first='FAIL 10-a (its TMPDIR cannot be removed)'
+    own_case tmpdir-flagged-immutable-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
+    own_unflag
+    trap - EXIT TERM INT HUP
+  fi
   term_child='( trap ": >\"\$CI_D_REPO/child-got-term\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $term_child; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
     add_script r1 20-b.sh "$good" "$pass_b"
@@ -1281,6 +1364,10 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '99-gone it was renamed\n' >"$fixture/$alone_list"
   own_case alone-list-names-no-script 1 "FAIL run-ci-d ($alone_list names 99-gone, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    add_script r1 20-w.sh "# jobs: windows$nl# rule: A fixture rule." "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-w its self-test fails beside another one\n' >"$fixture/$alone_list"
+  own_case alone-list-names-a-script-of-the-other-job-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_jobs=x
   own_case jobs-not-a-number 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=x is not a whole number from 1 to 999999999)' macos --self-test 10-a
@@ -1306,6 +1393,12 @@ own_self_test() {
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=fail
   own_case own-cases-that-fail-in-a-nested-run 1 'ci.d macos self-test: 0 passed, 1 failed' macos --self-test run-ci-d
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=slow
+  case_limit=2
+  case_max_s=30
+  case_witness=yes
+  own_case own-cases-past-the-limit 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
@@ -1417,8 +1510,9 @@ own_self_test() {
   case_first='PASS 10-a'
   case_then='FAIL 20-b (time limit 2 s)'
   own_case free-check-past-its-limit-beside-the-cargo-lane 1 'FAIL 20-b (time limit 2 s)' macos
-  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] && [ "${SECOND_CALLER_VALUE:-}" = kept ] && [ "${HOME##*/}" = case-home ] && [ "${job:-}" != from-the-caller ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
   case_locale=en_US.UTF-8
+  case_env=yes
   own_case environment-of-a-self-test 0 'ci.d windows self-test: 1 passed, 0 failed' windows --self-test 10-a
   for signal in INT QUIT HUP TERM; do
     for place in beside-another alone; do
