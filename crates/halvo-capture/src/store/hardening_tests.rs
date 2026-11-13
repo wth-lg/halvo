@@ -5015,3 +5015,46 @@ fn the_unwrap_time_of_an_open_holds_no_time_of_the_custody_rebuild() {
         store.unwrap_time()
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn windows_reads_what_sqlite_does_with_a_file_link_at_store_db_wal() {
+    let say = |line: String| {
+        let _ = writeln!(std::io::stderr(), "E5A {line}");
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let target = outside.path().join("outside.bin");
+    let pattern: Vec<u8> = (0..100u32).map(|i| (i * 7 % 251) as u8).collect();
+    std::fs::write(&target, &pattern).unwrap();
+    let linked = std::os::windows::fs::symlink_file(&target, store_dir.join("store.db-wal"));
+    say(format!(
+        "link made: {:?}",
+        linked.as_ref().map(drop).map_err(|e| e.raw_os_error())
+    ));
+    if linked.is_err() {
+        return;
+    }
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id);
+    say(format!("open: {}", answer_text(&opened)));
+    if let Ok(mut store) = opened {
+        let written = store
+            .write_segment(&mut Cursor::new(b"through the log"))
+            .map(drop);
+        say(format!("write: {written:?}"));
+        drop(store);
+    }
+    let after = std::fs::read(&target).unwrap_or_default();
+    say(format!(
+        "outside file: length before {} after {}, bytes equal {}",
+        pattern.len(),
+        after.len(),
+        after == pattern
+    ));
+    say(format!("store directory after: {:?}", names_in(&store_dir)));
+    say(format!(
+        "outside directory after: {:?}",
+        names_in(outside.path())
+    ));
+}
