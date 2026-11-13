@@ -205,7 +205,25 @@ fn executable_path(pid: libc::pid_t) -> Option<String> {
 }
 
 fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
-    text.to_string()
+    let string = (text as *const objc2_foundation::NSString).cast::<std::ffi::c_void>()
+        as core_foundation::string::CFStringRef;
+    // SAFETY: an NSString is toll-free bridged with CFString, and `text`
+    // keeps the string alive for the call.
+    let total = unsafe { core_foundation::string::CFStringGetLength(string) };
+    let take = usize::try_from(total)
+        .unwrap_or(0)
+        .min(IDENTITY_READ_CAP_UNITS);
+    let mut units = vec![0u16; take];
+    // SAFETY: the range starts at 0 and holds `take` units, at most the
+    // string's length, and `units` has room for `take` units.
+    unsafe {
+        core_foundation::string::CFStringGetCharacters(
+            string,
+            core_foundation::base::CFRange::init(0, take as isize),
+            units.as_mut_ptr(),
+        )
+    };
+    String::from_utf16_lossy(&units)
 }
 
 fn read_frontmost() -> Option<Foreground> {
