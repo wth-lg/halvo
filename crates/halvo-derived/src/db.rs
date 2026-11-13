@@ -724,7 +724,7 @@ impl Db {
 /// Runs SQLite's start-up, SQLCipher's included, to its end on one thread before any store of the process opens its
 /// database. SQLite marks itself started and lets other threads in before it runs SQLCipher's start-up hook, and a
 /// thread that sets a key in that gap is refused (crates/halvo-sqlcipher builds the hook).
-fn initialize_once() {
+pub(crate) fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
         let _ = Connection::open_in_memory();

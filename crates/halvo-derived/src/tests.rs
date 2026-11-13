@@ -10,9 +10,15 @@ use crate::db::{due_now, require, Now, Progress, Tx};
 use crate::error::OpenError;
 use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
+/// An in-memory connection of a test, opened after SQLite's start-up has run to its end under the store's guard.
+fn memory() -> Connection {
+    crate::db::initialize_once();
+    Connection::open_in_memory().unwrap()
+}
+
 #[test]
 fn no_catalogued_statement_plans_a_temporary_b_tree() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     assert!(sql::CATALOGUE.len() >= 7);
     for (name, statement) in sql::CATALOGUE {
@@ -35,7 +41,7 @@ fn no_catalogued_statement_plans_a_temporary_b_tree() {
 
 #[test]
 fn the_progress_handler_interrupts_a_statement_past_its_budget() {
-    let mut conn = Connection::open_in_memory().unwrap();
+    let mut conn = memory();
     let progress = Progress::install(&mut conn, Duration::from_secs(30)).unwrap();
     let count = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200000) \
                  SELECT count(*) FROM n";
@@ -52,7 +58,7 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
 
 #[test]
 fn a_setting_that_is_not_in_effect_is_refused() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch("PRAGMA secure_delete = OFF;").unwrap();
     assert_eq!(
         require(&conn, "secure_delete", "1"),
@@ -70,7 +76,7 @@ const NOW: Now = Now {
 
 /// The store's tables in memory, with rows written by hand: kind, class, day and expiry instant.
 fn hand_rows(rows: &[(&str, i64, Option<i64>, Option<i64>)]) -> Connection {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     for (kind, class, day, expires) in rows {
         conn.execute(
@@ -270,7 +276,7 @@ fn the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_an
 /// bounded row with no day is not handed out, and a kept row and a window row with no day are.
 #[test]
 fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     for (body, class, day, gone, expires) in [
         ("bounded without a day", 1, None, None, None),
@@ -310,7 +316,7 @@ fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_wi
 
 /// The plan of a statement as `EXPLAIN QUERY PLAN` gives it on the store's schema, one detail per line.
 fn plan_of(statement: sql::Sql) -> Vec<String> {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let mut plan = conn
         .prepare(&format!("EXPLAIN QUERY PLAN {}", statement.text()))
@@ -337,7 +343,7 @@ fn the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing() {
 /// whose column is empty while its text names the workflow, and no row of the family `workflow`.
 #[test]
 fn rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let w1 = "10000000000000000000000000000001";
     let w2 = "20000000000000000000000000000002";
@@ -508,7 +514,7 @@ fn the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing() {
 /// no row of another workflow or kind, and no row whose workflow column is empty while its text names the workflow.
 #[test]
 fn held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let w1 = "10000000000000000000000000000001";
     let w2 = "20000000000000000000000000000002";

@@ -32,6 +32,14 @@ pub fn open_keyless(
     Store::open_keyed(data_dir, Keying::Keyless, entries, host, ids)
 }
 
+/// Runs SQLite's start-up, SQLCipher's included, to its end once in the process, as every open of the store does
+/// before it opens its database, and nothing else. A test that opens a connection of its own calls it first, so that
+/// its connection does not start SQLite outside the store's guard, where a store that sets its key in that gap is
+/// refused.
+pub fn start_sqlite() {
+    crate::db::initialize_once();
+}
+
 /// The delete of everything that the derived store holds: it drops `store`, so that the store's connection closes
 /// before its writer lock is released, and then removes the directory `derived/` of the store with every file in
 /// it, the database, its write-ahead log, its shared-memory file, the writer lock and the key file among them. It

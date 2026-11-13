@@ -221,6 +221,7 @@ fn privacy_scrub() {
 
 /// A connection of the test's own to the database of a keyless store.
 fn plain(scratch: &Scratch) -> Connection {
+    halvo_derived::test_host::start_sqlite();
     let conn = Connection::open(scratch.db()).unwrap();
     conn.busy_timeout(std::time::Duration::ZERO).unwrap();
     conn

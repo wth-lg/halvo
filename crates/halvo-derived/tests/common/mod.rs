@@ -328,6 +328,7 @@ pub fn open_with_ids(scratch: &Scratch, clock: &TestClock, seed: u64) -> Result<
 }
 
 pub fn raw(scratch: &Scratch) -> Connection {
+    halvo_derived::test_host::start_sqlite();
     let conn = Connection::open(scratch.db()).unwrap();
     conn.busy_timeout(std::time::Duration::ZERO).unwrap();
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", "07".repeat(32)))
