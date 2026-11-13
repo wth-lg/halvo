@@ -20,9 +20,11 @@ impl Card {
     /// entries with `{count}` for more than one effect; for effects of more than one class
     /// `confirm.mixed.title`, `confirm.mixed.reject` and `confirm.mixed.allow` with `{count}`.
     /// A field is the line `<label>: <value>`, its pieces joined by `, `, or its label alone
-    /// when it has no value; a line break or another control character in a field is a space,
-    /// so that each field stays one line. `malformed` for no class, for a class whose entries
-    /// the words file does not hold, and for two controls of one text.
+    /// when it has no value; a control character, a line or paragraph separator and a mark that
+    /// sets the direction of text in a field is a space, so that each field stays one line and
+    /// reads in its own order. `malformed` for no class, for a class whose entries the words
+    /// file does not hold (its action line in a request of more than one class), and for two
+    /// controls of one text.
     pub fn new(classes: &[Class], fields: &[Field]) -> Result<Card, Cause> {
         let first = *classes.first().ok_or(Cause::Malformed)?;
         let count = classes.len().to_string();
@@ -44,6 +46,9 @@ impl Card {
                 )
             }
         } else {
+            for class in classes {
+                words::text(&format!("confirm.{}.action", class.name()), &[])?;
+            }
             (
                 words::text("confirm.mixed.title", &count)?,
                 words::text("confirm.mixed.reject", &count)?,
@@ -87,9 +92,17 @@ impl Card {
     }
 }
 
+fn breaks(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{2028}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+        )
+}
+
 fn one_line(text: &str) -> String {
     text.chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
+        .map(|c| if breaks(c) { ' ' } else { c })
         .collect()
 }
 

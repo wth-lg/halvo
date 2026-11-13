@@ -131,3 +131,47 @@ fn each_field_is_one_line_with_its_pieces_and_with_no_line_break_of_its_own() {
     );
     assert_eq!(card.text().lines().count(), fields.len());
 }
+
+#[test]
+fn a_mixed_card_is_refused_for_a_class_whose_entries_the_words_file_lacks() {
+    for class in [
+        Class::Credential,
+        Class::Read,
+        Class::Prepare,
+        Class::LocalEdit,
+    ] {
+        assert_eq!(
+            Card::new(&[Class::Payment, class], &pay_fields()),
+            Err(Cause::Malformed),
+            "{class:?}"
+        );
+        assert_eq!(
+            Card::new(&[class, Class::Send, Class::Payment], &pay_fields()),
+            Err(Cause::Malformed),
+            "{class:?}"
+        );
+    }
+}
+
+#[test]
+fn a_field_holds_no_line_separator_and_no_bidi_control() {
+    let marks = [
+        '\u{2028}', '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}',
+        '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{200e}', '\u{200f}', '\u{061c}',
+        '\u{85}',
+    ];
+    for mark in marks {
+        let value = format!("City Power{mark}Amount: 0.01 USD");
+        let card = Card::new(
+            &[Class::Payment],
+            &[field(&format!("Pay{mark}to"), &[&value], FieldFrom::Site)],
+        )
+        .unwrap();
+        assert_eq!(
+            card.lines(),
+            ["Pay to: City Power Amount: 0.01 USD"],
+            "U+{:04X}",
+            u32::from(mark)
+        );
+    }
+}

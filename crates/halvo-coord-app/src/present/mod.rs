@@ -34,7 +34,8 @@ pub type Read = dyn Fn(&ItemId) -> Result<Card, Cause> + Send + Sync;
 
 /// The presenter of native confirmations (I4.9). `present` returns at once; on a thread of its
 /// own it reads the item's card, shows it in `D`, reports each show on screen through
-/// `Native::on_screen`, and hands the answer to `Native::answer`. An answer refused as `early`
+/// `Native::on_screen`, and hands the answer to `Native::answer`, `reject` for a show that never
+/// reported itself on screen. An answer refused as `early`
 /// shows the dialog once more, as long as the dialog was on screen; any other reply ends the
 /// thread, and so does a card that the reader refuses, before anything is shown and with no
 /// answer. The `Native` is dropped when the thread ends, so the item can be shown again by a
@@ -101,6 +102,11 @@ fn serve<T: Target + ?Sized, D: Dialog + ?Sized>(target: &T, read: &Read, dialog
             shown.set(true);
             target.on_screen();
         });
+        let answer = if shown.get() {
+            answer
+        } else {
+            ConfirmAnswer::Reject
+        };
         match target.answer(answer) {
             Err(Cause::Early) if shown.get() => continue,
             _ => return,

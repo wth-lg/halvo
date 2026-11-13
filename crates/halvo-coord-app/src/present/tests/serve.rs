@@ -202,3 +202,12 @@ fn present_returns_at_once_and_drops_the_item_on_its_own_thread_when_the_dialog_
         .dropped));
     assert_eq!(seen.lock().unwrap().answers, [ALLOW]);
 }
+
+#[test]
+fn an_allow_from_a_show_that_was_never_on_screen_reaches_the_item_as_reject() {
+    let (fake, seen) = Fake::new(&[Ok(())]);
+    let shows = Shows::new(&[(false, ALLOW)]);
+    serve(&fake, &*reads_pay(), &shows);
+    let seen = seen.lock().unwrap();
+    assert_eq!((seen.on_screen, seen.answers.clone()), (0, vec![REJECT]));
+}
