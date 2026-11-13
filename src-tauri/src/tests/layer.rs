@@ -579,3 +579,22 @@ fn the_commands_reach_the_fake_server_over_the_socket_of_a_data_directory() {
     }));
     drop(server);
 }
+
+#[test]
+fn a_poll_made_after_a_mutation_was_answered_and_taken_first_is_not_replaced_by_the_mutation() {
+    let views = Views::default();
+    let paused = status_with(Platform::Macos, |f| {
+        f.desired = halvo_control::model::CaptureState::Paused;
+        f.capture = Capture::Paused;
+        stopped(f);
+    });
+    assert!(views.take_poll(7, &Ok(paused)));
+    let running = sample_status(Platform::Macos);
+    views.take_mutation(5, &running);
+    assert_eq!(
+        views.view().capture,
+        Some(Capture::Paused),
+        "the poll of call 7 was made after the mutation's answer at mark 5"
+    );
+    assert!(!views.take_poll(4, &Ok(sample_status(Platform::Macos))));
+}

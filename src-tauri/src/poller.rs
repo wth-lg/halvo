@@ -17,11 +17,13 @@ struct Latest {
     view: StatusView,
     status: Option<DaemonStatus>,
     mutation_mark: u64,
+    poll_number: Option<u64>,
 }
 
 /// The newest view of the capture service, which the poller, the commands and the tray share.
 /// A status that a call made before the last mutation was answered never replaces the
-/// mutation's view.
+/// mutation's view, and a mutation's view never replaces a status whose call was made after
+/// that mutation was answered.
 #[derive(Debug)]
 pub struct Views {
     latest: Mutex<Latest>,
@@ -34,6 +36,7 @@ impl Default for Views {
                 view: StatusView::without_status(Service::Connecting),
                 status: None,
                 mutation_mark: 0,
+                poll_number: None,
             }),
         }
     }
@@ -60,6 +63,7 @@ impl Views {
         }
         latest.view = view_of(answer);
         latest.status = answer.as_ref().ok().cloned();
+        latest.poll_number = Some(latest.poll_number.map_or(number, |n| n.max(number)));
         true
     }
 
@@ -68,6 +72,9 @@ impl Views {
     pub fn take_mutation(&self, mark: u64, status: &DaemonStatus) {
         let mut latest = self.latest();
         latest.mutation_mark = latest.mutation_mark.max(mark);
+        if latest.poll_number.is_some_and(|n| n >= mark) {
+            return;
+        }
         latest.view = StatusView::of(status);
         latest.status = Some(status.clone());
     }
