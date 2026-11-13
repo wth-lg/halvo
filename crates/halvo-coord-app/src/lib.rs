@@ -5,12 +5,14 @@
 //! shell and the mock runtime register the same commands.
 
 mod args;
+mod attention;
 mod bell;
 mod handler;
 mod hub;
 mod window;
 mod wired;
 
+pub use attention::Attention;
 pub use bell::Bell;
 pub use handler::{handler, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
