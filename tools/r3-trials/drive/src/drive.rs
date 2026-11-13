@@ -573,7 +573,89 @@ async fn sign_in(ex: &mut Executor, ctx: &Ctx) -> Result<Result<bool, String>, E
         return Ok(Err(e));
     }
     settle(ex, &frames).await;
+    if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
+        return Ok(Err(e));
+    }
     Ok(Ok(true))
+}
+
+/// The most handbacks in a row on a page that still shows a credential field (A6.4, ruling CP-177 G3).
+pub const HANDBACKS_MAX: u32 = 3;
+
+/// What the harness does after its own reading of a page (ruling CP-177 G1, G3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OnReading {
+    /// No line is a credential field: the model may be asked, or the stored step carried out.
+    Ask,
+    /// A line is a credential field: the harness signs in itself and reads the page again.
+    HandBack,
+    /// The bound of handbacks is reached, or the sign-in returned an error: the run ends as a miss
+    /// with the cause handed_back, and no model is asked on that page.
+    End,
+}
+
+/// The decision after a reading: whether the page shows a credential field, how many handbacks the
+/// harness made in a row before this reading, and whether the last sign-in returned an error.
+pub fn next_on_reading(
+    credential: bool,
+    handbacks_in_a_row: u32,
+    sign_in_failed: bool,
+) -> OnReading {
+    if sign_in_failed {
+        OnReading::End
+    } else if !credential {
+        OnReading::Ask
+    } else if handbacks_in_a_row >= HANDBACKS_MAX {
+        OnReading::End
+    } else {
+        OnReading::HandBack
+    }
+}
+
+/// Reads the page and hands back while a line is a credential field: the page's lines and the
+/// count of handbacks made, or the cause that ends the run (`handed_back`, or `snapshot`).
+async fn read_page(
+    ex: &mut Executor,
+    ctx: &Ctx,
+) -> Result<Result<(Vec<SnapshotLine>, u32), &'static str>, End> {
+    let mut handbacks = 0;
+    let mut failed = false;
+    loop {
+        let lines = match guarded(ctx, ex.snapshot()).await? {
+            Ok(l) => l,
+            Err(e) => {
+                ctx.trace(&format!("snapshot: {e}"));
+                return Ok(Err("snapshot"));
+            }
+        };
+        match next_on_reading(lines.iter().any(|l| l.credential), handbacks, failed) {
+            OnReading::Ask => return Ok(Ok((lines, handbacks))),
+            OnReading::End => return Ok(Err("handed_back")),
+            OnReading::HandBack => {
+                handbacks += 1;
+                match sign_in(ex, ctx).await? {
+                    Ok(signed) => ctx.trace(&format!("handback signed_in={signed} by=reading")),
+                    Err(e) => {
+                        ctx.trace(&format!("handback: {e}"));
+                        failed = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn handback_step(n: usize) -> Step {
+    Step {
+        n,
+        verb: Verb::Handback,
+        target: None,
+        args: vec![Arg {
+            name: "reason".into(),
+            from: Source::Const("sign_in".into()),
+        }],
+        request: false,
+    }
 }
 
 /// What carrying out one action gave.
@@ -835,10 +917,18 @@ async fn compile_steps(
     let mut history: Vec<String> = vec!["navigate start".into()];
     let mut seen: HashSet<(String, String)> = HashSet::new();
     for call in 1..=CALLS_MAX {
-        let lines = match guarded(ctx, ex.snapshot()).await? {
-            Ok(l) => l,
-            Err(e) => {
-                ctx.trace(&format!("snapshot: {e}"));
+        let lines = match read_page(ex, ctx).await? {
+            Ok((lines, handbacks)) => {
+                for _ in 0..handbacks {
+                    history.push("handback".into());
+                    steps.push(handback_step(steps.len() + 1));
+                }
+                lines
+            }
+            Err(cause) => {
+                if cause == "handed_back" {
+                    ctx.trace("compile failed cause=handed_back");
+                }
                 return Ok(false);
             }
         };
@@ -889,16 +979,7 @@ async fn compile_steps(
                     Err(e) => ctx.trace(&format!("handback: {e}")),
                 }
                 history.push("handback".into());
-                steps.push(Step {
-                    n: steps.len() + 1,
-                    verb: Verb::Handback,
-                    target: None,
-                    args: vec![Arg {
-                        name: "reason".into(),
-                        from: Source::Const("sign_in".into()),
-                    }],
-                    request: false,
-                });
+                steps.push(handback_step(steps.len() + 1));
                 None
             }
             other => {
@@ -999,6 +1080,13 @@ async fn replay_steps(
     let mut kept: HashMap<String, String> = HashMap::new();
     for s in steps {
         tally.steps += 1;
+        let read = match read_page(ex, ctx).await? {
+            Ok((lines, _)) => lines,
+            Err(cause) => {
+                ctx.trace(&format!("step {} {cause}", s.n));
+                return Ok(false);
+            }
+        };
         match s.verb {
             Verb::Navigate => {
                 if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
@@ -1023,13 +1111,7 @@ async fn replay_steps(
             }
             _ => {
                 let Some(t) = &s.target else { return Ok(false) };
-                let lines = match guarded(ctx, ex.snapshot()).await? {
-                    Ok(l) => l,
-                    Err(e) => {
-                        ctx.trace(&format!("snapshot: {e}"));
-                        return Ok(false);
-                    }
-                };
+                let lines = read;
                 let wanted = action_of(s);
                 let line = match find(&lines, t) {
                     Ok(l) => l.clone(),
@@ -1038,7 +1120,7 @@ async fn replay_steps(
                         if child.is_none() {
                             return Ok(false);
                         }
-                        match repair(ctx, child, s, &lines, &kept, tally).await? {
+                        match repair(ex, ctx, child, s, &kept, tally).await? {
                             Some(l) => l,
                             None => return Ok(false),
                         }
@@ -1120,18 +1202,25 @@ pub fn same_step(stored: &Action, given: &Action) -> bool {
 /// Asks the model, at most `recoveries` times, which control of this page does the step that
 /// found none: the line that it names, when its action is the step's.
 async fn repair(
+    ex: &mut Executor,
     ctx: &Ctx,
     child: &mut Option<Child>,
     s: &Step,
-    lines: &[SnapshotLine],
     kept: &HashMap<String, String>,
     tally: &mut Tally,
 ) -> Result<Option<SnapshotLine>, End> {
     let Some(t) = &s.target else { return Ok(None) };
     let wanted = action_of(s);
-    let text = snapshot_text(lines);
     let mut history: Vec<String> = Vec::new();
     for attempt in 1..=ctx.recoveries {
+        let lines = match read_page(ex, ctx).await? {
+            Ok((l, _)) => l,
+            Err(cause) => {
+                ctx.trace(&format!("recovery {cause}"));
+                return Ok(None);
+            }
+        };
+        let text = snapshot_text(&lines);
         let ask_text = format!(
             "Step {} of the saved steps found no control on this page: {} {}. Give the action that does this step on this page.",
             s.n,
@@ -1521,6 +1610,34 @@ mod tests {
         assert!(!repeated(&mut seen, "next page", "reply"));
         assert!(repeated(&mut seen, "page", "reply"));
         assert_eq!(CALLS_MAX, 32);
+    }
+
+    #[test]
+    fn a_page_with_a_credential_line_is_handed_back_and_not_put_to_the_model() {
+        let mut lines = [
+            line("e1", "heading", "Sign in", None),
+            line("e5", "textbox", "Password", None),
+        ];
+        lines[1].credential = true;
+        let shows = lines.iter().any(|l| l.credential);
+        assert_eq!(next_on_reading(shows, 0, false), OnReading::HandBack);
+        assert_eq!(next_on_reading(false, 0, false), OnReading::Ask);
+        assert_eq!(next_on_reading(false, 2, false), OnReading::Ask);
+        assert_eq!(next_on_reading(true, 1, true), OnReading::End);
+        assert_eq!(next_on_reading(false, 0, true), OnReading::End);
+    }
+
+    #[test]
+    fn at_most_three_handbacks_in_a_row_then_the_run_ends() {
+        let mut made = 0;
+        let end = loop {
+            match next_on_reading(true, made, false) {
+                OnReading::HandBack => made += 1,
+                other => break other,
+            }
+        };
+        assert_eq!((end, made), (OnReading::End, 3));
+        assert_eq!(HANDBACKS_MAX, 3);
     }
 
     #[test]
