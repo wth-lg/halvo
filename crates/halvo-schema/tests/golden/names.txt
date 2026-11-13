@@ -37,6 +37,8 @@ autonomy
 base
 begun
 bindings
+blocked
+blocked_withheld
 body
 bounded
 budget
@@ -178,6 +180,7 @@ link_account
 list_checkpoints
 list_refinements
 load
+load_replies
 load_session
 load_steps
 local_edit
@@ -195,6 +198,7 @@ mark
 mark_checkpoint
 medium
 message
+messages
 minutes
 missed
 mode
@@ -270,7 +274,9 @@ reject_once
 rejected
 releasing
 replay
+replies
 reply_body
+reply_row
 request
 rev
 reverted

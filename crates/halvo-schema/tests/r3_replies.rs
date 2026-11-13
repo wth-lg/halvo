@@ -1,4 +1,8 @@
-use halvo_schema::executable::body::{LoadReply, RunnerReply};
+use halvo_schema::executable::body::{
+    LoadReplies, LoadRepliesReply, LoadReply, PutReplyRow, RunnerCall, RunnerReply,
+    CHECKPOINTS_REPLY_MAX, RUNNER_REPLY_VALUE_MAX,
+};
+use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame, ToRunner, FRAME_JSON_MAX};
 use halvo_schema::executable::names::{Cause, LogEvent, ReplyState};
 use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentReply, AgentStart};
 use halvo_schema::executable::text::ProviderId;
@@ -6,6 +10,8 @@ use halvo_schema::executable::{self, Refusal, RefusalCause};
 use halvo_schema::kinds::{
     check_entries, check_record, FieldType, KindEntry, Origin, RetentionClass,
 };
+use halvo_schema::request::{self, Decoded, RunnerRequest, RunnerRole};
+use halvo_schema::RequestId;
 
 const W: &str = "30000000000000000000000000000001";
 const A: &str = "40000000000000000000000000000001";
@@ -540,4 +546,522 @@ fn the_names_of_agent_start_stand_in_names_and_in_the_names_file() {
         assert!(executable::NAMES.contains(&name), "{name}");
         assert!(lines.contains(&name), "{name}");
     }
+}
+
+const A2: &str = "40000000000000000000000000000002";
+
+fn q(s: Option<&str>) -> String {
+    s.map_or("null".to_owned(), |s| format!("\"{s}\""))
+}
+
+fn row_of(workflow: &str, agent: &str, message: &str, state: &str, draft: Option<&str>) -> String {
+    let effect = matches!(state, "begun" | "committed" | "unknown").then_some(E);
+    format!(
+        r#"{{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{R}","seq":2,"day":20768,"at":1794339000000000000,"message":"{message}","draft":{},"effect":{},"state":"{state}"}}"#,
+        q(draft),
+        q(effect)
+    )
+}
+
+fn mine(message: &str) -> String {
+    row_of(W, A, message, "drafted", Some(&format!("d-{message}")))
+}
+
+fn ids(list: &[&str]) -> String {
+    list.iter()
+        .map(|id| format!("\"{id}\""))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn replies_text(rows: &[String], blocked: &[&str], withheld: &[&str]) -> String {
+    format!(
+        r#"{{"replies":[{}],"blocked":[{}],"blocked_withheld":[{}]}}"#,
+        rows.join(","),
+        ids(blocked),
+        ids(withheld)
+    )
+}
+
+fn load_replies_body(messages: &[&str]) -> String {
+    format!(
+        r#"{{"op":"load_replies","agent":"{A}","run":"{R}","messages":[{}]}}"#,
+        ids(messages)
+    )
+}
+
+fn travels(text: &str, op: &str) -> RunnerCall {
+    let call = RunnerCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {op}"));
+    assert_eq!(call.op(), op);
+    assert_eq!(call.to_json().unwrap(), text);
+    assert_eq!((call.agent().as_str(), call.run().as_str()), (A, R));
+    let request = RunnerRequest::new(
+        &RunnerRole::claim(),
+        RequestId::from_random([7; 16]),
+        call.clone(),
+    );
+    let bytes = request.to_bytes().unwrap();
+    let Ok(Decoded::Raw(raw)) = request::decode(&bytes) else {
+        panic!("{op}")
+    };
+    assert_eq!(
+        RunnerCall::parse(raw.body().get().as_bytes()).unwrap(),
+        call
+    );
+    let read: RunnerCall = serde_json::from_str(text).unwrap();
+    assert_eq!(read, call);
+    call
+}
+
+#[test]
+fn the_body_load_replies_names_1_to_25_message_ids_each_once_and_travels_in_a_runner_request() {
+    let names: Vec<String> = (1..=26).map(|i| format!("m{i}")).collect();
+    let all: Vec<&str> = names.iter().map(String::as_str).collect();
+    for count in [1, 2, 25] {
+        let text = load_replies_body(&all[..count]);
+        let RunnerCall::LoadReplies(body) = travels(&text, "load_replies") else {
+            panic!("not load_replies")
+        };
+        assert_eq!(body.messages.len(), count);
+        assert_eq!(LoadReplies::parse(text.as_bytes()).unwrap(), body);
+    }
+    let one = load_replies_body(&["m1"]);
+    for (text, type_name, rule, key) in [
+        (
+            load_replies_body(&[]),
+            "LoadReplies",
+            "no_message",
+            "messages",
+        ),
+        (
+            load_replies_body(&all),
+            "LoadReplies",
+            "messages_max",
+            "messages",
+        ),
+        (
+            load_replies_body(&["m1", "m2", "m1"]),
+            "LoadReplies",
+            "repeated_name",
+            "messages",
+        ),
+        (
+            load_replies_body(&[""]),
+            "ProviderId",
+            "empty_id",
+            "messages",
+        ),
+        (
+            swap(&one, r#"["m1"]"#, r#"[["m1"]]"#),
+            "ProviderId",
+            "not_a_string",
+            "messages",
+        ),
+        (
+            swap(&one, r#""run""#, &format!(r#""workflow":"{W}","run""#)),
+            "LoadReplies",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&one, r#""messages""#, r#""subjects":["Bill"],"messages""#),
+            "LoadReplies",
+            "unknown_key",
+            "-",
+        ),
+    ] {
+        expect(RunnerCall::parse(text.as_bytes()), type_name, rule, key);
+    }
+}
+
+#[test]
+fn the_body_reply_row_holds_one_reply_row_of_its_own_agent_and_run() {
+    let body = |record: &str| {
+        format!(r#"{{"op":"reply_row","agent":"{A}","run":"{R}","record":{record}}}"#)
+    };
+    let good = body(&mine("m1"));
+    let RunnerCall::ReplyRow(read) = travels(&good, "reply_row") else {
+        panic!("not reply_row")
+    };
+    assert_eq!(read.record.message.as_str(), "m1");
+    assert_eq!(PutReplyRow::parse(good.as_bytes()).unwrap(), read);
+    let call = RunnerCall::ReplyRow(read);
+    let stored = RunnerReply::parse(br#"{"stored":1}"#).unwrap();
+    assert!(stored.answers(&call));
+    let replies = RunnerReply::parse(replies_text(&[], &[], &[]).as_bytes()).unwrap();
+    assert!(!replies.answers(&call));
+    let other_run = mine("m1").replacen(R, "50000000000000000000000000000002", 1);
+    for (text, type_name, rule, key) in [
+        (
+            body(&row_of(W, A2, "m1", "drafted", Some("d-1"))),
+            "PutReplyRow",
+            "record_of_another_run",
+            "record",
+        ),
+        (
+            body(&other_run),
+            "PutReplyRow",
+            "record_of_another_run",
+            "record",
+        ),
+        (
+            body(&swap(
+                &mine("m1"),
+                r#""state""#,
+                r#""to":"a@b.test","state""#,
+            )),
+            "AgentReply",
+            "unknown_key",
+            "record",
+        ),
+        (
+            swap(&good, r#""record""#, r#""subject":"Bill","record""#),
+            "PutReplyRow",
+            "unknown_key",
+            "-",
+        ),
+    ] {
+        expect(RunnerCall::parse(text.as_bytes()), type_name, rule, key);
+    }
+}
+
+#[test]
+fn the_reply_of_load_replies_holds_the_asking_agent_s_rows_and_two_lists_of_bare_ids() {
+    let good = replies_text(&[mine("m1"), mine("m2")], &["m3"], &["m4"]);
+    let read = LoadRepliesReply::parse(good.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.replies.len(), 2);
+    assert_eq!(read.to_json().unwrap(), good);
+    let RunnerReply::Replies(through) = RunnerReply::parse(good.as_bytes()).unwrap() else {
+        panic!("not a replies reply")
+    };
+    assert_eq!(through, read);
+    let serde: RunnerReply = serde_json::from_str(&good).unwrap();
+    assert_eq!(serde, RunnerReply::Replies(read.clone()));
+    let call = |messages: &[&str]| {
+        let RunnerCall::LoadReplies(b) =
+            RunnerCall::parse(load_replies_body(messages).as_bytes()).unwrap()
+        else {
+            panic!("not load_replies")
+        };
+        b
+    };
+    let asked = call(&["m1", "m2", "m3", "m4", "m5"]);
+    assert_eq!(read.answers(&asked), Ok(()));
+    assert!(RunnerReply::Replies(read.clone()).answers(&RunnerCall::LoadReplies(asked.clone())));
+    let empty = LoadRepliesReply::parse(replies_text(&[], &[], &[]).as_bytes()).unwrap();
+    assert_eq!(empty.answers(&asked), Ok(()));
+
+    let names: Vec<String> = (1..=26).map(|i| format!("m{i}")).collect();
+    let rows: Vec<String> = names[..13].iter().map(|m| mine(m)).collect();
+    let rest: Vec<&str> = names[13..].iter().map(String::as_str).collect();
+    let at_25 = replies_text(&rows, &rest[..12], &[]);
+    assert!(LoadRepliesReply::parse(at_25.as_bytes()).is_ok());
+    for (text, type_name, rule, key) in [
+        (
+            replies_text(
+                &[mine("m1"), row_of(W, A2, "m2", "begun", Some("d-2"))],
+                &[],
+                &[],
+            ),
+            "LoadRepliesReply",
+            "row_of_another_agent",
+            "replies",
+        ),
+        (
+            replies_text(
+                &[
+                    mine("m1"),
+                    row_of("30000000000000000000000000000002", A, "m2", "lost", None),
+                ],
+                &[],
+                &[],
+            ),
+            "LoadRepliesReply",
+            "row_of_another_agent",
+            "replies",
+        ),
+        (
+            replies_text(&[mine("m1"), mine("m1")], &[], &[]),
+            "LoadRepliesReply",
+            "repeated_name",
+            "replies",
+        ),
+        (
+            replies_text(&[], &["m3", "m3"], &[]),
+            "LoadRepliesReply",
+            "repeated_name",
+            "blocked",
+        ),
+        (
+            replies_text(&[], &[], &["m4", "m4"]),
+            "LoadRepliesReply",
+            "repeated_name",
+            "blocked_withheld",
+        ),
+        (
+            replies_text(&[], &["m3"], &["m3"]),
+            "LoadRepliesReply",
+            "blocked_twice",
+            "blocked_withheld",
+        ),
+        (
+            replies_text(&rows, &rest, &[]),
+            "LoadRepliesReply",
+            "ids_max",
+            "replies",
+        ),
+        (
+            swap(&good, r#""blocked":"#, r#""agents":[],"blocked":"#),
+            "LoadRepliesReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            replies_text(
+                &[swap(
+                    &mine("m1"),
+                    r#""state""#,
+                    r#""subject":"Bill","state""#,
+                )],
+                &[],
+                &[],
+            ),
+            "AgentReply",
+            "unknown_key",
+            "replies",
+        ),
+        (
+            replies_text(&[], &[], &[]).replacen(
+                r#""blocked":[]"#,
+                &format!(r#""blocked":[{}]"#, mine("m3")),
+                1,
+            ),
+            "ProviderId",
+            "not_a_string",
+            "blocked",
+        ),
+        (
+            replies_text(&[], &[""], &[]),
+            "ProviderId",
+            "empty_id",
+            "blocked",
+        ),
+    ] {
+        expect(
+            LoadRepliesReply::parse(text.as_bytes()),
+            type_name,
+            rule,
+            key,
+        );
+        expect(RunnerReply::parse(text.as_bytes()), type_name, rule, key);
+    }
+
+    let of_another = LoadRepliesReply::parse(
+        replies_text(&[row_of(W, A2, "m1", "committed", Some("d-1"))], &[], &[]).as_bytes(),
+    )
+    .unwrap();
+    let not_asked =
+        LoadRepliesReply::parse(replies_text(&[mine("m9")], &[], &[]).as_bytes()).unwrap();
+    let out_of_order =
+        LoadRepliesReply::parse(replies_text(&[mine("m2"), mine("m1")], &[], &[]).as_bytes())
+            .unwrap();
+    let blocked_not_asked =
+        LoadRepliesReply::parse(replies_text(&[], &["m9"], &[]).as_bytes()).unwrap();
+    let withheld_not_asked =
+        LoadRepliesReply::parse(replies_text(&[], &[], &["m9"]).as_bytes()).unwrap();
+    for (reply, rule, key) in [
+        (&of_another, "row_of_another_agent", "replies"),
+        (&not_asked, "not_asked", "replies"),
+        (&out_of_order, "order_asked", "replies"),
+        (&blocked_not_asked, "not_asked", "blocked"),
+        (&withheld_not_asked, "not_asked", "blocked_withheld"),
+    ] {
+        expect(reply.answers(&asked), "LoadRepliesReply", rule, key);
+        assert!(
+            !RunnerReply::Replies(reply.clone()).answers(&RunnerCall::LoadReplies(asked.clone()))
+        );
+    }
+    let load =
+        RunnerCall::parse(format!(r#"{{"op":"load","agent":"{A}","run":"{R}"}}"#).as_bytes())
+            .unwrap();
+    assert!(!RunnerReply::Replies(read).answers(&load));
+}
+
+fn plain_reply(drafts: &[usize; 25], blocked: usize) -> String {
+    let names: Vec<String> = (0..25)
+        .map(|i| format!("{i:02}{}", "m".repeat(1022)))
+        .collect();
+    let rows: Vec<String> = names
+        .iter()
+        .zip(drafts)
+        .map(|(m, d)| row_of(W, A, m, "drafted", Some(&"d".repeat(*d))))
+        .collect();
+    let listed: Vec<&str> = names[..blocked].iter().map(String::as_str).collect();
+    replies_text(&rows, &listed, &[])
+}
+
+fn reply_of_length(len: usize) -> String {
+    let mut drafts = [1; 25];
+    let mut blocked = 0;
+    while blocked < 25 && plain_reply(&drafts, blocked + 1).len() <= len {
+        blocked += 1;
+    }
+    let mut gap = len - plain_reply(&drafts, blocked).len();
+    for draft in drafts.iter_mut() {
+        let add = gap.min(1024 - *draft);
+        *draft += add;
+        gap -= add;
+    }
+    assert_eq!(gap, 0);
+    let text = plain_reply(&drafts, blocked);
+    assert_eq!(text.len(), len);
+    text
+}
+
+fn value_of(text: &str) -> LoadRepliesReply {
+    let v: serde_json::Value = serde_json::from_str(text).unwrap();
+    let list = |key: &str| -> Vec<ProviderId> {
+        v[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| ProviderId::parse(id.as_str().unwrap()).unwrap())
+            .collect()
+    };
+    LoadRepliesReply {
+        replies: v["replies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| AgentReply::parse(row.to_string().as_bytes()).unwrap())
+            .collect(),
+        blocked: list("blocked"),
+        blocked_withheld: list("blocked_withheld"),
+    }
+}
+
+fn store_reply_frame(reply: LoadRepliesReply) -> ToRunner {
+    ToRunner::StoreReply(StoreReplyFrame {
+        reply: StoreReply {
+            id: Some(RequestId::from_random([0x40; 16])),
+            outcome: Ok(RunnerReply::Replies(reply)),
+        },
+    })
+}
+
+fn length(result: Result<impl std::fmt::Debug, Refusal>, type_name: &str, rule: &str) {
+    let refusal = result.expect_err("refused");
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Length, type_name, rule),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn the_constant_of_a_runner_reply_s_value_is_what_fills_a_store_reply_frame_exactly() {
+    assert_eq!(RUNNER_REPLY_VALUE_MAX, 65_455);
+    assert_eq!(FRAME_JSON_MAX - RUNNER_REPLY_VALUE_MAX, 28 + 53);
+    assert!(RUNNER_REPLY_VALUE_MAX < CHECKPOINTS_REPLY_MAX);
+    let exact = reply_of_length(RUNNER_REPLY_VALUE_MAX);
+    let read = LoadRepliesReply::parse(exact.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.to_json().unwrap(), exact);
+    assert!(RunnerReply::parse(exact.as_bytes()).is_ok());
+    let frame = store_reply_frame(read);
+    let text = frame.to_json().unwrap();
+    assert_eq!(text.len(), FRAME_JSON_MAX);
+    assert_eq!(ToRunner::parse(text.as_bytes()).unwrap(), frame);
+
+    let over = reply_of_length(RUNNER_REPLY_VALUE_MAX + 1);
+    length(
+        LoadRepliesReply::parse(over.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    length(
+        RunnerReply::parse(over.as_bytes()),
+        "RunnerReply",
+        "reply_bytes",
+    );
+    let through_serde = serde_json::from_str::<RunnerReply>(&over)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        through_serde.contains("length: RunnerReply: -: reply_bytes"),
+        "{through_serde}"
+    );
+    let value = value_of(&over);
+    length(value.to_json(), "LoadRepliesReply", "json_length");
+    length(
+        store_reply_frame(value).to_json(),
+        "LoadRepliesReply",
+        "json_length",
+    );
+    let raw_frame = format!(
+        r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","ok":{over}}}}}"#,
+        "40".repeat(16)
+    );
+    assert_eq!(raw_frame.len(), FRAME_JSON_MAX + 1);
+    length(
+        ToRunner::parse(raw_frame.as_bytes()),
+        "ToRunner",
+        "frame_length",
+    );
+
+    let padded = exact.replacen(r#","blocked""#, r#", "blocked""#, 1);
+    assert_eq!(padded.len(), RUNNER_REPLY_VALUE_MAX + 1);
+    length(
+        LoadRepliesReply::parse(padded.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    length(
+        RunnerReply::parse(padded.as_bytes()),
+        "RunnerReply",
+        "reply_bytes",
+    );
+    for outside in [format!(" {exact}"), format!("{exact}\n")] {
+        length(
+            LoadRepliesReply::parse(outside.as_bytes()),
+            "LoadRepliesReply",
+            "reply_bytes",
+        );
+        length(
+            RunnerReply::parse(outside.as_bytes()),
+            "RunnerReply",
+            "reply_bytes",
+        );
+    }
+}
+
+fn largest_row(message: &str) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{W}","agent":"{A}","run":"{R}","seq":4294967295,"day":4294967295,"at":-9223372036854775808,"message":"{message}","draft":"{}","effect":"{E}","state":"committed"}}"#,
+        "d".repeat(1024)
+    )
+}
+
+#[test]
+fn twenty_five_rows_at_their_largest_fit_a_frame_and_with_25_bare_ids_beside_them_do_not() {
+    let names: Vec<String> = (0..25)
+        .map(|i| format!("{i:02}{}", "m".repeat(1022)))
+        .collect();
+    let row = largest_row(&names[0]);
+    assert!(AgentReply::parse(row.as_bytes()).is_ok());
+    assert_eq!(row.len(), 2_333);
+    let rows: Vec<String> = names.iter().map(|m| largest_row(m)).collect();
+    let listed: Vec<&str> = names.iter().map(String::as_str).collect();
+    let rows_alone = replies_text(&rows, &[], &[]);
+    assert_eq!(rows_alone.len(), 58_398);
+    assert_eq!(rows_alone.len() + 28 + 53, 58_479);
+    assert!(LoadRepliesReply::parse(rows_alone.as_bytes()).is_ok());
+    let with_ids = replies_text(&rows, &listed, &[]);
+    assert_eq!(with_ids.len(), 84_072);
+    length(
+        LoadRepliesReply::parse(with_ids.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    let split = replies_text(&rows, &listed[..12], &listed[12..]);
+    assert_eq!(split.len(), with_ids.len() - 1);
 }

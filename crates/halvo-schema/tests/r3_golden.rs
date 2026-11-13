@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
-    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReply, LoadSession, LoadSteps,
-    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, PutCheckpoint, PutEffect,
-    PutLog, PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
-    SetState, StartRun, StateReply, StepsReply, Stored,
+    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
+    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
+    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
+    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -793,6 +793,19 @@ fn runner_bodies() -> Vec<RunnerCall> {
             run: run(),
             record: checkpoint_row(2, CheckpointState::Made, None),
         }),
+        RunnerCall::ReplyRow(PutReplyRow {
+            agent: agent(),
+            run: run(),
+            record: replies().remove(1),
+        }),
+        RunnerCall::LoadReplies(LoadReplies {
+            agent: agent(),
+            run: run(),
+            messages: ["0001", "0002", "0003", "0004", "0005"]
+                .iter()
+                .map(|m| ProviderId::parse(&format!("msg-{m}")).unwrap())
+                .collect(),
+        }),
     ]
 }
 
@@ -910,6 +923,14 @@ fn runner_replies() -> Vec<RunnerReply> {
             data: session_data(),
         }),
         RunnerReply::Stored(Stored { stored: 1 }),
+        RunnerReply::Replies(LoadRepliesReply {
+            replies: vec![
+                reply_row(5, "0001", ReplyState::Committed, true),
+                reply_row(3, "0003", ReplyState::Drafted, false),
+            ],
+            blocked: vec![ProviderId::parse("msg-0002").unwrap()],
+            blocked_withheld: vec![ProviderId::parse("msg-0004").unwrap()],
+        }),
     ]
 }
 
