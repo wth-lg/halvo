@@ -30,6 +30,14 @@ pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> 
     })
 }
 
+/// Whether a name-change event names the title of the window in front: the
+/// event's window, its object and child ids, and the foreground window.
+#[cfg(target_os = "windows")]
+pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HWND) -> bool {
+    let _ = (window, child, front);
+    object == OBJID_WINDOW.0
+}
+
 #[cfg(target_os = "windows")]
 pub(crate) fn read_window_title(hwnd: HWND) -> String {
     // SAFETY: the buffer holds the title's length plus the terminating NUL
@@ -104,7 +112,9 @@ unsafe extern "system" fn title_proc(
     _thread: u32,
     time: u32,
 ) {
-    if id_object != OBJID_WINDOW.0 {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let front = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+    if !keeps_title_event(hwnd, id_object, _id_child, front) {
         return;
     }
     let title = read_window_title(hwnd);
@@ -182,6 +192,99 @@ mod tests {
     fn an_empty_or_whitespace_title_produces_no_packet() {
         assert!(title_packet("", Some("a.exe".to_string()), 3).is_none());
         assert!(title_packet("   ", Some("a.exe".to_string()), 3).is_none());
+    }
+
+    fn handle(value: usize) -> HWND {
+        HWND(value as *mut core::ffi::c_void)
+    }
+
+    #[test]
+    fn only_the_foreground_windows_own_name_change_is_a_title() {
+        use windows::Win32::UI::WindowsAndMessaging::{CHILDID_SELF, OBJID_CLIENT};
+        let front = handle(0x100);
+        let background = handle(0x200);
+        let control = handle(0x300);
+        let own = CHILDID_SELF as i32;
+        assert!(keeps_title_event(front, OBJID_WINDOW.0, own, front));
+        assert!(!keeps_title_event(background, OBJID_WINDOW.0, own, front));
+        assert!(!keeps_title_event(control, OBJID_WINDOW.0, own, front));
+        assert!(!keeps_title_event(front, OBJID_CLIENT.0, own, front));
+        assert!(!keeps_title_event(front, OBJID_WINDOW.0, 4, front));
+        assert!(!keeps_title_event(
+            front,
+            OBJID_WINDOW.0,
+            own,
+            HWND::default()
+        ));
+    }
+
+    struct TitledWindow(HWND);
+
+    impl TitledWindow {
+        fn new(title: &[u16]) -> TitledWindow {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                CreateWindowExW, SetWindowTextW, WINDOW_EX_STYLE, WINDOW_STYLE,
+            };
+            // SAFETY: STATIC is a system class; the call makes a hidden
+            // top-level window with no parent, menu or creation data.
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    WINDOW_EX_STYLE(0),
+                    windows::core::w!("STATIC"),
+                    windows::core::PCWSTR::null(),
+                    WINDOW_STYLE(0),
+                    0,
+                    0,
+                    10,
+                    10,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            .expect("a window of the class STATIC");
+            let mut text = title.to_vec();
+            text.push(0);
+            // SAFETY: `text` is a NUL-terminated wide string that outlives the
+            // call, and `hwnd` is the window made above on this thread.
+            unsafe { SetWindowTextW(hwnd, windows::core::PCWSTR(text.as_ptr())) }
+                .expect("the title is set");
+            TitledWindow(hwnd)
+        }
+    }
+
+    impl Drop for TitledWindow {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is the window that `new` made on this thread.
+            unsafe {
+                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(self.0);
+            }
+        }
+    }
+
+    #[test]
+    fn a_title_of_100000_units_is_read_up_to_the_cap() {
+        let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), 100_000).collect();
+        let window = TitledWindow::new(&long);
+        let title = read_window_title(window.0);
+        assert!(!title.is_empty(), "INCONCLUSIVE: the title was not read");
+        assert!(
+            title.len() <= crate::floor::text::TEXT_MAX_BYTES,
+            "a title of {} bytes",
+            title.len()
+        );
+    }
+
+    #[test]
+    fn a_title_with_an_unpaired_surrogate_is_read_without_a_panic() {
+        let mut odd: Vec<u16> = "Report ".encode_utf16().collect();
+        odd.push(0xD800);
+        odd.extend("draft".encode_utf16());
+        let window = TitledWindow::new(&odd);
+        let title = read_window_title(window.0);
+        assert!(title.starts_with("Report "));
+        assert!(title.ends_with("draft"));
     }
 
     fn no_hook(
