@@ -673,6 +673,13 @@ mod tests {
         Fails,
         /// The end of the stream.
         End,
+        /// One read that a signal interrupts, then every read times out.
+        Interrupted,
+        /// Every set_timeout fails, and a read would give one more byte.
+        TimeoutFails,
+        /// The read that gives the frame's last byte returns only after the time left that the
+        /// client set before it has passed; then every read times out.
+        LastByteAtTheDeadline,
     }
 
     /// A transport that gives `bytes` and then does as `then` says, and records each timeout
@@ -683,6 +690,14 @@ mod tests {
         at: std::sync::Arc<std::sync::Mutex<usize>>,
         then: Then,
         timeouts: std::sync::Arc<std::sync::Mutex<Vec<Duration>>>,
+        after_frame: std::sync::Arc<std::sync::Mutex<AfterFrame>>,
+    }
+
+    /// What the client asked of a [`Held`] transport once the frame's bytes were read.
+    #[derive(Debug, Default, Clone, PartialEq, Eq)]
+    struct AfterFrame {
+        timeouts: Vec<Duration>,
+        reads: usize,
     }
 
     impl Held {
@@ -692,11 +707,16 @@ mod tests {
                 at: std::sync::Arc::default(),
                 then,
                 timeouts: std::sync::Arc::default(),
+                after_frame: std::sync::Arc::default(),
             }
         }
 
         fn last_timeout(&self) -> Duration {
             *self.timeouts.lock().unwrap().last().unwrap()
+        }
+
+        fn after_frame(&self) -> AfterFrame {
+            self.after_frame.lock().unwrap().clone()
         }
     }
 
@@ -705,18 +725,27 @@ mod tests {
             let mut at = self.at.lock().unwrap();
             if *at < self.bytes.len() {
                 let n = buf.len().min(self.bytes.len() - *at);
+                if matches!(self.then, Then::LastByteAtTheDeadline) && *at + n == self.bytes.len() {
+                    std::thread::sleep(self.last_timeout() + Duration::from_millis(1));
+                }
                 buf[..n].copy_from_slice(&self.bytes[*at..*at + n]);
                 *at += n;
                 return Ok(n);
             }
+            self.after_frame.lock().unwrap().reads += 1;
             match self.then {
-                Then::Silence => Err(ErrorKind::WouldBlock.into()),
-                Then::Byte if *at == self.bytes.len() && !buf.is_empty() => {
+                Then::Silence | Then::LastByteAtTheDeadline => Err(ErrorKind::WouldBlock.into()),
+                Then::Interrupted if *at == self.bytes.len() => {
+                    *at += 1;
+                    Err(ErrorKind::Interrupted.into())
+                }
+                Then::Interrupted => Err(ErrorKind::WouldBlock.into()),
+                Then::Byte | Then::TimeoutFails if *at == self.bytes.len() && !buf.is_empty() => {
                     *at += 1;
                     buf[0] = b'x';
                     Ok(1)
                 }
-                Then::Byte | Then::End => Ok(0),
+                Then::Byte | Then::TimeoutFails | Then::End => Ok(0),
                 Then::Fails => Err(ErrorKind::ConnectionReset.into()),
             }
         }
@@ -735,6 +764,12 @@ mod tests {
     impl Transport for Held {
         fn set_timeout(&mut self, timeout: Duration) -> std::io::Result<()> {
             self.timeouts.lock().unwrap().push(timeout);
+            if *self.at.lock().unwrap() >= self.bytes.len() {
+                self.after_frame.lock().unwrap().timeouts.push(timeout);
+                if matches!(self.then, Then::TimeoutFails) {
+                    return Err(ErrorKind::InvalidInput.into());
+                }
+            }
             Ok(())
         }
 
@@ -785,6 +820,65 @@ mod tests {
         let client = Client::with_deadlines(held.clone(), deadlines);
         assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
         assert!(held.last_timeout() <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn an_interrupted_read_in_the_wait_after_a_reply_frame_goes_on_with_the_time_that_is_left() {
+        let held = Held::new(status_frame(), Then::Interrupted);
+        let client = Client::new(held.clone());
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        let asked = held.after_frame().timeouts;
+        assert!(
+            !asked.is_empty(),
+            "the client asked for no wait after the frame"
+        );
+        for wait in &asked {
+            assert!(
+                *wait <= Duration::from_millis(crate::REPLY_END_WAIT_MS),
+                "the client asked for a wait of {wait:?} after the frame, more than \
+                 REPLY_END_WAIT_MS; asked in order: {asked:?}. The test holds the waits that the \
+                 client asks and no elapsed time, so a slow machine only makes them shorter"
+            );
+        }
+        for pair in asked.windows(2) {
+            assert!(
+                pair[1] <= pair[0],
+                "after the interrupted read the client asked for {:?}, more than the {:?} before \
+                 it: the wait goes on with the time that is left",
+                pair[1],
+                pair[0]
+            );
+        }
+    }
+
+    #[test]
+    fn a_set_timeout_that_fails_after_a_reply_frame_ends_the_wait_and_reads_nothing_more() {
+        let held = Held::new(status_frame(), Then::TimeoutFails);
+        let client = Client::new(held.clone());
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        assert_eq!(
+            held.after_frame().reads,
+            0,
+            "the client read on after its set_timeout failed"
+        );
+    }
+
+    #[test]
+    fn a_whole_reply_frame_whose_last_byte_comes_as_the_deadline_passes_is_the_reply() {
+        let held = Held::new(status_frame(), Then::LastByteAtTheDeadline);
+        let mut deadlines = Deadlines::V1;
+        deadlines.read = Duration::from_secs(10);
+        let client = Client::with_deadlines(held.clone(), deadlines);
+        let reply = client.status();
+        assert_eq!(
+            reply.as_ref().ok(),
+            Some(&sample_status(Platform::Macos)),
+            "{reply:?}: the transport gives the frame's last byte only after the time that was \
+             left when the client asked for it has passed, so the deadline has passed when the \
+             frame is whole and the order needs no clock of the test; the request has 10 s so \
+             that a thread held up for seconds before that read cannot end it first"
+        );
+        assert!(held.after_frame().timeouts.is_empty());
     }
 
     #[test]
