@@ -253,19 +253,22 @@
     [
       "kept, a cancel",
       {
-        "kind": "kept"
+        "kind": "kept",
+        "overrode": false
       }
     ],
     [
       "kept, an earlier cancel that is not newer",
       {
-        "kind": "none"
+        "kind": "none",
+        "overrode": false
       }
     ],
     [
       "kept, a newer cancel",
       {
-        "kind": "kept"
+        "kind": "kept",
+        "overrode": false
       }
     ],
     [
@@ -318,7 +321,8 @@
     [
       "the same time again",
       {
-        "kind": "none"
+        "kind": "none",
+        "overrode": false
       }
     ],
     [

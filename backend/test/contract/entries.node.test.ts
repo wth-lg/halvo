@@ -58,8 +58,8 @@ function defaults(): Answers {
     pending: null,
     subscription: METERED,
     isActive: true,
-    applyEvent: { kind: "none" },
-    complete: { kind: "none" },
+    applyEvent: { kind: "none", overrode: false },
+    complete: { kind: "none", overrode: false },
     accountsNextDue: null,
     wake: null,
     record: "kept",
@@ -365,7 +365,7 @@ describe("start", () => {
     await w.seeded();
     w.answers.look = "pending";
     w.answers.pending = PENDING;
-    w.answers.complete = { kind: "none" };
+    w.answers.complete = { kind: "none", overrode: false };
     expect(await w.entries.start(ACCOUNT, HASH, NEW_CAP)).toEqual({ result: "unavailable" });
     expect(w.calls.filter((call) => call[0] === "accounts.complete")).toHaveLength(START_RESTARTS + 1);
     expect(w.names()).not.toContain("accounts.record");
@@ -483,17 +483,17 @@ describe("webhookEvent", () => {
   test("state: the period and the cut at a cancel for a metered account, and nothing more for one that is not", async () => {
     const w = world({ clock: () => 7000 });
     await w.seeded();
-    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "active", period: { start: 1, end: 2 } };
+    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "active", period: { start: 1, end: 2 }, overrode: false };
     await w.entries.webhookEvent(cancelled);
     expect(w.calls).toContainEqual(["metering.billingPeriod", { start: 1, end: 2 }, 7000]);
     expect(w.calls).toContainEqual(["metering.cut", "cancel", 6000, 7000]);
     w.reset();
-    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "cancelled", period: null };
+    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "cancelled", period: null, overrode: false };
     await w.entries.webhookEvent(cancelled);
     expect(w.names()).not.toContain("metering.cut");
     w.reset();
     w.answers.subscription = UNMETERED;
-    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "active", period: { start: 1, end: 2 } };
+    w.answers.applyEvent = { kind: "state", state: "cancelled", was: "active", period: { start: 1, end: 2 }, overrode: false };
     await w.entries.webhookEvent(cancelled);
     expect(w.names().filter((name) => name.startsWith("metering.") && name !== "metering.nextSend" && name !== "metering.oldestUnsealed")).toEqual(
       [],
@@ -503,7 +503,7 @@ describe("webhookEvent", () => {
   test("none for a completed event logs completed-no-record when a pending checkout of another session is stored", async () => {
     const w = world();
     await w.seeded();
-    w.answers.applyEvent = { kind: "none" };
+    w.answers.applyEvent = { kind: "none", overrode: false };
     w.answers.pending = { ...PENDING, sessionId: "cs_other" };
     await w.entries.webhookEvent(completed);
     expect(events()).toEqual(["completed-no-record"]);

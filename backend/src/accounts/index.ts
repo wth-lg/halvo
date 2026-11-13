@@ -150,7 +150,7 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
   const account = accountRow(sql);
   if (account !== null) {
     const subscriptionId = textOrNull(account.subscription_id);
-    if (subscriptionId !== null && subscriptionId !== event.subscriptionId) return { kind: "none" };
+    if (subscriptionId !== null && subscriptionId !== event.subscriptionId) return { kind: "none", overrode: false };
     const was = stateOf(account.state);
     const standing: Standing = { state: was, providerTime: wholeOrNull(account.provider_time), periodEnd: wholeOrNull(account.period_end) };
     const override = overrideOf(event, standing);
@@ -159,12 +159,12 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
     const cancel = withCancel(stored, event);
     if (!isNewer(incoming, standing)) {
       if (override !== null) sql.exec("UPDATE account SET m1_count = ?, m1_newest = ?, m2_count = ?, m2_newest = ?", ...markValues(mark));
-      if (cancel === stored) return { kind: "none" };
+      if (cancel === stored) return { kind: "none", overrode: override === "m1" };
       sql.exec("UPDATE account SET ended_at = ?, cancel_first = ?", cancel.endedAt, cancel.first);
       const before = keptTime(stored);
       const after = keptTime(cancel);
       if (was === "cancelled" && after !== null && before !== null && after < before) return { kind: "cancel-time", at: after };
-      return { kind: "none" };
+      return { kind: "none", overrode: false };
     }
     sql.exec(
       "UPDATE account SET state = ?, subscription_id = ?, period_start = ?, period_end = ?, provider_time = ?, ended_at = ?, cancel_first = ?, m1_count = ?, m1_newest = ?, m2_count = ?, m2_newest = ?",
@@ -180,10 +180,10 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
     const before = keptTime(stored);
     const after = keptTime(cancel);
     if (was === "cancelled" && event.state === "cancelled" && after !== null && before !== null && after < before) return { kind: "cancel-time", at: after };
-    return { kind: "state", state: event.state, was, period: event.period };
+    return { kind: "state", state: event.state, was, period: event.period, overrode: override === "m2" };
   }
   const pending = pendingRow(sql);
-  if (pending === null) return { kind: "none" };
+  if (pending === null) return { kind: "none", overrode: false };
   const kept = sql.exec(
     "SELECT state, provider_time, period_end, ended_at, cancel_first, m1_count, m1_newest, m2_count, m2_newest FROM kept_event WHERE subscription_id = ?",
     event.subscriptionId,
@@ -202,7 +202,7 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
       cancel.first,
       ...markValues(NO_MARK),
     );
-    return { kind: "kept" };
+    return { kind: "kept", overrode: false };
   }
   const standing: Standing = { state: stateOf(kept.state), providerTime: whole(kept.provider_time), periodEnd: wholeOrNull(kept.period_end) };
   const override = overrideOf(event, standing);
@@ -216,7 +216,7 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
     if (cancel !== stored) {
       sql.exec("UPDATE kept_event SET ended_at = ?, cancel_first = ? WHERE subscription_id = ?", cancel.endedAt, cancel.first, event.subscriptionId);
     }
-    return { kind: "none" };
+    return override === null ? { kind: "none", overrode: false } : { kind: "kept", overrode: true };
   }
   const cancel = withCancel(cancelOf(kept), event);
   sql.exec(
@@ -230,13 +230,13 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
     ...markValues(mark),
     event.subscriptionId,
   );
-  return { kind: "kept" };
+  return { kind: "kept", overrode: override !== null };
 }
 
 function complete(sql: Sql, s: CompletedSession): Extract<Applied, { kind: "account-made" | "none" }> {
-  if (accountRow(sql) !== null) return { kind: "none" };
+  if (accountRow(sql) !== null) return { kind: "none", overrode: false };
   const pending = pendingRow(sql);
-  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: "none" };
+  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: "none", overrode: false };
   const keptRows = sql.exec("SELECT subscription_id, state, period_start, period_end, provider_time, kept_order FROM kept_event");
   const kept =
     s.subscriptionId === null
@@ -339,8 +339,8 @@ export function makeAccounts(): Accounts {
     },
 
     applyEvent(sql, event, now) {
-      if (event.kind === "ignored") return { kind: "none" };
-      if (sql.exec("SELECT event_id FROM processed_event WHERE event_id = ?", event.eventId).length > 0) return { kind: "none" };
+      if (event.kind === "ignored") return { kind: "none", overrode: false };
+      if (sql.exec("SELECT event_id FROM processed_event WHERE event_id = ?", event.eventId).length > 0) return { kind: "none", overrode: false };
       sql.exec("INSERT INTO processed_event (event_id, received_at) VALUES (?, ?)", event.eventId, now);
       if (event.kind === "checkout-completed") {
         return complete(sql, {

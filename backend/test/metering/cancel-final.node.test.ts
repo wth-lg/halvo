@@ -406,7 +406,7 @@ describe("what the one-rule changes of unit 5.5 asked for", () => {
       return { answer: accounts.applyEvent(sql, at("evt_active_after_seed", 1, "active"), START), state: accounts.subscription(sql)?.state };
     });
     db.close();
-    expect(seen).toEqual({ answer: { kind: "none" }, state: "cancelled" });
+    expect(seen).toEqual({ answer: { kind: "none", overrode: true }, state: "cancelled" });
   });
 
   test("an older cancel that states an earlier end, kept beside a kept cancel, gives the account made from it the earlier end and the cut there", async () => {
@@ -502,5 +502,60 @@ describe("the mark of a cancel that decided otherwise than the rule of newer (ru
     expect([markOf(await account(made)), markOf(await account(seeded))]).toEqual([NO_MARK, NO_MARK]);
     done(made);
     done(seeded);
+  });
+});
+
+describe("overrode on the answer of applyEvent (ruling P7-80, part 8; contract 3.2, the type Applied)", () => {
+  function answers(events: ProviderEvent[], checkout: boolean): unknown[] {
+    const db = openSql();
+    const accounts = makeAccounts();
+    const seen = db.step((sql) => {
+      accounts.init(sql);
+      if (checkout) {
+        accounts.keepPending(sql, { accountId: ACCOUNT, credentialHash: HASH, cap: { amount: 1000, period: "month" }, sessionId: SESSION.sessionId, url: CHECKOUT.url, expiresAt: START + HOUR }, START);
+      } else {
+        accounts.seed(sql, { accountId: ACCOUNT, credentialHash: HASH, state: "active", customerId: "cus_1" }, START);
+      }
+      return events.map((event) => accounts.applyEvent(sql, event, START + 10 * MINUTE));
+    });
+    db.close();
+    return seen;
+  }
+
+  test("on an account it is true on none for M1 and on state for M2, and false on every other answer", () => {
+    const events = [ACTIVE_AGAIN, CANCEL, at("evt_active_later", 7, "active"), at("evt_older", 4, "active"), at("evt_cancel_newer", 8, "cancelled"), CANCEL];
+    expect(answers(events, false)).toEqual([
+      { kind: "state", state: "active", was: "active", period: PERIOD, overrode: false },
+      { kind: "state", state: "cancelled", was: "active", period: PERIOD, overrode: true },
+      { kind: "none", overrode: true },
+      { kind: "none", overrode: false },
+      { kind: "state", state: "cancelled", was: "cancelled", period: PERIOD, overrode: false },
+      { kind: "none", overrode: false },
+    ]);
+  });
+
+  test("on the kept events of a pending checkout it is true on kept for either case, and false on every other answer", () => {
+    const events = [ACTIVE_AGAIN, CANCEL, FAILED_AFTER, at("evt_older", 4, "active"), at("evt_other", 3, "active", { subscriptionId: "sub_2" })];
+    expect(answers(events, true)).toEqual([
+      { kind: "kept", overrode: false },
+      { kind: "kept", overrode: true },
+      { kind: "kept", overrode: true },
+      { kind: "none", overrode: false },
+      { kind: "kept", overrode: false },
+    ]);
+  });
+
+  test("an event of another subscription, an event for an id that holds nothing and a completed event with no checkout of its session answer none with overrode false", () => {
+    const db = openSql();
+    const accounts = makeAccounts();
+    const seen = db.step((sql) => {
+      accounts.init(sql);
+      const nothing = accounts.applyEvent(sql, CANCEL, START);
+      accounts.seed(sql, { accountId: ACCOUNT, credentialHash: HASH, state: "active", customerId: "cus_1" }, START);
+      accounts.applyEvent(sql, at("evt_cancel_bind", 5, "cancelled"), START);
+      return [nothing, accounts.applyEvent(sql, at("evt_other", 9, "active", { subscriptionId: "sub_2" }), START), accounts.applyEvent(sql, COMPLETED, START)];
+    });
+    db.close();
+    expect(seen).toEqual(Array(3).fill({ kind: "none", overrode: false }));
   });
 });
