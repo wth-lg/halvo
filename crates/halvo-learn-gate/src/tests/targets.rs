@@ -30,6 +30,14 @@ fn constants_match_targets() {
     for (table, key, constant) in pairs {
         assert_eq!(targets.get(table, key), constant, "{table}.{key}");
     }
+    use halvo_schema::learning::{CLEAN_BOUND, LOCATORS_BOUND, RUNS_BOUND};
+    assert_eq!(LOCATORS_BOUND, halvo_learn::LOCATORS_MAX, "LOCATORS_BOUND");
+    assert_eq!(
+        RUNS_BOUND as u64,
+        1 + u64::from(halvo_learn::K_CLEAN),
+        "RUNS_BOUND"
+    );
+    assert_eq!(CLEAN_BOUND, halvo_learn::K_CLEAN, "CLEAN_BOUND");
 }
 
 #[test]
