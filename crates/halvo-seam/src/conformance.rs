@@ -53,7 +53,8 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// of C that passes the filter from the cursor's position up to its `next`, at its position, and no other.
 /// `one_expiry_instant`, in every case: each `expiry` entry for a segment of one store id holds the instant
 /// that the first entry for that segment held in the case, in every reply to `read_batch`, on every cursor and
-/// connection and after a restart; the check makes no claim across two cases.
+/// connection and after a restart, among them a second connection of the case `filters` to the store that its
+/// first connection read, with no restart between; the check makes no claim across two cases.
 pub const CHECKS: [&str; 5] = [
     "store_changed_names_the_current_id",
     "open_while_open",
@@ -721,8 +722,9 @@ fn at_the_watermark<S: Subject>(
 /// The case `filters` (C5.13 item 8): each kinds filter, a list of two kinds in either order, the run-mark
 /// filter, a time range with and without a kind, and a range after every record serve exactly the entries of
 /// the reference read that pass them, at their positions, from the zero position and from the position of
-/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; last, the check
-/// `open_while_open` of `CHECKS`.
+/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then a read of the
+/// reference read on a second connection, with no restart between; last, the check `open_while_open` of
+/// `CHECKS`.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -831,6 +833,13 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
                 "the read after {name} differs from the reference read"
             ));
         }
+    }
+    let instants = conn.end();
+    let mut conn = connect(subject, instants)?;
+    let again = read(&mut conn, Some(&rf.s), ZERO, None, None)
+        .map_err(|e| format!("the read on a second connection: {e}"))?;
+    if !same(&again.entries, &rf.r) {
+        return Err("the read on a second connection differs from the reference read".to_owned());
     }
     open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))
 }

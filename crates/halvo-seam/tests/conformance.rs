@@ -28,6 +28,7 @@ enum Fault {
     ExpiryMovesFromConnectionToConnection,
     ExpiryMovesFromCursorToCursor,
     ExpiryMovesOnTheSecondCursorOfSetA,
+    ExpiryMovesOnAFurtherConnectionToOneTransport,
     FilteredStopRepeats,
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
@@ -44,6 +45,7 @@ struct Fixture {
     serving: Option<JoinHandle<FixtureTransport>>,
     replace: Option<Replace>,
     connections: i64,
+    since_open: i64,
     set_a: bool,
 }
 
@@ -58,6 +60,7 @@ impl Fixture {
             serving: None,
             replace: None,
             connections: 0,
+            since_open: 0,
             set_a: false,
         }
     }
@@ -84,6 +87,7 @@ impl Fixture {
             .map_err(|e| format!("open failed: {e:?}"))?;
         self.replace = Some(transport.replace_handle());
         self.idle = Some(transport);
+        self.since_open = 0;
         Ok(())
     }
 }
@@ -123,6 +127,8 @@ impl Subject for Fixture {
         let shredded = self.first_live > 1;
         let set_a = self.set_a;
         self.connections += 1;
+        self.since_open += 1;
+        let further = self.since_open > 1;
         let connection = self.connections;
         self.serving = Some(std::thread::spawn(move || {
             match fault {
@@ -135,6 +141,7 @@ impl Subject for Fixture {
                         shredded,
                         set_a,
                         connection,
+                        further,
                         reads: 0,
                         opens: 0,
                         last: None,
@@ -188,6 +195,7 @@ struct Wrong {
     shredded: bool,
     set_a: bool,
     connection: i64,
+    further: bool,
     reads: i64,
     opens: i64,
     last: Option<OpenCursor>,
@@ -221,6 +229,7 @@ impl Wrong {
             ExpiryMovesFromConnectionToConnection => self.connection,
             ExpiryMovesFromCursorToCursor => self.opens,
             ExpiryMovesOnTheSecondCursorOfSetA if self.set_a && self.opens == 2 => 1,
+            ExpiryMovesOnAFurtherConnectionToOneTransport if self.further => 1,
             _ => 0,
         };
         let w = t.watermark();
@@ -436,12 +445,16 @@ fn conformance_check_one_expiry_instant() {
             (ExpiryMovesFromReadToRead, [check, check, check, check]),
             (
                 ExpiryMovesFromConnectionToConnection,
-                [check, check, None, None],
+                [check, check, check, None],
             ),
             (ExpiryMovesFromCursorToCursor, [check, check, check, check]),
             (
                 ExpiryMovesOnTheSecondCursorOfSetA,
                 [check, check, check, check],
+            ),
+            (
+                ExpiryMovesOnAFurtherConnectionToOneTransport,
+                [None, None, check, None],
             ),
         ],
     );
