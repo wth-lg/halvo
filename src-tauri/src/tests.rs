@@ -582,3 +582,167 @@ fn the_navigation_rule_refuses_every_engine_string_that_does_not_parse_and_every
         assert!(!app::may_navigate(outside), "the rule allows {outside}");
     }
 }
+
+const UNIT_PERMISSIONS: [&str; 9] = [
+    "allow-capture-status",
+    "allow-inventory",
+    "allow-set-capture-state",
+    "allow-delete-all",
+    "allow-set-storage-cap",
+    "allow-onboarding-state",
+    "allow-request-permission",
+    "allow-open-permission-pane",
+    "core:app:allow-version",
+];
+
+fn permission_names(permissions: &Value) -> BTreeSet<String> {
+    permissions
+        .as_array()
+        .expect("a list of permissions")
+        .iter()
+        .map(|entry| match entry {
+            Value::String(name) => name.clone(),
+            other => other.to_string(),
+        })
+        .collect()
+}
+
+fn unit_permissions() -> BTreeSet<String> {
+    UNIT_PERMISSIONS.iter().map(|p| p.to_string()).collect()
+}
+
+#[test]
+fn the_capability_file_holds_the_nine_permissions_of_the_unit_and_no_other() {
+    let held =
+        permission_names(&read_json(&src_tauri().join("capabilities/capture.json"))["permissions"]);
+    let unit = unit_permissions();
+    let beside: Vec<&String> = held.difference(&unit).collect();
+    let missing: Vec<&String> = unit.difference(&held).collect();
+    assert!(
+        beside.is_empty(),
+        "capabilities/capture.json holds the permissions {beside:?} beside the unit's nine"
+    );
+    assert!(
+        missing.is_empty(),
+        "capabilities/capture.json lacks {missing:?}"
+    );
+}
+
+#[test]
+fn the_built_context_holds_the_capability_file_and_no_other_capability() {
+    let context = app::context::<MockRuntime>();
+    let named = &context.config().app.security.capabilities;
+    assert!(
+        named.is_empty(),
+        "tauri.conf.json names the capabilities {named:?}, beside the files under capabilities/"
+    );
+    let built = read_json(&src_tauri().join("gen/schemas/capabilities.json"));
+    let identifiers: Vec<&String> = built
+        .as_object()
+        .expect("the capabilities of the build are an object")
+        .keys()
+        .collect();
+    assert_eq!(
+        identifiers,
+        ["capture"],
+        "the build holds the capabilities {identifiers:?} beside capture"
+    );
+    let capture = &built["capture"];
+    assert_eq!(capture["windows"], serde_json::json!(["main"]), "{capture}");
+    assert!(capture.get("webviews").is_none(), "{capture}");
+    assert!(
+        capture.get("remote").is_none_or(Value::is_null),
+        "{capture}"
+    );
+    assert_eq!(
+        permission_names(&capture["permissions"]),
+        unit_permissions()
+    );
+}
+
+fn manifest_commands() -> BTreeSet<String> {
+    let manifests = read_json(&src_tauri().join("gen/schemas/acl-manifests.json"));
+    let mut commands = BTreeSet::new();
+    for (key, manifest) in manifests.as_object().expect("the manifests are an object") {
+        let Some(permissions) = manifest["permissions"].as_object() else {
+            continue;
+        };
+        for permission in permissions.values() {
+            for list in ["allow", "deny"] {
+                for command in permission["commands"][list]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                {
+                    let command = command.as_str().expect("a command name");
+                    commands.insert(match key.strip_prefix("core:") {
+                        Some(plugin) => format!("plugin:{plugin}|{command}"),
+                        None => command.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    commands
+}
+
+fn is_refused(reply: &Result<Value, Value>) -> bool {
+    matches!(reply, Err(Value::String(text)) if text.contains("not allowed") || text.contains("not found"))
+}
+
+#[test]
+fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
+    let commands = manifest_commands();
+    assert_eq!(commands.len(), 173, "commands of the generated manifests");
+    let test = test_app(scratch_dir("every-command"));
+    let main = main_window(&test.app);
+    let other = WebviewWindowBuilder::new(
+        test.app.handle(),
+        "settings",
+        WebviewUrl::App("index.html".into()),
+    );
+    #[cfg(windows)]
+    let other = other.data_directory(scratch_dir("every-command-other").join("webview"));
+    let other = other
+        .build()
+        .expect("a second window builds on the mock runtime");
+    let reached = |window: &WebviewWindow<MockRuntime>, origin: &str| -> BTreeSet<String> {
+        commands
+            .iter()
+            .filter(|command| !is_refused(&invoke(window, origin, command, serde_json::json!({}))))
+            .cloned()
+            .collect()
+    };
+    let expected: BTreeSet<String> = names::MODULES
+        .iter()
+        .flat_map(|module| module.commands.iter().map(|c| c.to_string()))
+        .chain(["plugin:app|version".to_string()])
+        .collect();
+    assert_eq!(
+        reached(&main, APP_URL),
+        expected,
+        "the commands that answer the window main at the app's origin"
+    );
+    let other_app_origin = if cfg!(windows) {
+        "tauri://localhost"
+    } else {
+        "http://tauri.localhost"
+    };
+    for origin in [
+        "https://example.com",
+        "https://a.example.org",
+        "http://localhost:1420",
+        other_app_origin,
+    ] {
+        let answered = reached(&main, origin);
+        assert!(
+            answered.is_empty(),
+            "the window main at {origin} reaches {answered:?}"
+        );
+    }
+    let answered = reached(&other, APP_URL);
+    assert!(
+        answered.is_empty(),
+        "the window settings at the app's origin reaches {answered:?}"
+    );
+}
