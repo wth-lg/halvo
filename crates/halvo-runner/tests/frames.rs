@@ -395,13 +395,17 @@ fn a_load_reply_for_another_agent_or_another_workflow_is_refused_with_frame() {
             },
             LONG,
         );
-        assert_eq!(seen.code(), Some(2), "{other}");
+        assert_eq!(seen.code(), Some(2), "the {other} half");
+        let refusal = if other == "agent" {
+            "REFUSED frame: not_the_answer"
+        } else {
+            "REFUSED frame: load_of_another_agent"
+        };
         assert!(
-            seen.stderr
-                .starts_with("REFUSED frame: load_of_another_agent"),
-            "{other}: {}",
+            seen.stderr.starts_with(refusal),
+            "the {other} half: {}",
             seen.stderr
         );
-        assert_eq!(seen.tags(), ["hello", "store"], "{other}");
+        assert_eq!(seen.tags(), ["hello", "store"], "the {other} half");
     }
 }
