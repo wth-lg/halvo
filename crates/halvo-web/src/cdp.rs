@@ -250,6 +250,15 @@ impl<T> RefTable<T> {
     }
 }
 
+/// Whether `url` is an address that `Executor::open` takes: its scheme is http or https, in any
+/// letter case, followed by `//`.
+pub fn openable(url: &str) -> bool {
+    match url.split_once("://") {
+        Some((scheme, _)) => matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https"),
+        None => false,
+    }
+}
+
 /// The value that a snapshot line carries (A11.1, A8.2): none for a credential field, whatever its
 /// role and text; for a `textbox` or a `combobox` its text with line breaks and tabs as spaces, none
 /// when that is empty; none for every other role.
@@ -835,7 +844,13 @@ impl Executor {
         }
     }
 
+    /// Opens `url` in the page: an address of http or https alone, for the executor opens none of
+    /// the browser's own pages (A11.1); any other scheme is refused with the cause `scheme` before
+    /// a command goes to the browser. Every earlier ref is stale from here (`RefTable`).
     pub async fn open(&mut self, url: &str) -> Res<()> {
+        if !openable(url) {
+            return Err(Fault::new("scheme", "an address of http or https alone"));
+        }
         self.refs.new_snapshot();
         let frame = self.main_frame().await?;
         let before = self.loader(&frame).await?;
@@ -2145,6 +2160,33 @@ pub(crate) mod tests {
             assert_eq!(refs.get(old).err().map(|f| f.0), Some("stale"), "{old}");
         }
         assert_eq!(refs.add("n"), "e7");
+    }
+
+    /// CP-170 E11: open takes http and https alone; the browser's own pages and every other scheme
+    /// are refused.
+    #[test]
+    fn open_takes_http_and_https_alone() {
+        for good in [
+            "http://utility.agent.test:1/x",
+            "https://a.example/",
+            "HTTP://a.test/",
+        ] {
+            assert!(openable(good), "{good}");
+        }
+        for bad in [
+            "chrome://inspect",
+            "edge://settings",
+            "devtools://devtools/bundled/inspector.html",
+            "file:///etc/hosts",
+            "about:blank",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "chrome-extension://abc/x",
+            "http:/a.test",
+            "",
+        ] {
+            assert!(!openable(bad), "{bad}");
+        }
     }
 
     #[test]

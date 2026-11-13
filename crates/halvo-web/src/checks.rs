@@ -239,10 +239,13 @@ pub fn end_runs_own_with(
     out
 }
 
-/// Whether a command line names a debugging port, by the switch's name with any of the prefixes
-/// that the browser's parser takes (`--`, `-`, and `/` on Windows).
+/// Whether a command line names a debugging port: the switch's name `remote-debugging-port` with
+/// any prefix that the browser's parser takes (`--`, `-`, and `/` on Windows), compared without
+/// regard to the case of ASCII letters, because the parser folds switch names on Windows.
 pub fn names_a_port(command_line: &str) -> bool {
-    command_line.contains("remote-debugging-port")
+    command_line
+        .to_ascii_lowercase()
+        .contains("remote-debugging-port")
 }
 
 /// The four ends of the executor's pipe, by the order of `PipeIds::handles`.
@@ -892,6 +895,8 @@ mod tests {
         assert!(names_a_port("--remote-debugging-port"));
         assert!(names_a_port("chrome -remote-debugging-port=0"));
         assert!(names_a_port("chrome.exe /remote-debugging-port=0"));
+        assert!(names_a_port("chrome.exe --REMOTE-DEBUGGING-PORT=0"));
+        assert!(names_a_port("chrome.exe --Remote-Debugging-Port=1"));
         let counted = counts_at_once(
             &ProcRead {
                 args: Some(vec!["--remote-debugging-port".into(), "9222".into()]),
