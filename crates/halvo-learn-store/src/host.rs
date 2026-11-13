@@ -17,7 +17,9 @@ pub trait LearnHost: Clock {
     /// family `agent` and the read of one stored workflow.
     fn agent_host(&mut self) -> &mut dyn Host;
 
-    /// The instant and the day that the agent store's handler takes for the request.
+    /// The instant and the day that the agent store's handler takes for the request. `Clock::today` gives the day
+    /// of the rows of the family `learn` and this day that of the agent store's rows, so the host keeps the two on
+    /// one day.
     fn agent_now(&self) -> Now;
 
     /// The typed commit (W-C25.3) of rows of the family `learn`: every record of the list in one transaction, or

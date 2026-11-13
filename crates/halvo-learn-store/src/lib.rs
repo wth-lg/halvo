@@ -12,6 +12,7 @@ mod coordinator;
 mod facts;
 mod finish;
 mod handlers;
+mod held;
 mod host;
 mod ids;
 mod moves;
@@ -21,7 +22,7 @@ mod rows;
 mod serve;
 mod sources;
 
-pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused};
+pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused, RUNS_HELD_MAX};
 pub use host::{Clock, LearnHost};
 pub use routine::LearnStep;
 

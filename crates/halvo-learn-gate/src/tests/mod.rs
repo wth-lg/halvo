@@ -1,8 +1,11 @@
 mod admission;
+mod compile;
 mod delete;
 mod drift;
+mod host;
 mod limits;
 mod reader;
 mod routine;
 mod store;
 mod targets;
+mod verdict;

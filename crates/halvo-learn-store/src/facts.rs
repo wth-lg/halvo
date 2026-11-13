@@ -2,11 +2,20 @@ use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use halvo_schema::executable::body::LoadReply;
-use halvo_schema::executable::names::{Cause, LogEvent};
+use halvo_schema::executable::names::{Cause, LogEvent, Mode};
 use halvo_schema::executable::step::Locator;
 use halvo_schema::executable::{ExecutableStep, OwnText};
 use halvo_schema::learning::record::EditId;
 use halvo_schema::{AgentId, SeedCategory, WorkflowId};
+
+/// A run whose `learn_run` rev 1 this value stored at its `start_run`: its agent, its mode and the order in which
+/// the value made it, by which the first made goes first at the bound `RUNS_HELD_MAX`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Start {
+    pub(crate) agent: AgentId,
+    pub(crate) mode: Mode,
+    pub(crate) made: u64,
+}
 
 /// A step that a `load_steps` reply gave the run, and the edit that it carried.
 pub(crate) struct Served {
@@ -42,19 +51,27 @@ pub(crate) struct RunFacts {
     pub(crate) lines: Vec<(NonZeroU32, Line)>,
 }
 
+/// The slot values of a `load` reply's bindings, kept for a run of the mode `replay` alone.
+pub(crate) fn slot_values(reply: &LoadReply, mode: Mode) -> Vec<String> {
+    if mode != Mode::Replay {
+        return Vec::new();
+    }
+    reply
+        .bindings
+        .iter()
+        .flat_map(|b| b.slots.iter())
+        .map(|slot| slot.value.joined())
+        .collect()
+}
+
 impl RunFacts {
-    pub(crate) fn new(agent: &AgentId, reply: &LoadReply) -> RunFacts {
+    pub(crate) fn new(agent: &AgentId, reply: &LoadReply, mode: Mode) -> RunFacts {
         RunFacts {
             workflow: reply.config.workflow.clone(),
             agent: agent.clone(),
             category: reply.config.category,
             loaded: reply.playbook.as_ref().map(|p| p.number),
-            slots: reply
-                .bindings
-                .iter()
-                .flat_map(|b| b.slots.iter())
-                .map(|slot| slot.value.joined())
-                .collect(),
+            slots: slot_values(reply, mode),
             served: BTreeMap::new(),
             candidates: BTreeMap::new(),
             lines: Vec::new(),

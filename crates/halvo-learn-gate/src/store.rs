@@ -187,6 +187,12 @@ impl MemoryStore {
         stored
     }
 
+    /// The rows of the family `learn` by kind, for a test that stands in for a wrong cascade.
+    #[cfg(test)]
+    pub fn learn_rows_mut(&mut self) -> &mut BTreeMap<&'static str, Vec<String>> {
+        &mut self.learn.by_kind
+    }
+
     pub fn workflow_item(&self, id: &WorkflowId) -> Option<WorkflowItem> {
         self.workflows.get(id).map(|w| WorkflowItem {
             workflow: w.clone(),

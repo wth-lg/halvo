@@ -57,16 +57,19 @@ fn a_proposal_that_names_another_number_than_the_one_the_run_loaded_is_refused_w
     let mut w = active_world();
     w.compile(20, 2, compiled());
     let served = w.replay(2);
+    assert_eq!(w.loaded, 2);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
-    let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": 1, "steps": [proposal]});
-    let Ok(RunnerCall::PutPlaybook(b)) = RunnerCall::parse(body.to_string().as_bytes()) else {
-        panic!("a put_playbook body");
-    };
-    let answers = w
-        .handlers
-        .propose(&mut w.host, &b)
-        .expect("the proposal is read");
-    assert_eq!(answers[0].1, Err(halvo_learn::AdmitCause::Base));
+    for (number, want) in [(1, Err(halvo_learn::AdmitCause::Base)), (3, Ok(()))] {
+        let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": number, "steps": [proposal]});
+        let Ok(RunnerCall::PutPlaybook(b)) = RunnerCall::parse(body.to_string().as_bytes()) else {
+            panic!("a put_playbook body");
+        };
+        let answers = w
+            .handlers
+            .propose(&mut w.host, &b)
+            .expect("the proposal is read");
+        assert_eq!(answers[0].1, want, "number {number}");
+    }
 }
 
 #[test]
