@@ -795,7 +795,7 @@ fn the_persons_stop_of_a_second_step_answers_decline_lapses_it_and_stops_the_run
 }
 
 #[test]
-fn the_persons_stop_of_a_second_step_whose_row_is_stored_works_and_its_end_lapses_it() {
+fn the_persons_stop_of_a_second_step_whose_row_is_stored_answers_decline_and_lapses_it_cancelled() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.on_run(&run, bind(&run, 0)).unwrap();
@@ -808,9 +808,24 @@ fn the_persons_stop_of_a_second_step_whose_row_is_stored_works_and_its_end_lapse
     let m = mark(&c);
     assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
     let calls = calls_since(&c, m);
-    assert!(!calls
+    let decline = calls
         .iter()
-        .any(|call| matches!(call, Call::AnswerBind(..))));
+        .position(|call| {
+            matches!(
+                call,
+                Call::AnswerBind(_, halvo_coord::types::BindResult::Decline)
+            )
+        })
+        .expect("decline first");
+    let cancel = calls
+        .iter()
+        .position(|call| matches!(call, Call::Cancel(r) if *r == run))
+        .expect("one cancel");
+    assert!(decline < cancel);
+    assert!(!calls.iter().any(|call| matches!(
+        call,
+        Call::AnswerBind(_, halvo_coord::types::BindResult::Allow)
+    )));
     assert_eq!(
         calls
             .iter()
@@ -819,12 +834,17 @@ fn the_persons_stop_of_a_second_step_whose_row_is_stored_works_and_its_end_lapse
         1
     );
     assert_eq!(row_line(&c.snapshot(), 0), text("line.working.stopping"));
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item: item.clone(),
+        lapsed: Lapsed::SignIn(OtherLapse::Cancelled)
+    }));
     c.ports().ports.end_runner(&run);
     assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
-    assert!(events(&c).contains(&What::ItemLapsed {
-        item,
-        lapsed: Lapsed::SignIn(OtherLapse::RunEnded)
-    }));
+    let lapses = events(&c)
+        .iter()
+        .filter(|w| matches!(w, What::ItemLapsed { item: i, .. } if *i == item))
+        .count();
+    assert_eq!(lapses, 1, "the end lapses it no more");
 }
 
 #[test]
@@ -2780,4 +2800,557 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
     assert_eq!(cancels_of(&c, m, &run), 0, "no second cancel");
     assert_eq!(calls_since(&c, m), Vec::<Call>::new());
     assert_eq!(events(&c).len(), stored, "nothing stored");
+}
+
+/// How the person's first press of a second step went: lost in one of RD-40's two forms, or
+/// stored and acknowledged with `Runs::answer_bind` failing `busy` after it (RD-46's S).
+#[derive(Clone, Copy, Debug)]
+enum First {
+    Lost(support::Loss),
+    Taken,
+}
+
+/// A run of agent 0 that waits on a second step for the origin of `bind`.
+fn second_step() -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::SignIn);
+    (c, run, item)
+}
+
+fn first_press(c: &Coordinator<Both>, item: &ItemId, choice: Choice, how: First) {
+    match how {
+        First::Lost(order) => {
+            c.ports().loss.set(Some(order));
+            assert_eq!(
+                c.answer(item, choice, None),
+                Err(Cause::NoService),
+                "{how:?}"
+            );
+            let lost: Vec<halvo_coord::types::Event> =
+                c.ports().lost.borrow_mut().drain(..).collect();
+            c.ports().ports.events.borrow_mut().extend(lost);
+        }
+        First::Taken => {
+            c.ports().ports.refuse(Method::AnswerBind, PortError::Busy);
+            assert_eq!(c.answer(item, choice, None), Err(Cause::Busy), "{how:?}");
+            c.ports().ports.clear_refusals();
+        }
+    }
+}
+
+/// The owner's rows for the item after its `item_raised`, as words: the answer of a second step
+/// or of an account link, or `lapsed:<cause>`.
+fn step_rows(c: &Coordinator<Both>, item: &ItemId) -> Vec<String> {
+    use halvo_coord::types::{Answered, SignInAnswer};
+    events(c)
+        .iter()
+        .filter_map(|w| match w {
+            What::ItemAnswered { item: i, answer } if i == item => Some(match answer {
+                Answered::SignIn(SignInAnswer::Second(b)) => b.answer.name().to_owned(),
+                Answered::LinkAccount(l) => l.answer.name().to_owned(),
+                other => format!("{other:?}"),
+            }),
+            What::ItemLapsed { item: i, lapsed } if i == item => {
+                Some(format!("lapsed:{}", lapsed.cause().name()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn allows(c: &Coordinator<Both>) -> usize {
+    bind_answers(c)
+        .iter()
+        .filter(|(_, r)| *r == halvo_coord::types::BindResult::Allow)
+        .count()
+}
+
+fn binds_since(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::BindResult> {
+    calls_since(c, m)
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::AnswerBind(_, r) => Some(r),
+            _ => None,
+        })
+        .collect()
+}
+
+fn decline_before_one_cancel(c: &Coordinator<Both>, m: usize, run: &RunId, case: &str) {
+    use halvo_coord::types::BindResult;
+    let calls = calls_since(c, m);
+    let decline = calls
+        .iter()
+        .position(|call| matches!(call, Call::AnswerBind(r, BindResult::Decline) if r == run));
+    let cancel = calls
+        .iter()
+        .position(|call| matches!(call, Call::Cancel(r) if r == run));
+    assert!(
+        decline.is_some() && decline < cancel,
+        "{case}: decline before the cancel: {calls:?}"
+    );
+    assert_eq!(cancels_of(c, m, run), 1, "{case}");
+}
+
+#[test]
+fn a_lost_allow_then_allow_sends_allow_once_in_the_second_move_in_both_forms() {
+    use halvo_coord::types::BindResult;
+    for order in ORDERS {
+        let (c, _run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Lost(order));
+        assert_eq!(allows(&c), 0, "{order:?}");
+        let m = mark(&c);
+        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["allow", "allow"], "{order:?}");
+        assert_eq!(binds_since(&c, m), [BindResult::Allow], "{order:?}");
+        assert_eq!(allows(&c), 1, "{order:?}");
+    }
+}
+
+#[test]
+fn a_lost_allow_then_dont_allow_sends_decline_and_never_allow_in_both_forms() {
+    use halvo_coord::types::BindResult;
+    for order in ORDERS {
+        let (c, _run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Lost(order));
+        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["allow", "decline"], "{order:?}");
+        assert_eq!(
+            bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
+            [BindResult::Decline],
+            "{order:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lost_decline_then_the_persons_last_press_decides_in_both_forms() {
+    use halvo_coord::types::BindResult;
+    for order in ORDERS {
+        let (c, _run, item) = second_step();
+        first_press(&c, &item, Choice::Decline, First::Lost(order));
+        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["decline", "allow"], "{order:?}");
+        assert_eq!(allows(&c), 1, "{order:?}: by the person's last press");
+        let (c, _run, item) = second_step();
+        first_press(&c, &item, Choice::Decline, First::Lost(order));
+        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["decline", "decline"], "{order:?}");
+        assert_eq!(
+            bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
+            [BindResult::Decline],
+            "{order:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lost_allow_then_the_stop_sends_decline_before_one_cancel_and_lapses_cancelled_in_both_forms() {
+    for order in ORDERS {
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Lost(order));
+        let m = mark(&c);
+        assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{order:?}");
+        decline_before_one_cancel(&c, m, &run, &format!("{order:?}"));
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow", "lapsed:cancelled"],
+            "{order:?}"
+        );
+        c.ports().ports.end_runner(&run);
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{order:?}");
+        assert!(events(&c).contains(&What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Cancelled
+        }));
+        assert_eq!(allows(&c), 0, "{order:?}");
+    }
+}
+
+#[test]
+fn a_lost_allow_then_the_wait_limit_sends_decline_and_the_run_ends_lapsed_in_both_forms() {
+    use halvo_coord::types::BindResult;
+    let limits = Limits::PRODUCT;
+    for order in ORDERS {
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Lost(order));
+        let m = mark(&c);
+        c.ports()
+            .ports
+            .set_clock(T0 + limits.wait_limit_s * 1000, DAY);
+        c.tick();
+        assert_eq!(binds_since(&c, m), [BindResult::Decline], "{order:?}");
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow", "lapsed:wait_limit"],
+            "{order:?}"
+        );
+        c.ports().ports.set_clock(
+            T0 + limits.wait_limit_s * 1000 + limits.cancel_grace_s * 1000,
+            DAY,
+        );
+        c.tick();
+        assert!(events(&c).contains(&What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Lapsed
+        }));
+        assert_eq!(allows(&c), 0, "{order:?}");
+    }
+}
+
+fn run_ends_of(c: &Coordinator<Both>, run: &RunId) -> Vec<RunEnd> {
+    events(c)
+        .iter()
+        .filter_map(|w| match w {
+            What::RunEnded { run: r, cause } if r == run => Some(*cause),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_lost_allow_then_the_quit_lapses_app_ended_and_the_next_life_adds_interrupted_alone_in_both_forms(
+) {
+    for order in ORDERS {
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Lost(order));
+        let m = mark(&c);
+        let _ = c.quit_stop();
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow", "lapsed:app_ended"],
+            "{order:?}"
+        );
+        assert!(binds_since(&c, m).is_empty(), "{order:?}");
+        c.quit_kill();
+        let life = next_life(&c, |_| {});
+        assert_eq!(
+            step_rows(&life, &item),
+            ["allow", "lapsed:app_ended"],
+            "{order:?}"
+        );
+        assert_eq!(run_ends_of(&life, &run), [RunEnd::Interrupted], "{order:?}");
+        assert!(bind_answers(&life).is_empty(), "{order:?}");
+    }
+}
+
+#[test]
+fn a_kill_after_a_lost_or_taken_allow_binds_nothing_lapses_nothing_and_a_new_bind_raises_a_new_item(
+) {
+    let forms = [
+        First::Lost(support::Loss::Reply),
+        First::Lost(support::Loss::Later),
+        First::Taken,
+    ];
+    for how in forms {
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, how);
+        let life = next_life(&c, |_| {});
+        assert!(life.snapshot().items.is_empty(), "{how:?}: no item");
+        assert!(
+            bind_answers(&life).is_empty(),
+            "{how:?}: no answer_bind call"
+        );
+        assert_eq!(
+            step_rows(&life, &item),
+            ["allow"],
+            "{how:?}: no item_lapsed"
+        );
+        assert_eq!(run_ends_of(&life, &run), [RunEnd::Interrupted], "{how:?}");
+        life.ports().ports.set_clock(T0 + 1_000, DAY);
+        life.tick();
+        let next = start(&life, 0);
+        life.on_run(&next, bind(&next, 0)).unwrap();
+        let (fresh, kind) = open_item(&life);
+        assert_eq!(kind, ItemKind::SignIn, "{how:?}");
+        assert_ne!(fresh, item, "{how:?}: a new item id");
+    }
+}
+
+#[test]
+fn a_stored_allow_that_the_run_did_not_take_then_allow_sends_allow_once_with_one_row() {
+    use halvo_coord::types::BindResult;
+    let (c, _run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    let m = mark(&c);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(step_rows(&c, &item), ["allow"]);
+    assert_eq!(binds_since(&c, m), [BindResult::Allow]);
+    assert_eq!(allows(&c), 1);
+}
+
+#[test]
+fn a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_decline() {
+    use halvo_coord::types::BindResult;
+    let (c, _run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    let m = mark(&c);
+    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(step_rows(&c, &item), ["allow", "decline"]);
+    assert_eq!(binds_since(&c, m), [BindResult::Decline]);
+    assert_eq!(allows(&c), 0);
+    let (c, _run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let m = mark(&c);
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None),
+        Err(Cause::NoService)
+    );
+    c.ports().ports.clear_refusals();
+    assert!(binds_since(&c, m).is_empty(), "nothing is sent");
+    assert_eq!(step_rows(&c, &item), ["allow"]);
+    let m = mark(&c);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        step_rows(&c, &item),
+        ["allow", "allow"],
+        "the step is open again: the press stores a row of its own"
+    );
+    assert_eq!(binds_since(&c, m), [BindResult::Allow]);
+}
+
+#[test]
+fn a_stored_decline_that_the_run_did_not_take_refuses_allow_and_sends_decline_again() {
+    use halvo_coord::types::BindResult;
+    let (c, _run, item) = second_step();
+    first_press(&c, &item, Choice::Decline, First::Taken);
+    let m = mark(&c);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::State));
+    assert!(binds_since(&c, m).is_empty());
+    assert_eq!(step_rows(&c, &item), ["decline"]);
+    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(step_rows(&c, &item), ["decline"]);
+    assert_eq!(binds_since(&c, m), [BindResult::Decline]);
+}
+
+#[test]
+fn a_stored_allow_that_the_run_did_not_take_lapses_at_the_wait_limit_with_decline() {
+    use halvo_coord::types::BindResult;
+    let limits = Limits::PRODUCT;
+    let (c, run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    let m = mark(&c);
+    let stored = events(&c).len();
+    for at in [1_000, limits.wait_limit_s * 1000 - 1] {
+        c.ports().ports.set_clock(T0 + at, DAY);
+        c.tick();
+    }
+    assert!(
+        binds_since(&c, m).is_empty(),
+        "no tick before the limit sends anything"
+    );
+    assert_eq!(events(&c).len(), stored, "and stores nothing");
+    c.ports()
+        .ports
+        .set_clock(T0 + limits.wait_limit_s * 1000, DAY);
+    c.tick();
+    assert_eq!(binds_since(&c, m), [BindResult::Decline]);
+    assert_eq!(step_rows(&c, &item), ["allow", "lapsed:wait_limit"]);
+    c.ports().ports.set_clock(
+        T0 + limits.wait_limit_s * 1000 + limits.cancel_grace_s * 1000,
+        DAY,
+    );
+    c.tick();
+    assert_eq!(run_ends_of(&c, &run), [RunEnd::Lapsed]);
+    assert_eq!(allows(&c), 0);
+}
+
+#[test]
+fn the_stop_of_a_stored_allow_sends_decline_before_one_cancel_and_holds_no_step_after_the_end_the_kill_or_a_lost_run(
+) {
+    let limits = Limits::PRODUCT;
+    for (way, end) in [
+        ("end", RunEnd::Cancelled),
+        ("grace", RunEnd::Cancelled),
+        ("lost", RunEnd::Interrupted),
+    ] {
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Taken);
+        let m = mark(&c);
+        assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{way}");
+        decline_before_one_cancel(&c, m, &run, way);
+        assert_eq!(step_rows(&c, &item), ["allow", "lapsed:cancelled"], "{way}");
+        match way {
+            "end" => {
+                c.ports().ports.end_runner(&run);
+                assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+            }
+            _ => {
+                if way == "lost" {
+                    c.ports().ports.new_life();
+                }
+                c.ports()
+                    .ports
+                    .set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
+                c.tick();
+            }
+        }
+        assert_eq!(run_ends_of(&c, &run), [end], "{way}");
+        assert_eq!(c.live(), 0, "{way}");
+        assert!(c.snapshot().items.is_empty(), "{way}");
+        assert_eq!(
+            c.answer(&item, Choice::Allow, None),
+            Err(Cause::UnknownItem),
+            "{way}: no step held"
+        );
+        assert_eq!(step_rows(&c, &item), ["allow", "lapsed:cancelled"], "{way}");
+        assert_eq!(allows(&c), 0, "{way}");
+    }
+}
+
+#[test]
+fn a_stored_allow_lapses_with_run_ended_at_the_runners_end_and_with_app_ended_at_the_quit() {
+    let (c, run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(step_rows(&c, &item), ["allow", "lapsed:run_ended"]);
+    assert_eq!(run_ends_of(&c, &run), [RunEnd::Completed]);
+    let (c, _run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    let m = mark(&c);
+    let _ = c.quit_stop();
+    assert_eq!(step_rows(&c, &item), ["allow", "lapsed:app_ended"]);
+    assert!(binds_since(&c, m).is_empty());
+}
+
+#[test]
+fn a_quit_whose_lapse_got_no_acknowledgement_leaves_the_rows_of_a_kill() {
+    let (c, run, item) = second_step();
+    first_press(&c, &item, Choice::Allow, First::Taken);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.quit_stop();
+    c.quit_kill();
+    c.ports().ports.clear_refusals();
+    let life = next_life(&c, |_| {});
+    assert_eq!(step_rows(&life, &item), ["allow"]);
+    assert_eq!(run_ends_of(&life, &run), [RunEnd::Interrupted]);
+    assert!(bind_answers(&life).is_empty());
+}
+
+#[test]
+fn an_allow_that_answer_bind_refuses_with_ended_answers_ok_and_stores_no_lapse() {
+    let (c, run, item) = second_step();
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(step_rows(&c, &item), ["allow"]);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(step_rows(&c, &item), ["allow"]);
+    assert_eq!(run_ends_of(&c, &run), [RunEnd::Completed]);
+    assert_eq!(allows(&c), 0);
+}
+
+#[test]
+fn a_second_step_answered_after_the_runs_end_is_unknown_item() {
+    let (c, run, item) = second_step();
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None),
+        Err(Cause::UnknownItem)
+    );
+    assert_eq!(step_rows(&c, &item), ["lapsed:run_ended"]);
+}
+
+#[test]
+fn two_second_steps_of_one_run_keep_their_own_rows_and_a_second_bind_ends_the_run_with_kind() {
+    use halvo_coord::types::BindResult;
+    let (c, run, a) = second_step();
+    first_press(&c, &a, Choice::Allow, First::Lost(support::Loss::Reply));
+    assert_eq!(c.answer(&a, Choice::Allow, None), Ok(()));
+    let other = RunEvent::Bind(halvo_coord::types::BindAsk {
+        run: run.clone(),
+        agent: agent(0),
+        origin: halvo_coord::types::Origin::parse("https://card.site1.example:443").unwrap(),
+    });
+    c.on_run(&run, other).unwrap();
+    let (b, _) = open_item(&c);
+    assert_ne!(a, b);
+    assert_eq!(c.answer(&b, Choice::Decline, None), Ok(()));
+    assert_eq!(step_rows(&c, &a), ["allow", "allow"]);
+    assert_eq!(step_rows(&c, &b), ["decline"]);
+    assert_eq!(
+        bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
+        [BindResult::Allow, BindResult::Decline]
+    );
+    let (c, run, a) = second_step();
+    let m = mark(&c);
+    assert_eq!(c.on_run(&run, bind(&run, 0)), Err(Cause::State));
+    assert_eq!(step_rows(&c, &a), ["lapsed:run_ended"]);
+    assert!(binds_since(&c, m).is_empty());
+    assert!(c.snapshot().items.is_empty());
+}
+
+#[test]
+fn a_taken_allow_gets_no_lapse_at_the_runs_end_at_a_stop_or_at_the_quit() {
+    for way in ["end", "stop", "quit"] {
+        let (c, run, item) = second_step();
+        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{way}");
+        match way {
+            "end" => {
+                c.ports().ports.end_runner(&run);
+                let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+            }
+            "stop" => {
+                let _ = c.control(&agent(0), Action::Stop);
+                c.ports().ports.end_runner(&run);
+                let _ = c.on_run(&run, RunEvent::Ended(None));
+            }
+            _ => {
+                let _ = c.quit_stop();
+                c.quit_kill();
+            }
+        }
+        assert_eq!(step_rows(&c, &item), ["allow"], "{way}");
+    }
+}
+
+#[test]
+fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_done_in_both_forms()
+{
+    use halvo_coord::types::HandbackResult;
+    for order in ORDERS {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
+            .unwrap();
+        let (item, _) = open_item(&c);
+        c.ports().loss.set(Some(order));
+        assert_eq!(
+            c.answer(&item, Choice::Done, None),
+            Err(Cause::NoService),
+            "{order:?}"
+        );
+        let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+        c.ports().ports.events.borrow_mut().extend(lost);
+        let m = mark(&c);
+        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["done", "decline"], "{order:?}");
+        let (c2, item2) = {
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
+                .unwrap();
+            let (item, _) = open_item(&c);
+            (c, item)
+        };
+        c2.ports().loss.set(Some(order));
+        assert_eq!(c2.answer(&item2, Choice::Done, None), Err(Cause::NoService));
+        let lost: Vec<halvo_coord::types::Event> = c2.ports().lost.borrow_mut().drain(..).collect();
+        c2.ports().ports.events.borrow_mut().extend(lost);
+        let m = mark(&c2);
+        assert_eq!(c2.answer(&item2, Choice::Done, None), Ok(()), "{order:?}");
+        assert_eq!(handed_back(&c2, m), [HandbackResult::Done], "{order:?}");
+        assert_eq!(step_rows(&c2, &item2), ["done"], "{order:?}");
+    }
 }
