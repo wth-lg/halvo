@@ -316,6 +316,7 @@ fn no_row_written_on_the_runner_output_after_the_library_closed_its_input_reache
         "hello",
         &format!("writer-child 3000 5 {row}"),
         "log spawned",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
         "exit 1",
     ]);
     let spec = rig.spec(&script);
