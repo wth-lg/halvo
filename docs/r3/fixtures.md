@@ -12,8 +12,11 @@ node tools/fixture-server/variants/server.mjs [--port N] [--seed 1|2|3] [--varia
 ```
 
 - The server uses the Node standard library only. It binds 127.0.0.1 on one port, prints
-  `listening 127.0.0.1:<port>` on standard output, and serves until it gets SIGTERM or SIGINT.
-  Then it exits 0.
+  `listening 127.0.0.1:<port>` on standard output, and serves until it gets SIGTERM or SIGINT,
+  or until its standard input ends or fails when that input is an anonymous pipe or a stream
+  socket and no terminal. A null device, a file, a terminal and a named FIFO are not read to an
+  end. A request in flight at the stop gets no answer, and its connection is closed. Then it
+  exits 0.
 - `--port` defaults to 18090. Choice: `--port 0` lets the system pick a free port, and the line
   `listening` gives the port. A test takes a free port this way.
 - `--seed` defaults to 1. `--variant` can be given more than once.
@@ -404,7 +407,10 @@ error, with nothing on standard output, and exit 2.
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 12 + 4 = 180. A walk case runs one variant alone. Only two cases
+So these cases give 120 + 12 + 4 + 16 + 12 + 12 + 4 = 180. The cases of the server's lifetime
+(U0.1b) add 7 on a system with `sh` and 5 on Windows, where the case of an anonymous pipe behind
+`sh` and the case of an input that a reset ends do not run: `k` is 187, or 185 on Windows. The
+self-test names both counts and fails when another number of cases ran. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
