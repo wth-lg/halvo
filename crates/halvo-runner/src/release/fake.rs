@@ -4,7 +4,6 @@
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use halvo_policy::Facts;
 use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEvent, Source};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
@@ -14,7 +13,7 @@ use halvo_schema::executable::{
 use halvo_schema::Category;
 
 use super::suite::{run_many_path, run_path, Plan, Record};
-use super::{Left, Paused, Replied};
+use super::{Left, MakerFacts, Paused, Replied};
 
 #[derive(Default)]
 struct Fake {
@@ -29,6 +28,7 @@ struct Fake {
     submit: bool,
     renew_fails: Option<Cause>,
     slots_seen: Arc<Mutex<Vec<Vec<String>>>>,
+    fixed: Option<Bound>,
 }
 
 struct Answers;
@@ -41,6 +41,9 @@ impl Left for Answers {
 
 impl Paused for Fake {
     fn class(&self) -> ActionClass {
+        if let Some(fixed) = &self.fixed {
+            return fixed.class();
+        }
         if self.submit {
             ActionClass::Submit
         } else {
@@ -49,6 +52,9 @@ impl Paused for Fake {
     }
 
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        if let Some(fixed) = &self.fixed {
+            return Ok(fixed.clone());
+        }
         self.slots_seen
             .lock()
             .expect("the record of slots")
@@ -79,16 +85,16 @@ impl Paused for Fake {
         Ok(read)
     }
 
-    fn facts(&self) -> Facts {
-        if self.submit {
-            return Facts {
+    fn facts(&self) -> MakerFacts {
+        if self.submit || self.fixed.is_some() {
+            return MakerFacts {
                 request_origin: Some(form_origin()),
-                ..Facts::default()
+                ..MakerFacts::default()
             };
         }
-        Facts {
+        MakerFacts {
             ids: ["a", "b", "c", "d"].map(String::from).to_vec(),
-            ..Facts::default()
+            ..MakerFacts::default()
         }
     }
 
@@ -1000,4 +1006,89 @@ fn a_slot_of_the_class_that_the_later_load_no_longer_holds_ends_the_run_changed(
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
+}
+
+/// The origin of the page from which the fake's amounts and items are read.
+fn page_origin() -> WebOrigin {
+    WebOrigin::parse("http://page.agent.test:8080").expect("an origin")
+}
+
+fn field(name: FieldName, from: Source, origin: Option<WebOrigin>, value: &str) -> BoundField {
+    BoundField {
+        name,
+        from,
+        origin,
+        value: OwnValue::new(value),
+    }
+}
+
+/// A `payment`, a `purchase` and a `submit` whose request goes to the form's origin, with the amounts and items
+/// read from the page's origin.
+fn to_the_form() -> Vec<Bound> {
+    let form = form_origin();
+    let page = Some(page_origin());
+    vec![
+        Bound::new(
+            ActionClass::Payment,
+            vec![
+                field(FieldName::Payee, Source::Slot, None, "Larkspur"),
+                field(FieldName::Amount, Source::Extract, page.clone(), "84.37"),
+                field(
+                    FieldName::Instrument,
+                    Source::Slot,
+                    None,
+                    "Card ending 4417",
+                ),
+                field(FieldName::Origin, Source::Const, None, form.as_str()),
+            ],
+        )
+        .expect("a payment"),
+        Bound::new(
+            ActionClass::Purchase,
+            vec![
+                field(FieldName::Seller, Source::Slot, None, "Bramble"),
+                field(FieldName::Items, Source::Extract, page.clone(), "tea"),
+                field(FieldName::Amount, Source::Extract, page, "12.00"),
+                field(
+                    FieldName::Instrument,
+                    Source::Slot,
+                    None,
+                    "Card ending 4417",
+                ),
+                field(FieldName::Origin, Source::Const, None, form.as_str()),
+            ],
+        )
+        .expect("a purchase"),
+        submit("a"),
+    ]
+}
+
+/// CP-159 part 2, CP-166 E1: for each class whose `admit` reads an origin, a request to an origin that no binding
+/// holds gets no card and no request; the new origin of the facts is the runner's, none at this head, so no maker can
+/// let it pass.
+#[test]
+fn a_request_to_an_origin_that_no_binding_holds_gets_no_card_for_each_class() {
+    for bound in to_the_form() {
+        let class = bound.class();
+        let released = Arc::new(AtomicU32::new(0));
+        let fake = Fake {
+            fixed: Some(bound),
+            released: Arc::clone(&released),
+            ..Fake::default()
+        };
+        let record = run_path(
+            Category::UtilityBillPayment,
+            (vec![page_origin()], Vec::new()),
+            Box::new(fake),
+            Plan::plain(),
+        );
+        assert_eq!(released.load(Ordering::SeqCst), 0, "{class:?}: no request");
+        assert!(record.confirms().is_empty(), "{class:?}: no card");
+        assert!(record.states().is_empty(), "{class:?}: no propose row");
+        assert_eq!(
+            stopped(&record),
+            Some((LogEvent::Stopped, Some(Cause::Provenance))),
+            "{class:?}"
+        );
+    }
 }

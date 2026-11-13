@@ -4,7 +4,6 @@
 use std::net::TcpStream;
 use std::time::Duration;
 
-use halvo_policy::Facts;
 use halvo_schema::executable::names::{FieldName, Source};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
@@ -20,7 +19,7 @@ use super::suite::{
     request_bytes, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
     stopped_between_begin_and_commit, Case, Fixture, Maker,
 };
-use super::{Left, Paused, Replied};
+use super::{Left, MakerFacts, Paused, Replied};
 
 /// How long the stand-in waits for the reply of a request that left.
 const REPLY_WAIT: Duration = Duration::from_millis(2000);
@@ -75,10 +74,10 @@ impl Paused for Delete {
         .map_err(|_| Cause::StepFailed)
     }
 
-    fn facts(&self) -> Facts {
-        Facts {
+    fn facts(&self) -> MakerFacts {
+        MakerFacts {
             ids: self.ids.clone(),
-            ..Facts::default()
+            ..MakerFacts::default()
         }
     }
 
@@ -143,10 +142,10 @@ impl Paused for Pay {
         .map_err(|_| Cause::StepFailed)
     }
 
-    fn facts(&self) -> Facts {
-        Facts {
+    fn facts(&self) -> MakerFacts {
+        MakerFacts {
             request_origin: Some(self.pay.clone()),
-            ..Facts::default()
+            ..MakerFacts::default()
         }
     }
 

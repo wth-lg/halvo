@@ -6,7 +6,7 @@ use halvo_schema::executable::frame::Approval;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     ActionClass, AgentEffect, ApprovalId, Bound, Cause, Digest, EffectId, EffectState, KeptField,
-    Outcome, RunnerCall, RunnerReply,
+    Outcome, RunnerCall, RunnerReply, WebOrigin,
 };
 use halvo_schema::{RequestId, RunnerRequest};
 
@@ -32,6 +32,7 @@ pub(crate) struct Tracked {
     seq: u32,
     rebinds: u32,
     approval: Option<ApprovalId>,
+    allowed_origin: Option<WebOrigin>,
     pub(crate) state: EffectState,
 }
 
@@ -51,6 +52,19 @@ impl Tracked {
     /// The digest of the effect's last row.
     pub(crate) fn digest(&self) -> &Digest {
         &self.digest
+    }
+
+    /// The `new_origin` of the confirmation whose `allow_once` approved the effect last; none before an approval
+    /// and after a `rebind`.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) fn allowed_origin(&self) -> Option<&WebOrigin> {
+        self.allowed_origin.as_ref()
     }
 
     /// The count of the effect's `rebind` rows.
@@ -100,6 +114,7 @@ impl Runner {
             seq: 0,
             rebinds: 0,
             approval: None,
+            allowed_origin: None,
             state,
         });
         let at = self.effects.len() - 1;
@@ -166,7 +181,12 @@ impl Runner {
             reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
         )
     )]
-    pub(crate) fn approve(&mut self, at: usize, approval: &Approval) -> Result<(), Stop> {
+    pub(crate) fn approve(
+        &mut self,
+        at: usize,
+        approval: &Approval,
+        shown: Option<WebOrigin>,
+    ) -> Result<(), Stop> {
         let used = self.approvals.contains(&approval.approval);
         let step = EffectMove::Approve {
             entry: approval.effect.clone(),
@@ -184,6 +204,7 @@ impl Runner {
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
         self.approvals.push(approval.approval.clone());
         self.effects[at].approval = Some(approval.approval.clone());
+        self.effects[at].allowed_origin = shown;
         self.store_row(at, next, None)
     }
 

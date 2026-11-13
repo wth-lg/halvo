@@ -8,6 +8,7 @@ use halvo_schema::executable::frame::{
 use halvo_schema::executable::names::{Answer, Autonomy, FieldName, LogEvent};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
+use halvo_schema::executable::WebOrigin;
 use halvo_schema::executable::{
     ActionClass, AgentConfig, Bound, Cause, EffectState, FromRunner, Outcome, ToRunner,
 };
@@ -32,10 +33,10 @@ pub(crate) trait Paused {
     /// that the runner has just made, and from the request's own source read again while the request is paused
     /// (A5.1, A9.3, A6.3); the cause `changed` where a slot of the class is no longer in `slots`.
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause>;
-    /// The facts of A9.3 that the maker knows from this run and not from a page's text: the origin of the paused
-    /// request, the ids and the senders that its own list calls returned. The runner adds the origins of the
-    /// bindings of its newest load.
-    fn facts(&self) -> Facts;
+    /// What the maker knows from this run and not from a page's text (A9.3): the origin of the paused request, the
+    /// ids and the senders that its own list calls returned, and nothing else. The origins of the bindings and the
+    /// `new_origin` of an allowed confirmation are the runner's own facts (CP-166 E1).
+    fn facts(&self) -> MakerFacts;
     /// Lets the paused request leave, once, and gives the request that left.
     fn release(self: Box<Self>) -> Box<dyn Left>;
     /// Fails the paused request, so that no byte of it leaves, and then either makes the request again, paused, so
@@ -43,6 +44,14 @@ pub(crate) trait Paused {
     /// kind carries, or answers `changed` when a bound slot of the class changed whose value its request does not
     /// carry (the coordinator's correction of CP-157 E1).
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause>;
+}
+
+/// The facts of A9.3 that a request maker gives: no maker can name an origin of the bindings or a new origin.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct MakerFacts {
+    pub(crate) request_origin: Option<WebOrigin>,
+    pub(crate) ids: Vec<String>,
+    pub(crate) senders: Vec<String>,
 }
 
 /// A request of an effect that left.
@@ -107,15 +116,23 @@ fn class_slots(loaded: &LoadReply, class: ActionClass) -> Vec<Slot> {
         .unwrap_or_default()
 }
 
-/// The facts of a paused request with the origins of the bindings of `loaded`.
-fn facts_of(request: &dyn Paused, loaded: &LoadReply) -> Facts {
-    let mut facts = request.facts();
-    facts.origins = loaded
-        .bindings
-        .as_ref()
-        .map(|b| b.origins.clone())
-        .unwrap_or_default();
-    facts
+/// The facts of `admit` and of the origin test before a `begin`, the runner's own: the maker's facts of its paused
+/// request, the origins of the bindings of `loaded`, and `allowed`, the `new_origin` of the confirmation whose
+/// `allow_once` approved the effect, none before an approval and none where that card named none, which is every
+/// card of this runner (CP-159 part 2, CP-166 E1).
+fn facts_of(request: &dyn Paused, loaded: &LoadReply, allowed: Option<&WebOrigin>) -> Facts {
+    let maker = request.facts();
+    Facts {
+        origins: loaded
+            .bindings
+            .as_ref()
+            .map(|b| b.origins.clone())
+            .unwrap_or_default(),
+        request_origin: maker.request_origin,
+        new_origin: allowed.cloned(),
+        senders: maker.senders,
+        ids: maker.ids,
+    }
 }
 
 /// One effect of the confirm path: its index among the run's effects, its paused request and the bound object
@@ -153,7 +170,7 @@ impl Runner {
                 .bound(&class_slots(&loaded, request.class()))
                 .map_err(failed)?;
             let class = request.class();
-            admit(class, &bound, &facts_of(request.as_ref(), &loaded))
+            admit(class, &bound, &facts_of(request.as_ref(), &loaded, None))
                 .map_err(|refusal| failed(refusal.cause()))?;
             let at = self.propose(decide(&loaded.config, class, Checkpoint::No), &bound)?;
             match self.effects[at].state {
@@ -198,7 +215,7 @@ impl Runner {
                     .request
                     .bound(&class_slots(&again, class))
                     .map_err(failed)?;
-                admit(class, &o.bound, &facts_of(o.request.as_ref(), &again))
+                admit(class, &o.bound, &facts_of(o.request.as_ref(), &again, None))
                     .map_err(|refusal| failed(refusal.cause()))?;
                 self.check()?;
                 self.within_wall()?;
@@ -264,7 +281,11 @@ impl Runner {
                     return Err(failed(cause));
                 }
             };
-            let facts = facts_of(one.request.as_ref(), &again);
+            let facts = facts_of(
+                one.request.as_ref(),
+                &again,
+                self.effects[one.at].allowed_origin(),
+            );
             if facts
                 .request_origin
                 .as_ref()
@@ -383,15 +404,26 @@ impl Runner {
             let Some(approval) = decision.approvals.iter().find(|a| a.effect == id) else {
                 return Err(Broken::Frame("not_the_decision").into());
             };
-            self.answer(*at, approval)?;
+            let shown = request
+                .effects
+                .iter()
+                .find(|e| e.effect == id)
+                .and_then(|e| e.new_origin.clone());
+            self.answer(*at, approval, shown)?;
         }
         Ok(())
     }
 
-    /// The move that the person's answer for the effect at `at` makes.
-    fn answer(&mut self, at: usize, approval: &Approval) -> Result<(), Stop> {
+    /// The move that the person's answer for the effect at `at` makes; `shown` is the `new_origin` that the card
+    /// named for it.
+    fn answer(
+        &mut self,
+        at: usize,
+        approval: &Approval,
+        shown: Option<WebOrigin>,
+    ) -> Result<(), Stop> {
         match approval.answer {
-            Answer::AllowOnce => self.approve(at, approval),
+            Answer::AllowOnce => self.approve(at, approval, shown),
             Answer::RejectOnce => self.advance(at, EffectMove::Reject).map(|_| ()),
         }
     }
