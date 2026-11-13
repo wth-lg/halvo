@@ -21,7 +21,7 @@ import {
 const PENDING = { accountId: ACCOUNT, credentialHash: HASH, cap: CAP, sessionId: "cs_1", url: "http://127.0.0.1:1/c/1", expiresAt: 10_000 };
 const SESSION = { sessionId: "cs_1", customerId: "cus_1", subscriptionId: "sub_1", payment: "paid" as const };
 const WEEK_MS = 604_800_000;
-const ACCOUNT_COLUMNS =["account_id", "credential_hash", "customer_id", "period_end", "period_start", "provider_time", "state", "subscription_id"];
+const ACCOUNT_COLUMNS =["account_id", "cancel_first", "credential_hash", "customer_id", "ended_at", "period_end", "period_start", "provider_time", "state", "subscription_id"];
 
 function withSql<T>(run: (sql: Sql, accounts: Accounts) => T): T {
   const db = openSql();
@@ -105,6 +105,8 @@ describe("complete", () => {
           period_start: null,
           period_end: null,
           provider_time: null,
+          ended_at: null,
+          cancel_first: null,
         },
       ]);
     });

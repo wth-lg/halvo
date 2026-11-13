@@ -22,6 +22,7 @@ export type ProviderEvent =
       customerId: string;
       state: SubscriptionState;
       period: BillingPeriod | null;
+      endedAt: Ms | null;
     }
   | { kind: "ignored" };
 

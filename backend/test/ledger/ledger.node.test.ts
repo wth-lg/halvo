@@ -207,6 +207,7 @@ describe("dispatch, settle, void and expire (contract 3.2)", () => {
       ledger.setCap(sql, { amount: 10, period: "week" }, 0);
       ledger.reserve(sql, req("a", 100), 0, ACTIVE);
       ledger.reserve(sql, req("b", 200), 1, ACTIVE);
+      expect([ledger.dispatch(sql, "a", 1), ledger.dispatch(sql, "b", 1)]).toEqual(["go", "go"]);
       expect(ledger.nextDue(sql)).toBe(3000);
       expect(ledger.expire(sql, 2999)).toBe(0);
       expect(ledger.expire(sql, 3000)).toBe(1);
@@ -222,6 +223,7 @@ describe("dispatch, settle, void and expire (contract 3.2)", () => {
       expect(hold(sql, "a")).toMatchObject({ state: "expired", cost: 1880, overrun: 1780, late_at: 4000 });
       expect(ledger.void(sql, "a", 4002)).toEqual({ outcome: "refused", reason: "already-ended" });
       ledger.reserve(sql, req("c", 1000), 5000, ACTIVE);
+      expect(ledger.dispatch(sql, "c", 5000)).toBe("go");
       ledger.expire(sql, 8000);
       expect(ledger.settle(sql, "c", { inputTokens: 1, outputTokens: 1 }, 8001)).toEqual({ outcome: "expired", cost: 19, overrun: 0 });
       expect(hold(sql, "c")).toMatchObject({ state: "expired", cost: 19, overrun: 0 });
@@ -252,6 +254,7 @@ describe("dispatch, settle, void and expire (contract 3.2)", () => {
       }
       ledger.settle(sql, "a", { inputTokens: 10, outputTokens: 10 }, 1);
       ledger.void(sql, "b", 1);
+      for (const id of ["c", "d", "e"]) expect(ledger.dispatch(sql, id, 1)).toBe("go");
       expect(ledger.intervalTotals(sql, 0)).toEqual({ reported: 188, unreported: 0, open: 2 });
       ledger.expire(sql, 3000);
       ledger.settle(sql, "c", { inputTokens: 10, outputTokens: 10 }, 3001);
