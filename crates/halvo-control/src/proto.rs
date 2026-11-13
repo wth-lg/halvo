@@ -349,14 +349,15 @@ pub enum ReplyError {
 }
 
 /// The rule that the status of a reply body breaks, when the body is a status, a
-/// capture_changed or a cap_set whose status has every field of a status.
-fn broken_status_rule(body: &Object) -> Option<StatusError> {
+/// capture_changed or a cap_set whose status has every field of a status. It reads the body
+/// in place and copies no part of it.
+fn broken_status_rule(body: &serde_json::Value) -> Option<StatusError> {
     let status = match body.get("kind").and_then(serde_json::Value::as_str)? {
-        "status" | "capture_changed" => serde_json::Value::Object(body.clone()),
-        "cap_set" => body.get("status")?.clone(),
+        "status" | "capture_changed" => body,
+        "cap_set" => body.get("status")?,
         _ => return None,
     };
-    let fields: StatusFields = serde_json::from_value(status).ok()?;
+    let fields = StatusFields::deserialize(status).ok()?;
     DaemonStatus::new(fields).err()
 }
 
@@ -366,12 +367,11 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     if version != PROTOCOL_VERSION {
         return Err(ReplyError::Version(version));
     }
-    let body = body.ok_or(ReplyError::NotAnEnvelope)?;
-    serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
-        match broken_status_rule(&body) {
-            Some(broken) => ReplyError::Status(broken),
-            None => ReplyError::Body(e.to_string()),
-        }
+    let body = serde_json::Value::Object(body.ok_or(ReplyError::NotAnEnvelope)?);
+    let broken = broken_status_rule(&body);
+    serde_json::from_value(body).map_err(|e| match broken {
+        Some(broken) => ReplyError::Status(broken),
+        None => ReplyError::Body(e.to_string()),
     })
 }
 
