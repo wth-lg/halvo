@@ -5110,6 +5110,54 @@ fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement
     }
 }
 
+/// The controls that the row of agent `n` offers.
+fn controls_of(c: &Coordinator<Both>, n: usize) -> Vec<halvo_coord::types::Control> {
+    let s = c.snapshot();
+    let row = s.rows.iter().find(|r| r.agent == agent(n)).unwrap();
+    row.controls.iter().map(|t| t.control).collect()
+}
+
+/// RD-48 (h) with RD-52 (d), the plain queued start of RD-43: a start by Run now waits behind
+/// another agent's run, and a Stop from a page that is behind changes nothing: the row then
+/// shows `waiting_turn` with `switch_off` and no `stop`, and the start is taken at the other
+/// run's end. Where the other run ends right after the Stop, the agent starts, and a second Stop
+/// stops the new run with one cancel.
+#[test]
+fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_end() {
+    use halvo_coord::types::Control;
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    for second_stop in [false, true] {
+        let c = coordinator(&[MANUAL, MANUAL], one);
+        let first = start(&c, 0);
+        assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+        assert_eq!(started(&c).len(), 1, "agent 1 waits");
+        let stored = events(&c).len();
+        assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+        assert_eq!(events(&c).len(), stored, "the Stop stores nothing");
+        assert_eq!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
+        let controls = controls_of(&c, 1);
+        assert!(controls.contains(&Control::SwitchOff), "{controls:?}");
+        assert!(!controls.contains(&Control::Stop), "{controls:?}");
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        assert_eq!(started(&c).len(), 2, "the start is taken at the next end");
+        if second_stop {
+            let new = started(&c).last().cloned().unwrap();
+            let m = mark(&c);
+            assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+            assert_eq!(
+                cancels_of(&c, m, &new),
+                1,
+                "the second Stop stops the new run"
+            );
+        }
+    }
+}
+
 /// A confirm request of agent `n`'s run with `count` effects of the class `send`.
 fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
     let RunEvent::Confirm(one) = ask_confirm(run, n) else {

@@ -175,6 +175,35 @@ fn an_owner_that_does_not_read_agent_history_answers_no_service() {
 }
 
 #[test]
+fn rd48h_a_card_holds_the_entries_of_two_classes_in_the_order_of_the_reply() {
+    let f = facts(State::Card).remove(0);
+    let send = PastEffect {
+        class: Class::Send,
+        state: EffectState::Committed,
+        cause: None,
+        kept: vec![Kept {
+            name: Name::parse("to").unwrap(),
+            value: vec!["Ann Lee".into()],
+        }],
+    };
+    for (first, second) in [(payment(), send.clone()), (send.clone(), payment())] {
+        let keys = |e: &PastEffect| format!("run.effect.{}", e.class.name());
+        let wanted = [keys(&first), keys(&second)];
+        let mut h = history(1, Outcome::Completed);
+        h.effects = vec![first, second];
+        let c = card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT).unwrap();
+        let effects = serde_json::to_value(&c.runs[0].effects).unwrap();
+        let got: Vec<&str> = effects
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["key"].as_str().unwrap())
+            .collect();
+        assert_eq!(got, wanted, "the entries in the order of the reply");
+    }
+}
+
+#[test]
 fn a_card_run_shows_its_committed_effects_alone_in_the_order_of_the_reply() {
     let f = facts(State::Card).remove(0);
     let mut h = history(1, Outcome::Completed);
