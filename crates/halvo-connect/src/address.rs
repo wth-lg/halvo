@@ -4,8 +4,10 @@ const ADDRESS_MAX: usize = 320;
 const SPECIALS: &[u8] = b"\"(),:;<>[\\]";
 
 /// Whether `a` and `b` are one address of the reply rule: the same bytes without regard to ASCII case. A byte
-/// outside ASCII compares as it is. `ReplyRule::selects` holds every address against another with this function,
-/// and the runner tests a message again with it (A5.1, A11.2):
+/// outside ASCII compares as it is. It answers one question, whether an address is on the person's list, the
+/// account's address or a listed sender, and it is none of the byte-for-byte compares of a draft's recipient and
+/// not the compare of `admit`. `ReplyRule::selects` holds each address against another with it; the runner's own
+/// call of A5.1 is not built yet:
 ///
 /// ```
 /// assert!(halvo_connect::same_address("ann@people.test", "ANN@People.TEST"));

@@ -38,7 +38,8 @@ pub enum AnswerFault {
 /// Whether the effect of a call of the class `send` or `delete` that returned an error was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Effect {
-    /// The provider made nothing: the request did not leave, or the provider answered 401 or 429.
+    /// Taken as not made: the request did not leave, or the provider answered 401 or 429, which A11.2 rules are
+    /// taken as not made. Nothing here says what such an answer left with the provider.
     NotMade,
     /// Nothing says whether the provider made it: the request left and no whole answer came, the answer does not
     /// have the form of the face, or the provider answered a status that is neither the request's success status
