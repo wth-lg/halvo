@@ -217,12 +217,16 @@ function serveControl(app, stop) {
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection; a connection
- * that holds part of a request at that moment gets the record line `incomplete` first. A connection
+ * through `close()` or the control route `POST /stop`, and `close()`, which ends every served connection, waits for
+ * them no longer than `idleMs` and then closes what is left; a connection that holds part of a request, or requests
+ * read and not judged, at that moment gets the record line `incomplete` for each, with no answer. A connection
  * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
  * when a request had begun, and is closed with the record line `idle-close` when none had. Once the stub ends a
- * connection, after the idle limit, a refusal, an answer that closes or the peer's end, it reads nothing more of it
- * and destroys its socket when the last answer is written.
+ * connection, after the idle limit, a refusal, an answer that closes, the peer's end or the stop, it reads no request
+ * of it again: it ends its side after the last answer, takes what still arrives into the raw file alone, at most
+ * BODY_CAP bytes and the rest of that read, and closes the socket once every answer is written and the peer has ended
+ * its side or `idleMs` has passed since the last answer was written. Where it closes with answers unwritten, or after
+ * it stopped reading at BODY_CAP, it first writes the record line `forced-close`.
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {
