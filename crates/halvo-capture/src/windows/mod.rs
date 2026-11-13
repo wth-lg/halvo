@@ -8,6 +8,9 @@ pub mod input;
 pub mod screen;
 pub mod window_title;
 
+#[cfg(test)]
+mod adv1_probes;
+
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
 use crate::sink::{SinkError, SinkHandle};
