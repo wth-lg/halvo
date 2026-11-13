@@ -5,6 +5,9 @@ mod export_names;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::kinds::{check_record, RetentionClass, KINDS};
 use halvo_schema::request::{
@@ -744,9 +747,8 @@ fn golden_names() {
 
 #[test]
 fn export_names_writes_the_committed_names_file_on_two_runs() {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("golden-export-names-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let held = leaf("golden-export-names");
+    let dir = held.path();
     let expected = committed("names.txt");
     for run in ["first.txt", "second.txt"] {
         let out = Command::new(env!("CARGO_BIN_EXE_export-names"))
@@ -761,5 +763,122 @@ fn export_names_writes_the_committed_names_file_on_two_runs() {
         );
         assert_eq!(std::fs::read_to_string(dir.join(run)).unwrap(), expected);
     }
-    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            eprintln!("{line}");
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf_name(word: &str, pid: u32, clock: u128, count: u64) -> String {
+    format!("{word}-{pid}-{clock}-{count}")
+}
+
+fn make_leaf(dir: PathBuf) -> Result<Leaf, String> {
+    let parent = dir
+        .parent()
+        .ok_or_else(|| format!("no parent: {}", dir.display()))?;
+    std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    std::fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    Ok(Leaf(dir))
+}
+
+fn leaf(word: &str) -> Leaf {
+    static CLOCK: OnceLock<u128> = OnceLock::new();
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+    let clock = *CLOCK.get_or_init(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    });
+    let count = COUNT.fetch_add(1, Ordering::Relaxed);
+    let name = leaf_name(word, std::process::id(), clock, count);
+    make_leaf(Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("golden-leaf");
+    let second = leaf("golden-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_name_differs_by_the_clock_reading_the_counter_and_the_process_id() {
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 2, 0));
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 1, 1));
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 8, 1, 0));
+    assert!(leaf_name("w", 7, 1, 0).starts_with("w-7-"));
+}
+
+#[test]
+fn leaf_that_exists_fails_with_its_path() {
+    let first = leaf("golden-leaf");
+    let error = make_leaf(first.path().to_path_buf())
+        .err()
+        .expect("a second making of one leaf fails");
+    assert!(
+        error.contains(&first.path().display().to_string()),
+        "{error}"
+    );
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("golden-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("golden-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory() {
+    let held = leaf("golden-leaf");
+    assert!(
+        held.path().starts_with(env!("CARGO_TARGET_TMPDIR")),
+        "{}",
+        held.path().display()
+    );
 }

@@ -1,16 +1,16 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::kinds::{RetentionClass, KINDS};
 use halvo_schema::{category, ids, kinds, record, request, site, Category};
 
 const BIN: &str = env!("CARGO_BIN_EXE_export-names");
 
-fn scratch(test: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("export-names-{}-{test}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn scratch(test: &str) -> Leaf {
+    leaf(&format!("export-names-{test}"))
 }
 
 fn run(dir: &Path, args: &[&str]) -> Output {
@@ -49,10 +49,11 @@ fn refused(dir: &Path, args: &[&str], line: &str) {
 
 #[test]
 fn export_names_writes_the_names_of_the_locked_lists_sorted_once_each_on_two_runs() {
-    let dir = scratch("two-runs");
+    let held = scratch("two-runs");
+    let dir = held.path();
     let mut written = Vec::new();
     for file in ["first.txt", "second.txt"] {
-        let out = run(&dir, &["--out", file]);
+        let out = run(dir, &["--out", file]);
         assert_eq!(out.status.code(), Some(0));
         let text = std::fs::read_to_string(dir.join(file)).unwrap();
         let count = text.lines().count();
@@ -77,51 +78,50 @@ fn export_names_writes_the_names_of_the_locked_lists_sorted_once_each_on_two_run
         &lines[..3],
         ["accessibility_text", "account_link", "active"]
     );
-    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
 fn export_names_refuses_a_bad_argument_list_as_usage() {
-    let dir = scratch("usage");
-    refused(&dir, &[], "REFUSED usage: missing --out");
-    refused(&dir, &["--out"], "REFUSED usage: --out");
-    refused(&dir, &["--out", ""], "REFUSED usage: --out");
+    let held = scratch("usage");
+    let dir = held.path();
+    refused(dir, &[], "REFUSED usage: missing --out");
+    refused(dir, &["--out"], "REFUSED usage: --out");
+    refused(dir, &["--out", ""], "REFUSED usage: --out");
     refused(
-        &dir,
+        dir,
         &["--out", "a.txt", "--out", "b.txt"],
         "REFUSED usage: --out",
     );
-    refused(&dir, &["--out", "--out"], "REFUSED usage: --out");
-    refused(&dir, &["--out", "a.txt", "extra"], "REFUSED usage: extra");
-    refused(&dir, &["--help"], "REFUSED usage: --help");
-    refused(&dir, &["--out=a.txt"], "REFUSED usage: --out=a.txt");
-    refused(&dir, &["x", "--out", "a.txt"], "REFUSED usage: x");
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-    std::fs::remove_dir_all(&dir).unwrap();
+    refused(dir, &["--out", "--out"], "REFUSED usage: --out");
+    refused(dir, &["--out", "a.txt", "extra"], "REFUSED usage: extra");
+    refused(dir, &["--help"], "REFUSED usage: --help");
+    refused(dir, &["--out=a.txt"], "REFUSED usage: --out=a.txt");
+    refused(dir, &["x", "--out", "a.txt"], "REFUSED usage: x");
+    assert_eq!(std::fs::read_dir(dir).unwrap().count(), 0);
 }
 
 #[test]
 fn export_names_refuses_a_file_that_exists_and_changes_nothing() {
-    let dir = scratch("exists");
+    let held = scratch("exists");
+    let dir = held.path();
     std::fs::write(dir.join("names.txt"), "kept\n").unwrap();
-    refused(&dir, &["--out", "names.txt"], "REFUSED exists: names.txt");
+    refused(dir, &["--out", "names.txt"], "REFUSED exists: names.txt");
     assert_eq!(
         std::fs::read_to_string(dir.join("names.txt")).unwrap(),
         "kept\n"
     );
     std::fs::create_dir(dir.join("sub")).unwrap();
-    refused(&dir, &["--out", "sub"], "REFUSED exists: sub");
-    std::fs::remove_dir_all(&dir).unwrap();
+    refused(dir, &["--out", "sub"], "REFUSED exists: sub");
 }
 
 #[test]
 fn export_names_makes_no_directory_and_refuses_a_missing_one_as_output() {
-    let dir = scratch("output");
+    let held = scratch("output");
+    let dir = held.path();
     let file = Path::new("missing").join("names.txt");
     let shown = file.to_str().unwrap();
-    refused(&dir, &["--out", shown], &format!("REFUSED output: {shown}"));
+    refused(dir, &["--out", shown], &format!("REFUSED output: {shown}"));
     assert!(!dir.join("missing").exists());
-    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
@@ -142,4 +142,122 @@ fn the_names_lists_of_category_and_kinds_hold_the_names_of_the_contract() {
     let mut names = kinds::NAMES.to_vec();
     names.sort();
     assert_eq!(names, expected);
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            eprintln!("{line}");
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf_name(word: &str, pid: u32, clock: u128, count: u64) -> String {
+    format!("{word}-{pid}-{clock}-{count}")
+}
+
+fn make_leaf(dir: PathBuf) -> Result<Leaf, String> {
+    let parent = dir
+        .parent()
+        .ok_or_else(|| format!("no parent: {}", dir.display()))?;
+    std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    std::fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    Ok(Leaf(dir))
+}
+
+fn leaf(word: &str) -> Leaf {
+    static CLOCK: OnceLock<u128> = OnceLock::new();
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+    let clock = *CLOCK.get_or_init(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    });
+    let count = COUNT.fetch_add(1, Ordering::Relaxed);
+    let name = leaf_name(word, std::process::id(), clock, count);
+    make_leaf(Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("export-names-leaf");
+    let second = leaf("export-names-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_name_differs_by_the_clock_reading_the_counter_and_the_process_id() {
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 2, 0));
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 1, 1));
+    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 8, 1, 0));
+    assert!(leaf_name("w", 7, 1, 0).starts_with("w-7-"));
+}
+
+#[test]
+fn leaf_that_exists_fails_with_its_path() {
+    let first = leaf("export-names-leaf");
+    let error = make_leaf(first.path().to_path_buf())
+        .err()
+        .expect("a second making of one leaf fails");
+    assert!(
+        error.contains(&first.path().display().to_string()),
+        "{error}"
+    );
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("export-names-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("export-names-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory() {
+    let held = leaf("export-names-leaf");
+    assert!(
+        held.path().starts_with(env!("CARGO_TARGET_TMPDIR")),
+        "{}",
+        held.path().display()
+    );
 }
