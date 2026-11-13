@@ -2,7 +2,7 @@
 
 mod common;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use common::{
@@ -143,6 +143,7 @@ fn over(ids: &[u64]) -> Proposal {
 struct Probe {
     emit: Rc<RefCell<Vec<TypedRecord>>>,
     seen: Rc<RefCell<Vec<String>>>,
+    echo: Rc<Cell<bool>>,
 }
 
 impl WriterStep for Probe {
@@ -152,7 +153,15 @@ impl WriterStep for Probe {
         for kind in KINDS {
             rows.for_each(kind, &mut |row| seen.push(format!("step {kind} {row}")));
         }
-        self.emit.borrow_mut().drain(..).collect()
+        let mut out: Vec<TypedRecord> = self.emit.borrow_mut().drain(..).collect();
+        if self.echo.get() {
+            let mut n = 300;
+            rows.for_each("test_pb_long", &mut |_| {
+                n += 1;
+                out.push(window(n, FAR));
+            });
+        }
+        out
     }
 }
 
@@ -190,6 +199,8 @@ struct Fixture {
     workflow: WorkflowId,
     seen: Rc<RefCell<Vec<String>>>,
     reports: Rc<RefCell<Vec<Report>>>,
+    echo: Rc<Cell<bool>>,
+    fixed: Rc<RefCell<Vec<Proposal>>>,
     at: u64,
 }
 
@@ -210,6 +221,7 @@ impl Fixture {
         let seen = Rc::new(RefCell::new(Vec::new()));
         let reports = Rc::new(RefCell::new(Vec::new()));
         let workflow = Rc::new(RefCell::new(None));
+        let echo = Rc::new(Cell::new(false));
         let host = |fixed: &Rc<RefCell<Vec<Proposal>>>| {
             let sink = Rc::clone(&reports);
             Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(fixed))))
@@ -218,6 +230,7 @@ impl Fixture {
                     Box::new(Probe {
                         emit: Rc::clone(&emit),
                         seen: Rc::clone(&seen),
+                        echo: Rc::clone(&echo),
                     }),
                 )
                 .handler(
@@ -293,8 +306,23 @@ impl Fixture {
             workflow: id,
             seen,
             reports,
+            echo,
+            fixed,
             at: 3,
         }
+    }
+
+    /// A `commit_batch` with no episode at the next position, which runs the recurrence step and the probe step.
+    fn batch(&mut self) -> halvo_derived::CommitOutcome {
+        self.at += 1;
+        self.store
+            .commit_batch(
+                &store_id(1),
+                &[],
+                position(self.at, 0),
+                &mut Seq(self.at * 100),
+            )
+            .unwrap()
     }
 
     fn set(&self, instant: i64) {
@@ -315,15 +343,12 @@ impl Fixture {
                 None,
             ))
             .unwrap();
-        let evidence = self
-            .store
-            .interface_read(&InterfaceRead::evidence(
-                &role,
-                RequestId::from_random([3; 16]),
-                self.workflow.clone(),
-                None,
-            ))
-            .unwrap();
+        let evidence = self.store.interface_read(&InterfaceRead::evidence(
+            &role,
+            RequestId::from_random([3; 16]),
+            self.workflow.clone(),
+            None,
+        ));
         let mut out = self.seen.borrow().clone();
         out.push(format!("interface workflows {workflows:?}"));
         out.push(format!("interface evidence {evidence:?}"));
@@ -458,5 +483,322 @@ fn no_read_writes_past_a_deadline() {
         report.counts.bounded >= 3,
         "the due rows are still counted: {:?}",
         report.counts
+    );
+}
+
+fn has(reads: &[String], what: &str) -> bool {
+    reads.iter().any(|line| line.contains(what))
+}
+
+const LONG_OF_DAY: &str = r#"handler test_pb_long {"v":1,"day":20767}"#;
+const LONG_PAST: &str = r#"handler test_pb_long {"v":1,"day":20675}"#;
+
+/// H5 (c): a row stored today is read by a handler and by the interface read with the clock one and two days back,
+/// by neither three days back, where no row is removed, and by both again with the clock forward, the tables
+/// unchanged; 400 days on, the kept row and the far window row are visited and the bounded rows beside them are not.
+#[test]
+fn a_row_one_or_two_days_ahead_is_read_three_days_ahead_is_not_and_the_classes_side_by_side() {
+    let mut fx = Fixture::new("reads-ahead", Bound::Unchanged);
+    let s2 = summary_id(2).as_str().to_owned();
+    let bytes = files(&fx.scratch);
+    let counts = fx.store.report().unwrap().counts;
+    let mut seen = Vec::new();
+    for back in [1u32, 2, 3, 0] {
+        fx.set(i64::from(DAY - back) * DAY_NS + NOON);
+        let reads = fx.reads(false);
+        let interface = reads
+            .iter()
+            .find(|l| l.starts_with("interface workflows"))
+            .unwrap();
+        seen.push((back, has(&reads, LONG_OF_DAY), interface.contains(&s2)));
+    }
+    assert_eq!(
+        seen,
+        vec![
+            (1, true, true),
+            (2, true, true),
+            (3, false, false),
+            (0, true, true)
+        ],
+        "(days back, the handler reads the row of the day, the interface read names its summary)"
+    );
+    assert_eq!(
+        files(&fx.scratch),
+        bytes,
+        "no row was removed and nothing written"
+    );
+    assert_eq!(fx.store.report().unwrap().counts, counts);
+    fx.set(i64::from(DAY + 400) * DAY_NS + NOON);
+    let reads = fx.reads(false);
+    assert!(
+        has(&reads, "handler test_pb_kept"),
+        "the kept row 400 days on"
+    );
+    assert!(
+        has(&reads, r#""segments":[102]"#),
+        "the far window row 400 days on"
+    );
+    assert!(
+        !has(&reads, "handler test_pb_long"),
+        "the bounded rows 400 days on"
+    );
+    assert!(
+        !has(&reads, "handler test_pb_35"),
+        "the bounded rows 400 days on"
+    );
+}
+
+/// H5 (e): the write path keeps its statement: a proposal of the key that names summaries 2 and 3, with summary 1
+/// past its bound and not expired, leaves the support rows of 2 and 3 alone, counted through the test's connection.
+#[test]
+fn an_update_removes_the_support_row_of_a_summary_past_its_bound_that_no_read_hands_out() {
+    let mut fx = Fixture::new("reads-set-support", Bound::Unchanged);
+    fx.set(i64::from(DAY + 1) * DAY_NS + NOON);
+    *fx.fixed.borrow_mut() = vec![over(&[2, 3])];
+    let outcome = fx.batch();
+    assert_eq!(outcome.proposals.updated, 1);
+    let Fixture { scratch, store, .. } = fx;
+    drop(store);
+    let supports: Vec<String> = raw(&scratch)
+        .prepare("SELECT summary FROM rows WHERE kind = 'support' ORDER BY summary")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        supports,
+        vec![
+            summary_id(2).as_str().to_owned(),
+            summary_id(3).as_str().to_owned()
+        ]
+    );
+}
+
+/// H5 (f): with rows past their bound and no expiry, the report counts them, a purge of a segment removes and
+/// counts its row, the delete of their workflow removes its rows in one transaction, and after the delete, with the
+/// clock set back, no read finds one of them.
+#[test]
+fn a_delete_a_purge_and_the_counts_still_find_rows_that_the_reads_leave_out() {
+    let mut fx = Fixture::new("reads-delete-purge", Bound::Unchanged);
+    fx.set(i64::from(DAY + 1) * DAY_NS + NOON);
+    let reads = fx.reads(false);
+    assert!(!has(&reads, LONG_PAST) && !has(&reads, r#""segments":[101]"#));
+    let counts = fx.store.report().unwrap().counts;
+    assert_eq!(
+        (counts.window, counts.bounded, counts.kept),
+        (5, 10, 2),
+        "every stored row is counted, past its bound or not"
+    );
+    let ord = halvo_schema_core::record::Ordinal::new(101).unwrap();
+    assert_eq!(
+        fx.store.purge(&[ord]).unwrap(),
+        1,
+        "the purge removes the window row past its expiry"
+    );
+    fx.store
+        .decide(&halvo_schema_core::request::InterfaceDecision::delete(
+            &InterfaceRole::claim(),
+            RequestId::from_random([4; 16]),
+            fx.workflow.clone(),
+        ))
+        .unwrap();
+    let counts = fx.store.report().unwrap().counts;
+    assert_eq!(
+        (counts.window, counts.bounded, counts.kept),
+        (1, 4, 0),
+        "the delete removed the workflow, its kept row, its support rows, its summaries and their evidence"
+    );
+    fx.set(i64::from(DAY) * DAY_NS + NOON);
+    let reads = fx.reads(true);
+    for gone in [
+        "step summary",
+        "handler test_pb_kept",
+        r#""segments":[101]"#,
+    ] {
+        assert!(
+            !has(&reads, gone),
+            "after the delete with the clock set back: {gone}"
+        );
+    }
+    assert!(has(
+        &reads,
+        "interface workflows Workflows(WorkflowsPage { workflows: [], next: None })"
+    ));
+}
+
+/// H5 (j): a step reads its rows by the batch's clock: with no expiry before the batch, a row past its bound is not
+/// visited, and the step returns no record built from it.
+#[test]
+fn a_step_builds_no_record_from_a_row_past_its_bound() {
+    let mut fx = Fixture::new("reads-step", Bound::Unchanged);
+    fx.set(i64::from(DAY + 1) * DAY_NS + NOON);
+    fx.echo.set(true);
+    fx.seen.borrow_mut().clear();
+    let outcome = fx.batch();
+    let seen = fx.seen.borrow().clone();
+    assert!(!seen
+        .iter()
+        .any(|l| l.contains(r#"step test_pb_long {"v":1,"day":20675}"#)));
+    assert_eq!(
+        format!("{:?}", outcome.steps),
+        "[Ok(Committed { stored: 1, dropped: 0 })]",
+        "one record, built from the one row of the long kind inside its bound"
+    );
+}
+
+/// H5 (k), pinned: the clock set back over a deadline before the host's expiry has run hands the row out again,
+/// since it is stored; the host's expiry at the deadline is what closes it, and after it the row is gone for good.
+#[test]
+fn a_clock_set_back_over_a_deadline_hands_a_row_out_again_until_the_host_s_expiry_has_run() {
+    let mut fx = Fixture::new("reads-set-back", Bound::Unchanged);
+    let deadline = i64::from(DAY + 1) * DAY_NS;
+    let mut seen = Vec::new();
+    for at in [deadline, deadline - NOON] {
+        fx.set(at);
+        seen.push(has(&fx.reads(false), LONG_PAST));
+    }
+    fx.set(deadline);
+    assert!(fx.store.expire().unwrap() >= 1);
+    fx.set(deadline - NOON);
+    seen.push(has(&fx.reads(false), LONG_PAST));
+    assert_eq!(
+        seen,
+        vec![false, true, false],
+        "(at the deadline, set back before it, set back after the expiry)"
+    );
+}
+
+/// A host clock that counts its readings and, while `step` is not 0, moves on by `step` after each reading.
+#[derive(Clone)]
+struct SteppingClock {
+    at: Rc<Cell<i64>>,
+    step: Rc<Cell<i64>>,
+    readings: Rc<Cell<u32>>,
+}
+
+impl halvo_derived::Clock for SteppingClock {
+    fn now(&self) -> Instant {
+        self.readings.set(self.readings.get() + 1);
+        let at = self.at.get();
+        self.at.set(at + self.step.get());
+        Instant(at)
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        u32::try_from(at.0.div_euclid(DAY_NS)).unwrap()
+    }
+
+    fn day_start(&self, day: u32) -> Instant {
+        Instant(i64::from(day) * DAY_NS)
+    }
+}
+
+/// A runner handler in front that reads the long kind, passes the request on, and reads it again.
+struct Front(Rc<RefCell<Vec<usize>>>);
+
+impl Handler for Front {
+    fn handle(&self, _r: &RawRequest, cx: &mut HandlerCx<'_>) -> Result<Box<RawValue>, ErrorName> {
+        let count = |cx: &HandlerCx<'_>| {
+            let mut n = 0;
+            cx.rows().for_each("test_pb_long", &mut |_| n += 1);
+            n
+        };
+        let first = count(cx);
+        self.0.borrow_mut().push(first);
+        cx.pass_on()?;
+        let again = count(cx);
+        self.0.borrow_mut().push(again);
+        Ok(RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+/// The handler behind `Front`: it reads the long kind once.
+struct Behind(Rc<RefCell<Vec<usize>>>);
+
+impl Handler for Behind {
+    fn handle(&self, _r: &RawRequest, cx: &mut HandlerCx<'_>) -> Result<Box<RawValue>, ErrorName> {
+        let mut n = 0;
+        cx.rows().for_each("test_pb_long", &mut |_| n += 1);
+        self.0.borrow_mut().push(n);
+        Ok(RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+/// H5 (i): one reading of the host's clock for each call: with a clock that steps over a deadline at each reading,
+/// one handled request reads its rows by one reading in front and behind, one interface read reads the clock once
+/// and its item's `summaries` agree with that reading, and a step's summary read and row read agree on one day.
+#[test]
+fn every_read_of_one_call_reads_by_one_reading_of_the_host_s_clock() {
+    let scratch = Scratch::new("reads-one-reading");
+    let clock = SteppingClock {
+        at: Rc::new(Cell::new(i64::from(DAY) * DAY_NS + NOON)),
+        step: Rc::new(Cell::new(0)),
+        readings: Rc::new(Cell::new(0)),
+    };
+    let counts = Rc::new(RefCell::new(Vec::new()));
+    let fixed = Rc::new(RefCell::new(vec![over(&[1])]));
+    let emit = Rc::new(RefCell::new(vec![bounded("test_pb_long", DAY - 92)]));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))))
+        .step(
+            "test",
+            Box::new(Probe {
+                emit: Rc::clone(&emit),
+                seen: Rc::clone(&seen),
+                echo: Rc::new(Cell::new(false)),
+            }),
+        )
+        .handler("test", Takes::Runner, Box::new(Front(Rc::clone(&counts))))
+        .handler("test", Takes::Runner, Box::new(Behind(Rc::clone(&counts))));
+    let mut store = open_entries(&scratch, host, &Bound::Unchanged.entries()).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY - 92, None)],
+            position(1, 0),
+            &mut Seq(1),
+        )
+        .unwrap();
+    fixed.borrow_mut().clear();
+    let deadline = i64::from(DAY + 1) * DAY_NS;
+    clock.step.set(1);
+    clock.at.set(deadline - 1);
+    clock.readings.set(0);
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    assert_eq!(
+        (counts.borrow().clone(), clock.readings.get()),
+        (vec![1, 1, 1], 1),
+        "(rows read in front, behind, in front again; readings of the clock)"
+    );
+    clock.at.set(deadline - 1);
+    clock.readings.set(0);
+    let page = store
+        .interface_read(&InterfaceRead::workflows(
+            &InterfaceRole::claim(),
+            RequestId::from_random([5; 16]),
+            None,
+        ))
+        .unwrap();
+    let ReplyResult::Workflows(page) = page else {
+        panic!("no workflows page");
+    };
+    assert_eq!(
+        (page.workflows[0].summaries.clone(), clock.readings.get()),
+        (vec![summary_id(1)], 1),
+        "(the item's summaries by the one reading before the deadline, readings of the clock)"
+    );
+    clock.at.set(deadline - 1);
+    seen.borrow_mut().clear();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(2))
+        .unwrap();
+    let seen = seen.borrow().clone();
+    let summary = seen.iter().any(|l| l.starts_with("step summary"));
+    let row = seen.iter().any(|l| l.starts_with("step test_pb_long"));
+    assert_eq!(
+        (summary, row),
+        (true, true),
+        "the step's summary read and row read agree on one day"
     );
 }

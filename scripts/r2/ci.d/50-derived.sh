@@ -88,6 +88,12 @@ esac
 #= tests/past_bound.rs every_read_hands_out_what_an_expiry_at_its_clock_would_leave
 #= tests/past_bound.rs at_the_report_s_deadline_the_due_row_leaves_every_read_before_any_expiry
 #= tests/past_bound.rs no_read_writes_past_a_deadline
+#= tests/past_bound.rs a_row_one_or_two_days_ahead_is_read_three_days_ahead_is_not_and_the_classes_side_by_side
+#= tests/past_bound.rs an_update_removes_the_support_row_of_a_summary_past_its_bound_that_no_read_hands_out
+#= tests/past_bound.rs a_delete_a_purge_and_the_counts_still_find_rows_that_the_reads_leave_out
+#= tests/past_bound.rs a_step_builds_no_record_from_a_row_past_its_bound
+#= tests/past_bound.rs a_clock_set_back_over_a_deadline_hands_a_row_out_again_until_the_host_s_expiry_has_run
+#= tests/past_bound.rs every_read_of_one_call_reads_by_one_reading_of_the_host_s_clock
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
