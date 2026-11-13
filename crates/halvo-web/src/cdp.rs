@@ -2051,6 +2051,24 @@ pub(crate) mod tests {
         assert_eq!(helpers.len(), 0, "a helper of the tree was left");
     }
 
+    /// CP-176 A1 (d): the start returns an executor whose rule is armed with no origin in the mode
+    /// that fails, so no request leaves before the runner arms.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn a1_the_start_returns_with_the_rule_armed_with_no_origin_in_the_mode_that_fails() {
+        let since_us = own_start_us();
+        let (started, profile, dir, _relay) = stand_in_start("armed", "browser", None).await;
+        let ex = started.expect("the stand-in starts");
+        let rule = ex.wire.book.lock().unwrap().rule.clone();
+        let stopped = ex.stop_and_remove().await;
+        let left = named_within(&profile, since_us, Duration::from_secs(2)).await;
+        end_left(&left, &dir);
+        let rule = rule.expect("a rule is armed");
+        assert!(rule.allowed.is_empty(), "{:?}", rule.allowed);
+        assert_eq!(rule.mode, Mode::Fail);
+        assert!(stopped.removed);
+    }
+
     /// CP-126 E1 (1): a stand-in browser that answers the start and the stop on its pipe starts,
     /// when it is asked to close, a process that names the profile and starts another one 300 ms
     /// later, after the browser has ended. After the stop none of them is left. The stand-in asks
