@@ -1,12 +1,25 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every proof line of the content floor fails to build with its named error code and its twin builds, no source outside the secure_input tree implements the probe, the synthetic doors have no caller outside daemon/prefill.rs, and TextFilterPoint has at most one implementor, under daemon/.
+# rule: Every proof line of the content floor fails to build with its named error code and its twin builds. The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their five listed uses.
 set -u
 name=30-core-boundary-proofs
 crate=crates/halvo-capture
 src=$crate/src
 proofs_file=$src/floor/boundary_proofs.rs
 prefill=$src/daemon/prefill.rs
+# The files that are no code and may name the guarded items.
+nocode="scripts/r1/ci.d/$name.sh CHANGELOG.md"
+# The definitions of the two synthetic doors, each a file and its whole line.
+clearance_door="$src/secure_input.rs:pub fn synthetic_clearance(age: Option<Duration>) -> KeystrokeClearance {"
+keep_door="$src/floor/exclude.rs:pub fn synthetic_keep<K: Recorded>(subject: Subject) -> Keep<K> {"
+# The files that may name SecureInputProbe.
+probe_files="$src/secure_input.rs $src/secure_input_macos.rs $src/windows/secure_input.rs $src/floor/exclude.rs $proofs_file"
+# The tests of the source rules, which read the files as the compiler reads them.
+source_tests='the_reader_counts_an_implementor_however_it_is_spelled
+the_reader_finds_a_path_attribute_and_an_include_however_they_are_spelled
+the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon
+the_secure_input_probe_is_implemented_only_in_the_secure_input_tree
+path_attributes_and_include_macros_stand_only_at_the_listed_uses'
 
 # name, the error code that its build must report, the build it belongs to.
 PROOFS='clearance_made_outside_secure_input E0624 debug
@@ -29,6 +42,7 @@ site_from_a_string E0308 debug
 event_id_made_outside_its_maker E0603 debug
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
+proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -85,56 +99,122 @@ judge() {
   }
 }
 
-# Prints the lines of "<file>:<line>:..." on stdin whose file is none of the
-# files given as arguments.
-outside() {
-  awk -v allowed="$*" '
-    BEGIN { n = split(allowed, keep, " "); for (i = 1; i <= n; i++) ok[keep[i]] = 1 }
-    { file = $0; sub(/:.*/, "", file); gsub(/\\/, "/", file); if (!(file in ok)) print }
+# Prints the proofs and twins of the names in $1 (separated by spaces) that
+# the proof file on stdin lacks, and exits 17 when it lacks one.
+twins_missing() {
+  awk -v names="$1" '
+    { sub(/\r$/, "") }
+    /^#\[cfg\(halvo_proof = "[a-z0-9_]+"\)\]/ {
+      proof = $0
+      sub(/^#\[cfg\(halvo_proof = "/, "", proof)
+      sub(/"\)\].*$/, "", proof)
+      have[proof] = 1
+    }
+    END {
+      n = split(names, list, " ")
+      for (i = 1; i <= n; i++) {
+        if (!(list[i] in have)) lacks = lacks " " list[i]
+        if (!((list[i] "_twin") in have)) lacks = lacks " " list[i] "_twin"
+      }
+      if (lacks != "") {
+        print substr(lacks, 2)
+        exit 17
+      }
+    }
   '
 }
 
-# The source scans over the tree under $1. Prints counts and fails with a cause.
+# The name searches over the tracked files of the tree $2 in the repository $1.
+# Prints the count line of the doors and, when a rule breaks, the places that
+# break it on the last line, and returns 0 or a code that scan_cause names.
 scan() {
-  root=$1
-  impls=$(grep -rnE --include='*.rs' 'impl[^{;]*TextFilterPoint[^{;]*[[:space:]]for[[:space:]]' "$root/$src") ||
-    impls=
-  impls=$(printf '%s\n' "$impls" | sed -e "s|^$root/||" -e '/^$/d' | outside "$src/floor/cases.rs")
-  count=$(printf '%s' "$impls" | grep -c '')
-  printf 'implementors of TextFilterPoint outside floor/cases.rs: %s\n' "$count"
-  [ "$count" -le 1 ] || return 11
-  if [ "$count" = 1 ]; then
-    case $impls in
-      "$src/daemon/"*) ;;
-      *) return 12 ;;
-    esac
-  fi
-  doors=$(grep -rnE --include='*.rs' 'synthetic_(clearance|keep)' "$root/$src") || doors=
-  doors=$(printf '%s\n' "$doors" | sed -e "s|^$root/||" -e '/^$/d' | grep -vE ':[0-9]+:[[:space:]]*pub fn synthetic_(clearance|keep)')
-  callers=$(printf '%s\n' "$doors" | sed '/^$/d' | outside "$proofs_file")
-  count=$(printf '%s' "$callers" | grep -c '')
-  printf 'callers of the synthetic doors outside the proof file: %s\n' "$count"
-  stray=$(printf '%s\n' "$callers" | sed '/^$/d' | outside "$prefill")
-  [ -z "$stray" ] || return 13
-  probes=$(grep -rnE --include='*.rs' 'impl[^{;]*SecureInputProbe[^{;]*[[:space:]]for[[:space:]]' "$root/$src") ||
-    probes=
-  probes=$(printf '%s\n' "$probes" | sed -e "s|^$root/||" -e '/^$/d')
-  stray=$(printf '%s\n' "$probes" | sed '/^$/d' |
-    outside "$src/secure_input.rs" "$src/secure_input_macos.rs" "$src/windows/secure_input.rs" "$proofs_file")
-  count=$(printf '%s' "$probes" | grep -c '')
-  printf 'implementors of SecureInputProbe: %s\n' "$count"
-  [ -z "$stray" ] || return 14
-  return 0
+  hits=$(git -C "$1" grep -n -a -E -e 'synthetic_(clearance|keep)' -e TextFilterPoint -e SecureInputProbe "$2" --)
+  code=$?
+  [ "$code" -le 1 ] || return 18
+  printf '%s\n' "$hits" | awk -v clearance="$clearance_door" -v keep="$keep_door" -v nocode="$nocode" \
+    -v proofs="$proofs_file" -v prefill="$prefill" -v floor="$src/floor/" -v daemon="$src/daemon/" \
+    -v probes="$probe_files" '
+    BEGIN {
+      n = split(nocode, list, " ")
+      for (i = 1; i <= n; i++) skip[list[i]] = 1
+      n = split(probes, list, " ")
+      for (i = 1; i <= n; i++) probe[list[i]] = 1
+    }
+    $0 != "" {
+      sub(/\r$/, "")
+      sub(/^[^:]*:/, "")
+      file = $0
+      sub(/:.*/, "", file)
+      rest = substr($0, length(file) + 2)
+      line = rest
+      sub(/:.*/, "", line)
+      text = substr(rest, length(line) + 2)
+      if (file in skip) next
+      whole = file ":" text
+      if (text ~ /synthetic_(clearance|keep)/ && whole != clearance && whole != keep && file != proofs) {
+        callers++
+        if (file != prefill) doors = doors " " file ":" line
+      }
+      if (text ~ /TextFilterPoint/ && index(file, floor) != 1 && index(file, daemon) != 1) points = points " " file ":" line
+      if (text ~ /SecureInputProbe/ && !(file in probe)) probes_at = probes_at " " file ":" line
+    }
+    END {
+      printf "callers of the synthetic doors outside the proof file: %d\n", callers
+      if (doors != "") { print substr(doors, 2); exit 13 }
+      if (points != "") { print substr(points, 2); exit 15 }
+      if (probes_at != "") { print substr(probes_at, 2); exit 16 }
+    }
+  '
+  code=$?
+  [ "$code" = 0 ] || return "$code"
+  committed=$(git -C "$1" show "$2:$proofs_file") || return 18
+  printf '%s\n' "$committed" | twins_missing "$proof_names"
 }
 
 scan_cause() {
   case $1 in
-    11) printf 'TextFilterPoint has more than one implementor outside floor/cases.rs' ;;
-    12) printf 'TextFilterPoint has an implementor outside daemon/' ;;
     13) printf 'a synthetic door has a caller outside daemon/prefill.rs' ;;
-    14) printf 'SecureInputProbe has an implementor outside the secure_input module tree' ;;
+    15) printf 'TextFilterPoint is named outside src/floor/ and src/daemon/' ;;
+    16) printf 'SecureInputProbe is named outside its five files' ;;
+    17) printf 'the proof file lacks a proof or a twin' ;;
+    18) printf 'git cannot read the tree' ;;
     *) printf 'the source scan stopped with %s' "$1" ;;
   esac
+}
+
+# Runs the tests of the source rules by their names; the output goes to $1.
+source_rules() {
+  source_log=$1
+  set --
+  for source_test in $source_tests; do
+    set -- "$@" "$source_test"
+  done
+  cargo test --workspace --locked --test source_rules -- --exact --nocapture --test-threads=1 "$@" >"$source_log.raw" 2>&1
+  source_status=$?
+  tr -d '\r' <"$source_log.raw" >"$source_log" || return 2
+  return "$source_status"
+}
+
+# The verdict on the output $1 of the source-rule tests: prints the lines that
+# the tests print and fails unless every test of $source_tests ran and passed.
+source_verdict() {
+  sed -n -e 's/^.*\(implementors of .*: [0-9][0-9]*\)$/\1/p' \
+    -e 's/^.*\(uses of path attributes and include macros: .*\)$/\1/p' "$1"
+  source_want=$(printf '%s\n' "$source_tests" | grep -c '')
+  grep -q -x "test result: ok\. $source_want passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in .*" "$1" ||
+    return 1
+  printf 'source rules: %s of %s tests passed\n' "$source_want" "$source_want"
+}
+
+# The names of the source-rule tests that the output $1 lists as failed.
+source_refusals() {
+  refused=
+  for source_test in $source_tests; do
+    if grep -q -x "    $source_test" "$1"; then
+      refused="$refused $source_test"
+    fi
+  done
+  printf '%s' "${refused# }"
 }
 
 # One check build of the library with the cfgs of the proofs named in $2 and
@@ -154,7 +234,7 @@ build() {
 }
 
 clean_tree() {
-  changed=$(git status --porcelain --untracked-files=no -- "$crate") || return 1
+  changed=$(git status --porcelain --untracked-files=no -- "$crate" src-tauri/src src-tauri/build.rs) || return 1
   [ -z "$changed" ]
 }
 
@@ -162,18 +242,34 @@ measure() {
   cd "${CI_D_REPO:-.}" || exit 2
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   out=${CI_D_ARTIFACTS:-$work}
-  clean_tree || fail "a tracked file of $crate differs from HEAD before the build"
+  clean_tree || fail "a tracked file of $crate or of src-tauri differs from HEAD before the build"
   committed=$(git show "HEAD:$proofs_file") || fail "HEAD has no $proofs_file"
   spans_text=$(printf '%s\n' "$committed" | spans)
   ran=$(printf '%s\n' "$PROOFS" | grep -c '')
   [ "$ran" -gt 0 ] || fail "no proof to run"
-  scan . >"$work/scan.txt"
+  scan . HEAD >"$work/scan.txt"
   status=$?
   cat "$work/scan.txt"
   if [ "$status" != 0 ]; then
     cause=$(scan_cause "$status")
+    case $status in
+      13 | 15 | 16 | 17)
+        places=$(tail -n 1 "$work/scan.txt") || fail "cannot read scan.txt"
+        cause="$cause: $places"
+        ;;
+    esac
     fail "$cause"
   fi
+  source_rules "$out/source-rules.txt"
+  source_status=$?
+  if ! source_verdict "$out/source-rules.txt"; then
+    sed -n '/^running [0-9]* tests*$/,/^test result: /p' "$out/source-rules.txt"
+    refused=$(source_refusals "$out/source-rules.txt")
+    [ -n "$refused" ] ||
+      fail "the tests of $crate/tests/source_rules.rs did not all run: cargo exited $source_status, see source-rules.txt"
+    fail "the source rules of $crate/tests/source_rules.rs refuse the tree: $refused"
+  fi
+  [ "$source_status" = 0 ] || fail "cargo exited $source_status after every source rule passed"
 
   debug=$(printf '%s\n' "$PROOFS" | awk '$3 == "debug" { print $1 }')
   release=$(printf '%s\n' "$PROOFS" | awk '$3 == "release" { print $1 }')
@@ -187,7 +283,7 @@ measure() {
   printf 'debug proofs: build exit %s\n' "$?"
   build "$out/release-proofs.txt" "$release" '-C debug-assertions=off'
   printf 'release proofs: build exit %s\n' "$?"
-  clean_tree || fail "a tracked file of $crate differs from HEAD after the builds"
+  clean_tree || fail "a tracked file of $crate or of src-tauri differs from HEAD after the builds"
 
   failed=0
   messages=$(cat "$out/proofs.txt") || fail "cannot read proofs.txt"
@@ -237,23 +333,69 @@ case_of() {
 }
 
 plant() {
-  mkdir -p "$(dirname "$1")" || exit 2
+  mkdir -p "${1%/*}" || exit 2
   printf '%s\n' "$2" >"$1" || exit 2
 }
 
+# The files of this unit that the scan reads, in a repository at $work/base
+# whose index holds them; their tree is $base_tree.
+base_tree() {
+  base=$work/base
+  plant "$base/$src/secure_input.rs" "${clearance_door#*:}
+impl SecureInputProbe for FixedProbe {}"
+  plant "$base/$src/windows/secure_input.rs" 'impl SecureInputProbe for PasswordFieldProbe {}'
+  plant "$base/$src/floor/exclude.rs" "${keep_door#*:}
+    probe: &dyn SecureInputProbe,"
+  plant "$base/$src/floor/text.rs" 'pub trait TextFilterPoint {'
+  plant "$base/$src/floor/cases.rs" 'impl TextFilterPoint for RecordingPoint {}'
+  plant "$base/$proofs_file" "$proof_text"
+  plant "$base/scripts/r1/ci.d/$name.sh" 'synthetic_clearance synthetic_keep TextFilterPoint SecureInputProbe'
+  plant "$base/CHANGELOG.md" '- Added: the TextFilterPoint of the floor'
+  git -C "$base" init -q >/dev/null 2>&1 || exit 2
+  git -C "$base" add -A >/dev/null 2>&1 || exit 2
+  base_tree=$(git -C "$base" write-tree) || exit 2
+}
+
+# Scans the tree of the base with the file $2 planted with the text $3 ($2
+# empty: no file). The index goes back to the base tree; the work tree keeps
+# the file, which no later tree holds.
 tree_case() {
-  root=$work/tree-$1
-  plant "$root/$src/floor/cases.rs" 'impl TextFilterPoint for RecordingPoint {}'
-  plant "$root/$src/secure_input.rs" 'pub fn synthetic_clearance() -> KeystrokeClearance {
-impl SecureInputProbe for FixedProbe {}'
-  plant "$root/$src/windows/secure_input.rs" 'impl SecureInputProbe for PasswordFieldProbe {}'
-  plant "$root/$src/floor/boundary_proofs.rs" 'crate::secure_input::synthetic_clearance()
-impl SecureInputProbe for Elsewhere {}'
-  plant "$root/$src/floor/exclude.rs" 'pub fn synthetic_keep<K: Recorded>(subject: Subject) -> Keep<K> {'
+  root=$work/base
+  tree=$base_tree
   if [ -n "$2" ]; then
     plant "$root/$2" "$3"
+    git -C "$root" add -- "$2" >/dev/null 2>&1 || exit 2
+    tree=$(git -C "$root" write-tree) || exit 2
+    git -C "$root" read-tree "$base_tree" || exit 2
   fi
-  scan "$root"
+  scan "$root" "$tree"
+}
+
+# The output of a run of the source-rule tests in which the test $2 fails or,
+# with $3 set, is left out, written to $1.
+source_output() {
+  {
+    printf '\nrunning 5 tests\n'
+    failed=0
+    passed=0
+    for source_test in $source_tests; do
+      if [ "$source_test" = "$2" ]; then
+        if [ -n "${3:-}" ]; then
+          continue
+        fi
+        printf 'test %s ... FAILED\n' "$source_test"
+        failed=$((failed + 1))
+      else
+        printf 'test %s ... implementors of TextFilterPoint outside floor/cases.rs: 0\nok\n' "$source_test"
+        passed=$((passed + 1))
+      fi
+    done
+    if [ "$failed" = 0 ]; then
+      printf '\ntest result: ok. %s passed; 0 failed; 0 ignored; 0 measured; %s filtered out; finished in 0.94s\n' "$passed" "${3:-0}"
+    else
+      printf '\nfailures:\n    %s\n\ntest result: FAILED. %s passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s\n' "$2" "$passed"
+    fi
+  } >"$1"
 }
 
 self_test() {
@@ -282,18 +424,55 @@ one_twin E0308'
   case_of an-error-outside-the-span FAIL judge 'crates/halvo-capture/src/floor/boundary_proofs.rs:9:1: error[E0624]: x' "$spans_text" 'one E0624'
   case_of an-error-in-another-file FAIL judge 'crates/halvo-capture/src/sink.rs:2:1: error[E0624]: x' "$spans_text" 'one E0624'
   case_of a-proof-not-in-the-file FAIL judge "$both" "$spans_text" 'three E0624'
-  case_of the-tree-at-this-unit PASS tree_case clean '' ''
-  case_of a-second-caller-of-a-door FAIL tree_case second-door "$src/macos/input.rs" '    let clearance = crate::secure_input::synthetic_clearance();'
-  case_of a-caller-in-prefill PASS tree_case prefill "$prefill" '    let keep = crate::floor::exclude::synthetic_keep::<kind::Keystroke>(subject);'
-  case_of a-text-filter-implementor-in-daemon PASS tree_case daemon-point "$src/daemon/batch.rs" 'impl TextFilterPoint for TextFilters {'
-  case_of a-text-filter-implementor-outside-daemon FAIL tree_case store-point "$src/store/db.rs" 'impl TextFilterPoint for Passthrough {'
-  case_of a-probe-implementor-on-windows FAIL tree_case windows-probe "$src/windows/input.rs" 'impl crate::secure_input::SecureInputProbe for Always {'
-  case_of a-probe-implementor-on-macos FAIL tree_case macos-probe "$src/macos/input.rs" 'impl<T> SecureInputProbe for Inactive<T> {'
-  root=$work/tree-two-points
-  tree_case two-points "$src/daemon/batch.rs" 'impl TextFilterPoint for TextFilters {' >/dev/null 2>&1
-  plant "$root/$src/daemon/owner.rs" 'impl TextFilterPoint for Second {'
-  case_of a-second-text-filter-implementor FAIL scan "$root"
   case_of no-proof FAIL judge '' "$spans_text" 'one E0624'
+
+  proof_text=$(printf '%s\n' "$PROOFS" | awk '{
+    printf "#[cfg(halvo_proof = \"%s\")]\nfn %s() {}\n#[cfg(halvo_proof = \"%s_twin\")]\nfn %s_twin() {}\n", $1, $1, $1, $1
+  }')
+  proof_text="$proof_text
+    crate::secure_input::synthetic_clearance(None)
+    super::exclude::synthetic_keep(subject)
+    impl SecureInputProbe for Elsewhere {}
+fn twin<P: super::text::TextFilterPoint>() {}"
+  base_tree
+  case_of the-tree-at-this-unit PASS tree_case clean '' ''
+  case_of a-door-caller-outside-prefill FAIL tree_case second-door "$src/macos/input.rs" '    let clearance = crate::secure_input::synthetic_clearance(None);'
+  case_of a-door-caller-in-prefill PASS tree_case prefill "$prefill" '    let keep = crate::floor::exclude::synthetic_keep::<kind::Keystroke>(subject);'
+  case_of a-door-caller-in-src-tauri FAIL tree_case tauri-door src-tauri/src/main.rs '    let clearance = halvo_capture::secure_input::synthetic_clearance(None);'
+  case_of a-function-named-after-a-door-beside-its-definition FAIL tree_case door-prefix "$src/floor/exclude.rs" "${keep_door#*:}
+pub fn synthetic_keep_any<K: Recorded>(subject: Subject) -> Keep<K> {
+    synthetic_keep(subject)"
+  case_of a-definition-line-in-another-file FAIL tree_case definition-elsewhere "$src/store/db.rs" "${keep_door#*:}"
+  case_of a-definition-line-changed FAIL tree_case definition-changed "$src/floor/exclude.rs" 'pub(crate) fn synthetic_keep<K: Recorded>(subject: Subject) -> Keep<K> {'
+  case_of a-door-caller-in-a-text-file FAIL tree_case door-text "$src/floor/extra.txt" 'fn extra() { crate::secure_input::synthetic_clearance(None); }'
+  case_of a-door-caller-in-an-included-file FAIL tree_case door-included "$src/store/doors.in" '{ crate::floor::exclude::synthetic_keep::<Keystroke>(subject) }'
+  case_of a-door-named-in-the-changelog PASS tree_case door-changelog CHANGELOG.md '- Changed: synthetic_keep reads its site flag.'
+  case_of a-text-filter-point-alias-in-event-rs FAIL tree_case point-alias "$src/event.rs" 'use crate::floor::text::TextFilterPoint as Stored;
+impl Stored for Passthrough {}'
+  case_of a-text-filter-point-in-daemon PASS tree_case daemon-point "$src/daemon/batch.rs" 'impl TextFilterPoint for TextFilters {'
+  case_of a-probe-named-outside-its-files FAIL tree_case macos-probe "$src/macos/input.rs" 'impl<T> SecureInputProbe for Inactive<T> {'
+  lacking=$(printf '%s\n' "$proof_text" | grep -v -F 'camera_event_twin')
+  case_of a-twin-deleted FAIL tree_case twin-deleted "$proofs_file" "$lacking"
+  lacking=$(printf '%s\n' "$proof_text" | grep -v -F -e '"camera_event"' -e 'fn camera_event()')
+  case_of a-proof-deleted FAIL tree_case proof-deleted "$proofs_file" "$lacking"
+  tree_case reverted "$src/store/db.rs" '    let clearance = crate::secure_input::synthetic_clearance(None);' >/dev/null 2>&1
+  plant "$root/$src/store/db.rs" '    let clearance = ();'
+  case_of a-door-caller-in-the-tree-and-not-in-the-work-tree FAIL scan "$root" "$tree"
+  tree_case work-tree-only '' '' >/dev/null 2>&1
+  plant "$root/$src/store/db.rs" '    let clearance = crate::secure_input::synthetic_clearance(None);'
+  case_of a-door-caller-in-the-work-tree-and-not-in-the-tree PASS scan "$root" "$tree"
+  case_of a-tree-that-git-cannot-read FAIL scan "$root" 0000000000000000000000000000000000000000
+
+  source_output "$work/source-ok.txt" '' ''
+  case_of source-rules-that-pass PASS source_verdict "$work/source-ok.txt"
+  source_output "$work/source-failed.txt" the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon ''
+  case_of a-source-rule-that-fails FAIL source_verdict "$work/source-failed.txt"
+  named=$(source_refusals "$work/source-failed.txt")
+  case_of the-failed-source-rule-is-named PASS test "$named" = the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon
+  source_output "$work/source-left-out.txt" path_attributes_and_include_macros_stand_only_at_the_listed_uses 1
+  case_of a-source-rule-left-out FAIL source_verdict "$work/source-left-out.txt"
+  printf 'error[E0425]: cannot find value x in this scope\nerror: could not compile halvo-capture (test "source_rules")\n' >"$work/source-unbuilt.txt"
+  case_of source-rules-that-never-ran FAIL source_verdict "$work/source-unbuilt.txt"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1

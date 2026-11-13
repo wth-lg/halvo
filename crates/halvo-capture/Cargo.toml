@@ -78,5 +78,6 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [dev-dependencies]
+proc-macro2 = { version = "1.0.107", default-features = false }
 proptest = "1"
 tempfile = "3"
