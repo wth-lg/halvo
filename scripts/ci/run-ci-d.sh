@@ -546,7 +546,7 @@ own_run() {
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} "$perl_bin" -e "$st_perl" sh "$self" "$@" 2>&1 &
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
     case_pid=$!
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
     if [ -n "$case_signal" ]; then
@@ -666,6 +666,7 @@ own_self_test() {
   case_absent=
   case_signal_min=
   perl_bin=$(command -v perl) || perl_bin=perl
+  case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
   mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
