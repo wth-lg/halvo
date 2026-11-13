@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod body;
+pub mod build;
 pub mod form;
 pub mod labels;
 pub mod layers;

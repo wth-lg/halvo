@@ -67,6 +67,30 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
     };
     let done = |lines: Vec<String>| (lines, true);
     match command.as_str() {
+        "build" => {
+            let (f, rest) = parse(args, &["--tier", "--layer-records", "--seed", "--out"], &[])?;
+            let tier = f.get("--tier").cloned();
+            if let Some(t) = &tier {
+                if !["gen-dev", "gen-unseen", "gen-check", "gen-heldout"].contains(&t.as_str()) {
+                    return Err(Refusal::new("usage", "--tier"));
+                }
+            }
+            let sealed = matches!(tier.as_deref(), Some("gen-check" | "gen-heldout"));
+            if sealed != f.contains_key("--layer-records") {
+                return Err(Refusal::new("usage", "--layer-records"));
+            }
+            if rest.is_empty() {
+                return Err(Refusal::new("usage", "missing SCRIPT"));
+            }
+            let a = halvo_sample::build::BuildArgs {
+                tier,
+                layer_records: f.get("--layer-records").map(PathBuf::from),
+                seed: seed(&f)?,
+                out: PathBuf::from(need(&f, "--out")?),
+                scripts: paths(&rest),
+            };
+            halvo_sample::build::build(&a).map(done)
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }
