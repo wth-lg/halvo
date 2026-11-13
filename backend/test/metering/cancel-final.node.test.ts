@@ -33,9 +33,21 @@ function sorted(rows: Row[]): Row[] {
   return rows.map((row) => JSON.stringify(row)).sort().map((row) => JSON.parse(row) as Row);
 }
 
+const MARK = ["m1_count", "m1_newest", "m2_count", "m2_newest"];
+const NO_MARK = { m1_count: 0, m1_newest: null, m2_count: 0, m2_newest: null };
+
+function markOf(row: Row | undefined): Record<string, string | number | null> {
+  return Object.fromEntries(MARK.map((column) => [column, row === undefined || !(column in row) ? "absent" : (row[column] ?? null)]));
+}
+
+function unmarked(name: string, row: Row): Row {
+  if (name !== "account" && name !== "kept_event") return row;
+  return Object.fromEntries(Object.entries(row).filter(([column]) => !MARK.includes(column)));
+}
+
 async function snapshot(w: World): Promise<Record<string, Row[]>> {
   const tables = await w.tables();
-  return Object.fromEntries(Object.keys(tables).sort().map((name) => [name, sorted(tables[name] ?? [])]));
+  return Object.fromEntries(Object.keys(tables).sort().map((name) => [name, sorted((tables[name] ?? []).map((row) => unmarked(name, row)))]));
 }
 
 async function stored(w: World): Promise<Record<string, Row[]>> {
@@ -406,5 +418,89 @@ describe("what the one-rule changes of unit 5.5 asked for", () => {
       cut: [{ cut_kind: "cancel", cut_at: START + 3 * MINUTE, carry: 0, written_off: 0 }],
     });
     done(w);
+  });
+});
+
+describe("the mark of a cancel that decided otherwise than the rule of newer (ruling P7-80, part 8; unit 5.5, the record)", () => {
+  test("M1: each event that is not a cancel and is stamped later than the stored cancel counts in the mark, which keeps the newest provider time", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [CANCEL, ACTIVE_AGAIN, FAILED_AFTER, at("evt_active_between", 6.5, "active")]);
+    expect(markOf(await account(w))).toEqual({ m1_count: 3, m1_newest: START + 7 * MINUTE, m2_count: 0, m2_newest: null });
+    done(w);
+  });
+
+  test("M2: a cancel stamped earlier than the stored state counts in the mark with its own provider time", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [ACTIVE_AGAIN, CANCEL]);
+    expect(markOf(await account(w))).toEqual({ m1_count: 0, m1_newest: null, m2_count: 1, m2_newest: START + 5 * MINUTE });
+    done(w);
+  });
+
+  test("in each order of one pair exactly one of the two marks is set, and the rows agree apart from the mark", async () => {
+    const end = async (events: ProviderEvent[]) => {
+      const w = await world();
+      await w.clock(START + 10 * MINUTE);
+      await deliver(w, events);
+      const out = { mark: markOf(await account(w)), rows: await stored(w) };
+      done(w);
+      return out;
+    };
+    const [laterFirst, cancelFirst] = [await end([ACTIVE_AGAIN, CANCEL]), await end([CANCEL, ACTIVE_AGAIN])];
+    expect(laterFirst.rows).toEqual(cancelFirst.rows);
+    expect([laterFirst.mark, cancelFirst.mark]).toEqual([
+      { m1_count: 0, m1_newest: null, m2_count: 1, m2_newest: START + 5 * MINUTE },
+      { m1_count: 1, m1_newest: START + 6 * MINUTE, m2_count: 0, m2_newest: null },
+    ]);
+  });
+
+  test("neither case leaves a mark: an event of the same second, an older event after the cancel, another subscription, a repeated id and a newer cancel", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [
+      CANCEL,
+      at("evt_same_second", 5, "active"),
+      at("evt_older", 4, "payment-failed"),
+      at("evt_other_subscription", 9, "active", { subscriptionId: "sub_2" }),
+      CANCEL,
+      at("evt_newer_cancel", 8, "cancelled"),
+    ]);
+    expect(markOf(await account(w))).toEqual(NO_MARK);
+    done(w);
+  });
+
+  test("a row seeded cancelled, which holds no provider time, counts an event that is not a cancel in M1", () => {
+    const db = openSql();
+    const accounts = makeAccounts();
+    const row = db.step((sql) => {
+      accounts.init(sql);
+      accounts.seed(sql, { accountId: ACCOUNT, credentialHash: HASH, state: "cancelled", customerId: "cus_1" }, START);
+      accounts.applyEvent(sql, at("evt_active_after_seed", 1, "active"), START);
+      return sql.exec("SELECT * FROM account")[0];
+    });
+    db.close();
+    expect(markOf(row)).toEqual({ m1_count: 1, m1_newest: START + MINUTE, m2_count: 0, m2_newest: null });
+  });
+
+  test("a kept event keeps the mark of both cases, and complete carries it into the account", async () => {
+    const w = await pending();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [ACTIVE_AGAIN, CANCEL, FAILED_AFTER]);
+    const kept = ((await w.tables()).kept_event ?? []).map(markOf);
+    await deliver(w, [COMPLETED]);
+    const mark = { m1_count: 1, m1_newest: START + 7 * MINUTE, m2_count: 1, m2_newest: START + 5 * MINUTE };
+    expect({ kept, account: markOf(await account(w)) }).toEqual({ kept: [mark], account: mark });
+    done(w);
+  });
+
+  test("an account made with no kept event, and one seeded, start with no mark", async () => {
+    const made = await pending();
+    await made.clock(START + 10 * MINUTE);
+    await deliver(made, [COMPLETED]);
+    const seeded = await world();
+    expect([markOf(await account(made)), markOf(await account(seeded))]).toEqual([NO_MARK, NO_MARK]);
+    done(made);
+    done(seeded);
   });
 });
