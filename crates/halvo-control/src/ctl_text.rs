@@ -562,6 +562,165 @@ mod tests {
         }
     }
 
+    const C2_5_LINE: &str =
+        "halvo-capture: capture did not stop in time; the capture service is ending\n";
+
+    /// A status whose `desired`, `capture` and `state_file` are the ones given, with the lease,
+    /// the sources and the reason that `capture` needs; `None` when the type refuses it.
+    fn capture_status(
+        desired: crate::model::CaptureState,
+        capture: Capture,
+        state_file: StateFile,
+    ) -> Option<DaemonStatus> {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.desired = desired;
+        f.capture = capture;
+        f.capture_reason = None;
+        f.state_file = state_file;
+        match capture {
+            Capture::NoIndicator => {
+                f.lease = crate::proto::Lease::Lapsed;
+                stopped_sources(&mut f);
+            }
+            Capture::Paused | Capture::AwaitingResume => stopped_sources(&mut f),
+            Capture::Faulted => {
+                stopped_sources(&mut f);
+                f.capture_reason = Some(CaptureReason::NoSource);
+            }
+            Capture::Partial => {
+                f.sources[2].state = SourceState::Failed {
+                    reason: crate::proto::Reason::Permission,
+                    error: None,
+                };
+            }
+            Capture::Starting | Capture::Running | Capture::Pausing => {}
+        }
+        DaemonStatus::new(f).ok()
+    }
+
+    /// The rows of ruling PL-8 part (5)(a) whose status reaches the verb's end.
+    const REACHED: [(&str, &str, &str); 6] = [
+        ("pause", "paused", "paused"),
+        ("resume", "running", "starting"),
+        ("resume", "running", "running"),
+        ("resume", "running", "partial"),
+        ("resume", "running", "faulted"),
+        ("resume", "running", "no_indicator"),
+    ];
+
+    #[test]
+    fn pause_and_resume_exit_0_only_when_the_reply_reaches_the_verb_s_end_and_the_state_file_was_written(
+    ) {
+        use crate::model::CaptureState;
+        let mut rows = 0;
+        for (verb, name) in [(Verb::Pause, "pause"), (Verb::Resume, "resume")] {
+            for desired in [CaptureState::Running, CaptureState::Paused] {
+                for &capture in Capture::ALL {
+                    for state_file in [StateFile::Ok, StateFile::WriteFailed] {
+                        let Some(status) = capture_status(desired, capture, state_file) else {
+                            continue;
+                        };
+                        rows += 1;
+                        let (d, c) = (desired.as_str(), capture.as_str());
+                        let row =
+                            format!("{name} desired={d} capture={c} state_file={state_file:?}");
+                        let reached = REACHED.contains(&(name, d, c));
+                        let mut stderr = String::new();
+                        if verb == Verb::Pause && capture == Capture::Pausing {
+                            stderr.push_str(C2_5_LINE);
+                        } else if !reached {
+                            stderr.push_str(&format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that {name} asks for\n"));
+                        }
+                        if state_file == StateFile::WriteFailed {
+                            stderr.push_str(&format!(
+                                "halvo-capture: the state file was not written: {}\n",
+                                data_dir().state_file().display()
+                            ));
+                        }
+                        let want = (
+                            format!("capture={c}\n"),
+                            stderr,
+                            if reached && state_file == StateFile::Ok {
+                                0
+                            } else {
+                                1
+                            },
+                        );
+                        let printed = print(&verb, Ok(Reply::CaptureChanged(status)), &data_dir());
+                        assert_eq!(
+                            (printed.stdout, printed.stderr, printed.status),
+                            want,
+                            "row: {row}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(rows >= 40, "only {rows} rows were taken by the type");
+    }
+
+    #[test]
+    fn c1_a_pause_answered_with_capture_running_exits_1() {
+        use crate::model::CaptureState;
+        let running =
+            capture_status(CaptureState::Running, Capture::Running, StateFile::Ok).unwrap();
+        let printed = print(
+            &Verb::Pause,
+            Ok(Reply::CaptureChanged(running)),
+            &data_dir(),
+        );
+        assert_eq!(printed.stdout, "capture=running\n");
+        assert_eq!(printed.stderr, "halvo-capture: the capture service answered desired=running capture=running, not the state that pause asks for\n");
+        assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn c2_a_resume_answered_with_awaiting_resume_paused_or_pausing_exits_1_with_no_line_of_c2_5() {
+        use crate::model::CaptureState;
+        for (desired, capture) in [
+            (CaptureState::Running, Capture::AwaitingResume),
+            (CaptureState::Paused, Capture::Paused),
+            (CaptureState::Running, Capture::Pausing),
+            (CaptureState::Paused, Capture::Pausing),
+        ] {
+            let status = capture_status(desired, capture, StateFile::Ok).unwrap();
+            let printed = print(
+                &Verb::Resume,
+                Ok(Reply::CaptureChanged(status)),
+                &data_dir(),
+            );
+            let (d, c) = (desired.as_str(), capture.as_str());
+            assert_eq!(printed.stdout, format!("capture={c}\n"));
+            assert_eq!(
+                printed.stderr,
+                format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that resume asks for\n"),
+                "resume on desired={d} capture={c}"
+            );
+            assert_eq!(printed.status, 1, "resume on desired={d} capture={c}");
+        }
+    }
+
+    #[test]
+    fn a_pause_and_a_resume_whose_state_file_write_failed_exit_1_with_the_file_named() {
+        use crate::model::CaptureState;
+        for (verb, desired, capture) in [
+            (Verb::Pause, CaptureState::Paused, Capture::Paused),
+            (Verb::Resume, CaptureState::Running, Capture::Running),
+        ] {
+            let status = capture_status(desired, capture, StateFile::WriteFailed).unwrap();
+            let printed = print(&verb, Ok(Reply::CaptureChanged(status)), &data_dir());
+            assert_eq!(
+                printed.stderr,
+                format!(
+                    "halvo-capture: the state file was not written: {}\n",
+                    data_dir().state_file().display()
+                ),
+                "{verb:?}"
+            );
+            assert_eq!(printed.status, 1, "{verb:?}");
+        }
+    }
+
     fn data_dir() -> DataDir {
         DataDir::from_flag(if cfg!(windows) {
             r"C:\halvo-data"
