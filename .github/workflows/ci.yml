@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,105 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,23 +34,121 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: U0.7c CP-126 trial crate (scratch branch, never merged; counts only)
+        if: always()
+        timeout-minutes: 60
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: |
+          set +e
+          cd tools/r3-trials/web
+          log="$RUNNER_TEMP/r3-web-test.log"
+          cargo test --locked --no-fail-fast >"$log" 2>&1
+          t=$?
+          grep -E "^test .* (FAILED|ignored)$|^test result" "$log"
+          awk '/^---- .* stdout ----$/{p=1} /^failures:$/{p=0} p' "$log" | head -60
+          R3_TEST_BROWSER="C:/Program Files/Google/Chrome/Application/chrome.exe" cargo test --locked -- --ignored >"$log.2" 2>&1
+          ti=$?
+          grep -E "^test |^test result|panicked|left:|right:" "$log.2" | head -30
+          s0=$(date +%s)
+          cargo clippy --locked --all-targets -- -D warnings >"$log.3" 2>&1
+          c=$?
+          echo "clippy seconds=$(( $(date +%s) - s0 )) exit=$c after=the_test_build"
+          cargo fmt --check >/dev/null 2>&1
+          f=$?
+          echo "trial crate=web test_exit=$t ignored_exit=$ti clippy_exit=$c fmt_exit=$f clippy_error_lines=$(grep -c '^error' "$log.3")"
+          [ "$t" -eq 0 ] && [ "$ti" -eq 0 ] && [ "$c" -eq 0 ] && [ "$f" -eq 0 ]
+      - name: U0.7c CP-126 web trial round 3 org_ cells with their pages kept on hosted-win, repeat 2 (scratch branch, never merged; counts only)
+        if: always()
+        timeout-minutes: 60
+        shell: bash
+        run: |
+          set +e
+          code=0
+          export KEEP_PAGES=1
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          bin="$PWD/tools/r3-trials/web/target/$host/release/web-trial.exe"
+          lim() { timeout "$@"; }
+          t() {
+            s0=$(date +%s)
+            lim 1500 sh tools/r3-trials/web/run.sh --candidate cdp --browser "$b" --port 18190 "$@"
+            e=$?
+            echo "call_end exit=$e seconds=$(( $(date +%s) - s0 )) args=$(echo "$*" | tr ' ' '_')"
+            [ "$e" -eq 0 ] || code=1
+          }
+          page() {
+            # the browser's policy page, printed headless with no debugging channel, as text
+            p="$1"
+            pn=unread
+            pc=no_pdf
+            for url in chrome://policy/ edge://policy/; do
+              [ -s "$p/page.pdf" ] && break
+              mkdir -p "$p/prof"
+              lim 60 "$b" --headless=new --user-data-dir="$p/prof" --allow-chrome-scheme-url --no-pdf-header-footer --timeout=4000 --print-to-pdf="$p/page.pdf" "$url" >/dev/null 2>&1
+            done
+            if [ -s "$p/page.pdf" ]; then
+              pc=no_pdf_reader
+              if python -c "import pypdf" 2>/dev/null || python -m pip install --quiet pypdf==4.3.1 >/dev/null 2>&1; then
+                python -c 'import sys, pypdf; r = pypdf.PdfReader(sys.argv[1]); open(sys.argv[2], "w", encoding="utf-8").write("\n".join((x.extract_text() or "") for x in r.pages))' "$p/page.pdf" "$p/page.txt" && pc=-
+                [ "$pc" = - ] && ! grep -q '[^[:space:]]' "$p/page.txt" && pc=empty_text
+                [ -s "$p/page.txt" ] && [ "$pc" = - ] && pn=$("$bin" --policy-named "$2" "$p/page.txt" | sed -n 's/.*named=\([a-z]*\).*/\1/p')
+              fi
+            fi
+            if [ -n "${KEEP_PAGES:-}" ]; then
+              mkdir -p "$PWD/target/ci-artifacts/pages"
+              [ -f "$p/page.pdf" ] && cp "$p/page.pdf" "$PWD/target/ci-artifacts/pages/$k-$2.pdf"
+              [ -f "$p/page.txt" ] && cp "$p/page.txt" "$PWD/target/ci-artifacts/pages/$k-$2.txt"
+              part=$(printf '%s' "$2" | cut -c1-6)
+              [ -f "$p/page.txt" ] && grep -n -i -E "$part|policy name" "$p/page.txt" | head -40 | sed "s/^/page_text browser=$k name=$2 line=/"
+              echo "page_text browser=$k name=$2 lines=$( [ -f "$p/page.txt" ] && wc -l <"$p/page.txt" | tr -d ' ' || echo 0) bytes=$( [ -f "$p/page.txt" ] && wc -c <"$p/page.txt" | tr -d ' ' || echo 0)"
+            fi
+            # the page's own processes: the browser's program, the page's own profile
+            left=$(powershell -NoProfile -Command "\$n = 0; Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*$(cygpath -w "$p/prof" | sed 's/\\/\\\\/g')*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue; \$n++ }; \$n" 2>/dev/null | tr -d '\r')
+            echo "policy page browser=$k name=$2 page_named=${pn:-no} cause=$pc page_processes_ended=${left:-0}"
+          }
+          ctl() {
+            c=$(lim 300 "$bin" --org-control "$b" "$(cygpath -w "$1")" 2>/dev/null | tr -d '\r' | tail -1)
+            echo "org_control at=$2 browser=$k step=$3 ${c:-reply=no cause=none}"
+          }
+          o() {
+            key=$1; step=$2; name=$3; type=$4; data=$5; want=$6
+            w=$(mktemp -d "$RUNNER_TEMP/org.XXXXXX")
+            before=$(ctl "$w" before "$step")
+            echo "$before"
+            case "$before" in *" reply=yes"*) cb=reply ;; *) cb=none ;; esac
+            had=no
+            MSYS_NO_PATHCONV=1 reg query "HKLM\SOFTWARE\Policies\\$key" >/dev/null 2>&1 && had=yes
+            MSYS_NO_PATHCONV=1 reg add "HKLM\SOFTWARE\Policies\\$key" /v "$name" /t "$type" /d "$data" /f >/dev/null
+            echo "policy set browser=$k name=$name key_existed=$had"
+            powershell -NoProfile -Command "(Get-Acl 'HKLM:\SOFTWARE\Policies\\$key').Access | ForEach-Object { 'policy_acl ' + \$_.IdentityReference.Value.Replace(' ','_') + ' ' + (\$_.RegistryRights.ToString().Replace(' ','')) }"
+            raw=$(MSYS_NO_PATHCONV=1 reg query "HKLM\SOFTWARE\Policies\\$key" /v "$name" 2>/dev/null | tr -d '\r' | awk -v n="$name" '$1 == n {print $NF}')
+            case "$raw" in 0x*) vr=$((raw)) ;; *) vr=$raw ;; esac
+            echo "policy value browser=$k name=$name value_read=${vr:--} value_want=$want"
+            pl=$(page "$w" "$name")
+            echo "$pl"
+            pn=$(printf '%s\n' "$pl" | sed -n 's/.* page_named=\([a-z]*\).*/\1/p')
+            pcause=$(printf '%s\n' "$pl" | sed -n 's/^policy page .* cause=\([a-z_-]*\) .*/\1/p')
+            R3_ORG_CONTROL_BEFORE=$cb R3_ORG_VALUE_READ=$vr R3_ORG_VALUE_WANT=$want R3_ORG_PAGE_NAMED=$pn R3_ORG_PAGE_CAUSE=$pcause t --runs 10 --rows org --round 3 --relay --step "$step"
+            MSYS_NO_PATHCONV=1 reg delete "HKLM\SOFTWARE\Policies\\$key" /v "$name" /f >/dev/null
+            [ "$had" = no ] && MSYS_NO_PATHCONV=1 reg delete "HKLM\SOFTWARE\Policies\\$key" /f >/dev/null
+            MSYS_NO_PATHCONV=1 reg query "HKLM\SOFTWARE\Policies\\$key" /v "$name" >/dev/null 2>&1 && echo "policy removed=no name=$name" || echo "policy removed=yes name=$name"
+            ctl "$w" after "$step"
+          }
+          for pair in "C:/Program Files/Google/Chrome/Application/chrome.exe|chrome" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe|edge"; do
+            b=${pair%%|*}
+            k=${pair##*|}
+            [ -f "$b" ] || { echo "browser missing $k"; code=1; continue; }
+            echo "browser $k"
+            if [ "$k" = chrome ]; then
+              o 'Google\Chrome' org_debugging RemoteDebuggingAllowed REG_DWORD 0 0
+            else
+              o 'Microsoft\Edge' org_debugging RemoteDebuggingAllowed REG_DWORD 0 0
+              o 'Microsoft\Edge' org_proxy ProxyMode REG_SZ direct direct
+            fi
+          done
+          exit $code
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
