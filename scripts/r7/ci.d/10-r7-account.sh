@@ -817,6 +817,7 @@ case $1 in
       if [ -z "${STUB_SKIP_SECRETS:-}" ]; then
         printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
       fi
+      printf '%s/debug/deps/halvo_account-0.d: crates/halvo-account/src/lib.rs\n\ncrates/halvo-account/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_account-0.d" || exit 98
       printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$t" >"$t/debug/deps/itoa-0.d" || exit 98
       [ -z "${STUB_UNREADABLE:-}" ] || chmod 000 "$t/debug/deps/halvo_wire-0.d" || exit 98
     fi
@@ -1118,7 +1119,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-2}$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-3}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
