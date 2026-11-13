@@ -12,8 +12,8 @@ use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, WebOrigin}
 use halvo_schema::Category;
 
 use super::suite::{
-    answer_of, changed_on_page, commit_without_reply, http, request_bytes, send_bytes, slot, Case,
-    Fixture, Maker,
+    answer_of, changed_on_page, commit_without_reply, http, request_bytes, send_bytes, slot,
+    stopped_between_begin_and_commit, Case, Fixture, Maker,
 };
 use super::{Left, Paused, Replied};
 
@@ -265,4 +265,9 @@ fn refusal_commit_without_reply() {
 #[test]
 fn refusal_changed_on_page() {
     changed_on_page(&mut Standin);
+}
+
+#[test]
+fn a_runner_stopped_between_begin_and_commit_leaves_its_effect_unknown_after_the_runs_end() {
+    stopped_between_begin_and_commit(&mut Standin);
 }

@@ -311,13 +311,16 @@ fn data_dir() -> PathBuf {
 
 /// The in-memory supervisor and store: it reads the runner's frames until the end of the runner's output and
 /// answers each; `on_confirm` runs with the count of confirmation requests so far, before the decision is written,
-/// and every effect of a decision is `allow_once`.
+/// and every effect of a decision is `allow_once`. With `stop_after_begin` it closes both ends of the link once it
+/// has answered a `begin` row. The store's handler of the run's end makes a `releasing` effect `unknown` at the
+/// run's `finish`, and at the end of the link when no `finish` came, as after the library's `end_run` (A7.5).
 fn supervise(
     mut from_runner: impl Read,
     mut to_runner: impl Write,
     config: AgentConfig,
     bindings: (Vec<WebOrigin>, Vec<Slot>),
     mut on_confirm: impl FnMut(usize),
+    stop_after_begin: bool,
 ) -> (Vec<FromRunner>, HashMap<EffectId, EffectState>) {
     let mut frames = Vec::new();
     let mut last: HashMap<EffectId, AgentEffect> = HashMap::new();
@@ -405,6 +408,8 @@ fn supervise(
             })),
             _ => None,
         };
+        let begun = matches!(&frame, FromRunner::Store(s)
+            if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Releasing));
         frames.push(frame);
         if let Some(reply) = reply {
             let json = reply.to_json().expect("a frame");
@@ -412,9 +417,20 @@ fn supervise(
                 break;
             }
         }
+        if stop_after_begin && begun {
+            break;
+        }
     }
     for (id, row) in last {
-        after_end.entry(id).or_insert(row.state);
+        let now = Effect {
+            id: id.clone(),
+            state: row.state,
+            class: row.class,
+            digest: row.digest.clone(),
+            rebinds: 0,
+        };
+        let state = effect_step(Some(&now), EffectMove::Lose).unwrap_or(row.state);
+        after_end.entry(id).or_insert(state);
     }
     (frames, after_end)
 }
@@ -426,6 +442,7 @@ fn run_path(
     bindings: (Vec<WebOrigin>, Vec<Slot>),
     request: Box<dyn Paused>,
     on_confirm: impl FnMut(usize) + Send + 'static,
+    stop_after_begin: bool,
 ) -> Record {
     let run = RunId::from_random([0x51; 16]);
     let agent = AgentId::from_random([0x52; 16]);
@@ -455,8 +472,16 @@ fn run_path(
         Box::new(from_runner_write),
         Box::new(|| {}),
     );
-    let supervisor =
-        std::thread::spawn(move || supervise(from_runner, to_runner, config, bindings, on_confirm));
+    let supervisor = std::thread::spawn(move || {
+        supervise(
+            from_runner,
+            to_runner,
+            config,
+            bindings,
+            on_confirm,
+            stop_after_begin,
+        )
+    });
     let mut runner = Runner::new(args, link);
     let end = runner.release(vec![request]).map(|()| Outcome::Completed);
     let status = runner.close(end);
@@ -500,6 +525,7 @@ pub(crate) fn commit_without_reply(maker: &mut dyn Maker) {
         maker.bindings(&fixture, Case::NoReply),
         request,
         |_| {},
+        false,
     );
     let after = fixture.state();
     assert_eq!(
@@ -554,6 +580,7 @@ pub(crate) fn changed_on_page(maker: &mut dyn Maker) {
                 assert_eq!(changed.status, 200, "the amount changes after the approval");
             }
         },
+        false,
     );
     let after = fixture.state();
     let due = fixture.seed()["utility"]["amount_due"]
@@ -607,4 +634,42 @@ pub(crate) fn slot(name: &str, value: &str) -> Slot {
         name: Name::parse(name).expect("a name"),
         value: OwnValue::new(value),
     }
+}
+
+/// The runner-level part of P4's gate line: a runner whose link closes after its `begin` was answered and before
+/// its `commit` (the request of [`Case::NoReply`], with no variant) writes no `commit`, no handback and no
+/// `finish`, ends with the status 1, lets the request leave at most once, and its effect is `unknown` after the
+/// run's end that the library's `end_run` makes.
+pub(crate) fn stopped_between_begin_and_commit(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::NoReply);
+    let before = fixture.state();
+    let record = run_path(
+        maker.category(Case::NoReply),
+        maker.bindings(&fixture, Case::NoReply),
+        request,
+        |_| {},
+        true,
+    );
+    let after = fixture.state();
+    assert!(
+        count(&after, "state_changing") - count(&before, "state_changing") <= 1,
+        "the request left at most once"
+    );
+    let states = record.states();
+    assert_eq!(states.last(), Some(&EffectState::Releasing));
+    assert!(!states.contains(&EffectState::Committed), "no commit");
+    assert!(
+        record.handbacks().is_empty(),
+        "a runner that is gone hands nothing back"
+    );
+    assert!(record.finish().is_none() && record.done().is_none());
+    assert_eq!(record.status, 1, "the status of a closed link");
+    let effect = record.effects()[0].effect.clone();
+    assert_eq!(
+        record.after_end.get(&effect),
+        Some(&EffectState::Unknown),
+        "the effect is unknown after the run's end"
+    );
 }
