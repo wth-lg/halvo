@@ -902,6 +902,34 @@ mod tests {
     }
 
     #[test]
+    fn each_row_says_on_which_macos_version_its_titles_were_observed_or_that_they_were_not() {
+        let observed: Vec<(u32, Option<MacosVersion>)> = MACOS_ROWS
+            .iter()
+            .map(|row| (row.major, row.observed_on))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (14, None),
+                (15, None),
+                (26, None),
+                (
+                    27,
+                    Some(MacosVersion {
+                        major: 27,
+                        minor: 2
+                    })
+                ),
+            ]
+        );
+        for row in &MACOS_ROWS {
+            if let Some(seen) = row.observed_on {
+                assert_eq!(seen.major, row.major);
+            }
+        }
+    }
+
+    #[test]
     fn the_pane_titles_of_every_supported_major_are_pinned_from_the_floor_up() {
         assert_eq!(MACOS_FLOOR_MAJOR, 14);
         assert_eq!(MACOS_ROWS.map(|row| row.major), [14, 15, 26, 27]);
