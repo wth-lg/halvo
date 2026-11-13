@@ -377,8 +377,9 @@ fn body_len(events: &[Event], limits: &Limits) -> usize {
 }
 
 /// Sends the waiting events in order, in bodies of at most `request_records` records and
-/// `request_bytes` bytes, and takes each acknowledged body off the list. A refusal `seq` reads
-/// the owner's events once and sends again (I7.2); any other failure leaves the rest waiting.
+/// `request_bytes` bytes, a row that alone passes `request_bytes` going as a body of its own, and
+/// takes each acknowledged body off the list. A refusal `seq` reads the owner's events once and
+/// sends again (I7.2); any other failure leaves the rest waiting.
 pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Result<(), PortError> {
     let mut resynced = false;
     while !ledger.waiting.is_empty() {
