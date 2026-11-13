@@ -41,8 +41,9 @@ empty, and a line that is empty is skipped.
 
     name <tab> file <tab> substitution <tab> verdict <tab> state <tab> item
 
-- **name**: one name in the whole repository. The only repeat allowed is a
-  transitional row and the row that takes it over. Before it applies any row,
+- **name**: one name in the whole repository, compared as text. The only
+  repeat allowed is a transitional row of scripts/r1-gate/mutants.rows and the
+  row that takes it over in the rows file beside its file. Before it applies any row,
   and under `--list` too, the runner refuses every other repeat, in one rows
   file or in several, and exits 1 with one line for each such name:
   `FAIL mutation:<name> (the name stands in <rows file> line <n> and in <rows file> line <n>)`.
@@ -72,7 +73,8 @@ empty, and a line that is empty is skipped.
   - `required on hosted-runner`, `required on test-bed`: a row whose verdict
     needs generated input. Elsewhere it prints
     `NOT-RUN mutation:<name> (needs input; runs on <place>)`, which is no FAIL.
-  - `transitional`: a row of the gate's file on code that has no row file yet.
+  - `transitional`: a row of the gate's file on code that has no row file yet;
+    a transitional row in any other rows file is refused.
     It runs while no `mutants.rows` stands in the directory of its file. Once
     that file exists it must hold the name: the gate's copy then prints
     `MOVED mutation:<name> (<file>)`, and otherwise

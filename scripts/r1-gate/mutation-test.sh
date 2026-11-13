@@ -54,7 +54,7 @@ EOF
 say() { printf '%s mutation:%s (%s)\n' "$1" "$2" "$3"; }
 
 rows_table() {
-  find "$1" -name mutants.rows -type f -not -path '*/target/*' > "$2.files" || return 1
+  find "$1" -name mutants.rows -type f -not -path "$1/target/*" > "$2.files" || return 1
   LC_ALL=C sort "$2.files" > "$2.sorted" || return 1
   : > "$2"
   while IFS= read -r rows_path; do
@@ -76,7 +76,7 @@ row_path() {
 }
 
 row_defect() {
-  if [ "$row_name" = malformed ]; then
+  if [ "$row_name" = malformed ] && [ "$row_state" = - ]; then
     printf 'line %s of %s has no six fields separated by tabs: name, file, substitution, verdict, state, item\n' "$row_line" "$rows_file"; return 1
   fi
   case $row_file in /*|../*|*/../*|*/..)
@@ -86,6 +86,9 @@ row_defect() {
     'measured '?*|'refused '?*|leak|'test '?*) ;;
     *) printf 'the verdict %s is none of: measured KEY..., refused TEXT, leak, test NAME\n' "$row_verdict"; return 1 ;;
   esac
+  if [ "$row_state" = transitional ] && [ "$rows_file" != scripts/r1-gate/mutants.rows ]; then
+    printf 'a transitional row stands in scripts/r1-gate/mutants.rows, not in %s\n' "$rows_file"; return 1
+  fi
   case $row_state in
     required|'required on measuring-mac'|'required on hosted-runner'|'required on test-bed'|transitional|control|'pending '?*|'retired '?*) ;;
     *) printf 'the state %s is none of: required, required on PLACE, transitional, control, pending ITEM, retired REASON\n' "$row_state"; return 1 ;;
@@ -94,11 +97,11 @@ row_defect() {
 }
 
 names_twice() {
-  awk -F '\t' '
-    $3 == "malformed" { next }
+  awk -F '\t' -v gate=scripts/r1-gate/mutants.rows '
+    $3 == "malformed" && $7 == "-" { next }
     { n[$3]++; files[$3] = files[$3] (files[$3] == "" ? "" : " and in ") $1 " line " $2
-      if ($7 == "transitional") { beside = $4; sub(/\/[^\/]*$/, "", beside); takeover[$3] = beside "/mutants.rows" } else holder[$3] = $1 }
-    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k])) print k "\t" files[k] }' "$table" > "$work/twice.unsorted" || return 2
+      if ($7 == "transitional" && $1 == gate) { beside = $4; sub(/\/[^\/]*$/, "", beside); takeover[$3] = beside "/mutants.rows" } else holder[$3] = $1 }
+    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k] && takeover[k] != gate)) print k "\t" files[k] }' "$table" > "$work/twice.unsorted" || return 2
   LC_ALL=C sort "$work/twice.unsorted" > "$work/twice.tsv" || return 2
   [ -s "$work/twice.tsv" ] || return 0
   while IFS="$TAB" read -r twice_name twice_files; do
@@ -230,7 +233,7 @@ run_rows() {
     return 0
   fi
   for only_name in $only; do
-    only_hit=$(awk -F '\t' -v n="$only_name" '$3 == n' "$table")
+    only_hit=$(awk -F '\t' -v n="$only_name" '$3 == n ""' "$table")
     [ -n "$only_hit" ] || { say FAIL "$only_name" "--only names no row"; failures=$((failures + 1)); }
   done
   built_unmutated=no
@@ -240,7 +243,7 @@ run_rows() {
     for only_name in $only; do
       case $only_seen in *" $only_name "*) continue ;; esac
       only_seen="$only_seen$only_name "
-      awk -F '\t' -v n="$only_name" '$3 == n' "$table" >> "$work/rows.loop" || return 2
+      awk -F '\t' -v n="$only_name" '$3 == n ""' "$table" >> "$work/rows.loop" || return 2
     done
     awk -F '\t' -v only=" $only " 'index(only, " " $3 " ") == 0' "$table" >> "$work/rows.loop" || return 2
   else
@@ -283,7 +286,7 @@ run_rows() {
       transitional)
         takeover=${row_file%/*}/mutants.rows
         if [ -f "$tree/$takeover" ]; then
-          taken=$(awk -F '\t' -v n="$row_name" -v f="$takeover" '$1 == f && $3 == n' "$table")
+          taken=$(awk -F '\t' -v n="$row_name" -v f="$takeover" '$1 == f "" && $3 == n ""' "$table")
           if [ -n "$taken" ]; then say MOVED "$row_name" "$takeover"; continue; fi
           say FAIL "$row_name" "transitional row not taken over by $takeover"; failures=$((failures + 1)); continue
         fi
@@ -360,7 +363,7 @@ run_rows() {
   if [ -f "$tree/scripts/r1-gate/mutants.expected" ]; then
     while IFS= read -r expected_name; do
       [ -n "$expected_name" ] || continue
-      expected_row=$(awk -F '\t' -v n="$expected_name" '$3 == n' "$table")
+      expected_row=$(awk -F '\t' -v n="$expected_name" '$3 == n ""' "$table")
       [ -z "$expected_row" ] || continue
       missing=$((missing + 1))
       [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
@@ -779,6 +782,32 @@ cases() {
   row thrice/code/inner/mutants.rows same c.sh 's/three/3/' leak required X-3
   t name-in-three-files-names-all-three PASS with_list fixture_says thrice 'FAIL mutation:same (the name stands in code/inner/mutants.rows line 1 and in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
   t transitional-and-its-takeover-pass-the-list PASS with_list fixture_run moved
+  fixture_tree same-file
+  row same-file/code/mutants.rows shared code/a.sh 's/one/1/' leak transitional X-1
+  row same-file/code/mutants.rows shared a.sh 's/one/uno/' leak required X-2
+  t name-twice-in-one-file-with-a-transitional-row-is-refused FAIL with_list fixture_run same-file
+  fixture_tree lone
+  row lone/code/mutants.rows solo code/a.sh 's/one/1/' leak transitional X-1
+  t transitional-row-outside-the-gate-file-is-refused FAIL fixture_run lone yes
+  t transitional-row-outside-the-gate-file-is-named PASS fixture_says lone 'FAIL mutation:solo (a transitional row stands in scripts/r1-gate/mutants.rows, not in code/mutants.rows)' yes
+  fixture_tree malformed-name
+  row malformed-name/scripts/r1-gate/mutants.rows malformed b.sh 's/two/2/' leak required X-1
+  row malformed-name/code/mutants.rows malformed a.sh 's/one/1/' leak required X-2
+  t row-named-malformed-in-two-files-is-refused PASS with_list fixture_says malformed-name 'FAIL mutation:malformed (the name stands in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  fixture_tree numeric
+  row numeric/scripts/r1-gate/mutants.rows 1 code/a.sh 's/one/1/' leak transitional X-1
+  row numeric/code/mutants.rows 1.0 a.sh 's/one/uno/' leak required X-2
+  t transitional-row-not-taken-over-by-a-name-of-the-same-number FAIL fixture_run numeric yes
+  fixture_tree target-dir
+  mkdir -p "$gate_scratch/target-dir/code/target"
+  row target-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row target-dir/code/target/mutants.rows same c.sh 's/x/y/' leak required X-2
+  t rows-file-under-a-directory-named-target-is-read FAIL with_list fixture_run target-dir
+  fixture_tree build-dir
+  mkdir -p "$gate_scratch/build-dir/target"
+  row build-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row build-dir/target/mutants.rows same c.sh 's/x/y/' leak required X-2
+  t rows-file-in-the-build-directory-of-the-copy-is-not-read PASS with_list fixture_run build-dir
   fixture_tree five
   printf 'five\tb.sh\ts/two/2/\tleak\trequired\n' >> "$gate_scratch/five/scripts/r1-gate/mutants.rows"
   t row-with-five-fields FAIL fixture_run five yes
