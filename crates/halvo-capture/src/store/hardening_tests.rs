@@ -1802,6 +1802,7 @@ fn open_narrows_store_db_to_0600_on_its_own_handle_so_its_log_is_made_0600() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn file_colon_store_for_parent() {
     let Some(roots_dir) = std::env::var_os("HALVO_TEST_FILE_COLON_ROOTS") else {
@@ -1820,6 +1821,7 @@ fn file_colon_store_for_parent() {
     store.write_segment(&mut Cursor::new(b"in file:x")).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn a_relative_store_directory_named_file_colon_x_holds_its_database_and_x_gets_no_file() {
     let cwd = tempfile::tempdir().unwrap();
@@ -1845,7 +1847,6 @@ fn a_relative_store_directory_named_file_colon_x_holds_its_database_and_x_gets_n
     let db = cwd.path().join("file:x").join("store.db");
     let meta = std::fs::metadata(&db).unwrap();
     assert!(meta.len() > 0, "store.db in file:x is empty");
-    #[cfg(unix)]
     assert_eq!(
         std::os::unix::fs::PermissionsExt::mode(&meta.permissions()) & 0o777,
         0o600

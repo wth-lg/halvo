@@ -441,10 +441,14 @@ mod windows_dir {
             let mut entries = Vec::new();
             for entry in std::fs::read_dir(&self.path)? {
                 let entry = entry?;
-                let meta = match entry.metadata() {
+                let meta = match std::fs::symlink_metadata(entry.path()) {
                     Ok(meta) => meta,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
-                    Err(e) => return Err(e),
+                    Err(_) => match entry.metadata() {
+                        Ok(meta) => meta,
+                        Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                        Err(e) => return Err(e),
+                    },
                 };
                 entries.push(Entry {
                     name: entry.file_name(),
@@ -859,6 +863,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let handle = held(&dir);
         assert!(handle.path().is_absolute());
+        assert_eq!(
+            handle.path().canonicalize().unwrap(),
+            dir.path().canonicalize().unwrap()
+        );
+        #[cfg(unix)]
         assert_eq!(handle.path(), dir.path().canonicalize().unwrap().as_path());
     }
 
