@@ -10,7 +10,15 @@
 //!   guard are gone within `LEFT_WAIT` (A11.1, CP-133 (i)).
 //! - `relay_foreign --browser PATH [--as USER --copy-dir DIR]`: a connection to the relay from a
 //!   process outside the browser's tree, of this account and, with `--as`, of another account
-//!   (macOS, `sudo -n -u USER`); ok when the relay refused it unread and recorded it apart.
+//!   (macOS, `sudo -n -u USER`; Windows, with `--password-file FILE`, a start with the account's
+//!   credentials); ok when the relay refused it unread and recorded it apart.
+//!
+//! - `crash --browser PATH --kind chrome|edge --port N`: the crash row (CP-165 (2), CP-167): with
+//!   the fixture on port N, a start and stop with no crash, then the browser crashed by the
+//!   driver's command `Browser.crash` with the product's means, with each candidate of
+//!   `CRASH_CANDIDATES` and with the means taken out (the control); every file that changed under
+//!   the places of `crash_row::places` is listed by name, size and time and compared. Hosted
+//!   runners alone: no browser is made to crash on the development Mac.
 //!
 //! `start_only` and `foreign_connect` are the children of those rows.
 
@@ -18,7 +26,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use halvo_web::cdp::{Executor, StartOptions};
+use halvo_web::cdp::{CrashMeans, Executor, StartOptions};
+use halvo_web::crash_row;
 use halvo_web::guard::GuardProgram;
 use halvo_web::procs;
 use halvo_web::relay::{Names, Relay};
@@ -35,13 +44,235 @@ fn arg(argv: &[String], name: &str) -> Option<String> {
 }
 
 fn options(browser: &Path, profile: PathBuf, relay: &Relay) -> Option<StartOptions> {
+    options_with(browser, profile, relay, CrashMeans::Product)
+}
+
+fn options_with(
+    browser: &Path,
+    profile: PathBuf,
+    relay: &Relay,
+    crash_means: CrashMeans,
+) -> Option<StartOptions> {
     Some(StartOptions {
         browser: browser.to_path_buf(),
         profile,
         headless: true,
         relay: relay.handle(),
         guard: GuardProgram::this_program().ok()?,
+        crash_means,
     })
+}
+
+/// How long a crash reading waits for the crash handlers that began during it to be gone: the
+/// stop's `STOP_WAIT` of U0.3's library.
+const STOP_WAIT: Duration = Duration::from_secs(15);
+
+/// What one reading of the crash row found: what it left outside the profile and the temporary
+/// directory, the dumps inside them, whether the crash handlers were gone or `STOP_WAIT` passed,
+/// what reached the relay after the crash, whether the stop removed both directories, and the
+/// browser's major version.
+struct Reading {
+    left: Vec<crash_row::File>,
+    inside_dumps: usize,
+    handler: &'static str,
+    sent: usize,
+    removed: bool,
+    major: String,
+}
+
+fn epoch_us() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_micros() as u64)
+}
+
+/// Whether a crash handler that began at or after `since_us` still runs.
+fn handler_runs(since_us: u64) -> bool {
+    procs::table().unwrap_or_default().iter().any(|p| {
+        p.started_us >= since_us
+            && (p
+                .exe
+                .as_deref()
+                .and_then(|e| e.file_name())
+                .is_some_and(|n| n.to_string_lossy().contains("crashpad_handler"))
+                || halvo_web::checks::command_args(p.pid)
+                    .is_some_and(|a| a.iter().any(|x| x.contains("--type=crashpad-handler"))))
+    })
+}
+
+async fn crash_reading(
+    browser: &Path,
+    port: u16,
+    dir: &Path,
+    name: &str,
+    means: CrashMeans,
+    crash: bool,
+) -> Result<Reading, String> {
+    let profile = dir.join(format!("p-{name}"));
+    let mut temp = profile.clone().into_os_string();
+    temp.push("-tmp");
+    let places = crash_row::places(&profile, Path::new(&temp));
+    let before = crash_row::snapshot(&places);
+    let since_us = epoch_us().saturating_sub(1_000_000);
+    let relay = Relay::start(Names::Fixture)
+        .await
+        .map_err(|_| "relay".to_string())?;
+    relay.handle().allow("utility.agent.test", port);
+    let opts = options_with(browser, profile, &relay, means).ok_or("guard")?;
+    let mut ex = Executor::start(&opts)
+        .await
+        .map_err(|f| f.cause.to_string())?;
+    let major = ex
+        .version()
+        .await
+        .ok()
+        .and_then(|v| {
+            v.rsplit('/')
+                .next()
+                .and_then(|x| x.split('.').next())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "-".into());
+    let _ = ex
+        .open(&format!("http://utility.agent.test:{port}/signin"))
+        .await;
+    let seen = relay.handle().refusals().len() as u64 + relay.tunnels();
+    if crash {
+        ex.crash().await;
+    }
+    let waited = Instant::now();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let handler = loop {
+        if !handler_runs(since_us) {
+            break "gone";
+        }
+        if waited.elapsed() > STOP_WAIT {
+            break "stop_wait";
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+    let first = crash_row::snapshot(&places);
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let second = crash_row::snapshot(&places);
+    let later_changes = crash_row::changed(&first, &second).len();
+    let sent =
+        (relay.handle().refusals().len() as u64 + relay.tunnels()).saturating_sub(seen) as usize;
+    let changed = crash_row::changed(&before, &second);
+    let inside_dumps = changed
+        .iter()
+        .filter(|f| {
+            places.iter().any(|p| p.name == f.place && p.inside_profile) && crash_row::is_dump(f)
+        })
+        .count();
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let left = crash_row::left_outside(&changed, &places);
+    println!(
+        "row crash reading={name} handler={handler} later_changes={later_changes} left_count={} left_bytes={} left_places={} dumps_left={} dumps_inside_profile={inside_dumps} removed={}",
+        left.len(),
+        left.iter().map(|f| f.size).sum::<u64>(),
+        by_place(&left),
+        left.iter().filter(|f| crash_row::is_dump(f)).count(),
+        if stopped.removed { "yes" } else { "no" }
+    );
+    Ok(Reading {
+        left,
+        inside_dumps,
+        handler,
+        sent,
+        removed: stopped.removed,
+        major,
+    })
+}
+
+/// The names of the places of `files` with the count of each: `name:n,...`, or `-`.
+fn by_place(files: &[crash_row::File]) -> String {
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for f in files {
+        *counts.entry(f.place).or_default() += 1;
+    }
+    if counts.is_empty() {
+        return "-".into();
+    }
+    counts
+        .iter()
+        .map(|(k, v)| format!("{k}:{v}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// The crash row (CP-165 (2), CP-167 E1 to E4) for one browser: a start and stop with no crash,
+/// the crash with the product's means, the crash with each candidate of the closed list, and the
+/// crash with the means taken out (the control). One line per reading and one line per means
+/// with its result; the product's line is the cell.
+async fn crash(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "crash"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let place = crash_row::crash_place(&kind);
+    println!(
+        "row crash machine={machine} browser={kind} crash=Browser.crash crash_place={kind}_crashpad crash_place_is_own_browser_s=yes send_setting={}",
+        match place.as_deref().and_then(crash_row::send_setting) {
+            Some(true) => "yes",
+            Some(false) => "no",
+            None => "unread",
+        }
+    );
+    let baseline =
+        match crash_reading(&browser, port, &dir, "baseline", CrashMeans::Product, false).await {
+            Ok(r) => r,
+            Err(cause) => {
+                println!("row crash machine={machine} browser={kind} result=notrun cause={cause}");
+                return (0, 1);
+            }
+        };
+    let control = crash_reading(&browser, port, &dir, "control", CrashMeans::Without, true).await;
+    let mut means: Vec<(&str, CrashMeans)> = vec![("product", CrashMeans::Product)];
+    for (i, (name, _)) in halvo_web::CRASH_CANDIDATES.iter().enumerate() {
+        means.push((name, CrashMeans::Candidate(i)));
+    }
+    let mut product_ok = false;
+    for (name, m) in means {
+        let with = crash_reading(&browser, port, &dir, &format!("means-{name}"), m, true).await;
+        let line = match (&with, &control) {
+            (Ok(w), Ok(c)) => {
+                let beyond = crash_row::beyond(&w.left, &baseline.left);
+                let control_dumps: Vec<&crash_row::File> =
+                    c.left.iter().filter(|f| crash_row::is_dump(f)).collect();
+                let result = crash_row::result(&baseline.left, &w.left, &c.left, w.sent);
+                if name == "product" {
+                    product_ok = result == "ok";
+                }
+                format!(
+                    "row crash machine={machine} browser={kind} major={} means={name} beyond_count={} beyond_bytes={} beyond_places={} control_dumps={} control_dump_bytes={} control_places={} sent_after_crash={} dump_inside_profile={} handler={} removed={} result={result}",
+                    w.major,
+                    beyond.len(),
+                    beyond.iter().map(|f| f.size).sum::<u64>(),
+                    by_place(&beyond),
+                    control_dumps.len(),
+                    control_dumps.iter().map(|f| f.size).sum::<u64>(),
+                    by_place(&c.left.iter().filter(|f| crash_row::is_dump(f)).cloned().collect::<Vec<_>>()),
+                    w.sent,
+                    if w.inside_dumps > 0 { "yes" } else { "no" },
+                    w.handler,
+                    if w.removed && baseline.removed { "yes" } else { "no" },
+                )
+            }
+            (Err(cause), _) | (_, Err(cause)) => {
+                format!("row crash machine={machine} browser={kind} means={name} result=notrun cause={cause}")
+            }
+        };
+        println!("{line}");
+    }
+    let _ = std::fs::remove_dir(&dir);
+    (usize::from(product_ok), 1)
 }
 
 fn scratch_of(argv: &[String], name: &str) -> Option<PathBuf> {
@@ -261,6 +492,60 @@ fn foreign_connect(argv: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// The start of `foreign_connect` under the account `user`, with no window and no prompt: on macOS
+/// `sudo -n -u USER`; on Windows `System.Diagnostics.Process` with the account's name and the
+/// password that `--password-file` holds (CreateProcessWithLogonW), through PowerShell, which
+/// prints the child's line.
+#[cfg(unix)]
+fn as_other(
+    user: &str,
+    copy: &Path,
+    port: u16,
+    echo_port: u16,
+    _argv: &[String],
+) -> Option<std::process::Command> {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(copy, std::fs::Permissions::from_mode(0o755));
+    let mut other = std::process::Command::new("/usr/bin/sudo");
+    other
+        .args(["-n", "-u", user])
+        .arg(copy)
+        .arg("foreign_connect")
+        .arg(port.to_string())
+        .arg(echo_port.to_string());
+    Some(other)
+}
+
+#[cfg(windows)]
+fn as_other(
+    user: &str,
+    copy: &Path,
+    port: u16,
+    echo_port: u16,
+    argv: &[String],
+) -> Option<std::process::Command> {
+    let password_file = arg(argv, "--password-file")?;
+    let quote = |s: &str| s.replace('\'', "''");
+    let script = format!(
+        "$ErrorActionPreference = 'Stop'; \
+         $i = New-Object System.Diagnostics.ProcessStartInfo; \
+         $i.FileName = '{exe}'; $i.Arguments = 'foreign_connect {port} {echo_port}'; \
+         $i.UserName = '{user}'; \
+         $i.Password = ConvertTo-SecureString ((Get-Content -Raw '{pw}').Trim()) -AsPlainText -Force; \
+         $i.UseShellExecute = $false; $i.CreateNoWindow = $true; $i.LoadUserProfile = $false; \
+         $i.WorkingDirectory = '{dir}'; $i.RedirectStandardOutput = $true; \
+         $p = [System.Diagnostics.Process]::Start($i); $o = $p.StandardOutput.ReadToEnd(); \
+         $p.WaitForExit(); Write-Output $o.Trim()",
+        exe = quote(&copy.to_string_lossy()),
+        user = quote(user),
+        pw = quote(&password_file),
+        dir = quote(&copy.parent()?.to_string_lossy()),
+    );
+    let mut other = std::process::Command::new("powershell.exe");
+    other.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+    Some(other)
+}
+
 async fn relay_foreign(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(dir)) = (arg(argv, "--browser"), scratch_of(argv, "foreign")) else {
         return (0, 1);
@@ -294,21 +579,15 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
         .arg(echo_port.to_string());
     cells.push(("same", same));
     if let (Some(user), Some(copy_dir)) = (arg(argv, "--as"), arg(argv, "--copy-dir")) {
-        let copy = Path::new(&copy_dir).join("web-rows");
+        let copy = Path::new(&copy_dir).join(if cfg!(windows) {
+            "web-rows.exe"
+        } else {
+            "web-rows"
+        });
         if std::fs::copy(&me, &copy).is_ok() {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&copy, std::fs::Permissions::from_mode(0o755));
+            if let Some(other) = as_other(&user, &copy, relay.port, echo_port, argv) {
+                cells.push(("other", other));
             }
-            let mut other = std::process::Command::new("/usr/bin/sudo");
-            other
-                .args(["-n", "-u", &user])
-                .arg(&copy)
-                .arg("foreign_connect")
-                .arg(relay.port.to_string())
-                .arg(echo_port.to_string());
-            cells.push(("other", other));
         }
     }
     let mut ok = 0;
@@ -363,6 +642,7 @@ fn main() -> ExitCode {
         "first_start" => runtime.block_on(first_start(&argv)),
         "killed_start" => runtime.block_on(killed_start(&argv)),
         "relay_foreign" => runtime.block_on(relay_foreign(&argv)),
+        "crash" => runtime.block_on(crash(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");
             return ExitCode::from(64);

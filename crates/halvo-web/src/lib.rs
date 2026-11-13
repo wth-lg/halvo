@@ -5,6 +5,7 @@ pub mod cdp;
 pub mod checks;
 #[cfg(test)]
 mod child;
+pub mod crash_row;
 pub mod guard;
 pub mod peer;
 pub mod pipe;
@@ -35,6 +36,27 @@ pub const PRODUCT_FLAGS: [&str; 17] = [
     "--disable-extensions",
     "--disable-component-extensions-with-background-pages",
     "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns",
+];
+
+/// The flags of `PRODUCT_FLAGS` that are the product's means against a crash's dump (CP-165 (2)):
+/// the crash row's control starts without them (`cdp::CrashMeans::Without`).
+pub const CRASH_MEANS: [&str; 1] = ["--disable-breakpad"];
+
+/// The candidates of the crash row (CP-167 E2), a closed list: each is added after the product's
+/// flags by `cdp::CrashMeans::Candidate`, with `{profile}` standing for the run's profile
+/// directory. Each switch name stands in the browser's own binary; what each does is what the
+/// row's runs show.
+pub const CRASH_CANDIDATES: [(&str, &[&str]); 4] = [
+    (
+        "dump_location",
+        &["--breakpad-dump-location={profile}/Crashpad"],
+    ),
+    (
+        "system_port",
+        &["--reset-own-crash-exception-port-to-system-default"],
+    ),
+    ("dumps_dir", &["--crash-dumps-dir={profile}/Crashpad"]),
+    ("no_reporter", &["--disable-crash-reporter"]),
 ];
 
 /// The policy of A4.2 that the executor adds to every document and worker script.

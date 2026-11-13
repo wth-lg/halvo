@@ -467,6 +467,7 @@ async fn one(
         headless,
         relay: relay.clone(),
         guard,
+        crash_means: halvo_web::cdp::CrashMeans::Product,
     };
     let mut ex = Executor::start(&opts).await.map_err(|f| f.cause)?;
     let bound = halvo_web::cdp::STEP_TIMEOUT * 4;

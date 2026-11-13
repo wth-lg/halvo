@@ -97,6 +97,19 @@ pub struct StartOptions {
     pub relay: crate::relay::RelayHandle,
     /// The program that runs the relay's guard.
     pub guard: crate::guard::GuardProgram,
+    /// The flags against a crash's dump: `CrashMeans::Product` for every start of the product.
+    pub crash_means: CrashMeans,
+}
+
+/// Which flags against a crash's dump a start carries (CP-165 (2), CP-167 E2): the product's
+/// (`crate::CRASH_MEANS` among `crate::PRODUCT_FLAGS`), none of them (the crash row's control), or
+/// the product's and one candidate of the closed list `crate::CRASH_CANDIDATES` (the crash row's
+/// readings). A caller names an entry of a list of the crate and adds no flag of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CrashMeans {
+    Product,
+    Without,
+    Candidate(usize),
 }
 
 impl StartOptions {
@@ -283,7 +296,17 @@ fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
 /// and the first page. A caller adds no flag, so none can name a port or a route beside the relay.
 /// No flag names a bound site, and the product carries no mock keychain (A8.3).
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
-    let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+    let mut args: Vec<String> = crate::PRODUCT_FLAGS
+        .iter()
+        .filter(|f| opts.crash_means != CrashMeans::Without || !crate::CRASH_MEANS.contains(f))
+        .map(|f| f.to_string())
+        .collect();
+    if let CrashMeans::Candidate(i) = opts.crash_means {
+        let profile = opts.profile.display().to_string();
+        for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
+            args.push(f.replace("{profile}", &profile));
+        }
+    }
     args.extend(crate::relay::relay_flags(opts.relay.port()));
     if opts.headless {
         args.push("--headless=new".into());
@@ -538,6 +561,20 @@ impl Executor {
             .await
             .map_err(|f| Fault::new("version", f.1))?;
         Ok(v.product)
+    }
+
+    /// The crash row's forced crash (CP-165 (2) (c)): the driver's own command `Browser.crash` on
+    /// the pipe, which crashes the browser's first process on its main thread, with no input and
+    /// no window. The browser's crash handler takes it as a crash; the row's control shows it.
+    pub async fn crash(&self) {
+        let _ = self
+            .wire
+            .call_within(
+                None,
+                chromiumoxide::cdp::browser_protocol::browser::CrashParams::default(),
+                Duration::from_secs(5),
+            )
+            .await;
     }
 
     /// The faults of the executor's own connection, which attaches to every target of the browser
@@ -1608,6 +1645,7 @@ pub(crate) mod tests {
             headless: true,
             relay,
             guard: test_guard(),
+            crash_means: CrashMeans::Product,
         }
     }
 
