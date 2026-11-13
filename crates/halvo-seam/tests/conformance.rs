@@ -28,6 +28,10 @@ enum Fault {
     OpenWithAnotherIdWhileOpenClosesIt,
     OpenAtTheWatermarkReplacesTheCursor,
     OpenWhileOpenServesAfterARestart,
+    NullStoreOpenWhileOpenServes,
+    OpenWhileOpenServedOnANullStoreConnection,
+    OpenMidReadReplacesTheCursor,
+    OpenPastTheWatermarkWhileOpenGetsBadPosition,
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
     PhantomRecordAtTheWatermarkAfterAShred,
@@ -166,6 +170,8 @@ impl Subject for Fixture {
                         restarted,
                         at_watermark: false,
                         position: ZERO,
+                        first_null: None,
+                        cursor_reads: 0,
                         connection,
                         further,
                         reads: 0,
@@ -232,10 +238,13 @@ struct Wrong {
     reads: i64,
     opens: i64,
     last: Option<OpenCursor>,
+    first_null: Option<bool>,
+    cursor_reads: i64,
 }
 
 impl Wrong {
     fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
+        let first_null = *self.first_null.get_or_insert(open.store().is_none());
         let refuses = matches!(
             self.fault,
             WatermarkRefusedAfterAShred | RisenWatermarkRefusedAfterAShred
@@ -296,6 +305,25 @@ impl Wrong {
                 t.handle(&ClientMessage::Close);
                 t.handle(&ClientMessage::OpenCursor(open.clone()))
             }
+            NullStoreOpenWhileOpenServes if refused && open.store().is_none() => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            OpenWhileOpenServedOnANullStoreConnection if refused && first_null => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            OpenMidReadReplacesTheCursor
+                if refused && self.cursor_reads > 0 && !self.at_watermark =>
+            {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            OpenPastTheWatermarkWhileOpenGetsBadPosition
+                if refused && open.position() > t.watermark() =>
+            {
+                error(Cause::BadPosition)
+            }
             _ => reply,
         };
         if matches!(reply, ServerMessage::Batch(_)) {
@@ -303,6 +331,7 @@ impl Wrong {
             self.opens += 1;
             self.at_watermark = false;
             self.position = open.position();
+            self.cursor_reads = 0;
         }
         reply
     }
@@ -313,6 +342,7 @@ impl Wrong {
             reply => return reply,
         };
         self.reads += 1;
+        self.cursor_reads += 1;
         let shift = match self.fault {
             ExpiryMovesFromReadToRead => self.reads,
             ExpiryMovesFromConnectionToConnection => self.connection,
@@ -519,9 +549,9 @@ fn conformance_check_open_while_open() {
     wrong(
         "conformance_check_open_while_open",
         &[
-            (OpenWhileOpenServes, [check, None, check, None]),
-            (OpenWhileOpenClosesTheCursor, [check, None, check, None]),
-            (OpenWhileOpenGetsBadPosition, [check, None, check, None]),
+            (OpenWhileOpenServes, [check, None, check, check]),
+            (OpenWhileOpenClosesTheCursor, [check, None, check, check]),
+            (OpenWhileOpenGetsBadPosition, [check, None, check, check]),
             (
                 OpenAtTheWatermarkGetsBadPosition,
                 [check, None, check, None],
@@ -531,7 +561,7 @@ fn conformance_check_open_while_open() {
                 [check, None, check, None],
             ),
             (OpenWithSTakesItsRange, [check, None, check, None]),
-            (OpenWhileOpenMovesTheCursor, [check, None, check, None]),
+            (OpenWhileOpenMovesTheCursor, [check, None, check, check]),
             (OpenWhileOpenTakesItsRange, [check, None, check, None]),
             (
                 OpenWithAnotherIdWhileOpenClosesIt,
@@ -542,6 +572,16 @@ fn conformance_check_open_while_open() {
                 [check, None, check, None],
             ),
             (OpenWhileOpenServesAfterARestart, [check, None, None, None]),
+            (NullStoreOpenWhileOpenServes, [check, None, check, None]),
+            (
+                OpenWhileOpenServedOnANullStoreConnection,
+                [None, None, check, check],
+            ),
+            (OpenMidReadReplacesTheCursor, [None, None, None, check]),
+            (
+                OpenPastTheWatermarkWhileOpenGetsBadPosition,
+                [check, None, check, None],
+            ),
         ],
     );
 }

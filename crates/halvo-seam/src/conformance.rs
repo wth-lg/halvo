@@ -878,6 +878,7 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
             ));
         }
     }
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))?;
     let instants = conn.end();
     let mut conn = connect(subject, instants)?;
     let again = read(&mut conn, Some(&rf.s), ZERO, None, None)
@@ -919,6 +920,22 @@ fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(),
             "an open_cursor with another store id, while a cursor is open",
             open_text(Some(&another(&rf.s)?), ZERO, None, Some(late)),
         ),
+        (
+            "an open_cursor with a null store at the zero position, while a cursor is open",
+            open_text(None, ZERO, None, Some(late)),
+        ),
+        (
+            "an open_cursor with S after the watermark, while a cursor is open",
+            open_text(
+                Some(&rf.s),
+                Position {
+                    seg: opened.watermark.seg + 1,
+                    idx: 0,
+                },
+                None,
+                Some(late),
+            ),
+        ),
     ];
     for (what, text) in &seconds {
         let cause = conn.error(text, what)?;
@@ -927,10 +944,10 @@ fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(),
         }
     }
     let reading = drain(conn, opened, ZERO, true)
-        .map_err(|e| format!("the cursor that was open, after two refused opens: {e}"))?;
+        .map_err(|e| format!("the cursor that was open, after the refused opens: {e}"))?;
     if !same(&reading.entries, &rf.r) {
         return Err(format!(
-            "the cursor that was open served {} entries after two refused opens; want the {} entries of the reference read",
+            "the cursor that was open served {} entries after the refused opens; want the {} entries of the reference read",
             reading.entries.len(),
             rf.r.len()
         ));
@@ -1162,10 +1179,66 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             data_c.len()
         ));
     }
-    filtered_stops(subject, conn).map_err(|e| format!("check {}: {e}", CHECKS[3]))
+    let (mut conn, c) =
+        filtered_stops(subject, conn).map_err(|e| format!("check {}: {e}", CHECKS[3]))?;
+    open_while_open_mid_read(&mut conn, &c).map_err(|e| format!("check {}: {e}", CHECKS[1]))
 }
 
-fn filtered_stops<S: Subject>(subject: &mut S, conn: Conn<S>) -> Result<(), String> {
+fn open_while_open_mid_read<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), String> {
+    let what = "an open_cursor while a cursor that has read one Batch is open";
+    let opened = open(conn, Some(&c.store), ZERO, None, None)
+        .map_err(|e| format!("the open before {what}: {e}"))?;
+    let first = match conn.send(READ_BATCH)? {
+        ServerMessage::Batch(b) => b,
+        ServerMessage::Error(e) => {
+            return Err(format!(
+                "the read before {what} got the error {}",
+                e.cause().name()
+            ))
+        }
+        _ => {
+            return Err(format!(
+                "the read before {what} got a reply other than batch or error"
+            ))
+        }
+    };
+    check(&first, &opened.store, ZERO, None, opened.watermark)
+        .map_err(|e| format!("the read before {what}: {e}"))?;
+    conn.one_instant(&first)?;
+    if first.next == first.watermark {
+        return Err(format!(
+            "the first Batch before {what} reached the watermark; want one that stops before it"
+        ));
+    }
+    let cause = conn.error(&open_text(Some(&c.store), ZERO, None, None), what)?;
+    if cause != Cause::BadRequest {
+        return Err(format!("{what} got {}; want bad-request", cause.name()));
+    }
+    let rest = Batch {
+        store: first.store.clone(),
+        watermark: first.watermark,
+        records: Vec::new(),
+        expiry: Vec::new(),
+        next: first.next,
+    };
+    let reading = drain(conn, rest, first.next, true)
+        .map_err(|e| format!("the cursor that was open, after {what}: {e}"))?;
+    let mut served = first.records;
+    served.extend(reading.entries);
+    if !same(&served, &c.entries) {
+        return Err(format!(
+            "the cursor that was open served {} entries in all after {what}; want the {} entries of the store",
+            served.len(),
+            c.entries.len()
+        ));
+    }
+    Ok(())
+}
+
+fn filtered_stops<S: Subject>(
+    subject: &mut S,
+    conn: Conn<S>,
+) -> Result<(Conn<S>, Reading), String> {
     let texts = [SET_A[3], SET_C[0]];
     let instants = conn.end();
     subject.load(&texts)?;
@@ -1236,5 +1309,5 @@ fn filtered_stops<S: Subject>(subject: &mut S, conn: Conn<S>) -> Result<(), Stri
             }
         }
     }
-    Ok(())
+    Ok((conn, c))
 }
