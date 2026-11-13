@@ -3739,7 +3739,7 @@ mod driver {
             let first = root.clone();
             let w = killwatch::watch(
                 killwatch::Readers {
-                    running: &mut || of_the_run(&tree, &mark).is_none_or(|r| !r.is_empty()),
+                    running: &mut || of_the_run(&tree, &mark).map(|r| !r.is_empty()),
                     free: &mut || port_bindable(port),
                     now_ms: &mut || t_kill.elapsed().as_millis(),
                     pause: &mut || std::thread::sleep(killwatch::PASS_WAIT),

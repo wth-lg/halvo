@@ -104,9 +104,48 @@ pub fn guard_main(argv: &[String]) -> i32 {
     ) else {
         return 2;
     };
+    let start = std::time::Instant::now();
+    guard_loop(
+        pid,
+        started_us,
+        &mut || procs::table().ok(),
+        &mut || start.elapsed().as_millis(),
+        &mut |unread| {
+            std::thread::sleep(if unread {
+                crate::killwatch::PASS_WAIT
+            } else {
+                GUARD_POLL
+            })
+        },
+    )
+}
+
+/// The guard's loop, with its reading of the process table (`None`: it could not be read), its
+/// clock and its pause given (the pause is told whether the last read was unread). A table that
+/// could not be read is not an empty one (the coordinator's point on an unread table): the guard
+/// keeps the port and reads again in the watch's steps; when the table stays unread for
+/// `killwatch::CAP`, it ends with exit 3 and the line `guard_end cause=table_unread`.
+pub fn guard_loop(
+    pid: u32,
+    started_us: u64,
+    read: &mut dyn FnMut() -> Option<Vec<Proc>>,
+    now_ms: &mut dyn FnMut() -> u128,
+    pause: &mut dyn FnMut(bool),
+) -> i32 {
     let mut known: Vec<Proc> = Vec::new();
+    let mut unread_since: Option<u128> = None;
     loop {
-        let table = procs::table().unwrap_or_default();
+        let Some(table) = read() else {
+            let now = now_ms();
+            let since = *unread_since.get_or_insert(now);
+            if now.saturating_sub(since) >= crate::killwatch::CAP.as_millis() {
+                eprintln!("guard_end cause=table_unread");
+                return 3;
+            }
+            pause(true);
+            continue;
+        };
+        unread_since = None;
         let root = table
             .iter()
             .find(|p| p.pid == pid && p.started_us == started_us)
@@ -133,7 +172,7 @@ pub fn guard_main(argv: &[String]) -> i32 {
         if root.is_none() && !living {
             return 0;
         }
-        std::thread::sleep(GUARD_POLL);
+        pause(false);
     }
 }
 
@@ -715,6 +754,63 @@ async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The coordinator's point on an unread table: a guard whose read of the process table fails
+    /// once keeps the port, reads again, and ends only when the browser's first process is gone.
+    #[test]
+    fn a_table_that_could_not_be_read_once_is_no_empty_table_for_the_guard() {
+        let root = Proc {
+            pid: 999_999,
+            ppid: 1,
+            started_us: 7,
+            exe: None,
+        };
+        let mut reads = 0;
+        let code = guard_loop(
+            999_999,
+            7,
+            &mut || {
+                reads += 1;
+                match reads {
+                    1 => None,
+                    2..=4 => Some(vec![root.clone()]),
+                    _ => Some(Vec::new()),
+                }
+            },
+            &mut || 0,
+            &mut |_| {},
+        );
+        assert_eq!(code, 0);
+        assert_eq!(reads, 5, "the guard ended before the tree was read gone");
+    }
+
+    /// A table that stays unread ends the guard at the watch's cap with its own cause, not sooner
+    /// and not never.
+    #[test]
+    fn a_table_that_stays_unread_ends_the_guard_at_the_cap() {
+        let clock = std::cell::Cell::new(0u128);
+        let mut reads = 0u64;
+        let code = guard_loop(
+            999_999,
+            7,
+            &mut || {
+                reads += 1;
+                assert!(reads < 1_000_000, "the guard reads on past its cap");
+                None
+            },
+            &mut || clock.get(),
+            &mut |unread| {
+                assert!(unread);
+                clock.set(clock.get() + crate::killwatch::PASS_WAIT.as_millis())
+            },
+        );
+        assert_eq!(code, 3);
+        assert!(
+            clock.get() >= crate::killwatch::CAP.as_millis(),
+            "ended at {} ms",
+            clock.get()
+        );
+    }
 
     #[test]
     fn the_relay_sends_test_names_and_loopback_to_loopback_and_nothing_else() {

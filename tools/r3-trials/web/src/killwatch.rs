@@ -32,12 +32,14 @@ pub enum Pass {
     GoneTaken,
     /// No process of the run ran; the port was already free.
     GoneFree,
+    /// The process table could not be read: no end of the run is shown, and the watch goes on.
+    Unread,
 }
 
 impl Pass {
     /// Whether this pass shows the order (or that it cannot be known), so the watch is done.
     pub fn settles(self) -> bool {
-        self != Pass::RunningTaken
+        !matches!(self, Pass::RunningTaken | Pass::Unread)
     }
 
     /// Whether this pass read the run gone.
@@ -79,12 +81,13 @@ impl Outcome {
 
 /// What a kill reads from the passes of its watch, in order, and the row's own end after it
 /// (`left_before`: what that end found; `left_after`: what it left). Passes that end with a
-/// process of the run still running mean the watch reached its cap.
+/// process of the run still running mean the watch reached its cap; when they end with a table
+/// that could not be read, the kill is open with `table_unread`, never ok.
 pub fn decide(passes: &[Pass], left_before: usize, left_after: usize) -> Outcome {
     let left = left_before > 0 || left_after > 0;
     for p in passes {
         let open_or_ok = match p {
-            Pass::RunningTaken => continue,
+            Pass::RunningTaken | Pass::Unread => continue,
             Pass::FreeWhileRunning => return Outcome::Miss("free_first"),
             Pass::FreeThenGone | Pass::GoneFree => Outcome::Open("one_pass"),
             Pass::GoneTaken => Outcome::Ok,
@@ -94,6 +97,9 @@ pub fn decide(passes: &[Pass], left_before: usize, left_after: usize) -> Outcome
         } else {
             open_or_ok
         };
+    }
+    if passes.last() == Some(&Pass::Unread) {
+        return Outcome::Open("table_unread");
     }
     Outcome::Miss("tree_left")
 }
@@ -120,11 +126,12 @@ pub struct Watched {
     pub capped: bool,
 }
 
-/// The readers of one watch: whether a process of the run runs, whether the port can be bound,
+/// The readers of one watch: whether a process of the run runs (`None`: the process table could
+/// not be read), whether the port can be bound,
 /// the milliseconds since the kill, the wait between passes, and the report of what still runs
 /// (called at `REPORT_AT` and at `CAP` with the milliseconds).
 pub struct Readers<'a> {
-    pub running: &'a mut dyn FnMut() -> bool,
+    pub running: &'a mut dyn FnMut() -> Option<bool>,
     pub free: &'a mut dyn FnMut() -> bool,
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(),
@@ -143,20 +150,27 @@ pub fn watch(r: Readers<'_>, cap: Duration, report_at: Duration) -> Watched {
             w.max_gap_ms = w.max_gap_ms.max(start - l);
         }
         last = Some(start);
-        let pass = if (r.running)() {
-            if (r.free)() {
-                if (r.running)() {
-                    Pass::FreeWhileRunning
+        let pass = match (r.running)() {
+            None => Pass::Unread,
+            Some(true) => {
+                if (r.free)() {
+                    // a second read that cannot be read shows nothing: the pass is unread
+                    match (r.running)() {
+                        Some(true) => Pass::FreeWhileRunning,
+                        Some(false) => Pass::FreeThenGone,
+                        None => Pass::Unread,
+                    }
                 } else {
-                    Pass::FreeThenGone
+                    Pass::RunningTaken
                 }
-            } else {
-                Pass::RunningTaken
             }
-        } else if (r.free)() {
-            Pass::GoneFree
-        } else {
-            Pass::GoneTaken
+            Some(false) => {
+                if (r.free)() {
+                    Pass::GoneFree
+                } else {
+                    Pass::GoneTaken
+                }
+            }
         };
         let at = (r.now_ms)();
         if matches!(
@@ -207,7 +221,21 @@ mod tests {
     #[test]
     fn a_kill_reads_ok_a_miss_with_its_cause_or_open() {
         use Pass::*;
-        let cases: [(&str, &[Pass], usize, usize, Outcome); 11] = [
+        let cases: [(&str, &[Pass], usize, usize, Outcome); 13] = [
+            (
+                "an unread pass, then gone",
+                &[Unread, GoneTaken],
+                0,
+                0,
+                Outcome::Ok,
+            ),
+            (
+                "still unread at the cap",
+                &[RunningTaken, Unread],
+                0,
+                0,
+                Outcome::Open("table_unread"),
+            ),
             (
                 "tree gone, port taken",
                 &[RunningTaken, GoneTaken],
@@ -310,7 +338,7 @@ mod tests {
             Readers {
                 running: &mut || {
                     log.borrow_mut().push("tree");
-                    *clock.borrow() < gone_at
+                    Some(*clock.borrow() < gone_at)
                 },
                 free: &mut || {
                     log.borrow_mut().push("port");
