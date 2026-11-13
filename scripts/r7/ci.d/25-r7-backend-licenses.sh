@@ -387,17 +387,14 @@ stub_case() {
   case_name=$2
   expect_cause=$3
   dir=$work/$case_name
-  (
-    STUB_STATE=$dir/state
-    PATH=$dir/bin:$PATH
-    export STUB_STATE PATH
-    check_in "$dir" "$dir/out" "$dir/work"
-    status=$?
-    printf '%s\n' "$cause" >"$dir/cause"
-    exit "$status"
-  ) >/dev/null 2>&1
+  saved_path=$PATH
+  PATH=$dir/bin:$PATH
+  STUB_STATE=$dir/state
+  export STUB_STATE
+  check_in "$dir" "$dir/out" "$dir/work" >/dev/null 2>&1
   code=$?
-  found=$(cat "$dir/cause" 2>/dev/null) || found=
+  PATH=$saved_path
+  found=$cause
   case $code:$found in
     0:) got=PASS ;;
     1:*"$expect_cause"*) got=FAIL ;;
@@ -412,15 +409,8 @@ measure_case() {
   case_name=$2
   expect_last=$3
   dir=$work/$case_name
-  (
-    STUB_STATE=$dir/state
-    PATH=$dir/bin:$PATH
-    CI_D_REPO=$dir
-    CI_D_ARTIFACTS=$dir/out
-    TMPDIR=$dir/tmp
-    export STUB_STATE PATH CI_D_REPO CI_D_ARTIFACTS TMPDIR
-    sh "$top/$self"
-  ) >"$dir/measure.out" 2>&1
+  env STUB_STATE="$dir/state" PATH="$dir/bin:$PATH" CI_D_REPO="$dir" CI_D_ARTIFACTS="$dir/out" TMPDIR="$dir/tmp" \
+    sh "$top/$self" >"$dir/measure.out" 2>&1
   code=$?
   last=$(sed -n '$p' "$dir/measure.out")
   left=$(ls -A "$dir/tmp")
@@ -655,12 +645,7 @@ self_test() {
   if [ -z "${R7_25_INNER:-}" ]; then
     inner=$work/self-test-leaves-its-tmpdir-empty
     mkdir -p "$inner/tmp" || exit 2
-    (
-      R7_25_INNER=1
-      TMPDIR=$inner/tmp
-      export R7_25_INNER TMPDIR
-      sh "$top/$self" --self-test
-    ) >"$inner/out" 2>&1
+    env R7_25_INNER=1 TMPDIR="$inner/tmp" sh "$top/$self" --self-test >"$inner/out" 2>&1
     code=$?
     left=$(ls -A "$inner/tmp")
     case $code:$left in
