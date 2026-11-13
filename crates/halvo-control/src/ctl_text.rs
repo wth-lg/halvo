@@ -947,6 +947,31 @@ mod tests {
     }
 
     #[test]
+    fn peer_text_turns_tab_us_del_and_0x80_into_a_question_mark_and_keeps_space_and_tilde() {
+        for (given, printed) in [
+            ("\u{9}", "?"),
+            ("\u{1f}", "?"),
+            ("\u{7f}", "?"),
+            ("\u{80}", "?"),
+            (" ", " "),
+            ("~", "~"),
+            ("a\u{9}b\u{1f}c\u{7f}d\u{80}e f~", "a?b?c?d?e f~"),
+        ] {
+            assert_eq!(peer_text(given), printed, "{given:?}");
+        }
+    }
+
+    #[test]
+    fn peer_text_prints_the_first_200_of_201_printable_bytes() {
+        assert_eq!(PEER_TEXT_MAX_BYTES, 200);
+        let given: String = (0..201u8).map(|i| char::from(b' ' + i % 95)).collect();
+        assert_eq!(given.len(), 201);
+        let printed = peer_text(&given);
+        assert_eq!(printed.len(), 200);
+        assert_eq!(printed, given[..200]);
+    }
+
+    #[test]
     fn ctl_s_own_paths_are_not_cleaned() {
         let endpoint = "/tmp/\u{e9}t\u{e9}/run/control.sock";
         let printed = print(
