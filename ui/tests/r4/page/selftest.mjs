@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ACTS_FILE, FIXTURES_DIR, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
 import { RECORD_FILE, STAMPED, pushLine, readRecord, recordText, rotation, stampOf } from './record.mjs';
-import { loadHarness, pageConfirmFirst, plan, runStates, verdict } from './run.mjs';
+import { loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
 
 const COPIED = [
   VIEWS_DIR,
@@ -295,6 +295,19 @@ export async function pageCases({ repo, work, report, log }) {
     }
     report(c.name, 'caught', got);
   }
+  const quiet = join(work, 'ui-a-status-change-that-adds-no-say');
+  let said;
+  try {
+    cpSync(join(repo, 'ui', 'app'), join(quiet, 'app'), { recursive: true });
+    writeFileSync(join(quiet, 'app', 'views', 'agents.js'), swap(agents, "      status.appendChild(el('p', null, s));\n", ''));
+    const r = await sayRule(harness, await harness.serve({ ui: quiet, fixtures: fx }), fx, statesOf(fx));
+    said = r.misses.includes('agents:say') ? 'caught' : 'missed';
+  } catch (err) {
+    said = 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
+  }
+  report('a-status-change-that-adds-no-say', 'caught', said);
+  const kept = await sayRule(harness, controlOrigin, fx, statesOf(fx));
+  report('say-control-of-the-unchanged-view', 'pass', kept.read === 1 && kept.misses.length === 0 ? 'pass' : 'fail');
 }
 
 /** The self-test of 40-r4-page: every planted fault is rejected by its rule or check, and the unchanged copies pass. */

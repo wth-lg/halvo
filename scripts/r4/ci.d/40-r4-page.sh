@@ -208,7 +208,9 @@ self_test() {
   printf 'x\n' >"$work/blocker" || fail setup
   fake_node bin-none ''
   fake_node bin-21 v21.7.0
-  mkdir -p "$work/ok-artifacts" "$work/not-a-repo/scripts/r4/ci.d" || fail setup
+  mkdir -p "$work/ok-artifacts" "$work/dirty/ui/app" || fail setup
+  git -C "$work/dirty" init -q >/dev/null 2>&1 || fail setup
+  printf 'x\n' >"$work/dirty/ui/app/untracked.js" || fail setup
   me="$here/$name.sh"
   script_case usage-an-unknown-argument FAIL:usage env CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me" --bogus
   script_case usage-a-second-argument FAIL:usage env CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me" --self-test extra
@@ -218,6 +220,7 @@ self_test() {
   as0="f=\$1; shift; . \"\$f\""
   script_case setup-no-repository-above-the-script FAIL:setup env CI_D_REPO= CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" -c "$as0" "$work/$name.sh" "$me"
   script_case no-node FAIL:node env PATH="$work/bin-none" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me"
+  script_case an-input-that-differs-from-the-commit FAIL:dirty env CI_D_REPO="$work/dirty" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me"
   script_case node-21 FAIL:node env PATH="$work/bin-21:$PATH" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me"
   [ "$wrong" -eq 0 ] || fail cases
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$((k + rejected))"

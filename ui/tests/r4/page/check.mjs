@@ -22,6 +22,14 @@ function count(value) {
   return /^[1-9][0-9]*$/.test(value || '') ? Number(value) : null;
 }
 
+let browserLine = null;
+const write = process.stdout.write.bind(process.stdout);
+process.stdout.write = (chunk, ...more) => {
+  const m = /^browser name=\S+ version=\S+/m.exec(String(chunk));
+  if (m && !browserLine) browserLine = m[0];
+  return write(chunk, ...more);
+};
+
 const lines = [];
 const log = (l) => {
   lines.push(l);
@@ -48,7 +56,7 @@ if (command === 'files') {
   if (command === 'record') {
     const after = stampOf(repo);
     const cause = r.cause || (after.stamp !== before.stamp ? 'dirty' : null);
-    const browser = lines.find((l) => l.startsWith('browser name=')) || null;
+    const browser = browserLine;
     writeFileSync(join(repo, RECORD_FILE), recordText({ ...before, browser, lines: lines.filter((l) => !l.startsWith('browser name=')), cause }));
     console.log('page record written stamp=' + before.stamp + ' files=' + before.files + ' result=' + (cause || 'ok'));
     console.log('check result=' + (cause || 'ok'));
