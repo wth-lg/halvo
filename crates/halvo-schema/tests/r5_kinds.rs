@@ -362,7 +362,11 @@ fn a_value_of_another_field_type_under_each_key_of_an_edit_row_is_refused_by_the
         assert_eq!(row.matches(from).count(), 1, "{from}");
         for value in values {
             let line = row.replacen(from, &to.replacen('@', value, 1), 1);
-            assert!(check_record(edit, &line).is_err(), "{key}: {value}");
+            let error = check_record(edit, &line).expect_err(&format!("{key}: {value}"));
+            assert!(
+                error.starts_with(&format!("learn_edit: {key}: ")),
+                "{key}: {value}: {error}"
+            );
             assert!(LearnEdit::parse(line.as_bytes()).is_err(), "{key}: {value}");
             cases += 1;
         }
