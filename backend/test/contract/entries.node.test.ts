@@ -451,6 +451,7 @@ describe("webhookEvent", () => {
     customerId: "cus_one",
     state: "cancelled",
     period: { start: 1, end: 2 },
+    endedAt: null,
   };
 
   test("ignored makes no step, and a completed event for an object that holds nothing logs completed-no-record", async () => {

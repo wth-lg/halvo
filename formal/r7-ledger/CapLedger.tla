@@ -15,7 +15,7 @@ Ended == {"settled", "voided", "expired"}
 CallKinds == {"reserve", "dispatch", "settle", "void", "expire", "setcap", "capread"}
 
 NoHold == [state |-> "none", amount |-> 0, period |-> 0, interval |-> 0, expiresAt |-> 0,
-           mark |-> FALSE, cost |-> NoCost, overrun |-> 0, late |-> FALSE]
+           mark |-> FALSE, cost |-> NoCost, overrun |-> 0, late |-> FALSE, voidAtExpiry |-> FALSE]
 NoCap == [set |-> FALSE, amount |-> 0, type |-> "none", anchor |-> 0, next |-> "none",
           switchAt |-> NoTime]
 EmptyObject == [lastNow |-> 0, cap |-> NoCap, holds |-> [r \in Ids |-> NoHold],
@@ -47,14 +47,18 @@ SwitchPeriodType(ob, now) ==
 
 ExpireDue(ob, now) ==
     LET due == {r \in Ids : ob.holds[r].state = "open" /\ ob.holds[r].expiresAt <= now}
+        marked == {r \in due : ob.holds[r].mark}
         amount == [r \in Ids |-> ob.holds[r].amount]
     IN IF due = {} THEN ob
        ELSE [ob EXCEPT
-               !.holds = [r \in Ids |-> IF r \in due THEN [ob.holds[r] EXCEPT !.state = "expired"]
+               !.holds = [r \in Ids |-> IF r \in marked THEN [ob.holds[r] EXCEPT !.state = "expired"]
+                                        ELSE IF r \in due THEN [ob.holds[r] EXCEPT !.state = "voided",
+                                                                                   !.voidAtExpiry = TRUE]
                                         ELSE ob.holds[r]],
                !.totals = [p \in DOMAIN ob.totals |->
-                             LET moved == SumOver(amount, {r \in due : ob.holds[r].period = p})
-                             IN [ob.totals[p] EXCEPT !.open = @ - moved, !.unreported = @ + moved]]]
+                             LET ended == SumOver(amount, {r \in due : ob.holds[r].period = p})
+                                 moved == SumOver(amount, {r \in marked : ob.holds[r].period = p})
+                             IN [ob.totals[p] EXCEPT !.open = @ - ended, !.unreported = @ + moved]]]
 
 Pre(ob, given) ==
     LET now == Now(ob, given)
@@ -113,7 +117,7 @@ OwnReserve(p, now, mv) ==
                               !.holds[mv.r] = [state |-> "open", amount |-> mv.amt, period |-> start,
                                                interval |-> IntervalOf(now), expiresAt |-> now + Life,
                                                mark |-> FALSE, cost |-> NoCost, overrun |-> 0,
-                                               late |-> FALSE]],
+                                               late |-> FALSE, voidAtExpiry |-> FALSE]],
                      ans |-> [NoAnswer EXCEPT !.res = "admitted", !.amount = mv.amt,
                                               !.expiresAt = now + Life]]
 
@@ -148,8 +152,8 @@ OwnSettle(p, mv) ==
 OwnVoid(p, mv) ==
     LET h == p.holds[mv.r]
     IN CASE h.state = "none" -> Unchanged(p, Refused("unknown-request"))
-         [] h.state = "voided" -> Unchanged(p, [NoAnswer EXCEPT !.res = "voided"])
-         [] h.state \in {"settled", "expired"} -> Unchanged(p, Refused("already-ended"))
+         [] h.state = "voided" /\ ~h.voidAtExpiry -> Unchanged(p, [NoAnswer EXCEPT !.res = "voided"])
+         [] h.state \in {"settled", "expired"} \/ h.voidAtExpiry -> Unchanged(p, Refused("already-ended"))
          [] h.state = "open" ->
                IF h.mark THEN Unchanged(p, Refused("dispatched"))
                ELSE [o |-> [p EXCEPT !.holds[mv.r].state = "voided",
@@ -162,6 +166,8 @@ OwnExpire(ob, p, mv) ==
     IN Unchanged(p, IF h.state = "none" THEN Refused("unknown-request")
                     ELSE IF before.state = "open" /\ h.state = "expired"
                     THEN [NoAnswer EXCEPT !.res = "expired"]
+                    ELSE IF before.state = "open" /\ h.voidAtExpiry
+                    THEN [NoAnswer EXCEPT !.res = "voided"]
                     ELSE IF h.state = "open" THEN Refused("not-due")
                     ELSE Refused("already-ended"))
 
@@ -283,7 +289,7 @@ HoldInView(h) ==
       [] h.state = "open" -> <<"open", h.amount, h.mark, FromNow(h.expiresAt),
                                h.period = PeriodOfTheNextStep, h.cost, h.late, h.overrun,
                                h.interval = IntervalOf(TimeOfTheNextStep)>>
-      [] OTHER -> <<h.state, h.amount, h.mark, h.cost, h.late, h.overrun>>
+      [] OTHER -> <<h.state, h.amount, h.mark, h.cost, h.late, h.overrun, h.voidAtExpiry>>
 CapInView ==
     IF ~o.cap.set THEN <<"none">>
     ELSE <<CapOfTheNextStep.amount, CapOfTheNextStep.type, TimeOfTheNextStep - PeriodOfTheNextStep,
@@ -310,6 +316,8 @@ HoldOK(h) ==
     /\ h.cost \in Costs \cup {NoCost}
     /\ h.overrun \in Nat
     /\ h.late \in BOOLEAN
+    /\ h.voidAtExpiry \in BOOLEAN
+    /\ h.voidAtExpiry => h.state = "voided" /\ ~h.mark
     /\ h.state = "none" => h = NoHold
 
 TypeOK ==
@@ -363,7 +371,7 @@ AnAdmissionWithinTheCapInForce(p) ==
     /\ Mv.k = "reserve"
     /\ Ans.res = "admitted"
     /\ o'.holds[Mv.r].period = p
-    /\ CountedIn(Row(o', p)) - CountedIn(Row(o, p)) = Mv.amt
+    /\ CountedIn(Row(o', p)) - CountedIn(Row(Pre(o, clock), p)) = Mv.amt
     /\ CountedIn(Row(o', p)) <= CapInForce
 ARecordedOverrun(p) ==
     /\ Mv.k = "settle"
@@ -371,7 +379,7 @@ ARecordedOverrun(p) ==
     /\ ~Ans.repeat
     /\ o'.holds[Mv.r].period = p
     /\ o'.holds[Mv.r].overrun > 0
-    /\ CountedIn(Row(o', p)) - CountedIn(Row(o, p)) = o'.holds[Mv.r].overrun
+    /\ CountedIn(Row(o', p)) - CountedIn(Row(Pre(o, clock), p)) = o'.holds[Mv.r].overrun
 CountedSpendRisesOnlyAtAnAdmissionOrByARecordedOverrun ==
     SomeTotalChanged =>
         \A p \in DOMAIN o'.totals :
@@ -388,11 +396,14 @@ NoOpenHoldIsDueAfterAStepOfTheLedger ==
     IsACall => \A r \in OpenIds(o') : o'.holds[r].expiresAt > StepTime
 TheDueTimeIsAtOrBeforeTheEarliestExpiry ==
     \A r \in OpenIds(o) : o.alarm # NoTime /\ o.alarm <= o.holds[r].expiresAt
+EndedByExpiry(h) == h.state = "expired" \/ h.voidAtExpiry
 NoHoldEndsByExpiryBeforeItsExpiry ==
     \A r \in Ids :
-        o.holds[r].state = "open" /\ o'.holds[r].state = "expired" => o.holds[r].expiresAt <= StepTime
+        o.holds[r].state = "open" /\ EndedByExpiry(o'.holds[r]) => o.holds[r].expiresAt <= StepTime
+TheStoredExpiryIsTheReceipts ==
+    Mv.k = "reserve" /\ Ans.res \in {"admitted", "repeat"} => o'.holds[Mv.r].expiresAt = Ans.expiresAt
 StateB == TheDueTimeIsAtOrBeforeTheEarliestExpiry
-StepB == [][NoOpenHoldIsDueAfterAStepOfTheLedger /\ NoHoldEndsByExpiryBeforeItsExpiry]_vars
+StepB == [][NoOpenHoldIsDueAfterAStepOfTheLedger /\ NoHoldEndsByExpiryBeforeItsExpiry /\ TheStoredExpiryIsTheReceipts]_vars
 PropB == []StateB /\ StepB
 
 AnEndedHoldKeepsItsEnd ==
@@ -420,8 +431,8 @@ IsARepeat(h) ==
     \/ Mv.k = "reserve" /\ h.state # "none"
     \/ Mv.k = "dispatch" /\ h.mark
     \/ Mv.k = "settle" /\ (h.state = "settled" \/ (h.state = "expired" /\ h.late))
-    \/ Mv.k = "void" /\ h.state = "voided"
-    \/ Mv.k = "expire" /\ o.holds[Mv.r].state = "expired"
+    \/ Mv.k = "void" /\ h.state = "voided" /\ ~h.voidAtExpiry
+    \/ Mv.k = "expire" /\ EndedByExpiry(o.holds[Mv.r])
 ARepeatChangesNoTotalAndNoHoldState(p) ==
     IsARepeat(p.holds[Mv.r]) => NothingChangedInTheCallsOwnWork(p)
 TheSameCallAgainAtOnceChangesNothing ==
@@ -438,6 +449,9 @@ ACallAfterTheEndChangesNothingButTheOverrunThatSettleRecords(p) ==
           IF Mv.k = "settle" /\ h.state = "expired" /\ ~h.late
           THEN NothingChangedButTheLateCostAndItsOverrun(p)
           ELSE NothingChangedInTheCallsOwnWork(p)
+ASettleOrAVoidOfAHoldVoidedAtItsExpiryIsAlreadyEnded(p) ==
+    Mv.k \in {"settle", "void"} /\ p.holds[Mv.r].voidAtExpiry =>
+        Ans.res = "refused" /\ Ans.reason = "already-ended"
 InEveryCallD ==
     IsACall =>
         LET p == Pre(o, clock)
@@ -445,6 +459,7 @@ InEveryCallD ==
            /\ NamesAHold => /\ ARepeatChangesNoTotalAndNoHoldState(p)
                             /\ ACallBeforeItsReserveIsRefused(p)
                             /\ ACallAfterTheEndChangesNothingButTheOverrunThatSettleRecords(p)
+                            /\ ASettleOrAVoidOfAHoldVoidedAtItsExpiryIsAlreadyEnded(p)
 StepD == [][InEveryCallD]_vars
 PropD == StepD
 
@@ -499,8 +514,18 @@ ASettledHoldCarriesTheCostOfItsFirstSettle ==
     /\ SomeHoldChanged =>
           \A r \in Ids : o.holds[r].state = "settled" =>
               o'.holds[r].cost = o.holds[r].cost /\ o'.holds[r].overrun = o.holds[r].overrun
-StateF == EveryTotalIsWhatItsHoldsAdd
-StepF == [][ATotalChangesOnlyByWhatAHoldAdds /\ ASettledHoldCarriesTheCostOfItsFirstSettle]_vars
+AnExpiredHoldCarriesTheMark ==
+    \A r \in Ids : o.holds[r].state = "expired" => o.holds[r].mark
+AHoldEndsAtItsExpiryAsItsMarkSays ==
+    \A r \in Ids :
+        o.holds[r].state = "open" /\ o'.holds[r].state # "open" =>
+            IF o.holds[r].expiresAt <= StepTime
+            THEN /\ o'.holds[r].state = (IF o.holds[r].mark THEN "expired" ELSE "voided")
+                 /\ o'.holds[r].voidAtExpiry = ~o.holds[r].mark
+            ELSE ~o'.holds[r].voidAtExpiry
+StateF == EveryTotalIsWhatItsHoldsAdd /\ AnExpiredHoldCarriesTheMark
+StepF == [][ATotalChangesOnlyByWhatAHoldAdds /\ ASettledHoldCarriesTheCostOfItsFirstSettle
+            /\ AHoldEndsAtItsExpiryAsItsMarkSays]_vars
 PropF == []StateF /\ StepF
 
 ADispatchHappensOnlyUnderAnOpenHold ==
@@ -559,7 +584,7 @@ HoldOfLast == o.holds[last.mv.r]
 ReachDuplicateReserve == last.mv.k = "reserve" /\ last.ans.res = "repeat"
 ReachDuplicateDispatch == last.mv.k = "dispatch" /\ last.ans.res = "stop" /\ last.was = "open"
 ReachDuplicateSettle == last.mv.k = "settle" /\ last.ans.res = "settled" /\ last.ans.repeat
-ReachDuplicateVoid == last.mv.k = "void" /\ last.was = "voided"
+ReachDuplicateVoid == last.mv.k = "void" /\ last.was = "voided" /\ last.ans.res = "voided"
 ReachDuplicateExpire == last.mv.k = "expire" /\ last.ans.reason = "already-ended"
                         /\ last.mv.r \in hist.expired
 ReachSettleBeforeItsReserve == \E r \in hist.early : Has(o, r)
@@ -586,6 +611,9 @@ ReachRefusedReserveAdmittedWhenSentAgain ==
     /\ <<last.mv.r, last.mv.amt>> \in hist.refused
 ReachLateOverrunInNoTotal ==
     \E r \in Ids : o.holds[r].state = "expired" /\ o.holds[r].late /\ o.holds[r].overrun > 0
+ReachVoidAtExpiry == \E r \in Ids : o.holds[r].voidAtExpiry
+ReachCallAfterAVoidAtExpiry ==
+    last.mv.k \in {"settle", "void"} /\ last.ans.reason = "already-ended" /\ HoldOfLast.voidAtExpiry
 
 NoLateOverrunInNoTotal == ~ReachLateOverrunInNoTotal
 NoDuplicateReserve == ~ReachDuplicateReserve
@@ -604,4 +632,6 @@ NoGatewayCrashAfterDispatch == ~ReachGatewayCrashAfterDispatch
 NoVoidRefusedForADispatchedHold == ~ReachVoidRefusedForADispatchedHold
 NoOpenHoldPastItsExpiryAfterARestart == ~ReachOpenHoldPastItsExpiryAfterARestart
 NoRefusedReserveAdmittedWhenSentAgain == ~ReachRefusedReserveAdmittedWhenSentAgain
+NoVoidAtExpiry == ~ReachVoidAtExpiry
+NoCallAfterAVoidAtExpiry == ~ReachCallAfterAVoidAtExpiry
 =============================================================================

@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, AddOrigin, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun, Finish, Load,
-    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutEffect,
+    Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
+    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReply, LoadSession, LoadSteps,
+    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, PutCheckpoint, PutEffect,
     PutLog, PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
     SetState, StartRun, StateReply, StepsReply, Stored,
 };
@@ -18,12 +19,12 @@ use halvo_schema::executable::frame::{
     Store, StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::*;
-use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentRun, Slot};
+use halvo_schema::executable::record::{AgentCheckpoint, AgentEffect, AgentLog, AgentRun, Slot};
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, OwnText, OwnValue, RunId,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue, RunId,
     SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
@@ -33,12 +34,13 @@ use halvo_schema::{AgentId, RequestId, WorkflowId};
 
 const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
 
-const FILES: [&str; 11] = [
+const FILES: [&str; 12] = [
     "configs.jsonl",
     "runs.jsonl",
     "playbook.jsonl",
     "bounds.jsonl",
     "effects.jsonl",
+    "checkpoints.jsonl",
     "runner-bodies.jsonl",
     "coordinator-bodies.jsonl",
     "runner-replies.jsonl",
@@ -592,6 +594,57 @@ fn effect_row(
     }
 }
 
+fn checkpoint_row(seq: u32, state: CheckpointState, left: Option<LeftReason>) -> AgentCheckpoint {
+    let copy = state != CheckpointState::Planned && left != Some(LeftReason::Changed);
+    AgentCheckpoint {
+        v: V1,
+        workflow: workflow(),
+        agent: agent(),
+        run: run(),
+        seq: n(seq),
+        day: 20768,
+        at: Instant(1_794_339_000_000_000_000 + i64::from(seq)),
+        folder: OwnValue::new("/data/books"),
+        workbook: OwnValue::new("/data/books/bills.xlsx"),
+        copy: OwnValue::new(&format!("bills.halvo-checkpoint-{}.xlsx", run().as_str())),
+        sha256: copy.then(|| digest('b')),
+        bytes: copy.then_some(18_432),
+        state,
+        left,
+    }
+}
+
+fn checkpoints() -> Vec<AgentCheckpoint> {
+    vec![
+        checkpoint_row(1, CheckpointState::Planned, None),
+        checkpoint_row(2, CheckpointState::Made, None),
+        checkpoint_row(3, CheckpointState::Gone, None),
+        checkpoint_row(3, CheckpointState::Left, Some(LeftReason::Link)),
+        checkpoint_row(2, CheckpointState::Left, Some(LeftReason::Changed)),
+    ]
+}
+
+fn listed_checkpoint(state: ListedState, effect: Option<EffectState>) -> ListedCheckpoint {
+    let row = checkpoint_row(1, CheckpointState::Planned, None);
+    let made = state == ListedState::Made;
+    let book = if made { "rent" } else { "bills" };
+    ListedCheckpoint {
+        workflow: row.workflow,
+        agent: row.agent,
+        run: row.run,
+        folder: row.folder,
+        workbook: OwnValue::new(&format!("/data/books/{book}.xlsx")),
+        copy: OwnValue::new(&format!("{book}.halvo-checkpoint-{}.xlsx", run().as_str())),
+        state,
+        sha256: made.then(|| digest('b')),
+        bytes: made.then_some(18_432),
+        at: row.at,
+        ended: if made { YesNo::Yes } else { YesNo::No },
+        effect,
+        superseded: YesNo::No,
+    }
+}
+
 fn effects() -> Vec<AgentEffect> {
     let mut send = effect_row(1, EffectState::Held, None, None);
     send.effect = effect_id(0x61);
@@ -695,6 +748,16 @@ fn runner_bodies() -> Vec<RunnerCall> {
             run: run(),
             record: runs().remove(0),
         }),
+        RunnerCall::Checkpoint(PutCheckpoint {
+            agent: agent(),
+            run: run(),
+            record: checkpoint_row(1, CheckpointState::Planned, None),
+        }),
+        RunnerCall::Checkpoint(PutCheckpoint {
+            agent: agent(),
+            run: run(),
+            record: checkpoint_row(2, CheckpointState::Made, None),
+        }),
     ]
 }
 
@@ -746,6 +809,32 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             origin: origin(PAY),
             way: Way::NewOrigin,
         }),
+        CoordinatorCall::ListCheckpoints(ListCheckpoints {
+            workflow: Null,
+            agent: Null,
+            after: None,
+        }),
+        CoordinatorCall::ListCheckpoints(ListCheckpoints {
+            workflow: Null,
+            agent: Null,
+            after: Some(run()),
+        }),
+        CoordinatorCall::MarkCheckpoint(MarkCheckpoint {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            workbook: OwnValue::new("/data/books/bills.xlsx"),
+            state: MarkState::Gone,
+            left: None,
+        }),
+        CoordinatorCall::MarkCheckpoint(MarkCheckpoint {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            workbook: OwnValue::new("/data/books/bills.xlsx"),
+            state: MarkState::Left,
+            left: Some(LeftReason::NotFile),
+        }),
     ]
 }
 
@@ -789,6 +878,18 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             state: AgentState::Paused,
         }),
         CoordinatorReply::Accepted(Accepted {}),
+        CoordinatorReply::Checkpoints(CheckpointsReply {
+            checkpoints: vec![
+                listed_checkpoint(ListedState::Planned, None),
+                listed_checkpoint(ListedState::Made, Some(EffectState::Committed)),
+            ],
+            next: Some(run()),
+        }),
+        CoordinatorReply::Checkpoints(CheckpointsReply {
+            checkpoints: vec![],
+            next: None,
+        }),
+        CoordinatorReply::Stored(Stored { stored: 1 }),
     ]
 }
 
@@ -900,7 +1001,9 @@ fn to_runner() -> Vec<ToRunner> {
                 secret: Some(name("fixture_token")),
             },
         }),
-        ToRunner::SecretReply(SecretReply::Stored(SecretText::new("tok_fixture"))),
+        ToRunner::SecretReply(SecretReply::Stored(
+            SecretText::parse("tok_fixture").unwrap(),
+        )),
         ToRunner::SecretReply(SecretReply::None),
         ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Locked)),
         ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault)),
@@ -925,6 +1028,7 @@ fn built(file: &str) -> String {
         "playbook.jsonl" => Playbook::new(steps()).unwrap().to_file().unwrap(),
         "bounds.jsonl" => lines(&bounds(), |v| v.to_json().unwrap()),
         "effects.jsonl" => lines(&effects(), |v| v.to_json().unwrap()),
+        "checkpoints.jsonl" => lines(&checkpoints(), |v| v.to_json().unwrap()),
         "runner-bodies.jsonl" => lines(&runner_bodies(), |v| v.to_json().unwrap()),
         "coordinator-bodies.jsonl" => lines(&coordinator_bodies(), |v| v.to_json().unwrap()),
         "runner-replies.jsonl" => lines(&runner_replies(), |v| v.to_json().unwrap()),
@@ -943,6 +1047,7 @@ fn reread(file: &str, line: &str) -> String {
         "playbook.jsonl" => ExecutableStep::parse(b).and_then(|v| v.to_json()),
         "bounds.jsonl" => Bound::parse(b).and_then(|v| v.to_json()),
         "effects.jsonl" => AgentEffect::parse(b).and_then(|v| v.to_json()),
+        "checkpoints.jsonl" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
         "runner-bodies.jsonl" => RunnerCall::parse(b).and_then(|v| v.to_json()),
         "coordinator-bodies.jsonl" => CoordinatorCall::parse(b).and_then(|v| v.to_json()),
         "runner-replies.jsonl" => RunnerReply::parse(b).and_then(|v| v.to_json()),
@@ -1025,6 +1130,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         "runs.jsonl",
         "playbook.jsonl",
         "effects.jsonl",
+        "checkpoints.jsonl",
         "runner-bodies.jsonl",
         "coordinator-bodies.jsonl",
         "runner-replies.jsonl",
@@ -1035,13 +1141,11 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         }
     }
     let mut derived: BTreeSet<String> = keys;
-    let lists: Vec<&[&str]> = vec![
-        &["agent_config", "agent_run", "agent"],
-        &["yes", "no", "reply_body"],
-    ];
-    for list in lists {
-        derived.extend(list.iter().map(|s| (*s).to_owned()));
+    for kind in executable::KINDS {
+        derived.insert(kind.name.to_owned());
+        derived.insert(kind.family.to_owned());
     }
+    derived.extend(["yes", "no", "reply_body"].map(str::to_owned));
     macro_rules! all {
         ($($t:ty),+) => {
             $( derived.extend(<$t>::ALL.iter().map(|v| v.as_str().to_owned())); )+
@@ -1069,7 +1173,11 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         ApiOp,
         Source,
         Check,
-        Way
+        Way,
+        CheckpointState,
+        ListedState,
+        MarkState,
+        LeftReason
     );
     for class in ActionClass::ALL {
         derived.extend(
@@ -1098,7 +1206,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 2);
+    assert_eq!(executable::KINDS.len(), 8);
 }
 
 #[test]
