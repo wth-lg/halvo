@@ -4,5 +4,6 @@
 #[cfg(test)]
 mod child;
 pub mod peer;
+pub mod pipe;
 pub mod procs;
 pub mod start;
