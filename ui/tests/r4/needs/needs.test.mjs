@@ -1002,33 +1002,130 @@ async function region(origin, dir) {
   return faults;
 }
 
+const cp = (...codes) => String.fromCodePoint(...codes);
+const xs = (n) => 'x'.repeat(n);
+
+async function typedFacts(h, name) {
+  return h.page.evaluate((n) => {
+    const t = document.querySelector('[data-act="typed"][data-param="' + n + '"]');
+    const id = t.getAttribute('aria-describedby');
+    const note = id ? document.getElementById(id) : null;
+    const after = t.nextSibling;
+    return {
+      value: t.value,
+      caret: [t.selectionStart, t.selectionEnd],
+      described: id !== null,
+      note: note ? note.textContent : null,
+      noteNodes: note ? [...note.childNodes].filter((c) => c.nodeType === 3).length : 0,
+      noteAfterLine: Boolean(note && after === note),
+      notes: t.parentNode.querySelectorAll('.hn-full').length,
+    };
+  }, name);
+}
+
 async function bound(origin, dir) {
   const faults = [];
   const item = stateFile(dir, 'setup_three').snapshot.items[0];
   const p = item.params.find((x) => x.typed === 'yes');
-  const cases = [
-    ['bytes_1024', 'é'.repeat(512), 'é'.repeat(512)],
-    ['bytes_1025', 'é'.repeat(512) + 'a', 'é'.repeat(512)],
-    ['three_byte_edge', 'a'.repeat(1023) + '€', 'a'.repeat(1023)],
-    ['four_byte_letters', '𝄞'.repeat(257), '𝄞'.repeat(256)],
-    ['combining_accent', 'a'.repeat(1022) + 'é', 'a'.repeat(1022)],
-    ['joined_emoji', 'a'.repeat(1016) + '\u{1F469}‍\u{1F4BB}', 'a'.repeat(1016)],
-    ['flag', 'a'.repeat(1020) + '\u{1F1EB}\u{1F1F7}', 'a'.repeat(1020)],
-    ['emoji_with_its_variation', 'a'.repeat(1021) + '❤️', 'a'.repeat(1021)],
+  const line = '[data-act="typed"][data-param="' + p.name + '"]';
+  const sentOf = async (h, out) => {
+    await act(h, { act: 'choose', param: item.item });
+    const c = callsOf(out).find((x) => x.call === 'agents_setup_typed');
+    return c ? c.args.text : null;
+  };
+  const shows = (tag, f, want) => {
+    const ok = want
+      ? f.described && f.note === p.full && f.noteNodes === 1 && f.noteAfterLine && f.notes === 1
+      : !f.described && f.note === null && f.notes === 0;
+    if (!ok) faults.push(tag + ':sentence=' + JSON.stringify({ described: f.described, note: f.note !== null, notes: f.notes }));
+  };
+  const once = [
+    ['one_input_of_1024_bytes', cp(0xe9).repeat(512), true],
+    ['one_input_of_1025_bytes', cp(0xe9).repeat(512) + 'a', false],
+    ['one_input_ending_in_a_three_byte_letter', 'a'.repeat(1023) + cp(0x20ac), false],
+    ['one_input_of_four_byte_letters', cp(0x1d11e).repeat(257), false],
+    ['one_input_ending_in_a_combining_accent', 'a'.repeat(1022) + 'e' + cp(0x301), false],
+    ['one_input_ending_in_a_joined_emoji', 'a'.repeat(1016) + cp(0x1f469, 0x200d, 0x1f4bb), false],
+    ['one_input_ending_in_a_flag', 'a'.repeat(1020) + cp(0x1f1eb, 0x1f1f7), false],
+    ['one_input_ending_in_an_emoji_with_its_variation', 'a'.repeat(1021) + cp(0x2764, 0xfe0f), false],
   ];
-  for (const [tag, typed, sent] of cases) {
+  for (const [tag, text, fits] of once) {
     const out = outDir();
     const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
     try {
-      await h.page.locator('[data-act="typed"][data-param="' + p.name + '"]').fill(typed);
-      const held = await h.page.locator('[data-act="typed"][data-param="' + p.name + '"]').inputValue();
-      if (held !== sent) faults.push(tag + ':input_holds=' + Buffer.byteLength(held));
-      await act(h, { act: 'choose', param: item.item });
-      const c = callsOf(out).find((x) => x.call === 'agents_setup_typed');
-      if (!c || c.args.text !== sent) faults.push(tag + ':sent=' + (c ? Buffer.byteLength(c.args.text) : 'none'));
+      await h.page.locator(line).fill(text);
+      const f = await typedFacts(h, p.name);
+      const want = fits ? text : '';
+      if (f.value !== want) faults.push(tag + ':line_holds=' + Buffer.byteLength(f.value));
+      shows(tag, f, !fits);
+      const sent = await sentOf(h, out);
+      if (fits ? sent !== text : sent !== null) faults.push(tag + ':sent=' + (sent === null ? 'none' : Buffer.byteLength(sent)));
     } finally {
       await h.close();
     }
+  }
+  const keyed = [
+    ['hole_a_three_byte_letter_before_two_letters', xs(1022), cp(0x20ac) + 'ab', xs(1022)],
+    ['hole_a_flag_before_four_digits', xs(1020), cp(0x1f1eb, 0x1f1f7) + '1234', xs(1020) + cp(0x1f1eb)],
+    ['hole_a_thai_letter_with_its_vowel_and_tone_marks', xs(1022), cp(0xe01, 0xe34, 0xe48), xs(1022)],
+    ['hole_a_hangul_syllable_as_three_jamo', xs(1020), cp(0x1112, 0x1161, 0x11ab), xs(1020) + cp(0x1112)],
+    ['a_two_byte_letter_across_the_bound_counts_two_bytes', xs(1023), cp(0xe9) + 'a', xs(1023)],
+    ['a_two_byte_letter_up_to_the_bound_fits', xs(1022), cp(0xe9), xs(1022) + cp(0xe9)],
+  ];
+  for (const [tag, start, typed, want] of keyed) {
+    const out = outDir();
+    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    try {
+      await h.page.locator(line).fill(start);
+      await h.page.locator(line).pressSequentially(typed);
+      await settled(h);
+      const f = await typedFacts(h, p.name);
+      if (f.value !== want) faults.push(tag + ':line_ends_in=' + [...f.value.slice(-4)].map((c) => c.codePointAt(0).toString(16)).join('.'));
+      if (!(start + typed).startsWith(f.value)) faults.push(tag + ':not_a_start_of_what_was_typed');
+      shows(tag, f, want !== start + typed);
+      const sent = await sentOf(h, out);
+      if (sent !== want) faults.push(tag + ':sent=' + (sent === null ? 'none' : Buffer.byteLength(sent)));
+    } finally {
+      await h.close();
+    }
+  }
+  const out = outDir();
+  const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+  const tag = 'typed_key_by_key_to_the_bound';
+  try {
+    await act(h, { act: 'typed', param: p.name, text: xs(1022) + cp(0x20ac) + 'ab' });
+    const f = await typedFacts(h, p.name);
+    if (f.value !== xs(1022)) faults.push(tag + ':line_holds=' + Buffer.byteLength(f.value));
+    shows(tag, f, true);
+  } finally {
+    await h.close();
+  }
+  const m = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+  const mid = 'a_letter_put_into_the_middle_of_a_full_line';
+  try {
+    const full = 'a'.repeat(500) + 'b'.repeat(524);
+    await m.page.locator(line).fill(full);
+    await m.page.locator(line).evaluate((t) => t.setSelectionRange(500, 500));
+    await m.page.locator(line).pressSequentially('z');
+    let f = await typedFacts(m, p.name);
+    if (f.value !== full) faults.push(mid + ':line_ends_in=' + f.value.slice(-2) + ':bytes=' + Buffer.byteLength(f.value));
+    if (JSON.stringify(f.caret) !== '[500,500]') faults.push(mid + ':caret=' + f.caret.join('-'));
+    shows(mid, f, true);
+    await m.page.locator(line).evaluate((t) => t.setSelectionRange(500, 510));
+    await m.page.locator(line).pressSequentially('z');
+    f = await typedFacts(m, p.name);
+    if (f.value !== full) faults.push(mid + ':a_letter_over_a_selection_at_the_bound');
+    if (JSON.stringify(f.caret) !== '[500,510]') faults.push(mid + ':selection=' + f.caret.join('-'));
+    await m.page.keyboard.press('Backspace');
+    f = await typedFacts(m, p.name);
+    if (f.value !== 'a'.repeat(500) + 'b'.repeat(514)) faults.push(mid + ':removal_not_taken');
+    shows(mid + '_after_a_removal', f, false);
+    await m.page.locator(line).pressSequentially('zz');
+    f = await typedFacts(m, p.name);
+    if (f.value !== 'a'.repeat(500) + 'zz' + 'b'.repeat(514)) faults.push(mid + ':a_letter_after_a_removal_not_taken');
+    shows(mid + '_after_a_letter', f, false);
+  } finally {
+    await m.close();
   }
   return faults;
 }

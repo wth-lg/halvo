@@ -51,8 +51,6 @@
     return node;
   }
 
-  const letters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
   function bytes(text) {
     let size = 0;
     for (const ch of text) {
@@ -62,15 +60,42 @@
     return size;
   }
 
-  function bounded(text) {
-    let size = 0;
-    let out = '';
-    for (const part of letters.segment(text)) {
-      size += bytes(part.segment);
-      if (size > 1024) break;
-      out += part.segment;
-    }
-    return out;
+  function changed(before, after) {
+    let start = 0;
+    while (start < before.length && start < after.length && before[start] === after[start]) start += 1;
+    let end = 0;
+    while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end += 1;
+    return { start: start, gone: before.length - start - end, added: after.length - start - end };
+  }
+
+  function limit(typed, full) {
+    let kept = '';
+    let atBound = false;
+    let note = null;
+    typed.addEventListener('input', function () {
+      const now = typed.value;
+      const change = changed(kept, now);
+      if (change.gone === 0 && change.added === 0) return;
+      if (bytes(now) > 1024 || (atBound && change.added > 0)) {
+        typed.value = kept;
+        typed.setSelectionRange(change.start, change.start + change.gone);
+        atBound = true;
+        if (!note && full) {
+          note = el('p', 'hn-full', full);
+          note.id = fresh();
+          typed.parentNode.insertBefore(note, typed.nextSibling);
+          typed.setAttribute('aria-describedby', note.id);
+        }
+        return;
+      }
+      kept = now;
+      atBound = false;
+      if (note) {
+        note.remove();
+        note = null;
+        typed.removeAttribute('aria-describedby');
+      }
+    });
   }
 
   function pieces(tag, cls, value) {
@@ -141,11 +166,8 @@
         typed.setAttribute('data-act', 'typed');
         typed.setAttribute('data-param', p.name);
         typed.setAttribute('aria-labelledby', legend.id);
-        typed.addEventListener('input', function () {
-          const kept = bounded(typed.value);
-          if (kept !== typed.value) typed.value = kept;
-        });
         set.appendChild(typed);
+        limit(typed, p.full);
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed });
@@ -161,7 +183,7 @@
       if (picked) {
         calls.push(['agents_answer', { item: item.item, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.typed && a.typed.value.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: bounded(a.typed.value) }]);
+        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.typed.value }]);
       }
     });
     return calls;
