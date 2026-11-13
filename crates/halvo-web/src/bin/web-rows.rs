@@ -757,6 +757,12 @@ async fn ws_allowed(argv: &[String]) -> (usize, usize) {
     };
     let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
     let machine = if cfg!(windows) { "windows" } else { "macos" };
+    // The listener's counts start at none for each browser (run 43480096367: Edge read the
+    // control that Chrome's run had counted already).
+    if fixture_json(port, "GET", "/reset").is_none() {
+        println!("row ws_allowed machine={machine} browser={kind} result=notrun cause=listener");
+        return (0, 1);
+    }
     let control = own_handshake(port)
         && fixture_json(port, "GET", "/count")
             .is_some_and(|c| c["ws"]["control"].as_i64() == Some(1));

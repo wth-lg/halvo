@@ -12,7 +12,7 @@ about:blank frame, a frame from a data: address and a worker from a blob: addres
 opens a WebSocket to /ws, fetches /f, reports on /r whether data: and blob: fetches work, and
 reports on /e when its WebSocket failed before it opened. The listener counts the handshakes on
 /ws, the fetches, the reports and the failures of each context, and answers GET /count with them
-as JSON. It prints one line "listening 127.0.0.1:<port>" and stops at the end of its standard
+as JSON; GET /reset sets every count to none. It prints one line "listening 127.0.0.1:<port>" and stops at the end of its standard
 input, on TERM or on INT. Exit 0 when it stopped, 2 for a refusal: one line
 REFUSED <usage|port>: <detail> on standard error.
 `);
@@ -86,6 +86,11 @@ const http = createServer((req, res) => {
     if (q.get('data') === 'ok' && q.get('blob') === 'ok') bump(counts.r, ctxOf(req.url));
     res.writeHead(204, none);
     return res.end();
+  }
+  if (path === '/reset') {
+    for (const map of Object.values(counts)) for (const k of Object.keys(map)) delete map[k];
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end('{}');
   }
   if (path === '/count') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
