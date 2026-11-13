@@ -142,7 +142,7 @@ function startServer(dir, args, { input = 'pipe', startMs = 15000, throughShellP
 
 function stopServer(s) {
   return new Promise((resolve) => {
-    if (!s.child || s.child.exitCode !== null) return resolve();
+    if (!s.child || s.child.exitCode !== null || s.child.signalCode !== null) return resolve();
     s.child.on('exit', () => resolve());
     s.child.kill();
   });
@@ -340,6 +340,21 @@ async function lifetimeCases() {
       } finally {
         await endParent(h);
       }
+    }
+  });
+
+  await run('stop-server-after-a-signal', async (c) => {
+    const s = await startServer(HERE, ['--port', '0']);
+    try {
+      if (!c.ok(s.child !== null, 'server_started')) return;
+      s.child.kill('SIGKILL');
+      c.ok((await exitWithin(s.child, GONE_MS)) !== null, 'server_ended_by_sigkill');
+      let timer;
+      const stopped = await Promise.race([stopServer(s).then(() => true), new Promise((resolve) => (timer = setTimeout(() => resolve(false), 1000)))]);
+      clearTimeout(timer);
+      c.ok(stopped, 'stop_server_returns_within_1s');
+    } finally {
+      if (s.child !== null && alive(s.child.pid)) process.kill(s.child.pid, 'SIGKILL');
     }
   });
 }
