@@ -55,16 +55,28 @@ env_of() {
   node -p 'Object.entries(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).env ?? {}).map(([k, v]) => k + "=" + v).join("\n")' "$1"
 }
 
-in_the_copy() {
-  (
-    if [ -n "$fixture_env" ]; then
-      while IFS= read -r pair; do
-        export "${pair?}"
-      done <<EOF
+with_fixture_env() {
+  unset OUTBOUND_RUN HALVO_METERING_PLAN
+  if [ -n "$fixture_env" ]; then
+    while IFS= read -r pair; do
+      export "${pair?}"
+    done <<EOF
 $fixture_env
 EOF
-    fi
+  fi
+}
+
+in_the_copy() {
+  (
+    with_fixture_env
     exec env -u STACK_PORT_OFFSET -u STACK_STATE -u HALVO_ROOT "$@"
+  )
+}
+
+in_the_root() {
+  (
+    with_fixture_env
+    check_in "$@"
   )
 }
 
@@ -77,7 +89,7 @@ expect() {
   ran=$((ran + 1))
   prefix=
   if [ "$dir" = "$ROOT" ]; then
-    check_in "$dir" "$@" > "$log" 2>&1
+    in_the_root "$dir" "$@" > "$log" 2>&1
   elif [ "$kind" = checkout ]; then
     kind=bad
     in_the_copy "HALVO_ROOT=$dir" "GATE_STATE=$STATE" node "$dir/test-kit/fake-meter/rerun/check.mjs" "$@" > "$log" 2>&1
@@ -145,13 +157,17 @@ for good in "$FIXTURES"/good-*.json; do
   [ -f "$good" ] || continue
   fixture=$(basename "$good" .json)
   [ -z "${METERING_SELF_TEST_ONLY:-}" ] || [ "$fixture" = "$METERING_SELF_TEST_ONLY" ] || continue
+  want=$(node -p '[JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).line ?? []].flat().join("\n")' "$good")
+  fixture_env=$(env_of "$good")
   set --
   for arg in $(node -p '(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).args ?? []).map((a) => a === "" ? "-" : a).join("\n")' "$good"); do
     [ "$arg" = - ] && arg=
     set -- "$@" "$arg"
   done
   expect good "$fixture" "$ROOT" "$@" || failed=1
+  fixture_env=
 done
+want=
 for mutant in "$FIXTURES"/bad-*.json; do
   [ -f "$mutant" ] || continue
   fixture=$(basename "$mutant" .json)

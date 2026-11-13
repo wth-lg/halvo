@@ -11,6 +11,8 @@ const SEEDS = [1, 2, 3, 4, 5];
 const ORDERINGS = 20000;
 const SETTINGS = 38;
 const WORKERS = 4;
+const BOUNDED_SEEDS = [1];
+const BOUNDED_ORDERINGS = 100;
 const TEST_SECONDS = 600;
 const MEMORY_SETTING = 25;
 const MEMORY_ROUNDS = 4;
@@ -57,14 +59,24 @@ const option = (name) => {
   return at === -1 ? undefined : args[at + 1];
 };
 const list = (text) => text.split(",").filter((each) => each !== "").map(Number);
-const seeds = option("--seeds") === undefined ? SEEDS : list(option("--seeds"));
-const orderings = Number(option("--orderings") ?? ORDERINGS);
+const planVariable = process.env.HALVO_METERING_PLAN;
+let planKind = "whole";
+let planRefusal = null;
+if (planVariable === "bounded") {
+  if (process.env.OUTBOUND_RUN) planKind = "bounded";
+  else planRefusal = "HALVO_METERING_PLAN=bounded is refused outside the sandbox's run of check 90: OUTBOUND_RUN is not set";
+} else if (planVariable !== undefined) {
+  planRefusal = `HALVO_METERING_PLAN=${planVariable} is refused: the variable is bounded or unset`;
+}
+const seeds = option("--seeds") === undefined ? (planKind === "bounded" ? BOUNDED_SEEDS : SEEDS) : list(option("--seeds"));
+const orderings = Number(option("--orderings") ?? (planKind === "bounded" ? BOUNDED_ORDERINGS : ORDERINGS));
 const settings = option("--settings") === undefined ? Array.from({ length: SETTINGS }, (_, index) => index) : list(option("--settings"));
 const workers = Math.max(1, Math.min(WORKERS, Number(option("--workers") ?? WORKERS)));
 const selfTestCopy = args.includes("--self-test-copy");
 const LINE = selfTestCopy ? "self-test copy, no git: " : "";
 
 const tokens = {
+  plan: planKind,
   "fake-checks": "unmeasured",
   orderings: "unmeasured",
   voided: "unmeasured",
@@ -153,7 +165,7 @@ function describeFailure(where, failure) {
 
 async function rule() {
   const jobs = [
-    ...settings.map((index) => ({ id: `setting-${index}`, kind: "case", index })),
+    ...settings.map((index) => ({ id: `setting-${index}`, kind: planKind === "bounded" ? "once" : "case", index })),
     ...seeds.map((seed) => ({ id: `seed-${seed}`, kind: "seed", seed, orderings })),
   ];
   const results = await runJobs(jobs);
@@ -212,6 +224,10 @@ async function rule() {
   tokens.voided = String(coverage["hold.voided-at-expiry"] ?? 0);
   tokens.sequences = String(passedSequences);
   tokens.settings = `${searched} of ${settings.length}`;
+  const scenarioRuns = settings.reduce((sum, index) => sum + (results.get(`setting-${index}`)?.result?.sequences ?? 0), 0);
+  if (planKind === "bounded" && scenarioRuns !== settings.length) {
+    failures.push(`the bounded plan ran ${scenarioRuns} scenarios for ${settings.length} settings, where each setting's scenario runs once`);
+  }
   note(`failing jobs: ${failures.length}`);
   for (const failure of failures) note(`  ${failure}`);
   if (failures.length > 0) fail(failures[0]);
@@ -311,6 +327,11 @@ async function ownCases() {
 if (args.includes("--plan")) await plan();
 if (args.includes("--model-cases")) await ownCases();
 if (args.includes("--memory-self-check")) await memory();
+
+if (planRefusal !== null) {
+  console.log(`${LINE}FAIL metering: plan=refused; first failure: ${planRefusal}`);
+  process.exit(1);
+}
 
 const before = trackedChanges("before");
 for (const line of before) note(`a tracked file differs from HEAD before the check: ${line}`);

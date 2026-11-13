@@ -1,0 +1,11 @@
+{
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "PASS metering: plan=whole fake-checks="
+  ]
+}

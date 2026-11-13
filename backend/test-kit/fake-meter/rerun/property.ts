@@ -234,6 +234,18 @@ export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> 
   return { settings: 1, sequences, rangesWithAnotherInterval, failure };
 }
 
+export async function runOnce(searchCase: SearchCase): Promise<SearchSummary> {
+  const scenario = { ...searchCase.scenario, faultsByProviderCall: [...searchCase.faultsOfEarlierCalls] };
+  const report = await runScenario(scenario, ruleOptions);
+  const finding = report.findings[0];
+  return {
+    settings: 1,
+    sequences: 1,
+    rangesWithAnotherInterval: report.coverage["read.range-holds-another-sealed-interval"] ?? 0,
+    failure: finding === undefined ? null : { ...finding, scenario, facts: report.facts },
+  };
+}
+
 const ONE_MINOR_UNIT_AND_A_REMAINDER = RULE_MICRO_PER_MINOR + 2_345;
 
 export function searchCases(): SearchCase[] {

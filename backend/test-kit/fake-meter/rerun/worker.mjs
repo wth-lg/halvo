@@ -20,7 +20,7 @@ sqlite.DatabaseSync.prototype.close = function closeAndForget() {
   return close.call(this);
 };
 
-const { propertyRun, searchCases, searchOne } = await import("./property.ts");
+const { propertyRun, runOnce, searchCases, searchOne } = await import("./property.ts");
 const cases = searchCases();
 
 async function releasedWorlds(job) {
@@ -65,7 +65,7 @@ async function run(job) {
   }
   const searchCase = cases[job.index];
   if (searchCase === undefined) throw new RangeError(`no search setting ${job.index}`);
-  const result = await searchOne(searchCase);
+  const result = await (job.kind === "once" ? runOnce(searchCase) : searchOne(searchCase));
   return { ...result, seconds: (performance.now() - started) / 1000 };
 }
 
