@@ -2059,9 +2059,17 @@ fn a_wrong_store_key_opens_as_database_unreadable_and_a_shredded_segment_reads_a
     );
 }
 
+/// The files under `dir` with their lengths, without the lock file that an open
+/// on Windows makes and leaves (`LOCK_FILES`), so that a case compares the
+/// store's own files on both systems.
 fn files_and_lengths(dir: &Path) -> Vec<(PathBuf, u64)> {
     let mut files: Vec<(PathBuf, u64)> = files_under(dir)
         .into_iter()
+        .filter(|path| {
+            !LOCK_FILES
+                .iter()
+                .any(|name| path.file_name() == Some(std::ffi::OsStr::new(name)))
+        })
         .map(|path| {
             let len = std::fs::metadata(&path).unwrap().len();
             (path, len)
@@ -6605,7 +6613,23 @@ fn no_text_of_an_answer_holds_the_directory_marker_or_a_segment_id() {
         .filter(|text| !text.starts_with("odd name: ") && !holds_no_marker(text, &markers))
         .collect();
     println!("TEXTS {texts:#?}");
-    assert!(texts.len() >= 20, "too few answers were read: {texts:#?}");
+    // Windows has no link or FIFO case: it reads 18 texts and the odd name, and
+    // four of the texts are the create and the open in the directory whose name
+    // is not Unicode.
+    #[cfg(windows)]
+    assert_eq!(
+        texts
+            .iter()
+            .filter(|text| text.contains("whose name is not Unicode: "))
+            .count(),
+        4,
+        "the answers in the directory whose name is not Unicode were not read: {texts:#?}"
+    );
+    let fewest = if cfg!(windows) { 19 } else { 20 };
+    assert!(
+        texts.len() >= fewest,
+        "too few answers were read: {texts:#?}"
+    );
     assert!(
         leaking.is_empty(),
         "texts that hold a path or an id: {leaking:#?}"
@@ -7664,8 +7688,11 @@ fn open_refuses_a_key_file_of_another_label_and_changes_no_file() {
 
 #[test]
 fn the_golden_key_file_of_version_2_holds_five_fields_and_reads_with_the_store_label() {
-    let golden = include_bytes!("testdata/store-key-v2.golden");
-    let json: serde_json::Value = serde_json::from_slice(golden).unwrap();
+    let golden = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/store/testdata/store-key-v2.golden"),
+    )
+    .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&golden).unwrap();
     let mut fields: Vec<&str> = json
         .as_object()
         .unwrap()
@@ -7686,7 +7713,7 @@ fn the_golden_key_file_of_version_2_holds_five_fields_and_reads_with_the_store_l
     assert_eq!(json["version"], 2);
     assert_eq!(json["namespace"], "store");
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("store.key"), golden).unwrap();
+    std::fs::write(dir.path().join("store.key"), &golden).unwrap();
     let read = KeyFile::read(dir.path()).unwrap();
     assert_eq!(read.root_id.to_string(), json["root_id"].as_str().unwrap());
     assert_eq!(read.wrapped_store_key().unwrap().0.len(), 72);
