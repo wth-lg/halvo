@@ -195,3 +195,61 @@ fn the_state_call_is_refused_while_a_handler_answers_a_request_of_another_role()
     };
     assert_eq!(full.state, WorkflowState::Approved);
 }
+
+#[test]
+fn the_state_call_answers_no_workflow_for_a_workflow_that_is_not_stored_before_the_rules_of_the_move(
+) {
+    let scratch = Scratch::new("state-order");
+    let clock = TestClock::at_day(DAY);
+    let (store, w) = proposed(&scratch, &clock, SET);
+    drop(store);
+    let agent = "4".repeat(32);
+    let every = |store: &mut Store, id: &str| -> Vec<Result<(), Error>> {
+        let mut answers = Vec::new();
+        for state in ["approved", "active", "paused"] {
+            for with in [Some(agent.as_str()), None] {
+                answers.push(call(store, "coordinator_write", id, state, with));
+            }
+        }
+        answers
+    };
+    let before = revision(&scratch);
+    let mut store = open_host(&scratch, host(&clock, SET)).unwrap();
+    let missing = "7".repeat(32);
+    assert_eq!(
+        every(&mut store, &missing),
+        vec![Err(Error::Refused(ErrorName::NoWorkflow)); 6]
+    );
+    assert_eq!(
+        every(&mut store, &w),
+        vec![Err(Error::Refused(ErrorName::State)); 6],
+        "proposed"
+    );
+    drop(store);
+    assert_eq!(revision(&scratch), before);
+    let mut store = open_host(&scratch, host(&clock, SET)).unwrap();
+    store
+        .decide(&InterfaceDecision::dismiss(
+            &InterfaceRole::claim(),
+            RequestId::from_random([2; 16]),
+            WorkflowId::parse(&w).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        every(&mut store, &w),
+        vec![Err(Error::Refused(ErrorName::State)); 6],
+        "dismissed"
+    );
+    store
+        .decide(&InterfaceDecision::delete(
+            &InterfaceRole::claim(),
+            RequestId::from_random([3; 16]),
+            WorkflowId::parse(&w).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        every(&mut store, &w),
+        vec![Err(Error::Refused(ErrorName::NoWorkflow)); 6],
+        "deleted"
+    );
+}
