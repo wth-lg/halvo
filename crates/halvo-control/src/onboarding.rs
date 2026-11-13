@@ -119,9 +119,19 @@ impl FromIterator<Permission> for PermissionSet {
 
 pub const MACOS_FLOOR_MAJOR: u32 = 14;
 
+/// A macOS version, major and minor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacosVersion {
+    pub major: u32,
+    pub minor: u32,
+}
+
+/// The pane titles of one macOS major version. `observed_on` is the version on which the titles
+/// were seen, or `None` for a row that carries the words of another row until someone sees them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MacosRow {
     pub major: u32,
+    pub observed_on: Option<MacosVersion>,
     pub screen_pane: &'static str,
     pub accessibility_pane: &'static str,
     pub input_monitoring_pane: &'static str,
@@ -145,6 +155,7 @@ const ALERT_BUTTON: &str = "Open System Settings";
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
         major: MACOS_FLOOR_MAJOR,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -152,6 +163,7 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 15,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -159,6 +171,7 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 26,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -166,6 +179,10 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 27,
+        observed_on: Some(MacosVersion {
+            major: 27,
+            minor: 2,
+        }),
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Device Control and Data Access",
         input_monitoring_pane: INPUT_MONITORING_PANE,
