@@ -536,6 +536,8 @@ export async function wholeCases({ repo, work, report }) {
   const windows = runCheck(repo, ['page', '--repo', byHand]);
   const ran = windows.lines.some((l) => l === 'page ran states=' + SMALL_STATES.length + ' of ' + SMALL_STATES.length + ' needs_states=' + SMALL_STATES.length + ' test_items=1');
   report('windows-form-runs-every-state-and-fails-on-a-broken-one', 'page', ran ? windows.cause : 'ran-' + windows.cause);
+  const printed = windows.lines.find((l) => l.startsWith('page states=')) || '';
+  report('a-failing-run-prints-the-part-that-failed', 'differ', windows.cause === 'page' && / structure=differ /.test(printed) ? 'differ' : 'line-' + (/ structure=(\S+)/.exec(printed) || [0, 'none'])[1]);
   report('whole-a-hand-record-over-a-wrong-structure-file', 'page', runCheck(repo, ['whole', '--repo', byHand, '--out', join(work, 'fresh-a.txt')]).cause);
   const stale = join(work, 'whole-a-stale-record-fails-before-the-run');
   cpSync(fx, stale, { recursive: true });
