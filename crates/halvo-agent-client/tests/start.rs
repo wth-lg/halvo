@@ -79,6 +79,7 @@ fn a_runner_that_ends_with_no_stored_finish_gets_end_run_and_its_mark_goes_at_th
     let rig = Rig::new("end-run");
     let script = rig.script(&[
         "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
         r#"send {"t":"progress","step":1,"of":2}"#,
         r#"send {"t":"done","outcome":"failed"}"#,
         "exit 1",
@@ -113,7 +114,11 @@ fn an_end_run_that_is_not_acknowledged_leaves_the_mark() {
     rig.store
         .fail_all
         .store(1, std::sync::atomic::Ordering::SeqCst);
-    let script = rig.script(&["hello", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();

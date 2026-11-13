@@ -24,11 +24,18 @@ fn a_runner_that_the_system_reaped_gets_no_signal_to_its_group() {
         signal(SIGCHLD, SIG_IGN);
     }
     let rig = Rig::new("sigchld-ignored");
-    let script = rig.script(&["hello", "child", "sleep 300", "exit 1"]);
+    *rig.store.hold_end_run.lock().unwrap() = true;
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "child",
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     let started = rig.sup.start(spec);
     let runner = rig.mark(&run).and_then(|m| m.runner);
+    *rig.store.hold_end_run.lock().unwrap() = false;
     let child_seen = wait_until(SHORT, || !script.logged("child").is_empty());
     let child = script.logged("child").first().copied();
     let runner_gone = runner.is_some_and(|r| wait_until(SHORT, || line_gone(&r)));

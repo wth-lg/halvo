@@ -28,7 +28,14 @@ fn a_kill_after_the_system_reaped_the_runner_signals_no_group() {
     }
     let rig = Rig::new("sigchld-kill");
     *rig.people.hold_answers.lock().unwrap() = true;
-    let script = rig.script(&["hello", "child-on-stdout", CONFIRM, "log asked", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "child-on-stdout",
+        CONFIRM,
+        "log asked",
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     let started = rig.sup.start(spec);
