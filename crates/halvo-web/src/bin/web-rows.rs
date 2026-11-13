@@ -530,6 +530,7 @@ struct HoldRead {
     held_through_snapshot: bool,
     released: bool,
     counted: i64,
+    held_after: usize,
     first: Option<halvo_web::cdp::Outcome>,
     second: Option<halvo_web::cdp::Outcome>,
 }
@@ -598,6 +599,7 @@ async fn hold_release_steps(ex: &mut Executor, port: u16) -> Result<HoldRead, &'
     let released = ex.let_through(first).await.is_ok();
     tokio::time::sleep(Duration::from_millis(2_000)).await;
     let (after, _) = requests_of(port).ok_or("state")?;
+    let held_after = ex.paused().len();
     let outcome = |id: u64| {
         ex.requests()
             .into_iter()
@@ -608,6 +610,7 @@ async fn hold_release_steps(ex: &mut Executor, port: u16) -> Result<HoldRead, &'
         held_through_snapshot,
         released,
         counted: after - before,
+        held_after,
         first: outcome(first),
         second: outcome(second),
     })
@@ -617,8 +620,8 @@ async fn hold_release_steps(ex: &mut Executor, port: u16) -> Result<HoldRead, &'
 /// variant `get_effect`, whose link `Pay bill` sends a state-changing `POST /track` by the page's
 /// own script: the first request stays held while a snapshot of the page is read; the page sends a
 /// second one meanwhile; the first is let through once by its id and the second is failed. ok when
-/// the fixture counts exactly one more state-changing request, the first went on and the second
-/// was failed.
+/// the fixture counts exactly one more state-changing request, the first went on, the second was
+/// failed and nothing is held after the release.
 async fn hold_release(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(kind), Some(port), Some(dir)) = (
         arg(argv, "--browser"),
@@ -671,12 +674,13 @@ async fn hold_release(argv: &[String]) -> (usize, usize) {
     let (line, fine) = match steps {
         Ok(r) => (
             format!(
-                "held_through_snapshot={} released={} first={} second={} counted={} removed={}",
+                "held_through_snapshot={} released={} first={} second={} counted={} held_after={} removed={}",
                 if r.held_through_snapshot { "yes" } else { "no" },
                 if r.released { "yes" } else { "no" },
                 name(r.first),
                 name(r.second),
                 r.counted,
+                r.held_after,
                 if stopped.removed { "yes" } else { "no" }
             ),
             r.held_through_snapshot
@@ -684,6 +688,7 @@ async fn hold_release(argv: &[String]) -> (usize, usize) {
                 && r.first == Some(Outcome::Continued)
                 && r.second == Some(Outcome::Failed)
                 && r.counted == 1
+                && r.held_after == 0
                 && stopped.removed,
         ),
         Err(cause) => (format!("cause={cause}"), false),

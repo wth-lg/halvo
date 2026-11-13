@@ -109,9 +109,15 @@ pub(crate) struct Holds {
     next: u64,
 }
 
-/// What a release answers: the pauses to let go on, the pauses to fail, and the hook's host and
-/// port of a document that it let through.
-pub(crate) type Released = (Vec<Pause>, Vec<Pause>, Option<(String, u16)>);
+/// What a release answers: the pauses to let go on, the pauses to fail, the ids of the requests
+/// that it failed, and the hook's host and port of a document that it let through.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Released {
+    pub go: Vec<Pause>,
+    pub fail: Vec<Pause>,
+    pub failed: Vec<u64>,
+    pub hook: Option<(String, u16)>,
+}
 
 impl Holds {
     /// The answer to one pause of `f` under `rule`, and whether the request is new (a record of its
@@ -198,7 +204,7 @@ impl Holds {
         self.held[at].state = HoldState::Released;
         let go = std::mem::take(&mut self.held[at].pauses);
         let hook = self.held[at].hook.clone();
-        let mut fail = Vec::new();
+        let (mut fail, mut failed) = (Vec::new(), Vec::new());
         for h in self
             .held
             .iter_mut()
@@ -206,8 +212,14 @@ impl Holds {
         {
             h.state = HoldState::Failed;
             fail.append(&mut h.pauses);
+            failed.push(h.request.id);
         }
-        Ok((go, fail, hook))
+        Ok(Released {
+            go,
+            fail,
+            failed,
+            hook,
+        })
     }
 
     /// Fails the held request `id`.
@@ -508,15 +520,21 @@ impl Wire {
 
     /// Lets the held request `id` through once and fails every other held request (CP-176 A1 (b)).
     pub(crate) async fn release(&self, id: u64) -> Res<()> {
-        let (go, fail, hook, others, runner_hook) = {
+        let (
+            Released {
+                go,
+                fail,
+                failed: others,
+                hook,
+            },
+            runner_hook,
+        ) = {
             let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
-            let before: Vec<u64> = b.holds.waiting().iter().map(|h| h.id).collect();
-            let (go, fail, hook) = b
+            let released = b
                 .holds
                 .release(id)
                 .map_err(|cause| Fault::new("let_through", cause))?;
-            let others: Vec<u64> = before.into_iter().filter(|o| *o != id).collect();
-            (go, fail, hook, others, b.on_main_document.clone())
+            (released, b.on_main_document.clone())
         };
         if let (Some((host, port)), Some(h)) = (hook, runner_hook) {
             h(&host, port);
@@ -1120,9 +1138,10 @@ mod tests {
             (waiting[1].method.as_str(), waiting[1].path.as_str()),
             ("POST", "/prefs")
         );
-        let (go, fail, _) = h.release(ib).unwrap();
-        assert_eq!(go, vec![pause("p2")]);
-        assert_eq!(fail, vec![pause("p1")]);
+        let r = h.release(ib).unwrap();
+        assert_eq!(r.go, vec![pause("p2")]);
+        assert_eq!(r.fail, vec![pause("p1")]);
+        assert_eq!(r.failed, vec![ia]);
         assert!(h.waiting().is_empty());
         assert_eq!(h.release(ia), Err("released"));
     }
@@ -1144,9 +1163,9 @@ mod tests {
             (Act::Hold(id), false)
         );
         assert_eq!(h.waiting().len(), 1);
-        let (go, fail, _) = h.release(id).unwrap();
-        assert_eq!(go, vec![pause("browser"), pause("target")]);
-        assert!(fail.is_empty());
+        let done = h.release(id).unwrap();
+        assert_eq!(done.go, vec![pause("browser"), pause("target")]);
+        assert!(done.fail.is_empty() && done.failed.is_empty());
         assert_eq!(
             h.on_pause(Some(&r), &post, pause("late")),
             (Act::Continue, false)
@@ -1166,7 +1185,8 @@ mod tests {
         assert!(h.waiting().is_empty());
     }
 
-    /// CP-176 A1 (c) and (f): a hop of 307 after a release is another state-changing request: it
+    /// CP-176 A1 (c) and (f): a hop of 307 after a release, to the same address, is another
+    /// state-changing request by its mark of a hop alone: it
     /// is failed, as a record of its own; a hop that became a GET passes by the list.
     #[test]
     fn a1_a_307_hop_after_a_release_is_failed_and_a_get_hop_passes() {
@@ -1182,7 +1202,7 @@ mod tests {
         h.release(id).unwrap();
         let hop = Facts {
             redirected: true,
-            ..facts("POST", U, "/saved", Some("n1"))
+            ..facts("POST", U, "/prefs", Some("n1"))
         };
         assert_eq!(h.on_pause(Some(&r), &hop, pause("b")), (Act::Fail, true));
         assert_eq!(h.on_pause(Some(&r), &hop, pause("c")), (Act::Fail, false));
@@ -1213,7 +1233,7 @@ mod tests {
         else {
             panic!()
         };
-        assert_eq!(h.release(id).unwrap().0, vec![pause("a")]);
+        assert_eq!(h.release(id).unwrap().go, vec![pause("a")]);
     }
 
     /// CP-176 A1 (a) and (f): a request of another frame is held with its frame, and the release
@@ -1238,8 +1258,9 @@ mod tests {
             Act::Hold(_)
         ));
         assert_eq!(h.waiting()[1].frame, "F2");
-        let (go, fail, _) = h.release(main).unwrap();
-        assert_eq!((go, fail), (vec![pause("a")], vec![pause("b")]));
+        let r = h.release(main).unwrap();
+        assert_eq!((r.go, r.fail), (vec![pause("a")], vec![pause("b")]));
+        assert_eq!(r.failed.len(), 1);
     }
 
     /// CP-176 A1 (b) and (f): a held request beyond `MAX_HELD` is failed at once.
