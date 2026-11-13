@@ -676,8 +676,8 @@ pub struct ParamEntry {
     /// `typed`: `yes` only for a parameter with no candidate.
     pub typed: YesNo,
     /// `full`: for a parameter with `typed` `yes` the sentence of `param_typed.full`, which the
-    /// card shows below the typed line after an input was refused (I3.5); empty for every other
-    /// parameter.
+    /// card shows below the typed line while the line is at the bound, until a removal (RD-76
+    /// 1.1 and 1.3 (A); I3.5); empty for every other parameter.
     pub full: String,
     /// `too_long`: for a parameter with `typed` `yes` the sentence of `param_typed.too_long`,
     /// which the card shows below the typed line after an input was refused below the bound
