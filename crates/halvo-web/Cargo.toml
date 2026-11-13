@@ -8,6 +8,10 @@ publish = false
 name = "halvo_web"
 path = "src/lib.rs"
 
+[[bin]]
+name = "web-probe"
+path = "src/bin/web-probe.rs"
+
 [dependencies]
 base64 = "=0.22.1"
 chromiumoxide = { version = "=0.9.1", default-features = false }
