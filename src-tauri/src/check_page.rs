@@ -4,12 +4,16 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use halvo_control::paths::DataDir;
+use serde::de::value::{Error as WordError, StrDeserializer};
+use serde::de::IntoDeserializer;
+use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::app::{self, PageLoads};
 use crate::commands::{capture::AppState, names};
 use crate::engine::{self, GuardInstalled};
 use crate::launch::Exit;
+use crate::view_state::Service;
 
 const PROBE: &str = "(function () { var ok = /^[A-Za-z0-9_:|.+-]+$/; var r = (window.Halvo && Halvo.ipc && Halvo.ipc.replied) ? Halvo.ipc.replied() : []; var v = (document.getElementById('version') || {}).textContent || ''; var s = (window.Halvo && Halvo.service) ? String(Halvo.service()) : ''; return 'version=' + (ok.test(v) ? v : '-') + ' service=' + (ok.test(s) ? s : '-') + ' replied=' + r.filter(function (n) { return ok.test(n); }).join(','); })()";
 
@@ -22,14 +26,12 @@ pub fn reads() -> Vec<&'static str> {
         .collect()
 }
 
-pub const SERVICES: [&str; 6] = [
-    "running",
-    "not_running",
-    "held_unreachable",
-    "status_refused",
-    "unsupported",
-    "another_version",
-];
+pub fn read_service(word: &str) -> Option<Service> {
+    let word: StrDeserializer<'_, WordError> = word.into_deserializer();
+    Service::deserialize(word)
+        .ok()
+        .filter(|service: &Service| *service != Service::Connecting)
+}
 
 /// The line that the check prints for `seen`, the JSON text of the probe's
 /// string.
@@ -43,7 +45,7 @@ pub fn line(seen: &str, version: &str, guard: Option<&GuardInstalled>) -> Option
         .iter()
         .filter(|name| replied.split(',').any(|r| r == **name))
         .count();
-    (ok == reads.len() && shown == version && SERVICES.contains(&service)).then(|| {
+    (ok == reads.len() && shown == version && read_service(service).is_some()).then(|| {
         format!("page=loaded commands_ok={ok} version={shown} service={service} guard=installed")
     })
 }
@@ -145,7 +147,14 @@ mod tests {
             .as_deref(),
             Some("page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed")
         );
-        for service in SERVICES {
+        for service in [
+            "running",
+            "not_running",
+            "held_unreachable",
+            "status_refused",
+            "unsupported",
+            "another_version",
+        ] {
             assert_eq!(
                 line(&seen(&all, "0.0.0", service), "0.0.0", Some(&installed())),
                 Some(format!(
@@ -234,7 +243,14 @@ mod tests {
     #[test]
     fn without_the_proof_of_the_guard_the_check_prints_no_line() {
         let all = ["capture_status", "inventory", "onboarding_state"];
-        for service in SERVICES {
+        for service in [
+            "running",
+            "not_running",
+            "held_unreachable",
+            "status_refused",
+            "unsupported",
+            "another_version",
+        ] {
             assert_eq!(line(&seen(&all, "0.0.0", service), "0.0.0", None), None);
         }
     }

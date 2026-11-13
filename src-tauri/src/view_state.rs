@@ -6,9 +6,9 @@ use halvo_control::proto::{
     Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
 };
 use halvo_control::texts::{texts, Texts};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Service {
     Connecting,
