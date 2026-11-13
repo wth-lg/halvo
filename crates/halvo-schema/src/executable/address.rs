@@ -1,4 +1,4 @@
-use super::text::{is_port, WebOrigin};
+use super::text::{is_port, number_form, WebOrigin};
 use super::Refusal;
 
 fn refused(rule: &'static str) -> Refusal {
@@ -111,20 +111,6 @@ fn a_label(label: &str) -> Result<String, Refusal> {
         .ok_or_else(|| refused("address_host"))
 }
 
-fn ends_in_number(last: &str) -> bool {
-    last.bytes().all(|b| b.is_ascii_digit())
-        || last
-            .strip_prefix("0x")
-            .is_some_and(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()))
-}
-
-fn octet(part: &str) -> bool {
-    (1..=3).contains(&part.len())
-        && part.bytes().all(|b| b.is_ascii_digit())
-        && (part == "0" || !part.starts_with('0'))
-        && part.parse::<u8>().is_ok()
-}
-
 impl WebOrigin {
     /// The origin of an address that a browser reports, `<scheme>://<host>[:<port>]` and then, after a `/`, `?`, `#` or
     /// `\`, any text but an ASCII space or control character: the scheme `http` or `https` in any case; the default
@@ -170,11 +156,10 @@ impl WebOrigin {
             .split('.')
             .map(a_label)
             .collect::<Result<Vec<String>, Refusal>>()?;
-        let last = labels.last().map_or("", String::as_str);
-        if ends_in_number(last) && !(labels.len() == 4 && labels.iter().all(|l| octet(l))) {
+        let host = labels.join(".");
+        if number_form(&host) {
             return Err(refused("address_ipv4"));
         }
-        WebOrigin::parse(&format!("{scheme}://{}:{port}", labels.join(".")))
-            .map_err(|_| refused("address_host"))
+        WebOrigin::parse(&format!("{scheme}://{host}:{port}")).map_err(|_| refused("address_host"))
     }
 }
