@@ -155,6 +155,31 @@ pub(crate) mod planted {
         }
     }
 
+    /// A directory of mode 000 that the test made; its mode goes back to 0o700 when the value is
+    /// dropped, so that the test's temporary directory can be removed on every path.
+    pub(crate) struct Closed(PathBuf);
+
+    impl Closed {
+        pub(crate) fn make(path: &Path) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::create_dir(path).unwrap();
+            let closed = Self(path.to_path_buf());
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+            assert!(
+                std::fs::read_dir(path).is_err(),
+                "a directory of mode 000 can be read: the test runs with rights that pass the mode"
+            );
+            closed
+        }
+    }
+
+    impl Drop for Closed {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+
     /// The answer of `call` on `path`, from a thread of its own, or `None` when it has not
     /// answered within [`BOUND`]. `fifo` names a FIFO that the guard opens for writing to end
     /// a blocked open; it may be `path` itself or the FIFO that a link at `path` names.
@@ -240,6 +265,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_read_of_a_directory_that_cannot_be_opened_is_an_error_and_never_no_directory() {
+        let base = dir();
+        let path = base.path().join("d");
+        let _closed = planted::Closed::make(&path);
+        assert_eq!(
+            read(&path).map_err(|e| e.kind()),
+            Err(std::io::ErrorKind::PermissionDenied),
+            "an open error that is no missing directory is an error of the read (PL-8 (2)(b))"
+        );
+    }
+
+    #[test]
+    fn two_reads_side_by_side_both_answer_free() {
+        let base = dir();
+        let under_way = open(base.path()).unwrap();
+        assert!(flock(&under_way, libc::LOCK_SH).unwrap());
+        assert_eq!(
+            read(base.path()).unwrap(),
+            LockRead::Free,
+            "beside the shared lock that another read holds while it is under way, a read \
+             answers free: the read's flock is shared"
+        );
+        drop(under_way);
+
+        const READS: usize = 2_000;
+        let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let readers: Vec<_> = (0..2)
+            .map(|_| {
+                let path = base.path().to_path_buf();
+                let start = std::sync::Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    (0..READS)
+                        .filter(|_| read(&path).unwrap() != LockRead::Free)
+                        .count()
+                })
+            })
+            .collect();
+        let held: usize = readers.into_iter().map(|t| t.join().unwrap()).sum();
+        assert_eq!(
+            held, 0,
+            "two threads that only read, {READS} reads each: {held} answered held"
+        );
     }
 
     #[test]

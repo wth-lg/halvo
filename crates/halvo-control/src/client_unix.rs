@@ -675,6 +675,42 @@ mod tests {
     }
 
     #[test]
+    fn an_open_error_of_the_lock_read_is_an_io_error_with_exit_1_through_the_connector() {
+        use crate::instance_lock::planted;
+
+        let (_base, socket_dir) = short_data_dir();
+        crate::testing::make_private_dir(&socket_dir.run_dir()).unwrap();
+        let closed_path = socket_dir.path().join("closed");
+        let _closed = planted::Closed::make(&closed_path);
+        let answer = Client::new(connector_beside(&closed_path, &socket_dir)).status();
+        assert!(matches!(answer, Err(ClientError::Io(_))), "{answer:?}");
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Status { indicator: false },
+            answer.map(crate::proto::Reply::Status),
+            &socket_dir,
+        );
+        assert_eq!(printed.status, 1, "{printed:?}");
+        assert!(!printed.stderr.contains("not running"), "{printed:?}");
+    }
+
+    #[test]
+    fn the_in_use_answer_comes_no_later_than_the_deadline_and_one_step() {
+        let (_base, dir) = short_data_dir();
+        let lock = held(&dir);
+        let started = Instant::now();
+        let result = client_within(&dir, 5_000).status();
+        let took = started.elapsed();
+        drop(lock);
+        in_use(result, &dir, "a lock held through the whole deadline");
+        assert!(
+            took < Duration::from_secs(15),
+            "the in-use answer came after {took:?}; the request's deadline is 5 s and one step \
+             50 ms. The bound leaves 10 s past the deadline for a hosted runner that holds a \
+             thread for seconds, and a wait of four deadlines, 20 s, passes it"
+        );
+    }
+
+    #[test]
     fn no_data_directory_is_unreachable() {
         let (_base, dir) = short_data_dir();
         assert!(!dir.path().exists());
