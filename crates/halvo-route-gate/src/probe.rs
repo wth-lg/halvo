@@ -255,7 +255,9 @@ mod tests {
         pub(super) struct Apart(());
 
         pub(super) const ON_THE_FIRST_THREAD: &str =
-            "the test runs on the process's first thread, whose calls the windows leave out";
+            "the test runs on the process's first thread, whose calls the windows leave out, so \
+             nothing was measured; the test harness runs a test there when it cannot start a \
+             thread for it";
         pub(super) const NO_FIRST_THREAD: &str =
             "no thread made a call of the allocator before the test began";
 
@@ -650,6 +652,20 @@ mod tests {
         assert_eq!(refusal(7, 7, 1), Some(ON_THE_FIRST_THREAD));
         assert_eq!(refusal(7, 8, 0), Some(NO_FIRST_THREAD));
         assert_eq!(refusal(0, 8, 0), Some(NO_FIRST_THREAD));
+    }
+
+    #[test]
+    fn the_refusal_on_the_first_thread_says_that_nothing_was_measured_and_why() {
+        assert!(
+            ON_THE_FIRST_THREAD.contains("nothing was measured"),
+            "{ON_THE_FIRST_THREAD}"
+        );
+        assert!(
+            ON_THE_FIRST_THREAD.contains(
+                "the test harness runs a test there when it cannot start a thread for it"
+            ),
+            "{ON_THE_FIRST_THREAD}"
+        );
     }
 
     #[test]
