@@ -923,18 +923,20 @@ mod tests {
     }
 
     /// CP-126 E5 M13: a variable of the start replaces the process's own of that name (A11.1's
-    /// `TMPDIR` of the browser); PATH stands in, which every test process has.
+    /// `TMPDIR` of the browser): the child's environment holds the name once, with the start's
+    /// value. PATH stands in, which every test process has; `/usr/bin/env` prints the whole
+    /// environment, so a second entry of the name shows.
     #[cfg(target_os = "macos")]
     #[test]
     fn a_variable_of_the_start_replaces_the_processs_own() {
         let dir = std::env::temp_dir().join(format!("r3-web-env-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let out = dir.join("path.txt");
+        let out = dir.join("env.txt");
         let spec = Spec {
             program: Path::new("/bin/sh"),
             args: vec![
                 "-c".into(),
-                "printf %s \"$PATH\" >\"$1\"".into(),
+                "/usr/bin/env >\"$1\"".into(),
                 "sh".into(),
                 out.clone().into_os_string(),
             ],
@@ -946,7 +948,9 @@ mod tests {
             start_on_pipe(&held, &spec).expect("start")
         };
         on.child.wait();
-        assert_eq!(std::fs::read_to_string(&out).unwrap(), "/r3-web-test-path");
+        let env = std::fs::read_to_string(&out).unwrap();
+        let paths: Vec<&str> = env.lines().filter(|l| l.starts_with("PATH=")).collect();
+        assert_eq!(paths, vec!["PATH=/r3-web-test-path"]);
     }
 
     #[cfg(target_os = "macos")]
