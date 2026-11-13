@@ -1755,6 +1755,30 @@ pub(crate) mod tests {
         assert!(!args.iter().any(|a| a.contains("host-resolver-rules")));
     }
 
+    /// CP-167 E2: the control starts without the product's means, a candidate adds its entry of
+    /// the closed list with the run's own profile, and an index outside the list adds nothing.
+    #[test]
+    fn the_crash_means_choose_from_the_executor_s_own_flags() {
+        let relay = crate::relay::RelayHandle::for_tests(18999);
+        let mut opts = options_with(PathBuf::from("/b/chrome"), PathBuf::from("/p/q"), relay);
+        let product = launch_args(&opts);
+        for f in crate::CRASH_MEANS {
+            assert!(product.iter().any(|a| a == f), "{f}");
+        }
+        opts.crash_means = CrashMeans::Without;
+        let without = launch_args(&opts);
+        assert!(!without
+            .iter()
+            .any(|a| crate::CRASH_MEANS.contains(&a.as_str())));
+        assert_eq!(without.len() + crate::CRASH_MEANS.len(), product.len());
+        opts.crash_means = CrashMeans::Candidate(0);
+        let candidate = launch_args(&opts);
+        assert!(candidate.contains(&"--breakpad-dump-location=/p/q/Crashpad".to_string()));
+        assert_eq!(candidate.len(), product.len() + 1);
+        opts.crash_means = CrashMeans::Candidate(crate::CRASH_CANDIDATES.len());
+        assert_eq!(launch_args(&opts), product);
+    }
+
     /// The processes that name `profile` in their arguments and started at or after `since_us`.
     #[cfg(target_os = "macos")]
     fn naming(profile: &Path, since_us: u64) -> Vec<crate::procs::Proc> {
