@@ -333,7 +333,8 @@ run_measure() {
     STUB_CHECK=$work/$5
     STUB_TOUCH_TEST=${6:-}
     STUB_TOUCH_CHECK=${7:-}
-    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS STUB_TAP STUB_CHECK STUB_TOUCH_TEST STUB_TOUCH_CHECK
+    STUB_FILES=${8:-}
+    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS STUB_TAP STUB_CHECK STUB_TOUCH_TEST STUB_TOUCH_CHECK STUB_FILES
     sh "$0" 2>&1
   )
   code=$?
@@ -374,6 +375,10 @@ make_repo() {
   git -C "$repo" checkout -q -b droppedtest main || exit 2
   printf 'all a.test.mjs second test\nall b.test.mjs third test\nwindows b.test.mjs windows test\n' >"$repo/$list_path"
   git -C "$repo" commit -q -a -m droppedtest || exit 2
+  git -C "$repo" checkout -q -b otherjob main || exit 2
+  printf 'c\n' >"$repo/tools/fixture-server/c.test.mjs"
+  printf 'windows c.test.mjs windows only test\n' >>"$repo/$list_path"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m otherjob || exit 2
   for branch in newfile:c.test.mjs testdir:test/helper.mjs variants:variants/x.test.mjs; do
     mkdir -p "$repo/tools/fixture-server/test" "$repo/tools/fixture-server/variants" || exit 2
     git -C "$repo" checkout -q -b "${branch%%:*}" main || exit 2
@@ -384,7 +389,7 @@ make_repo() {
 #!/bin/sh
 case $1 in
   --test)
-    [ "$*" = '--test --test-reporter=tap --test-concurrency=1 tools/fixture-server/a.test.mjs tools/fixture-server/b.test.mjs' ] || { printf 'stub node: got the arguments: %s\n' "$*"; exit 97; }
+    [ "$*" = "--test --test-reporter=tap --test-concurrency=1 ${STUB_FILES:-tools/fixture-server/a.test.mjs tools/fixture-server/b.test.mjs}" ] || { printf 'stub node: got the arguments: %s\n' "$*"; exit 97; }
     cat "$STUB_TAP"
     [ -z "$STUB_TOUCH_TEST" ] || printf 'x\n' >>"$STUB_TOUCH_TEST"
     exit 0
@@ -436,6 +441,9 @@ measure_cases() {
   verdict new-test-file-unlisted FAIL 'a test file at HEAD is not in the test list'
   run_measure file-in-a-test-directory-unlisted testdir macos tap-list check-ok
   verdict file-in-a-test-directory-unlisted FAIL 'a test file at HEAD is not in the test list'
+  run_measure file-of-the-other-job-is-run-too otherjob macos tap-list check-ok '' '' \
+    'tools/fixture-server/a.test.mjs tools/fixture-server/b.test.mjs tools/fixture-server/c.test.mjs'
+  verdict file-of-the-other-job-is-run-too PASS ''
   run_measure test-file-under-variants-is-another-runs variants macos tap-list check-ok
   verdict test-file-under-variants-is-another-runs PASS ''
   run_measure services-count-not-the-file-count main macos tap-list check-services-count
