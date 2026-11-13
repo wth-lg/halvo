@@ -169,7 +169,7 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
 /// The probe of the Windows keyboard source: the gate's reading for one key.
 /// Outside the gate's module no probe with a reading of its own can be made:
 ///
-/// ```compile_fail,E0603
+/// ```compile_fail,E0423
 /// use halvo_capture::secure_input::windows::PasswordFieldProbe;
 /// use halvo_capture::secure_input::SecureInputReading;
 ///
@@ -1020,6 +1020,7 @@ mod detector {
 
         #[test]
         fn after_attach_the_gate_reads_unknown_until_the_detectors_first_read() {
+            let _serial = crate::windows::tests::serial();
             let gate = PasswordGate::new();
             let before = HeldKey {
                 tick: 1,
@@ -1037,6 +1038,7 @@ mod detector {
 
         #[test]
         fn detach_ends_the_detectors_thread_and_a_new_attach_starts_one() {
+            let _serial = crate::windows::tests::serial();
             let gate = PasswordGate::new();
             gate.attach().expect("the detector starts");
             let first = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
@@ -1054,6 +1056,7 @@ mod detector {
 
         #[test]
         fn detach_answers_the_first_of_its_removal_calls_that_failed() {
+            let _serial = crate::windows::tests::serial();
             let both = PasswordGate::with_removals(Removals {
                 handler: handler_refused,
                 desktop_hook: desktop_refused,
@@ -1072,6 +1075,7 @@ mod detector {
 
         #[test]
         fn detach_answers_timeout_when_the_detector_does_not_end_in_time() {
+            let _serial = crate::windows::tests::serial();
             let gate = PasswordGate::with_removals(Removals {
                 handler: handler_slow,
                 ..Removals::default()
