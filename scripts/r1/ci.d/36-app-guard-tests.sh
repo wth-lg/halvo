@@ -157,8 +157,12 @@ config_decide() {
 }
 
 tracked_changes() {
-  git status --porcelain --untracked-files=no >"$work/status.$1" || broke "git status failed $1 cargo"
-  [ ! -s "$work/status.$1" ] || broke "a tracked file differs from HEAD $1 cargo ran"
+  git status --porcelain --untracked-files=no >"$work/status.$1" || fail "git status failed $1 cargo ran"
+  [ -s "$work/status.$1" ] || return 0
+  case $1 in
+    before) fail "a tracked file differs from HEAD before cargo ran, so commit or stash the change, then run the check again" ;;
+    *) broke "a tracked file differs from HEAD after cargo ran: a test or a build of the run wrote a tracked file, so read git status and mend what wrote it" ;;
+  esac
 }
 
 measure() {
@@ -418,6 +422,7 @@ run_measure() {
   calls=$(cat "$work/calls.$1")
   want_calls="$test_command$nl$tree_command"
   [ "$code" != 0 ] || [ "$calls" = "$want_calls" ] || got="$got, other cargo calls"
+  [ "${8:-}" != no-cargo ] || [ -z "$calls" ] || got="$got, cargo was called"
   verdict "$1" "$2" "$got"
 }
 
@@ -520,7 +525,7 @@ self_test() {
   run_measure measure-build-features "FAIL rule 2: src-tauri/tauri.conf.json holds build.features" repo-with-build-features all-pass tree.ok
   run_measure measure-a-test-writes-the-checkout 'FAIL a tracked file differs from HEAD after cargo ran' repo all-pass tree.ok 0 yes
   printf 'changed before the check\n' >>"$work/repo/tracked.txt" || self_fail "the tracked file cannot be changed"
-  run_measure measure-on-a-changed-checkout 'FAIL a tracked file differs from HEAD before cargo ran' repo all-pass tree.ok
+  run_measure measure-on-a-changed-checkout 'FAIL a tracked file differs from HEAD before cargo ran' repo all-pass tree.ok 0 no no-cargo
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
