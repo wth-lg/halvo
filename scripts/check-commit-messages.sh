@@ -17,7 +17,10 @@ FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH='remove each listed line from its commit
 
 exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
 
-own_directory=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || own_directory=
+case $0 in
+  */*) own_directory=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || own_directory=$(dirname "$0") ;;
+  *) own_directory= ;;
+esac
 
 synopsis() {
   cat <<EOF
@@ -149,11 +152,20 @@ Three layers apply this predicate.
      a description again only when a commit is pushed.
 The commits of a range and of a push come from scripts/commit-range.sh, the
 one function that scripts/check-home-paths.sh calls too, so both checks of the
-hook read the same commits. This script reads that file beside itself, or,
-when it runs as text without its path (sh -c, as the CI step runs the copy of
-the default branch), from the default branch (--default-ref, or
-refs/remotes/origin/HEAD, or refs/remotes/origin/main), never from the work
-tree, so that copy lists the commits with the function of the default branch.
+hook read the same commits. The script starts in one of two forms, and each
+has one source of that file. Started from its file (the name under which it
+runs holds a slash), it reads scripts/commit-range.sh beside that file, and
+when that file is missing it exits 2 and reads no commit. Run as text (the
+name holds no slash, as the CI step runs the copy of the default branch with
+sh -c), it never reads a file of the work tree: when the name ends in
+@<full object id>, as in check-commit-messages.sh@<id>, it reads the range
+file of that commit; with a bare name it reads the one of the default branch
+as this clone last fetched it (--default-ref, or refs/remotes/origin/HEAD, or
+refs/remotes/origin/main, the first that names a commit). When that commit
+holds no scripts/commit-range.sh, it exits 2. The CI step resolves the default
+branch to one commit and runs that commit's copy under the name
+check-commit-messages.sh@<that commit>, so a branch cannot change the function
+with which the copy of the default branch lists its commits.
 No layer reads the author or the committer of a commit, or words that are
 spelled in another way. Before the layers, the tracked file .claude/settings.json
 tells Claude Code to add no attribution line, and the CI step checks it.
@@ -291,18 +303,39 @@ require_repository_with_exempt_commit() {
 }
 
 load_commit_range() {
-  if [ -f "$own_directory/commit-range.sh" ]; then
+  if [ -n "$own_directory" ]; then
+    [ -f "$own_directory/commit-range.sh" ] ||
+      die "$own_directory/commit-range.sh, which lists the commits of a range or a push, is missing beside this script, so no commit was read. Restore it with git checkout HEAD -- scripts/commit-range.sh (in a sparse checkout, add scripts/ to the checkout first) and run the check again."
     # shellcheck source=scripts/commit-range.sh
     . "$own_directory/commit-range.sh"
     return 0
   fi
-  for range_ref in ${default_ref:+"$default_ref"} refs/remotes/origin/HEAD refs/remotes/origin/main; do
-    if range_text=$(git show "$range_ref:scripts/commit-range.sh" 2>/dev/null); then
-      eval "$range_text"
-      return 0
-    fi
-  done
-  die 'scripts/commit-range.sh, which lists the commits of a range or a push, is neither beside this script nor on the default branch, so no commit could be checked'
+  case $0 in
+    *@*)
+      range_commit=${0##*@}
+      case $range_commit in
+        '' | *[!0123456789abcdef]*) range_commit_is_an_id= ;;
+        *) range_commit_is_an_id=1 ;;
+      esac
+      { [ -n "$range_commit_is_an_id" ] && { [ ${#range_commit} = 40 ] || [ ${#range_commit} = 64 ]; }; } ||
+        die "this text runs under the name $0, and the part after @ is no full object id, so it cannot tell which commit's scripts/commit-range.sh lists the commits. Run it as sh -c \"<text>\" check-commit-messages.sh@<full id of a commit>, or run the file itself."
+      range_source=$range_commit
+      ;;
+    *)
+      range_source=
+      for range_ref in ${default_ref:+"$default_ref"} refs/remotes/origin/HEAD refs/remotes/origin/main; do
+        if range_source=$(git rev-parse -q --verify "$range_ref^{commit}" 2>/dev/null); then
+          break
+        fi
+        range_source=
+      done
+      [ -n "$range_source" ] ||
+        die 'this text runs without a file and without a commit in its name, and this clone names no default branch (--default-ref, refs/remotes/origin/HEAD or refs/remotes/origin/main), so no scripts/commit-range.sh can be read and no commit was checked. Run it as sh -c "<text>" check-commit-messages.sh@<full id of a commit>, fetch the default branch, or run the file itself.'
+      ;;
+  esac
+  range_text=$(git show "$range_source:scripts/commit-range.sh" 2>/dev/null) ||
+    die "the commit $range_source, from which this text takes its range function, holds no scripts/commit-range.sh, so no commit was checked. Name a commit that holds it (sh -c \"<text>\" check-commit-messages.sh@<full id>), or run the file itself."
+  eval "$range_text"
 }
 
 resolve_default_ref() {
