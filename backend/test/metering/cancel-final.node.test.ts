@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
+import { makeAccounts } from "../../src/accounts/index.ts";
 import type { ProviderEvent, SubscriptionState } from "../../src/billing/port.ts";
 import { reduceEvent } from "../../src/billing/stripe/reduce.ts";
+import { openSql } from "../../test-kit/sql/node.ts";
 import { ACCOUNT, HASH, HOUR, quiet, START, subscriptionEvent, type World, world } from "./world.ts";
 
 type Row = Record<string, string | number | null>;
@@ -377,6 +379,31 @@ describe("what stays as it was (pins of unit 5.5; ruling P7-80, part 5)", () => 
       afterScheduled: { status: { result: "active" }, cut: [{ cut_kind: null, cut_at: null, carry: 0, written_off: null }] },
       afterTakenBack: { status: { result: "active" }, cut: [{ cut_kind: null, cut_at: null, carry: 0, written_off: null }], reserved: expect.objectContaining({ outcome: "admitted" }) },
       afterEnd: { status: { result: "cancelled" }, cut: [["cancel", end * 1000]] },
+    });
+    done(w);
+  });
+});
+
+describe("what the one-rule changes of unit 5.5 asked for", () => {
+  test("an account seeded cancelled, whose row holds no provider time, stays cancelled under an event that is not a cancel", () => {
+    const db = openSql();
+    const accounts = makeAccounts();
+    const seen = db.step((sql) => {
+      accounts.init(sql);
+      accounts.seed(sql, { accountId: ACCOUNT, credentialHash: HASH, state: "cancelled", customerId: "cus_1" }, START);
+      return { answer: accounts.applyEvent(sql, at("evt_active_after_seed", 1, "active"), START), state: accounts.subscription(sql)?.state };
+    });
+    db.close();
+    expect(seen).toEqual({ answer: { kind: "none" }, state: "cancelled" });
+  });
+
+  test("an older cancel that states an earlier end, kept beside a kept cancel, gives the account made from it the earlier end and the cut there", async () => {
+    const w = await pending();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [CANCEL, at("evt_cancel_older", 4, "cancelled", { endedAt: START + 3 * MINUTE }), COMPLETED]);
+    expect({ account: await account(w), cut: await metered(w) }).toEqual({
+      account: expect.objectContaining({ state: "cancelled", provider_time: START + 5 * MINUTE, ended_at: START + 3 * MINUTE, cancel_first: START + 4 * MINUTE }),
+      cut: [{ cut_kind: "cancel", cut_at: START + 3 * MINUTE, carry: 0, written_off: 0 }],
     });
     done(w);
   });
