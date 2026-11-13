@@ -268,21 +268,33 @@ fn close_input_after(
 }
 
 /// What the runner keeps after a close of its standard input alone (A6.1): it reads the link before every frame,
-/// but the end of file can still be on its way to its reader when it writes, so the one frame that it was about to
-/// write may come; then no other frame, no replace, and the status 1 within LINK_END.
+/// but the end of file can still be on its way to its reader when it writes, so the frames that it writes before
+/// it waits for a reply may come, at most `most`; then no other frame, no replace, and the status 1 within
+/// LINK_END.
+fn kept_after_a_close_of(
+    after_close: &[FromRunner],
+    code: Option<i32>,
+    files: &FillFiles,
+    before: &[u8],
+    most: usize,
+) {
+    let tags: Vec<&'static str> = after_close.iter().map(support::tag).collect();
+    assert!(
+        after_close.len() <= most,
+        "at most the frames on their way: {tags:?}"
+    );
+    assert_eq!(files.workbook_bytes(), before, "no replace after the close");
+    assert_eq!(code, Some(1), "status 1 within LINK_END");
+}
+
+/// What the runner keeps after a close of its standard input alone when it waits for a reply after the next frame.
 fn kept_after_a_close(
     after_close: &[FromRunner],
     code: Option<i32>,
     files: &FillFiles,
     before: &[u8],
 ) {
-    let tags: Vec<&'static str> = after_close.iter().map(support::tag).collect();
-    assert!(
-        after_close.len() <= 1,
-        "at most the frame on its way: {tags:?}"
-    );
-    assert_eq!(files.workbook_bytes(), before, "no replace after the close");
-    assert_eq!(code, Some(1), "status 1 within LINK_END");
+    kept_after_a_close_of(after_close, code, files, before, 1);
 }
 
 fn load_count() -> impl FnMut(&FromRunner) -> usize {
@@ -365,17 +377,27 @@ fn a_close_of_input_after_the_last_fault_of_the_begin_lets_at_most_one_frame_out
     );
 }
 
+/// The close after the answer to the read step's line: the next `progress` and the edit's first `load`, which the
+/// runner writes before it waits for a reply, may be on their way (CP-135 (3)); no effect row and no replace.
 #[test]
-fn a_close_of_input_after_the_reads_log_lets_at_most_the_next_progress_out() {
+fn a_close_of_input_after_the_reads_log_lets_at_most_the_next_progress_and_the_edits_load_out() {
     let files = FillFiles::new("review-close-5", 3);
     let before = files.workbook_bytes();
     let sup = fill(105, &files);
     let (after, code) = close_input_after(&sup, |frame| {
         is_op(frame, "log").then(|| (sup.answer(frame).expect("a reply"), true))
     });
-    kept_after_a_close(&after, code, &files, &before);
+    kept_after_a_close_of(&after, code, &files, &before, 2);
+    let kinds: Vec<&str> = after
+        .iter()
+        .map(|f| match f {
+            FromRunner::Progress(_) => "progress",
+            f if is_op(f, "load") => "load",
+            _ => "other",
+        })
+        .collect();
     assert!(
-        after.iter().all(|f| matches!(f, FromRunner::Progress(_))),
-        "no store request after the close"
+        ["progress", "load"].starts_with(&kinds),
+        "at most the progress and then the edit's load: {kinds:?}"
     );
 }
