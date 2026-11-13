@@ -230,7 +230,10 @@ fn the_mark_on_screen_is_one_per_show_so_a_second_show_never_on_screen_hands_on_
     serve(&fake, &*reads_pay(), &shows);
     assert_eq!(shows.count(), 2);
     let seen = seen.lock().unwrap();
-    assert_eq!(seen.on_screen, 1, "one report: the first show alone was on screen");
+    assert_eq!(
+        seen.on_screen, 1,
+        "one report: the first show alone was on screen"
+    );
     assert_eq!(
         seen.answers,
         [ALLOW, REJECT],
