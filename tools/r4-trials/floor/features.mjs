@@ -2,7 +2,8 @@
 // DATA_JSON is data.json of @mdn/browser-compat-data 8.1.8. Without --verify it prints the lines
 // that U0.3 adds to docs/r4/page-features.txt; with --verify it checks that every line of LIST
 // whose comment cites a page of that data gives the Safari version and date that the data gives,
-// and that the list ends with the lines that the rows make.
+// and that the list ends with the lines that the rows make; it prints how many feature lines it
+// read and how many it did not, because they have no row or no comment of the data above them.
 // Exit: 0 when every row and line holds, 1 when one misses, 2 on a refusal.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -165,8 +166,11 @@ export function lookup(data, dotted, kind = 'allow') {
   return { version, date: release.release_date, page };
 }
 
-/** The lines of U0.3 for the list from `data`, or the problems of the rows. */
-export function lines(data) {
+/** The rows of U0.3: the allow rows and the deny rows. */
+export const ROWS = { allow: ALLOW, deny: DENY };
+
+/** The lines that `rows` make for the list from `data`, or the problems of the rows. */
+export function lines(data, rows = ROWS) {
   const out = [];
   const problems = [];
   const emit = (kind, [name, dotted, cell]) => {
@@ -183,26 +187,33 @@ export function lines(data) {
   };
   out.push('# U0.3 wrote the allow lines below for every web API that a view file calls and that had no line (rulings RD-27 (b), RD-30 (6)), and the deny lines after them');
   out.push(`# for the features that reached Safari after the floor and that a view could use; each read on 2026-11-12 from @mdn/browser-compat-data ${data.__meta.version} of ${data.__meta.timestamp.slice(0, 10)}.`);
-  for (const row of ALLOW) emit('allow', row);
-  for (const row of DENY) emit('deny', row);
+  for (const row of rows.allow) emit('allow', row);
+  for (const row of rows.deny) emit('deny', row);
   return { out, problems };
 }
 
-function verify(data, listText) {
+/** The problems of `listText` against `data` and `rows`, with the count of feature lines read
+ * and of those not read, because they have no row or no comment of the data above them. */
+export function verify(data, listText, rows = ROWS) {
   const problems = [];
   const text = listText.split('\n');
+  let read = 0;
+  let unread = 0;
   for (const f of parseList(listText).features) {
-    const m = /^# https:\/\/developer\.mozilla\.org\/(?:docs\/\S+|\(([a-z.A-Z_0-9-]+)\)), Safari (\S+) of (\S+)$/.exec(text[f.line - 2] ?? '');
-    if (!m) continue;
-    const row = [...ALLOW, ...DENY].find((r) => r[0] === f.name);
-    if (!row) continue;
+    const m = /^# https:\/\/developer\.mozilla\.org\/(?:docs\/\S+| \(([a-z.A-Z_0-9-]+)\)), Safari (\S+) of (\S+)$/.exec(text[f.line - 2] ?? '');
+    const row = [...rows.allow, ...rows.deny].find((r) => r[0] === f.name);
+    if (!m || !row) {
+      unread += 1;
+      continue;
+    }
+    read += 1;
     const found = lookup(data, row[1], f.kind);
     if (found.problem) problems.push(found.problem);
     else if (found.version !== f.version || found.date !== m[3]) problems.push(`${f.name}: the list gives ${f.version} of ${m[3]}, the data ${found.version} of ${found.date}`);
   }
-  const block = lines(data).out.join('\n') + '\n';
+  const block = lines(data, rows).out.join('\n') + '\n';
   if (!listText.endsWith(block)) problems.push('the list does not end with the lines that the rows make from the data');
-  return problems;
+  return { problems, read, unread };
 }
 
 function main(argv) {
@@ -218,11 +229,25 @@ function main(argv) {
     process.stderr.write('REFUSED usage: DATA_JSON cannot be read as JSON\n');
     return 2;
   }
+  let listText = null;
+  if (flag === '--verify') {
+    try {
+      listText = fs.readFileSync(listFile, 'utf8');
+    } catch {
+      process.stderr.write(`REFUSED usage: the list ${path.basename(listFile)} cannot be read\n`);
+      return 2;
+    }
+  }
   const { out, problems } = lines(data);
-  if (flag === '--verify') problems.push(...verify(data, fs.readFileSync(listFile, 'utf8')));
-  else if (problems.length === 0) process.stdout.write(out.join('\n') + '\n');
+  let counts = null;
+  if (listText !== null) {
+    counts = verify(data, listText);
+    problems.push(...counts.problems);
+  } else if (problems.length === 0) {
+    process.stdout.write(out.join('\n') + '\n');
+  }
   for (const p of problems) process.stdout.write(`miss ${p}\n`);
-  if (flag === '--verify') process.stdout.write(`verify rows=${ALLOW.length + DENY.length} problems=${problems.length}\n`);
+  if (counts) process.stdout.write(`verify rows=${ALLOW.length + DENY.length} read=${counts.read} unread=${counts.unread} problems=${problems.length}\n`);
   return problems.length === 0 ? 0 : 1;
 }
 
