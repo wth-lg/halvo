@@ -1854,3 +1854,16 @@ fn log_text_writes_the_body_of_halvo_schemas_golden_coord_log_request() {
         .unwrap();
     assert!(line.contains(&format!("\"body\":{text}}}")), "{text}");
 }
+
+/// A clock past the largest instant that a row's `at` holds stores no row: `store` answers the
+/// clock's failure and nothing waits (review case review_day_1).
+#[test]
+fn store_at_an_instant_past_the_largest_at_stores_nothing() {
+    let p = ports();
+    p.set_now(i64::MAX as u64 / 1_000_000 + 1);
+    let mut l = ledger();
+    let stored = store(&p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]);
+    assert_eq!(stored, Err(PortError::NoService));
+    assert!(l.waiting().is_empty());
+    assert!(p.events.borrow().is_empty());
+}

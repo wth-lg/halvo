@@ -137,9 +137,16 @@ pub struct Stamp {
 }
 
 impl Stamp {
-    /// Reads the clock once and gives the day of that instant.
+    /// The last instant, in milliseconds, whose nanoseconds a row's `at` holds.
+    pub const LAST: u64 = i64::MAX as u64 / 1_000_000;
+
+    /// Reads the clock once and gives the day of that instant; an instant after `Stamp::LAST`,
+    /// which no `at` can hold, is the clock's failure `no_service`.
     pub fn read<P: Clock + ?Sized>(clock: &P) -> Result<Stamp, PortError> {
         let now = clock.now()?;
+        if now > Stamp::LAST {
+            return Err(PortError::NoService);
+        }
         let day = clock.day(now)?;
         Ok(Stamp { now, day })
     }
@@ -154,7 +161,7 @@ impl Stamp {
         self.day
     }
 
-    /// The instant as a row's `at`: nanoseconds, `now` times 1,000,000, at most `i64::MAX`.
+    /// The instant as a row's `at`: nanoseconds, `now` times 1,000,000.
     pub fn at(self) -> i64 {
         i64::try_from(self.now).map_or(i64::MAX, |n| n.saturating_mul(1_000_000))
     }

@@ -211,8 +211,14 @@ fn a_stamp_takes_the_day_of_the_instant_that_it_read() {
     assert_eq!(stamp.day(), 20_760);
     assert_eq!(stamp.at(), (DAY_20760 + 24 * HOUR - 1) as i64 * 1_000_000);
     assert_eq!(p.today(), Ok(20_761));
-    let p: Ports<Config> = Ports::new(10_000_000_000_000, 115_740);
-    assert_eq!(Stamp::read(&p).map(Stamp::at), Ok(i64::MAX));
+    let largest = i64::MAX as u64 / 1_000_000;
+    let p: Ports<Config> = Ports::new(largest, 106_751);
+    assert_eq!(
+        Stamp::read(&p).map(Stamp::at),
+        Ok(largest as i64 * 1_000_000)
+    );
+    p.set_now(largest + 1);
+    assert_eq!(Stamp::read(&p), Err(PortError::NoService));
     let p: Ports<Config> = Ports::new(u64::MAX, 0);
     assert_eq!(Stamp::read(&p), Err(PortError::NoService));
 }
@@ -230,9 +236,11 @@ impl Clock for Far {
     }
 }
 
+/// No stamp holds an instant whose nanoseconds pass `i64::MAX`, also from a clock that gives a
+/// day for it: the `at` of a row would not be its instant (review case review_day_1).
 #[test]
-fn a_stamp_of_an_instant_past_the_largest_at_gives_the_largest_at() {
-    assert_eq!(Stamp::read(&Far).map(Stamp::at), Ok(i64::MAX));
+fn no_stamp_holds_an_instant_past_the_largest_at() {
+    assert_eq!(Stamp::read(&Far), Err(PortError::NoService));
 }
 
 fn spec() -> RunSpec {
