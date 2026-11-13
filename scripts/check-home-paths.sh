@@ -1510,6 +1510,18 @@ self_test_commits() {
 
   same_commits_for_both_checks
 
+  new_case_repo exempt-commit-not-held
+  printf 'plain\n' >"$case_repo/a.txt"
+  commit_case 'first' >/dev/null || die 'commit failed'
+  printf 'plain\n' >"$case_repo/b.txt"
+  commit_case 'second' >/dev/null || die 'commit failed'
+  case_scan range-read-whole-when-the-clone-lacks-the-exempt-commit 0 'commits read 2, lines with a home path 0.' --allow "$work/empty-list" HEAD
+  # shellcheck source=scripts/commit-range.sh
+  printed=$(cd "$case_repo" && . "$self_dir/commit-range.sh" && commit_range '' HEAD) || printed=
+  short_lines=$(printf '%s\n' "$printed" | grep -cvE '^([0-9a-f]{40}|[0-9a-f]{64})$') || short_lines=0
+  full_lines=$(printf '%s\n' "$printed" | grep -cE '^([0-9a-f]{40}|[0-9a-f]{64})$') || full_lines=0
+  verdict range-function-prints-one-full-id-on-each-line 2-0 "$full_lines-$short_lines"
+
   new_case_repo stale
   mkdir -p "$case_repo/scripts" || die 'mkdir failed'
   expand_fixture 'see /{U}/una and C:\{U}\Una Bee' >"$case_repo/kept.txt"
@@ -1944,6 +1956,16 @@ self_test_hook() {
     *) got="$code-without-the-text" ;;
   esac
   verdict pushed-object-that-git-cannot-resolve 2 "$got"
+  orphan=$(printf 'tree %s\nparent %s\nauthor A U Thor <author@example.invalid> 0 +0000\ncommitter A U Thor <author@example.invalid> 0 +0000\n\nA commit whose parent object is missing\n' \
+    "$(in_repo rev-parse 'HEAD^{tree}')" 1111111111111111111111111111111111111111 | in_repo hash-object -t commit -w --stdin) || die 'git hash-object failed'
+  (cd "$repo" && printf 'refs/heads/x %s refs/heads/x %s\n' "$orphan" 0000000000000000000000000000000000000000 |
+    HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-commits-git-cannot-list" 2>&1
+  code=$?
+  case $(cat "$work/out-commits-git-cannot-list") in
+    *'git could not list the commits of the push of refs/heads/x'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict pushed-commit-whose-parent-is-missing 2 "$got"
 
   exempt_home=$work/exempt-home/scripts
   mkdir -p "$exempt_home" || die 'mkdir failed'
