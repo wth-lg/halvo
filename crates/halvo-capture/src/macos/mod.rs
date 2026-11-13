@@ -202,3 +202,39 @@ pub(crate) mod off_source_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_error_of_a_source_reads_its_own_health_reason() {
+        let reason_of = |error| match source_failure(error) {
+            SourceState::Failed { reason, .. } => reason,
+            other => panic!("source_failure answered {other:?}"),
+        };
+        assert_eq!(
+            reason_of(CaptureError::Timeout {
+                stage: "input_tap_join",
+                ms: 1000
+            }),
+            HealthReason::Timeout
+        );
+        assert_eq!(
+            reason_of(CaptureError::ThreadEnded),
+            HealthReason::ThreadEnded
+        );
+        assert_eq!(
+            reason_of(CaptureError::PermissionDenied(Modality::Keystroke)),
+            HealthReason::Permission
+        );
+        assert_eq!(
+            reason_of(CaptureError::Os {
+                stage: "stop_capture",
+                domain: "ScreenCaptureKit",
+                code: -3808
+            }),
+            HealthReason::OsError
+        );
+    }
+}

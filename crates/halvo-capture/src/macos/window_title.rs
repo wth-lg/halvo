@@ -139,8 +139,11 @@ fn window_title_length(
         return Ok(None);
     };
     let title = title.downcast::<CFString>().ok_or(TitleError::NotAString)?;
-    let length = bounded_length(&title);
-    Ok((length.bytes() > 0).then_some(length))
+    Ok(a_title(bounded_length(&title)))
+}
+
+fn a_title(length: TitleLength) -> Option<TitleLength> {
+    (length.bytes() > 0).then_some(length)
 }
 
 /// The length of the title of the focused window of the application with
@@ -172,6 +175,15 @@ pub fn focused_window_title(pid: libc::pid_t) -> Result<Option<TitleLength>, Tit
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_empty_title_is_no_title() {
+        assert_eq!(a_title(TitleLength::for_test(0)), None);
+        assert_eq!(
+            a_title(TitleLength::for_test(1)),
+            Some(TitleLength::for_test(1))
+        );
+    }
 
     #[test]
     fn a_string_is_no_accessibility_element_and_gets_no_deadline() {
