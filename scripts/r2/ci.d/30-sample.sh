@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: from the files of HEAD, halvo-sample build of the golden script writes its committed files byte for byte, check-labels passes on them under both rules and on each committed development body, and two builds of each development body from its committed scripts print one manifest hash, that of its committed manifest, and write its committed files; no tracked file changes.
+# rule: from the files of HEAD, halvo-sample build of the golden script writes its committed files byte for byte and check-labels passes on them under both rules; each development body is built twice from its committed scripts, once into its place of scripts/r2/body.sh and once into the check's own directory, both print one manifest hash, that of its committed manifest, both hold exactly the files and hashes that the manifest names, and check-labels passes on the placed body under both rules; no tracked file changes.
 set -u
 name=30-sample
 if [ ! -f "${CI_D_REPO:-.}/scripts/r2/body.sh" ]; then
@@ -36,9 +36,15 @@ judge() {
       cargo-build | golden-build | golden-generated | golden-recorded | gen-*-build-1 | gen-*-build-2 | gen-*-labels)
         [ "$value" = 0 ] || fail "$key exited $value"
         ;;
-      golden-files | gen-*-files)
+      golden-files)
         if [ "$value" != same ]; then
           why=$(differing "$value") || why="files that differ from HEAD: unknown"
+          fail "$key: $why"
+        fi
+        ;;
+      gen-*-files)
+        if [ "$value" != same ]; then
+          why=$(r2_body_line "$value") || why="files that differ: unknown"
           fail "$key: $why"
         fi
         ;;
@@ -136,7 +142,8 @@ measure() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   results=$work/results.txt
   : >"$results" || fail "the results cannot be written"
-  git archive --output="$work/head.tar" HEAD -- fixtures/r2/golden fixtures/r2/scripts/seen fixtures/r2/scripts/unseen fixtures/r2/dev ||
+  git archive --output="$work/head.tar" HEAD -- fixtures/r2/golden fixtures/r2/scripts/seen fixtures/r2/scripts/unseen \
+    fixtures/r2/dev/seen/manifest.toml fixtures/r2/dev/unseen/manifest.toml ||
     fail "git archive of the inputs at HEAD failed"
   mkdir "$work/head" || fail "mkdir failed"
   tar -xf "$work/head.tar" -C "$work/head" || fail "the inputs of HEAD cannot be unpacked"
@@ -144,12 +151,7 @@ measure() {
   g=$head/golden
   cargo build --locked -q -p halvo-sample
   record cargo-build "$?"
-  case ${CARGO_TARGET_DIR:-} in
-    '') bin=$CI_D_REPO/target/debug/halvo-sample ;;
-    /* | [A-Za-z]:*) bin=$CARGO_TARGET_DIR/debug/halvo-sample ;;
-    *) bin=$CI_D_REPO/$CARGO_TARGET_DIR/debug/halvo-sample ;;
-  esac
-  [ -f "$bin.exe" ] && bin=$bin.exe
+  bin=$(r2_body_bin "$CI_D_REPO") || fail "the build directory cannot be read"
   sample build --seed 1 --out "$work/golden" "$g/script.jsonl" "$g/marked.jsonl" >"$CI_D_ARTIFACTS/golden-build.txt"
   record golden-build "$?"
   mkdir "$work/committed" || fail "mkdir failed"
@@ -163,21 +165,37 @@ measure() {
   for pair in gen-dev:seen gen-unseen:unseen; do
     tier=${pair%%:*}
     side=${pair#*:}
-    seed=$(sed -n 's/^seed = //p' "$head/dev/$side/manifest.toml") || fail "the seed of $tier cannot be read"
+    committed_manifest=$head/dev/$side/manifest.toml
+    seed=$(sed -n 's/^seed = //p' "$committed_manifest") || fail "the seed of $tier cannot be read"
+    body=$(r2_body_dir "$CI_D_REPO" "$tier") || fail "the place of the body of $tier cannot be read"
+    r2_body_build "$CI_D_REPO" "$tier" "$bin" "$head/scripts/$side" "$committed_manifest" "$CI_D_ARTIFACTS/$tier-build-1.txt" >"$work/$tier-body.txt"
+    code=$?
+    cat "$work/$tier-body.txt" || fail "the body line of $tier cannot be read"
+    record "$tier-build-1" "$code"
+    (cd "$head/scripts/$side" && sample build --tier "$tier" --seed "$seed" --out "$work/$tier-2" ./*.jsonl) >"$CI_D_ARTIFACTS/$tier-build-2.txt"
+    record "$tier-build-2" "$?"
     for n in 1 2; do
-      (cd "$head/scripts/$side" && sample build --tier "$tier" --seed "$seed" --out "$work/$tier-$n" ./*.jsonl) >"$CI_D_ARTIFACTS/$tier-build-$n.txt"
-      record "$tier-build-$n" "$?"
       line=$(sed -n 's/^manifest //p' "$CI_D_ARTIFACTS/$tier-build-$n.txt") || fail "the output of build cannot be read"
       record "$tier-manifest-$n" "$line"
     done
-    committed=$(sha "$head/dev/$side/manifest.toml") || fail "the committed manifest of $tier cannot be hashed"
+    committed=$(sha "$committed_manifest") || fail "the committed manifest of $tier cannot be hashed"
     record "$tier-committed" "$committed"
-    files=$(same_tree "$work/$tier-1" "$head/dev/$side") || fail "the files of $tier cannot be compared"
+    started=$(date +%s) || fail "date failed"
+    files=$(r2_body_check "$body" "$committed_manifest") || fail "the body of $tier cannot be checked"
+    if [ "$files" = same ]; then
+      files=$(r2_body_check "$work/$tier-2" "$committed_manifest") || fail "the second build of $tier cannot be checked"
+    fi
+    ended=$(date +%s) || fail "date failed"
+    printf 'check %s %s s\n' "$tier" "$((ended - started))"
     record "$tier-files" "$files"
-    sample check-labels "$head/dev/$side" >"$CI_D_ARTIFACTS/$tier-labels.txt"
-    record "$tier-labels" "$?"
+    sample check-labels "$body" >"$CI_D_ARTIFACTS/$tier-labels.txt"
+    labels=$?
+    sample check-labels --rule recorded "$body" >"$CI_D_ARTIFACTS/$tier-labels-recorded.txt"
+    recorded=$?
+    [ "$labels" = 0 ] && labels=$recorded
+    record "$tier-labels" "$labels"
     grep -E '^(counts|rates|masks) ' "$CI_D_ARTIFACTS/$tier-build-1.txt" || fail "the output of build cannot be read"
-    grep -E '^checked ' "$CI_D_ARTIFACTS/$tier-labels.txt" || fail "the output of check-labels cannot be read"
+    grep -E '^checked ' "$CI_D_ARTIFACTS/$tier-labels.txt" "$CI_D_ARTIFACTS/$tier-labels-recorded.txt" || fail "the output of check-labels cannot be read"
   done
   judge "$results" final
   printf 'PASS %s\n' "$name"
