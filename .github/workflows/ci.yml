@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,237 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: U2.1 probe and rows
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          python3 - macos "$RUNNER_TEMP/u21" <<'PYEOF'
+          """The scratch run's step of U2.1: hosted-step.py <job> <out dir>. Builds the crate's two programs,
+          starts the variants fixture with its standard input a pipe of this process, runs web-probe with
+          Chrome once (the gate's line) and with Edge once (recorded), then the rows of web-rows, and ends
+          the fixture on every way out. Prints the probe's and the rows' lines; exit 1 when the Chrome probe
+          or a row missed."""
+          import os
+          import subprocess
+          import sys
+
+          JOB = sys.argv[1]
+          OUT = sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT = "18090"
+          WS_PORT = "18095"
+          failed = []
+
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              lines = [l for l in r.stdout.splitlines() if l.startswith(("probe ", "row "))]
+              for l in lines:
+                  print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--bins"], check=True)
+          probe = os.path.join("target", "debug", "web-probe" + EXE)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          fixture = subprocess.Popen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT],
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+          try:
+              line = fixture.stdout.readline().decode()
+              if not line.startswith("listening "):
+                  print("fixture did not listen", flush=True)
+                  sys.exit(1)
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"probe_{kind} absent", flush=True)
+                      continue
+                  run(f"probe_{kind}", [probe, "--browser", path, "--port", PORT], kind == "chrome")
+              chrome = BROWSERS[0][1]
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      run(f"first_start_{kind}", [rows, "first_start", "--browser", path, "--runs", "5"], True)
+              run("killed_start_chrome", [rows, "killed_start", "--browser", chrome, "--runs", "10",
+                                          "--seed", "20261113"], True)
+              foreign = [rows, "relay_foreign", "--browser", chrome]
+              if JOB == "macos":
+                  copy_dir = "/private/tmp/halvo-web-rows-copy"
+                  os.makedirs(copy_dir, exist_ok=True)
+                  os.chmod(copy_dir, 0o755)
+                  foreign += ["--as", "nobody", "--copy-dir", copy_dir]
+              if JOB == "windows":
+                  import secrets
+                  copy_dir = "C:\\halvo-web-rows-copy"
+                  os.makedirs(copy_dir, exist_ok=True)
+                  password = "Hw9!" + secrets.token_hex(5)
+                  pw_file = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-other.txt")
+                  open(pw_file, "w").write(password)
+                  made = subprocess.run(["net", "user", "halvoforeign", password, "/add"], capture_output=True,
+                                        stdin=subprocess.DEVNULL)
+                  granted = subprocess.run(["icacls", copy_dir, "/grant", "*S-1-5-32-545:(OI)(CI)RX"], capture_output=True)
+                  print(f"u21 other_account made={made.returncode == 0} granted={granted.returncode == 0}", flush=True)
+                  foreign += ["--as", "halvoforeign", "--copy-dir", copy_dir, "--password-file", pw_file]
+              run("relay_foreign_chrome", foreign, True)
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      run(f"checks_{kind}", [rows, "checks", "--browser", path, "--kind", kind, "--port", PORT], True)
+                      run(f"frame_post_{kind}", [rows, "block_frame_post", "--browser", path, "--kind", kind,
+                                                 "--port", PORT], True)
+                      run(f"hold_release_{kind}", [rows, "hold_release", "--browser", path, "--kind", kind,
+                                                   "--port", PORT], True)
+              # CP-176 A2 (c): the row ws_allowed against the listener of crates/halvo-web/rows.
+              listener = subprocess.Popen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT],
+                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              try:
+                  heard = listener.stdout.readline().decode()
+                  if not heard.startswith("listening "):
+                      print("ws_listener did not listen", flush=True)
+                      failed.append("ws_listener")
+                  else:
+                      for kind, path in BROWSERS:
+                          if os.path.exists(path):
+                              run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind,
+                                                         "--ws-port", WS_PORT], True)
+              finally:
+                  try:
+                      listener.stdin.close()
+                  except OSError:
+                      pass
+                  try:
+                      listener.wait(timeout=5)
+                  except subprocess.TimeoutExpired:
+                      listener.kill()
+                      listener.wait()
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-crash")
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+              # A13.3 item 3 for the crash row, recorded and not a gate: one crash reading with the
+              # product's means under scripts/egress/check.sh, whose list holds the fixture's port and the
+              # relay's; the denials count what the run tried to send anywhere else.
+              kind, path = BROWSERS[0]
+              if os.path.exists(path):
+                  crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-crash-egress")
+                  os.makedirs(crash_dir, exist_ok=True)
+                  list_file = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-egress-list.txt")
+                  open(list_file, "w", newline="\n").write(f"[fixed]\n127.0.0.1:{PORT}\n127.0.0.1:18091\n[agent]\n")
+                  r = subprocess.run(["sh", "scripts/egress/check.sh", list_file, "--", rows, "crash_one",
+                                      "--browser", path, "--port", PORT, "--relay-port", "18091",
+                                      "--scratch", crash_dir], capture_output=True, text=True)
+                  open(os.path.join(OUT, "crash_egress.txt"), "w").write(r.stdout + r.stderr)
+                  egress = [l for l in (r.stdout + r.stderr).splitlines() if l.startswith("egress ")]
+                  fields = dict(f.split("=", 1) for l in egress[-1:] for f in l.split()[1:] if "=" in f)
+                  refused = [l.split(":", 1)[0] for l in (r.stdout + r.stderr).splitlines() if l.startswith("REFUSED")]
+                  for l in r.stdout.splitlines():
+                      if l.startswith("row crash_one"):
+                          print("crash_egress " + l, flush=True)
+                  print(f"crash_egress mode={fields.get('mode', '-')} denied={fields.get('denied', '-')} "
+                        f"refused={refused[0] if refused else '-'} exit={r.returncode}", flush=True)
+          finally:
+              try:
+                  fixture.stdin.close()
+              except OSError:
+                  pass
+              try:
+                  fixture.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  fixture.kill()
+                  fixture.wait()
+
+          # CP-170 (Proofs): the changed copies of guard and run's-own code that could widen who is
+          # signalled run here on the hosted runner alone, each against stand-in tests by exact name,
+          # each restored with git checkout; then each test that CP-170 adds runs 200 times.
+          COPIES = [
+              ("e1_mark_gate_gone", "crates/halvo-web/src/guard.rs",
+               "        .filter(|t| mark.is_some_and(|m| m.owns(t, args)))\n", "",
+               ["guard::tests::me01_a_child_of_a_foreign_taker_of_a_dead_member_s_number_is_no_member",
+                "guard::tests::me01_the_loop_ends_no_child_of_a_foreign_taker_that_ended",
+                "guard::tests::g1_a_foreign_child_of_a_reused_number_is_never_asked_or_ended",
+                "guard::tests::an_orphan_by_its_parent_s_number_without_the_mark_is_no_member"]),
+              ("e2_trigger_not_cleared", "crates/halvo-web/src/guard.rs",
+               "        } else {\n            trigger_at = None;\n            asked_at = None;\n        }\n", "        }\n",
+               ["guard::tests::g2_two_reads_that_miss_a_running_executor_end_nothing",
+                "guard::tests::an_executor_missed_once_early_gets_the_whole_grace_from_its_end"]),
+              ("m39_own_number_taken", "crates/halvo-web/src/guard.rs",
+               "        if p.pid != me && !known", "        if !known",
+               ["guard::tests::m39_the_guard_s_own_number_is_never_a_member"]),
+              ("t1_older_orphan_taken", "crates/halvo-web/src/guard.rs",
+               "                && t.started_us >= k.started_us\n", "",
+               ["guard::tests::a_marked_process_older_than_the_dead_member_is_no_member"]),
+              ("m46_any_parent_adopted", "crates/halvo-web/src/procs.rs",
+               ".filter(|p| p.ppid == 1 && !tree", ".filter(|p| !tree",
+               ["procs::tests::adopted_asks_the_parent_number_1"]),
+              ("m47_app_inside_a_name", "crates/halvo-web/src/procs.rs",
+               'ends_with(".app")', 'contains(".app")',
+               ["procs::tests::a_name_with_app_inside_is_no_bundle"]),
+              ("a4_untimed_row_gone", "crates/halvo-web/src/guard.rs",
+               "                Executor::Untimed => {\n                    act.untimed += 1;\n                    false\n                }\n",
+               "                Executor::Untimed => true,\n",
+               ["guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor"]),
+              ("a4_no_name_gone", "crates/halvo-web/src/guard.rs",
+               "                .is_none_or(|n|", "                .is_some_and(|n|",
+               ["guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor"]),
+          ]
+          LOOP_ADDED = ['guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor', 'guard::tests::a4_an_untimed_row_with_another_program_s_name_is_not_the_executor', 'guard::tests::a4_a_row_with_another_known_time_is_not_the_executor_on_windows', 'guard::tests::a4_on_macos_an_untimed_row_is_not_the_executor', 'guard::tests::a4_the_guard_refuses_an_executor_creation_time_of_0', 'relay::tests::a4_no_guard_is_started_for_an_executor_with_no_creation_time', 'relay::tests::a3_each_class_of_the_closed_list_and_its_edges', 'relay::tests::a3_an_answer_with_one_loopback_address_is_refused_whole', 'relay::tests::a3_a_loopback_answer_is_refused_with_reply_2_and_recorded_apart', 'relay::tests::a3_a_bound_loopback_literal_is_dialled', 'cdp::wire::tests::a1_the_mode_that_fails_fails_every_state_changing_request', 'cdp::wire::tests::a1_of_two_like_requests_only_the_one_let_through_by_its_id_leaves', 'cdp::wire::tests::a1_one_request_paused_twice_is_held_once_and_follows_its_answer', 'cdp::wire::tests::a1_a_pause_with_no_number_is_failed', 'cdp::wire::tests::a1_a_307_hop_after_a_release_is_failed_and_a_get_hop_passes', 'cdp::wire::tests::a1_an_options_passes_and_uses_nothing_up', 'cdp::wire::tests::a1_a_request_of_another_frame_is_held_with_its_frame_and_failed_at_a_release', 'cdp::wire::tests::a1_a_held_request_beyond_the_bound_is_failed', 'cdp::wire::tests::a1_held_requests_are_failed_at_a_new_arm', 'cdp::tests::a1_split_url_cuts_a_user_and_password_from_the_origin', 'cdp::tests::a1_the_start_returns_with_the_rule_armed_with_no_origin_in_the_mode_that_fails', 'cdp::wire::tests::a2_a_response_that_cannot_be_given_the_line_is_failed', 'cdp::wire::tests::a2_every_arm_intercepts_documents_and_scripts_at_the_response_stage']
+          for cid, path, old, new, tests in COPIES:
+              text = open(path, encoding="utf-8").read()
+              if text.count(old) != 1:
+                  print(f"u21 copy={cid} applied=no count={text.count(old)}", flush=True)
+                  continue
+              open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
+              r = subprocess.run(["cargo", "test", "-q", "-p", "halvo-web", "--lib", "--", "--exact"] + tests,
+                                 capture_output=True, text=True)
+              subprocess.run(["git", "checkout", "--", path], check=True)
+              import re as _re
+              compiled = "could not compile" not in r.stderr and "error[E" not in r.stderr
+              m = _re.search(r"test result: \w+\. (\d+) passed; (\d+) failed", r.stdout)
+              nfail = int(m.group(2)) if m else -1
+              print(f"u21 copy={cid} exit={r.returncode} compiled={'yes' if compiled else 'no'} failed={nfail} of={len(tests)}", flush=True)
+              if r.returncode == 0 or not compiled or nfail < 1:
+                  failed.append("copy_" + cid)
+
+          LOOP = ['guard::tests::me01_a_child_of_a_foreign_taker_of_a_dead_member_s_number_is_no_member', 'guard::tests::me01_the_loop_ends_no_child_of_a_foreign_taker_that_ended', 'guard::tests::g1_a_foreign_child_of_a_reused_number_is_never_asked_or_ended', 'guard::tests::g2_two_reads_that_miss_a_running_executor_end_nothing', 'guard::tests::an_executor_missed_once_early_gets_the_whole_grace_from_its_end', 'guard::tests::an_orphan_by_its_parent_s_number_without_the_mark_is_no_member', 'guard::tests::an_orphan_born_between_two_reads_is_followed_and_the_port_kept_until_it_is_gone', 'guard::tests::a_marked_process_older_than_the_dead_member_is_no_member', 'guard::tests::m36_the_margin_begins_again_after_a_member_is_seen_again', 'guard::tests::m39_the_guard_s_own_number_is_never_a_member', 'guard::tests::m42_two_unread_spells_with_a_read_between_do_not_end_the_guard', 'checks::tests::a_read_with_a_missing_count_does_not_hold', 'checks::tests::an_unread_end_of_the_pipe_counts_as_open', 'checks::tests::the_four_rules_count_what_breaks_them_on_this_system', 'checks::tests::a_debugging_port_flag_without_its_equals_sign_is_named', 'cdp::tests::a_credential_field_has_no_value_whatever_its_role_and_text', 'cdp::tests::a_credential_line_renders_no_value_whatever_it_holds', 'cdp::tests::a_quote_in_a_value_cannot_make_a_credential_mark', 'cdp::tests::an_amount_is_digits_one_point_and_two_decimals', 'cdp::tests::a_ref_of_an_older_snapshot_is_stale', 'cdp::tests::open_takes_http_and_https_alone', 'cdp::tests::the_command_line_is_the_executor_s_closed_list', 'cdp::tests::the_crash_means_choose_from_the_executor_s_own_flags', 'cdp::wire::tests::an_origin_that_an_allowed_origin_begins_is_refused', 'cdp::wire::tests::a_service_worker_s_script_is_not_let_through', 'peer::tests::a_row_with_an_end_off_loopback_is_no_owner', 'peer::tests::an_owner_whose_number_another_process_took_is_refused', 'peer::tests::the_peer_check_waits_for_the_start_lock', 'rows::tests::an_unread_table_is_open', 'rows::tests::a_bundle_process_with_unread_arguments_is_open', 'rows::tests::the_run_s_own_and_its_guards_are_counted', 'procs::tests::adopted_asks_the_parent_number_1', 'procs::tests::a_name_with_app_inside_is_no_bundle', 'crash_row::tests::a_new_file_under_a_named_place_is_listed', 'crash_row::tests::a_file_of_a_dump_s_size_is_reported_with_its_size', 'crash_row::tests::a_control_with_no_dump_reads_notrun', 'crash_row::tests::a_crash_with_the_means_that_left_a_file_reads_miss', 'crash_row::tests::the_singleton_s_random_names_and_link_sizes_are_not_beyond']
+          LOOP += LOOP_ADDED
+          built = subprocess.run(["cargo", "test", "-q", "-p", "halvo-web", "--lib", "--no-run", "--message-format=json"],
+                                 capture_output=True, text=True)
+          exe = None
+          for line in built.stdout.splitlines():
+              if '"executable"' in line and '"halvo_web"' in line:
+                  import json as _j
+                  m = _j.loads(line)
+                  if m.get("executable") and "test" in m.get("profile", {}) and m["profile"]["test"]:
+                      exe = m["executable"]
+          listed = subprocess.run([exe, "--list", "--format", "terse"], capture_output=True, text=True).stdout if exe else ""
+          present = {l.rsplit(": ", 1)[0] for l in listed.splitlines() if l.endswith(": test")}
+          for name in LOOP:
+              if name not in present:
+                  print(f"u21 loop test={name} absent_on_this_system=yes", flush=True)
+                  continue
+              passes = 0
+              for _ in range(200):
+                  r = subprocess.run([exe, "--exact", name, "--test-threads=1", "-q"], capture_output=True, text=True)
+                  passes += int(r.returncode == 0 and "1 passed" in r.stdout)
+              print(f"u21 loop test={name} passes={passes} of=200", flush=True)
+              if passes != 200:
+                  failed.append("loop")
+
+          print("u21 failed=" + (",".join(failed) if failed else "-"), flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +331,237 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: U2.1 probe and rows
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          python - windows "$RUNNER_TEMP/u21" <<'PYEOF'
+          """The scratch run's step of U2.1: hosted-step.py <job> <out dir>. Builds the crate's two programs,
+          starts the variants fixture with its standard input a pipe of this process, runs web-probe with
+          Chrome once (the gate's line) and with Edge once (recorded), then the rows of web-rows, and ends
+          the fixture on every way out. Prints the probe's and the rows' lines; exit 1 when the Chrome probe
+          or a row missed."""
+          import os
+          import subprocess
+          import sys
+
+          JOB = sys.argv[1]
+          OUT = sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT = "18090"
+          WS_PORT = "18095"
+          failed = []
+
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              lines = [l for l in r.stdout.splitlines() if l.startswith(("probe ", "row "))]
+              for l in lines:
+                  print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--bins"], check=True)
+          probe = os.path.join("target", "debug", "web-probe" + EXE)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          fixture = subprocess.Popen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT],
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+          try:
+              line = fixture.stdout.readline().decode()
+              if not line.startswith("listening "):
+                  print("fixture did not listen", flush=True)
+                  sys.exit(1)
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"probe_{kind} absent", flush=True)
+                      continue
+                  run(f"probe_{kind}", [probe, "--browser", path, "--port", PORT], kind == "chrome")
+              chrome = BROWSERS[0][1]
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      run(f"first_start_{kind}", [rows, "first_start", "--browser", path, "--runs", "5"], True)
+              run("killed_start_chrome", [rows, "killed_start", "--browser", chrome, "--runs", "10",
+                                          "--seed", "20261113"], True)
+              foreign = [rows, "relay_foreign", "--browser", chrome]
+              if JOB == "macos":
+                  copy_dir = "/private/tmp/halvo-web-rows-copy"
+                  os.makedirs(copy_dir, exist_ok=True)
+                  os.chmod(copy_dir, 0o755)
+                  foreign += ["--as", "nobody", "--copy-dir", copy_dir]
+              if JOB == "windows":
+                  import secrets
+                  copy_dir = "C:\\halvo-web-rows-copy"
+                  os.makedirs(copy_dir, exist_ok=True)
+                  password = "Hw9!" + secrets.token_hex(5)
+                  pw_file = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-other.txt")
+                  open(pw_file, "w").write(password)
+                  made = subprocess.run(["net", "user", "halvoforeign", password, "/add"], capture_output=True,
+                                        stdin=subprocess.DEVNULL)
+                  granted = subprocess.run(["icacls", copy_dir, "/grant", "*S-1-5-32-545:(OI)(CI)RX"], capture_output=True)
+                  print(f"u21 other_account made={made.returncode == 0} granted={granted.returncode == 0}", flush=True)
+                  foreign += ["--as", "halvoforeign", "--copy-dir", copy_dir, "--password-file", pw_file]
+              run("relay_foreign_chrome", foreign, True)
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      run(f"checks_{kind}", [rows, "checks", "--browser", path, "--kind", kind, "--port", PORT], True)
+                      run(f"frame_post_{kind}", [rows, "block_frame_post", "--browser", path, "--kind", kind,
+                                                 "--port", PORT], True)
+                      run(f"hold_release_{kind}", [rows, "hold_release", "--browser", path, "--kind", kind,
+                                                   "--port", PORT], True)
+              # CP-176 A2 (c): the row ws_allowed against the listener of crates/halvo-web/rows.
+              listener = subprocess.Popen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT],
+                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              try:
+                  heard = listener.stdout.readline().decode()
+                  if not heard.startswith("listening "):
+                      print("ws_listener did not listen", flush=True)
+                      failed.append("ws_listener")
+                  else:
+                      for kind, path in BROWSERS:
+                          if os.path.exists(path):
+                              run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind,
+                                                         "--ws-port", WS_PORT], True)
+              finally:
+                  try:
+                      listener.stdin.close()
+                  except OSError:
+                      pass
+                  try:
+                      listener.wait(timeout=5)
+                  except subprocess.TimeoutExpired:
+                      listener.kill()
+                      listener.wait()
+              for kind, path in BROWSERS:
+                  if os.path.exists(path):
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-crash")
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+              # A13.3 item 3 for the crash row, recorded and not a gate: one crash reading with the
+              # product's means under scripts/egress/check.sh, whose list holds the fixture's port and the
+              # relay's; the denials count what the run tried to send anywhere else.
+              kind, path = BROWSERS[0]
+              if os.path.exists(path):
+                  crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-crash-egress")
+                  os.makedirs(crash_dir, exist_ok=True)
+                  list_file = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u21-egress-list.txt")
+                  open(list_file, "w", newline="\n").write(f"[fixed]\n127.0.0.1:{PORT}\n127.0.0.1:18091\n[agent]\n")
+                  r = subprocess.run(["sh", "scripts/egress/check.sh", list_file, "--", rows, "crash_one",
+                                      "--browser", path, "--port", PORT, "--relay-port", "18091",
+                                      "--scratch", crash_dir], capture_output=True, text=True)
+                  open(os.path.join(OUT, "crash_egress.txt"), "w").write(r.stdout + r.stderr)
+                  egress = [l for l in (r.stdout + r.stderr).splitlines() if l.startswith("egress ")]
+                  fields = dict(f.split("=", 1) for l in egress[-1:] for f in l.split()[1:] if "=" in f)
+                  refused = [l.split(":", 1)[0] for l in (r.stdout + r.stderr).splitlines() if l.startswith("REFUSED")]
+                  for l in r.stdout.splitlines():
+                      if l.startswith("row crash_one"):
+                          print("crash_egress " + l, flush=True)
+                  print(f"crash_egress mode={fields.get('mode', '-')} denied={fields.get('denied', '-')} "
+                        f"refused={refused[0] if refused else '-'} exit={r.returncode}", flush=True)
+          finally:
+              try:
+                  fixture.stdin.close()
+              except OSError:
+                  pass
+              try:
+                  fixture.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  fixture.kill()
+                  fixture.wait()
+
+          # CP-170 (Proofs): the changed copies of guard and run's-own code that could widen who is
+          # signalled run here on the hosted runner alone, each against stand-in tests by exact name,
+          # each restored with git checkout; then each test that CP-170 adds runs 200 times.
+          COPIES = [
+              ("e1_mark_gate_gone", "crates/halvo-web/src/guard.rs",
+               "        .filter(|t| mark.is_some_and(|m| m.owns(t, args)))\n", "",
+               ["guard::tests::me01_a_child_of_a_foreign_taker_of_a_dead_member_s_number_is_no_member",
+                "guard::tests::me01_the_loop_ends_no_child_of_a_foreign_taker_that_ended",
+                "guard::tests::g1_a_foreign_child_of_a_reused_number_is_never_asked_or_ended",
+                "guard::tests::an_orphan_by_its_parent_s_number_without_the_mark_is_no_member"]),
+              ("e2_trigger_not_cleared", "crates/halvo-web/src/guard.rs",
+               "        } else {\n            trigger_at = None;\n            asked_at = None;\n        }\n", "        }\n",
+               ["guard::tests::g2_two_reads_that_miss_a_running_executor_end_nothing",
+                "guard::tests::an_executor_missed_once_early_gets_the_whole_grace_from_its_end"]),
+              ("m39_own_number_taken", "crates/halvo-web/src/guard.rs",
+               "        if p.pid != me && !known", "        if !known",
+               ["guard::tests::m39_the_guard_s_own_number_is_never_a_member"]),
+              ("t1_older_orphan_taken", "crates/halvo-web/src/guard.rs",
+               "                && t.started_us >= k.started_us\n", "",
+               ["guard::tests::a_marked_process_older_than_the_dead_member_is_no_member"]),
+              ("m46_any_parent_adopted", "crates/halvo-web/src/procs.rs",
+               ".filter(|p| p.ppid == 1 && !tree", ".filter(|p| !tree",
+               ["procs::tests::adopted_asks_the_parent_number_1"]),
+              ("m47_app_inside_a_name", "crates/halvo-web/src/procs.rs",
+               'ends_with(".app")', 'contains(".app")',
+               ["procs::tests::a_name_with_app_inside_is_no_bundle"]),
+              ("a4_untimed_row_gone", "crates/halvo-web/src/guard.rs",
+               "                Executor::Untimed => {\n                    act.untimed += 1;\n                    false\n                }\n",
+               "                Executor::Untimed => true,\n",
+               ["guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor"]),
+              ("a4_no_name_gone", "crates/halvo-web/src/guard.rs",
+               "                .is_none_or(|n|", "                .is_some_and(|n|",
+               ["guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor"]),
+          ]
+          LOOP_ADDED = ['guard::tests::a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor', 'guard::tests::a4_an_untimed_row_with_another_program_s_name_is_not_the_executor', 'guard::tests::a4_a_row_with_another_known_time_is_not_the_executor_on_windows', 'guard::tests::a4_on_macos_an_untimed_row_is_not_the_executor', 'guard::tests::a4_the_guard_refuses_an_executor_creation_time_of_0', 'relay::tests::a4_no_guard_is_started_for_an_executor_with_no_creation_time', 'relay::tests::a3_each_class_of_the_closed_list_and_its_edges', 'relay::tests::a3_an_answer_with_one_loopback_address_is_refused_whole', 'relay::tests::a3_a_loopback_answer_is_refused_with_reply_2_and_recorded_apart', 'relay::tests::a3_a_bound_loopback_literal_is_dialled', 'cdp::wire::tests::a1_the_mode_that_fails_fails_every_state_changing_request', 'cdp::wire::tests::a1_of_two_like_requests_only_the_one_let_through_by_its_id_leaves', 'cdp::wire::tests::a1_one_request_paused_twice_is_held_once_and_follows_its_answer', 'cdp::wire::tests::a1_a_pause_with_no_number_is_failed', 'cdp::wire::tests::a1_a_307_hop_after_a_release_is_failed_and_a_get_hop_passes', 'cdp::wire::tests::a1_an_options_passes_and_uses_nothing_up', 'cdp::wire::tests::a1_a_request_of_another_frame_is_held_with_its_frame_and_failed_at_a_release', 'cdp::wire::tests::a1_a_held_request_beyond_the_bound_is_failed', 'cdp::wire::tests::a1_held_requests_are_failed_at_a_new_arm', 'cdp::tests::a1_split_url_cuts_a_user_and_password_from_the_origin', 'cdp::tests::a1_the_start_returns_with_the_rule_armed_with_no_origin_in_the_mode_that_fails', 'cdp::wire::tests::a2_a_response_that_cannot_be_given_the_line_is_failed', 'cdp::wire::tests::a2_every_arm_intercepts_documents_and_scripts_at_the_response_stage']
+          for cid, path, old, new, tests in COPIES:
+              text = open(path, encoding="utf-8").read()
+              if text.count(old) != 1:
+                  print(f"u21 copy={cid} applied=no count={text.count(old)}", flush=True)
+                  continue
+              open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
+              r = subprocess.run(["cargo", "test", "-q", "-p", "halvo-web", "--lib", "--", "--exact"] + tests,
+                                 capture_output=True, text=True)
+              subprocess.run(["git", "checkout", "--", path], check=True)
+              import re as _re
+              compiled = "could not compile" not in r.stderr and "error[E" not in r.stderr
+              m = _re.search(r"test result: \w+\. (\d+) passed; (\d+) failed", r.stdout)
+              nfail = int(m.group(2)) if m else -1
+              print(f"u21 copy={cid} exit={r.returncode} compiled={'yes' if compiled else 'no'} failed={nfail} of={len(tests)}", flush=True)
+              if r.returncode == 0 or not compiled or nfail < 1:
+                  failed.append("copy_" + cid)
+
+          LOOP = ['guard::tests::me01_a_child_of_a_foreign_taker_of_a_dead_member_s_number_is_no_member', 'guard::tests::me01_the_loop_ends_no_child_of_a_foreign_taker_that_ended', 'guard::tests::g1_a_foreign_child_of_a_reused_number_is_never_asked_or_ended', 'guard::tests::g2_two_reads_that_miss_a_running_executor_end_nothing', 'guard::tests::an_executor_missed_once_early_gets_the_whole_grace_from_its_end', 'guard::tests::an_orphan_by_its_parent_s_number_without_the_mark_is_no_member', 'guard::tests::an_orphan_born_between_two_reads_is_followed_and_the_port_kept_until_it_is_gone', 'guard::tests::a_marked_process_older_than_the_dead_member_is_no_member', 'guard::tests::m36_the_margin_begins_again_after_a_member_is_seen_again', 'guard::tests::m39_the_guard_s_own_number_is_never_a_member', 'guard::tests::m42_two_unread_spells_with_a_read_between_do_not_end_the_guard', 'checks::tests::a_read_with_a_missing_count_does_not_hold', 'checks::tests::an_unread_end_of_the_pipe_counts_as_open', 'checks::tests::the_four_rules_count_what_breaks_them_on_this_system', 'checks::tests::a_debugging_port_flag_without_its_equals_sign_is_named', 'cdp::tests::a_credential_field_has_no_value_whatever_its_role_and_text', 'cdp::tests::a_credential_line_renders_no_value_whatever_it_holds', 'cdp::tests::a_quote_in_a_value_cannot_make_a_credential_mark', 'cdp::tests::an_amount_is_digits_one_point_and_two_decimals', 'cdp::tests::a_ref_of_an_older_snapshot_is_stale', 'cdp::tests::open_takes_http_and_https_alone', 'cdp::tests::the_command_line_is_the_executor_s_closed_list', 'cdp::tests::the_crash_means_choose_from_the_executor_s_own_flags', 'cdp::wire::tests::an_origin_that_an_allowed_origin_begins_is_refused', 'cdp::wire::tests::a_service_worker_s_script_is_not_let_through', 'peer::tests::a_row_with_an_end_off_loopback_is_no_owner', 'peer::tests::an_owner_whose_number_another_process_took_is_refused', 'peer::tests::the_peer_check_waits_for_the_start_lock', 'rows::tests::an_unread_table_is_open', 'rows::tests::a_bundle_process_with_unread_arguments_is_open', 'rows::tests::the_run_s_own_and_its_guards_are_counted', 'procs::tests::adopted_asks_the_parent_number_1', 'procs::tests::a_name_with_app_inside_is_no_bundle', 'crash_row::tests::a_new_file_under_a_named_place_is_listed', 'crash_row::tests::a_file_of_a_dump_s_size_is_reported_with_its_size', 'crash_row::tests::a_control_with_no_dump_reads_notrun', 'crash_row::tests::a_crash_with_the_means_that_left_a_file_reads_miss', 'crash_row::tests::the_singleton_s_random_names_and_link_sizes_are_not_beyond']
+          LOOP += LOOP_ADDED
+          built = subprocess.run(["cargo", "test", "-q", "-p", "halvo-web", "--lib", "--no-run", "--message-format=json"],
+                                 capture_output=True, text=True)
+          exe = None
+          for line in built.stdout.splitlines():
+              if '"executable"' in line and '"halvo_web"' in line:
+                  import json as _j
+                  m = _j.loads(line)
+                  if m.get("executable") and "test" in m.get("profile", {}) and m["profile"]["test"]:
+                      exe = m["executable"]
+          listed = subprocess.run([exe, "--list", "--format", "terse"], capture_output=True, text=True).stdout if exe else ""
+          present = {l.rsplit(": ", 1)[0] for l in listed.splitlines() if l.endswith(": test")}
+          for name in LOOP:
+              if name not in present:
+                  print(f"u21 loop test={name} absent_on_this_system=yes", flush=True)
+                  continue
+              passes = 0
+              for _ in range(200):
+                  r = subprocess.run([exe, "--exact", name, "--test-threads=1", "-q"], capture_output=True, text=True)
+                  passes += int(r.returncode == 0 and "1 passed" in r.stdout)
+              print(f"u21 loop test={name} passes={passes} of=200", flush=True)
+              if passes != 200:
+                  failed.append("loop")
+
+          print("u21 failed=" + (",".join(failed) if failed else "-"), flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
