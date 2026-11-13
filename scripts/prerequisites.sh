@@ -848,6 +848,10 @@ EOF
   lock_reads '' 'an entry after a document marker with a trailing space'
   printf -- "---\npackages:\n...\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
   lock_reads '' 'an entry after the end marker of the first document'
+  printf -- "---\npackages:\n--- \npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads '' 'the only entry, after a document marker with a trailing space'
+  printf -- "---\npackages:\n...\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads '' 'the only entry, under a packages: key after the end marker of the first document'
   printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
   lock_reads '' 'an entry with two resolution lines'
   printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    cpu: [arm64]\n\nsnapshots:\n\n  '@pnpm/exe.p@1.0.0':\n    optional: true\n\n---\nlockfileVersion: '9.0'\n" "$good" >"$lock_file"
