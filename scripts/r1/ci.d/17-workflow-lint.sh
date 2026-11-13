@@ -885,6 +885,10 @@ EOF
   check cache-step-cut-by-the-end-of-the-file FAIL ".github/workflows/ci.yml line 23: the Rust cache step of the job windows ends with the file before its line 3; write after its last line the line '${pin_prefix}'; the pin holds this line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
   lines schedule-line-at-the-end-of-the-file 26 "$pin_save${nl}on:${nl}  push:${nl}  schedule:" 5 - 4 - 3 - 2 -
   check schedule-line-at-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the file ends where this lint reads the cron line under '  schedule:'; write '${pin_cron}'; the pin holds this line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines first-step-at-eight-blanks 13 "        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+  check first-step-at-eight-blanks FAIL ".github/workflows/ci.yml line 13: '        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' is the first line in the steps of the job macos and stands at 8 blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so"
+  lines no-on-block 5 - 4 - 3 - 2 -
+  check no-on-block FAIL ".github/workflows/ci.yml: no line of the file is 'on:' alone in column 1; this lint reads the events under that line, with the line '  schedule:' and under it the line '${pin_cron}'; write them; the pin holds this line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
