@@ -898,13 +898,18 @@ What the code does since store-3, each sentence with the test that shows it.
   `/.vol/<device>/<file number>/store.db` of the handle's directory, with
   the two numbers read from the handle at each open and kept nowhere, after
   one stat of `/.vol/<device>/<file number>` that follows no link: that
-  name with the same identity is used; `ENOENT`, `ENOTSUP` or `EOPNOTSUPP`
-  give the kept name; another identity refuses the open. Tests:
+  name with the same identity is used; another identity refuses the open;
+  `ENOENT`, `ENOTSUP` or `EOPNOTSUPP` give the kept name only on a volume
+  that reads NO before and after the stat (ruling ST-39 (1); see L2). Tests:
   `sqlite_keeps_the_volume_name_of_the_handle_for_an_opened_and_a_created_store` (P9),
   `after_a_move_once_open_a_write_a_checkpoint_and_the_close_act_in_the_moved_directory`,
   `a_move_before_the_first_read_refuses_the_open_and_changes_nothing_at_the_old_name` (P10),
   `what_the_first_read_of_a_database_with_no_pages_removes_lies_in_the_moved_directory` (P11),
-  `the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses` (P13).
+  `the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses` (P13),
+  `a_no_such_name_answer_chooses_the_kept_name_only_on_a_volume_that_reads_no_both_times`,
+  `the_three_readings_of_a_volume_decide_yes_no_and_unknown`,
+  `the_volume_of_the_tests_reads_yes_and_a_volume_that_reads_no_gets_the_kept_name`,
+  `an_old_log_with_bytes_in_the_directory_while_sqlite_holds_another_log_is_refused`.
 - Once SQLite holds its files the store looks through its handle: `store.db`
   is a regular file, `SQLITE_FCNTL_HAS_MOVED` answers 0, the name that
   SQLite keeps leads to the handle's entry, the volume name holds the
@@ -929,16 +934,29 @@ The swap race of `the_swap_race_counts_in_both_windows_under_the_volume_name`
 each arm and each window, a directory swapped in at the seam after the last
 look and at the seam before the first read: kept name with plain renames,
 volume name with plain renames, and volume name with `renamex_np` and
-`RENAME_SWAP` at the parent; every round answered `Obstructed`, and no round
-changed the directory put at the name.
+`RENAME_SWAP` at the parent; every round answered `Obstructed`, no round
+changed the directory put at the name, and no open used the kept name (the
+test asserts that count as 0). The run prints the three readings of this
+Mac's data volume: `MNT_DOVOLFS` set, `VOL_CAP_FMT_PATH_FROM_ID` valid and
+set, and the root's own volume name answers the root.
 
 ## Not covered
 
 - The window after the store's last look on macOS (ruling ST-33 (3)).
-  L1: the kernel's own lookup of a `/.vol` name is not shown to be one step;
-  the width is the counts of P8 above. L2: on a volume where the name does
-  not resolve the store opens by the kept name, and the limit of ruling
-  ST-30 (1)(b) stands there. L3: a directory that is removed, or moved to
+  L1: "Read in the kernel's public source at xnu-12377.121.6 (this Mac runs xnu-13432.41.4, whose source is not published): for /.vol/<device>/<file number>/store.db the kernel gets the directory's node by its number, builds that node's path as a string, adds /store.db and walks the string from the root. It does not check that the walk ended in the directory with that number. It tries again only when the walk answers ENOENT, at most five more times. So a move of the directory with another directory put at its old path, or one exchange of two directories, between the build and the walk can make SQLite's open act in that other directory; the name /.vol/<device>/<file number> alone, with nothing after the number, is checked by the kernel and answers that directory or ENOENT."
+  The store's look refuses a single landing elsewhere of the database's
+  open and of the log's open (ruling ST-39 (2), W1 to W3 and W6, with the
+  log checked in two instants: absent or empty after a checkpoint with
+  truncation before the first write, holding bytes after it); two landings
+  in the order W4 of ruling ST-39 pass it, and their width is the counts of
+  P8 above. L2: a no-such-name answer of the directory's stat alone never
+  chooses the kept name: the store asks the volume by its mount flag, its
+  capability and the stat of its root under its own number, and takes the
+  kept name only on a volume that reads NO before and after that answer,
+  where the limit of ruling ST-30 (1)(b) stands; this Mac's data volume
+  reads YES on all three, so the NO branch is shown by a seam alone. A
+  program of the same user that writes into the store directory can make
+  both instants of the log's check read as it likes. L3: a directory that is removed, or moved to
   another volume, while a connection is open answers `Obstructed` for the
   store directory; a move to another volume is a copy and a removal, by
   reasoning and not by a run. L4: on Windows every call is by name under a
