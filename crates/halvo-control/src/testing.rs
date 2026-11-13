@@ -255,9 +255,20 @@ fn start_stopped_sources(f: &mut StatusFields) {
     }
 }
 
-/// Sets the capture value that C2.3 gives desired, the lease and the states of the required
-/// sources: paused, no_indicator, running, partial, or faulted with a reason.
-fn settle(f: &mut StatusFields) {
+fn end_the_person_s_stops(f: &mut StatusFields) {
+    for line in &mut f.sources {
+        if line.state == (SourceState::Stopped { by_user: true }) {
+            line.state = SourceState::Stopped { by_user: false };
+        }
+    }
+}
+
+/// Sets capture and its reason from desired, `hold`, the lease and the states of the sources
+/// that are not off: paused when desired is paused; else awaiting_resume under `hold`; else
+/// no_indicator when the lease is not fresh; else running when each of those sources is running
+/// or impaired, partial when some are, and otherwise faulted with the reason that stood, or
+/// no_source when none stood.
+fn settle(f: &mut StatusFields, hold: bool) {
     let required: Vec<&SourceLine> = f
         .sources
         .iter()
@@ -269,6 +280,8 @@ fn settle(f: &mut StatusFields) {
         .count();
     let (capture, reason) = if f.desired == CaptureState::Paused {
         (Capture::Paused, None)
+    } else if hold {
+        (Capture::AwaitingResume, None)
     } else if f.lease != Lease::Fresh {
         (Capture::NoIndicator, None)
     } else if running == required.len() {
@@ -301,6 +314,9 @@ pub struct ScriptedDaemon {
     next_store: u8,
     requests: Vec<Request>,
     refused_change: bool,
+    /// The hold of ruling PL-3: set when the status given reads awaiting_resume, kept through a
+    /// claim and a pause, and cleared by a Resume.
+    hold: bool,
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -313,6 +329,7 @@ fn error(code: ErrorCode, message: &str) -> Reply {
 impl ScriptedDaemon {
     pub fn new(status: DaemonStatus) -> Self {
         Self {
+            hold: status.fields().capture == Capture::AwaitingResume,
             status,
             form: PERMISSION_FORM,
             in_flight: false,
@@ -335,7 +352,14 @@ impl ScriptedDaemon {
     }
 
     pub fn set_status(&mut self, status: DaemonStatus) {
+        self.hold = status.fields().capture == Capture::AwaitingResume;
         self.status = status;
+    }
+
+    /// From the first answer that reads pausing until the process is gone, C2.3 has capture
+    /// read pausing: a claim, a pause and a resume then change nothing.
+    fn pausing(&self) -> bool {
+        self.status.fields().capture == Capture::Pausing
     }
 
     pub fn set_form(&mut self, form: PermissionForm) {
@@ -453,13 +477,14 @@ impl ScriptedDaemon {
         }
         match request {
             Request::Status { indicator } => {
-                if indicator && self.status.fields().lease != Lease::Fresh {
+                if indicator && self.status.fields().lease != Lease::Fresh && !self.pausing() {
+                    let hold = self.hold;
                     self.edit(|f| {
                         f.lease = Lease::Fresh;
-                        if f.desired == CaptureState::Running {
+                        if f.desired == CaptureState::Running && !hold {
                             start_stopped_sources(f);
                         }
-                        settle(f);
+                        settle(f, hold);
                     });
                 }
                 Reply::Status(self.status.clone())
@@ -479,26 +504,34 @@ impl ScriptedDaemon {
                 }
             }
             Request::Pause => {
-                self.edit(|f| {
-                    f.desired = CaptureState::Paused;
-                    f.capture = Capture::Paused;
-                    f.capture_reason = None;
-                    for line in &mut f.sources {
-                        if line.state != SourceState::Off {
-                            line.state = SourceState::Stopped { by_user: false };
+                if !self.pausing() {
+                    self.edit(|f| {
+                        f.desired = CaptureState::Paused;
+                        f.capture = Capture::Paused;
+                        f.capture_reason = None;
+                        for line in &mut f.sources {
+                            if line.state != SourceState::Off {
+                                line.state = SourceState::Stopped { by_user: false };
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 Reply::CaptureChanged(self.status.clone())
             }
             Request::Resume => {
-                self.edit(|f| {
-                    f.desired = CaptureState::Running;
-                    if f.lease == Lease::Fresh {
-                        start_stopped_sources(f);
+                if !self.pausing() {
+                    self.edit(|f| {
+                        f.desired = CaptureState::Running;
+                        end_the_person_s_stops(f);
+                        if f.lease == Lease::Fresh {
+                            start_stopped_sources(f);
+                        }
+                        settle(f, false);
+                    });
+                    if !self.refused_change {
+                        self.hold = false;
                     }
-                    settle(f);
-                });
+                }
                 Reply::CaptureChanged(self.status.clone())
             }
             Request::Stop => Reply::Stopped(self.stop_reply),
