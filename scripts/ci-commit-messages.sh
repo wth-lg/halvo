@@ -175,13 +175,15 @@ run_event() {
   fi
 
   if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ] || [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-    default_script=$(git show "$default_ref:$CHECK") ||
+    default_commit=$(git rev-parse --verify "$default_ref^{commit}") ||
+      die "$default_ref names no commit in this clone"
+    default_script=$(git show "$default_commit:$CHECK") ||
       die "$default_ref holds no $CHECK, so nothing can be checked with the copy of the default branch"
   fi
   if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
     say "the same range, with the copy of $CHECK that $default_ref holds:"
     default_status=0
-    default_output=$(sh -c "$default_script" check-commit-messages.sh "$range") || default_status=$?
+    default_output=$(sh -c "$default_script" "check-commit-messages.sh@$default_commit" "$range") || default_status=$?
     if [ "$default_status" != 0 ]; then
       fail "the copy of $CHECK that $default_ref holds refuses this range (exit $default_status, its findings are above), and the copy of this branch accepts it. Either this branch moved the exempt commit or changed the predicate, or $default_ref holds an older predicate that refuses a line which the newer one accepts. In both cases the commits must pass the copy of the default branch: reword the listed lines, and undo a change to the exempt commit."
     fi
@@ -197,8 +199,8 @@ run_event() {
   if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
     printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh "$CHECK" --stored-message ||
       fail "the title or the description of the pull request carries an attribution line, listed above. GitHub offers that text as the squash message. Remove the line on GitHub, then close and reopen the pull request. That starts a new pull_request run, which reads the new text; a re-run reads the old text, because this job reads the text from the event that started it."
-    if sh -c "$default_script" check-commit-messages.sh --stored-message </dev/null >/dev/null 2>&1; then
-      printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh -c "$default_script" check-commit-messages.sh --stored-message ||
+    if sh -c "$default_script" "check-commit-messages.sh@$default_commit" --stored-message </dev/null >/dev/null 2>&1; then
+      printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh -c "$default_script" "check-commit-messages.sh@$default_commit" --stored-message ||
         fail "the copy of $CHECK that $default_ref holds refuses the title or the description of the pull request (its findings are above), and the copy of this branch accepts them. The branch weakened the predicate for this text. Undo that change, and remove the line on GitHub."
       say 'the title and the description of the pull request carry no attribution line, for the copy of this branch and for the copy of the default branch'
     else
@@ -228,6 +230,11 @@ self_test() {
   commit_with_the_predicate_before_this_change=d7b245a0a29f4c212173e46bb8f0d3fa881c3ed5
   default_ref_in_runner=refs/remotes/origin/main
   commit_that_no_clone_has=1111111111111111111111111111111111111111
+  commit_that_added_the_range_file=$(git log -1 --format=%H --diff-filter=A HEAD -- scripts/commit-range.sh) ||
+    die 'git log could not find the commit that added scripts/commit-range.sh'
+  [ -n "$commit_that_added_the_range_file" ] || die 'HEAD has no commit that added scripts/commit-range.sh'
+  copy_before_the_range_file=$(git rev-parse --verify "$commit_that_added_the_range_file^") ||
+    die 'git rev-parse could not name the parent of the commit that added scripts/commit-range.sh'
 
   exempt_commit=$(sed -n 's/^NEWEST_EXEMPT_COMMIT=//p' "$root/$CHECK")
   [ -n "$exempt_commit" ] || die "cannot read NEWEST_EXEMPT_COMMIT from $CHECK"
@@ -378,7 +385,7 @@ self_test() {
   push_to_branch tag-named-origin-main-on-a-clean-commit 0 'commits checked 2,' "$no_commit" "$clean_branch"
 
   runner branch-that-moved-the-exempt-commit "$main" "$branch_that_moved_the_exempt_commit" "$branch_that_moved_the_exempt_commit:refs/heads/feature"
-  pull_request branch-that-moved-the-exempt-commit 1 'this branch moved the exempt commit or changed the predicate' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
+  pull_request branch-that-moved-the-exempt-commit 1 'commits checked 2, with an attribution line 1' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
 
   start_at "$main"
   awk '{ print } $0 == "check_stored_message() {" { print "  exit 0" }' "$root/$CHECK" >"$dev/$CHECK"
@@ -413,6 +420,69 @@ self_test() {
 
   runner branch-that-blinded-the-range-check "$main" "$branch_that_blinded_the_range_check" "$branch_that_blinded_the_range_check:refs/heads/feature"
   push_to_branch branch-that-blinded-the-range-check 1 'the control did not fail' "$no_commit" "$branch_that_blinded_the_range_check"
+
+  start_at "$main"
+  awk '{ print } $0 == "commit_range() {" { print "  case \"$*\" in *..*) return 0 ;; esac" }' "$root/scripts/commit-range.sh" >"$dev/scripts/commit-range.sh"
+  cmp -s "$root/scripts/commit-range.sh" "$dev/scripts/commit-range.sh" && die "the self-test could not edit scripts/commit-range.sh for 'Give no commit to a range with two dots': the line that it follows has changed"
+  git -C "$dev" add scripts/commit-range.sh
+  commit 'Give no commit to a range with two dots'
+  commit "Fix the gate$nl$nl$trailer"
+  branch_that_emptied_its_ranges=$(tip)
+  runner branch-whose-range-function-gives-its-range-no-commit "$main" "$branch_that_emptied_its_ranges" "$branch_that_emptied_its_ranges:refs/heads/feature"
+  push_to_branch branch-whose-range-function-gives-its-range-no-commit 1 'holds refuses this range' "$no_commit" "$branch_that_emptied_its_ranges"
+
+  expect_text_run() {
+    name=$1 want_status=$2 want_text=$3 run_name=$4 text_commit=$5
+    shift 5
+    status=0
+    script_text=$(git -C "$work/$name" show "$text_commit:$CHECK") || die "the runner clone of $name holds no $CHECK at $text_commit"
+    (cd "$work/$name" && sh -c "$script_text" "$run_name" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
+    shapes=$((shapes + 1))
+    if [ "$status" = "$want_status" ] && grep -qF -- "$want_text" "$work/out/$name.txt"; then
+      printf 'PASS %s (exit %s)\n' "$name" "$status"
+    else
+      printf 'FAIL %s (exit %s, expected exit %s and the text "%s"; output in %s)\n' "$name" "$status" "$want_status" "$want_text" "$work/out/$name.txt"
+      failures=$((failures + 1))
+    fi
+  }
+  plant_range_files() {
+    start_at "$main"
+    cp "$root/scripts/commit-range.sh" "$dev/commit-range.sh"
+    printf '%s\n' "$1" >>"$dev/commit-range.sh"
+    cp "$root/scripts/commit-range.sh" "$dev/scripts/commit-range.sh"
+    printf '%s\n' "$2" >>"$dev/scripts/commit-range.sh"
+    printf '#!/bin/sh\nprintf "check-commit-messages: PASS: planted: commits checked 1, with an attribution line 0 (planted).\\n"\n' >"$dev/check-commit-messages.sh"
+    git -C "$dev" add commit-range.sh check-commit-messages.sh scripts/commit-range.sh
+    commit "Plant range files at the root$nl${nl}$3"
+    commit "Fix the gate$nl$nl$trailer"
+    tip
+  }
+  d='$'
+  every_range_empty="commit_range() { case \"${d}*\" in *..*) return 0 ;; esac; for commit_range_last do :; done; git rev-list --reverse --end-of-options \"${d}commit_range_last\" -- </dev/null || return 2; }"
+  without_the_newest="commit_range() { for commit_range_last do :; done; git rev-list --reverse --end-of-options \"${d}commit_range_last\" -- </dev/null | sed '${d}d'; }"
+  branch_with_empty_ranges_at_the_root=$(plant_range_files "$every_range_empty" "$every_range_empty" 'Every range with two dots is empty.')
+  runner branch-that-plants-range-files-with-every-range-empty "$main" "$branch_with_empty_ranges_at_the_root" "$branch_with_empty_ranges_at_the_root:refs/heads/feature"
+  push_to_branch branch-that-plants-range-files-with-every-range-empty 1 'holds refuses this range' "$no_commit" "$branch_with_empty_ranges_at_the_root"
+  branch_without_its_newest_commit=$(plant_range_files "$without_the_newest" "$without_the_newest" 'Each range leaves out its newest commit.')
+  runner branch-that-plants-range-files-without-the-newest-commit "$main" "$branch_without_its_newest_commit" "$branch_without_its_newest_commit:refs/heads/feature"
+  push_to_branch branch-that-plants-range-files-without-the-newest-commit 1 'holds refuses this range' "$no_commit" "$branch_without_its_newest_commit"
+
+  runner default-branch-with-the-copy-before-the-range-file "$copy_before_the_range_file" "$clean_branch" "$clean_branch:refs/heads/feature"
+  push_to_branch default-branch-with-the-copy-before-the-range-file 0 'and the copy of the default branch read' "$no_commit" "$clean_branch"
+
+  runner text-with-a-bare-name-reads-the-default-branch "$main" "$branch_with_empty_ranges_at_the_root" "$branch_with_empty_ranges_at_the_root:refs/heads/feature"
+  expect_text_run text-with-a-bare-name-reads-the-default-branch 1 'with an attribution line 1' check-commit-messages.sh refs/remotes/origin/main refs/remotes/origin/main..HEAD
+
+  start_at "$main"
+  printf '%s\n' "$every_range_empty" >>"$dev/scripts/commit-range.sh"
+  git -C "$dev" add scripts/commit-range.sh
+  commit 'Give no commit to a range with two dots on the default branch'
+  main_with_empty_ranges=$(tip)
+  commit "Fix the gate$nl$nl$trailer"
+  branch_on_a_main_with_empty_ranges=$(tip)
+  runner text-named-for-a-commit-reads-that-commit "$main_with_empty_ranges" "$branch_on_a_main_with_empty_ranges" "$branch_on_a_main_with_empty_ranges:refs/heads/feature"
+  git -C "$work/text-named-for-a-commit-reads-that-commit" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  expect_text_run text-named-for-a-commit-reads-that-commit 1 'with an attribution line 1' "check-commit-messages.sh@$main" "$main" refs/remotes/origin/main..HEAD
 
   start_at "$main"
   git -C "$dev" update-index --force-remove "$AGENT_SETTINGS"
