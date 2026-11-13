@@ -85,6 +85,76 @@ macro_rules! op_enum {
     };
 }
 
+macro_rules! reply_enum {
+    (
+        $(#[$meta:meta])*
+        pub enum $name:ident { $( $variant:ident($ty:ident) = $key:literal ),+ $(,)? }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub enum $name {
+            $( $variant($ty), )+
+        }
+
+        const _: () = {
+            $( assert!(<$ty as json::Arrives>::MAX == CHECKPOINTS_REPLY_MAX); )+
+        };
+
+        impl $name {
+            pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
+                reply_bytes(stringify!($name), raw.get().len())?;
+                let obj = json::object(stringify!($name), raw)?;
+                $(
+                    if obj.has($key) {
+                        return $ty::from_raw(raw).map($name::$variant);
+                    }
+                )+
+                Err(Refusal::malformed(stringify!($name), "reply_form"))
+            }
+
+            /// Reads one reply as it arrives and refuses every other input. An input of more than
+            /// `CHECKPOINTS_REPLY_MAX` bytes, counted on the bytes given before anything is read, is refused with the
+            /// cause `length` and the rule `reply_bytes`.
+            pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+                reply_bytes(stringify!($name), bytes.len())?;
+                Self::from_raw(json::whole(stringify!($name), bytes)?)
+            }
+
+            /// The compact JSON of the reply.
+            pub fn to_json(&self) -> Result<String, Refusal> {
+                match self {
+                    $( $name::$variant(r) => r.to_json(), )+
+                }
+            }
+        }
+
+        impl Serialize for $name {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                match self {
+                    $( $name::$variant(r) => r.serialize(serializer), )+
+                }
+            }
+        }
+
+        /// The serde reader counts the text of the value that serde gives it, white space and escapes inside the
+        /// value included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes
+        /// are counted by `parse` or by the reader of the text around the value.
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let raw = json::deserialize_raw(stringify!($name), deserializer)?;
+                Self::from_raw(&raw).map_err(<D::Error as serde::de::Error>::custom)
+            }
+        }
+    };
+}
+
+fn reply_bytes(type_name: &'static str, len: usize) -> Result<(), Refusal> {
+    if len > CHECKPOINTS_REPLY_MAX {
+        return Err(Refusal::length(type_name, "reply_bytes"));
+    }
+    Ok(())
+}
+
 fn same_run(
     type_name: &'static str,
     body: (&AgentId, &RunId),
@@ -387,50 +457,18 @@ object_type! {
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
-/// The reply of a runner body, told apart by its keys.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RunnerReply {
-    Load(LoadReply),
-    Steps(StepsReply),
-    Session(SessionReply),
-    Stored(Stored),
+reply_enum! {
+    /// The reply of a runner body, told apart by its keys. Each variant's type has a bound of
+    /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile.
+    pub enum RunnerReply {
+        Load(LoadReply) = "config",
+        Steps(StepsReply) = "steps",
+        Session(SessionReply) = "data",
+        Stored(Stored) = "stored",
+    }
 }
 
 impl RunnerReply {
-    pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
-        reply_bytes("RunnerReply", raw.get().len())?;
-        let obj = json::object("RunnerReply", raw)?;
-        if obj.has("config") {
-            LoadReply::from_raw(raw).map(RunnerReply::Load)
-        } else if obj.has("steps") {
-            StepsReply::from_raw(raw).map(RunnerReply::Steps)
-        } else if obj.has("data") {
-            SessionReply::from_raw(raw).map(RunnerReply::Session)
-        } else if obj.has("stored") {
-            Stored::from_raw(raw).map(RunnerReply::Stored)
-        } else {
-            Err(Refusal::malformed("RunnerReply", "reply_form"))
-        }
-    }
-
-    /// Reads one reply as it arrives and refuses every other input. An input of more than `CHECKPOINTS_REPLY_MAX`
-    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
-    /// `reply_bytes`.
-    pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
-        reply_bytes("RunnerReply", bytes.len())?;
-        Self::from_raw(json::whole("RunnerReply", bytes)?)
-    }
-
-    /// The compact JSON of the reply.
-    pub fn to_json(&self) -> Result<String, Refusal> {
-        match self {
-            RunnerReply::Load(r) => r.to_json(),
-            RunnerReply::Steps(r) => r.to_json(),
-            RunnerReply::Session(r) => r.to_json(),
-            RunnerReply::Stored(r) => r.to_json(),
-        }
-    }
-
     /// Whether the reply has the form that the body's call answers with.
     pub fn answers(&self, call: &RunnerCall) -> bool {
         matches!(
@@ -448,27 +486,6 @@ impl RunnerReply {
                         | RunnerCall::Checkpoint(_)
                 )
         )
-    }
-}
-
-impl Serialize for RunnerReply {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            RunnerReply::Load(r) => r.serialize(serializer),
-            RunnerReply::Steps(r) => r.serialize(serializer),
-            RunnerReply::Session(r) => r.serialize(serializer),
-            RunnerReply::Stored(r) => r.serialize(serializer),
-        }
-    }
-}
-
-/// The serde reader counts the text of the value that serde gives it, white space and escapes inside the value
-/// included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes are counted by
-/// `parse` or by the reader of the text around the value.
-impl<'de> Deserialize<'de> for RunnerReply {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let raw = json::deserialize_raw("RunnerReply", deserializer)?;
-        Self::from_raw(&raw).map_err(<D::Error as serde::de::Error>::custom)
     }
 }
 
@@ -687,61 +704,19 @@ object_type! {
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
-/// The reply of a coordinator body, told apart by its keys.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoordinatorReply {
-    Rev(RevReply),
-    State(StateReply),
-    Accepted(Accepted),
-    Checkpoints(CheckpointsReply),
-    Stored(Stored),
-}
-
-fn reply_bytes(type_name: &'static str, len: usize) -> Result<(), Refusal> {
-    if len > CHECKPOINTS_REPLY_MAX {
-        return Err(Refusal::length(type_name, "reply_bytes"));
+reply_enum! {
+    /// The reply of a coordinator body, told apart by its keys. Each variant's type has a bound of
+    /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile.
+    pub enum CoordinatorReply {
+        Rev(RevReply) = "rev",
+        State(StateReply) = "state",
+        Accepted(Accepted) = "ok",
+        Checkpoints(CheckpointsReply) = "checkpoints",
+        Stored(Stored) = "stored",
     }
-    Ok(())
 }
 
 impl CoordinatorReply {
-    pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
-        reply_bytes("CoordinatorReply", raw.get().len())?;
-        let obj = json::object("CoordinatorReply", raw)?;
-        if obj.has("rev") {
-            RevReply::from_raw(raw).map(CoordinatorReply::Rev)
-        } else if obj.has("state") {
-            StateReply::from_raw(raw).map(CoordinatorReply::State)
-        } else if obj.has("ok") {
-            Accepted::from_raw(raw).map(CoordinatorReply::Accepted)
-        } else if obj.has("checkpoints") {
-            CheckpointsReply::from_raw(raw).map(CoordinatorReply::Checkpoints)
-        } else if obj.has("stored") {
-            Stored::from_raw(raw).map(CoordinatorReply::Stored)
-        } else {
-            Err(Refusal::malformed("CoordinatorReply", "reply_form"))
-        }
-    }
-
-    /// Reads one reply as it arrives and refuses every other input. An input of more than `CHECKPOINTS_REPLY_MAX`
-    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
-    /// `reply_bytes`.
-    pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
-        reply_bytes("CoordinatorReply", bytes.len())?;
-        Self::from_raw(json::whole("CoordinatorReply", bytes)?)
-    }
-
-    /// The compact JSON of the reply.
-    pub fn to_json(&self) -> Result<String, Refusal> {
-        match self {
-            CoordinatorReply::Rev(r) => r.to_json(),
-            CoordinatorReply::State(r) => r.to_json(),
-            CoordinatorReply::Accepted(r) => r.to_json(),
-            CoordinatorReply::Checkpoints(r) => r.to_json(),
-            CoordinatorReply::Stored(r) => r.to_json(),
-        }
-    }
-
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
     /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` by the list and
     /// `mark_checkpoint` by `stored` 0 or 1.
@@ -761,27 +736,5 @@ impl CoordinatorReply {
             ) => true,
             _ => false,
         }
-    }
-}
-
-impl Serialize for CoordinatorReply {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            CoordinatorReply::Rev(r) => r.serialize(serializer),
-            CoordinatorReply::State(r) => r.serialize(serializer),
-            CoordinatorReply::Accepted(r) => r.serialize(serializer),
-            CoordinatorReply::Checkpoints(r) => r.serialize(serializer),
-            CoordinatorReply::Stored(r) => r.serialize(serializer),
-        }
-    }
-}
-
-/// The serde reader counts the text of the value that serde gives it, white space and escapes inside the value
-/// included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes are counted by
-/// `parse` or by the reader of the text around the value.
-impl<'de> Deserialize<'de> for CoordinatorReply {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let raw = json::deserialize_raw("CoordinatorReply", deserializer)?;
-        Self::from_raw(&raw).map_err(<D::Error as serde::de::Error>::custom)
     }
 }

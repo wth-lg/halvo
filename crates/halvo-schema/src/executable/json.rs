@@ -103,6 +103,10 @@ impl fmt::Display for Refusal {
 
 impl std::error::Error for Refusal {}
 
+pub(in crate::executable) trait Arrives {
+    const MAX: usize;
+}
+
 pub(in crate::executable) trait FromJson: Sized {
     fn from_json(raw: &RawValue) -> Result<Self, Refusal>;
 }
@@ -442,6 +446,12 @@ macro_rules! object_type {
                 $crate::executable::json::write_json(stringify!($name), self)
             }
         }
+
+        $(
+            impl $crate::executable::json::Arrives for $name {
+                const MAX: usize = $amax;
+            }
+        )?
 
         impl $crate::executable::json::WriteFields for $name {
             fn write_fields<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

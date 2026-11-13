@@ -460,6 +460,10 @@ pub enum SecretReply {
     Unreadable(Unreadable),
 }
 
+impl json::Arrives for SecretReply {
+    const MAX: usize = FRAME_JSON_MAX;
+}
+
 impl SecretReply {
     const KEYS: &'static [&'static str] = &["t", "answer", "value", "member"];
 
@@ -537,6 +541,7 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Cancel [t = "cancel"] {}
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -582,6 +587,20 @@ object_type! {
 }
 
 macro_rules! frame_enum {
+    (
+        bounded($max:expr)
+        $(#[$meta:meta])*
+        pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
+    ) => {
+        frame_enum! {
+            $(#[$meta])*
+            pub enum $name { $( $variant($ty) = $t ),+ }
+        }
+
+        const _: () = {
+            $( assert!(<$ty as json::Arrives>::MAX == $max); )+
+        };
+    };
     (
         $(#[$meta:meta])*
         pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
@@ -639,7 +658,9 @@ frame_enum! {
 }
 
 frame_enum! {
-    /// A frame from the supervisor to the runner.
+    bounded(FRAME_JSON_MAX)
+    /// A frame from the supervisor to the runner. Each variant's type has a bound of `FRAME_JSON_MAX` bytes as they
+    /// arrive in its own `parse`, or the crate does not compile.
     pub enum ToRunner {
         StoreReply(StoreReplyFrame) = "store_reply",
         ConfirmReply(ConfirmReply) = "confirm_reply",
