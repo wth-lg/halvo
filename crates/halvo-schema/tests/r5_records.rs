@@ -1883,13 +1883,24 @@ fn a_key_of_each_record_object_in_another_letter_case_is_refused() {
 }
 
 fn target_of(bytes: usize) -> String {
-    let empty = r#"{"desc":"","locators":[{"by":"css","value":"","name":null}]}"#;
-    let value = bytes - empty.len() - 1024;
-    format!(
-        r#"{{"desc":"{}","locators":[{{"by":"css","value":"{}","name":null}}]}}"#,
-        "d".repeat(1024),
-        "v".repeat(value)
-    )
+    let locator = |c: char, len: usize| {
+        format!(
+            r#"{{"by":"css","value":"{}","name":null}}"#,
+            c.to_string().repeat(len)
+        )
+    };
+    let desc = "d".repeat(1024);
+    let mut locators: Vec<String> = Vec::new();
+    for c in ['v', 'w', 'x', 'y'] {
+        let used = format!(r#"{{"desc":"{desc}","locators":[{}]}}"#, locators.join(",")).len();
+        let comma = usize::from(!locators.is_empty());
+        let left = bytes - used - comma - locator(c, 0).len();
+        locators.push(locator(c, left.min(1024)));
+        if left <= 1024 {
+            break;
+        }
+    }
+    format!(r#"{{"desc":"{desc}","locators":[{}]}}"#, locators.join(","))
 }
 
 fn edit_with_target(target: &str) -> String {
