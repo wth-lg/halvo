@@ -1,0 +1,31 @@
+{
+  "kind": "judge",
+  "ruling": "B-36",
+  "about": "the proxy's text with a line of the gateway's source in the body: a violation",
+  "source": "evidence/researcher-check50/runs: the body of 320 lost attempts, its scratch directory masked as SCRATCH",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at serve (src/gateway/chat.ts:81:20)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

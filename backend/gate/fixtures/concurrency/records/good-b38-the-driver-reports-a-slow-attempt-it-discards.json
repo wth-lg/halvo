@@ -1,0 +1,60 @@
+{
+  "kind": "attempts",
+  "ruling": "B-38",
+  "about": "the driver reports a slow attempt that it discards, so that its late settles are printed with it",
+  "source": "by hand",
+  "cell": {
+    "name": "usage-last@200",
+    "kind": "matrix",
+    "level": 200,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "slow": true,
+        "burstWaits": [
+          2700
+        ],
+        "burstMedianMs": 2700,
+        "slowBoundMs": 2600,
+        "lateSettles": 1,
+        "lostInTransport": 0,
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0,
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {
+    "reported": [
+      "attempt-1",
+      "attempt-2"
+    ],
+    "discarded": [
+      {
+        "key": "attempt-1",
+        "slow": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "kind": "line",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (b)",
+  "about": "a run that drew once and then admitted before the boundary and still lacked the crossing: B-15's line, with the draw printed",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-rollover-at-20-plain-1-try2",
+      "cell": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 2,
+        "settled": 2,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": false,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-rollover-at-20-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=1 slow=0 burst-p50-at-200=unmeasured rollover-redrawn=1; first failure: 1 attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ledger-rollover-at-20-plain-1-try2"
+  }
+}

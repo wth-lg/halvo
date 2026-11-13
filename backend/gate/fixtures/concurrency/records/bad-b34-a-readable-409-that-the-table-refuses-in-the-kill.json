@@ -1,0 +1,45 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4, read by P7-69 F3 (the verifier's grid F)",
+  "about": "a 409 stopped for an id sent once whose row carries the mark, its body read whole, on a request that ended 2 ms before the kill: the kill excuses only a body that cannot be read, so the table refuses it",
+  "source": "by hand",
+  "request": {
+    "endedAt": 4060
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    }
+  ],
+  "top": {
+    "kill": {
+      "at": 4062,
+      "inFlight": 0
+    },
+    "restartReadyAt": 6000,
+    "firstLedgerReadAt": 6100
+  },
+  "expect": {
+    "counted": false,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

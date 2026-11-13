@@ -1,0 +1,7 @@
+{
+  "low_cost_hosted": {
+    "input": 1000000,
+    "output": 2000000,
+    "notBilled": []
+  }
+}

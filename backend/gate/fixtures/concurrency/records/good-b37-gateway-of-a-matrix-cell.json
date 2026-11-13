@@ -1,0 +1,17 @@
+{
+  "kind": "gateway",
+  "ruling": "B-33, B-37",
+  "about": "the driver starts the gateway of every other cell with the hold life of stress/config.mjs",
+  "source": "by hand",
+  "cell": {
+    "name": "slow@200",
+    "kind": "matrix",
+    "level": 200,
+    "switch": "slow"
+  },
+  "expect": {
+    "holdLifeMs": 3000,
+    "deadlineMs": 1500,
+    "marginMs": 400
+  }
+}

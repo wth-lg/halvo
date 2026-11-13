@@ -1,0 +1,31 @@
+{
+  "kind": "judge",
+  "ruling": "B-36",
+  "about": "the gateway's own 500 has an empty body: a violation",
+  "source": "by hand",
+  "request": {
+    "status": 500,
+    "body": "",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

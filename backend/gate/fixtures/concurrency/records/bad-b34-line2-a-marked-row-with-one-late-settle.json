@@ -1,0 +1,60 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 2",
+  "about": "a marked row of an id sent twice whose one settle came after the expiry: one settle is allowed, and the late settle is its own violation",
+  "source": "by hand; written from the record good-b34-line2-marked-row-expired-sent-twice for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire",
+    "late_at": 5000,
+    "late_seq": 3,
+    "cost": 19,
+    "input_tokens": 1,
+    "output_tokens": 1
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 1600,
+      "id": "r",
+      "ev": "usage",
+      "final": true,
+      "input_tokens": 1,
+      "output_tokens": 1
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "no-late-settle",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "expired": 1,
+      "lateSettles": 1
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 3",
+  "about": "a 409 repeat that says voided and not dispatched for an id sent twice whose row was voided without the mark",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ],
+    "body": "{\"result\":\"repeat\",\"state\":\"voided\",\"dispatched\":false}"
+  },
+  "row": {
+    "ended_at": 2000,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

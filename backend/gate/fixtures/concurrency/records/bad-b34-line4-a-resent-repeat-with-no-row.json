@@ -1,0 +1,38 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4, by P7-69 F4 (the review's B3)",
+  "about": "a 409 repeat for an id sent twice with no row under it: line 4 refuses a 409 with no row, whatever its body",
+  "source": "by hand",
+  "request": {
+    "body": "{\"result\":\"repeat\",\"state\":\"settled\",\"dispatched\":true}",
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "top": {
+    "final": {
+      "now": 9000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 9000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

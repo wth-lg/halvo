@@ -1,0 +1,99 @@
+{
+  "kind": "line",
+  "ruling": "B-39",
+  "about": "a run that failed to run keeps its own line before the slow attempts of another run",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    {
+      "name": "usage-missing@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-missing",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try1",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": "Error: the server did not answer within 30000 ms",
+      "violations": [],
+      "facts": null,
+      "discarded": [],
+      "ms": 1
+    },
+    {
+      "key": "ledger-usage-missing-at-200-plain-1-try2",
+      "cell": "usage-missing@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-missing",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": true,
+        "burstWaits": [
+          2800
+        ],
+        "burstMedianMs": 2800,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-usage-missing-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700
+          ],
+          "burstMedianMs": 2700,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 2 cells=0 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=2 burst-p50-at-200=2700ms rollover-redrawn=0; first failure: ledger-usage-last-at-200-plain-1-try1 failed to run in 6 attempts: Error: the server did not answer within 30000 ms"
+  }
+}

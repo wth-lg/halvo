@@ -1,0 +1,44 @@
+{
+  "kind": "judge",
+  "ruling": "B-37, by P7-69 F5 (the review's B4)",
+  "about": "a request of the slow switch, whose stream the gateway cuts: its 502 of the cut came 1 ms before the send plus the receipt's life less the margin. The slow switch does not make the upstream fail, so the time of the cut is read",
+  "source": "by hand",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"upstream-failed\",\"why\":\"AbortError\"}",
+    "headersAt": 3599,
+    "endedAt": 3669,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1589,
+      "expiresAt": 4589
+    },
+    "fault": "slow"
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "created_at": 1589,
+    "expires_at": 4589,
+    "ended_at": 4591,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

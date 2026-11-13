@@ -1,0 +1,13 @@
+{
+  "expect": "FAIL licenses: 2 problems; first: lightningcss-linux-x64-gnu@1.33.1 has the license MPL-2.0, which is neither on the allowlist nor in the exceptions",
+  "replaces": [
+    "lightningcss-linux-x64-gnu@1.33.0"
+  ],
+  "packages": [
+    {
+      "id": "lightningcss-linux-x64-gnu@1.33.1",
+      "license": "MPL-2.0",
+      "cached": true
+    }
+  ]
+}

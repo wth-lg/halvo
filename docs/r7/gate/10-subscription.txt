@@ -1,5 +1,5 @@
 line: PASS subscription: active=1 accounts-before-payment=0 delete-refused=1 rejected=5 of 5 redelivered=8 of 8 reordered=4 of 4 credential-mismatch=1 expired-removed=1 dropped-at-bound=1 account-from-read=1 no-platform-alarm=1 start-refused=1 deleted-after-cancel=1 unpaid-completed=1 pii-in-event=7 pii-in-storage=0
-stamp: 2026-11-12T17:11:44Z
-load: 32.46
-tree: 80f51ca8b3f2cdde39c588991f2d819e8c94e39a
+stamp: 2026-11-13T18:56:12Z
+load: 11.69
+tree: 686f7f842745ae164c3160e16d7f957a82825e35
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

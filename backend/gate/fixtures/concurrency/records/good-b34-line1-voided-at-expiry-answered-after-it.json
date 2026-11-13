@@ -1,0 +1,13 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1",
+  "about": "a 409 stopped for an id sent once whose row ended voided at its expiry without the mark, no upstream event, answered after the expiry",
+  "source": "by hand",
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "voidedAtExpiry": 1
+    }
+  }
+}

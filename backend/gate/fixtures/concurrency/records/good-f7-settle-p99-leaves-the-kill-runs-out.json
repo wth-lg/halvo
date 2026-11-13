@@ -1,0 +1,99 @@
+{
+  "kind": "line",
+  "ruling": "P7-69 F7 (the review's c07)",
+  "about": "settle-p99-at-200 reads the settles of the runs without the kill: a kill run's settle of 900 ms is not among them",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 1,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-kill-1-try1",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": true,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          900
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    },
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try1",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "PASS concurrency: runs=2 of 2 cells=1 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=0 rollover-uncrossed=0 slow=0 burst-p50-at-200=200ms rollover-redrawn=0"
+  }
+}
