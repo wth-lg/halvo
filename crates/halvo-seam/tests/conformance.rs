@@ -15,6 +15,8 @@ use halvo_seam::message::{
 enum Fault {
     StoreChangedOnReadNamesAnotherId,
     StoreChangedAtZeroNamesAnotherId,
+    OpenWhileOpenServes,
+    OpenWhileOpenClosesTheCursor,
 }
 
 use Fault::*;
@@ -149,6 +151,16 @@ fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> Serv
                 _ => ServerMessage::Error(e),
             }
         }
+        (OpenWhileOpenServes, ServerMessage::Error(e)) if *e.cause() == Cause::BadRequest => {
+            t.handle(&ClientMessage::Close);
+            t.handle(&ClientMessage::OpenCursor(open.clone()))
+        }
+        (OpenWhileOpenClosesTheCursor, ServerMessage::Error(e))
+            if *e.cause() == Cause::BadRequest =>
+        {
+            t.handle(&ClientMessage::Close);
+            ServerMessage::Error(e)
+        }
         (_, reply) => reply,
     }
 }
@@ -186,16 +198,22 @@ fn serve_wrong(
     }
 }
 
-fn wrong(test: &'static str, fault: Fault, want: [Option<&str>; 4]) {
-    let mut subject = Fixture::wrong(test, fault);
-    let results = conformance::run(&mut subject);
-    for ((case, got), want) in results.iter().zip(want) {
-        match (want, got) {
-            (None, Ok(())) => {}
-            (Some(check), Err(e)) if e.contains(&format!("check {check}: ")) => {}
-            _ => panic!("{fault:?}, case {case}: want {want:?}, got {got:?}"),
+fn wrong(test: &'static str, faults: &[Fault], want: [Option<&str>; 4]) {
+    let mut missed = Vec::new();
+    for &fault in faults {
+        let mut subject = Fixture::wrong(test, fault);
+        let results = conformance::run(&mut subject);
+        for ((case, got), want) in results.iter().zip(want) {
+            match (want, got) {
+                (None, Ok(())) => {}
+                (Some(check), Err(e)) if e.contains(&format!("check {check}: ")) => {}
+                _ => missed.push(format!(
+                    "{fault:?}, case {case}: want {want:?}, got {got:?}"
+                )),
+            }
         }
     }
+    assert!(missed.is_empty(), "{}", missed.join("\n"));
 }
 
 #[test]
@@ -228,12 +246,21 @@ fn conformance_check_store_changed_names_the_current_id() {
     let check = Some("store_changed_names_the_current_id");
     wrong(
         test,
-        StoreChangedAtZeroNamesAnotherId,
+        &[
+            StoreChangedOnReadNamesAnotherId,
+            StoreChangedAtZeroNamesAnotherId,
+        ],
         [None, None, None, check],
     );
+}
+
+#[test]
+fn conformance_check_open_while_open() {
+    let test = "conformance_check_open_while_open";
+    let check = Some("open_while_open");
     wrong(
         test,
-        StoreChangedOnReadNamesAnotherId,
-        [None, None, None, check],
+        &[OpenWhileOpenServes, OpenWhileOpenClosesTheCursor],
+        [None, None, check, None],
     );
 }

@@ -42,8 +42,10 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// beside the checks of items 4 to 9, so `run` makes them too, and the failure text of each holds
 /// `check <name>: `. `store_changed_names_the_current_id`, in the case `store_changed`: every `store-changed`
 /// names the id of the store that the server serves next, after `replace_live` and to an open with the old id
-/// at the zero position as at another position.
-pub const CHECKS: [&str; 1] = ["store_changed_names_the_current_id"];
+/// at the zero position as at another position. `open_while_open`, in the case `filters`: an `open_cursor`
+/// sent while a cursor is open, without the `close` that C5.6 asks for, gets `bad-request`, and the cursor
+/// that was open then serves the whole reference read.
+pub const CHECKS: [&str; 2] = ["store_changed_names_the_current_id", "open_while_open"];
 
 /// The most `read_batch` messages of one read to the watermark.
 pub const MAX_READS: usize = 1_000;
@@ -378,6 +380,14 @@ fn read<S: Subject>(
     range: Option<(Instant, Instant)>,
 ) -> Result<Reading, String> {
     let opened = open(conn, store, position, kinds, range)?;
+    drain(conn, opened, position)
+}
+
+fn drain<S: Subject>(
+    conn: &mut Conn<S>,
+    opened: Batch,
+    position: Position,
+) -> Result<Reading, String> {
     let mut reading = Reading {
         store: opened.store.clone(),
         entries: Vec::new(),
@@ -632,7 +642,8 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
 /// The case `filters` (C5.13 item 8): each kinds filter, a list of two kinds in either order, the run-mark
 /// filter, a time range with and without a kind, and a range after every record serve exactly the entries of
 /// the reference read that pass them, at their positions, from the zero position and from the position of
-/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable.
+/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; last, the check
+/// `open_while_open` of `CHECKS`.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -741,6 +752,27 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
                 "the read after {name} differs from the reference read"
             ));
         }
+    }
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))
+}
+
+fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(), String> {
+    let opened =
+        open(conn, Some(&rf.s), ZERO, None, None).map_err(|e| format!("the first open: {e}"))?;
+    let what = "an open_cursor while a cursor is open";
+    let second = open_text(Some(&rf.s), rf.r[10].pos, Some(&["keystroke"]), None);
+    let cause = conn.error(&second, what)?;
+    if cause != Cause::BadRequest {
+        return Err(format!("{what} got {}; want bad-request", cause.name()));
+    }
+    let reading = drain(conn, opened, ZERO)
+        .map_err(|e| format!("the cursor that was open, after {what}: {e}"))?;
+    if !same(&reading.entries, &rf.r) {
+        return Err(format!(
+            "the cursor that was open served {} entries after {what}; want the {} entries of the reference read",
+            reading.entries.len(),
+            rf.r.len()
+        ));
     }
     Ok(())
 }
