@@ -763,7 +763,7 @@ impl Decoded {
     }
 }
 
-/// The failure of a decoder: the error name, with the request id where it could be read.
+/// The failure of a decoder: the error name, with the request id where the decoder read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecodeError {
     pub id: Option<RequestId>,
@@ -1002,7 +1002,8 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
 /// The one writer of a reply. It takes the request id, or none when the request's id could not be read, and
 /// either a result or an error name, and returns `{"v":1,"id":..,"ok":..}` or `{"v":1,"id":..,"error":..}`.
 /// It writes an error name of the nine and a declared name alike, and `ErrorName` holds no other name.
-/// It refuses with `malformed` a result that `decode_reply` would refuse, and applies no length bound: the owner
+/// It refuses with `malformed` a result that breaks a rule of `decode_reply` on the result, and applies no length
+/// bound: it writes a reply longer than `REPLY_MAX`, which `decode_reply` refuses with `too_large`, so the owner
 /// keeps a page inside 261,120 bytes.
 pub fn write_reply(
     id: Option<&RequestId>,
