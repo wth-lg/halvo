@@ -984,6 +984,72 @@ mod login_item_tests {
         assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
     }
 
+    fn under_a_link() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = root.path().canonicalize().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        (root, real, link)
+    }
+
+    #[test]
+    fn the_sweep_keeps_a_link_to_a_regular_file_at_a_dead_install_s_name() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let (root, _real, link) = under_a_link();
+        let dir = agents(&link.join("home"));
+        std::fs::create_dir_all(dir.path()).unwrap();
+        assert!(dir.path().starts_with(&link));
+        let spec = login_item();
+        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let target = root.path().join("a regular file");
+        std::fs::write(&target, b"not the installer's").unwrap();
+        let at_dead_name = dir.path().join(format!(".{}.{dead}.tmp", spec.file_name()));
+        std::os::unix::fs::symlink(&target, &at_dead_name).unwrap();
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert!(std::fs::symlink_metadata(&at_dead_name)
+            .unwrap()
+            .is_symlink());
+        assert_eq!(
+            remove_login_item(&spec, &dir).unwrap().outcome,
+            RemoveOutcome::Removed
+        );
+        assert!(std::fs::symlink_metadata(&at_dead_name)
+            .unwrap()
+            .is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"not the installer's");
+    }
+
+    #[test]
+    fn the_scratch_form_holds_its_directory_as_it_resolves_and_not_as_it_was_given() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let (_root, real, link) = under_a_link();
+        let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
+        let scratch = ScratchDir::against(&link, &user).unwrap();
+        let target =
+            LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
+        assert_eq!(target.path(), real);
+        let data = DataDir::from_flag(&real).unwrap();
+        let spec = LoginItemSpec::new("com.halvo.check-l", Path::new(APP), Some(&data)).unwrap();
+        install_login_item(&spec, &target).unwrap();
+        assert!(real.join("com.halvo.check-l.plist").is_file());
+        let turned = link.with_file_name("turned");
+        std::fs::create_dir(&turned).unwrap();
+        std::fs::remove_file(&link).unwrap();
+        std::os::unix::fs::symlink(&turned, &link).unwrap();
+        assert_eq!(
+            remove_login_item(&spec, &target).unwrap().outcome,
+            RemoveOutcome::Removed
+        );
+        assert!(!real.join("com.halvo.check-l.plist").exists());
+        assert_eq!(std::fs::read_dir(&turned).unwrap().count(), 0);
+    }
+
     #[test]
     fn a_remove_that_cannot_take_the_file_away_says_so() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
