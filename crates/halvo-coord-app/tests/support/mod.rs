@@ -301,6 +301,15 @@ pub fn invoke(
     command: &str,
     args: serde_json::Value,
 ) -> Result<String, serde_json::Value> {
+    invoke_body(window, command, InvokeBody::Json(args))
+}
+
+/// The reply of `command` with the call's body `body` from the page of `window`.
+pub fn invoke_body(
+    window: &WebviewWindow<MockRuntime>,
+    command: &str,
+    body: InvokeBody,
+) -> Result<String, serde_json::Value> {
     let url = if cfg!(windows) {
         "http://tauri.localhost"
     } else {
@@ -313,7 +322,7 @@ pub fn invoke(
             callback: CallbackFn(0),
             error: CallbackFn(1),
             url: url.parse().unwrap(),
-            body: InvokeBody::Json(args),
+            body,
             headers: Default::default(),
             invoke_key: INVOKE_KEY.to_string(),
         },

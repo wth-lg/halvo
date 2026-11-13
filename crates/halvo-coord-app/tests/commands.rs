@@ -331,3 +331,44 @@ fn equal_calls_of_a_double_press_each_reach_the_core() {
         .count();
     assert_eq!(cancels, 1, "one cancel for two presses");
 }
+
+#[test]
+fn a_call_whose_arguments_have_the_shape_of_the_list_reaches_the_core() {
+    let hub = hub(1);
+    let (_app, main, _other) = app(hub.clone());
+    let item = format!("{:032x}", 0x77);
+    let cases = [
+        (
+            "agents_answer",
+            json!({"item": item, "choice": "choose", "param": "payee", "n": 0}),
+        ),
+        ("agents_answer", json!({"item": item, "choice": "skip"})),
+        (
+            "agents_setup_typed",
+            json!({"item": item, "param": "payee", "text": "City Power"}),
+        ),
+    ];
+    for (command, args) in cases {
+        let reply = invoke(&main, command, args.clone()).unwrap();
+        assert_ne!(reply, fixture("reply-error-malformed"), "{command} {args}");
+        let cause: Value = serde_json::from_str(&reply).unwrap();
+        let errors = LIST.iter().find(|c| c.name == command).unwrap().errors;
+        assert!(
+            errors.iter().any(|e| cause["error"] == json!(e.name())),
+            "{command} {args}: {reply}"
+        );
+    }
+}
+
+#[test]
+fn a_body_that_is_no_json_answers_malformed_through_the_handler() {
+    let (_app, main, _other) = app(hub(1));
+    assert_eq!(
+        support::invoke_body(
+            &main,
+            "agents_card",
+            tauri::ipc::InvokeBody::Raw(b"{}".to_vec())
+        ),
+        Ok(fixture("reply-error-malformed"))
+    );
+}

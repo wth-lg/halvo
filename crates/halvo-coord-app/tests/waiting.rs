@@ -217,3 +217,17 @@ fn the_form_of_this_systems_verdict_ends_the_waiting_call() {
     }
     assert_eq!(waiting.join().unwrap().0, fixture("reply-closed"));
 }
+
+#[test]
+fn a_hide_and_a_show_before_the_waiting_call_wakes_still_end_it_with_closed() {
+    let hub = hub(1, 10_000, 50);
+    let (_app, main, _other) = app(hub.clone());
+    let seq = hub.coordinator().snapshot().seq;
+    let waiting = wait_next(&main, seq);
+    sleep(ms(200));
+    hub.hidden();
+    hub.shown();
+    let (reply, took) = waiting.join().unwrap();
+    assert_eq!(reply, fixture("reply-closed"));
+    assert!(took < ms(5_000), "{took:?}");
+}
