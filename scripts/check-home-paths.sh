@@ -282,9 +282,10 @@ by the name that git prints, in quotes and with its escapes ("a\tb.txt").
 The name of the exempt commit is read from the copy of
 scripts/check-commit-messages.sh that runs, not from the pushed commits. The
 hook does not run for git push --no-verify, or in a clone where
-sh scripts/prerequisites.sh has not set core.hooksPath, and when this script
-is not beside .githooks/pre-push the hook says that the scan did not run and
-lets the push go on: run the scanner of a checkout of main on the range,
+sh scripts/prerequisites.sh has not set core.hooksPath. When this script or
+the list is missing beside .githooks, .githooks/pre-push refuses the push
+and .githooks/commit-msg refuses the commit, each naming the file: restore
+it, or run the scanner of a checkout of main on the range,
 sh <checkout of main>/scripts/check-home-paths.sh origin/main..HEAD.
 EOF
 }
@@ -1763,8 +1764,11 @@ self_test_hook() {
   esac
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
-  push_case scanner-missing-beside-the-hook pushed 'the scan for home paths did not run' proof messages
+  push_case scanner-missing-beside-the-hook refused 'scripts/check-home-paths.sh is missing' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
+  mv "$hook_home/$LIST_IN_THE_REPOSITORY" "$work/list-aside" || die 'mv failed'
+  push_case list-missing-beside-the-hook refused "$LIST_IN_THE_REPOSITORY is missing" proof messages
+  mv "$work/list-aside" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'mv failed'
 
   (cd "$repo" && printf 'not a line that git writes\n' | HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
   code=$?

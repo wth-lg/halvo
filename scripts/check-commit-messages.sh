@@ -52,10 +52,14 @@ synopsis() {
       a config file, a new file under the temporary directory that is left in
       place: Git for Windows converts such a byte in a variable or an argument
       on its way to git, and reads a file as it is. Two fixtures hand the hook
-      path a message file, also a new file there that is left in place.
+      path a message file, also a new file there that is left in place. Three
+      fixtures run a copy of .githooks/commit-msg, in a new directory there that
+      is left in place, without the scanner of home paths, without its list,
+      and with both; they need the .githooks directory beside scripts.
   sh scripts/check-commit-messages.sh --self-test-two-paths
       Send every fixture message of --self-test down both paths in a throwaway
-      repository: through git commit -F with the commit-msg hook on, and, as the
+      repository: through git commit -F with a copy of the commit-msg hook on,
+      beside this script, the scanner of home paths and its list, and, as the
       commit that git stored, through the range check. The two verdicts must
       agree. The exceptions are the hand-made shapes that --message-file names
       above: git commit -F stores a file with a scissors block and a diff whole,
@@ -68,9 +72,12 @@ synopsis() {
       the test is right only where the workflow runs it, in the macos job.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
-      under a new temporary directory that is left in place. The pushed commits
-      sit on the newest exempt commit, so the result does not depend on the
-      other commits of this repository or on its files. Needs a clone of
+      under a new temporary directory that is left in place. The hook runs
+      from a copy of .githooks/pre-push with this script, the scanner of home
+      paths, its list and scripts/commit-range.sh beside it. The pushed commits
+      sit on the newest exempt commit and hold its tree, so they add no line,
+      and the result does not depend on the other commits of this repository
+      or on its files. Needs a clone of
       this repository, and a name and an email for commits: a configured git
       user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
       GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
@@ -103,7 +110,10 @@ without: that makes another word.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
-     stores it. Git does not run it for git commit --no-verify, for a revert
+     stores it. It refuses the commit when scripts/check-home-paths.sh or
+     scripts/home-path-allow.txt is missing beside it, because the pre-push
+     hook cannot scan a push there. Git does not run it for git commit
+     --no-verify, for a revert
      or a cherry-pick that makes its commit without a stop, for am and
      commit-tree, for a commit that a rebase picks without a new message,
      for the commit that a squash, a fixup -c or a fixup -C of git rebase -i
@@ -113,7 +123,9 @@ Three layers apply this predicate.
      has no .githooks directory. git rebase -i runs it for a commit that it
      rewords, unless the pick of that commit stops for a conflict.
   2. .githooks/pre-push reads the stored messages of the commits that a push
-     would add to the remote, and refuses the push. For each pushed ref these
+     would add to the remote, and refuses the push. It also refuses a push
+     when scripts/check-home-paths.sh or scripts/home-path-allow.txt is
+     missing beside it. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
      default branch as this clone last fetched it: the default branch of that
      remote, or the one of origin when the push names a URL or a remote whose
@@ -498,6 +510,10 @@ fixture_messages() {
   expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' "Fix the gate${nl}${nl}$trailer"
   expect_hook_path 'the hook path exits 0 on a clean file' 0 '' "Add the store${nl}${nl}Stream segment files through bounded chunks."
   expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' '' /dev/null/absent
+
+  expect_commit_msg_hook 'the commit-msg hook refuses a tree without the scanner of home paths' 1 check-home-paths.sh
+  expect_commit_msg_hook 'the commit-msg hook refuses a tree without the list of the scanner' 1 home-path-allow.txt
+  expect_commit_msg_hook 'the commit-msg hook accepts a clean message in a tree with both' 0 ''
 }
 
 self_test() {
@@ -565,6 +581,29 @@ self_test() {
     fi
   }
 
+  expect_commit_msg_hook() {
+    name=$1 want_status=$2 left_out=$3
+    hook_tree=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-hook-tree.XXXXXX") || die 'mktemp could not make a directory'
+    mkdir -p "$hook_tree/.githooks" "$hook_tree/scripts" || die "cannot make the tree $hook_tree"
+    cp "$own_directory/../.githooks/commit-msg" "$hook_tree/.githooks/commit-msg" || die "this self-test runs a copy of .githooks/commit-msg, and $own_directory/../.githooks/commit-msg cannot be copied"
+    cp "$own_directory/$(basename "$0")" "$hook_tree/scripts/check-commit-messages.sh" || die 'cannot copy this script'
+    for beside in check-home-paths.sh home-path-allow.txt; do
+      [ "$beside" = "$left_out" ] || cp "$own_directory/$beside" "$hook_tree/scripts/$beside" || die "cannot copy scripts/$beside"
+    done
+    printf 'Add the store\n' >"$hook_tree/message" || die "cannot write $hook_tree/message"
+    status=0
+    sh "$hook_tree/.githooks/commit-msg" "$hook_tree/message" >"$hook_tree/out" 2>&1 || status=$?
+    text=present
+    [ -z "$left_out" ] || grep -qF -- "scripts/$left_out is missing" "$hook_tree/out" || text=absent
+    fixtures=$((fixtures + 1))
+    if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
+      printf 'PASS %s (the tree is %s)\n' "$name" "$hook_tree"
+    else
+      printf 'FAIL %s (expected exit %s and a line that names scripts/%s; got exit %s, text %s; the tree is %s)\n' "$name" "$want_status" "$left_out" "$status" "$text" "$hook_tree"
+      failures=$((failures + 1))
+    fi
+  }
+
   bytes_in_hex() {
     printf '%s' "$1" | od -An -tx1 | tr -d ' \n'
   }
@@ -609,6 +648,7 @@ self_test_two_paths() {
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/messages" "$work/out"
   cp "$root/.githooks/commit-msg" "$work/tree/.githooks/commit-msg"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  cp "$root/scripts/check-home-paths.sh" "$root/scripts/commit-range.sh" "$root/scripts/home-path-allow.txt" "$work/tree/scripts/"
   chmod +x "$work/tree/.githooks/commit-msg"
   git init -q "$work/repository"
   git -C "$work/repository" config core.hooksPath "$work/tree/.githooks"
@@ -688,6 +728,7 @@ a trailer after a carriage return on an added line passes below a scissors block
   expect_in_hook_file_at_lines() { two_paths "$1" "$3" "$4"; }
   expect_hook_path() { [ $# -ge 5 ] || two_paths "$1" '#' "$4"; }
   expect_comment_string_read_from_git() { :; }
+  expect_commit_msg_hook() { :; }
 
   comment_string='#'
   in_repository commit -q --allow-empty --no-verify -m 'Start the repository'
@@ -716,7 +757,7 @@ self_test_pre_push() {
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/out"
   cp "$root/.githooks/pre-push" "$work/tree/.githooks/pre-push"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
-  cp "$root/scripts/commit-range.sh" "$work/tree/scripts/commit-range.sh"
+  cp "$root/scripts/check-home-paths.sh" "$root/scripts/commit-range.sh" "$root/scripts/home-path-allow.txt" "$work/tree/scripts/"
   chmod +x "$work/tree/.githooks/pre-push"
   git clone -q --no-local "$root" "$work/clone"
   git -C "$work/clone" config core.hooksPath "$work/tree/.githooks"
@@ -724,8 +765,9 @@ self_test_pre_push() {
   git init -q --bare "$work/empty-remote.git"
   git -C "$work/clone" remote add proof "$work/remote.git"
   git -C "$work/clone" remote add proof-empty "$work/empty-remote.git"
-  tree=$(git -C "$work/clone" rev-parse 'HEAD^{tree}')
-  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of HEAD above the newest exempt commit') ||
+  tree=$(git -C "$work/clone" rev-parse "$NEWEST_EXEMPT_COMMIT^{tree}") ||
+    die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and the clone of this repository does not hold it. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
+  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of the newest exempt commit above it') ||
     die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and git could not make a commit above it in the clone of this repository. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
   failures=0
   pushes=0
