@@ -2,6 +2,7 @@ use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, FieldType, KindEntry, Origin,
     RetentionClass,
 };
+use halvo_schema::learning::names::EDIT_STATES;
 use halvo_schema::learning::record::{LearnEdit, LearnRoutine, LearnRun};
 use halvo_schema::learning::{ERROR_NAMES, KINDS};
 use halvo_schema::request::{decode_reply, write_reply, ErrorName};
@@ -21,6 +22,12 @@ const OTHER_RUNS: [&str; 2] = [
 const OTHER_ROUTINES: [&str; 2] = [
     r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":1,"day":20700,"category":"shop_order","site":null,"app":"com.example.browser","period":null,"seen":0,"first":null,"last":null,"next":null,"missed":0,"mark":"none","since":null}"#,
     r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":9,"day":20900,"category":"email","site":{"key":"abababababababababababababababababababababababababababababababab","source":"title"},"app":"com.example.mail","period":30,"seen":0,"first":20705,"last":20765,"next":20795,"missed":3,"mark":"stale","since":20890}"#,
+];
+
+const OTHER_EDITS: [&str; 3] = [
+    r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","edit":"5c4b3a29180f7e6d5c4b3a29180f7e6d","rev":3,"base":1,"n":4,"state":"active","cause":null,"on":null,"runs":["9f8e7d6c5b4a39281706f5e4d3c2b1a0","8e7d6c5b4a39281706f5e4d3c2b1a09f","7d6c5b4a39281706f5e4d3c2b1a09f8e"],"first":20767,"last":20771,"clean":2,"target":{"desc":"","locators":[{"by":"role","value":"button","name":"Pay"},{"by":"label","value":"Pay","name":null},{"by":"text","value":"Pay","name":null},{"by":"test_id","value":"pay","name":null}]}}"#,
+    r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","edit":"5c4b3a29180f7e6d5c4b3a29180f7e6d","rev":3,"base":2,"n":7,"state":"reverted","cause":"class_mismatch","on":"4b3a29180f7e6d5c4b3a29180f7e6d5c","runs":["9f8e7d6c5b4a39281706f5e4d3c2b1a0","8e7d6c5b4a39281706f5e4d3c2b1a09f"],"first":20767,"last":20770,"clean":1,"target":{"desc":"link Pay now","locators":[{"by":"label","value":"Pay now","name":null},{"by":"css","value":"a.pay","name":null}]}}"#,
+    r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","edit":"5c4b3a29180f7e6d5c4b3a29180f7e6d","rev":2,"base":1,"n":4,"state":"withdrawn","cause":null,"on":null,"runs":["9f8e7d6c5b4a39281706f5e4d3c2b1a0"],"first":20767,"last":20767,"clean":0,"target":{"desc":"x","locators":[{"by":"css","value":"button.pay","name":null}]}}"#,
 ];
 
 fn entry(name: &str) -> &'static KindEntry {
@@ -158,6 +165,21 @@ fn every_row_that_the_typed_parser_takes_passes_the_generic_check_of_its_entry()
         assert_eq!(routine.to_json().unwrap(), *line);
         assert_eq!(check_record(entry("learn_routine"), line), Ok(()), "{line}");
     }
+}
+
+#[test]
+fn an_edit_row_of_each_state_passes_the_check_of_the_registered_entry_and_is_written_back_to_its_bytes(
+) {
+    let edit = entry("learn_edit");
+    let mut states = Vec::new();
+    for line in [edit.example].into_iter().chain(OTHER_EDITS) {
+        let row = LearnEdit::parse(line.as_bytes()).unwrap();
+        assert_eq!(row.to_json().unwrap(), line);
+        assert_eq!(check_record(edit, line), Ok(()), "{line}");
+        let read: serde_json::Value = serde_json::from_str(line).unwrap();
+        states.push(read["state"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(states, EDIT_STATES);
 }
 
 #[test]
