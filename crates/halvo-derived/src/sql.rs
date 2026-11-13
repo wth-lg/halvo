@@ -157,6 +157,16 @@ catalogue! {
         handed_out!("rows"),
         " ORDER BY body"
     );
+    ROWS_READ_UNDER = concat!(
+        "SELECT body FROM rows WHERE kind = :kind AND workflow = :workflow AND family <> 'workflow' AND ",
+        handed_out!("rows"),
+        " ORDER BY body"
+    );
+    HELD_AHEAD = concat!(
+        "SELECT 1 FROM rows WHERE kind = :kind AND workflow = :workflow AND ",
+        too_far_ahead!("rows"),
+        " LIMIT 1"
+    );
     EXPIRE_GONE = concat!("SELECT id, family FROM rows WHERE ", gone_has_come!("rows"));
     EXPIRE_AHEAD = concat!("SELECT id, family FROM rows WHERE ", too_far_ahead!("rows"));
     EXPIRE_NO_DAY = concat!("SELECT id, family FROM rows WHERE ", bounded_without_day!("rows"));

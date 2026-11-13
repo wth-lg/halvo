@@ -187,13 +187,15 @@ impl From<Fault> for Refusal {
     }
 }
 
-/// The read of the rows of one family, as they stand: of them it hands out exactly those that an expiry at `now`
+/// The read of the rows of one family, as they stand: of them it hands out exactly those that an expiry at the clock
 /// would leave (DS-4), a bounded row while its day of going lies after the clock's day and its day at most two days
-/// after it, a window row while its expiry lies after the clock's instant, a kept row always. `now` is the one
+/// after it, a window row while its expiry lies after the clock's instant, a kept row always. The clock is the one
 /// reading of the host's clock that the call of the host took at its start, `commit_batch` for a step and
-/// `Store::handle` for a handler; no read takes a day or an instant from its caller. A fault of the database is
-/// kept in `fault`, and the call that handed out the read answers it.
-pub(crate) struct Rows<'a> {
+/// `Store::handle` for a handler; no read takes a day or an instant from its caller. It reads one registered kind of
+/// the family whole, by `RowRead::for_each`, or under one workflow id, by `Rows::for_each_under`, and visits nothing
+/// for a kind of the family `workflow`. A fault of the database is kept for the call that handed out the read, which
+/// answers it.
+pub struct Rows<'a> {
     pub(crate) db: &'a Db,
     pub(crate) family: &'a str,
     pub(crate) fault: &'a Cell<Option<Fault>>,
@@ -201,32 +203,59 @@ pub(crate) struct Rows<'a> {
 }
 
 impl Rows<'_> {
-    fn read(&self, kind: &str, visit: &mut dyn FnMut(&str)) -> Result<(), Fault> {
+    fn read(
+        &self,
+        kind: &str,
+        workflow: Option<&WorkflowId>,
+        visit: &mut dyn FnMut(&str),
+    ) -> Result<(), Fault> {
         let own = self.db.entries.iter().any(|entry| {
             entry.name == kind && entry.family == self.family && entry.family != "workflow"
         });
         if !own {
             return Ok(());
         }
+        let statement = match workflow {
+            None => sql::ROWS_READ,
+            Some(_) => sql::ROWS_READ_UNDER,
+        };
         let mut statement = self
             .db
             .conn
-            .prepare_cached(sql::ROWS_READ.text())
+            .prepare_cached(statement.text())
             .map_err(db_fault)?;
-        let mut found = statement
-            .query(reading!(self.now, ":kind" => kind))
-            .map_err(db_fault)?;
+        let mut found = match workflow {
+            None => statement.query(reading!(self.now, ":kind" => kind)),
+            Some(id) => {
+                statement.query(reading!(self.now, ":kind" => kind, ":workflow" => id.as_str()))
+            }
+        }
+        .map_err(db_fault)?;
         while let Some(row) = found.next().map_err(db_fault)? {
             let body: String = row.get(0).map_err(db_fault)?;
             visit(&body);
         }
         Ok(())
     }
+
+    /// Visits the serialized rows of one registered kind of the holder's own family that name `workflow`, each once,
+    /// in ascending byte order of the serialized rows and under the rule of `RowRead::for_each`, so that it hands out
+    /// exactly the rows of the read of the whole kind that name `workflow` (C2.11; the interface run's ruling RD-64,
+    /// part 1.3 (a)). A row names a workflow by the workflow column that the commit set from the committed text under
+    /// the workflow key of the kind's entry, and the read parses no row: a row whose column is empty is not visited,
+    /// as a row committed while its entry gave no workflow key, until an open with an entry that gives one fills the
+    /// column. It visits nothing for a kind that is not registered, that belongs to another family or that belongs
+    /// to the family `workflow`.
+    pub fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        if let Err(fault) = self.read(kind, Some(workflow), visit) {
+            self.fault.set(Some(fault));
+        }
+    }
 }
 
 impl RowRead for Rows<'_> {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        if let Err(fault) = self.read(kind, visit) {
+        if let Err(fault) = self.read(kind, None, visit) {
             self.fault.set(Some(fault));
         }
     }

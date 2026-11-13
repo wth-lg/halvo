@@ -533,3 +533,88 @@ fn a_page_of_the_bound_stays_whole_when_the_other_evidence_row_has_passed_its_ex
         "one whole item and a null next"
     );
 }
+
+/// The answer of the evidence read of the workflow of `w1.test` as a test reads it: the error, or the reply's length,
+/// the number of evidence rows and whether `next` names one.
+fn page_shape(store: &Store) -> Result<(usize, usize, bool), Error> {
+    let page = evidence(store, workflow_of(store, "w1.test"), None)?;
+    match &page {
+        ReplyResult::Evidence(p) => Ok((reply_len(&page), p.evidence.len(), p.next.is_some())),
+        other => panic!("the read answered {other:?}"),
+    }
+}
+
+/// DS-4 H2, the conditions of a support row among the candidates of an evidence page: beside the support row of a
+/// page of exactly 261,120 bytes stands the support row of a second summary of its workflow, whose evidence row is
+/// inside its window. While that row is handed out the first item cannot leave room for a `next` and the read is
+/// refused as too large. The test's own connection then gives the second support row a day of going of its own:
+/// one later than its summary's, or one on the next day while its summary stands, states that no call of the store
+/// makes, so that each condition is the only one that holds the row back. Once the row is due, by its summary's day
+/// of going or by its own, it is no candidate and the page stays whole, with a null `next`, before any expiry has
+/// run.
+#[test]
+fn a_page_of_the_bound_stays_whole_beside_a_support_row_that_is_due_by_its_summary_or_by_its_own_day(
+) {
+    let mut steps = 200;
+    while evidence_reply_len(&[&big(1, steps + 1, 0)], None) <= REPLY_MAX {
+        steps += 1;
+    }
+    let rest = REPLY_MAX - evidence_reply_len(&[&big(1, steps, 0)], None);
+    let mut seen = Vec::new();
+    for by_its_own_day in [false, true] {
+        let scratch = Scratch::new("reply-bound-due-support");
+        let clock = TestClock::at_day(DAY);
+        let second_day = if by_its_own_day { DAY } else { DAY - 92 };
+        let fixed = Rc::new(RefCell::new(vec![proposal(
+            site("w1.test"),
+            "com.example.browser",
+            &[1, 2],
+        )]));
+        let host = || Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+        let mut store = open_host(&scratch, host()).unwrap();
+        store
+            .commit_batch(
+                &store_id(1),
+                &[
+                    big(1, steps, rest),
+                    episode(2, second_day, domain("w1.test")),
+                ],
+                position(1, 0),
+                &mut Seq(1),
+            )
+            .unwrap();
+        fixed.borrow_mut().clear();
+        drop(store);
+        let (day, gone) = if by_its_own_day {
+            (DAY, DAY + 1)
+        } else {
+            (DAY - 50, DAY + 43)
+        };
+        common::raw(&scratch)
+            .execute(
+                "UPDATE rows SET day = ?1, gone = ?2 WHERE kind = 'support' AND summary = ?3",
+                (day, gone, summary_id(2).as_str()),
+            )
+            .unwrap();
+        let store = open_host(&scratch, host()).unwrap();
+        let live = page_shape(&store).err();
+        clock.set(i64::from(DAY + 1) * common::DAY_NS);
+        seen.push((by_its_own_day, live, page_shape(&store).ok()));
+    }
+    assert_eq!(
+        seen,
+        vec![
+            (
+                false,
+                Some(Error::Refused(ErrorName::TooLarge)),
+                Some((261_120, 1, false))
+            ),
+            (
+                true,
+                Some(Error::Refused(ErrorName::TooLarge)),
+                Some((261_120, 1, false))
+            ),
+        ],
+        "(due by its own day, the read while the second support row is handed out, the page once it is due)"
+    );
+}

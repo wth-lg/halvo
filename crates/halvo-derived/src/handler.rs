@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::fmt;
 
-use halvo_schema_core::record::{RowRead, TypedRecord, WriterStep};
+use halvo_schema_core::record::{TypedRecord, WriterStep};
 use halvo_schema_core::request::{ErrorName, RawRequest};
 use serde::de::{self, Deserializer, IgnoredAny, MapAccess, Visitor};
 use serde_json::value::RawValue;
@@ -16,7 +16,7 @@ use crate::Store;
 /// and answers with the serialized reply of the body's own reply type, which the owner writes with the reply writer
 /// of the schema, or with an error name.
 pub trait Handler {
-    /// Answers one request. `cx` offers the four calls of the store and, to a handler in front, `pass_on`.
+    /// Answers one request. `cx` offers the five calls of the store and, to a handler in front, `pass_on`.
     fn handle(
         &self,
         request: &RawRequest,
@@ -150,9 +150,9 @@ impl crate::Host {
     }
 }
 
-/// What the store offers a handler while it answers one request: the typed commit, the state call, the read of
-/// the rows of the handler's own family and the read of one stored workflow, and to a handler in front the call
-/// that passes the request on. Each call keeps the handler's own family, the handler behind as well.
+/// What the store offers a handler while it answers one request: the typed commit, the state call, the held-ahead
+/// call, the read of the rows of the handler's own family and the read of one stored workflow, and to a handler in
+/// front the call that passes the request on. Each call keeps the handler's own family, the handler behind as well.
 pub struct HandlerCx<'a> {
     pub(crate) db: &'a Db,
     pub(crate) request: &'a RawRequest,
@@ -179,10 +179,11 @@ impl HandlerCx<'_> {
         Ok(committed)
     }
 
-    /// The read of the rows of the handler's own family, as they stand: it hands out exactly the rows that an expiry
-    /// at the clock would leave (DS-4), by the one reading of the host's clock that `Store::handle` took at the
-    /// start of this request, so that every read of one request reads by one clock. No read writes.
-    pub fn rows(&self) -> impl RowRead + '_ {
+    /// The read of the rows of the handler's own family, as they stand: of one kind whole by `RowRead::for_each`, or
+    /// of one kind under one workflow id by `Rows::for_each_under`. It hands out exactly the rows that an expiry at
+    /// the clock would leave (DS-4), by the one reading of the host's clock that `Store::handle` took at the start of
+    /// this request, so that every read of one request reads by one clock. No read writes.
+    pub fn rows(&self) -> Rows<'_> {
         Rows {
             db: self.db,
             family: self.family(),
