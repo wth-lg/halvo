@@ -335,7 +335,7 @@ EOF
   check longer-timeout-beside-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree timeout-after-an-escaped-double-quote "8s/.*/    name: \"say \\\\\"hi\\${nl}    timeout-minutes: 30\\${nl}    \"/"
   check timeout-after-an-escaped-double-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
-  tree timeout-after-a-doubled-single-quote "8s/.*/    name: 'it''s\\${nl}    timeout-minutes: 30\\${nl}    '/"
+  tree timeout-after-a-doubled-single-quote "8s/.*/    name: 'macos\\${nl}    it''s\\${nl}    timeout-minutes: 30\\${nl}    '/"
   check timeout-after-a-doubled-single-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree timeout-after-a-hash-in-a-quoted-name "8s/.*/    name: \"macos #\\${nl}    timeout-minutes: 30\\${nl}    \"/"
   check timeout-after-a-hash-in-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
@@ -353,12 +353,30 @@ EOF
   check timeout-in-a-step-name-after-a-run-block FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree job-in-a-quoted-name "8s/\$/\\${nl}    name: \"macos\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30\\${nl}    \"/;11,15d"
   check job-in-a-quoted-name FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos)'
-  tree quotes-that-close-or-do-not-open "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"\\${nl}    permissions: {}\\${nl}    # a: \"x\\${nl}    env:\\${nl}      A: -\"x\\${nl}      B: it's, \"y # c: 'z\\${nl}      C: a[b, \"y\\${nl}      E: a], \"z\\${nl}      \"D\": a:\"b/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
-  check quotes-that-close-or-do-not-open PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree closed-quotes-before-the-timeout "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
+  check closed-quotes-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree comment-at-column-one-with-a-quote "7s/\$/\\${nl}# a: \"x/"
+  check comment-at-column-one-with-a-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree apostrophe-in-a-plain-value "7s/\$/\\${nl}    env:\\${nl}      F: it's/"
+  check apostrophe-in-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree dash-before-a-quote-in-a-plain-value "7s/\$/\\${nl}    env:\\${nl}      A: -\"x/"
+  check dash-before-a-quote-in-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree comma-and-comment-in-a-plain-value "7s/\$/\\${nl}    env:\\${nl}      B: a, \"y # c: 'z/"
+  check comma-and-comment-in-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree open-bracket-in-a-plain-value "7s/\$/\\${nl}    env:\\${nl}      C: a[b, \"y/"
+  check open-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree closing-bracket-in-a-plain-value "7s/\$/\\${nl}    env:\\${nl}      E: a], \"z/"
+  check closing-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree comma-after-a-closed-flow-map "7s/\$/\\${nl}    permissions: {}\\${nl}    env:\\${nl}      B: a, \"y/"
+  check comma-after-a-closed-flow-map PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree colon-in-a-plain-value-after-a-quoted-key "7s/\$/\\${nl}    env:\\${nl}      \"D\": a:\"b/"
+  check colon-in-a-plain-value-after-a-quoted-key PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree quoted-names-over-two-lines-before-the-timeout "7s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;12s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
   check quoted-names-over-two-lines-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
-  tree run-block-with-an-open-quote "10s/\$/\\${nl}      - run: |\\${nl}\\${nl}          printf '%s' \"x: 'y\"\\${nl}      - name: >-\\${nl}          step: 'one\\${nl}        run: echo/"
-  check run-block-with-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree run-block-with-a-blank-line-and-an-open-quote "10s/\$/\\${nl}      - run: |\\${nl}\\${nl}          printf '%s' \"x: 'y\"/"
+  check run-block-with-a-blank-line-and-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree folded-block-with-an-open-quote "10s/\$/\\${nl}      - name: >-\\${nl}          step: 'one\\${nl}        run: echo/"
+  check folded-block-with-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
