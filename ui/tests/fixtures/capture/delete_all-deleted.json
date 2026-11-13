@@ -1,4 +1,15 @@
 {
-  "keys_destroyed": 2,
-  "segments_shredded": 2
+  "cleanup_command": null,
+  "database_left": false,
+  "entries_left": 0,
+  "files_left": 0,
+  "keys_destroyed": 3,
+  "looked_in": null,
+  "new_store_id": "00000000000000000000000000000010",
+  "not_followed": 0,
+  "nothing_left": true,
+  "outcome": "deleted",
+  "root_destroyed": "yes",
+  "segments_shredded": 2,
+  "unknown_entries": 0
 }

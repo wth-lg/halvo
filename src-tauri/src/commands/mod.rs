@@ -3,23 +3,43 @@
 //! that its capability allows.
 
 pub mod capture;
+pub mod control;
 pub mod names;
+
+#[cfg(test)]
+mod tests;
 
 use tauri::ipc::Invoke;
 use tauri::{Runtime, Url};
 
 use crate::app;
+use crate::view_state::Status;
 
 use names::Names;
 
+/// A module's registration (contracts.md C10.1). Each call has an empty default, and the app
+/// makes it for every module of the list; a call does not wait.
+pub trait Registration: Send + Sync {
+    fn names(&self) -> &'static Names;
+
+    /// Made once in every pass of the poller, also a pass whose service gave no status.
+    fn on_status(&self, _status: &Status) {}
+}
+
 pub struct Module<R: Runtime> {
-    pub names: &'static Names,
+    pub registration: &'static dyn Registration,
     pub handler: fn(Invoke<R>) -> bool,
+}
+
+impl<R: Runtime> Module<R> {
+    pub fn names(&self) -> &'static Names {
+        self.registration.names()
+    }
 }
 
 pub fn table<R: Runtime>() -> Vec<Module<R>> {
     vec![Module {
-        names: &names::CAPTURE,
+        registration: &capture::Capture,
         handler: capture::handler::<R>,
     }]
 }
@@ -57,7 +77,7 @@ pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'stat
     let table = table::<R>();
     move |invoke| {
         let command = invoke.message.command();
-        match table.iter().find(|m| m.names.commands.contains(&command)) {
+        match table.iter().find(|m| m.names().commands.contains(&command)) {
             Some(_) if !from_the_app_page(&invoke) => {
                 invoke.resolver.reject(REFUSED);
                 true

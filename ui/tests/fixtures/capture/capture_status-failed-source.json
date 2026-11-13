@@ -1,0 +1,108 @@
+{
+  "capture": "partial",
+  "capture_reason": null,
+  "desired": "running",
+  "drain": {
+    "error": null,
+    "since": null,
+    "state": "healthy"
+  },
+  "expiry": {
+    "error": null,
+    "last_at": "2026-11-12T09:00:01Z",
+    "state": "healthy"
+  },
+  "ext": [],
+  "last_exit": null,
+  "lease": "fresh",
+  "loss": {
+    "events_lost": 0,
+    "events_pending": 0,
+    "last_stop": "clean",
+    "last_stop_kind": null,
+    "last_stop_lost": {
+      "error": null,
+      "events": 0,
+      "final": true,
+      "first": null,
+      "last": null
+    },
+    "last_stop_newest_capture": null,
+    "last_stop_sources": []
+  },
+  "lost_grants": [],
+  "password_guard": "os",
+  "platform": "macos",
+  "screen_filter_excludes_app": null,
+  "service": "running",
+  "sources": [
+    {
+      "error": null,
+      "name": "foreground",
+      "reason": null,
+      "state": "running"
+    },
+    {
+      "error": null,
+      "name": "screen",
+      "reason": null,
+      "state": "off"
+    },
+    {
+      "error": null,
+      "name": "input",
+      "reason": "permission",
+      "state": "failed"
+    },
+    {
+      "error": null,
+      "name": "system_audio",
+      "reason": null,
+      "state": "off"
+    },
+    {
+      "error": null,
+      "name": "microphone",
+      "reason": null,
+      "state": "off"
+    }
+  ],
+  "store": {
+    "error": null,
+    "id": "0123456789abcdef0123456789abcdef",
+    "retry_in_s": null,
+    "state": "open"
+  },
+  "store_bytes": 1048576,
+  "store_cap_bytes": 26843545600,
+  "store_logical_bytes": 524288,
+  "texts": {
+    "backup_limit": null,
+    "custody": "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.",
+    "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
+    "passwords": "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
+    "recorded": [
+      {
+        "switch": "title_text",
+        "text": "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private."
+      },
+      {
+        "switch": "key_class",
+        "text": "Halvo records a class for each key you press, never the character."
+      },
+      {
+        "switch": "pointer_class",
+        "text": "Halvo records a class for each click or scroll, never its position."
+      },
+      {
+        "switch": "screen_activity",
+        "text": "Screen activity is not recorded."
+      }
+    ],
+    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
+  },
+  "window": {
+    "first_report_day": 7,
+    "rolling_days": 14
+  }
+}

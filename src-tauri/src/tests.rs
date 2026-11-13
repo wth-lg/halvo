@@ -1,11 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use halvo_capture::consent::onboarding::{GrantState, Permission, PermissionProbe, RequestOutcome};
-use halvo_capture::consent::status::{Inventory, InventoryRow, StoreInventory, UtcDay};
-use halvo_capture::event::Modality;
-use halvo_capture::store::{SegmentExpiry, ShredReport, StoreResult};
+use halvo_control::onboarding::Permission;
+use halvo_control::proto::{Platform, Request};
+use halvo_control::testing::{sample_inventory, sample_status, ScriptedConnector, ScriptedDaemon};
 use serde::Deserialize;
 use serde_json::Value;
 use tauri::ipc::{CallbackFn, Invoke, InvokeBody};
@@ -14,7 +13,10 @@ use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::app;
+use crate::commands::capture::AppState;
+use crate::commands::control::Gated;
 use crate::commands::{self, names};
+use crate::poller;
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -48,165 +50,77 @@ pub fn scratch_dir(name: &str) -> PathBuf {
     dir
 }
 
-#[derive(Clone, Default)]
-pub struct FakeStore {
-    rows: Arc<Mutex<Vec<InventoryRow>>>,
-}
-
-impl FakeStore {
-    pub fn two_rows_on_one_day() -> Self {
-        let day = UtcDay::from_days_since_epoch(20_765).expect("2026-11-08 is a day");
-        let row = |modality, events, bytes| InventoryRow {
-            day,
-            modality,
-            events,
-            bytes,
-        };
-        Self {
-            rows: Arc::new(Mutex::new(vec![
-                row(Modality::Keystroke, 7, 70),
-                row(Modality::ScreenFrame, 3, 300),
-            ])),
-        }
-    }
-
-    pub fn one_row_of_every_kind() -> Self {
-        let day = UtcDay::from_days_since_epoch(20_765).expect("2026-11-08 is a day");
-        let rows = Modality::ALL
-            .iter()
-            .zip(1u64..)
-            .map(|(&modality, n)| InventoryRow {
-                day,
-                modality,
-                events: n,
-                bytes: 10 * n,
-            })
-            .collect();
-        Self {
-            rows: Arc::new(Mutex::new(rows)),
-        }
-    }
-}
-
-impl SegmentExpiry for FakeStore {
-    fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
-        Ok(ShredReport {
-            segments_shredded: 0,
-            keys_destroyed: 0,
-        })
-    }
-
-    fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
-        let mut rows = self.rows.lock().unwrap();
-        let n = rows.len() as u64;
-        rows.clear();
-        Ok(ShredReport {
-            segments_shredded: n,
-            keys_destroyed: n,
-        })
-    }
-}
-
-impl StoreInventory for FakeStore {
-    fn inventory(&self) -> StoreResult<Inventory> {
-        Ok(Inventory::from_rows(self.rows.lock().unwrap().clone()).expect("distinct rows"))
-    }
-
-    fn crypto_shred_before(&mut self, day: UtcDay) -> StoreResult<ShredReport> {
-        let mut rows = self.rows.lock().unwrap();
-        let before = rows.len();
-        rows.retain(|row| row.day >= day);
-        let n = (before - rows.len()) as u64;
-        Ok(ShredReport {
-            segments_shredded: n,
-            keys_destroyed: n,
-        })
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct FakeProbe {
-    grants: Arc<Mutex<BTreeMap<String, GrantState>>>,
-}
-
-impl FakeProbe {
-    fn set(&self, grants: &BTreeMap<String, GrantState>) {
-        *self.grants.lock().unwrap() = grants.clone();
-    }
-}
-
-fn wire_name(permission: Permission) -> String {
-    serde_json::to_value(permission)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_string))
-        .expect("a permission has a wire name")
-}
-
-impl PermissionProbe for FakeProbe {
-    fn check(&self, permission: Permission) -> GrantState {
-        self.grants
-            .lock()
-            .unwrap()
-            .get(&wire_name(permission))
-            .copied()
-            .unwrap_or(GrantState::Granted)
-    }
-
-    fn request(&self, permission: Permission) -> RequestOutcome {
-        match self.check(permission) {
-            GrantState::Granted => RequestOutcome::AlreadyGranted,
-            _ => RequestOutcome::Requested,
-        }
-    }
-
-    fn macos_major_version(&self) -> Option<u32> {
-        Some(26)
-    }
-}
-
 fn no_pane(_permission: Permission) -> Result<(), String> {
     Ok(())
 }
 
-fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
-    Ok(())
+/// The daemon of the fixtures: the macOS sample status of halvo-control, with gate-2's
+/// inventory, on both systems.
+pub fn fixture_daemon() -> ScriptedDaemon {
+    let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+    daemon.set_inventory(sample_inventory(Vec::new()));
+    daemon
 }
 
-pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRuntime> {
+pub fn state_of(connector: &ScriptedConnector) -> AppState {
+    AppState::with_control(Arc::new(Gated::new(connector.clone())), None, no_pane)
+}
+
+pub fn test_parts(dir: PathBuf, state: AppState) -> app::Parts<MockRuntime> {
+    #[cfg(not(windows))]
+    let _ = dir;
     app::Parts {
         #[cfg(windows)]
-        webview_data_dir: Some(config_dir.join("webview")),
-        config_dir: Some(config_dir),
-        store: Box::new(FakeStore::two_rows_on_one_day()),
-        store_backend: crate::unwired_store::DESCRIPTION,
-        probe: Box::new(probe.clone()),
-        open_pane: no_pane,
-        tray: no_tray,
+        webview_data_dir: Some(dir.join("webview")),
+        state,
+        tray: None,
+        poll: false,
         window_visible: false,
     }
 }
 
 pub struct TestApp {
     pub app: App<MockRuntime>,
-    pub probe: FakeProbe,
+    pub daemon: ScriptedConnector,
 }
 
-pub fn test_app(config_dir: PathBuf) -> TestApp {
-    let probe = FakeProbe::default();
-    let parts = test_parts(config_dir, &probe);
-    test_app_from(parts, app::context(), probe)
+impl TestApp {
+    /// Runs one pass of the poller, as the app does every 3 s.
+    pub fn poll(&self) -> crate::view_state::StatusView {
+        let state = self.app.state::<AppState>();
+        poller::pass(state.control.as_ref(), &state.views, None)
+    }
+
+    /// The requests that reached the scripted daemon and that remove something.
+    pub fn deleting_requests(&self) -> usize {
+        self.daemon
+            .requests()
+            .iter()
+            .filter(|r| matches!(r, Request::DeleteAll { .. }))
+            .count()
+    }
+}
+
+pub fn test_app(dir: PathBuf) -> TestApp {
+    test_app_with(dir, fixture_daemon())
+}
+
+pub fn test_app_with(dir: PathBuf, daemon: ScriptedDaemon) -> TestApp {
+    let connector = ScriptedConnector::new(daemon);
+    let parts = test_parts(dir, state_of(&connector));
+    test_app_from(parts, app::context(), connector)
 }
 
 pub fn test_app_from(
     parts: app::Parts<MockRuntime>,
     context: tauri::Context<MockRuntime>,
-    probe: FakeProbe,
+    daemon: ScriptedConnector,
 ) -> TestApp {
     let mut app = app::build(mock_builder(), parts)
         .build(context)
         .expect("the app builds on the mock runtime");
     first_iteration_runs_the_set_up(&mut app);
-    TestApp { app, probe }
+    TestApp { app, daemon }
 }
 
 fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
@@ -259,45 +173,62 @@ pub fn invoke_with_headers(
 struct Call {
     command: String,
     args: Value,
-    #[serde(default)]
-    probe: BTreeMap<String, GrantState>,
     reply: Option<String>,
     error: Option<String>,
-    #[serde(default)]
-    reply_off_macos: Option<String>,
+}
+
+fn calls() -> Vec<Call> {
+    serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
+        .expect("calls.json lists calls")
+}
+
+/// Runs calls.json in its order against one app and one scripted daemon, with a pass of the
+/// poller before each call, and gives each reply with the fixture that it names.
+fn replies_of_calls() -> Vec<(String, Result<Value, Value>)> {
+    let test = test_app(scratch_dir("fixtures"));
+    let window = main_window(&test.app);
+    calls()
+        .iter()
+        .enumerate()
+        .map(|(n, call)| {
+            test.poll();
+            let got = invoke(&window, APP_URL, &call.command, call.args.clone());
+            let name = match (&call.reply, &call.error) {
+                (Some(name), None) | (None, Some(name)) => name.clone(),
+                _ => panic!("call {n} of calls.json names neither one reply nor one error"),
+            };
+            (name, got)
+        })
+        .collect()
 }
 
 #[test]
 fn every_command_answers_the_page_arguments_with_its_fixture() {
-    let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
-        .expect("calls.json lists calls");
+    let calls = calls();
     assert!(!calls.is_empty());
-    let test = test_app(scratch_dir("fixtures"));
-    let window = main_window(&test.app);
-    for (n, call) in calls.iter().enumerate() {
-        test.probe.set(&call.probe);
-        let got = invoke(&window, APP_URL, &call.command, call.args.clone());
-        let (name, expected) = match (&call.reply, &call.error) {
-            (Some(reply), None) => {
-                let name = match (&call.reply_off_macos, cfg!(target_os = "macos")) {
-                    (Some(other), false) => other,
-                    _ => reply,
-                };
-                (
-                    name,
-                    Ok(read_json(&fixtures_dir().join(format!("{name}.json")))),
-                )
-            }
-            (None, Some(error)) => (
-                error,
-                Err(read_json(&fixtures_dir().join(format!("{error}.json")))),
-            ),
-            _ => panic!("call {n} of calls.json names neither one reply nor one error"),
+    for ((name, got), call) in replies_of_calls().into_iter().zip(&calls) {
+        let expected = read_json(&fixtures_dir().join(format!("{name}.json")));
+        let expected = if call.error.is_some() {
+            Err(expected)
+        } else {
+            Ok(expected)
         };
         assert_eq!(
             got, expected,
-            "call {n}, {} with {}: the reply differs from the fixture {name}.json",
+            "{} with {}: the reply differs from the fixture {name}.json",
             call.command, call.args
+        );
+    }
+}
+
+#[test]
+#[ignore = "prints the replies of calls.json for a review of the fixtures"]
+fn print_the_replies_of_calls_json() {
+    for (name, got) in replies_of_calls() {
+        let value = got.unwrap_or_else(|e| e);
+        println!(
+            "== {name}.json\n{}",
+            serde_json::to_string_pretty(&value).expect("JSON")
         );
     }
 }
@@ -307,8 +238,7 @@ fn is_unknown_command(reply: &Result<Value, Value>) -> bool {
 }
 
 fn candidate_names() -> BTreeSet<String> {
-    let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
-        .expect("calls.json lists calls");
+    let calls = calls();
     names::MODULES
         .iter()
         .flat_map(|m| m.commands.iter().map(|c| c.to_string()))
@@ -318,11 +248,14 @@ fn candidate_names() -> BTreeSet<String> {
 }
 
 fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet<String> {
-    let probe = FakeProbe::default();
-    let mut app = app::build(mock_builder(), test_parts(scratch_dir(name), &probe))
-        .invoke_handler(handler)
-        .build(app::context())
-        .expect("the app builds on the mock runtime");
+    let connector = ScriptedConnector::new(fixture_daemon());
+    let mut app = app::build(
+        mock_builder(),
+        test_parts(scratch_dir(name), state_of(&connector)),
+    )
+    .invoke_handler(handler)
+    .build(app::context())
+    .expect("the app builds on the mock runtime");
     first_iteration_runs_the_set_up(&mut app);
     let window = main_window(&app);
     candidate_names()
@@ -337,17 +270,22 @@ fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet
 fn the_module_table_routes_exactly_the_names_that_each_handler_answers() {
     let table = commands::table::<MockRuntime>();
     assert_eq!(
-        table.iter().map(|m| m.names.module).collect::<Vec<_>>(),
+        table.iter().map(|m| m.names().module).collect::<Vec<_>>(),
         names::MODULES.iter().map(|n| n.module).collect::<Vec<_>>(),
         "the module table has one line for each module of names::MODULES, in its order"
     );
     for line in &table {
-        let listed: BTreeSet<String> = line.names.commands.iter().map(|c| c.to_string()).collect();
+        let listed: BTreeSet<String> = line
+            .names()
+            .commands
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
         assert_eq!(
-            answered_by(line.handler, line.names.module),
+            answered_by(line.handler, line.names().module),
             listed,
             "the handler of the module {} answers other names than its list",
-            line.names.module
+            line.names().module
         );
     }
     let test = test_app(scratch_dir("table"));
@@ -508,11 +446,11 @@ fn the_handler_names_the_manifest_and_the_capabilities_are_one_set() {
     for line in commands::table::<MockRuntime>() {
         let file = src_tauri()
             .join("capabilities")
-            .join(format!("{}.json", line.names.module));
+            .join(format!("{}.json", line.names().module));
         assert!(
             file.exists(),
             "the module {} has no capability file",
-            line.names.module
+            line.names().module
         );
     }
 }
@@ -812,8 +750,8 @@ fn widening(labels: &[&str], identifier: &str) -> String {
 
 /// The app with every command of the unit granted to `labels` by `route`.
 fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
-    let probe = FakeProbe::default();
-    let parts = test_parts(scratch_dir(name), &probe);
+    let connector = ScriptedConnector::new(fixture_daemon());
+    let parts = test_parts(scratch_dir(name), state_of(&connector));
     let mut context = app::context::<MockRuntime>();
     if let Route::Context = route {
         context
@@ -821,7 +759,7 @@ fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
             .add_capability(widening(labels, "widened-in-the-context"))
             .expect("the context takes a capability");
     }
-    let test = test_app_from(parts, context, probe);
+    let test = test_app_from(parts, context, connector);
     if let Route::RunTime = route {
         test.app
             .add_capability(widening(labels, "widened-at-run-time"))
@@ -1132,33 +1070,5 @@ fn the_configuration_holds_no_dev_policy_and_no_dev_address() {
     );
 }
 
-#[test]
-fn the_reply_of_no_required_permission_reads_back_to_the_same_value() {
-    let fixture = read_json(&fixtures_dir().join("onboarding_state-none.json"));
-    let state: halvo_capture::consent::onboarding::OnboardingState =
-        serde_json::from_value(fixture.clone()).expect("the fixture reads into the reply's type");
-    assert_eq!(
-        serde_json::to_value(&state).expect("the reply writes"),
-        fixture
-    );
-}
-
-#[test]
-fn an_inventory_of_every_kind_answers_its_fixture() {
-    let probe = FakeProbe::default();
-    let mut parts = test_parts(scratch_dir("every-kind"), &probe);
-    parts.store = Box::new(FakeStore::one_row_of_every_kind());
-    let test = test_app_from(parts, app::context(), probe);
-    let reply = invoke(
-        &main_window(&test.app),
-        APP_URL,
-        "inventory",
-        serde_json::json!({}),
-    );
-    assert_eq!(
-        reply,
-        Ok(read_json(
-            &fixtures_dir().join("inventory-one-row-of-every-kind.json")
-        ))
-    );
-}
+mod layer;
+mod states;

@@ -3,7 +3,7 @@
   "lost_grants": [],
   "permissions": [
     {
-      "asked": false,
+      "asked": true,
       "grant": "granted",
       "lost": false,
       "pane_name": "Screen & System Audio Recording",
@@ -12,7 +12,7 @@
       "why": "Screen activity is not recorded."
     },
     {
-      "asked": false,
+      "asked": true,
       "grant": "granted",
       "lost": false,
       "pane_name": "Accessibility",
@@ -21,7 +21,7 @@
       "why": "lets Halvo record the text of the title of the window in front"
     },
     {
-      "asked": false,
+      "asked": true,
       "grant": "granted",
       "lost": false,
       "pane_name": "Input Monitoring",

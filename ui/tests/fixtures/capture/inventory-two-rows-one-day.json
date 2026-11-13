@@ -1,4 +1,8 @@
 {
+  "as_of": "2026-11-12T09:00:05Z",
+  "available": true,
+  "day_is": "utc",
+  "ext": [],
   "rows": [
     {
       "bytes": 300,
@@ -12,5 +16,11 @@
       "events": 7,
       "modality": "keystroke"
     }
-  ]
+  ],
+  "store_id": "0123456789abcdef0123456789abcdef",
+  "totals": {
+    "bytes": 370,
+    "disk_bytes": 1048576,
+    "events": 10
+  }
 }

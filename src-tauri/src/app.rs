@@ -1,17 +1,16 @@
+#[cfg(windows)]
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::Arc;
 
-use halvo_capture::consent::onboarding::{Permission, PermissionProbe};
-use halvo_capture::consent::status::{
-    ConsentController, DataStore, SettingsFile, SETTINGS_FILE_NAME,
-};
 use tauri::webview::PageLoadEvent;
 use tauri::{
     AppHandle, Builder, Context, Manager, Runtime, Url, WebviewWindowBuilder, WindowEvent,
 };
 
 use crate::commands::{self, capture::AppState};
+use crate::poller;
+use crate::tray::{self, TrayInstalled};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -28,13 +27,13 @@ pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.wind
 /// that the engine runs it.
 pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
 
+/// The install of the tray item, which only `tray::install` performs in a shipped build.
+pub type TrayInstall<R> = fn(&AppHandle<R>) -> tauri::Result<TrayInstalled>;
+
 pub struct Parts<R: Runtime> {
-    pub config_dir: Option<PathBuf>,
-    pub store: Box<dyn DataStore + Send>,
-    pub store_backend: &'static str,
-    pub probe: Box<dyn PermissionProbe + Send + Sync>,
-    pub open_pane: fn(Permission) -> Result<(), String>,
-    pub tray: fn(&AppHandle<R>) -> tauri::Result<()>,
+    pub state: AppState,
+    pub tray: Option<TrayInstall<R>>,
+    pub poll: bool,
     pub window_visible: bool,
     #[cfg(windows)]
     pub webview_data_dir: Option<PathBuf>,
@@ -57,24 +56,9 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
     builder
         .invoke_handler(commands::handler())
         .setup(move |app| {
-            let config_dir = match parts.config_dir {
-                Some(dir) => dir,
-                None => app.path().app_config_dir()?,
-            };
-            let settings = SettingsFile::new(config_dir.join(SETTINGS_FILE_NAME));
-            let controller =
-                ConsentController::open(parts.store, settings.clone()).map_err(|e| {
-                    format!(
-                        "could not open the consent settings at {}: {e}",
-                        settings.path().display()
-                    )
-                })?;
-            app.manage(AppState {
-                controller: Mutex::new(controller),
-                probe: parts.probe,
-                store_backend: parts.store_backend,
-                open_pane: parts.open_pane,
-            });
+            let control = Arc::clone(&parts.state.control);
+            let views = Arc::clone(&parts.state.views);
+            app.manage(parts.state);
             app.manage(PageLoads::default());
             main_window(
                 app.handle(),
@@ -82,7 +66,27 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 #[cfg(windows)]
                 parts.webview_data_dir,
             )?;
-            (parts.tray)(app.handle())?;
+            let tray = match parts.tray.map(|install| install(app.handle())) {
+                Some(Ok(installed)) => Some(installed),
+                Some(Err(e)) => {
+                    eprintln!("halvo: the app runs without a tray item: {e}");
+                    None
+                }
+                None => None,
+            };
+            app.state::<AppState>()
+                .tray_installed
+                .store(tray.is_some(), Ordering::SeqCst);
+            if parts.poll {
+                let handle = app.handle().clone();
+                let modules = commands::table::<R>()
+                    .iter()
+                    .map(|module| module.registration)
+                    .collect();
+                poller::start(control, views, tray, modules, move |view| {
+                    tray::refresh(&handle, view)
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -163,6 +167,7 @@ fn main_window<R: Runtime>(
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
     let builder = WebviewWindowBuilder::from_config(app, &config)?
         .on_navigation(|url| may_navigate(url.as_str()))
+        .on_download(|_, _| false)
         .visible(visible);
     #[cfg(windows)]
     let builder = match data_dir {

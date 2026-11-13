@@ -1435,7 +1435,7 @@ dependencies = [
 name = "halvo"
 version = "0.0.0"
 dependencies = [
- "halvo-capture",
+ "halvo-control",
  "serde",
  "serde_json",
  "tauri",

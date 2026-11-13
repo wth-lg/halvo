@@ -1,1 +1,5 @@
-"the storage cap must be at least 1073741824 bytes"
+{
+  "error": "cap_out_of_range",
+  "max_bytes": 1099511627776,
+  "min_bytes": 1073741824
+}
