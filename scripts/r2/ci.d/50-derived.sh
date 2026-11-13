@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The halvo-derived test binaries of the workspace's test build, which 12-test has built before it in the hosted job, pass, each test that this file lists passes under its test target, each test that those binaries run is on this file's list, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
+# rule: The halvo-derived test binaries of the workspace's test build, which 12-test has built before it in the hosted job, pass, each test that this file lists passes under its test target, each test that those binaries report, ignored or not, is on this file's list, so an ignored test fails the check, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
 set -u
 name=50-derived
 own=scripts/r2/ci.d/50-derived.sh
@@ -23,6 +23,7 @@ esac
 #= src/lib.rs tests::rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone
 #= src/lib.rs tests::the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing
 #= src/lib.rs tests::held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead
+#= src/lib.rs tests::held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_never_as_no
 #= tests/open.rs open_refuses_a_key_that_does_not_open_the_database
 #= tests/open.rs open_refuses_while_another_store_holds_the_writer_lock
 #= tests/open.rs the_database_refuses_another_connection_while_the_store_is_open
@@ -94,6 +95,9 @@ esac
 #= tests/typed.rs held_ahead_refuses_the_kinds_that_it_cannot_answer_for_and_a_kind_of_the_handler_behind
 #= tests/typed.rs three_held_ahead_calls_change_no_file_no_revision_and_give_no_report
 #= tests/typed.rs held_ahead_answers_by_the_one_reading_of_its_request
+#= tests/typed.rs held_ahead_answers_role_before_every_refusal_of_a_kind
+#= tests/typed.rs held_ahead_answers_workflow_run_for_every_kind_of_the_workflow_run_with_a_key_or_without
+#= tests/typed.rs held_ahead_answers_other_family_for_a_kind_of_another_family_with_a_key_or_without
 #= tests/typed.rs open_refuses_a_step_or_a_handler_of_the_family_workflow
 #= tests/typed.rs the_owner_answers_unsupported_or_malformed_where_no_handler_takes_the_request
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused
@@ -158,33 +162,40 @@ fail() {
   exit 1
 }
 
-# judge <test status> <test log> <list>: the reason of a failure in $cause, or status 0.
+# judge <test status> <outputs> <list>: the reason of a failure in $cause, or status 0. Each line of <outputs> is
+# '<test target> <file>', the file holding the output of that target's binary alone, so no line that a test prints
+# can name a target.
 judge() {
   cause=
   if [ "$1" -ne 0 ]; then
     cause="a test binary of halvo-derived exited $1"
     return 1
   fi
-  gap=$(awk -v list="$3" '
+  gap=$(awk -v list="$3" -v outputs="$2" '
     { sub(/\r$/, "") }
     FILENAME == list {
       if (NF != 2) { if (bad == "") bad = "a line of the list is not <test target> <test name>"; next }
       n++; target[n] = $1; test[n] = $2
       next
     }
-    $1 == "Running" {
-      at = ($2 == "unittests") ? $3 : $2
-      gsub(/\\/, "/", at)
-      ran[at] = 1
+    FILENAME == outputs {
+      b++; label[b] = $1; file[b] = substr($0, length($1) + 2)
       next
-    }
-    at != "" && /^test .* \.\.\. ok$/ { ok[at, substr($0, 6, length($0) - 12)] = 1 }
-    at != "" && /^test .* \.\.\. / {
-      m++; seen_at[m] = at; seen_test[m] = substr($0, 6, index($0, " ... ") - 6)
     }
     END {
       if (bad != "") { print bad; exit }
       if (n == 0) { print "the list names no test"; exit }
+      for (j = 1; j <= b; j++) {
+        at = label[j]
+        ran[at] = 1
+        while ((got = (getline line < file[j])) > 0) {
+          sub(/\r$/, "", line)
+          if (line ~ /^test .* \.\.\. ok$/) ok[at, substr(line, 6, length(line) - 12)] = 1
+          if (line ~ /^test .* \.\.\. /) { m++; seen_at[m] = at; seen_test[m] = substr(line, 6, index(line, " ... ") - 6) }
+        }
+        if (got < 0) { print "the output of " at " cannot be read"; exit }
+        close(file[j])
+      }
       for (i = 1; i <= n; i++) {
         listed[target[i], test[i]] = 1
         if (!(target[i] in ran)) { print "the test target " target[i] " did not run"; exit }
@@ -259,16 +270,22 @@ measure() {
   count=$(grep -c '' "$work/binaries") || fail "cargo lists no test binary of halvo-derived"
   log=$artifacts/tests.txt
   : >"$log" || fail "the test log cannot be written"
+  : >"$work/outputs" || fail "the list of outputs cannot be written"
   status=0
+  k=0
   while read -r label exe; do
-    printf '     Running %s (%s)\n' "$label" "$exe" >>"$log"
-    (cd crates/halvo-derived && "$exe") >>"$log" 2>&1
+    k=$((k + 1))
+    out=$work/output.$k
+    (cd crates/halvo-derived && "$exe") >"$out" 2>&1
     code=$?
     [ "$code" -eq 0 ] || status=$code
+    printf '%s %s\n' "$label" "$out" >>"$work/outputs"
+    printf '     Running %s (%s)\n' "$label" "$exe" >>"$log"
+    cat "$out" >>"$log" || fail "the test log cannot be written"
   done <"$work/binaries"
   passed=$(grep -c ' \.\.\. ok' "$log")
   printf 'halvo-derived test binaries run %s, tests passed %s, listed tests %s\n' "$count" "$passed" "$listed"
-  judge "$status" "$log" "$work/required" || fail "$cause"
+  judge "$status" "$work/outputs" "$work/required" || fail "$cause"
 
   cargo tree --locked -p halvo-derived -e features >"$work/tree.txt" 2>"$artifacts/tree-err.txt"
   judge_tree "$?" "$work/tree.txt" || fail "$cause"
@@ -355,7 +372,9 @@ fi
 exit "$STUB_RUN_EXIT"
 EOF
   printf '#!/bin/sh\nprintf "test beta ... ignored\\ntest delta ... ok\\n"\n' >"$work/other-tests"
-  chmod +x "$work/bin/cargo" "$work/bin/git" "$work/lib-tests" "$work/open-tests" "$work/other-tests" || exit 2
+  printf '#!/bin/sh\nprintf "test beta ... ok\\ntest gamma ... ok\\nRunning\\ntest eta ... ok\\n"\n' >"$work/spoof-after"
+  printf '#!/bin/sh\nprintf "Running\\ntest beta ... ok\\ntest gamma ... ok\\ntest eta ... ok\\n"\n' >"$work/spoof-before"
+  chmod +x "$work/bin/cargo" "$work/bin/git" "$work/lib-tests" "$work/open-tests" "$work/other-tests" "$work/spoof-after" "$work/spoof-before" || exit 2
   {
     artifact lib lib halvo_derived "$work/lib-tests"
     artifact test bin open "$work/open-tests"
@@ -364,6 +383,8 @@ EOF
     printf '{"reason":"build-finished","success":true}\n'
   } >"$work/messages.good" || exit 2
   sed 's|/w/crates/halvo-derived#|/w/crates/halvo-other#|' "$work/messages.good" >"$work/messages.none" || exit 2
+  sed 's|/open-tests"|/spoof-after"|' "$work/messages.good" >"$work/messages.spoof-after" || exit 2
+  sed 's|/open-tests"|/spoof-before"|' "$work/messages.good" >"$work/messages.spoof-before" || exit 2
   printf '#!/bin/sh\n#= src/lib.rs tests::alpha\n#= tests/open.rs beta\n#= tests/open.rs gamma\n' >"$work/list.good"
   printf '#!/bin/sh\n#= src/lib.rs tests::alpha\n#= tests/open.rs delta\n' >"$work/list.other-binary"
   printf '#!/bin/sh\n#= tests/open.rs epsilon\n' >"$work/list.missing"
@@ -408,6 +429,10 @@ EOF
   check a-listed-test-ignored FAIL 'the test zeta of tests/open.rs did not pass)'
   STUB_SHOW_EXIT=128
   check the-commit-unreadable FAIL "git show HEAD:$own failed)"
+  STUB_MESSAGES=$work/messages.spoof-after
+  check a-lone-running-line-in-a-test-s-output FAIL 'the test eta of tests/open.rs is not on the list)'
+  STUB_MESSAGES=$work/messages.spoof-before
+  check a-running-line-before-listed-tests FAIL 'the test eta of tests/open.rs is not on the list)'
   STUB_MESSAGES=$work/messages.none
   check no-test-binary FAIL 'cargo lists no test binary of halvo-derived)'
   STUB_TREE=$work/tree.bundled

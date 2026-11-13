@@ -481,3 +481,100 @@ fn held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead
         "((k under w1, k under w2, other under w2) before and after a row of k three days ahead under w2)"
     );
 }
+
+/// A kind of the family `test` with a workflow key, for the held-ahead call on a store whose table is renamed away.
+static HELD_NOTE: kinds::KindEntry = kinds::KindEntry {
+    name: "test_note",
+    class: kinds::RetentionClass::Bounded { days: 93 },
+    origin: kinds::Origin::Capture,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", kinds::FieldType::Version),
+        ("workflow", kinds::FieldType::Id),
+        ("day", kinds::FieldType::Day),
+        ("n", kinds::FieldType::Count),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":20767,"n":1}"#,
+};
+
+/// A handler that asks the held-ahead call about `test_note` and keeps the answer.
+struct HeldAsker(std::rc::Rc<std::cell::RefCell<Vec<Result<bool, crate::HeldRefusal>>>>);
+
+impl crate::Handler for HeldAsker {
+    fn handle(
+        &self,
+        _request: &halvo_schema_core::request::RawRequest,
+        cx: &mut crate::HandlerCx<'_>,
+    ) -> Result<Box<serde_json::value::RawValue>, halvo_schema_core::request::ErrorName> {
+        let id =
+            halvo_schema_core::ids::WorkflowId::parse("10000000000000000000000000000001").unwrap();
+        self.0.borrow_mut().push(cx.held_ahead("test_note", &id));
+        Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+fn request(name: &str, body: &str) -> halvo_schema_core::request::RawRequest {
+    let text = format!(
+        r#"{{"v":1,"id":"{}","request":"{name}","body":{body}}}"#,
+        "5".repeat(32)
+    );
+    match halvo_schema_core::request::decode(text.as_bytes()) {
+        Ok(halvo_schema_core::request::Decoded::Raw(raw)) => raw,
+        _ => panic!("the request does not decode as a raw request"),
+    }
+}
+
+/// S-66 E3 and E4. With the table of the rows renamed away through the store's own connection, so that every
+/// statement on it fails: under a `runner` request and under a request of a further role the held-ahead call answers
+/// `Role`, which comes before any statement (E3); under a `coordinator_write`, about a kind of the handler's own family
+/// that has a workflow key, it answers the store's fault and never no (E4). The rename rewrites the table's stored
+/// text, which a later open refuses, so the test takes a directory named by its start and removes it at its end.
+#[test]
+fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_never_as_no() {
+    let answers = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let asker = || Box::new(HeldAsker(std::rc::Rc::clone(&answers)));
+    let mut entries: Vec<_> = kinds::registry().collect();
+    entries.push(&HELD_NOTE);
+    let host = Host::new(Box::new(UnitClock), Box::new(NoProposals))
+        .handler("test", crate::Takes::Runner, asker())
+        .handler("test", crate::Takes::Role("test_role"), asker())
+        .handler("test", crate::Takes::Coordinator(&["held"]), asker());
+    let started = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = data_dir(&format!("held-fault-{started}"));
+    let mut store =
+        Store::open(&dir, &DbKey::new([7; 32]), &entries, host, &mut Counting(0)).unwrap();
+    store
+        .db
+        .conn
+        .execute_batch("ALTER TABLE rows RENAME TO rows_away")
+        .unwrap();
+    for (name, body) in [
+        ("runner", "{}"),
+        ("test_role", "{}"),
+        ("coordinator_write", r#"{"op":"held"}"#),
+    ] {
+        store.handle(&request(name, body)).unwrap();
+    }
+    store
+        .db
+        .conn
+        .execute_batch("ALTER TABLE rows_away RENAME TO rows")
+        .unwrap();
+    drop(store);
+    std::fs::remove_dir_all(&dir).unwrap();
+    let answers = answers.borrow().clone();
+    assert_eq!(
+        answers[..2],
+        [Err(crate::HeldRefusal::Role), Err(crate::HeldRefusal::Role)],
+        "E3: the runner request and the request of a further role"
+    );
+    assert!(
+        matches!(answers[2], Err(crate::HeldRefusal::Fault(_))),
+        "E4: the coordinator_write answered {:?}",
+        answers[2]
+    );
+}

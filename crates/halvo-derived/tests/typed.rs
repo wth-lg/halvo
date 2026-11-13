@@ -2225,3 +2225,82 @@ fn held_ahead_answers_by_the_one_reading_of_its_request() {
         "(the answer, the readings of the clock in the request)"
     );
 }
+
+/// S-66 E1, S-59 (a) 3: `Role` comes before every refusal of a kind. Under a `runner` request and under a request of a
+/// further role the call asked about a kind that the store was not opened with, a kind of another family, a kind of
+/// the family `workflow` and a kind whose entry gives no workflow key answers `Role` each time.
+#[test]
+fn held_ahead_answers_role_before_every_refusal_of_a_kind() {
+    let mut fx = Held::new("held-role-first");
+    let w1 = fx.first.clone();
+    let ask = vec![
+        ("test_missing", w1.clone()),
+        ("front_mark", w1.clone()),
+        ("support", w1.clone()),
+        ("test_plain", w1),
+    ];
+    let answers = [
+        fx.ask("runner", "{}", ask.clone()),
+        fx.ask("test_role", "{}", ask),
+    ];
+    drop(fx.store);
+    let four = vec![Err(HeldRefusal::Role); 4];
+    assert_eq!(answers, [four.clone(), four]);
+}
+
+/// S-66 E2: the kinds of the family `workflow`, those that give no workflow key (`summary`, `evidence`) as well as
+/// those that give one (`workflow`, `support`), answer `WorkflowRun`, which the doc of `held_ahead` puts before the
+/// check of a missing key.
+#[test]
+fn held_ahead_answers_workflow_run_for_every_kind_of_the_workflow_run_with_a_key_or_without() {
+    let mut fx = Held::new("held-workflow-kinds");
+    let w1 = fx.first.clone();
+    let answers = fx.ask(
+        "coordinator_write",
+        HELD,
+        vec![
+            ("summary", w1.clone()),
+            ("evidence", w1.clone()),
+            ("workflow", w1.clone()),
+            ("support", w1),
+        ],
+    );
+    drop(fx.store);
+    assert_eq!(answers, vec![Err(HeldRefusal::WorkflowRun); 4]);
+}
+
+/// A kind of the family `front` whose entry gives no workflow key.
+static FRONT_PLAIN: KindEntry = KindEntry {
+    name: "front_plain",
+    workflow_key: None,
+    ..FRONT
+};
+
+/// S-66 E2: a kind of another family answers `OtherFamily` whether its entry gives a workflow key or not, since the
+/// check of the family comes before the check of a missing key.
+#[test]
+fn held_ahead_answers_other_family_for_a_kind_of_another_family_with_a_key_or_without() {
+    let scratch = Scratch::new("held-front-plain");
+    let clock = TestClock::at_day(DAY);
+    let (w1, _) = two_workflows(&scratch, &clock);
+    let none: Records = Rc::new(RefCell::new(Vec::new()));
+    let asks: HeldAsks = Rc::new(RefCell::new(vec![
+        ("front_plain", w1.clone()),
+        ("front_mark", w1),
+    ]));
+    let answers: HeldAnswers = Rc::new(RefCell::new(Vec::new()));
+    let host = base(&clock, Grouping { min: 1 }).handler(
+        "test",
+        Takes::Coordinator(&["held"]),
+        held_handler(false, &none, &asks, &answers),
+    );
+    let mut store = open_entries(&scratch, host, &[&NOTE, &FRONT, &FRONT_PLAIN]).unwrap();
+    store
+        .handle(&raw_request("coordinator_write", HELD))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        answers.borrow().clone(),
+        vec![Err(HeldRefusal::OtherFamily), Err(HeldRefusal::OtherFamily)]
+    );
+}
