@@ -40,24 +40,36 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 
 /// The names of the checks of C5.13 item 12, in the order of its servers S1 to S5. The four cases make them
 /// beside the checks of items 4 to 9, so `run` makes them too, and the failure text of each holds
-/// `check <name>: `. `store_changed_names_the_current_id`, in the case `store_changed`: every `store-changed`
-/// names the id of the store that the server serves next, after `replace_live` and to an open with the old id
-/// at the zero position as at another position. `open_while_open`, in the cases `filters` and `resume`
-/// (after its restart): an `open_cursor` sent while a cursor is open, without the `close` that C5.6 asks for,
-/// gets `bad-request`, whether it names S with another position, a kinds filter and a range, or another store
-/// id with the same range, and also while the cursor stands at the watermark; the cursor that was open then
-/// serves the whole reference read, and at the watermark a `read_batch` serves nothing.
-/// `open_at_the_watermark_after_a_shred`, in the case `shredded`: after `shred_oldest`, an `open_cursor` with
-/// S at W, and at the highest watermark of the replies after the shred where that is above W, is no error,
-/// and its read serves no entry; after further calls of `shred_oldest` until every segment of the reference
-/// read is shredded, an `open_cursor` with S at W is no error, serves no entry and gets no watermark below W.
+/// `check <name>: `; where two names stand in one text, the last one names the check that failed.
+/// `store_changed_names_the_current_id`, in the case `store_changed`: the `store-changed` of the read after
+/// `replace_live` names the store that a null-store open serves next; after `load(B)`, three opens with the
+/// old id, at a non-zero position, at the zero position, and at the non-zero position with the kinds filter
+/// `keystroke` and a range, each get a `store-changed` that names the new store's id and not the old one.
+/// `open_while_open`, in the cases `resume` after its restart, `filters` on the connection of the reference
+/// read, whose first open had a null store, and on a second connection, and `store_changed`: with a cursor
+/// open at the zero position, four `open_cursor` messages sent without the `close` that C5.6 asks for each get
+/// `bad-request`: S at another position with the kinds filter `keystroke` and a range after every record,
+/// another store id with that range, a null store at the zero position with that range, and S at a position
+/// after the watermark with that range; the cursor then serves the whole reference read. A cursor read to the
+/// watermark and not closed gets `bad-request` for a further open, and a `read_batch` after it serves nothing
+/// and stands at the watermark. In `store_changed`, a cursor on the two-file store of `filtered_stops` that
+/// has read one Batch, whose `next` is below the watermark, gets `bad-request` for a further open and then
+/// serves the rest of that store.
+/// `open_at_the_watermark_after_a_shred`, in the case `shredded`: after one `shred_oldest`, an `open_cursor`
+/// with S at W, and at the highest watermark of the replies after the shred where that is above W, is no
+/// error and serves no entry. Then `shred_oldest` is called once more for each segment that holds an entry
+/// of the reference read, but for the first, so as many times in all as there are such segments, and an
+/// `open_cursor` with S at W is no error, serves no entry, and neither its reply nor a Batch of its read names
+/// a watermark below W.
 /// `filtered_stops`, in the case `store_changed` after its read of set C: `load` of the fourth text of set A
 /// and the text of set C, two batch files, whose read from the zero position must serve their records of a
-/// served kind in order; then reads of that store under four filters (`window_title`, the range from the `at`
-/// of its 101st entry to that of its 401st, both, and `keystroke`), from the zero position and from its 151st
-/// entry, in which the 262,144 bytes of C5.7 item 5 stop Batches (a server that takes as many lines as the
-/// bound allows crosses from the first file into the second before its first stop); each Batch holds every entry of that store that passes the filter from the cursor's
-/// position up to its `next`, at its position, and no other.
+/// served kind in order; then reads of that store under five filters (`window_title`, `keystroke` and
+/// `window_title`, the range from the `at` of its 101st entry to that of its 401st, that range with
+/// `window_title`, and `keystroke`), from the zero position and from its 151st entry, in which the 262,144
+/// bytes of C5.7 item 5 stop Batches (a server that takes as many lines as the bound allows crosses from the
+/// first file into the second before its first stop); each Batch holds every entry of that store that passes
+/// the filter from the cursor's position up to its `next`, at its position, and no other, compared entry by
+/// entry.
 /// `one_expiry_instant`, in every case: each `expiry` entry for a segment of one store id holds the instant
 /// that the first entry for that segment held in the case, in every reply to `read_batch`, on every cursor and
 /// connection and after a restart, among them a second connection of the case `filters` to the store that its
@@ -766,9 +778,9 @@ fn at_the_watermark<S: Subject>(
 /// The case `filters` (C5.13 item 8): each kinds filter, a list of two kinds in either order, the run-mark
 /// filter, a time range with and without a kind, and a range after every record serve exactly the entries of
 /// the reference read that pass them, at their positions, from the zero position and from the position of
-/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then a read of the
-/// reference read on a second connection, with no restart between; last, the check `open_while_open` of
-/// `CHECKS`.
+/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then the check
+/// `open_while_open` of `CHECKS` on that connection, a read of the reference read on a second connection,
+/// with no restart between, and `open_while_open` again on the second connection.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -1031,7 +1043,7 @@ fn old_store<S: Subject>(
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
 /// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`;
-/// then the check `filtered_stops` of `CHECKS`.
+/// then the check `filtered_stops` of `CHECKS`, and `open_while_open` on the store that it loads.
 pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let opened = open(&mut conn, Some(&rf.s), ZERO, None, None)
