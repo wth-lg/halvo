@@ -52,7 +52,13 @@ fn main() -> ExitCode {
         Some("score") => score_command(rest),
         Some("self-test") => self_test_command(rest),
         Some("spend-sim") => not_built(),
-        Some("probe") => not_built(),
+        Some("probe") => {
+            return ExitCode::from(halvo_route_gate::probe::command(
+                rest,
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr().lock(),
+            ))
+        }
         Some(_) => refuse("usage", "unknown command"),
         None => refuse("usage", "no command"),
     };
