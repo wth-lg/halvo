@@ -19,13 +19,16 @@ pub struct Locator {
 }
 
 /// A web target of A3.1: `desc` is the role and the name of the snapshot line, `frame` the
-/// origins (with no port) of the frames that hold it from the top document inward.
+/// origins (with no port) of the frames that hold it from the top document inward. `place` is its
+/// place among the lines of the same role, name and frame when the compile saw more than one; A3's
+/// form has no key for it, so the step's JSON does not hold it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Target {
     pub role: String,
     pub name: String,
     pub frame: Vec<String>,
     pub credential: bool,
+    pub place: Option<usize>,
 }
 
 impl Target {
@@ -429,6 +432,7 @@ mod tests {
             name: "Pay now".into(),
             frame: vec!["http://pay.agent.test".into()],
             credential: false,
+            place: None,
         }
     }
 
@@ -462,6 +466,7 @@ mod tests {
                     name: "84.37".into(),
                     frame: vec![],
                     credential: false,
+                    place: None,
                 }),
                 args: vec![
                     Arg {

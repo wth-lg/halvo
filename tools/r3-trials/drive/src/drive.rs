@@ -148,27 +148,46 @@ pub fn target_of(line: &SnapshotLine) -> Target {
         name: line.name.clone(),
         frame: line.frame.as_deref().map(strip_port).into_iter().collect(),
         credential: line.credential,
+        place: None,
     }
+}
+
+fn same_place(l: &SnapshotLine, role: &str, name: &str, frame: &[String]) -> bool {
+    l.role == role
+        && l.name == name
+        && l.frame
+            .as_deref()
+            .map(strip_port)
+            .into_iter()
+            .collect::<Vec<_>>()
+            == frame
+}
+
+/// The place of a line among the lines of a snapshot with its role, name and frame, when there is
+/// more than one such line; none when the line is the only one.
+pub fn place_of(lines: &[SnapshotLine], line: &SnapshotLine) -> Option<usize> {
+    let t = target_of(line);
+    let hits: Vec<&SnapshotLine> = lines
+        .iter()
+        .filter(|l| same_place(l, &t.role, &t.name, &t.frame))
+        .collect();
+    if hits.len() < 2 {
+        return None;
+    }
+    hits.iter().position(|l| l.reference == line.reference)
 }
 
 /// The one line of a snapshot that a stored target finds, by its locator and its frame.
 pub fn find<'a>(lines: &'a [SnapshotLine], t: &Target) -> Result<&'a SnapshotLine, &'static str> {
     let hits: Vec<&SnapshotLine> = lines
         .iter()
-        .filter(|l| l.role == t.role && l.name == t.name)
-        .filter(|l| {
-            l.frame
-                .as_deref()
-                .map(strip_port)
-                .into_iter()
-                .collect::<Vec<_>>()
-                == t.frame
-        })
+        .filter(|l| same_place(l, &t.role, &t.name, &t.frame))
         .collect();
-    match hits.as_slice() {
-        [one] => Ok(one),
-        [] => Err("none"),
-        _ => Err("many"),
+    match (hits.as_slice(), t.place) {
+        ([], _) => Err("none"),
+        (_, Some(p)) => hits.get(p).copied().ok_or("place_gone"),
+        ([one], None) => Ok(one),
+        (_, None) => Err("many"),
     }
 }
 
@@ -826,7 +845,11 @@ async fn compile_steps(
         };
         match done {
             None => {}
-            Some(Done::Step(verb, target, args, request)) => {
+            Some(Done::Step(verb, mut target, args, request)) => {
+                target.place = parsed
+                    .reference()
+                    .and_then(|r| lines.iter().find(|l| l.reference == r))
+                    .and_then(|l| place_of(&lines, l));
                 history.push(parsed.describe());
                 steps.push(Step {
                     n: steps.len() + 1,
@@ -1221,6 +1244,7 @@ mod tests {
             name: "Pay now".into(),
             frame: vec!["http://pay.agent.test".into()],
             credential: false,
+            place: None,
         };
         assert_eq!(
             find(&lines, &framed).map(|l| l.reference.as_str()),
@@ -1241,9 +1265,59 @@ mod tests {
             name: "Help".into(),
             frame: vec![],
             credential: false,
+            place: None,
         };
         assert_eq!(find(&lines, &help).err(), Some("many"));
         assert_eq!(target_of(&lines[1]), framed);
+    }
+
+    #[test]
+    fn a_target_among_lines_of_one_role_and_name_is_found_again_by_its_place() {
+        let lines = vec![
+            line("e4", "listitem", "", None),
+            line("e5", "listitem", "", None),
+            line("e6", "listitem", "", None),
+            line("e7", "text", "Total", None),
+        ];
+        assert_eq!(place_of(&lines, &lines[0]), Some(0));
+        assert_eq!(place_of(&lines, &lines[2]), Some(2));
+        assert_eq!(place_of(&lines, &lines[3]), None);
+        let first = Target {
+            role: "listitem".into(),
+            name: String::new(),
+            frame: vec![],
+            credential: false,
+            place: Some(0),
+        };
+        assert_eq!(find(&lines, &first).map(|l| l.reference.as_str()), Ok("e4"));
+        let third = Target {
+            place: Some(2),
+            ..first.clone()
+        };
+        assert_eq!(find(&lines, &third).map(|l| l.reference.as_str()), Ok("e6"));
+        let gone = Target {
+            place: Some(3),
+            ..first.clone()
+        };
+        assert_eq!(find(&lines, &gone).err(), Some("place_gone"));
+        let unplaced = Target {
+            place: None,
+            ..first.clone()
+        };
+        assert_eq!(find(&lines, &unplaced).err(), Some("many"));
+        let total = Target {
+            role: "text".into(),
+            name: "Total".into(),
+            frame: vec![],
+            credential: false,
+            place: None,
+        };
+        assert_eq!(find(&lines, &total).map(|l| l.reference.as_str()), Ok("e7"));
+        let none = Target {
+            name: "Saved".into(),
+            ..total
+        };
+        assert_eq!(find(&lines, &none).err(), Some("none"));
     }
 
     #[test]
