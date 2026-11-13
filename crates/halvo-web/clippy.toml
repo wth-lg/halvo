@@ -5,4 +5,23 @@ disallowed-methods = [
   { path = "tokio::process::Command::spawn", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
   { path = "tokio::process::Command::output", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
   { path = "tokio::process::Command::status", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
+  { path = "libc::posix_spawn", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "libc::posix_spawnp", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "libc::fork", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessW", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessA", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessAsUserW", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessAsUserA", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessWithLogonW", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "windows_sys::Win32::System::Threading::CreateProcessWithTokenW", reason = "the system's start of a child stands in start.rs alone, under the start lock (A11.1)" },
+  { path = "chromiumoxide::Connection::connect", reason = "the executor drives its browser on the pipe and never connects by an address (A11.1, CP-89 (b))" },
+  { path = "chromiumoxide::Browser::connect", reason = "the executor drives its browser on the pipe and never connects by an address (A11.1, CP-89 (b))" },
+  { path = "chromiumoxide::Browser::connect_with_config", reason = "the executor drives its browser on the pipe and never connects by an address (A11.1, CP-89 (b))" },
+  { path = "chromiumoxide::Browser::launch", reason = "the executor starts its browser on the pipe through start.rs (A11.1)" },
+]
+disallowed-types = [
+  { path = "chromiumoxide::Browser", reason = "the driver's own client connects to a browser by an address; the executor drives its browser on the pipe (A11.1, CP-89 (b))" },
+  { path = "chromiumoxide::Handler", reason = "the driver's own client connects to a browser by an address; the executor drives its browser on the pipe (A11.1, CP-89 (b))" },
+  { path = "chromiumoxide::BrowserConfig", reason = "the driver's own client starts a browser with a debugging port; the executor starts it on the pipe (A11.1)" },
+  { path = "chromiumoxide::Connection", reason = "the driver's own connection to a debugging address; the executor's channel is the pipe (A11.1, CP-89 (b))" },
 ]

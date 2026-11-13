@@ -9,10 +9,17 @@ use std::sync::{Mutex, MutexGuard};
 static STARTS: Mutex<()> = Mutex::new(());
 
 /// The one lock that every start of a child in this process takes. A value of this type is the
-/// only way to start a child: the crate's `clippy.toml` refuses `std::process::Command::spawn`,
-/// `output` and `status` everywhere but in `StartLock::spawn`. While it is held, the ends of a
-/// browser's pipe exist in this process with nothing but close-on-exec (macOS) or with the
-/// inherit flag clear (Windows), except inside a start of that browser under the same lock.
+/// only way to start a child: the crate's `clippy.toml` refuses, everywhere but in the start's own
+/// spawn of this module, the starts of std and tokio (`Command::spawn`, `output` and `status` of
+/// each), the system's own starts that the crate can name (`posix_spawn`, `posix_spawnp` and `fork`
+/// of libc; `CreateProcessW`, `CreateProcessA`, `CreateProcessAsUserW`, `CreateProcessAsUserA`,
+/// `CreateProcessWithLogonW` and `CreateProcessWithTokenW` of windows-sys), and the driver's client
+/// that would connect to a browser by an address (the types `Browser`, `Handler`, `BrowserConfig`
+/// and `Connection` of chromiumoxide, and their `connect` and `launch`). libc gives no `vfork` on
+/// macOS, so that line is left out. A start by another crate of the same process takes
+/// `halvo_web::start::lock()` itself. While the lock is held, the ends of a browser's pipe exist
+/// in this process with nothing but close-on-exec (macOS) or with the inherit flag clear (Windows),
+/// except inside a start of that browser under the same lock.
 pub struct StartLock {
     _held: MutexGuard<'static, ()>,
 }
@@ -382,6 +389,7 @@ mod sys {
     /// Runs `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`: the child gets the null device at 0
     /// to 2 and `placed[i]` at `3 + i` and nothing else, its working directory `spec.dir`, the
     /// environment `spec.env` alone, and a process group of its own.
+    #[allow(clippy::disallowed_methods)]
     fn spawn(spec: &Spec<'_>, placed: &[RawFd]) -> Result<u32, StartFault> {
         let program = cstring(spec.program.as_os_str().as_bytes())?;
         let mut argv_owned = vec![program.clone()];
@@ -728,6 +736,7 @@ mod sys {
         result
     }
 
+    #[allow(clippy::disallowed_methods)]
     fn spawn_listed(
         spec: &Spec<'_>,
         list: &[HANDLE],
