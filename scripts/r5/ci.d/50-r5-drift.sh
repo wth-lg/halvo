@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), and each index flag, and allows a file that git does not track; it builds learn-gate and plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
+# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate and plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -52,16 +52,15 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tree
   fi
-  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
-    {
-      count = split($0, field, " ")
-      if (count && field[1] !~ /^(#|\?|!|H)$/) {
-        printf "tree changed=before %s %s\n", field[1], field[count]
-        bad = 1
-      }
-    }
-    END { exit bad }
-  ' || finish tree
+  changed=$(printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    { count = split($0, field, " "); if (count && field[1] !~ /^(#|\?|!|H)$/) n++ }
+    END { print n + 0 }
+  ') || finish read
+  if [ "$changed" -gt 0 ]; then
+    printf '%s\n%s\n' "$status_before" "$files_before" >"$art/tree-before.txt" || finish artifacts
+    printf 'tree changed=before files=%s\n' "$changed"
+    finish tree
+  fi
 }
 
 tree_same() {
@@ -358,6 +357,9 @@ stand_in_trial() {
 name=${2##*/}
 name=${name%.jsonl}
 printf 'trial %s %s\n' "$name" "$4" >>"$FX/trial-calls"
+if [ -e "$FX/change-at-trial" ]; then
+  cat "$FX/change-at-trial" >>"$FX/$(cat "$FX/change-file")"
+fi
 [ -e "$FX/trial-$name-$4" ] || { printf 'REFUSED case: %s.jsonl: a rule\n' "$name" >&2; exit 2; }
 cat "$FX/trial-$name-$4"
 EOF
@@ -476,6 +478,14 @@ check() {
   fi
 }
 
+# hidden WORD: the output of the last check does not hold WORD, and its tree-before.txt does.
+hidden() {
+  case $out in
+    *"$1"*) wrong="$wrong $case_name:printed" ;;
+  esac
+  grep -q "$1" "$work/$case_name/art/tree-before.txt" 2>/dev/null || wrong="$wrong $case_name:artifacts"
+}
+
 # calls_are LINE...: the calls of the gate host and cargo that the last check made are exactly these lines.
 calls_are() {
   if [ "$#" -eq 0 ]; then
@@ -528,13 +538,22 @@ self_test() {
 
   fixture two-changed-files-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-gate/src/stub.rs\n1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/dev/renamed-pay.jsonl\n' >"$FX/status"
-  check FAIL-tree 'tree changed=before 1 crates/halvo-learn-gate/src/stub.rs
-tree changed=before 1 fixtures/r5/cases/dev/renamed-pay.jsonl'
+  check FAIL-tree 'tree changed=before files=2'
   calls_are
 
   fixture staged-file-before-the-run
   printf '1 M. N... 100644 100644 100644 0000 0000 docs/r5/targets.toml\n' >"$FX/status"
-  check FAIL-tree 'tree changed=before 1 docs/r5/targets.toml'
+  check FAIL-tree 'tree changed=before files=1'
+
+  fixture changed-file-with-a-word-of-its-own
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-gate/src/zqtreeword.rs\n' >"$FX/status"
+  check FAIL-tree 'tree changed=before files=1'
+  hidden zqtreeword
+
+  fixture changed-file-under-heldout
+  printf '1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/heldout/zqmadeupcase.jsonl\n' >"$FX/status"
+  check FAIL-tree 'tree changed=before files=1'
+  hidden zqmadeupcase
 
   fixture untracked-file-before-the-run
   printf '? notes.txt\n' >"$FX/status"
@@ -579,6 +598,10 @@ tree changed=before 1 fixtures/r5/cases/dev/renamed-pay.jsonl'
       esac
     done
   done
+
+  fixture trial-changes-the-tree
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/lib.rs\n' >"$FX/change-at-trial"
+  check FAIL-tree 'tree changed=after-trial-dev'
 
   fixture git-unreadable
   : >"$FX/git-unreadable"
