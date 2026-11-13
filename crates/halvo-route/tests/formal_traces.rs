@@ -735,6 +735,9 @@ fn the_floor_refuses_directed_traces_that_are_not_the_six() {
     let lines: Vec<&str> = text.lines().collect();
     let mut first_six_times = vec![lines[1]; 6];
     first_six_times.extend(&lines[7..]);
+    let mut no_below = lines[1..].to_vec();
+    no_below[0] = lines[3];
+    no_below[1] = lines[4];
     let mut swapped = lines[1..].to_vec();
     swapped.swap(5, 6);
     let cases = [
@@ -742,6 +745,11 @@ fn the_floor_refuses_directed_traces_that_are_not_the_six() {
             "the first directed trace six times",
             with_header(206, &first_six_times),
             "the costs of the directed settles",
+        ),
+        (
+            "two settles at the amount in place of the two below it",
+            with_header(206, &no_below),
+            "the costs of the directed settles are 0 in 2, below the amount in 0 and at it in 4",
         ),
         (
             "a drawn trace among the directed ones",
