@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{File, OpenOptions, TryLockError};
 use std::io;
@@ -25,6 +26,11 @@ use std::path::{Path, PathBuf};
 /// file nor its directory can be renamed or removed. On macOS they can: a lock file or
 /// directory that another program moves away while the lock is held lets the next loader
 /// create a new file and take the lock.
+///
+/// The lock is per account: its file lies below the account's own directory, which the
+/// system gives whatever the environment of a process holds (see [`model_lock_path`]), so
+/// every process of one account meets at one file, and a loader that another account starts
+/// takes that account's lock.
 ///
 /// ```no_run
 /// fn load() -> Result<(), halvo_cap::LockError> {
@@ -83,11 +89,17 @@ impl ModelLock {
 pub enum LockError {
     /// The model lock is held, by another process or by this one: the loader loads nothing,
     /// exits with a non-zero status, and its caller starts it again after the holder has
-    /// ended.
+    /// ended. It is the one cause after which a caller starts the loader again; after every
+    /// other cause no caller starts it again as if the lock were held.
     Held(PathBuf),
-    /// The variable that names the user's cache directory is not set to an absolute path:
-    /// it is missing, empty or relative. `HOME` on macOS, `LOCALAPPDATA` on Windows.
-    NoCacheDir(&'static str),
+    /// The system's call gave no directory for the account, or one that is no absolute
+    /// path, so there is no lock to take: `call` is `getpwuid_r` on macOS and
+    /// `SHGetKnownFolderPath` on Windows, or the call before it that failed, and `code` is
+    /// the error that a failed call returned.
+    NoAccountDir {
+        call: &'static str,
+        code: Option<i32>,
+    },
     /// This system has no model lock: it is neither macOS nor Windows.
     Unsupported,
     /// A call on the lock file or its directory failed.
@@ -102,12 +114,14 @@ impl fmt::Display for LockError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LockError::Held(path) => write!(f, "the model lock is held: {}", path.display()),
-            LockError::NoCacheDir(var) => {
-                write!(
-                    f,
-                    "no model lock: the variable {var} is not set to an absolute path"
-                )
-            }
+            LockError::NoAccountDir { call, code: None } => write!(
+                f,
+                "no model lock: {call} gave no absolute directory for the account"
+            ),
+            LockError::NoAccountDir {
+                call,
+                code: Some(code),
+            } => write!(f, "no model lock: {call} failed with the code {code}"),
             LockError::Unsupported => write!(f, "no model lock on this system"),
             LockError::Io { call, path, source } => {
                 write!(f, "{call} {}: {source}", path.display())
@@ -126,9 +140,115 @@ impl std::error::Error for LockError {
 }
 
 #[cfg(target_os = "macos")]
-const CACHE_VAR: &str = "HOME";
+const ACCOUNT_CALL: &str = "getpwuid_r";
+
+#[cfg(target_os = "macos")]
+fn account_dir() -> Result<Option<OsString>, LockError> {
+    use std::ffi::CStr;
+    use std::os::unix::ffi::OsStringExt;
+
+    const MAX_BUFFER: usize = 1 << 20;
+    let uid = unsafe { libc::geteuid() };
+    let mut buf = vec![0u8; 1024];
+    loop {
+        let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
+        let mut found: *mut libc::passwd = std::ptr::null_mut();
+        let rc = unsafe {
+            libc::getpwuid_r(
+                uid,
+                &mut pwd,
+                buf.as_mut_ptr().cast(),
+                buf.len(),
+                &mut found,
+            )
+        };
+        if rc == libc::ERANGE && buf.len() < MAX_BUFFER {
+            buf.resize(buf.len() * 2, 0);
+            continue;
+        }
+        if rc != 0 {
+            return Err(LockError::NoAccountDir {
+                call: ACCOUNT_CALL,
+                code: Some(rc),
+            });
+        }
+        if found.is_null() || pwd.pw_dir.is_null() {
+            return Ok(None);
+        }
+        let dir = unsafe { CStr::from_ptr(pwd.pw_dir) };
+        return Ok(Some(OsString::from_vec(dir.to_bytes().to_vec())));
+    }
+}
+
 #[cfg(windows)]
-const CACHE_VAR: &str = "LOCALAPPDATA";
+const ACCOUNT_CALL: &str = "SHGetKnownFolderPath";
+
+#[cfg(windows)]
+fn account_dir() -> Result<Option<OsString>, LockError> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
+    use windows_sys::Win32::System::Com::CoTaskMemFree;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows_sys::Win32::UI::Shell::{
+        FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+    };
+
+    struct Token(HANDLE);
+
+    impl Drop for Token {
+        fn drop(&mut self) {
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+
+    struct TaskMem(*mut u16);
+
+    impl Drop for TaskMem {
+        fn drop(&mut self) {
+            unsafe { CoTaskMemFree(self.0.cast_const().cast()) };
+        }
+    }
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    if unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_IMPERSONATE,
+            &mut token,
+        )
+    } == 0
+    {
+        return Err(LockError::NoAccountDir {
+            call: "OpenProcessToken",
+            code: io::Error::last_os_error().raw_os_error(),
+        });
+    }
+    let token = Token(token);
+    let mut path = TaskMem(std::ptr::null_mut());
+    let hr = unsafe {
+        SHGetKnownFolderPath(
+            &FOLDERID_LocalAppData,
+            KF_FLAG_DEFAULT as u32,
+            token.0,
+            &mut path.0,
+        )
+    };
+    if hr < 0 {
+        return Err(LockError::NoAccountDir {
+            call: ACCOUNT_CALL,
+            code: Some(hr),
+        });
+    }
+    if path.0.is_null() {
+        return Ok(None);
+    }
+    let len = (0..)
+        .take_while(|&i| unsafe { *path.0.add(i) } != 0)
+        .count();
+    let wide = unsafe { std::slice::from_raw_parts(path.0, len) };
+    Ok(Some(OsString::from_wide(wide)))
+}
 
 #[cfg(target_os = "macos")]
 fn lock_path_in(base: &Path) -> PathBuf {
@@ -143,19 +263,30 @@ fn lock_path_in(base: &Path) -> PathBuf {
     base.join("halvo").join("model.lock")
 }
 
-/// The path of this user's model lock: `$HOME/Library/Caches/halvo/model.lock` on macOS
-/// and `%LOCALAPPDATA%\halvo\model.lock` on Windows, with the variable read from the
-/// environment of this process as its loader gave it. A value that is missing, empty or no
-/// absolute path gives [`LockError::NoCacheDir`], which names the variable.
 #[cfg(any(target_os = "macos", windows))]
-pub fn model_lock_path() -> Result<PathBuf, LockError> {
-    match std::env::var_os(CACHE_VAR) {
+fn lock_path_from(found: Result<Option<OsString>, LockError>) -> Result<PathBuf, LockError> {
+    match found? {
         Some(base) if Path::new(&base).is_absolute() => Ok(lock_path_in(Path::new(&base))),
-        _ => Err(LockError::NoCacheDir(CACHE_VAR)),
+        _ => Err(LockError::NoAccountDir {
+            call: ACCOUNT_CALL,
+            code: None,
+        }),
     }
 }
 
-/// The path of this user's model lock; there is none on this system.
+/// The path of this account's model lock: `Library/Caches/halvo/model.lock` below the home
+/// directory of the account of the process's effective user id, which `getpwuid_r` gives,
+/// on macOS, and `halvo\model.lock` below the LocalAppData known folder of the process's
+/// own token, which `SHGetKnownFolderPath` gives, on Windows. It reads no variable, so
+/// every process of the account gets the same path whatever its environment holds. A
+/// lookup that gives no directory, or one that is no absolute path, gives
+/// [`LockError::NoAccountDir`], which names the system's call.
+#[cfg(any(target_os = "macos", windows))]
+pub fn model_lock_path() -> Result<PathBuf, LockError> {
+    lock_path_from(account_dir())
+}
+
+/// The path of this account's model lock; there is none on this system.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn model_lock_path() -> Result<PathBuf, LockError> {
     Err(LockError::Unsupported)
@@ -199,10 +330,28 @@ fn lock_file_options() -> OpenOptions {
 /// file nor its directory can be renamed or removed. On macOS they can: a lock file or
 /// directory that another program moves away while the lock is held lets the next loader
 /// create a new file and take the lock.
+///
+/// The lock is per account: its file lies below the account's own directory, which the
+/// system gives whatever the environment of a process holds (see [`model_lock_path`]), so
+/// every process of one account meets at one file, and a loader that another account starts
+/// takes that account's lock.
+#[cfg(any(target_os = "macos", windows))]
 pub fn take_model_lock() -> Result<ModelLock, LockError> {
-    take_lock_at(model_lock_path()?)
+    take_lock_from(account_dir())
 }
 
+/// Takes the model lock; there is none on this system.
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn take_model_lock() -> Result<ModelLock, LockError> {
+    Err(LockError::Unsupported)
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn take_lock_from(found: Result<Option<OsString>, LockError>) -> Result<ModelLock, LockError> {
+    take_lock_at(lock_path_from(found)?)
+}
+
+#[cfg(any(target_os = "macos", windows))]
 fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|source| LockError::Io {
@@ -257,9 +406,30 @@ mod tests {
             return;
         };
         let dir = PathBuf::from(dir);
-        let take = || take_lock_at(lock_path_in(&dir));
+        let take = || take_lock_from(Ok(Some(dir.clone().into_os_string())));
         let mut out = io::stdout();
         let code = match role.as_str() {
+            "take-relative" | "take-empty" => {
+                let base = if role == "take-relative" {
+                    "relative-home"
+                } else {
+                    ""
+                };
+                match take_lock_from(Ok(Some(base.into()))) {
+                    Ok(_lock) => {
+                        writeln!(out, "taken").unwrap();
+                        0
+                    }
+                    Err(LockError::NoAccountDir { call, code: None }) => {
+                        writeln!(out, "no-account-dir {call}").unwrap();
+                        5
+                    }
+                    Err(e) => {
+                        writeln!(out, "error {e}").unwrap();
+                        4
+                    }
+                }
+            }
             #[cfg(unix)]
             "hold-then-exec" => match take() {
                 Ok(lock) => {
@@ -456,7 +626,7 @@ mod tests {
         let line = text
             .lines()
             .find(|l| {
-                ["held", "taken", "second", "error"]
+                ["held", "taken", "second", "error", "no-account-dir"]
                     .iter()
                     .any(|start| l.starts_with(start))
             })
@@ -637,5 +807,79 @@ mod tests {
             "the directory of the held lock file was renamed"
         );
         assert_eq!(code, 3, "a second loader got: {line}");
+    }
+
+    #[test]
+    fn the_lookup_is_the_systems_call() {
+        let want = if cfg!(windows) {
+            "SHGetKnownFolderPath"
+        } else {
+            "getpwuid_r"
+        };
+        assert_eq!(ACCOUNT_CALL, want);
+    }
+
+    #[test]
+    fn a_lookup_that_gives_an_absolute_directory_gives_the_lock_below_it() {
+        let dir = fresh_dir("absolute");
+        let path = lock_path_from(Ok(Some(dir.clone().into_os_string()))).unwrap();
+        assert_eq!(path, lock_path_in(&dir));
+    }
+
+    #[test]
+    fn a_lookup_that_gives_no_directory_gives_the_cause_and_no_lock() {
+        match take_lock_from(Ok(None)) {
+            Err(LockError::NoAccountDir { call, code: None }) => assert_eq!(call, ACCOUNT_CALL),
+            other => panic!("a lookup that gave no directory: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_lookup_that_fails_gives_the_cause_with_its_call_and_code() {
+        let failed = LockError::NoAccountDir {
+            call: "a-call",
+            code: Some(5),
+        };
+        match take_lock_from(Err(failed)) {
+            Err(LockError::NoAccountDir {
+                call: "a-call",
+                code: Some(5),
+            }) => {}
+            other => panic!("a lookup that failed: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_lookup_that_gives_no_absolute_path_gives_the_cause_and_no_lock() {
+        for role in ["take-relative", "take-empty"] {
+            let dir = fresh_dir(role);
+            let output = loader_command(role, &dir)
+                .current_dir(&dir)
+                .output()
+                .unwrap();
+            let text = String::from_utf8(output.stdout).unwrap();
+            assert_eq!(output.status.code(), Some(5), "{role}: {text}");
+            let want = format!("no-account-dir {ACCOUNT_CALL}");
+            assert!(text.lines().any(|l| l == want), "{role}: {text}");
+            let left = std::fs::read_dir(&dir).unwrap().count();
+            assert_eq!(left, 0, "{role}: the take made {left} entries");
+        }
+    }
+
+    #[test]
+    fn the_cause_names_the_systems_call_and_no_variable() {
+        for found in [Ok(None), Ok(Some("relative-home".into()))] {
+            let text = lock_path_from(found).unwrap_err().to_string();
+            assert!(text.contains(ACCOUNT_CALL), "{text}");
+            for name in ["HOME", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "variable"] {
+                assert!(!text.contains(name), "{text}");
+            }
+        }
+        let text = LockError::NoAccountDir {
+            call: ACCOUNT_CALL,
+            code: Some(5),
+        }
+        .to_string();
+        assert!(text.contains(ACCOUNT_CALL) && text.contains('5'), "{text}");
     }
 }
