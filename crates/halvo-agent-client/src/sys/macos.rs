@@ -1,8 +1,9 @@
 #![allow(unsafe_code)]
 
-use std::ffi::c_void;
+use std::ffi::{c_void, OsString};
 use std::io;
 use std::mem::{size_of, MaybeUninit};
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
@@ -46,6 +47,7 @@ const _: () = assert!(size_of::<ProcFdInfo>() == 8);
 
 const PROC_PIDLISTFDS: i32 = 1;
 const PROC_PIDTBSDINFO: i32 = 3;
+const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
 const F_SETFD: i32 = 2;
 const FD_CLOEXEC: i32 = 1;
 const EMFILE: i32 = 24;
@@ -67,6 +69,23 @@ extern "C" {
     fn kill(pid: i32, sig: i32) -> i32;
     fn getentropy(buffer: *mut c_void, len: usize) -> i32;
     fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    fn confstr(name: i32, buf: *mut c_void, len: usize) -> usize;
+}
+
+/// The per-user temporary directory that the system answers by `confstr`, read from no variable of this process;
+/// none when it cannot be read.
+pub(crate) fn user_temp_dir() -> Option<OsString> {
+    let len = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, std::ptr::null_mut(), 0) };
+    if len < 2 {
+        return None;
+    }
+    let mut buf = vec![0u8; len];
+    let got = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, buf.as_mut_ptr().cast(), buf.len()) };
+    if got != len {
+        return None;
+    }
+    buf.truncate(len - 1);
+    Some(OsString::from_vec(buf))
 }
 
 /// Makes the process that `cmd` starts close, at its exec and so before it runs, every descriptor beyond its

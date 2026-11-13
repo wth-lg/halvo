@@ -175,6 +175,59 @@ fn write_inherited(number: &str, text: &[u8]) -> &'static str {
     }
 }
 
+#[cfg(unix)]
+fn in_system_directory() -> bool {
+    std::env::current_dir().is_ok_and(|d| d == Path::new("/"))
+}
+
+#[cfg(windows)]
+fn in_system_directory() -> bool {
+    use std::os::windows::ffi::OsStringExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
+    }
+    let mut buf = [0u16; 1024];
+    let n = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    if n == 0 || n >= buf.len() {
+        return false;
+    }
+    let system = std::ffi::OsString::from_wide(&buf[..n]);
+    let trim = |s: &str| s.trim_end_matches('\\').to_ascii_lowercase();
+    std::env::current_dir()
+        .is_ok_and(|d| trim(&d.to_string_lossy()) == trim(&system.to_string_lossy()))
+}
+
+fn environment_lines(marker: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut marked = Vec::new();
+    let mut equal = Vec::new();
+    let mut temporary = 0;
+    for (name, value) in std::env::vars_os() {
+        let name = name.to_string_lossy().into_owned();
+        let text = value.to_string_lossy();
+        if text.contains(marker) {
+            marked.push(name.clone());
+        }
+        if text == marker {
+            equal.push(name.clone());
+        }
+        if ["TMPDIR", "TEMP", "TMP"].contains(&name.as_str()) && Path::new(&value).is_dir() {
+            temporary += 1;
+        }
+        names.push(name);
+    }
+    names.sort();
+    marked.sort();
+    equal.sort();
+    vec![
+        format!("environment names={}", names.join(",")),
+        format!("environment marked={}", marked.join(",")),
+        format!("environment equal={}", equal.join(",")),
+        format!("environment temporary-directories={temporary}"),
+    ]
+}
+
 fn wait_for_file(path: &Path, within: Duration) -> bool {
     let deadline = std::time::Instant::now() + within;
     while !path.exists() {
@@ -453,6 +506,30 @@ impl Peer {
                 let (number, text) = rest.split_once(' ').unwrap_or((rest, ""));
                 let result = write_inherited(number, format!("{text}\n").as_bytes());
                 self.log.line(&format!("inherited {number} {result}"));
+            }
+            "environment" => {
+                for line in environment_lines(rest) {
+                    self.log.line(&line);
+                }
+            }
+            "directory" => {
+                let yes = if in_system_directory() { "yes" } else { "no" };
+                self.log.line(&format!("directory system={yes}"));
+            }
+            "write-relative" => {
+                let made = std::fs::File::create(rest).is_ok();
+                self.log.line(&format!(
+                    "relative made={}",
+                    if made { "yes" } else { "no" }
+                ));
+                if made && in_system_directory() && std::fs::remove_file(rest).is_ok() {
+                    self.log.line("relative removed=yes");
+                }
+            }
+            "socket" => {
+                let ok = std::net::TcpListener::bind("127.0.0.1:0").is_ok();
+                self.log
+                    .line(&format!("socket ok={}", if ok { "yes" } else { "no" }));
             }
             "stderr-flood" => {
                 let (total, after) = rest.split_once(' ').unwrap_or((rest, ""));

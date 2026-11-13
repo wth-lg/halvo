@@ -223,9 +223,87 @@ extern "system" {
     fn WaitForSingleObject(handle: Handle, millis: u32) -> u32;
 }
 
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
+    fn GetSystemWindowsDirectoryW(buffer: *mut u16, size: u32) -> u32;
+}
+
 #[link(name = "bcrypt")]
 extern "system" {
     fn BCryptGenRandom(algorithm: *mut c_void, buffer: *mut u8, len: u32, flags: u32) -> i32;
+}
+
+#[repr(C)]
+struct Guid {
+    data1: u32,
+    data2: u16,
+    data3: u16,
+    data4: [u8; 8],
+}
+
+const FOLDERID_LOCAL_APP_DATA: Guid = Guid {
+    data1: 0xF1B3_2785,
+    data2: 0x6FBA,
+    data3: 0x4FCF,
+    data4: [0x9D, 0x55, 0x7B, 0x8E, 0x7F, 0x15, 0x70, 0x91],
+};
+
+#[link(name = "shell32")]
+extern "system" {
+    fn SHGetKnownFolderPath(id: *const Guid, flags: u32, token: Handle, path: *mut *mut u16)
+        -> i32;
+}
+
+#[link(name = "ole32")]
+extern "system" {
+    fn CoTaskMemFree(memory: *const c_void);
+}
+
+type DirectoryCall = unsafe extern "system" fn(*mut u16, u32) -> u32;
+
+fn directory(call: DirectoryCall) -> Option<Vec<u16>> {
+    let needed = unsafe { call(std::ptr::null_mut(), 0) };
+    if needed < 2 {
+        return None;
+    }
+    let mut buf = vec![0u16; needed as usize];
+    let got = unsafe { call(buf.as_mut_ptr(), needed) };
+    if got == 0 || got >= needed {
+        return None;
+    }
+    buf.truncate(got as usize);
+    Some(buf)
+}
+
+/// The system directory, by `GetSystemDirectoryW`, with no NUL at its end; none when it cannot be read.
+pub(crate) fn system_directory() -> Option<Vec<u16>> {
+    directory(GetSystemDirectoryW)
+}
+
+/// The Windows directory, by `GetSystemWindowsDirectoryW`, with no NUL at its end; none when it cannot be read.
+pub(crate) fn windows_directory() -> Option<Vec<u16>> {
+    directory(GetSystemWindowsDirectoryW)
+}
+
+/// The account's LocalAppData known folder, by `SHGetKnownFolderPath`, read from no variable of this process; none
+/// when it cannot be read.
+pub(crate) fn local_app_data() -> Option<Vec<u16>> {
+    let mut path: *mut u16 = std::ptr::null_mut();
+    let result = unsafe {
+        SHGetKnownFolderPath(&FOLDERID_LOCAL_APP_DATA, 0, std::ptr::null_mut(), &mut path)
+    };
+    let found = if result == 0 && !path.is_null() {
+        let mut len = 0usize;
+        while unsafe { *path.add(len) } != 0 {
+            len += 1;
+        }
+        Some(unsafe { std::slice::from_raw_parts(path, len) }.to_vec())
+    } else {
+        None
+    };
+    unsafe { CoTaskMemFree(path.cast()) };
+    found.filter(|p| !p.is_empty())
 }
 
 /// A job object of the library's own: its processes all end when its handle closes, and none may break away.

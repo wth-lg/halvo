@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::num::{NonZeroU32, NonZeroU64};
 #[cfg(target_os = "macos")]
 use std::process::Child;
@@ -43,11 +44,49 @@ fn created(us: u64) -> Option<CreationTime> {
     NonZeroU64::new(us).map(CreationTime::from_micros)
 }
 
+/// The whole environment of a runner, from the closed list of its system (contracts.md A6.1 and A6.6, ruling CP-160
+/// (1) (b)); nothing else of the library's process reaches the runner. On macOS `HOME`, as the library's process has
+/// it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows `SystemRoot`, the Windows
+/// directory that the system answers, `TEMP` and `TMP`, the directory Temp under the account's LocalAppData known
+/// folder, and `LOCALAPPDATA`, as the library's process has it. `HOME` and `LOCALAPPDATA` are left out where the
+/// library's process has none, and a value of the system that cannot be read leaves its name out.
+pub(crate) fn environment() -> Vec<(OsString, OsString)> {
+    let mut env = Vec::new();
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            env.push(("HOME".into(), home));
+        }
+        if let Some(temp) = sys::user_temp_dir() {
+            env.push(("TMPDIR".into(), temp));
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        if let Some(root) = sys::windows_directory() {
+            env.push(("SystemRoot".into(), OsString::from_wide(&root)));
+        }
+        if let Some(local) = sys::local_app_data() {
+            let mut temp = OsString::from_wide(&local);
+            temp.push("\\Temp");
+            env.push(("TEMP".into(), temp.clone()));
+            env.push(("TMP".into(), temp));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            env.push(("LOCALAPPDATA".into(), local));
+        }
+    }
+    env
+}
+
 /// Starts the runner of `cmd`, its program and arguments, with three handles or descriptors of the library's open in
 /// it and no other: the two ends of the link as its standard input and output and the null device as its standard
-/// error. On macOS it is the leader of a process group of its own and every other descriptor closes at its exec; on
-/// Windows it starts suspended, with the list of those three as the only handles that it inherits, in a job of the
-/// library's own that then lets it run. Reads its line.
+/// error. It gives the runner the whole environment of `environment` and the system's directory as its working
+/// directory: `/` on macOS, the system directory on Windows, never the library's own; a Windows start whose system
+/// directory cannot be read makes no process. On macOS the runner is the leader of a process group of its own and
+/// every other descriptor closes at its exec; on Windows it starts suspended, with the list of those three as the
+/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line.
 pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
     #[cfg(target_os = "macos")]
     {
@@ -56,6 +95,9 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
+            .env_clear()
+            .envs(environment())
+            .current_dir("/")
             .process_group(0);
         sys::close_beyond_three(cmd);
         let child = cmd.spawn().map_err(|_| SpawnFailed::NotMade)?;
@@ -89,13 +131,24 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         let line =
             command_line(&program, args.iter().map(Vec::as_slice)).ok_or(SpawnFailed::NotMade)?;
         let application: Vec<u16> = program.into_iter().chain(Some(0)).collect();
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = environment()
+            .iter()
+            .map(|(k, v)| (k.encode_wide().collect(), v.encode_wide().collect()))
+            .collect();
+        let block = environment_block(&vars).ok_or(SpawnFailed::NotMade)?;
+        let directory: Vec<u16> = sys::system_directory()
+            .ok_or(SpawnFailed::NotMade)?
+            .into_iter()
+            .chain(Some(0))
+            .collect();
         let job = sys::Job::new().map_err(|_| SpawnFailed::NotMade)?;
         let sys::Started {
             process,
             thread,
             stdin,
             stdout,
-        } = sys::start(&application, line, None, None).map_err(|_| SpawnFailed::NotMade)?;
+        } = sys::start(&application, line, Some(&block), Some(&directory))
+            .map_err(|_| SpawnFailed::NotMade)?;
         let mut proc = RunProc {
             child: process,
             link: Some((ChildStdin::from(stdin), ChildStdout::from(stdout))),
@@ -122,6 +175,41 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         proc.line = line;
         Ok(proc)
     }
+}
+
+/// The environment block of a Windows start: each `name=value` ending in a NUL, the names in the order of their
+/// upper case, and one NUL more at the end. None for an empty name, a name that holds `=` or a NUL in any part.
+#[cfg(any(windows, test))]
+fn environment_block(vars: &[(Vec<u16>, Vec<u16>)]) -> Option<Vec<u16>> {
+    const EQUALS: u16 = b'=' as u16;
+    let upper = |name: &[u16]| -> Vec<u16> {
+        name.iter()
+            .map(|&c| {
+                if (u16::from(b'a')..=u16::from(b'z')).contains(&c) {
+                    c - 32
+                } else {
+                    c
+                }
+            })
+            .collect()
+    };
+    let mut sorted: Vec<&(Vec<u16>, Vec<u16>)> = vars.iter().collect();
+    sorted.sort_by_key(|(name, _)| upper(name));
+    let mut block = Vec::new();
+    for (name, value) in sorted {
+        if name.is_empty() || name.contains(&EQUALS) || name.contains(&0) || value.contains(&0) {
+            return None;
+        }
+        block.extend_from_slice(name);
+        block.push(EQUALS);
+        block.extend_from_slice(value);
+        block.push(0);
+    }
+    if block.is_empty() {
+        block.push(0);
+    }
+    block.push(0);
+    Some(block)
 }
 
 /// The command line of a Windows start: the program in quotes, then each argument, in quotes when it is empty or
@@ -509,6 +597,51 @@ fn end_descendant(d: &sys::Info, runner_group: u32) {
         end_group(d.pid);
     } else {
         sys::kill_pid(d.pid);
+    }
+}
+
+#[cfg(test)]
+mod environment_block_tests {
+    use super::environment_block;
+
+    fn block(vars: &[(&str, &str)]) -> Option<String> {
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = vars
+            .iter()
+            .map(|(k, v)| (k.encode_utf16().collect(), v.encode_utf16().collect()))
+            .collect();
+        environment_block(&vars).map(|b| String::from_utf16(&b).unwrap())
+    }
+
+    #[test]
+    fn the_block_holds_each_variable_in_the_order_of_the_upper_case_of_its_name_and_ends_in_two_nuls(
+    ) {
+        assert_eq!(
+            block(&[
+                ("TMP", "b"),
+                ("SystemRoot", "r"),
+                ("TEMP", "a"),
+                ("LOCALAPPDATA", "l")
+            ])
+            .as_deref(),
+            Some("LOCALAPPDATA=l\0SystemRoot=r\0TEMP=a\0TMP=b\0\0")
+        );
+        assert_eq!(
+            block(&[("b", "1"), ("A", "2")]).as_deref(),
+            Some("A=2\0b=1\0\0")
+        );
+    }
+
+    #[test]
+    fn an_empty_block_is_two_nuls() {
+        assert_eq!(block(&[]).as_deref(), Some("\0\0"));
+    }
+
+    #[test]
+    fn an_empty_name_a_name_with_an_equals_sign_or_a_nul_gives_no_block() {
+        assert_eq!(block(&[("", "x")]), None);
+        assert_eq!(block(&[("A=B", "x")]), None);
+        assert_eq!(block(&[("A\0", "x")]), None);
+        assert_eq!(block(&[("A", "x\0y")]), None);
     }
 }
 
