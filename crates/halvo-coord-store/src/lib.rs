@@ -5,8 +5,10 @@
 //! stores what the typed writer writes by the typed commit; it reads the clock of its host and no clock, file or
 //! network of its own.
 
+mod handler;
 mod host;
 mod memory;
 
+pub use handler::{coordinator, CoordReply, OPS};
 pub use host::{Clock, CommitRefused, DayFault, Host};
 pub use memory::MemoryStore;

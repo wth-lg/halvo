@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{Clock, CommitRefused, DayFault, Host};
+use halvo_coord_store::{CommitRefused, DayFault, Host};
 use halvo_schema::{RowRead, SummaryRead, TypedRecord, WriterStep};
 
 struct Returns(Vec<TypedRecord>);

@@ -3,9 +3,11 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use halvo_coord_store::{Clock, MemoryStore};
+use halvo_coord_store::{Clock, CoordReply, MemoryStore};
+use halvo_schema::coordinator::body::Stored;
+use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::request::decode;
-use halvo_schema::{Decoded, Instant, RawRequest, RowRead, TypedRecord, Workflow};
+use halvo_schema::{Decoded, ErrorName, Instant, RawRequest, RowRead, TypedRecord, Workflow};
 use serde_json::json;
 
 pub const DAY_S: i64 = 86_400;
@@ -128,6 +130,22 @@ pub fn rows(store: &MemoryStore) -> Vec<String> {
     let mut out = Vec::new();
     store.for_each("coord_event", &mut |row| out.push(row.to_owned()));
     out
+}
+
+pub fn declared(name: &str) -> ErrorName {
+    ErrorName::read(name).expect("a declared error name")
+}
+
+pub fn stored(n: u32) -> Result<CoordReply, ErrorName> {
+    Ok(CoordReply::Stored(Stored { stored: n }))
+}
+
+/// What the typed writer writes for the row.
+pub fn canonical(json: &str) -> String {
+    CoordEvent::parse(json.as_bytes())
+        .expect("a coord_event")
+        .to_json()
+        .expect("written")
 }
 
 pub const REQUEST_ID: &str = "7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d";
