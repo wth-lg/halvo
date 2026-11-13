@@ -1072,6 +1072,49 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
     );
 }
 
+/// RD-61 (c): after a press whose row got no acknowledgement, a read of another move that brings
+/// that row into the ledger ends the press's doubt, so that the next press of the same choice
+/// takes the stored row as its own and goes to the run with no log of its own.
+#[test]
+fn rd61c_a_read_of_another_move_that_brings_the_lost_row_ends_the_doubt_of_its_press() {
+    let p = ports();
+    let mut l = ledger();
+    let item = support::item_id(1);
+    let ask = handback(HandbackReason::StepFailed, None);
+    p.refuse(Method::Log, PortError::NoService);
+    assert_eq!(
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, Choice::Done),
+        Err(Cause::NoService)
+    );
+    p.clear_refusals();
+    let row: Vec<Event> = p
+        .tried
+        .borrow()
+        .iter()
+        .rev()
+        .find_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .unwrap();
+    p.events.borrow_mut().extend(row);
+    let read: Vec<Event> = p.events.borrow().clone();
+    l.take(&read);
+    let tried = p.tried.borrow().len();
+    assert_eq!(
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, Choice::Done),
+        Ok(())
+    );
+    let calls: Vec<Call> = p.tried.borrow()[tried..]
+        .iter()
+        .map(|t| t.call.clone())
+        .collect();
+    assert!(
+        matches!(&calls[..], [Call::AnswerHandback(_, HandbackResult::Done)]),
+        "the stored answer goes with no log: {calls:?}"
+    );
+}
+
 /// The row of an answer of a `link_account` item holds the whole origin of its request, whose
 /// site's name the item showed, before the runner gets the result; a request with no origin gets
 /// no row and no result, because its item cannot show a site (I7.1, I3.4, ruling IG-14).

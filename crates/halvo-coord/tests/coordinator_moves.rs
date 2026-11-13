@@ -4914,6 +4914,35 @@ fn rd52c_a_read_that_shows_another_choice_as_the_newest_decides_by_rule_3() {
     }
 }
 
+/// RD-52 (c) rule 5: a press whose log stores nothing and answers no acknowledgement, with the
+/// read of that move failing too, answers the store's cause, sends nothing and logs nothing more,
+/// also where the ledger keeps an older `done` that a decline would follow.
+#[test]
+fn rd52c_a_read_that_fails_after_a_lost_store_logs_nothing_more() {
+    for reason in DECLINE_DONE {
+        let (c, _run, item) = stored_not_taken(reason, Choice::Done);
+        let m = mark(&c);
+        let tried = c.ports().ports.tried.borrow().len();
+        c.ports().loss.set(Some(support::Loss::Nothing));
+        c.ports()
+            .ports
+            .refuse(Method::History, PortError::NoService);
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Err(Cause::NoService),
+            "{reason:?}"
+        );
+        c.ports().ports.clear_refusals();
+        let logs = c.ports().ports.tried.borrow()[tried..]
+            .iter()
+            .filter(|t| matches!(t.call, Call::Log(_)))
+            .count();
+        assert_eq!(logs, 0, "{reason:?}: no log after the lost one");
+        assert!(handed_back(&c, m).is_empty(), "{reason:?}: nothing sent");
+        assert_eq!(answer_choices(&c, &item), [Choice::Done], "{reason:?}");
+    }
+}
+
 /// RD-52 (c) with RD-61 (c): an older `done` of an account link that the run did not take, its
 /// row acknowledged with the port busy or its reply and read lost, then the declining press whose
 /// reply is lost: `declined`, with the rows done, decline. With the `done` acknowledged, the
