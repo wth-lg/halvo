@@ -126,12 +126,14 @@ pub(crate) fn button_flags_of(bytes: &[u8]) -> Option<u16> {
 struct ClickRoute {
     gate: Option<Arc<PasswordGate>>,
     keyboard_window: Option<usize>,
+    keyboard_register: Option<RegisterCall>,
     owner: Option<RawDevice>,
 }
 
 static CLICKS: Mutex<ClickRoute> = Mutex::new(ClickRoute {
     gate: None,
     keyboard_window: None,
+    keyboard_register: None,
     owner: None,
 });
 
@@ -164,6 +166,7 @@ fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
     let mut route = clicks();
     route.gate = None;
     route.keyboard_window = None;
+    route.keyboard_register = None;
     if route.owner != Some(RawDevice::Keyboard) {
         return Ok(());
     }
@@ -686,7 +689,10 @@ unsafe extern "system" fn wnd_proc(
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         WM_TAKE_MOUSE => {
-            let _ = keyboard_takes_mouse(hwnd, register_raw_input_device);
+            let register = clicks().keyboard_register;
+            if let Some(register) = register {
+                let _ = keyboard_takes_mouse(hwnd, register);
+            }
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -924,6 +930,7 @@ fn run_raw_input(
             let mut route = clicks();
             route.gate = gate;
             route.keyboard_window = Some(hwnd.0 as usize);
+            route.keyboard_register = Some(calls.register_device);
         }
         if let Err(error) = keyboard_takes_mouse(hwnd, calls.register_device) {
             let _ = keyboard_lets_mouse_go(calls.remove_device);
@@ -1130,18 +1137,140 @@ mod tests {
         assert_eq!(button_flags_of(&mouse_record(1, 0)[..20]), None);
     }
 
-    static REGISTERED: Mutex<Vec<(u16, bool)>> = Mutex::new(Vec::new());
+    static REGISTERED: Mutex<Vec<(u16, bool, usize)>> = Mutex::new(Vec::new());
 
     fn register_counted(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
         REGISTERED
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push((device.usUsage, device.dwFlags == RIDEV_REMOVE));
+            .push((
+                device.usUsage,
+                device.dwFlags == RIDEV_REMOVE,
+                device.hwndTarget.0 as usize,
+            ));
         register_raw_input_device(device)
     }
 
     fn registrations() -> Vec<(u16, bool)> {
         std::mem::take(&mut *REGISTERED.lock().unwrap_or_else(PoisonError::into_inner))
+            .into_iter()
+            .map(|(usage, removal, _)| (usage, removal))
+            .collect()
+    }
+
+    /// Whether the seam recorded the mouse for `window` after the last
+    /// removal of the mouse.
+    fn mouse_registered_again_for(window: usize) -> bool {
+        let calls = REGISTERED.lock().unwrap_or_else(PoisonError::into_inner);
+        let mouse = RawDevice::Pointer.hid_usage();
+        let Some(removal) = calls
+            .iter()
+            .rposition(|(usage, removal, _)| *usage == mouse && *removal)
+        else {
+            return false;
+        };
+        calls[removal..].contains(&(mouse, false, window))
+    }
+
+    fn calls_for_tests() -> StartCalls {
+        StartCalls {
+            register_device: register_counted,
+            remove_device: register_counted,
+            ..SYSTEM_CALLS
+        }
+    }
+
+    #[test]
+    fn the_keyboard_takes_the_mouse_back_when_the_pointer_source_stops() {
+        use windows::Win32::UI::WindowsAndMessaging::RI_MOUSE_LEFT_BUTTON_DOWN;
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let keyboard_window = clicks().keyboard_window;
+        let owner_with_the_keyboard = clicks().owner;
+        let mut pointer = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        let owner_with_both = clicks().owner;
+        let pointer_stopped = pointer.shutdown();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut taken_back = false;
+        while !taken_back && std::time::Instant::now() < deadline {
+            taken_back = keyboard_window.is_some_and(mouse_registered_again_for);
+            if !taken_back {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+        let owner_after = clicks().owner;
+        let gate = clicks().gate.clone();
+        let (cleared_before, latched, waits_after) = match &gate {
+            Some(gate) => {
+                let tick = super::super::now_tick();
+                gate.read(crate::secure_input::windows::FieldState::Clear);
+                let before = gate.hold(tick, false);
+                let cleared_before =
+                    matches!(gate.clearance(&before, tick.wrapping_add(200)), Some(Ok(_)));
+                let latched = latch_on_button_down(
+                    gate,
+                    &mouse_record(RI_MOUSE_LEFT_BUTTON_DOWN as u16, 0),
+                    tick,
+                );
+                let after = gate.hold(tick.wrapping_add(10), false);
+                let waits_after = gate.clearance(&after, tick.wrapping_add(200)).is_none();
+                (cleared_before, latched, waits_after)
+            }
+            None => (false, false, false),
+        };
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert_eq!(owner_with_the_keyboard, Some(RawDevice::Keyboard));
+        assert_eq!(owner_with_both, Some(RawDevice::Pointer));
+        assert_eq!(pointer_stopped, Ok(()));
+        assert!(
+            taken_back,
+            "the keyboard's window did not register the mouse again within 5 s of the pointer's stop"
+        );
+        assert_eq!(owner_after, Some(RawDevice::Keyboard));
+        assert!(cleared_before, "a key before the click was not cleared");
+        assert!(latched, "the raw button-down did not latch the gate");
+        assert!(
+            waits_after,
+            "a key after the click did not wait for the read"
+        );
+        assert_eq!(keyboard_stopped, Ok(()));
+    }
+
+    #[test]
+    fn the_pointer_keeps_the_mouse_when_the_keyboard_source_stops() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let mut pointer = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        let _ = registrations();
+        let keyboard_stopped = keyboard.shutdown();
+        let calls_at_the_keyboard_stop = registrations();
+        let owner_after = clicks().owner;
+        let pointer_stopped = pointer.shutdown();
+        let calls_at_the_pointer_stop = registrations();
+        let mouse = RawDevice::Pointer.hid_usage();
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert_eq!(keyboard_stopped, Ok(()));
+        assert_eq!(
+            calls_at_the_keyboard_stop,
+            vec![(RawDevice::Keyboard.hid_usage(), true)],
+            "the keyboard's stop touched the pointer's mouse registration"
+        );
+        assert_eq!(owner_after, Some(RawDevice::Pointer));
+        assert_eq!(pointer_stopped, Ok(()));
+        assert_eq!(calls_at_the_pointer_stop, vec![(mouse, true)]);
+        assert_eq!(clicks().owner, None);
     }
 
     #[test]
