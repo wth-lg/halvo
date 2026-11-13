@@ -1166,6 +1166,33 @@ mod tests {
     }
 
     #[test]
+    fn shutdown_ends_an_idle_title_thread_within_one_second() {
+        let (handle, writer) = sink::channel(64);
+        let (mut source, _reader) = source_with(
+            FOREGROUND_POLL,
+            fresh_turns(),
+            Box::new(|| app("a", 1)),
+            Box::new(|_| Ok(Some(TitleLength::for_test(5)))),
+        );
+        source
+            .begin(SourceContext::new(handle))
+            .expect("the source starts");
+        let first = take(&writer, 2);
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        assert_eq!(
+            first,
+            [fg("a"), (Modality::WindowTitle, "a".to_string(), 5)],
+            "the title was read once, so the title thread waits idle"
+        );
+        assert!(
+            shut == Ok(()) && took <= FOREGROUND_STOP_DEADLINE,
+            "shutdown {shut:?} after {took:?}"
+        );
+    }
+
+    #[test]
     fn a_title_read_that_panics_leaves_the_poll_thread_live_and_counts_an_error() {
         let (handle, writer) = sink::channel(64);
         let script: Script = Arc::new(Mutex::new(vec![
