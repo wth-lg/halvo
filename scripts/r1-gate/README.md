@@ -33,7 +33,7 @@ measured run (`--measure`). The bounds stand in `docs/baseline/r1-gate-bounds.tx
 
 `mutation-test.sh` reads every tracked file named `mutants.rows` of HEAD, from
 git's own list of the tracked paths, and runs its rows. It refuses, with a
-`FAIL mutation:rows (...)` line and exit 1 in every mode, a tracked path named
+`FAIL mutation:rows (...)` line and exit 1 in every mode but `--self-test`, a tracked path named
 `mutants.rows` that is a symbolic link, that the copy of HEAD lacks (as a file
 that an export-ignore attribute keeps out of the archive), or whose path holds
 a tab, a newline, a backslash or a quote. A file that git does not track is
@@ -41,7 +41,8 @@ outside HEAD, and a file named `Mutants.rows` is no rows file. A row file
 holds rows for files under its own directory. The runner is run on macOS, on
 the measuring Mac and in the macos job; its stop is not shown under Git Bash.
 It works in a throwaway copy of HEAD under TMPDIR and removes that copy when
-it ends, on every path; `--keep-scratch` keeps it and prints
+it ends, on every path but a KILL of the runner itself, after which the copy
+and its build directory stay; `--keep-scratch` keeps it and prints
 `scratch mutation: <path>`. The grammar
 below is frozen: a change to it is a change to this file, to the runner and to
 the contract that names it.
@@ -111,8 +112,9 @@ FAIL line comes for each name that no row file holds or retires, for each such
 required row whose name the list lacks, with the row file named, and for a
 missing `mutants.expected`. The count line of every run gives both numbers.
 Under `--strict` a row that `--budget` left unrun is a FAIL line too,
-`strict: the budget left the row unrun`; with `--only`, `--strict` says nothing
-of the rows that `--only` leaves out.
+`strict: the budget left the row unrun`; with `--only`, `--strict` reads no
+state of a row that `--only` leaves out, and the name rules still read every
+row.
 
 ### A stopped run
 
@@ -124,15 +126,19 @@ below it does not end the running test:
 - A cargo test runs with TERM, INT and HUP ignored, because a Rust test has
   no handler for them and would end before its guard. A gate self-test case
   runs with them at their defaults and ends its case by its own trap.
-- The stop traps are the runner's first commands. In every mode, from the
-  first signal on, the runner starts no new step of any kind (a row, a test, a
-  build, a gate check, a copy, a read by awk, perl, cp, sort, tar or git),
+- The stop traps are the runner's first commands. In every mode but
+  `--self-test`, which keeps the traps of lib.sh and exits with the signal's
+  status and no STOPPED line, from the first signal on the runner starts no
+  new step of the run (a row, a test, a build, a gate check, a copy, a read by
+  awk, perl, cp, sort, tar or git; it still waits for the running test as
+  below, and it removes its scratch),
   prints exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count
   line for a step that the signal ended, and exits with 143 for TERM, 130 for
   INT and 129 for HUP. Exit 0, 1 and 2 never follow a signal that the runner
   got, and a later signal changes nothing.
 - The STOPPED line has one of four forms. Before any row, during the copy of
-  HEAD, the read of the rows files and the name check, and under `--list`:
+  HEAD, the read of the rows files and the name check, the `--only`
+  selection, and under `--list`:
   `STOPPED mutation (signal <name>; no row had started)`. In a row when no
   test runs (the unmutated build, a gate check, a short step) and in the tail
   (the read of mutants.expected and the count line):
@@ -141,13 +147,17 @@ below it does not end the running test:
   the runner sends the test's process group TERM and waits up to 60 s, a
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
-  case made may be left.
+  case made may be left. A KILL of the runner itself leaves its scratch, the
+  throwaway copy and its build directory, as well.
 - A gate check that runs when the signal comes is not shielded: a signal that
   reaches only the runner lets it end, a signal to the group ends it, and no
   next check starts. A step whose exit status says that a signal ended it
   (129, 130, 137 or 143) is never read as an answer: with a signal of the
   runner's own within 2 s the run ends as a stop, and without one it ends with
   exit 2 and `FAIL step:<step> (ended by signal <name>; the runner got no signal)`.
+  A cargo build that a signal ends while the runner got none reads as a mutant
+  that does not build, because lib.sh's gate_build returns 1 whatever ended
+  cargo: a FAIL, never a caught row.
 - A signal that comes after a test has started and before the runner waits for
   it is acted on when the test ends by itself, with the test's own limit as its
   bound. A runner that was started with a signal ignored, as a shell does for
