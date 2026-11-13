@@ -89,6 +89,12 @@ export const cases = [
     assert.deepEqual(denied(features, 'const g = Object.groupBy(rows, f);'), ['object_group_by']);
     assert.deepEqual(denied(features, 'const g = Object.groupby(rows, f); const h = object.GroupBy(rows, f);'), []);
   }],
+  ['the_last_line_of_a_list_with_no_final_line_feed_is_read', () => {
+    const cut = text.slice(0, -1);
+    const bad = cut.replace(/\t[^\t\n]+$/, '');
+    assert.ok(problems(cut).includes('the list does not end with a line feed'));
+    assert.ok(problems(bad).includes('3 cells, not 4'), problems(bad));
+  }],
   ['d7_an_allow_expression_true_is_refused', () => {
     assert.ok(problems(expression('true')).includes('the expression names nothing of the page'));
   }],

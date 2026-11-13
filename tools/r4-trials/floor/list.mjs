@@ -60,7 +60,7 @@ export function parseList(text) {
   if (text.includes('\r')) problems.push('the list holds a carriage return');
   const lines = text.split('\n');
   if (lines[lines.length - 1] !== '') problems.push('the list does not end with a line feed');
-  if (lines.length > 1) lines.pop();
+  if (lines[lines.length - 1] === '') lines.pop();
   if (!/^# .*https:\/\/developer\.apple\.com\/documentation\/safari-release-notes\/safari-17-release-notes/.test(lines[0] ?? '')) {
     problems.push('line 1 names no page of the floor\'s Safari release notes');
   }

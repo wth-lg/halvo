@@ -13,7 +13,6 @@ export const RESULT = path.join(ROOT, 'docs', 'r4', 'trials', 'floor.md');
 const VERSION = '[0-9]+(?:\\.[0-9]+)*';
 const CELL = new RegExp(`^cell trial=floor machine=(hosted-mac|hosted-win|guest-mac14) system=(${VERSION}) webkit=(${VERSION}) features=(\\d+) missing=(\\d+) missing_names=([a-z0-9_,]+|-) aria_notify=(function|undefined)$`);
 const READING = /^reading trial=floor machine=mac fact=[a-z0-9_]{1,32} value=\S+ date=[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
-const VERDICT = /^verdict floor=(guest|rule-only) oldest_run=\S+ missing=0$/;
 
 /** A cell line as `{ machine, system, webkit, features, missing, names, aria }`, or `null`,
  * also where `missing` is not the count of `missing_names` (0 with `-`). */
@@ -69,7 +68,7 @@ export function checkResult(text, readings, features) {
   const got = lines.filter((l) => l.startsWith('reading '));
   if (got.join('\n') !== readings.join('\n')) problems.push('the reading lines are not the lines that read.sh prints');
   const last = lines[lines.length - 1] ?? '';
-  if (lines.filter((l) => l.startsWith('verdict ')).length !== 1 || !VERDICT.test(last)) problems.push('the file does not end in one verdict line of I11.4');
+  if (lines.filter((l) => l.startsWith('verdict ')).length !== 1 || !last.startsWith('verdict ')) problems.push('the file does not end in one verdict line of I11.4');
   const rule = verdictOf(cells, features);
   if (rule === null) problems.push('the rule gives no verdict for the cells');
   else if (last !== rule) problems.push(`the verdict line is not the rule's: ${rule}`);
