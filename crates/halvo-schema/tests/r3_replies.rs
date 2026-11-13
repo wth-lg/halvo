@@ -1377,3 +1377,50 @@ fn a_load_reply_whose_start_row_is_of_another_agent_does_not_answer_the_asking_a
     assert!(other.answers(&load(A2)));
     assert!(!other.answers(&load(A)));
 }
+
+fn golden_lines(file: &str) -> Vec<String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/r3")
+        .join(file);
+    std::fs::read_to_string(path)
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_call() {
+    let calls: Vec<RunnerCall> = golden_lines("runner-bodies.jsonl")
+        .iter()
+        .map(|b| RunnerCall::parse(b.as_bytes()).unwrap())
+        .collect();
+    let replies: Vec<RunnerReply> = golden_lines("runner-replies.jsonl")
+        .iter()
+        .map(|r| RunnerReply::parse(r.as_bytes()).unwrap())
+        .collect();
+    let ops: std::collections::BTreeSet<&str> = calls.iter().map(|c| c.op()).collect();
+    assert_eq!(ops.len(), 11, "{ops:?}");
+    let load_replies = calls
+        .iter()
+        .find(|c| matches!(c, RunnerCall::LoadReplies(_)))
+        .unwrap();
+    let mut forms = Vec::new();
+    for reply in &replies {
+        let own = matches!(reply, RunnerReply::Replies(_));
+        assert_eq!(reply.answers(load_replies), own, "{reply:?}");
+        if own {
+            for call in calls.iter().filter(|c| c.op() != "load_replies") {
+                assert!(!reply.answers(call), "{}", call.op());
+            }
+        }
+        forms.push(match reply {
+            RunnerReply::Load(_) => "load",
+            RunnerReply::Steps(_) => "steps",
+            RunnerReply::Session(_) => "session",
+            RunnerReply::Stored(_) => "stored",
+            RunnerReply::Replies(_) => "replies",
+        });
+    }
+    assert_eq!(forms, ["load", "steps", "session", "stored", "replies"]);
+}
