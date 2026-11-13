@@ -49,6 +49,11 @@ const POLL: Duration = Duration::from_millis(50);
 /// (CP-93 (4)). The trial's bound, taken from no measurement of a first start (CP-158 (2)).
 pub const FIRST_REPLY_WAIT: Duration = Duration::from_secs(30);
 
+/// How long a start whose pipe closed before the first reply waits for the browser's first
+/// process to end, so that a browser that closed its pipe on its way out reads `browser_start` and
+/// not `no_channel`.
+const ENDED_WAIT: Duration = Duration::from_secs(2);
+
 /// The origin that the start asks for, which no run binds, so that the relay refuses it and records
 /// the refusal before the agent acts (A11.1): `.invalid` resolves nowhere (RFC 6761), so a browser
 /// whose route bypasses the relay sends nothing for it.
@@ -195,10 +200,24 @@ pub struct SnapshotLine {
     pub frame: Option<String>,
 }
 
+/// The value that a snapshot line carries (A11.1, A8.2): none for a credential field, whatever its
+/// role and text; for a `textbox` or a `combobox` its text with line breaks and tabs as spaces, none
+/// when that is empty; none for every other role.
+pub fn line_value(credential: bool, role: &str, raw: &str) -> Option<String> {
+    if credential || !VALUE_ROLES.contains(&role) {
+        return None;
+    }
+    let text = raw.replace(['\r', '\n', '\t'], " ");
+    (!text.is_empty()).then_some(text)
+}
+
 impl SnapshotLine {
+    /// The line in the form of A11.1. A line marked `credential` is written with no `value=`,
+    /// whatever its `value` holds (A8.2), and a double quote inside a name or a value is written
+    /// as two single quotes.
     pub fn render(&self) -> String {
         let mut out = format!("{} {} \"{}\"", self.reference, self.role, quote(&self.name));
-        if let Some(v) = &self.value {
+        if let Some(v) = self.value.as_ref().filter(|_| !self.credential) {
             out.push_str(&format!(" value=\"{}\"", quote(v)));
         }
         if self.credential {
@@ -445,6 +464,10 @@ impl Executor {
             .await
             .is_err()
         {
+            let closed_at = Instant::now();
+            while wire.closed() && !child.exited() && closed_at.elapsed() < ENDED_WAIT {
+                tokio::time::sleep(POLL).await;
+            }
             if child.exited() {
                 let fault = Fault::new("browser_start", "the browser ended before its first reply");
                 return Err(fail(&mut child, &wire_task, fault));
@@ -965,12 +988,7 @@ impl Executor {
                     } else {
                         false
                     };
-                    let raw = ax_text(&node.value).replace(['\r', '\n', '\t'], " ");
-                    let value = if credential || !VALUE_ROLES.contains(&role) || raw.is_empty() {
-                        None
-                    } else {
-                        Some(raw)
-                    };
+                    let value = line_value(credential, role, &ax_text(&node.value));
                     let r = self.add_ref(Target {
                         frame: frame.clone(),
                         node: b,
@@ -1990,6 +2008,53 @@ pub(crate) mod tests {
         assert_eq!(
             line.render(),
             "e7 textbox \"Say ''hi''\" credential frame=http://pay.agent.test:18090"
+        );
+    }
+
+    /// CP-170 E5 (a): a credential field has no value whatever its role and text; another control
+    /// of a value role carries its text.
+    #[test]
+    fn a_credential_field_has_no_value_whatever_its_role_and_text() {
+        for role in ["textbox", "combobox", "checkbox", "button", "text"] {
+            for raw in ["", "hunter2", "a\"b"] {
+                assert_eq!(line_value(true, role, raw), None, "{role} {raw}");
+            }
+        }
+        assert_eq!(line_value(false, "textbox", "a\tb"), Some("a b".into()));
+        assert_eq!(line_value(false, "combobox", "Visa"), Some("Visa".into()));
+        assert_eq!(line_value(false, "textbox", ""), None);
+        assert_eq!(line_value(false, "button", "x"), None);
+    }
+
+    /// CP-170 E5 (b): a line marked credential renders no `value=`, whatever the line holds.
+    #[test]
+    fn a_credential_line_renders_no_value_whatever_it_holds() {
+        let line = SnapshotLine {
+            reference: "e3".into(),
+            role: "textbox",
+            name: "Password".into(),
+            value: Some("hunter2".into()),
+            credential: true,
+            frame: None,
+        };
+        assert_eq!(line.render(), "e3 textbox \"Password\" credential");
+    }
+
+    /// CP-170 E5 (d): a value that holds a double quote followed by ` credential` is quoted, so the
+    /// line cannot read as a credential mark.
+    #[test]
+    fn a_quote_in_a_value_cannot_make_a_credential_mark() {
+        let line = SnapshotLine {
+            reference: "e4".into(),
+            role: "textbox",
+            name: "Note".into(),
+            value: Some("x\" credential".into()),
+            credential: false,
+            frame: None,
+        };
+        assert_eq!(
+            line.render(),
+            "e4 textbox \"Note\" value=\"x'' credential\""
         );
     }
 

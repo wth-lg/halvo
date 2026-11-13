@@ -416,6 +416,18 @@ async fn credential_mark(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
     let signin_page = ex.snapshot().await?;
     check(mark(&signin_page, "Email") == Some(false), "email")?;
     check(mark(&signin_page, "Password") == Some(true), "password")?;
+    let pw = ex.resolve_one(&[role("textbox", "Password")], &[]).await?;
+    ex.fill(&pw, &ctx.seed_str(&["credentials", "password"]))
+        .await?;
+    let filled = ex.snapshot().await?;
+    let line = filled
+        .iter()
+        .find(|l| l.role == "textbox" && l.name == "Password")
+        .ok_or_else(|| Fault::new("check", "password_line"))?;
+    check(
+        line.credential && line.value.is_none() && !line.render().contains("value="),
+        "password_value_hidden",
+    )?;
     submit_signin(ex, ctx).await?;
     check(path_now(ex).await? == "/challenge", "challenge_page")?;
     let challenge = ex.snapshot().await?;
