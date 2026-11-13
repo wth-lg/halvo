@@ -21,11 +21,12 @@ pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture
 pub const SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF: &str =
     "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
 
-/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line may run.
+/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line reads
+/// failed, carries the mark `unstopped` beside stopped or off, or is missing.
 pub const TYPING_MAY_BE_OBSERVED: &str = "Typing may still be observed: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
-/// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line may run and the
-/// switch is off.
+/// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while screen_activity is off and the screen source
+/// line reads failed, carries the mark `unstopped` beside stopped or off, or is missing.
 pub const SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
 pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
