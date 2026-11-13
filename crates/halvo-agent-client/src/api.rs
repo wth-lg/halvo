@@ -343,6 +343,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn of_several_relative_paths_the_first_in_the_order_runner_browser_model_data_directory_is_named(
+    ) {
+        let all = config(PathBuf::from("data"), PathBuf::from("runner"));
+        let relative = spec(PathBuf::from("browser"), Some(PathBuf::from("model")));
+        assert_eq!(absolute_paths(&all, &relative), Err(RelativePath::Runner));
+        let data = config(PathBuf::from("data"), absolute("runner"));
+        assert_eq!(absolute_paths(&data, &relative), Err(RelativePath::Browser));
+        let model = spec(absolute("browser"), Some(PathBuf::from("model")));
+        assert_eq!(absolute_paths(&data, &model), Err(RelativePath::Model));
+    }
+
     #[cfg(windows)]
     #[test]
     fn a_windows_path_with_no_drive_is_refused() {
