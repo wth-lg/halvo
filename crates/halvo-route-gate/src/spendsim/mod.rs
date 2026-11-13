@@ -237,6 +237,7 @@ pub fn simulate_with(seed: u64, prices: &Prices, default_cap: Option<u64>) -> Ou
 }
 
 type Machine = fn(&Account, &Hold, Move) -> Result<(Account, Hold), SpendCause>;
+type FitRule = fn(&Room, Micro, &[Micro]) -> Fit;
 
 fn run(mut sim: Sim<'_>) -> Outcome {
     for case in CASES {
@@ -258,6 +259,15 @@ fn run(mut sim: Sim<'_>) -> Outcome {
 /// writes the sequences file as a new file. Exit status 0 for `result=pass`, 1 for `result=fail`,
 /// 2 for a refusal (`usage`, `file`) with one line on `err` and nothing on `out`.
 pub fn command(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
+    command_on(args, out, err, simulate)
+}
+
+fn command_on(
+    args: &[String],
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+    simulate: fn(u64) -> Outcome,
+) -> u8 {
     let (seed, export) = match options(args) {
         Ok(found) => found,
         Err(detail) => {
@@ -387,6 +397,7 @@ impl Task {
 struct Sim<'a> {
     prices: &'a Prices,
     machine: Machine,
+    fit: FitRule,
     draws: SplitMix64,
     default_cap: Option<u64>,
     outcome: Outcome,
@@ -402,6 +413,7 @@ impl<'a> Sim<'a> {
         Sim {
             prices,
             machine,
+            fit: fits,
             draws: SplitMix64::new(seed),
             default_cap,
             outcome: Outcome {
@@ -648,12 +660,12 @@ impl<'a> Sim<'a> {
     }
 
     fn admit(&mut self, room: &Room, task: &Task, running: &mut Vec<Micro>) -> bool {
-        self.admit_by(fits, room, task, running)
+        self.admit_by(self.fit, room, task, running)
     }
 
     fn admit_by(
         &mut self,
-        fit: fn(&Room, Micro, &[Micro]) -> Fit,
+        fit: FitRule,
         room: &Room,
         task: &Task,
         running: &mut Vec<Micro>,

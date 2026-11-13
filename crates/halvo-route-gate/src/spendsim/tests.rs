@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::*;
+use halvo_route::spend::State;
 
 const SEEDS: std::ops::RangeInclusive<u64> = 1..=8;
 
@@ -145,20 +146,37 @@ fn every_seed_passes_and_its_counts_are_those_of_its_moves() {
     }
 }
 
+fn replayed() -> Vec<(String, Outcome)> {
+    let mut runs: Vec<(String, Outcome)> = SEEDS
+        .map(|seed| (format!("seed {seed}"), simulate(seed)))
+        .collect();
+    runs.push((
+        "no cap".to_owned(),
+        simulate_with(1, Prices::release(), None),
+    ));
+    runs
+}
+
 #[test]
 fn every_move_is_the_answer_of_step_on_the_values_before_it() {
-    for seed in SEEDS {
-        let outcome = simulate(seed);
+    for (seed, outcome) in replayed() {
         for case in CASES {
             let steps = steps_of(&outcome, case);
             let mut accounts: BTreeMap<u64, Account> = BTreeMap::new();
             let mut holds: BTreeMap<u64, Hold> = BTreeMap::new();
             let mut last_hold = 0;
             for (index, step) in steps.iter().enumerate() {
-                assert_eq!(step.step, index as u64 + 1, "seed {seed} {case}");
-                if !holds.contains_key(&step.hold) {
-                    assert_eq!(step.hold, last_hold + 1, "seed {seed} {case} {index}");
-                    last_hold = step.hold;
+                assert_eq!(step.step, index as u64 + 1, "{seed} {case}");
+                match holds.get(&step.hold) {
+                    None => {
+                        assert_eq!(step.hold, last_hold + 1, "{seed} {case} {index}");
+                        last_hold = step.hold;
+                    }
+                    Some(known) => assert_ne!(
+                        known.state,
+                        State::New,
+                        "{seed} {case} {index}: a hold number is used again"
+                    ),
                 }
                 let before = accounts.get(&step.account).copied().unwrap_or(Account {
                     cap_minor: step.cap_minor,
@@ -173,18 +191,43 @@ fn every_move_is_the_answer_of_step_on_the_values_before_it() {
                 let hold = holds.get(&step.hold).copied().unwrap_or(Hold::new());
                 let (account, hold) = match step::step(&before, &hold, step.mv) {
                     Ok(next) => {
-                        assert_eq!(step.answer, Ok(()), "seed {seed} {case} {index}");
+                        assert_eq!(step.answer, Ok(()), "{seed} {case} {index}");
                         next
                     }
                     Err(cause) => {
-                        assert_eq!(step.answer, Err(cause), "seed {seed} {case} {index}");
+                        assert_eq!(step.answer, Err(cause), "{seed} {case} {index}");
                         (before, hold)
                     }
                 };
                 assert_eq!(
                     (step.spent, step.held),
                     (account.spent, account.held),
-                    "seed {seed} {case} {index}"
+                    "{seed} {case} {index}"
+                );
+                let answer = match step.answer {
+                    Ok(()) => "ok",
+                    Err(cause) => cause.as_str(),
+                };
+                let cap = before
+                    .cap_minor
+                    .map_or_else(|| "null".to_owned(), |cap| cap.to_string());
+                let line = step.line();
+                assert!(
+                    line.starts_with(&format!(
+                        "{{\"case\":\"{case}\",\"account\":{},\"step\":{},\"hold\":{},\"move\":\"{}\",\"arg\":",
+                        step.account,
+                        index + 1,
+                        step.hold,
+                        step.mv.name()
+                    )),
+                    "{seed} {line}"
+                );
+                assert!(
+                    line.ends_with(&format!(
+                        ",\"answer\":\"{answer}\",\"cap\":{cap},\"spent\":{},\"held\":{}}}",
+                        account.spent, account.held
+                    )),
+                    "{seed} {line}"
                 );
                 accounts.insert(step.account, account);
                 holds.insert(step.hold, hold);
@@ -420,11 +463,11 @@ fn a_cap_that_does_not_parse_ends_every_case_that_takes_it() {
 
 fn overrunning(account: &Account, hold: &Hold, mv: Move) -> Result<(Account, Hold), SpendCause> {
     match mv {
-        Move::Settle { cost } => step::step(
+        Move::Settle { .. } => step::step(
             account,
             hold,
             Move::Settle {
-                cost: cost + hold.amount + 1,
+                cost: hold.amount + 1,
             },
         ),
         _ => step::step(account, hold, mv),
@@ -457,6 +500,11 @@ fn a_machine_that_overruns_or_passes_the_cap_fails_the_run() {
     for case in ["near_cap", "fan_out", "cap_lowered", "second_device"] {
         assert!(counts_of(&over, case).overruns > 0, "{case}");
     }
+    let sum: u64 = over.cases.iter().map(|(_, counts)| counts.overruns).sum();
+    assert_eq!(
+        over.lines()[6],
+        format!("spend cases=6 overruns={sum} above_cap=0 admit_sum=ok result=fail")
+    );
     let last = over.lines().pop().expect("a line");
     assert!(last.starts_with("spend cases=6 overruns="), "{last}");
     assert!(
@@ -469,6 +517,16 @@ fn a_machine_that_overruns_or_passes_the_cap_fails_the_run() {
     let near = counts_of(&past, "near_cap");
     assert!(near.above_cap > 0, "{near:?}");
     assert_eq!(recount(&past), moved(&past.cases));
+    let sum: u64 = past.cases.iter().map(|(_, counts)| counts.above_cap).sum();
+    assert_eq!(
+        past.lines()[6],
+        format!("spend cases=6 overruns=0 above_cap={sum} admit_sum=ok result=fail")
+    );
+    for step in &past.steps {
+        let line = step.line();
+        let tail = format!(",\"spent\":{},\"held\":{}}}", step.spent, step.held);
+        assert!(line.ends_with(&tail), "{line}");
+    }
     assert!(past
         .lines()
         .last()
@@ -725,4 +783,121 @@ fn the_command_reads_its_arguments() {
     let (code, out, _) = call(&["--seed", "18446744073709551615"]);
     assert_eq!(code, u8::from(!simulate(u64::MAX).passed()));
     assert_eq!(out.lines().count(), 7);
+}
+
+#[test]
+fn an_admission_that_lets_every_task_in_shows_above_the_cap_in_fan_out() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), past_the_cap);
+    sim.fit = |_, _, _| Fit::Fits;
+    let outcome = run(sim);
+    let fan = counts_of(&outcome, "fan_out");
+    assert_eq!(fan.admitted, 240);
+    assert!(fan.above_cap > 0, "{fan:?}");
+    assert!(!outcome.admit_sum_ok);
+    assert_eq!(recount(&outcome), moved(&outcome.cases));
+    assert!(outcome.lines()[6].ends_with(" admit_sum=miss result=fail"));
+}
+
+#[test]
+fn the_admission_sum_holds_the_running_estimates() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    let room = Room {
+        cap_minor: 1,
+        spent: 0,
+        held: 0,
+        period_end_ms: 0,
+    };
+    let task = Task::new(
+        vec![Request {
+            tier: Tier::LowCostHosted,
+            body_bytes: 1,
+            max_output_tokens: 1,
+            amount: 6_000,
+        }],
+        false,
+    );
+    let mut running = Vec::new();
+    assert!(sim.admit_by(|_, _, _| Fit::Fits, &room, &task, &mut running));
+    assert!(sim.outcome.admit_sum_ok);
+    assert!(sim.admit_by(|_, _, _| Fit::Fits, &room, &task, &mut running));
+    assert!(!sim.outcome.admit_sum_ok);
+    assert_eq!(running, [6_000, 6_000]);
+}
+
+#[test]
+fn stopped_mid_run_is_an_admitted_task_refused_over_cap_after_its_first_request() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    let admitted = Task::new(Vec::new(), true);
+    let plain = Task::new(Vec::new(), false);
+    sim.refused(&admitted, 0, SpendCause::OverCap);
+    sim.refused(&plain, 1, SpendCause::OverCap);
+    sim.refused(&admitted, 1, SpendCause::NoCap);
+    assert_eq!(sim.counts.stopped_mid_run, 0);
+    sim.refused(&admitted, 1, SpendCause::OverCap);
+    sim.refused(&admitted, 2, SpendCause::OverCap);
+    assert_eq!(sim.counts.stopped_mid_run, 2);
+}
+
+#[test]
+fn every_answer_and_move_is_written_by_its_word() {
+    let base = Step {
+        case: "near_cap",
+        account: 1,
+        step: 1,
+        hold: 1,
+        mv: Move::Dispatch,
+        request: None,
+        answer: Ok(()),
+        cap_minor: Some(1),
+        spent: 0,
+        held: 0,
+    };
+    for cause in SpendCause::ALL {
+        let line = Step {
+            answer: Err(cause),
+            ..base
+        }
+        .line();
+        let word = format!(",\"answer\":\"{}\",", cause.as_str());
+        assert!(line.contains(&word), "{line}");
+    }
+    for mv in [
+        Move::Reserve { amount: 1 },
+        Move::Dispatch,
+        Move::Void,
+        Move::Settle { cost: 1 },
+        Move::Expire,
+    ] {
+        let line = Step { mv, ..base }.line();
+        let word = format!(",\"move\":\"{}\",", mv.name());
+        assert!(line.contains(&word), "{line}");
+    }
+}
+
+fn failing(seed: u64) -> Outcome {
+    Outcome {
+        admit_sum_ok: false,
+        ..simulate(seed)
+    }
+}
+
+#[test]
+fn the_command_prints_the_run_of_its_seed_and_exits_by_the_result() {
+    let mut out = Vec::new();
+    let mut err = Vec::new();
+    assert_eq!(command(&words(&["--seed", "2"]), &mut out, &mut err), 0);
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        format!("{}\n", simulate(2).lines().join("\n"))
+    );
+    let mut out = Vec::new();
+    assert_eq!(
+        command_on(&words(&["--seed", "3"]), &mut out, &mut err, failing),
+        1
+    );
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        format!("{}\n", failing(3).lines().join("\n"))
+    );
+    assert!(err.is_empty());
 }
