@@ -11,7 +11,7 @@ use crate::source::{
 
 use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
 use crate::secure_input::windows::{HeldKey, PasswordGate};
-use crate::secure_input::{KeystrokeClearance, Withheld};
+use crate::secure_input::KeystrokeClearance;
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,16 +319,42 @@ struct GateState {
 
 #[derive(Debug, Default)]
 struct GateCounts {
-    late: AtomicU64,
+    /// Whether a key reached the source's handler more than LATE_KEY_MAX
+    /// after its OS time: a yes or no that says the source ran behind, kept as
+    /// `withheld` is (W3-7 Q1 (b)).
+    late: AtomicBool,
     withheld: AtomicBool,
+    /// The largest lag from a key's OS time to its handler, in ms.
+    max_lag_ms: AtomicU64,
+}
+
+impl GateCounts {
+    fn note_lag(&self, lag_ms: u32) {
+        if lag_ms > ms_of(crate::secure_input::LATE_KEY_MAX) {
+            self.late.store(true, Ordering::Relaxed);
+        }
+        self.max_lag_ms
+            .fetch_max(u64::from(lag_ms), Ordering::Relaxed);
+    }
+}
+
+fn ms_of(duration: std::time::Duration) -> u32 {
+    u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
 }
 
 const GATE_POLL_MS: u32 = 15;
 
+/// Hands on the held keys that the gate has decided, oldest first. A key that
+/// is still undecided at a stop is withheld like a key that the gate withheld,
+/// and no number counts it (W3-7 Q1 (c)).
 fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
     let now = super::now_tick();
+    let front = foreground_thread();
     while let Some((key, _, _)) = gate.held.front() {
-        let answer = gate.gate.clearance(key, now);
+        let held_out =
+            now.wrapping_sub(key.tick()) >= ms_of(crate::secure_input::windows::KEY_HOLD);
+        let edit_now = held_out && crate::secure_input::windows::focus_window_is_password_edit();
+        let answer = gate.gate.decide(key, now, front, edit_now);
         if answer.is_none() && !at_stop {
             break;
         }
@@ -338,18 +364,22 @@ fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
         #[cfg(feature = "test-seam")]
         seam::note(stroke.vkey, &answer, key.tick(), now);
         match answer {
-            None => producer.lose(1),
-            Some(Ok(clearance)) => {
+            Some((Ok(clearance), _)) => {
                 producer.push(keystroke_packet(clearance, stroke, app, key.tick()));
             }
-            Some(Err(Withheld::Late)) => {
-                gate.counts.late.fetch_add(1, Ordering::Relaxed);
-            }
-            Some(Err(Withheld::Active | Withheld::Unknown)) => {
+            None | Some((Err(_), _)) => {
                 gate.counts.withheld.store(true, Ordering::Relaxed);
             }
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn foreground_thread() -> u32 {
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    // SAFETY: GetForegroundWindow and GetWindowThreadProcessId read handle
+    // values and take no pointer that outlives the call.
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), None) }
 }
 
 /// What a test build reads of the keys that a keyboard source decided. Only
@@ -361,6 +391,7 @@ pub mod seam {
     use std::sync::{Mutex, PoisonError};
 
     pub use crate::floor::payload::KeyClass;
+    pub use crate::secure_input::windows::Rule;
     use crate::secure_input::{KeystrokeClearance, Withheld};
 
     /// What the keyboard source did with a key.
@@ -379,6 +410,8 @@ pub mod seam {
     pub struct Decided {
         pub class: KeyClass,
         pub verdict: Verdict,
+        /// The rule that decided the key; none for a key lost at a stop.
+        pub rule: Option<Rule>,
         /// The OS time of the key, in ticks of GetTickCount.
         pub os_tick: u32,
         /// The tick at which the source decided the key.
@@ -389,16 +422,16 @@ pub mod seam {
 
     pub(super) fn note(
         vkey: u16,
-        answer: &Option<Result<KeystrokeClearance, Withheld>>,
+        answer: &Option<(Result<KeystrokeClearance, Withheld>, Rule)>,
         os_tick: u32,
         decided_tick: u32,
     ) {
         let verdict = match answer {
             None => Verdict::LostAtStop,
-            Some(Ok(_)) => Verdict::Recorded,
-            Some(Err(Withheld::Late)) => Verdict::Late,
-            Some(Err(Withheld::Active)) => Verdict::WithheldPassword,
-            Some(Err(Withheld::Unknown)) => Verdict::WithheldUnknown,
+            Some((Ok(_), _)) => Verdict::Recorded,
+            Some((Err(Withheld::Late), _)) => Verdict::Late,
+            Some((Err(Withheld::Active), _)) => Verdict::WithheldPassword,
+            Some((Err(Withheld::Unknown), _)) => Verdict::WithheldUnknown,
         };
         DECIDED
             .lock()
@@ -406,6 +439,7 @@ pub mod seam {
             .push(Decided {
                 class: super::class_of(vkey),
                 verdict,
+                rule: answer.as_ref().map(|(_, rule)| *rule),
                 os_tick,
                 decided_tick,
             });
@@ -714,9 +748,11 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 if map_keystroke(&mut state.keys, key).is_none() {
                     return;
                 }
+                gate.counts.note_lag(super::now_tick().wrapping_sub(tick));
                 let held = gate.gate.hold(
                     tick,
                     crate::secure_input::windows::focus_window_is_password_edit(),
+                    foreground_thread(),
                 );
                 if moves_focus(key.vkey) {
                     gate.gate.latch(tick);
@@ -892,7 +928,8 @@ impl CaptureSource for RawInputSource {
     fn health(&self) -> SourceHealth {
         let counters = match self.device {
             RawDevice::Keyboard => SourceCounters {
-                late_events: self.gate_counts.late.load(Ordering::Relaxed),
+                late_events: u64::from(self.gate_counts.late.load(Ordering::Relaxed)),
+                max_lag_ms: self.gate_counts.max_lag_ms.load(Ordering::Relaxed),
                 keys_withheld: self.gate_counts.withheld.load(Ordering::Relaxed),
                 ..SourceCounters::default()
             },
@@ -1141,7 +1178,7 @@ mod tests {
 
     fn clear_gate() -> PasswordGate {
         let gate = PasswordGate::new();
-        gate.read(crate::secure_input::windows::FieldState::Clear);
+        gate.read_at(900, crate::secure_input::windows::FieldState::Clear, None);
         gate
     }
 
@@ -1160,7 +1197,7 @@ mod tests {
                 &mouse_record(flags as u16, 0),
                 1_000
             ));
-            let key = gate.hold(1_010, false);
+            let key = gate.hold(1_010, false, 0);
             assert!(
                 gate.clearance(&key, 1_200).is_none(),
                 "a key after a button-down did not wait for the read: {flags:#x}"
@@ -1185,7 +1222,12 @@ mod tests {
                 &mouse_record(flags as u16, 0x155),
                 1_000
             ));
-            let key = gate.hold(1_010, false);
+            let key = gate.hold(1_010, false, 0);
+            gate.read_at(
+                1_130,
+                crate::secure_input::windows::FieldState::Clear,
+                Some(false),
+            );
             assert!(
                 matches!(gate.clearance(&key, 1_200), Some(Ok(_))),
                 "a raw message with flags {flags:#x} closed the gate"
@@ -1271,23 +1313,18 @@ mod tests {
         }
         let owner_after = clicks().owner;
         let gate = clicks().gate.clone();
-        let (cleared_before, latched, waits_after) = match &gate {
+        let (latches_before, latched, latches_after) = match &gate {
             Some(gate) => {
                 let tick = super::super::now_tick();
-                gate.read(crate::secure_input::windows::FieldState::Clear);
-                let before = gate.hold(tick, false);
-                let cleared_before =
-                    matches!(gate.clearance(&before, tick.wrapping_add(200)), Some(Ok(_)));
+                let latches_before = gate.latch_count();
                 let latched = latch_on_button_down(
                     gate,
                     &mouse_record(RI_MOUSE_LEFT_BUTTON_DOWN as u16, 0),
                     tick,
                 );
-                let after = gate.hold(tick.wrapping_add(10), false);
-                let waits_after = gate.clearance(&after, tick.wrapping_add(200)).is_none();
-                (cleared_before, latched, waits_after)
+                (latches_before, latched, gate.latch_count())
             }
-            None => (false, false, false),
+            None => (0, false, 0),
         };
         let keyboard_stopped = keyboard.shutdown();
         let _ = registrations();
@@ -1301,11 +1338,11 @@ mod tests {
             "the keyboard's window did not register the mouse again within 5 s of the pointer's stop"
         );
         assert_eq!(owner_after, Some(RawDevice::Keyboard));
-        assert!(cleared_before, "a key before the click was not cleared");
         assert!(latched, "the raw button-down did not latch the gate");
-        assert!(
-            waits_after,
-            "a key after the click did not wait for the read"
+        assert_eq!(
+            latches_after,
+            latches_before + 1,
+            "the raw button-down left no latch in the keyboard's gate"
         );
         assert_eq!(keyboard_stopped, Ok(()));
     }
@@ -1396,7 +1433,7 @@ mod tests {
     }
 
     #[test]
-    fn decided_keys_go_out_in_input_order_and_a_key_that_waits_at_the_stop_is_lost() {
+    fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
             .expect("hand-off");
@@ -1411,14 +1448,25 @@ mod tests {
             vkey: 0x41,
             released: false,
         };
+        let front = foreground_thread();
+        state.gate.read_at(
+            now.wrapping_sub(200),
+            crate::secure_input::windows::FieldState::Clear,
+            None,
+        );
         let early = now.wrapping_sub(160);
         let later = now.wrapping_sub(150);
         for (tick, app) in [(early, "first"), (later, "second")] {
-            let held = state.gate.hold(tick, false);
+            let held = state.gate.hold(tick, false, front);
             state.held.push_back((held, stroke, Some(app.to_string())));
         }
+        state.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Some(false),
+        );
         state.gate.latch(now);
-        let waiting = state.gate.hold(now, false);
+        let waiting = state.gate.hold(now, false, front);
         state
             .held
             .push_back((waiting, stroke, Some("third".to_string())));
@@ -1435,7 +1483,195 @@ mod tests {
         assert_eq!(still_held, 1);
         assert_eq!(apps, vec!["first".to_string(), "second".to_string()]);
         assert!(state.held.is_empty());
-        assert_eq!(handoff.counts().lost, 1);
+        assert_eq!(handoff.counts().lost, 0);
+        assert!(state.counts.withheld.load(Ordering::Relaxed));
+    }
+
+    /// A gate state with a hand-off, as the keyboard pump holds them.
+    fn lag_rig() -> (GateState, super::super::HandOff, crate::sink::SinkWriter) {
+        let (sink, writer) = crate::sink::channel(64);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
+            .expect("hand-off");
+        let state = GateState {
+            gate: Arc::new(PasswordGate::new()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        (state, handoff, writer)
+    }
+
+    /// One key as the pump handles it: its lag noted, held, then released.
+    fn handled(state: &mut GateState, producer: &Producer, os_tick: u32) {
+        let now = super::super::now_tick();
+        state.counts.note_lag(now.wrapping_sub(os_tick));
+        let key = state.gate.hold(os_tick, false, foreground_thread());
+        state.held.push_back((
+            key,
+            KeyStroke {
+                vkey: 0x41,
+                released: false,
+            },
+            None,
+        ));
+        release_held(state, producer, false);
+    }
+
+    /// Every number of the source: the late value, the largest lag, the
+    /// withheld flag and the hand-off's counts.
+    fn numbers(state: &GateState, handoff: &super::super::HandOff) -> (bool, u64, bool, String) {
+        (
+            state.counts.late.load(Ordering::Relaxed),
+            state.counts.max_lag_ms.load(Ordering::Relaxed),
+            state.counts.withheld.load(Ordering::Relaxed),
+            format!("{:?}", handoff.counts()),
+        )
+    }
+
+    fn sent(writer: &crate::sink::SinkWriter) -> usize {
+        let mut sent = 0;
+        while writer
+            .recv_timeout(std::time::Duration::from_millis(200))
+            .is_ok()
+        {
+            sent += 1;
+        }
+        sent
+    }
+
+    #[test]
+    fn five_keys_of_a_password_field_handled_300_ms_late_move_no_number() {
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let now = super::super::now_tick();
+        state.gate.read_at(
+            now.wrapping_sub(400),
+            crate::secure_input::windows::FieldState::Password,
+            None,
+        );
+        let before = numbers(&state, &handoff);
+        handled(&mut state, &producer, now.wrapping_sub(300));
+        let after_one = numbers(&state, &handoff);
+        for step in 1..5u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(300).wrapping_add(step),
+            );
+        }
+        let after_five = numbers(&state, &handoff);
+        assert!(!before.0 && !before.2, "{before:?}");
+        assert!(after_one.0 && after_one.2, "{after_one:?}");
+        assert_eq!(after_one.3, after_five.3);
+        assert_eq!((after_one.0, after_one.2), (after_five.0, after_five.2));
+        assert!(state.held.is_empty());
+        assert_eq!(sent(&writer), 0);
+    }
+
+    #[test]
+    fn late_keys_of_a_password_field_stay_withheld_after_a_move_to_a_plain_field() {
+        use crate::secure_input::windows::FieldState;
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let now = super::super::now_tick();
+        state
+            .gate
+            .read_at(now.wrapping_sub(400), FieldState::Password, None);
+        state
+            .gate
+            .field_at(now.wrapping_sub(250), FieldState::Clear);
+        state
+            .gate
+            .read_at(now.wrapping_sub(240), FieldState::Clear, Some(true));
+        for step in 0..5u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(300).wrapping_add(step),
+            );
+        }
+        assert!(state.counts.withheld.load(Ordering::Relaxed));
+        assert_eq!(sent(&writer), 0);
+    }
+
+    #[test]
+    fn late_keys_stay_withheld_when_the_password_mark_comes_after_their_input_time() {
+        use crate::secure_input::windows::FieldState;
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let now = super::super::now_tick();
+        state
+            .gate
+            .read_at(now.wrapping_sub(400), FieldState::Clear, None);
+        state
+            .gate
+            .field_at(now.wrapping_sub(280), FieldState::Password);
+        for step in 0..5u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(300).wrapping_add(step),
+            );
+        }
+        assert!(state.counts.withheld.load(Ordering::Relaxed));
+        assert_eq!(sent(&writer), 0);
+    }
+
+    #[test]
+    fn five_late_keys_of_a_plain_field_are_withheld_and_set_the_late_value_alone() {
+        use crate::secure_input::windows::FieldState;
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let now = super::super::now_tick();
+        state
+            .gate
+            .read_at(now.wrapping_sub(400), FieldState::Clear, None);
+        state
+            .gate
+            .read_at(now.wrapping_sub(170), FieldState::Clear, Some(false));
+        for step in 0..5u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(300).wrapping_add(step),
+            );
+        }
+        let (late, max_lag, withheld, _) = numbers(&state, &handoff);
+        assert!(late && withheld, "{late} {withheld}");
+        assert!(max_lag >= 300, "{max_lag}");
+        assert_eq!(handoff.counts().lost, 0);
+        assert_eq!(sent(&writer), 0);
+    }
+
+    #[test]
+    fn a_password_typed_during_two_seconds_of_lag_moves_no_number() {
+        use crate::secure_input::windows::FieldState;
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let now = super::super::now_tick();
+        state
+            .gate
+            .read_at(now.wrapping_sub(2_400), FieldState::Clear, None);
+        for step in 0..12u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(2_300).wrapping_add(step * 100),
+            );
+        }
+        let around_before = numbers(&state, &handoff);
+        state
+            .gate
+            .field_at(now.wrapping_sub(1_050), FieldState::Password);
+        for step in 0..8u32 {
+            handled(
+                &mut state,
+                &producer,
+                now.wrapping_sub(1_000).wrapping_add(step * 80),
+            );
+        }
+        let around_after = numbers(&state, &handoff);
+        assert_eq!(around_before, around_after);
+        assert_eq!(sent(&writer), 0);
     }
 
     fn vkey_of(key: crate::floor::cases::Key) -> u16 {

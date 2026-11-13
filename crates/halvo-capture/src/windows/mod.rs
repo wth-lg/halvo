@@ -330,10 +330,6 @@ impl Producer {
     pub(crate) fn writer_gone(&self) -> bool {
         self.shared.lock().writer_gone
     }
-
-    pub(crate) fn lose(&self, packets: u64) {
-        self.shared.counts.lose(packets);
-    }
 }
 
 impl HandOff {
