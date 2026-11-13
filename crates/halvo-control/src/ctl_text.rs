@@ -1155,6 +1155,23 @@ mod tests {
     }
 
     #[test]
+    fn a_data_directory_in_use_prints_its_one_line_with_exit_1() {
+        let printed = print(
+            &Verb::Pause,
+            Err(ClientError::DataDirInUse {
+                endpoint: "/halvo-data/run/control.sock".into(),
+            }),
+            &data_dir(),
+        );
+        assert_eq!(printed.stdout, "");
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: the data directory is in use and no connection could be made at /halvo-data/run/control.sock; capture may be running\n"
+        );
+        assert_eq!(printed.status, 1);
+    }
+
+    #[test]
     fn ctl_s_own_paths_are_not_cleaned() {
         let endpoint = "/tmp/\u{e9}t\u{e9}/run/control.sock";
         let printed = print(

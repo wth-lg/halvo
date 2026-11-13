@@ -188,7 +188,37 @@ impl Connector for UnixConnector {
         self.socket.to_string_lossy().into_owned()
     }
 
-    fn connect(&self, _timeout: Duration) -> Result<UnixStream, ClientError> {
+    /// Tries the connect; on each path that finds no daemon it reads the instance lock of the
+    /// data directory. Free, or no data directory: unreachable at once. Held: it waits a step
+    /// and tries again inside `timeout`, and at its end answers that the directory is in use.
+    fn connect(&self, timeout: Duration) -> Result<UnixStream, ClientError> {
+        let until = std::time::Instant::now() + timeout;
+        loop {
+            match self.connect_once() {
+                Err(ClientError::Unreachable { .. }) => {}
+                other => return other,
+            }
+            match crate::instance_lock::read(&self.data_dir).map_err(ClientError::Io)? {
+                crate::instance_lock::LockRead::Free
+                | crate::instance_lock::LockRead::NoDirectory => return Err(self.unreachable()),
+                crate::instance_lock::LockRead::Held => {}
+            }
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(ClientError::DataDirInUse {
+                    endpoint: self.endpoint(),
+                });
+            }
+            std::thread::sleep(left.min(Duration::from_millis(CONNECT_STEP_MS)));
+        }
+    }
+}
+
+/// The step between two connects while the instance lock is held.
+pub const CONNECT_STEP_MS: u64 = 50;
+
+impl UnixConnector {
+    fn connect_once(&self) -> Result<UnixStream, ClientError> {
         let euid = effective_uid();
         let missing = |e: std::io::Error| match e.kind() {
             std::io::ErrorKind::NotFound => self.unreachable(),

@@ -51,6 +51,10 @@ pub enum ClientError {
     Unsupported,
     #[error("capture service not running at {endpoint}")]
     Unreachable { endpoint: String },
+    /// No connection could be made while the instance lock of the data directory stayed
+    /// held, up to the request's deadline (ruling PL-8 part (2)(b)).
+    #[error("the data directory is in use and no connection could be made at {endpoint}; capture may be running")]
+    DataDirInUse { endpoint: String },
     #[error("the control endpoint was refused: {0}")]
     PeerRejected(PeerRejection),
     #[error("no reply within {seconds} s")]

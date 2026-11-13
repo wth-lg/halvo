@@ -63,6 +63,12 @@ descriptor or a handle from a reply.
 
 - Read and change the files of the data directory.
 - Send signals to the daemon.
+- Fill the accept queue of the socket, remove the socket file or hold the instance lock of
+  the data directory, so that ctl and the app cannot pause, stop or delete through the
+  channel. ctl then prints "the data directory is in use and no connection could be made at
+  <socket path>; capture may be running" with exit 1 while the lock is held, and never
+  "capture service not running" then. The ways left are a signal to the daemon and the
+  app's end of a child that does not answer.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
   guard against that is the pid of the child it started; `ctl` has none. Exit 0 of
