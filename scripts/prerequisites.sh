@@ -178,6 +178,7 @@ pnpm_platform() {
 
 pnpm_lock_integrity() {
   awk -v entry="  '$1':" -v name="$1:" -v quote="'" '
+    { sub(/\r$/, "") }
     /\r/ { carriage_return = 1; exit }
     NR == 1 && /^---([ \t]|$)/ { next }
     /^(---|\.\.\.)([ \t]|$)/ { exit }
@@ -840,7 +841,9 @@ EOF
   write_lock '@pnpm/exe.p@1.0.0' "$good"
   awk '{ printf "%s\r\n", $0 }' "$lock_file" >"$case_dir/lock"
   cp "$case_dir/lock" "$lock_file"
-  lock_reads '' 'a first document with CRLF lines'
+  lock_reads "$good" 'a first document with CRLF lines, read as YAML reads them'
+  printf -- "---\npackages:\n# a note\r---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads '' 'an entry after a document marker that a lone carriage return starts'
   printf -- "---\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n--- \npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
   lock_reads '' 'an entry after a document marker with a trailing space'
   printf -- "---\npackages:\n...\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
