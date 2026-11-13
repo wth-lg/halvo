@@ -7812,3 +7812,229 @@ fn a_store_directory_made_by_the_tests_holds_no_writer_lock() {
     drop(store);
     assert_eq!(found, Vec::<PathBuf>::new());
 }
+
+#[cfg(target_os = "macos")]
+const KILL_OPS: [&str; 6] = [
+    "write",
+    "write_then_pass",
+    "shred",
+    "delete_all",
+    "create",
+    "open",
+];
+
+#[cfg(target_os = "macos")]
+fn kill_table_store(dir: &Path) -> (PathBuf, PathBuf, RootId, Vec<Uuid>) {
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let mut store =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+    let mut expired = Vec::new();
+    for i in 0..4u8 {
+        let body = vec![i + 1; 40_000];
+        if i % 2 == 0 {
+            let (seg, _) = store
+                .write_segment_with_expiry(&mut Cursor::new(&body), 0, 1)
+                .unwrap();
+            expired.push(seg.segment_id);
+        } else {
+            store.write_segment(&mut Cursor::new(&body)).unwrap();
+        }
+    }
+    (store_dir, roots_dir, root_id, expired)
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn kill_table_child_for_parent() {
+    let Ok(dir) = std::env::var("HALVO_KILL_TABLE_DIR") else {
+        println!("kill_table_child_for_parent: HALVO_KILL_TABLE_DIR is not set, so no parent asked for a child");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let op = std::env::var("HALVO_KILL_TABLE_OP").unwrap();
+    let root_id = RootId::parse(&std::fs::read_to_string(dir.join("root-id")).unwrap()).unwrap();
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    std::fs::write(dir.join("ARM"), b"armed").unwrap();
+    match op.as_str() {
+        "create" => {
+            let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        }
+        "open" => drop(open_over_file_root(&store_dir, &roots_dir, root_id).unwrap()),
+        _ => {
+            let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+            match op.as_str() {
+                "write" | "write_then_pass" => {
+                    store
+                        .write_segment(&mut Cursor::new(vec![9u8; 40_000]))
+                        .unwrap();
+                }
+                "shred" => {
+                    store.crypto_shred_expired().unwrap();
+                }
+                _ => {
+                    store.delete_all().unwrap();
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn kill_table_child(
+    dir: &Path,
+    op: &str,
+    crash_at: usize,
+    trace: Option<&Path>,
+    dylib: &Path,
+) -> i32 {
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
+        .args([
+            "--exact",
+            "store::hardening_tests::kill_table_child_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_KILL_TABLE_DIR", dir)
+        .env("HALVO_KILL_TABLE_OP", op)
+        .env("HALVO_IT_DIR", dir.file_name().unwrap())
+        .env("HALVO_IT_CRASH_AT", crash_at.to_string())
+        .env("DYLD_INSERT_LIBRARIES", dylib)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if let Some(trace) = trace {
+        command.env("HALVO_IT_TRACE", trace);
+    }
+    command.status().unwrap().code().unwrap_or(-1)
+}
+
+/// The three end states after a kill: no shredded segment decrypts, no root
+/// file is left that neither store.key nor create.pending names, and after
+/// an open and one expiry pass no segment file is left without a live key.
+#[cfg(target_os = "macos")]
+fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> [bool; 3] {
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let named: Vec<RootId> = [
+        std::fs::read(KeyFile::path(&store_dir))
+            .ok()
+            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
+            .and_then(|v| v["root_id"].as_str().and_then(RootId::parse)),
+        std::fs::read(store_dir.join("create.pending"))
+            .ok()
+            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
+            .and_then(|v| v["root_id"].as_str().and_then(RootId::parse)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let no_unnamed_root = root_files_in(&roots_dir).iter().all(|name| {
+        name.ends_with(".root.tmp") || named.iter().any(|id| name == &format!("{id}.root"))
+    });
+    let root_id = named.first().copied();
+    let root_file = root_id.map(|id| roots_dir.join(format!("{id}.root")).exists());
+    let opened = root_id.map(|id| open_over_file_root(&store_dir, &roots_dir, id));
+    let (mut no_shredded_decrypts, mut no_keyless_file) = (true, true);
+    if op == "delete_all" && root_file != Some(true) {
+        no_shredded_decrypts = !matches!(opened, Some(Ok(_)));
+    }
+    if let Some(Ok(mut store)) = opened {
+        if op == "shred" {
+            let conn = store.db().unwrap().connection();
+            let cleared: Vec<Uuid> = expired
+                .iter()
+                .copied()
+                .filter(|id| {
+                    conn.query_row(
+                        "SELECT wrapped_key IS NULL FROM segment_keys WHERE segment_id = ?1",
+                        [id.simple().to_string()],
+                        |r| r.get::<_, bool>(0),
+                    )
+                    .unwrap_or(true)
+                })
+                .collect();
+            no_shredded_decrypts = cleared
+                .iter()
+                .all(|id| store.read_segment(*id, &mut io::sink()).is_err());
+        }
+        if op == "write_then_pass" || op == "shred" || op == "write" {
+            let _ = store.crypto_shred_expired();
+        }
+        let live: Vec<String> = {
+            let conn = store.db().unwrap().connection();
+            let mut statement = conn
+                .prepare("SELECT segment_id FROM segment_keys WHERE wrapped_key IS NOT NULL")
+                .unwrap();
+            statement
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect()
+        };
+        if op == "write_then_pass" || op == "shred" {
+            no_keyless_file = files_under(&store_dir.join("segments")).iter().all(|path| {
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                live.iter().any(|id| name == format!("{id}.seg"))
+            });
+        }
+    }
+    [no_shredded_decrypts, no_unnamed_root, no_keyless_file]
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind() {
+    let work = tempfile::tempdir().unwrap();
+    let dylib = work.path().join("crashpoint.dylib");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/store/testdata/crashpoint.c");
+    let built = Command::new("cc")
+        .args(["-dynamiclib", "-o"])
+        .arg(&dylib)
+        .arg(&source)
+        .status()
+        .unwrap();
+    assert!(built.success(), "cc did not build the interposer");
+    let prepare = |op: &str| -> (tempfile::TempDir, Vec<Uuid>) {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, _, root_id, expired) = kill_table_store(dir.path());
+        std::fs::write(dir.path().join("root-id"), root_id.to_string()).unwrap();
+        if op == "create" {
+            let store_dir = dir.path().join("store");
+            let mut store =
+                open_over_file_root(&store_dir, &dir.path().join("roots"), root_id).unwrap();
+            store.delete_all().unwrap();
+            drop(store);
+            std::fs::write(
+                dir.path().join("root-id"),
+                RootId::fresh().unwrap().to_string(),
+            )
+            .unwrap();
+        }
+        (dir, expired)
+    };
+    let mut rows = 0;
+    let mut wrong = Vec::new();
+    for op in KILL_OPS {
+        let (dir, _) = prepare(op);
+        let trace = work.path().join(format!("trace-{op}.txt"));
+        let code = kill_table_child(dir.path(), op, 0, Some(&trace), &dylib);
+        assert_eq!(code, 0, "the {op} child failed without a kill");
+        let calls = std::fs::read_to_string(&trace).unwrap().lines().count();
+        assert!(calls > 0, "the {op} child made no counted call");
+        for at in 1..=calls {
+            let (dir, expired) = prepare(op);
+            let code = kill_table_child(dir.path(), op, at, None, &dylib);
+            let states = end_states_after_a_kill(dir.path(), op, &expired);
+            rows += 1;
+            println!("KILL op={op} before_call={at} exit={code} states={states:?}");
+            if code != 77 || states != [true, true, true] {
+                wrong.push(format!("{op} at call {at}: exit {code}, states {states:?}"));
+            }
+        }
+        println!("KILL op={op} calls={calls}");
+    }
+    println!("KILL rows={rows}");
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
