@@ -96,20 +96,25 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     Ok(a)
 }
 
-/// `recoveries` of the level `medium` in the settings file of A12.5.
-fn recoveries(settings: &str) -> Option<u32> {
+/// The value of `key` in the level `medium` of the settings file of A12.5.
+fn medium<T: std::str::FromStr>(settings: &str, key: &str) -> Option<T> {
     let mut section = "";
     for line in settings.lines() {
         let line = line.trim();
         if line.starts_with('[') {
             section = line;
         } else if section == "[medium]" {
-            if let Some(v) = line.strip_prefix("recoveries = ") {
+            if let Some(v) = line.strip_prefix(key).and_then(|r| r.strip_prefix(" = ")) {
                 return v.parse().ok();
             }
         }
     }
     None
+}
+
+/// `recoveries` of the level `medium`.
+fn recoveries(settings: &str) -> Option<u32> {
+    medium(settings, "recoveries")
 }
 
 fn out(line: &str) {
@@ -285,9 +290,13 @@ fn main() -> ExitCode {
         args.seed
     )))
     .and_then(|t| serde_json::from_str(&t).ok());
-    let recoveries = read(&args.settings).as_deref().and_then(recoveries);
-    let (Some(goal), Some(boundary), Some(data), Some(recoveries)) =
-        (goal, boundary, data, recoveries)
+    let settings = read(&args.settings);
+    let recoveries = settings.as_deref().and_then(recoveries);
+    let reply_tokens = settings
+        .as_deref()
+        .and_then(|s| medium::<u64>(s, "reply_tokens"));
+    let (Some(goal), Some(boundary), Some(data), Some(recoveries), Some(reply_tokens)) =
+        (goal, boundary, data, recoveries, reply_tokens)
     else {
         eprintln!(
             "REFUSED usage: a prompt file, the seed file or the settings file cannot be read"
@@ -354,10 +363,12 @@ fn main() -> ExitCode {
             },
             prompts: Prompts { boundary, goal },
             recoveries,
+            reply_tokens,
             compile_variants: args.compile_variant.clone().into_iter().collect(),
             stop,
             trace: std::sync::Mutex::new(trace),
             began: std::time::Instant::now(),
+            clock: Box::new(drive::SystemClock),
         };
         cell(args, ctx).await
     })
@@ -438,5 +449,11 @@ mod tests {
         let text = "driver = \"none\"\n[low]\nrecoveries = 1\n[medium]\naction_tokens = 256\nrecoveries = 2\n[high]\nrecoveries = 3\n";
         assert_eq!(recoveries(text), Some(2));
         assert_eq!(recoveries("[low]\nrecoveries = 1\n"), None);
+        let text = "[medium]\nreply_tokens = 512\nreply_tokens_x = 3\n";
+        assert_eq!(medium::<u64>(text, "reply_tokens"), Some(512));
+        assert_eq!(
+            medium::<u64>("[medium]\nreply_tokens_x = 3\n", "reply_tokens"),
+            None
+        );
     }
 }

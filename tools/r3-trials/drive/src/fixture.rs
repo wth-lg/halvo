@@ -183,6 +183,32 @@ pub fn site_counts(state: &Value, task: &str) -> String {
     out
 }
 
+/// The counts of `site_counts` as numbers (ruling CP-179 (1) (d)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Counts {
+    pub signins: u64,
+    pub failed_signins: u64,
+    pub state_changing: u64,
+}
+
+/// The counts of a bill or an order run, or none when the state object lacks the site's sign-ins or
+/// the state-changing requests; failed sign-ins are 0 where the object has no such count.
+pub fn counts(state: &Value, task: &str) -> Option<Counts> {
+    let site = match task {
+        "bill" => "utility",
+        "order" => "shop",
+        _ => return None,
+    };
+    Some(Counts {
+        signins: state[site]["signins"].as_u64()?,
+        failed_signins: match &state[site]["failed_signins"] {
+            Value::Null => 0,
+            v => v.as_u64()?,
+        },
+        state_changing: state["requests"]["state_changing"].as_u64()?,
+    })
+}
+
 fn count_of(v: &Value) -> String {
     v.as_u64().map_or("-".to_string(), |n| n.to_string())
 }
@@ -218,6 +244,26 @@ mod tests {
             site_counts(&serde_json::json!({}), "bill"),
             "signins=- state_changing=-"
         );
+    }
+
+    #[test]
+    fn the_counts_of_a_run_are_read_as_numbers() {
+        let s = serde_json::json!({
+            "utility": {"signins": 1, "failed_signins": 2},
+            "shop": {"signins": 3},
+            "requests": {"state_changing": 4}
+        });
+        let c = |signins, failed_signins, state_changing| Counts {
+            signins,
+            failed_signins,
+            state_changing,
+        };
+        assert_eq!(counts(&s, "bill"), Some(c(1, 2, 4)));
+        assert_eq!(counts(&s, "order"), Some(c(3, 0, 4)));
+        assert_eq!(counts(&s, "reply"), None);
+        assert_eq!(counts(&serde_json::json!({}), "bill"), None);
+        let bad = serde_json::json!({"utility": {"signins": 1, "failed_signins": "x"}, "requests": {"state_changing": 1}});
+        assert_eq!(counts(&bad, "bill"), None);
     }
 
     #[test]

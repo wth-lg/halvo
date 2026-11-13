@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -18,8 +18,36 @@ use crate::model::{self, Child};
 use crate::step::{self, Arg, Source, Step, Target, Verb};
 use crate::words;
 
-/// The most requests of one compile run to the model.
+/// The most requests of one compile run to the model: every ask counts, and the reply to the last
+/// one, when it is no done, ends the compile with the cause `calls` (ruling CP-179 (1) (a)).
 pub const CALLS_MAX: usize = 32;
+/// The longest time of one run, without its wait for the model lock: read before each ask and
+/// before each stored step, it ends the cell with `notrun` and the cause `wall` (ruling CP-179 (1) (c)).
+pub const WALL_MAX: Duration = Duration::from_secs(2000);
+
+/// The clock that the bound of a run reads: a seam, so that a test holds the bound with no wait.
+pub trait Clock {
+    fn now(&self) -> Instant;
+}
+
+/// The clock of a cell.
+pub struct SystemClock;
+
+impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+}
+
+/// Whether a run that began at `began` and waited `lock_wait` for the model lock has reached
+/// `WALL_MAX` by the clock.
+pub fn wall_reached(clock: &dyn Clock, began: Instant, lock_wait: Duration) -> bool {
+    clock
+        .now()
+        .saturating_duration_since(began)
+        .saturating_sub(lock_wait)
+        >= WALL_MAX
+}
 /// The longest wait for the model lock before a run, which then cannot run.
 const LOCK_WAIT: Duration = Duration::from_secs(3600);
 /// How long a click or a press may take to start a navigation before the page counts as settled.
@@ -65,11 +93,14 @@ pub struct Ctx {
     pub model: model::Spec,
     pub prompts: Prompts,
     pub recoveries: u32,
+    /// `reply_tokens` of the level `medium`: a reply with this many tokens has no body (CP-179 (6)).
+    pub reply_tokens: u64,
     /// The fixture's variants of the compile run: none in a cell of the trial.
     pub compile_variants: Vec<String>,
     pub stop: Stop,
     pub trace: std::sync::Mutex<std::fs::File>,
     pub began: Instant,
+    pub clock: Box<dyn Clock>,
 }
 
 impl Ctx {
@@ -452,9 +483,10 @@ pub fn clicks(action: &Action) -> bool {
     matches!(action, Action::Click { .. } | Action::Press { .. })
 }
 
-/// Whether the request rule is armed to let a state-changing request of the action leave.
-pub fn allow_of(action: &Action, confirmed: bool, extracts_kept: bool) -> bool {
-    clicks(action) && may_leave(confirmed, extracts_kept)
+/// Whether the request rule is armed to let a state-changing request of the action leave: never
+/// once one has left in the run (ruling CP-179 (1) (d)).
+pub fn allow_of(action: &Action, confirmed: bool, extracts_kept: bool, already_left: bool) -> bool {
+    clicks(action) && !already_left && may_leave(confirmed, extracts_kept)
 }
 
 /// What the requests of one step make of it.
@@ -465,27 +497,48 @@ pub enum StepOutcome {
     /// A confirmed click or press whose request the rule failed while the extracts were missing:
     /// the compile fails with the cause provenance (A9.4).
     Provenance,
+    /// A click or a press whose request the rule failed because one had already left: the run ends
+    /// as a miss with the cause second_request (ruling CP-179 (1) (d)).
+    SecondRequest,
+    /// In a replay, a click or a press of a step that was stored without a request set one off: the
+    /// replay ends as a miss with the cause request (ruling CP-179 (1) (f), A9.2).
+    Request,
     /// No effect.
     Nothing,
 }
 
-/// The outcome of a step from the effect of its paused requests (A4.2, A9.4).
+/// The outcome of a step from the effect of its paused requests (A4.2, A9.4). `confirmed` is the
+/// harness's allow in a compile and, in a replay, whether the step was stored with a request.
 pub fn outcome_of(
     effect: Effect,
     action: &Action,
     confirmed: bool,
     extracts_kept: bool,
+    already_left: bool,
 ) -> StepOutcome {
     match effect {
         Effect::Left(origin) => StepOutcome::Allowed(origin),
-        Effect::Refused if clicks(action) && confirmed && !extracts_kept => StepOutcome::Provenance,
+        Effect::Refused if clicks(action) && !confirmed => StepOutcome::Request,
+        Effect::Refused if clicks(action) && already_left => StepOutcome::SecondRequest,
+        Effect::Refused if clicks(action) && !extracts_kept => StepOutcome::Provenance,
         Effect::Refused | Effect::None => StepOutcome::Nothing,
     }
 }
 
-/// Whether the model gave this reply on this page before in the run; the first time it is kept.
-pub fn repeated(seen: &mut HashSet<(String, String)>, page: &str, reply: &str) -> bool {
-    !seen.insert((page.to_string(), reply.to_string()))
+/// Whether the state-changing requests of a run add up (ruling CP-179 (1) (d)): the fixture's
+/// entries equal the requests that the harness let through, the fixture's count of state-changing
+/// requests is those and the sign-in posts, and a compile let exactly one through.
+pub fn requests_add_up(
+    kind: Kind,
+    allowed: u64,
+    entries: u64,
+    counts: Option<fixture::Counts>,
+) -> bool {
+    counts.is_some_and(|c| {
+        entries == allowed
+            && c.state_changing == allowed + c.signins + c.failed_signins
+            && (kind != Kind::Compile || allowed == 1)
+    })
 }
 
 /// Whether the request rule lets a state-changing request of a click or a press leave: the harness
@@ -661,7 +714,8 @@ async fn carry_out(
     let kept_all = needed_extracts(&ctx.task)
         .iter()
         .all(|k| kept.contains_key(*k));
-    let allow = allow_of(action, confirm, kept_all);
+    let already_left = tally.allowed > 0;
+    let allow = allow_of(action, confirm, kept_all, already_left);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
         return Ok(Done::Refused(e));
     }
@@ -704,18 +758,30 @@ async fn carry_out(
         Action::Handback | Action::Done => return Ok(Done::Refused(words::NO_TARGET.into())),
     };
     if let Err(e) = outcome {
-        return Ok(Done::Refused(words::page_refused(&e)));
+        return Ok(Done::Refused(match action {
+            Action::Select { .. } => words::select_cause(&reference, line.role, &e),
+            _ => words::page_refused(&e),
+        }));
     }
     if clicks {
         settle(ex, &frames).await;
     }
-    let request = match outcome_of(left_request(ex), action, confirm, kept_all) {
+    let effect = left_request(ex);
+    if clicks {
+        if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
+            ctx.trace(&format!("arm closed after the step: {e}"));
+            return Err(End::NotRun("arm"));
+        }
+    }
+    let request = match outcome_of(effect, action, confirm, kept_all, already_left) {
         StepOutcome::Allowed(origin) => {
             tally.allow();
             ctx.trace(&format!("effect allowed origin={origin}"));
             Some(origin)
         }
         StepOutcome::Provenance => return Ok(Done::Failed("provenance")),
+        StepOutcome::SecondRequest => return Ok(Done::Failed("second_request")),
+        StepOutcome::Request => return Ok(Done::Failed("request")),
         StepOutcome::Nothing => None,
     };
     let (verb, mut args) = match action {
@@ -770,8 +836,28 @@ fn finish_run(
         tally.allowed,
         fixture::site_counts(&state, &ctx.task)
     ));
+    let adds_up = requests_add_up(
+        kind,
+        tally.allowed,
+        entries,
+        fixture::counts(&state, &ctx.task),
+    );
+    if !adds_up {
+        ctx.trace(&format!(
+            "run kind={} i={i} requests_add_up=false",
+            kind.as_str()
+        ));
+    }
     let ms = began.elapsed().saturating_sub(tally.lock_wait).as_millis();
-    Ok(run_of(kind, i, pass_steps, list_ok, entries, tally, ms))
+    Ok(run_of(
+        kind,
+        i,
+        pass_steps && adds_up,
+        list_ok,
+        entries,
+        tally,
+        ms,
+    ))
 }
 
 fn run_of(
@@ -794,6 +880,15 @@ fn run_of(
         typed_credential: tally.typed,
         effects_without_confirm: entries.saturating_sub(tally.allowed),
     }
+}
+
+/// Ends the cell with the cause `wall` when the run has reached its bound (ruling CP-179 (1) (c)).
+fn within_wall(ctx: &Ctx, began: Instant, tally: &Tally) -> Result<(), End> {
+    if wall_reached(&*ctx.clock, began, tally.lock_wait) {
+        ctx.trace(&format!("wall reached bound_s={}", WALL_MAX.as_secs()));
+        return Err(End::NotRun("wall"));
+    }
+    Ok(())
 }
 
 fn reset(ctx: &Ctx, variants: &[&str]) -> Result<(), End> {
@@ -844,7 +939,7 @@ pub async fn compile(ctx: &Ctx) -> Result<(Run, Vec<Step>), End> {
         }],
         request: false,
     }];
-    let outcome = compile_steps(ctx, &mut ex, &mut child, &mut steps, &mut tally).await;
+    let outcome = compile_steps(ctx, &mut ex, &mut child, &mut steps, &mut tally, began).await;
     stop_browser(ctx, ex).await;
     let capped = end_child(child).await;
     let done = match outcome {
@@ -870,6 +965,7 @@ async fn compile_steps(
     child: &mut Option<Child>,
     steps: &mut Vec<Step>,
     tally: &mut Tally,
+    began: Instant,
 ) -> Result<bool, End> {
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
         ctx.trace(&format!("arm: {e}"));
@@ -882,15 +978,21 @@ async fn compile_steps(
     }
     let mut kept: HashMap<String, String> = HashMap::new();
     let mut history: Vec<String> = vec![words::NAVIGATE_START.into()];
-    let mut seen: HashSet<(String, String)> = HashSet::new();
+    let mut pending: Option<Carried> = None;
+    let mut last_text: Option<String> = None;
     for call in 1..=CALLS_MAX {
-        let lines = match read_page(ex, ctx).await? {
+        let (lines, text) = match read_page(ex, ctx).await? {
             Ok((lines, handbacks)) => {
+                let text = snapshot_text(&lines);
+                if let Some(c) = pending.take() {
+                    history[c.at] =
+                        words::carried(&c.action, c.request, handbacks == 0 && c.before == text);
+                }
                 for _ in 0..handbacks {
                     history.push(words::HANDBACK.into());
                     steps.push(handback_step(steps.len() + 1));
                 }
-                lines
+                (lines, text)
             }
             Err(cause) => {
                 if cause == "handed_back" {
@@ -899,7 +1001,6 @@ async fn compile_steps(
                 return Ok(false);
             }
         };
-        let text = snapshot_text(&lines);
         let prompt = words::frame(
             &ctx.prompts.goal,
             &slot_names(ctx),
@@ -907,6 +1008,7 @@ async fn compile_steps(
             &history,
             words::NEXT,
         );
+        within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
         *child = Some(back);
@@ -923,10 +1025,6 @@ async fn compile_steps(
             "call={call} reply={}",
             reply.text.replace('\n', " ")
         ));
-        if repeated(&mut seen, &text, &reply.text) {
-            ctx.trace("stuck: the same reply on the same page");
-            return Ok(false);
-        }
         let parsed = match action::parse(&reply.text) {
             Ok(a) => a,
             Err(r) => {
@@ -965,14 +1063,26 @@ async fn compile_steps(
                     .reference()
                     .and_then(|r| lines.iter().find(|l| l.reference == r))
                     .and_then(|l| place_of(&lines, l));
-                history.push(words::action_words(&parsed));
-                steps.push(Step {
+                pending = Some(Carried {
+                    at: history.len(),
+                    action: parsed.clone(),
+                    request,
+                    before: text.clone(),
+                });
+                history.push(words::carried(&parsed, request, false));
+                let step = Step {
                     n: steps.len() + 1,
                     verb,
                     target: Some(target),
                     args,
                     request,
-                });
+                };
+                if repeats_last(steps.last(), last_text.as_deref(), &step, &text) {
+                    ctx.trace("step not stored: the step stored last, on an unchanged page");
+                } else {
+                    steps.push(step);
+                    last_text = Some(text.clone());
+                }
             }
             Some(Done::Refused(why)) => history.push(words::refused(&parsed, &why)),
             Some(Done::Failed(cause)) => {
@@ -987,6 +1097,23 @@ async fn compile_steps(
     }
     ctx.trace("compile failed cause=calls");
     Ok(false)
+}
+
+/// A carried-out action of a compile whose line of the list gets its form when the next snapshot
+/// is read (ruling CP-179 (2) (c)).
+struct Carried {
+    at: usize,
+    action: Action,
+    request: bool,
+    before: String,
+}
+
+/// Whether a carried-out step repeats the step stored last: the same verb, target and args, given
+/// while the snapshot text is the one at which that step was given. Such a step is carried out and
+/// stores no second step (ruling CP-179 (1) (e)).
+pub fn repeats_last(last: Option<&Step>, last_text: Option<&str>, step: &Step, text: &str) -> bool {
+    last.is_some_and(|s| s.verb == step.verb && s.target == step.target && s.args == step.args)
+        && last_text == Some(text)
 }
 
 /// A replay (no model) or the recovery run (`recover`: the model may be asked `recoveries` times
@@ -1008,7 +1135,7 @@ pub async fn replay(ctx: &Ctx, steps: &[Step], kind: Kind, i: u32) -> Result<Run
             return Err(e);
         }
     };
-    let outcome = replay_steps(ctx, &mut ex, &mut child, steps, &mut tally).await;
+    let outcome = replay_steps(ctx, &mut ex, &mut child, steps, &mut tally, began).await;
     stop_browser(ctx, ex).await;
     let capped = if recover {
         end_child(child).await
@@ -1036,9 +1163,11 @@ async fn replay_steps(
     child: &mut Option<Child>,
     steps: &[Step],
     tally: &mut Tally,
+    began: Instant,
 ) -> Result<bool, End> {
     let mut kept: HashMap<String, String> = HashMap::new();
     for s in steps {
+        within_wall(ctx, began, tally)?;
         tally.steps += 1;
         let read = match read_page(ex, ctx).await? {
             Ok((lines, _)) => lines,
@@ -1080,7 +1209,7 @@ async fn replay_steps(
                         if child.is_none() {
                             return Ok(false);
                         }
-                        match repair(ex, ctx, child, s, &kept, tally).await? {
+                        match repair(ex, ctx, child, s, &kept, tally, began).await? {
                             Some(l) => l,
                             None => return Ok(false),
                         }
@@ -1168,6 +1297,7 @@ async fn repair(
     s: &Step,
     kept: &HashMap<String, String>,
     tally: &mut Tally,
+    began: Instant,
 ) -> Result<Option<SnapshotLine>, End> {
     let Some(t) = &s.target else { return Ok(None) };
     let wanted = action_of(s);
@@ -1189,6 +1319,7 @@ async fn repair(
             &history,
             &ask_text,
         );
+        within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
         *child = Some(back);
@@ -1279,14 +1410,22 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
             Ok(r) => {
                 tally.tokens_in += r.tokens_in;
                 tally.tokens_out += r.tokens_out;
-                let counted = body::counts(&r.text);
-                ctx.trace(&format!("body bytes={} counted={counted}", r.text.len()));
+                let counted = body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
+                ctx.trace(&format!(
+                    "body bytes={} tokens_out={} counted={counted}",
+                    r.text.len(),
+                    r.tokens_out
+                ));
                 if let Ok(mut f) = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
                     .open(ctx.run_dir.join("bodies.txt"))
                 {
-                    let _ = writeln!(f, "--- counted={counted}\n{}", r.text);
+                    let _ = writeln!(
+                        f,
+                        "--- counted={counted} tokens_out={}\n{}",
+                        r.tokens_out, r.text
+                    );
                 }
                 if counted {
                     bodies += 1;
@@ -1483,12 +1622,141 @@ mod tests {
             reference: "e9".into(),
             name: "total".into(),
         };
-        assert!(allow_of(&click, true, true));
-        assert!(allow_of(&press, true, true));
-        assert!(!allow_of(&fill("e9"), true, true));
-        assert!(!allow_of(&extract, true, true));
-        assert!(!allow_of(&click, false, true));
-        assert!(!allow_of(&click, true, false));
+        assert!(allow_of(&click, true, true, false));
+        assert!(allow_of(&press, true, true, false));
+        assert!(!allow_of(&fill("e9"), true, true, false));
+        assert!(!allow_of(&extract, true, true, false));
+        assert!(!allow_of(&click, false, true, false));
+        assert!(!allow_of(&click, true, false, false));
+    }
+
+    #[test]
+    fn no_request_leaves_once_one_has_left_and_a_second_ends_the_run() {
+        let click = Action::Click {
+            reference: "e9".into(),
+        };
+        let press = Action::Press {
+            reference: "e9".into(),
+            key: action::Key::Enter,
+        };
+        assert!(!allow_of(&click, true, true, true));
+        assert!(!allow_of(&press, true, true, true));
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, true, true, true),
+            StepOutcome::SecondRequest
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &press, true, true, true),
+            StepOutcome::SecondRequest
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &fill("e9"), true, true, true),
+            StepOutcome::Nothing
+        );
+        assert_eq!(
+            outcome_of(Effect::None, &click, true, true, true),
+            StepOutcome::Nothing
+        );
+    }
+
+    #[test]
+    fn a_replayed_step_stored_without_a_request_ends_the_replay_when_it_sets_one_off() {
+        let click = Action::Click {
+            reference: "e9".into(),
+        };
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, false, true, false),
+            StepOutcome::Request
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, false, false, false),
+            StepOutcome::Request
+        );
+        assert_eq!(
+            outcome_of(Effect::None, &click, false, true, false),
+            StepOutcome::Nothing
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &fill("e9"), false, true, false),
+            StepOutcome::Nothing
+        );
+    }
+
+    #[test]
+    fn a_compile_is_ok_only_with_one_request_that_the_fixture_counts_as_one_entry() {
+        let c = |signins, failed_signins, state_changing| {
+            Some(fixture::Counts {
+                signins,
+                failed_signins,
+                state_changing,
+            })
+        };
+        assert!(requests_add_up(Kind::Compile, 1, 1, c(1, 0, 2)));
+        assert!(requests_add_up(Kind::Compile, 1, 1, c(1, 2, 4)));
+        assert!(!requests_add_up(Kind::Compile, 0, 0, c(1, 0, 1)));
+        assert!(!requests_add_up(Kind::Compile, 2, 2, c(1, 0, 3)));
+        assert!(!requests_add_up(Kind::Compile, 1, 2, c(1, 0, 2)));
+        assert!(!requests_add_up(Kind::Compile, 1, 0, c(1, 0, 2)));
+        assert!(!requests_add_up(Kind::Compile, 1, 1, c(1, 0, 3)));
+        assert!(!requests_add_up(Kind::Compile, 1, 1, None));
+        assert!(requests_add_up(Kind::Replay, 0, 0, c(1, 0, 1)));
+        assert!(requests_add_up(Kind::Replay, 1, 1, c(1, 0, 2)));
+        assert!(!requests_add_up(Kind::Replay, 0, 1, c(1, 0, 2)));
+    }
+
+    #[test]
+    fn a_carried_out_repeat_on_an_unchanged_page_stores_no_second_step() {
+        let target = Target {
+            role: "text".into(),
+            name: "1.00".into(),
+            frame: vec![],
+            credential: false,
+            place: None,
+        };
+        let step = Step {
+            n: 3,
+            verb: Verb::Extract,
+            target: Some(target.clone()),
+            args: vec![Arg {
+                name: "as".into(),
+                from: Source::Const("amount_due".into()),
+            }],
+            request: false,
+        };
+        let again = Step {
+            n: 4,
+            ..step.clone()
+        };
+        assert!(repeats_last(Some(&step), Some("page"), &again, "page"));
+        assert!(!repeats_last(
+            Some(&step),
+            Some("page"),
+            &again,
+            "next page"
+        ));
+        assert!(!repeats_last(None, None, &again, "page"));
+        let other = Step {
+            verb: Verb::Click,
+            args: vec![],
+            ..again.clone()
+        };
+        assert!(!repeats_last(Some(&step), Some("page"), &other, "page"));
+        let elsewhere = Step {
+            target: Some(Target {
+                name: "2.00".into(),
+                ..target
+            }),
+            ..again.clone()
+        };
+        assert!(!repeats_last(Some(&step), Some("page"), &elsewhere, "page"));
+        let named = Step {
+            args: vec![Arg {
+                name: "as".into(),
+                from: Source::Const("total".into()),
+            }],
+            ..again
+        };
+        assert!(!repeats_last(Some(&step), Some("page"), &named, "page"));
     }
 
     #[test]
@@ -1498,27 +1766,27 @@ mod tests {
         };
         let left = Effect::Left("http://pay.agent.test".into());
         assert_eq!(
-            outcome_of(left, &click, true, true),
+            outcome_of(left, &click, true, true, false),
             StepOutcome::Allowed("http://pay.agent.test".into())
         );
         assert_eq!(
-            outcome_of(Effect::Refused, &click, true, false),
+            outcome_of(Effect::Refused, &click, true, false, false),
             StepOutcome::Provenance
         );
         assert_eq!(
-            outcome_of(Effect::Refused, &click, true, true),
+            outcome_of(Effect::Refused, &click, true, true, false),
             StepOutcome::Nothing
         );
         assert_eq!(
-            outcome_of(Effect::Refused, &click, false, false),
+            outcome_of(Effect::Refused, &click, false, false, false),
+            StepOutcome::Request
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &fill("e9"), true, false, false),
             StepOutcome::Nothing
         );
         assert_eq!(
-            outcome_of(Effect::Refused, &fill("e9"), true, false),
-            StepOutcome::Nothing
-        );
-        assert_eq!(
-            outcome_of(Effect::None, &click, true, false),
+            outcome_of(Effect::None, &click, true, false, false),
             StepOutcome::Nothing
         );
     }
@@ -1548,13 +1816,33 @@ mod tests {
     }
 
     #[test]
-    fn a_reply_given_again_on_the_same_page_is_repeated_and_the_cap_is_32() {
-        let mut seen = HashSet::new();
-        assert!(!repeated(&mut seen, "page", "reply"));
-        assert!(!repeated(&mut seen, "page", "other"));
-        assert!(!repeated(&mut seen, "next page", "reply"));
-        assert!(repeated(&mut seen, "page", "reply"));
+    fn the_cap_of_asks_is_32() {
         assert_eq!(CALLS_MAX, 32);
+    }
+
+    struct At(Instant);
+
+    impl Clock for At {
+        fn now(&self) -> Instant {
+            self.0
+        }
+    }
+
+    #[test]
+    fn a_run_reaches_its_bound_at_2000_seconds_without_its_lock_wait() {
+        let began = Instant::now();
+        let at = |s: u64| At(began + Duration::from_secs(s));
+        assert_eq!(WALL_MAX, Duration::from_secs(2000));
+        assert!(!wall_reached(&at(0), began, Duration::ZERO));
+        assert!(!wall_reached(&at(1999), began, Duration::ZERO));
+        assert!(wall_reached(&at(2000), began, Duration::ZERO));
+        assert!(!wall_reached(&at(2500), began, Duration::from_secs(600)));
+        assert!(wall_reached(&at(2600), began, Duration::from_secs(600)));
+        assert!(!wall_reached(
+            &At(began),
+            began + Duration::from_secs(5),
+            Duration::ZERO
+        ));
     }
 
     #[test]

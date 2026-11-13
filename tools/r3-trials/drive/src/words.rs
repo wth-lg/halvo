@@ -117,10 +117,112 @@ pub fn page_refused(fault: &str) -> String {
     format!("the page did not take it ({fault})")
 }
 
+/// The executor's role word of a select control.
+pub const SELECT_ROLE: &str = "combobox";
+
+/// The cause of a select that the page did not take: on a line that is no select control, the line's
+/// reference and the executor's own role word for it and no text of the page; on a select control,
+/// the page's refusal as for every other action (ruling CP-179 (2) (c)).
+pub fn select_cause(reference: &str, role: &str, fault: &str) -> String {
+    if role == SELECT_ROLE {
+        page_refused(fault)
+    } else {
+        format!("{reference} is a {role} line and no select control; a select names the line of the control that holds the option")
+    }
+}
+
+/// The line of an action that the harness carried out (ruling CP-179 (2) (c)): its words and
+/// " (done; a request was sent)" when a state-changing request of it left, " (done; the page shows
+/// no change)" when the next snapshot's text equals the one before it, and " (done)" else.
+pub fn carried(a: &Action, request_sent: bool, page_unchanged: bool) -> String {
+    let how = if request_sent {
+        "done; a request was sent"
+    } else if page_unchanged {
+        "done; the page shows no change"
+    } else {
+        "done"
+    };
+    format!("{} ({how})", action_words(a))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::action::Key;
+
+    fn click() -> Action {
+        Action::Click {
+            reference: "e12".into(),
+        }
+    }
+
+    #[test]
+    fn a_carried_out_action_says_done_and_what_it_did() {
+        assert_eq!(carried(&click(), false, false), "click e12 (done)");
+        assert_eq!(
+            carried(&click(), false, true),
+            "click e12 (done; the page shows no change)"
+        );
+        assert_eq!(
+            carried(&click(), true, false),
+            "click e12 (done; a request was sent)"
+        );
+        assert_eq!(
+            carried(&click(), true, true),
+            "click e12 (done; a request was sent)"
+        );
+    }
+
+    #[test]
+    fn a_select_on_a_line_that_is_no_select_control_names_its_role() {
+        assert_eq!(
+            select_cause("e10", "option", "select:no such option"),
+            "e10 is a option line and no select control; a select names the line of the control that holds the option"
+        );
+        assert_eq!(
+            select_cause("e3", "heading", "select:no such option"),
+            "e3 is a heading line and no select control; a select names the line of the control that holds the option"
+        );
+        assert_eq!(
+            select_cause("e9", SELECT_ROLE, "select:no such option"),
+            "the page did not take it (select:no such option)"
+        );
+    }
+
+    #[test]
+    fn every_refusal_and_no_other_line_holds_the_mark_of_a_refusal() {
+        let select = Action::Select {
+            reference: "e10".into(),
+            slot: "instrument".into(),
+        };
+        let refusals = [
+            refused(&click(), &no_reference("e12")),
+            refused(&click(), CREDENTIAL),
+            refused(&click(), CREDENTIAL_RECOVERY),
+            refused(&click(), NO_TARGET),
+            refused(&click(), NOT_THAT_STEP),
+            refused(&click(), &no_slot("payee")),
+            refused(&click(), &page_refused("click:gone")),
+            refused(&select, &select_cause("e10", "option", "x")),
+            reply_refused("{x", Refused::Form),
+            reply_refused("{}", Refused::Fields),
+        ];
+        for r in &refusals {
+            assert!(r.contains("(refused"), "{r}");
+        }
+        let others = [
+            carried(&click(), false, false),
+            carried(&click(), false, true),
+            carried(&click(), true, false),
+            NAVIGATE_START.to_string(),
+            HANDBACK.to_string(),
+            frame("Goal.", &[], &[], &[], NEXT),
+            repair_question(3, "click", "button \"Pay now\""),
+        ];
+        for o in &others {
+            assert!(!o.contains("(refused"), "{o}");
+        }
+    }
 
     #[test]
     fn the_prompt_holds_the_goal_the_names_and_the_steps_and_no_page_text() {
