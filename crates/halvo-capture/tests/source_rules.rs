@@ -545,41 +545,6 @@ fn the_secure_input_probe_is_implemented_only_in_the_secure_input_tree() {
 
 #[test]
 fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
-    let mut files = Vec::new();
-    files_under("crates/halvo-capture", &mut files);
-    files_under("src-tauri/src", &mut files);
-    files.push("src-tauri/build.rs".to_owned());
-    let (mut uses, mut faults) = (Vec::new(), Vec::new());
-    for file in files.iter().filter(|f| f.ends_with(".rs")) {
-        match read_tokens(file) {
-            Err(fault) => faults.push(fault),
-            Ok(t) => {
-                let (found, wrong) = reach_reading(file, &t);
-                uses.extend(found);
-                faults.extend(wrong);
-            }
-        }
-    }
-    println!(
-        "uses of path attributes and include macros: {}, listed: {}",
-        uses.len(),
-        LISTED.len()
-    );
-    assert_eq!(faults, Vec::<String>::new());
-    let mut listed: Vec<Use> = LISTED
-        .iter()
-        .map(|(f, n, l)| ((*f).to_owned(), (*n).to_owned(), (*l).to_owned()))
-        .collect();
-    listed.sort();
-    uses.sort();
-    assert_eq!(
-        uses, listed,
-        "a path attribute or an include macro stands at a use that LISTED does not name, or a listed use is gone"
-    );
-}
-
-#[test]
-fn every_listed_use_that_brings_code_reaches_an_rs_file_that_these_rules_read() {
     assert_eq!(code_reach_faults(&LISTED), Vec::<String>::new());
     let refused = [
         (
@@ -618,4 +583,35 @@ fn every_listed_use_that_brings_code_reaches_an_rs_file_that_these_rules_read() 
     for case in kept {
         assert_eq!(code_reach_faults(&[case]), Vec::<String>::new(), "{case:?}");
     }
+    let mut files = Vec::new();
+    files_under("crates/halvo-capture", &mut files);
+    files_under("src-tauri/src", &mut files);
+    files.push("src-tauri/build.rs".to_owned());
+    let (mut uses, mut faults) = (Vec::new(), Vec::new());
+    for file in files.iter().filter(|f| f.ends_with(".rs")) {
+        match read_tokens(file) {
+            Err(fault) => faults.push(fault),
+            Ok(t) => {
+                let (found, wrong) = reach_reading(file, &t);
+                uses.extend(found);
+                faults.extend(wrong);
+            }
+        }
+    }
+    println!(
+        "uses of path attributes and include macros: {}, listed: {}",
+        uses.len(),
+        LISTED.len()
+    );
+    assert_eq!(faults, Vec::<String>::new());
+    let mut listed: Vec<Use> = LISTED
+        .iter()
+        .map(|(f, n, l)| ((*f).to_owned(), (*n).to_owned(), (*l).to_owned()))
+        .collect();
+    listed.sort();
+    uses.sort();
+    assert_eq!(
+        uses, listed,
+        "a path attribute or an include macro stands at a use that LISTED does not name, or a listed use is gone"
+    );
 }
