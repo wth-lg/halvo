@@ -3,10 +3,10 @@ So the form fails on macOS under I4.9, and on Windows it fails by its cancel and
 
 reading trial=dialog machine=mac system=macos default_attr=AXDefaultButton cancel_attr=AXCancelButton
 reading trial=dialog machine=mac system=windows default_attr=STATE_SYSTEM_DEFAULT cancel_attr=IDCANCEL
-reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs line=71
-reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238
-reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none file=tools/r4-trials/driver/src/native.rs line=72
-reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject file=tools/r4-trials/driver/src/native.rs line=113
+reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none default_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs default_line=71 cancel_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs cancel_line=94 close_file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs close_line=94
+reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow default_file=rfd-0.17.2/src/backend/win_cid/message_dialog.rs default_line=155 cancel_file=tauri-plugin-dialog-2.8.4/src/desktop.rs cancel_line=238 close_file=tauri-plugin-dialog-2.8.4/src/desktop.rs close_line=238
+reading trial=dialog machine=mac form=system system=macos default=reject cancel=none close=none default_file=tools/r4-trials/driver/src/native.rs default_line=72 cancel_file=tools/r4-trials/driver/src/native.rs cancel_line=71 close_file=tools/r4-trials/driver/src/native.rs close_line=71
+reading trial=dialog machine=mac form=system system=windows default=reject cancel=reject close=reject default_file=tools/r4-trials/driver/src/native.rs default_line=113 cancel_file=tools/r4-trials/driver/src/card.rs cancel_line=104 close_file=tools/r4-trials/driver/src/card.rs close_line=104
 reading trial=dialog machine=mac form=plugin system=macos outcome=failed_call gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238
 reading trial=dialog machine=mac form=plugin system=macos outcome=cancel_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238
 reading trial=dialog machine=mac form=plugin system=macos outcome=unknown_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238
