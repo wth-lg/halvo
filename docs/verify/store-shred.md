@@ -407,7 +407,7 @@ The contender takes an error of `open` as a refusal only when
 | Platform | Refusal that the contender accepts | Where it comes from |
 |---|---|---|
 | macOS | `Locked` | `DirLock::take` (store/lock.rs) gets `WouldBlock` from the `flock` on a descriptor of the store directory itself, so no lock file exists to unlink, and every second opener is refused there. While a process holds the database without the directory lock, `open` answers `Locked` from `Db::refuse_a_live_holder`, which reads `SQLITE_BUSY` before `open` asks its custody; the cases around the directory lock make that state, and the open race does not |
-| Windows | `Locked`, or `Io(PermissionDenied)` | the same two paths, with the lock on the file `writer.lock`, which `DirLock` opens without delete sharing: an unlink of the held file is refused, so no name is left delete-pending as it was before store-3. The contender still takes `Io(PermissionDenied)` from any step of `open` as a refusal; the hosted Windows job at the head of the unit counted `access_denied=0` in its 30 cases |
+| Windows | `Locked`, `Io(PermissionDenied)`, or the `Io` of a sharing violation | the same two paths, with the lock on the file `writer.lock`, which `DirLock` opens without delete sharing: an unlink of the held file is refused, so no name is left delete-pending as it was before store-3. While the parent's unlink has the lock file open for an instant, the system refuses a contender's own open of it with a sharing violation, and `open` hands that on as `Io` with a kind that the standard library does not name (`Io(Uncategorized)` in a debug print). The contender takes it as a refusal and tries again. Until the sixth formal step it did not: the hosted Windows job of that step failed on this answer in a case with a cadence of 2 ms, where the job at the head of the unit had passed one run. The contender still takes `Io(PermissionDenied)` from any step of `open` |
 
 Any other error ends the contender at once, with the error in its message,
 and the case fails with "contender N exited with exit status: 101". So an
@@ -456,7 +456,7 @@ refusals of the whole run and requires one that falls inside another
 contender's hold. It asks this of the run and not of each case. On a pass
 it writes one line to standard error, past the capture of the test harness,
 so the line is in a CI log too:
-`check 2 refusals in <cases> cases: locked=<n> access_denied=<n> while_another_contender_held_the_store=<n> before_the_custody_through_a_whole_hold=<n>`.
+`check 2 refusals in <cases> cases: locked=<n> access_denied=<n> sharing_violation=<n> while_another_contender_held_the_store=<n> before_the_custody_through_a_whole_hold=<n>`.
 The last count is of the refused opens that began and returned inside one
 hold of another contender. None of them had asked for its custody, or the
 case would have failed, and a run of at least `RACE_CASES` cases needs one:
@@ -1571,6 +1571,12 @@ set, and the root's own volume name answers the root.
 - The directory lock on Windows by a row. The rows run on macOS, so no
   run shows the creators' race failing on a Windows store that takes no
   lock on `writer.lock`; the unmutated race runs in the Windows job.
+- What a sharing violation at `writer.lock` should answer. On Windows a
+  program that has the lock file open in a way that conflicts with the
+  store's open, as the unlink of check 2 has for an instant, makes `open`
+  and `create` answer `Io` with a kind that no caller can name. The checks
+  take it as a refusal of the moment; whether the store should answer
+  `Locked` for it, or try again, is not decided here.
 - The `DatabaseLocked` half of the mapping in `verify_key`. With that half
   alone removed, check 2 passes: a second process gets `DatabaseBusy`.
 - `create` beside a store that holds data. The creators of check 2 race
@@ -1811,6 +1817,15 @@ runs, fails it while the open race and the cases around the lock pass.
 And sentences of this file named the lock file, `WriterLock`, answers of
 a link as `Corrupt`, steps of delete-all by name and a move of the fixed
 order that is gone; they are corrected.
+
+On Windows the open race had drifted as well, and only the hosted job
+showed it: since store-3 opens `writer.lock` without delete sharing, the
+parent's unlink no longer leaves the name delete-pending (access denied,
+which the contender took) but can refuse a contender's open with a
+sharing violation, which it did not take. One case in the one hosted run
+of this step failed so, "contender 0: open failed with Io(Uncategorized),
+which is no refusal of a second writer". The contender takes that answer
+now and the line of a pass counts it (`sharing_violation`).
 
 The same step built what the fourth formal step had handed on. Check 1
 has a move that opens a store without its database (taken away, or cut to

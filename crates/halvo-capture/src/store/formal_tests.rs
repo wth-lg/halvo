@@ -2558,12 +2558,16 @@ fn race() -> impl Strategy<Value = Race> {
 enum Refusal {
     Locked,
     AccessDenied,
+    SharingViolation,
 }
 
 fn writer_refusal(error: &StoreError) -> Option<Refusal> {
     match error {
         StoreError::Locked => Some(Refusal::Locked),
         StoreError::Io(ErrorKind::PermissionDenied) if cfg!(windows) => Some(Refusal::AccessDenied),
+        StoreError::Io(kind) if cfg!(windows) && format!("{kind:?}") == "Uncategorized" => {
+            Some(Refusal::SharingViolation)
+        }
         _ => None,
     }
 }
@@ -2606,6 +2610,7 @@ fn log_refusal(
     let event = match refusal {
         Refusal::Locked => "refused-locked",
         Refusal::AccessDenied => "refused-access-denied",
+        Refusal::SharingViolation => "refused-sharing-violation",
     };
     let custody = if asked_its_custody {
         "after-its-custody"
@@ -2643,6 +2648,7 @@ fn parse_log(text: &str) -> Vec<Logged> {
                 Some("overlap-seen") => Event::OverlapSeen,
                 Some("refused-locked") => Event::Refused(Refusal::Locked),
                 Some("refused-access-denied") => Event::Refused(Refusal::AccessDenied),
+                Some("refused-sharing-violation") => Event::Refused(Refusal::SharingViolation),
                 other => panic!("unknown race log event {other:?}"),
             };
             let nanos = parts
@@ -2820,6 +2826,7 @@ fn run_race(dir: &Path, race: &Race) -> Vec<std::process::ExitStatus> {
 struct RefusalsSeen {
     locked: Cell<u64>,
     access_denied: Cell<u64>,
+    sharing_violation: Cell<u64>,
     while_another_contender_held_the_store: Cell<u64>,
     before_the_custody_through_a_whole_hold: Cell<u64>,
 }
@@ -2833,6 +2840,7 @@ impl RefusalsSeen {
             let class = match refusal {
                 Refusal::Locked => &self.locked,
                 Refusal::AccessDenied => &self.access_denied,
+                Refusal::SharingViolation => &self.sharing_violation,
             };
             class.set(class.get() + 1);
             let another_held = held.iter().any(|&(holder, entered, left)| {
@@ -2930,9 +2938,10 @@ fn at_most_one_process_holds_the_store_at_a_time() {
     let through_a_hold = refusals.before_the_custody_through_a_whole_hold.get();
     let _ = writeln!(
         io::stderr(),
-        "check 2 refusals in {cases} cases: locked={} access_denied={} while_another_contender_held_the_store={while_held} before_the_custody_through_a_whole_hold={through_a_hold}",
+        "check 2 refusals in {cases} cases: locked={} access_denied={} sharing_violation={} while_another_contender_held_the_store={while_held} before_the_custody_through_a_whole_hold={through_a_hold}",
         refusals.locked.get(),
         refusals.access_denied.get(),
+        refusals.sharing_violation.get(),
     );
     assert!(
         cases < RACE_CASES || while_held > 0,
