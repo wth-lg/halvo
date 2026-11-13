@@ -279,18 +279,16 @@ mod tests {
             1,
             "open made more than one chunk"
         );
-        harness.ask(Command::ClosePause);
-        let received_before = harness.owner.snapshot().events_received();
         harness.emit(foreground(&AT_NOON, Duration::ZERO));
         harness.pass();
         assert_eq!(
             harness.store.expire_calls().len(),
             2,
-            "the second chunk did not follow"
+            "one loop pass made other than one chunk"
         );
         assert_eq!(
             harness.owner.snapshot().events_received(),
-            received_before + 1,
+            1,
             "the owner did not drain between the chunks"
         );
         harness.passes(3);

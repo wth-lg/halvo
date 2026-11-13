@@ -720,7 +720,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::daemon::maintenance::SHRED_CHUNK;
+    use crate::daemon::maintenance::{Clocks, SHRED_CHUNK};
     use crate::daemon::model_store::{
         floor_rooted_at_the_test_app, foreground, foreground_now, frame, key, noon, open_floor,
         title_of, Call, Harness, ManualClocks, ModelStore, WriteScript, AT_NOON,
@@ -937,6 +937,35 @@ mod tests {
             panic!("no shutdown answer");
         };
         assert_eq!(owner.join().unwrap().events_persisted, 20);
+    }
+
+    #[test]
+    fn the_retry_waits_from_1_s_and_doubles_to_60_s() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        resumed(&mut harness);
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        let start = harness.clocks.monotonic();
+        let mut writes_at = Vec::new();
+        let mut seen = harness.store.write_calls().len();
+        for _ in 0..300 {
+            harness.clocks.advance(Duration::from_secs(1));
+            harness.pass();
+            let now = harness.store.write_calls().len();
+            if now > seen {
+                seen = now;
+                writes_at.push((harness.clocks.monotonic() - start).as_secs());
+            }
+        }
+        assert_eq!(writes_at, [1, 3, 7, 15, 31, 63, 123, 183, 243]);
+        assert_eq!(
+            harness.owner.snapshot().events_lost,
+            0,
+            "an I/O fault dropped the batch"
+        );
     }
 
     #[test]
