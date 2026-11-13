@@ -163,7 +163,9 @@ EOF
   cargo test --locked -p "$package" "$@" >"$artifacts/exact-$package.txt" 2>&1 </dev/null
   run_code=$?
   tree_same "after-exact-$package" tests
-  printf '%s\n' "$wanted" | read_bound "$package" >>"$artifacts/bound.txt"
+  found=$(printf '%s\n' "$wanted" | read_bound "$package")
+  bound_lines="$bound_lines$found
+"
 }
 
 sum_of() {
@@ -205,6 +207,7 @@ measure() {
   export CARGO_TERM_QUIET CARGO_TERM_VERBOSE CARGO_TERM_COLOR
   : >"$artifacts/tree.txt"
   : >"$artifacts/bound.txt"
+  bound_lines=
   cause=
 
   tree_before=$(tree_state 2>&1) || tree_before=
@@ -225,8 +228,9 @@ measure() {
   for package in halvo-route halvo-route-gate; do
     run_bound "$package"
   done
-  refusals=$(grep -c '^case ok ' "$artifacts/bound.txt") || refusals=0
-  required=$(grep -c '^test ok ' "$artifacts/bound.txt") || required=0
+  refusals=$(printf '%s' "$bound_lines" | grep -c '^case ok ') || refusals=0
+  required=$(printf '%s' "$bound_lines" | grep -c '^test ok ') || required=0
+  printf '%s' "$bound_lines" >"$artifacts/bound.txt"
   printf 'refusals expected=19 ok=%s\n' "$refusals"
   printf 'tests required=3 ok=%s\n' "$required"
   if [ "$test_code" -ne 0 ] || [ "$required" != 3 ]; then
@@ -345,6 +349,7 @@ case $* in
       flags) printf 'h docs/r6/gateway/sequences.jsonl\n' >>"$STUB_TREE/flags" ;;
       head) printf '# branch.oid fedcba9876543210fedcba9876543210fedcba98\n! target/\n' >"$STUB_TREE/status" ;;
       blob) cp "$STUB_CHANGED" "$STUB_COMMITTED" ;;
+      bound) printf 'case ok halvo-route tests/refusal_spend.rs refusal_no_hold\ntest ok halvo-route-gate tests/sequences_same.rs sequences_same\n' >>"$CI_D_ARTIFACTS/bound.txt" ;;
       copy)
         for copy in "${TMPDIR:-/tmp}"/50-r6-spend.*/*; do
           [ ! -f "$copy" ] || cp "$STUB_CHANGED" "$copy"
@@ -550,6 +555,17 @@ tests required=3 ok=1' "FAIL $name (tests)"
   check ignored-run-fails FAIL 'refusals expected=19 ok=0' "FAIL $name (tests)"
   STUB_CHANGE=list
   check list-run-changes-the-tree FAIL "FAIL $name (tests)"
+
+  stub_case a-test-writes-the-counted-lines
+  printf '     Running tests/refusal_spend.rs (target/debug/deps/refusal_spend-0123456789abcdef)\nrefusal_no_hold: test\n' \
+    >"$STUB_DIR/ignored-halvo-route.txt" || exit 2
+  variant 's/^test refusal_no_hold \.\.\. ok$/test refusal_no_hold ... ignored/' "$work/stub/exact-halvo-route.txt" "$STUB_DIR/exact-halvo-route.txt"
+  printf '     Running tests/sequences_same.rs (target/debug/deps/sequences_same-0123456789abcdef)\nsequences_same: test\n' \
+    >"$STUB_DIR/ignored-halvo-route-gate.txt" || exit 2
+  variant 's/^test sequences_same \.\.\. ok$/test sequences_same ... ignored/' "$work/stub/exact-halvo-route-gate.txt" "$STUB_DIR/exact-halvo-route-gate.txt"
+  STUB_CHANGE=bound
+  check a-test-writes-the-counted-lines FAIL 'refusals expected=19 ok=18
+tests required=3 ok=2' "FAIL $name (tests)"
   STUB_CHANGE=exact
   check bound-run-changes-the-tree FAIL "FAIL $name (tests)"
 }
