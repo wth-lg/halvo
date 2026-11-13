@@ -182,6 +182,48 @@ fn a_child_with_none_of_the_account_variables_prints_the_parents_lock_path() {
     assert!(got == parent, "the child's lock path is not the parent's");
 }
 
+#[test]
+fn the_lock_path_is_the_path_below_the_accounts_own_directory() {
+    let path = model_lock_path().unwrap();
+    let below: PathBuf = if cfg!(windows) {
+        ["halvo", "model.lock"].iter().collect()
+    } else {
+        ["Library", "Caches", "halvo", "model.lock"]
+            .iter()
+            .collect()
+    };
+    assert!(path.ends_with(&below), "the path below the base changed");
+    let base = path
+        .ancestors()
+        .nth(below.components().count())
+        .unwrap()
+        .to_path_buf();
+    if cfg!(target_os = "macos") {
+        let output = Command::new("/usr/bin/id").arg("-P").output().unwrap();
+        let entry = String::from_utf8(output.stdout).unwrap();
+        let home = entry.trim_end().split(':').nth(8).map(PathBuf::from);
+        assert_eq!(
+            home.as_ref(),
+            Some(&base),
+            "the base is not the home directory of the account's entry"
+        );
+    }
+    if on_a_hosted_runner() {
+        let name = if cfg!(windows) {
+            "LOCALAPPDATA"
+        } else {
+            "HOME"
+        };
+        let agree = std::env::var_os(name).map(PathBuf::from) == Some(base);
+        say(&format!(
+            "model-lock path: the base and the variable that builds before the change read agree: {agree}"
+        ));
+        assert!(agree, "the base is not the directory that {name} names");
+    } else {
+        say("model-lock path: the base is not compared with the variable here, because only on a hosted runner is the variable known to hold the account's directory");
+    }
+}
+
 fn on_a_hosted_runner() -> bool {
     std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true")
         && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted")
