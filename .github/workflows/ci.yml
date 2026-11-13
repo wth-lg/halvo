@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,51 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 55-r5-routine
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 55-r5-routine
+      - name: Rounds of the unit's tests
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          list="$RUNNER_TEMP/u52-artifacts.json"
+          cargo test --workspace --locked --no-run --message-format=json >"$list" 2>"$RUNNER_TEMP/u52-no-run.txt" || { echo "rounds build=failed"; exit 1; }
+          pick() { grep "halvo-learn-gate" "$list" | grep "\"name\":\"$1\"" | grep -o '"executable":"[^"]*deps[^"]*"' | head -n 1 | sed -e 's/^"executable":"//' -e 's/"$//' -e 's#\\\\#/#g'; }
+          unit=$(pick learn-gate) || unit=
+          if [ -z "$unit" ]; then echo "rounds binaries=missing"; exit 1; fi
+          names="tests::routine::routine_usage_refusals_name_routine_among_the_commands
+          tests::routine::routine_a_figure_changed_on_a_quiet_day_alone_differs_on_that_day_in_both_streams
+          tests::routine::routine_a_figure_changed_on_day_730_alone_differs_on_day_730_in_both_streams
+          tests::routine::routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses
+          tests::routine::routine_reader_refuses_each_line_that_is_not_l7_2s_form_byte_for_byte
+          tests::routine::routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1
+          tests::routine::routine_a_failed_play_names_its_own_train_at_an_even_and_an_odd_place
+          tests::routine::routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_its_result
+          tests::routine::routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_expiry"
+          set -- $names
+          wanted=$#
+          counts="$RUNNER_TEMP/u52-counts.txt"
+          : >"$counts"
+          start=$(date +%s)
+          round=1
+          while [ "$round" -le 200 ]; do
+            out="$RUNNER_TEMP/u52-round.txt"
+            "$unit" --exact --test-threads 4 "$@" >"$out" 2>&1
+            code=$?
+            grep -o '^test tests::routine::[a-z0-9_]* \.\.\. ok$' "$out" | sed -e 's/^test //' -e 's/ \.\.\. ok$//' >>"$counts"
+            ran=$(grep -c '^test tests::routine::[a-z0-9_]* \.\.\. ok$' "$out") || ran=0
+            if [ "$code" -ne 0 ] || [ "$ran" -ne "$wanted" ]; then
+              echo "rounds failed_round=$round passed_rounds=$((round - 1)) of=200 ran=$ran of=$wanted"
+              cat "$out"
+              exit 1
+            fi
+            if [ "$round" -eq 1 ]; then echo "round seconds=$(( $(date +%s) - start )) tests=$wanted"; fi
+            if [ $(( $(date +%s) - start )) -ge 1140 ]; then break; fi
+            round=$((round + 1))
+          done
+          sort "$counts" | uniq -c | awk '{ print "passes " $2 " " $1 }'
+          echo "rounds passed=$((round > 200 ? 200 : round)) of=200 seconds=$(( $(date +%s) - start )) tests=$wanted"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +159,51 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 55-r5-routine
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 55-r5-routine
+      - name: Rounds of the unit's tests
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          list="$RUNNER_TEMP/u52-artifacts.json"
+          cargo test --workspace --locked --no-run --message-format=json >"$list" 2>"$RUNNER_TEMP/u52-no-run.txt" || { echo "rounds build=failed"; exit 1; }
+          pick() { grep "halvo-learn-gate" "$list" | grep "\"name\":\"$1\"" | grep -o '"executable":"[^"]*deps[^"]*"' | head -n 1 | sed -e 's/^"executable":"//' -e 's/"$//' -e 's#\\\\#/#g'; }
+          unit=$(pick learn-gate) || unit=
+          if [ -z "$unit" ]; then echo "rounds binaries=missing"; exit 1; fi
+          names="tests::routine::routine_usage_refusals_name_routine_among_the_commands
+          tests::routine::routine_a_figure_changed_on_a_quiet_day_alone_differs_on_that_day_in_both_streams
+          tests::routine::routine_a_figure_changed_on_day_730_alone_differs_on_day_730_in_both_streams
+          tests::routine::routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses
+          tests::routine::routine_reader_refuses_each_line_that_is_not_l7_2s_form_byte_for_byte
+          tests::routine::routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1
+          tests::routine::routine_a_failed_play_names_its_own_train_at_an_even_and_an_odd_place
+          tests::routine::routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_its_result
+          tests::routine::routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_expiry"
+          set -- $names
+          wanted=$#
+          counts="$RUNNER_TEMP/u52-counts.txt"
+          : >"$counts"
+          start=$(date +%s)
+          round=1
+          while [ "$round" -le 200 ]; do
+            out="$RUNNER_TEMP/u52-round.txt"
+            "$unit" --exact --test-threads 4 "$@" >"$out" 2>&1
+            code=$?
+            grep -o '^test tests::routine::[a-z0-9_]* \.\.\. ok$' "$out" | sed -e 's/^test //' -e 's/ \.\.\. ok$//' >>"$counts"
+            ran=$(grep -c '^test tests::routine::[a-z0-9_]* \.\.\. ok$' "$out") || ran=0
+            if [ "$code" -ne 0 ] || [ "$ran" -ne "$wanted" ]; then
+              echo "rounds failed_round=$round passed_rounds=$((round - 1)) of=200 ran=$ran of=$wanted"
+              cat "$out"
+              exit 1
+            fi
+            if [ "$round" -eq 1 ]; then echo "round seconds=$(( $(date +%s) - start )) tests=$wanted"; fi
+            if [ $(( $(date +%s) - start )) -ge 1140 ]; then break; fi
+            round=$((round + 1))
+          done
+          sort "$counts" | uniq -c | awk '{ print "passes " $2 " " $1 }'
+          echo "rounds passed=$((round > 200 ? 200 : round)) of=200 seconds=$(( $(date +%s) - start )) tests=$wanted"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
