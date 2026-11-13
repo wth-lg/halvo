@@ -2302,8 +2302,19 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
     for order in ORDERS {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
+        let tried = c.ports().ports.tried.borrow().len();
         assert_eq!(c.answer(&item, Choice::Done, None), Ok(()), "{order:?}");
         assert_eq!(closing_rows(&c, &item), 1, "{order:?}: one item_answered");
+        if order == support::Loss::Reply {
+            let refused = c.ports().ports.tried.borrow()[tried..]
+                .iter()
+                .filter(|t| matches!(t.call, Call::Log(_)) && t.refused.is_some())
+                .count();
+            assert_eq!(
+                refused, 0,
+                "the ledger took the row that the read right after the call brought"
+            );
+        }
         assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{order:?}");
         assert_eq!(
             row_line(&c.snapshot(), 0),
@@ -2642,4 +2653,31 @@ fn a_switch_off_whose_lapse_lost_its_reply_leaves_one_closing_row_at_the_runners
         Ok(())
     );
     assert_eq!(closing_rows(&c, &item), 1);
+}
+
+#[test]
+fn a_stop_after_an_answer_whose_row_was_stored_and_whose_handback_failed_stores_no_lapse() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerHandback, PortError::NoService);
+    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+    c.ports().ports.clear_refusals();
+    assert_eq!(
+        closing_rows(&c, &item),
+        1,
+        "the answer is stored and acknowledged"
+    );
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert_eq!(
+        closing_rows(&c, &item),
+        1,
+        "no item_lapsed beside the stored answer"
+    );
+    assert_eq!(cancels_of(&c, m, &run), 1);
 }
