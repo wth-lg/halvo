@@ -829,6 +829,130 @@ pub(crate) mod tests {
         }
     }
 
+    fn keystroke(app: &str) -> Packet {
+        Packet {
+            kind: Modality::Keystroke,
+            app: app.to_string(),
+            byte_len: 2,
+            tick: now_tick(),
+        }
+    }
+
+    fn wait_for(mut done: impl FnMut() -> bool) {
+        while !done() {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn within(limit: Duration, body: impl FnOnce() + Send + 'static) {
+        let (done, finished) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            body();
+            let _ = done.send(());
+        });
+        match finished.recv_timeout(limit) {
+            Ok(()) => worker.join().expect("the test body"),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                if let Err(payload) = worker.join() {
+                    std::panic::resume_unwind(payload);
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                panic!("the test did not end within {limit:?}")
+            }
+        }
+    }
+
+    fn quiet_pump() -> Result<PumpHandle, CaptureError> {
+        spawn_pump("halvo-pump-quiet".to_string(), |ready, signal| {
+            ensure_message_queue();
+            ready.report(Ok(()));
+            pump_messages(&signal);
+        })
+    }
+
+    #[test]
+    fn packets_that_a_stopped_run_held_do_not_arrive_after_a_barrier_drawn_after_the_stop() {
+        within(Duration::from_secs(60), || {
+            let (sink, writer) = crate::sink::channel(1);
+            assert!(forward_one(&sink, keystroke("filler")).is_ok());
+            let ctx = SourceContext::new(sink.clone());
+            let mut life = Lifecycle::default();
+            life.begin(&ctx, "halvo-test-forward-1", |producer| {
+                for i in 1..=5 {
+                    producer.push(keystroke(&format!("old-{i}")));
+                }
+                producer.push_motion(pointer("old-motion"));
+                quiet_pump()
+            })
+            .expect("the first run");
+            wait_for(|| life.handoff.as_ref().is_some_and(|h| h.queued() == 4));
+            let first_stop = life.shutdown();
+            let lost_at_the_stop = life.handoff_counts().lost;
+            let filler = writer.recv().expect("the filler");
+            wait_for(|| sink.counts().of(Modality::Keystroke).accepted >= 2);
+            let barrier = writer.barrier();
+            life.begin(&ctx, "halvo-test-forward-2", |producer| {
+                producer.push(keystroke("new-1"));
+                producer.push(keystroke("new-2"));
+                quiet_pump()
+            })
+            .expect("the second run");
+            let mut arrivals = Vec::new();
+            let new_arrived = |arrivals: &Vec<(String, bool)>| {
+                arrivals
+                    .iter()
+                    .filter(|(app, _)| app.starts_with("new-"))
+                    .count()
+            };
+            while new_arrived(&arrivals) < 2 {
+                let received = writer
+                    .recv_timeout(Duration::from_secs(3_600))
+                    .expect("an event");
+                arrivals.push((
+                    received.event().foreground_app.clone(),
+                    received.is_before(barrier),
+                ));
+            }
+            let second_stop = life.shutdown();
+            drop((life, ctx, sink));
+            while let Ok(received) = writer.recv_timeout(Duration::from_secs(3_600)) {
+                arrivals.push((
+                    received.event().foreground_app.clone(),
+                    received.is_before(barrier),
+                ));
+            }
+            let old_after: Vec<&str> = arrivals
+                .iter()
+                .filter(|(app, before)| app.starts_with("old-") && !before)
+                .map(|(app, _)| app.as_str())
+                .collect();
+            let first_new = arrivals
+                .iter()
+                .position(|(app, _)| app.starts_with("new-"))
+                .expect("a packet of the second run");
+            let old_after_a_new = arrivals[first_new..]
+                .iter()
+                .filter(|(app, _)| app.starts_with("old-"))
+                .count();
+            assert_eq!(
+                old_after.len(),
+                1,
+                "{} packets of the stopped run arrive after the barrier: {arrivals:?}",
+                old_after.len()
+            );
+            assert_eq!(old_after, ["old-1"], "{arrivals:?}");
+            assert_eq!(old_after_a_new, 0, "{arrivals:?}");
+            assert_eq!(filler.foreground_app, "filler");
+            assert_eq!(first_stop, Ok(()));
+            assert_eq!(second_stop, Ok(()));
+            assert_eq!(
+                lost_at_the_stop, 5,
+                "the four queued packets and the pending sample"
+            );
+        });
+    }
+
     #[test]
     fn a_full_queue_drops_a_packet_and_counts_it_lost() {
         let (sink, _writer) = crate::sink::channel(1);
