@@ -1096,6 +1096,117 @@ mod tests {
         assert!(client.status().is_ok());
     }
 
+    fn capture(status: &DaemonStatus) -> crate::proto::Capture {
+        status.fields().capture
+    }
+
+    fn pausing(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Pausing;
+        f.capture_reason = None;
+        stop_all(f);
+        f.sources[2].state = crate::proto::SourceState::Failed {
+            reason: crate::proto::Reason::Timeout,
+            error: None,
+        };
+    }
+
+    #[test]
+    fn once_capture_reads_pausing_a_claim_a_pause_and_a_resume_read_pausing_and_start_no_source() {
+        let (client, _) = client(scripted(|f| {
+            f.lease = crate::proto::Lease::Lapsed;
+            pausing(f);
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&claimed), 0);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&resumed), 0);
+        let paused = client.pause().unwrap();
+        assert_eq!(capture(&paused), crate::proto::Capture::Pausing);
+        let stored = client.status().unwrap();
+        assert_eq!(capture(&stored), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&stored), 0);
+    }
+
+    #[test]
+    fn a_second_pause_while_capture_reads_pausing_prints_pausing_the_c2_5_line_and_exit_1() {
+        let (client, _) = client(scripted(|f| {
+            f.desired = crate::model::CaptureState::Paused;
+            pausing(f);
+        }));
+        let reply = client.pause().unwrap();
+        assert_eq!(capture(&reply), crate::proto::Capture::Pausing);
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Pause,
+            Ok(Reply::CaptureChanged(reply)),
+            &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+        );
+        assert_eq!(printed.stdout, "capture=pausing\n");
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: capture did not stop in time; the capture service is ending\n"
+        );
+        assert_eq!(printed.status, 1);
+    }
+
+    fn held(f: &mut crate::proto::StatusFields) {
+        lapsed(f);
+        f.capture = crate::proto::Capture::AwaitingResume;
+    }
+
+    #[test]
+    fn a_claim_on_awaiting_resume_renews_the_lease_starts_no_source_and_keeps_the_hold() {
+        let (client, _) = client(scripted(held));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().lease, crate::proto::Lease::Fresh);
+        assert_eq!(capture(&claimed), crate::proto::Capture::AwaitingResume);
+        assert_eq!(running_sources(&claimed), 0);
+        assert_eq!(
+            capture(&client.status().unwrap()),
+            crate::proto::Capture::AwaitingResume
+        );
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+        assert_eq!(resumed, sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn the_hold_reads_paused_under_a_pause_and_the_resume_that_ends_the_pause_clears_it() {
+        let (client, _) = client(scripted(held));
+        let paused = client.pause().unwrap();
+        assert_eq!(capture(&paused), crate::proto::Capture::Paused);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::NoIndicator);
+        assert_eq!(running_sources(&resumed), 0);
+        assert_eq!(
+            capture(&client.status().unwrap()),
+            crate::proto::Capture::NoIndicator
+        );
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
+    }
+
+    #[test]
+    fn a_resume_restarts_a_stream_the_person_stopped_and_a_claim_does_not() {
+        let user_stopped = crate::proto::SourceState::Stopped { by_user: true };
+        let (client, _) = client(scripted(|f| {
+            f.enabled_sources
+                .insert(1, crate::proto::SourceName::Screen);
+            lapsed(f);
+            f.sources[1].state = user_stopped.clone();
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().sources[1].state, user_stopped);
+        assert_eq!(capture(&claimed), crate::proto::Capture::Partial);
+        let resumed = client.resume().unwrap();
+        assert_eq!(
+            resumed.fields().sources[1].state,
+            crate::proto::SourceState::Running
+        );
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+    }
+
     #[test]
     fn in_the_scripted_daemon_a_claim_on_a_paused_status_with_a_lapsed_lease_renews_the_lease() {
         let (client, _) = client(scripted(|f| {
