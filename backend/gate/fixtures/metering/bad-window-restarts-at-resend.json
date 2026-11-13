@@ -8,7 +8,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search, setting 5, faults ["
+    "first failure: the test \"case 10: a request truly lost, then a refusal that stays: rounds inside the window count nothing"
   ],
   "args": [
     "--seeds",
