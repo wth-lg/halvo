@@ -403,3 +403,81 @@ fn a_runner_that_closes_its_output_gets_link_end_to_end_by_itself_before_the_lib
     assert!(gone(runner[0].0, runner[0].1));
     assert!(closed.elapsed() >= link_end - Duration::from_millis(1600));
 }
+
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn waitid(idtype: i32, id: u32, info: *mut std::ffi::c_void, options: i32) -> i32;
+    fn proc_pidinfo(
+        pid: i32,
+        flavor: i32,
+        arg: u64,
+        buffer: *mut std::ffi::c_void,
+        size: i32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+struct OwnChild(std::process::Child);
+
+#[cfg(target_os = "macos")]
+impl Drop for OwnChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn table_row(pid: u32) -> bool {
+    let mut buf = [0u8; 136];
+    let pid = i32::try_from(pid).unwrap();
+    unsafe { proc_pidinfo(pid, 3, 0, buf.as_mut_ptr().cast(), 136) == 136 }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_table_holds_no_row_of_a_process_that_has_exited_whether_or_not_it_is_reaped() {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    let mut cmd = Command::new(common::peer());
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0);
+    let mut child = OwnChild(cmd.spawn().unwrap());
+    let pid = child.0.id();
+    let mut running_reads = 0u32;
+    let mut first = None;
+    let deadline = std::time::Instant::now() + SHORT;
+    while let Some(created) = process::creation_time(pid) {
+        first.get_or_insert(created);
+        running_reads += 1;
+        if std::time::Instant::now() > deadline {
+            break;
+        }
+    }
+    let mut info = [0u64; 16];
+    let waited = unsafe { waitid(1, pid, info.as_mut_ptr().cast(), 0x04 | 0x20) };
+    let unreaped = (
+        table_row(pid),
+        process::creation_time(pid),
+        first.is_some_and(|c| process::is_running(pid, c)),
+    );
+    let status = child.0.wait().unwrap();
+    let reaped = (
+        table_row(pid),
+        process::creation_time(pid),
+        first.is_some_and(|c| process::is_running(pid, c)),
+    );
+    println!(
+        "exit-read running_reads={running_reads} unreaped_row={} unreaped_creation_time={} reaped_row={} reaped_creation_time={}",
+        unreaped.0,
+        unreaped.1.is_some(),
+        reaped.0,
+        reaped.1.is_some()
+    );
+    assert_eq!(waited, 0);
+    assert_eq!(status.code(), Some(64));
+    assert_eq!(unreaped, (false, None, false));
+    assert_eq!(reaped, (false, None, false));
+}
