@@ -1496,6 +1496,8 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
       printf 'include!("../../../../outside/code.rs");\n' >>"$fixture/account/crates/probe/src/lib.rs"
       run_case moved-tree-with-an-outside-include "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
     fi
+  elif ! takes_case moved-tree-with-an-outside-include; then
+    left_out moved-tree-with-an-outside-include
   fi
   want_dep_info=1
   if real_build source-put-right && make_probe_fixture source-put-right 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' && build_probe &&
