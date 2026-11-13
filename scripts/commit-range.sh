@@ -15,7 +15,7 @@ commit_range_default_ref() {
 # Prints the default branch of <remote> as this clone last fetched it: the
 # branch that refs/remotes/<remote>/HEAD names, or refs/remotes/<remote>/main.
 # When that names no commit, prints <default ref> if it names a commit, and
-# otherwise nothing. A push to a URL has no such branch of its own.
+# otherwise nothing.
 commit_range_default_of_remote() {
   commit_range_ref=$(git symbolic-ref -q "refs/remotes/$1/HEAD" 2>/dev/null) || commit_range_ref=refs/remotes/$1/main
   git rev-parse -q --verify "$commit_range_ref^{commit}" >/dev/null 2>&1 || commit_range_ref=$2
@@ -27,9 +27,8 @@ commit_range_default_of_remote() {
 # commit_range <exempt commit> <revision>...
 # Prints the commits that git rev-list <revision>... lists, oldest first, one
 # full id on each line. When <exempt commit> is not empty and this clone holds
-# it, that commit and the commits that it reaches are left out. Each check reads
-# each printed commit: a commit against its parent, a root commit against the
-# empty tree, and a merge for what stands in none of its parents. Returns 2
+# it, that commit and the commits that it reaches are left out.
+# Returns 2
 # when git cannot list the commits.
 commit_range() {
   commit_range_exempt=$1
@@ -43,7 +42,6 @@ commit_range() {
 # commit_range_read_push_line <line>
 # Reads one line that git writes to the standard input of a pre-push hook into
 # push_local_ref, push_local_object, push_remote_ref and push_remote_object.
-# Returns 1 when the line does not end in two object ids.
 commit_range_read_push_line() {
   push_remote_object=${1##* }
   commit_range_rest=${1% *}
@@ -55,7 +53,7 @@ commit_range_read_push_line() {
 }
 
 # commit_range_push_label
-# Prints the name of the push of the line read last, as both checks print it.
+# Prints the name of the push of the line read last.
 commit_range_push_label() {
   printf 'push of %s to %s\n' "$push_local_ref" "$push_remote_ref"
 }
