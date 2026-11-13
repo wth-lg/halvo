@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "sql.exec(\"UPDATE metering_account SET cut_kind = ?\", \"delete\");",
+      "replace": "sql.exec(\"UPDATE metering_account SET cut_kind = ?, carry = carry + COALESCE(written_off, 0), written_off = NULL\", \"delete\");"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "30"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 30, faults []: the amount written off changed"
+  ]
+}

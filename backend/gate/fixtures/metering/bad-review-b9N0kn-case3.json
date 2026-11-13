@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "now < interval.firstAttempt + UNIQUENESS_WINDOW_MS - margin;",
+      "replace": "now < interval.firstAttempt + UNIQUENESS_WINDOW_MS - (interval.refusals > 0 ? 0 : margin);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "21"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 21, faults [",
+    "the provider-side total passes the reported total"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "const total = BigInt(reported) + BigInt(a.carry);",
+      "replace": "const total = BigInt(reported) + BigInt(a.carry === 0 ? (a.writtenOff ?? 0) : a.carry);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "29"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 29, faults []: a carry after the write-off"
+  ]
+}

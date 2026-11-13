@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "identifier: interval.identifier, amountMinor",
+      "replace": "identifier: interval.refusals === 0 ? interval.identifier : `${interval.identifier}:r${interval.refusals}`, amountMinor"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "21"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 21, faults [{\"kind\":\"refused\"}]: the equation with a remainder under one minor unit"
+  ]
+}

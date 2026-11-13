@@ -9,5 +9,11 @@
   "line": [
     "FAIL metering: ",
     "first failure: the fault-sequence search, setting 1, faults []: the equation with a remainder under one minor unit"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "1"
   ]
 }

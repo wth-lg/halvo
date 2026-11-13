@@ -8,5 +8,11 @@
   ],
   "line": [
     "FAIL metering: "
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
   ]
 }

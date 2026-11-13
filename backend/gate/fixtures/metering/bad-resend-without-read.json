@@ -9,5 +9,11 @@
   "line": [
     "FAIL metering: ",
     "the provider-side total passes the reported total"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
   ]
 }

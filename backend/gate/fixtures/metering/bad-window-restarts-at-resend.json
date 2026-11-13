@@ -8,6 +8,12 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search"
+    "first failure: the fault-sequence search, setting 5, faults ["
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "5"
   ]
 }

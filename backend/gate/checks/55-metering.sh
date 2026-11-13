@@ -3,7 +3,7 @@ set -u
 ROOT=${HALVO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd -P)}
 . "$ROOT/scripts/env.sh"
 FIXTURES="$ROOT/gate/fixtures/metering"
-SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings 2000 --settings 0}
+SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings 2000 --settings 24,25,26,27,28,29,30,31,32}
 
 check_in() {
   dir=$1
@@ -25,6 +25,23 @@ scratch_copy() {
   ln -s "$ROOT/node_modules" "$copy/node_modules"
   ln -s "$ROOT/.tools" "$copy/.tools"
   printf '%s\n' "$copy"
+}
+
+checkout_copy() {
+  top=$(git -C "$ROOT" rev-parse --show-toplevel) || return 1
+  head=$(git -C "$ROOT" rev-parse HEAD) || return 1
+  below=${ROOT#"$top"}
+  base=$(mktemp -d "$STATE/metering-checkout-$1.XXXXXX") || return 1
+  git clone -q --shared --no-checkout "$top" "$base/repo" || return 1
+  git -C "$base/repo" checkout -q --detach "$head" || return 1
+  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) | tar -xf - -C "$base/repo$below" || return 1
+  ln -s "$ROOT/node_modules" "$base/repo$below/node_modules"
+  ln -s "$ROOT/.tools" "$base/repo$below/.tools"
+  printf '%s\n' "$base/repo$below"
+}
+
+field() {
+  node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).$2 ?? ''" "$1"
 }
 
 in_the_copy() {
@@ -75,8 +92,13 @@ expect good checkout "$ROOT" $SELF_TEST_ARGS || failed=1
 for mutant in "$FIXTURES"/bad-*.json; do
   [ -f "$mutant" ] || continue
   fixture=$(basename "$mutant" .json)
+  [ -z "${METERING_SELF_TEST_ONLY:-}" ] || [ "$fixture" = "$METERING_SELF_TEST_ONLY" ] || continue
   want=$(node -p '[JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).line].flat().join("\n")' "$mutant")
-  copy=$(scratch_copy "$fixture") || {
+  if [ "$(field "$mutant" checkout)" = true ]; then
+    copy=$(checkout_copy "$fixture")
+  else
+    copy=$(scratch_copy "$fixture")
+  fi || {
     echo "self-test metering: bad $fixture: the scratch copy could not be made"
     failed=1
     continue
@@ -91,6 +113,15 @@ for mutant in "$FIXTURES"/bad-*.json; do
     [ "$arg" = - ] && arg=
     set -- "$@" "$arg"
   done
-  expect bad "$fixture" "$copy" "$@" || failed=1
+  if [ "$(field "$mutant" control)" = wrong-text ]; then
+    if expect bad "$fixture" "$copy" "$@"; then
+      echo "self-test metering: control $fixture: a wrong expected text read as expected"
+      failed=1
+    else
+      echo "self-test metering: control $fixture: the wrong expected text is refused, as it must be"
+    fi
+  else
+    expect bad "$fixture" "$copy" "$@" || failed=1
+  fi
 done
 exit "$failed"

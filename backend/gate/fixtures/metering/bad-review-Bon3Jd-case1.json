@@ -1,0 +1,21 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "if (answer.totalMinor !== others) return { call: null, notBillable: 0 };",
+      "replace": "if (answer.totalMinor < others) return { call: null, notBillable: 0 };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "23"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 23, faults [",
+    "crash-after-call",
+    "a read the sync cannot explain"
+  ]
+}

@@ -76,19 +76,16 @@ function runJobs(jobs) {
   return new Promise((resolve) => {
     const results = new Map();
     const queue = [...jobs];
-    let stopped = false;
     let alive = 0;
-    const children = new Set();
     const finish = () => {
       if (alive === 0) resolve(results);
     };
     const start = () => {
       const child = fork(join(HERE, "worker.mjs"), [], { cwd: ROOT, stdio: ["ignore", "inherit", "inherit", "ipc"] });
       alive += 1;
-      children.add(child);
       let current = null;
       const next = () => {
-        current = stopped ? undefined : queue.shift();
+        current = queue.shift();
         if (current === undefined) {
           child.send({ kind: "exit" });
           return;
@@ -103,18 +100,12 @@ function runJobs(jobs) {
         results.set(message.id, message);
         const failure = message.error ?? message.result?.failure?.check ?? null;
         console.error(`  job ${message.id} ended after ${message.result?.seconds?.toFixed(1) ?? "?"} s: ${failure === null ? "every check passed" : failure}`);
-        const failed = message.error !== undefined || message.result?.failure !== null;
         current = null;
-        if (failed && !stopped) {
-          stopped = true;
-          for (const other of children) if (other !== child) other.kill("SIGTERM");
-        }
         next();
       });
       child.on("exit", (code, signal) => {
         alive -= 1;
-        children.delete(child);
-        if (current !== null && current !== undefined && !results.has(current.id) && !stopped) {
+        if (current !== null && current !== undefined && !results.has(current.id)) {
           results.set(current.id, { id: current.id, error: `the worker ended with ${signal ?? `exit ${code}`} during the job` });
         }
         finish();
@@ -187,6 +178,8 @@ async function rule() {
   tokens.voided = String(coverage["hold.voided-at-expiry"] ?? 0);
   tokens.sequences = String(passedSequences);
   tokens.settings = `${searched} of ${settings.length}`;
+  note(`failing jobs: ${failures.length}`);
+  for (const failure of failures) note(`  ${failure}`);
   if (failures.length > 0) fail(failures[0]);
   else if (seeds.length > 0 && orderings > 0 && tokens.voided === "0") {
     fail("no generated ordering voided a hold at its expiry, so the line did not test that such a hold counts nothing");

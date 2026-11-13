@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "sql.exec(\"UPDATE metering_account SET cut_at = ?\", second);",
+      "replace": "sql.exec(\"UPDATE metering_account SET cut_at = ?\", second);\n      sql.exec(\"UPDATE metering_interval SET outcome = NULL, first_attempt = NULL, identifier = identifier || ':' || ? WHERE sealed_at IS NOT NULL AND amount > 0 AND end_at > ?\", seconds(second), second);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults []: the provider-side total passes the reported total"
+  ]
+}
