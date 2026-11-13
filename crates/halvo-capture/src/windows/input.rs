@@ -348,12 +348,29 @@ const GATE_POLL_MS: u32 = 15;
 /// is still undecided at a stop is withheld like a key that the gate withheld,
 /// and no number counts it (W3-7 Q1 (c)).
 fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
-    let now = super::now_tick();
-    let front = foreground_thread();
+    release_held_at(
+        gate,
+        producer,
+        at_stop,
+        (super::now_tick(), foreground_thread()),
+        crate::secure_input::windows::focus_window_is_password_edit,
+    );
+}
+
+/// [`release_held`] at the tick and with the thread in front that `at`
+/// gives, reading the style of the native edit under the focus through
+/// `password_edit_now`.
+fn release_held_at(
+    gate: &mut GateState,
+    producer: &Producer,
+    at_stop: bool,
+    (now, front): (u32, u32),
+    password_edit_now: fn() -> bool,
+) {
     while let Some((key, _, _)) = gate.held.front() {
         let held_out =
             now.wrapping_sub(key.tick()) >= ms_of(crate::secure_input::windows::KEY_HOLD);
-        let edit_now = held_out && crate::secure_input::windows::focus_window_is_password_edit();
+        let edit_now = held_out && password_edit_now();
         let answer = gate.gate.decide(key, now, front, edit_now);
         if answer.is_none() && !at_stop {
             break;
@@ -418,7 +435,17 @@ pub mod seam {
         pub decided_tick: u32,
     }
 
-    static DECIDED: Mutex<Vec<Decided>> = Mutex::new(Vec::new());
+    /// The most decisions that the seam keeps for a reader; an older one is
+    /// dropped first.
+    pub const KEPT: usize = 4096;
+
+    static DECIDED: Mutex<std::collections::VecDeque<Decided>> =
+        Mutex::new(std::collections::VecDeque::new());
+
+    /// The marker of a build with the seam (ruling W3-8 (b) (3)): a byte
+    /// string that stands in a build with the feature test-seam and in no
+    /// build without it, so that a check can read a built file for it.
+    pub static MARKER: [u8; 42] = *b"halvo-capture:test-seam:this-build-has-it!";
 
     pub(super) fn note(
         vkey: u16,
@@ -433,21 +460,27 @@ pub mod seam {
             Some((Err(Withheld::Active), _)) => Verdict::WithheldPassword,
             Some((Err(Withheld::Unknown), _)) => Verdict::WithheldUnknown,
         };
-        DECIDED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(Decided {
-                class: super::class_of(vkey),
-                verdict,
-                rule: answer.as_ref().map(|(_, rule)| *rule),
-                os_tick,
-                decided_tick,
-            });
+        std::hint::black_box(&MARKER);
+        let mut decided = DECIDED.lock().unwrap_or_else(PoisonError::into_inner);
+        if decided.len() == KEPT {
+            decided.pop_front();
+        }
+        decided.push_back(Decided {
+            class: super::class_of(vkey),
+            verdict,
+            rule: answer.as_ref().map(|(_, rule)| *rule),
+            os_tick,
+            decided_tick,
+        });
     }
 
-    /// The keys decided since the last call, oldest first.
+    /// The keys decided since the last call, oldest first, at most
+    /// [`KEPT`] of them. Nothing of the gate reads them: the seam is read
+    /// by a test alone and printed by nothing of the crate.
     pub fn take() -> Vec<Decided> {
         std::mem::take(&mut *DECIDED.lock().unwrap_or_else(PoisonError::into_inner))
+            .into_iter()
+            .collect()
     }
 }
 
@@ -1956,6 +1989,97 @@ mod tests {
             late_300.0
         );
         assert!(late_300.1, "keys_withheld did not read yes");
+    }
+
+    /// Runs a drawn sequence of marks and keys through a gate with the
+    /// release of the keyboard pump and answers the apps of the keys that it
+    /// recorded and the withheld flag. With `read_the_seam` a reader takes
+    /// the seam after every release.
+    fn drawn_sequence(seed: u64, read_the_seam: bool) -> (Vec<String>, bool) {
+        use crate::secure_input::windows::FieldState;
+        let (mut state, handoff, writer) = lag_rig();
+        let producer = handoff.producer();
+        let front = 7;
+        let mut draw = seed;
+        let mut next = move || {
+            draw = draw
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (draw >> 33) as u32
+        };
+        let state_of = |r: u32| match r % 10 {
+            8 => FieldState::Password,
+            9 => FieldState::Unknown,
+            _ => FieldState::Clear,
+        };
+        let mut tick = 10_000u32;
+        state.gate.read_at(tick, FieldState::Clear, None);
+        for key in 0..400u32 {
+            let r = next();
+            tick = tick.wrapping_add(r % 15);
+            match (r >> 8) % 20 {
+                0 => state.gate.field_at(tick, state_of(r >> 12)),
+                1..=8 => state
+                    .gate
+                    .read_at(tick, state_of(r >> 12), Some((r >> 16) % 2 == 0)),
+                9 => state.gate.latch(tick),
+                10 => state.gate.latch_after(tick.wrapping_sub(r % 20)),
+                _ => {
+                    let held = state.gate.hold(tick, false, front);
+                    state.held.push_back((
+                        held,
+                        KeyStroke {
+                            vkey: 0x41,
+                            released: false,
+                        },
+                        Some(key.to_string()),
+                    ));
+                }
+            }
+            release_held_at(&mut state, &producer, false, (tick, front), || false);
+            if read_the_seam {
+                let _ = seam::take();
+            }
+        }
+        release_held_at(&mut state, &producer, true, (tick, front), || false);
+        let mut apps = Vec::new();
+        while let Ok(received) = writer.recv_timeout(std::time::Duration::from_millis(300)) {
+            apps.push(received.event().foreground_app.clone());
+        }
+        (apps, state.counts.withheld.load(Ordering::Relaxed))
+    }
+
+    #[test]
+    fn a_gate_with_a_reader_of_the_seam_and_one_without_give_the_same_verdicts() {
+        for seed in [3, 41, 977] {
+            let read = drawn_sequence(seed, true);
+            let unread = drawn_sequence(seed, false);
+            assert!(
+                !read.0.is_empty() && read.1,
+                "the drawn sequence decided too little: {seed}"
+            );
+            assert_eq!(read, unread, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn the_seam_keeps_at_most_its_bound_and_the_test_build_holds_its_marker() {
+        let reversed = b"!ti-sah-dliub-siht:maes-tset:erutpac-ovlah";
+        let needle: Vec<u8> = reversed.iter().rev().copied().collect();
+        let exe = std::env::current_exe().expect("the test executable");
+        let bytes = std::fs::read(exe).expect("read the test executable");
+        let holds = bytes
+            .windows(needle.len())
+            .any(|window| window == needle.as_slice());
+        assert!(holds, "the test build does not hold the seam's marker");
+        let answer = Some((
+            Err(crate::secure_input::Withheld::Unknown),
+            crate::secure_input::windows::Rule::NotClearedInTime,
+        ));
+        for _ in 0..seam::KEPT + 10 {
+            seam::note(0x41, &answer, 1, 2);
+        }
+        assert!(seam::take().len() <= seam::KEPT);
     }
 
     fn vkey_of(key: crate::floor::cases::Key) -> u16 {
