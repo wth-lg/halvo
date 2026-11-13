@@ -13,6 +13,7 @@ pub mod labels;
 pub mod layers;
 pub mod leak;
 pub mod manifest;
+pub mod mask_layers;
 pub mod rng;
 pub mod script;
 pub mod site_data;

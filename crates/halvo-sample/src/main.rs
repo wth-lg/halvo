@@ -166,6 +166,17 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             }
             halvo_sample::leak::leak(&PathBuf::from(tier), list)
         }
+        "mask-layers" => {
+            let (f, rest) = parse(args, &["--out"], &[])?;
+            let [raw] = rest.as_slice() else {
+                return Err(Refusal::new("usage", "RAW"));
+            };
+            let a = halvo_sample::mask_layers::MaskArgs {
+                out: PathBuf::from(need(&f, "--out")?),
+                raw: PathBuf::from(raw),
+            };
+            halvo_sample::mask_layers::mask_layers(&a).map(done)
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }
