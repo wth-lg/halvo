@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
+import { connect, createServer as createNetServer } from 'node:net';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -106,15 +107,21 @@ function http(port, method, host, path, { headers = {}, body } = {}) {
   });
 }
 
-function startServer(dir, args) {
+function startServer(dir, args, { input = 'pipe', startMs = 15000, throughShellPipe = false } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [join(dir, 'server.mjs'), ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const program = [join(dir, 'server.mjs'), ...args];
+    const child = throughShellPipe
+      ? spawn('sh', ['-c', 'cat | exec "$0" "$@"', process.execPath, ...program], { stdio: [input, 'pipe', 'pipe'], detached: true })
+      : spawn(process.execPath, program, { stdio: [input, 'pipe', 'pipe'], windowsHide: true });
+    child.stdin?.on('error', () => {});
     let out = '';
     let err = '';
     let done = false;
+    let timer = null;
     const finish = (v) => {
       if (!done) {
         done = true;
+        clearTimeout(timer);
         resolve(v);
       }
     };
@@ -125,19 +132,283 @@ function startServer(dir, args) {
     });
     child.stderr.on('data', (d) => (err += d));
     child.on('exit', (code) => finish({ child: null, code, out, err }));
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       child.kill();
       finish({ child: null, code: null, out, err });
-    }, 15000);
+    }, startMs);
     timer.unref();
   });
 }
 
 function stopServer(s) {
   return new Promise((resolve) => {
-    if (!s.child || s.child.exitCode !== null) return resolve();
+    if (!s.child || s.child.exitCode !== null || s.child.signalCode !== null) return resolve();
     s.child.on('exit', () => resolve());
     s.child.kill();
+  });
+}
+
+const GONE_MS = 5000;
+const UNIX = process.platform !== 'win32';
+const CASES_UNIX = 187;
+const CASES_WINDOWS = 185;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
+async function goneBy(pid, deadline) {
+  while (alive(pid)) {
+    if (Date.now() >= deadline) return false;
+    await sleep(50);
+  }
+  return true;
+}
+
+function refused(port) {
+  return new Promise((resolve) => {
+    const sock = connect({ host: '127.0.0.1', port });
+    sock.setTimeout(2000, () => {
+      sock.destroy();
+      resolve(false);
+    });
+    sock.on('connect', () => {
+      sock.destroy();
+      resolve(false);
+    });
+    sock.on('error', (err) => resolve(err.code === 'ECONNREFUSED'));
+  });
+}
+
+function firstLine(stream, ms) {
+  return new Promise((resolve) => {
+    let out = '';
+    const timer = setTimeout(() => resolve(null), ms);
+    stream.on('data', (d) => {
+      out += d;
+      const i = out.indexOf('\n');
+      if (i >= 0) {
+        clearTimeout(timer);
+        resolve(out.slice(0, i));
+      }
+    });
+    stream.on('end', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+  });
+}
+
+function exitWithin(child, ms) {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve({ code: child.exitCode, signal: child.signalCode });
+    const timer = setTimeout(() => resolve(null), ms);
+    child.on('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    });
+  });
+}
+
+const CONTINUE = 'HTTP/1.1 100 Continue\r\n\r\n';
+
+function heldRequest(port) {
+  return new Promise((resolve) => {
+    const sock = connect({ host: '127.0.0.1', port });
+    const held = { sock, got: '', closed: new Promise((r) => sock.on('close', r)) };
+    let timer = null;
+    const done = () => {
+      clearTimeout(timer);
+      resolve(held);
+    };
+    sock.on('error', done);
+    sock.on('data', (d) => {
+      held.got += d;
+      if (held.got.includes('\r\n\r\n')) done();
+    });
+    sock.on('connect', () => {
+      sock.write(`POST /reset HTTP/1.1\r\nHost: ${CONTROL}:${port}\r\nExpect: 100-continue\r\nContent-Length: 100\r\n\r\n`);
+    });
+    timer = setTimeout(done, GONE_MS);
+  });
+}
+
+async function closeInput(c, s, end) {
+  const held = await heldRequest(s.port);
+  try {
+    c.ok(held.got === CONTINUE, 'held_request_taken_in');
+    c.ok(!(await refused(s.port)), 'refused_is_no_while_listening');
+    const deadline = Date.now() + GONE_MS;
+    end();
+    const r = await exitWithin(s.child, GONE_MS);
+    c.ok(r !== null && (await goneBy(s.child.pid, deadline)), 'server_gone_within_5s_with_a_request_in_flight');
+    c.ok(r !== null && r.code === 0, 'exit_0');
+    c.ok(await refused(s.port), 'port_closed');
+    await Promise.race([held.closed, sleep(1000)]);
+    c.ok(held.got === CONTINUE, 'held_request_unanswered_at_the_stop');
+  } finally {
+    held.sock.destroy();
+  }
+}
+
+async function tcpPair() {
+  const srv = createNetServer();
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+  const accepted = new Promise((resolve) => srv.once('connection', resolve));
+  const a = connect({ host: '127.0.0.1', port: srv.address().port });
+  a.on('error', () => {});
+  await new Promise((resolve) => a.once('connect', resolve));
+  const b = await accepted;
+  b.on('error', () => {});
+  srv.close();
+  return { a, b };
+}
+
+async function startParent(input, { group = false } = {}) {
+  const parent = spawn(process.execPath, [join(HERE, 'parent.mjs'), input, '--port', '0'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, detached: group });
+  parent.stdin.on('error', () => {});
+  const h = { parent, exit: new Promise((resolve) => parent.on('exit', resolve)), pid: null, port: null };
+  const m = /^server (\d+) (\d+)$/.exec((await firstLine(parent.stdout, 15000)) || '');
+  if (m) {
+    h.pid = Number(m[1]);
+    h.port = Number(m[2]);
+  }
+  return h;
+}
+
+async function endParent(h) {
+  if (h.parent.exitCode === null && h.parent.signalCode === null) {
+    h.parent.stdin.end();
+    if ((await exitWithin(h.parent, GONE_MS)) === null) {
+      h.parent.kill('SIGKILL');
+      await h.exit;
+    }
+  }
+  if (h.pid !== null && alive(h.pid)) process.kill(h.pid, 'SIGKILL');
+}
+
+async function lifetimeCases() {
+  await run('lifetime-input-closed', async (c) => {
+    const startMs = 5000;
+    const started = Date.now();
+    const s = await startServer(HERE, ['--port', '0'], { startMs });
+    try {
+      if (!c.ok(s.child !== null, 'server_started')) return;
+      s.child.stdin.write('x'.repeat(65536));
+      await sleep(Math.max(1000, started + startMs + 500 - Date.now()));
+      const live = s.child.exitCode === null && s.child.signalCode === null;
+      c.ok(live && (await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_with_data_in_its_input_past_the_start_deadline');
+      await closeInput(c, s, () => s.child.stdin.end());
+    } finally {
+      await stopServer(s);
+    }
+  });
+
+  if (process.platform !== 'win32') {
+    await run('lifetime-anonymous-pipe-behind-sh', async (c) => {
+      const s = await startServer(HERE, ['--port', '0'], { throughShellPipe: true });
+      try {
+        if (!c.ok(s.child !== null, 'server_started')) return;
+        await sleep(1000);
+        c.ok((await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_pipe_open');
+        await closeInput(c, s, () => s.child.stdin.end());
+      } finally {
+        if (s.child !== null && alive(s.child.pid)) process.kill(-s.child.pid, 'SIGKILL');
+      }
+    });
+  }
+
+  if (UNIX) {
+    await run('lifetime-input-reset', async (c) => {
+      const { a, b } = await tcpPair();
+      let s = { child: null };
+      try {
+        s = await startServer(HERE, ['--port', '0'], { input: a });
+        a.destroy();
+        if (!c.ok(s.child !== null, 'server_started')) return;
+        c.ok((await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_input_open');
+        const deadline = Date.now() + GONE_MS;
+        b.resetAndDestroy();
+        const r = await exitWithin(s.child, GONE_MS);
+        c.ok(r !== null && (await goneBy(s.child.pid, deadline)), 'server_gone_within_5s_after_a_reset');
+        c.ok(r !== null && r.code === 0, 'exit_0');
+        c.ok(await refused(s.port), 'port_closed');
+      } finally {
+        a.destroy();
+        b.destroy();
+        await stopServer(s);
+      }
+    });
+  }
+
+  await run('lifetime-parent-killed', async (c) => {
+    const h = await startParent('pipe');
+    try {
+      if (!c.ok(h.pid !== null, 'server_started')) return;
+      c.ok((await http(h.port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_parent_lives');
+      const deadline = Date.now() + GONE_MS;
+      c.ok(h.parent.kill('SIGKILL'), 'parent_hard_killed');
+      await h.exit;
+      c.ok(await goneBy(h.pid, deadline), 'server_gone_within_5s');
+      c.ok(await refused(h.port), 'port_closed');
+    } finally {
+      await endParent(h);
+    }
+  });
+
+  await run('lifetime-input-null', async (c) => {
+    const h = await startParent('null');
+    try {
+      if (!c.ok(h.pid !== null, 'server_started')) return;
+      await sleep(1000);
+      c.ok(alive(h.pid) && (await http(h.port, 'GET', CONTROL, '/state')).status === 200, 'serves_with_null_input');
+      const deadline = Date.now() + GONE_MS;
+      h.parent.stdin.end();
+      c.ok(await goneBy(h.pid, deadline), 'stand_in_parent_ends_it_within_5s');
+    } finally {
+      await endParent(h);
+    }
+  });
+
+  await run(UNIX ? 'lifetime-null-input-ends-with-its-process-group' : 'lifetime-null-input-ends-with-its-job', async (c) => {
+    for (const sig of UNIX ? ['SIGINT', 'SIGTERM', 'SIGKILL'] : ['SIGKILL']) {
+      const name = UNIX ? sig : 'hard_kill';
+      const h = await startParent('null', { group: UNIX });
+      try {
+        if (!c.ok(h.pid !== null, `server_started_${name}`)) continue;
+        const deadline = Date.now() + GONE_MS;
+        if (UNIX) process.kill(-h.parent.pid, sig);
+        else h.parent.kill('SIGKILL');
+        c.ok(await goneBy(h.pid, deadline), `server_gone_within_5s_after_${name}`);
+        c.ok(await refused(h.port), `port_closed_after_${name}`);
+      } finally {
+        await endParent(h);
+      }
+    }
+  });
+
+  await run('stop-server-after-a-signal', async (c) => {
+    const s = await startServer(HERE, ['--port', '0']);
+    try {
+      if (!c.ok(s.child !== null, 'server_started')) return;
+      s.child.kill('SIGKILL');
+      c.ok((await exitWithin(s.child, GONE_MS)) !== null, 'server_ended_by_sigkill');
+      let timer;
+      const stopped = await Promise.race([stopServer(s).then(() => true), new Promise((resolve) => (timer = setTimeout(() => resolve(false), 1000)))]);
+      clearTimeout(timer);
+      c.ok(stopped, 'stop_server_returns_within_1s');
+    } finally {
+      if (s.child !== null && alive(s.child.pid)) process.kill(s.child.pid, 'SIGKILL');
+    }
   });
 }
 
@@ -1197,6 +1468,7 @@ async function main() {
     await walkCases(env);
     await protocolCases(env);
     await cliCases(env);
+    await lifetimeCases();
   } catch (err) {
     new Case('harness').ok(false, `exception_${err.code || err.name}`);
   } finally {
@@ -1207,9 +1479,11 @@ async function main() {
     if (c.misses.length === 0) ok += 1;
     else for (const m of c.misses) process.stdout.write(`miss case=${c.name} check=${m}\n`);
   }
+  const named = UNIX ? CASES_UNIX : CASES_WINDOWS;
+  if (cases.length !== named) process.stdout.write(`miss case=harness check=cases_ran_${cases.length}_named_${named}\n`);
   process.stdout.write(`fixture self-test: ${ok} of ${cases.length} ok\n`);
   process.stdout.write(`fixture state_changing_by_get=${getChanges}\n`);
-  process.exit(ok === cases.length && getChanges === 0 ? 0 : 1);
+  process.exit(ok === cases.length && cases.length === named && getChanges === 0 ? 0 : 1);
 }
 
 main();
