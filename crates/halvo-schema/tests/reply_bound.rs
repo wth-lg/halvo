@@ -55,11 +55,31 @@ fn decode_reply_reads_a_reply_of_reply_max_bytes_and_refuses_one_byte_more_befor
             Ok(ReplyResult::Raw(raw)) => assert_eq!(raw.get(), value),
             other => panic!("a compact reply of REPLY_MAX bytes read as {other:?}"),
         }
-        let (bytes, _) = string_reply(at, REPLY_MAX + 1);
+        let longer = RawValue::from_string(format!("\"{}\"", "a".repeat(value.len() - 1))).unwrap();
+        let written = write_reply(at, Ok(&ReplyResult::Raw(longer)));
         assert_eq!(
-            refusal(&bytes),
+            written.as_ref().map(Vec::len).ok(),
+            Some(REPLY_MAX + 1),
+            "the writer applies no length bound: it writes a reply of REPLY_MAX + 1 bytes"
+        );
+        assert_eq!(
+            refusal(&written.unwrap()),
             Some(too_large.clone()),
-            "a compact reply of REPLY_MAX + 1 bytes"
+            "the decoder refuses the reply of REPLY_MAX + 1 bytes that the writer wrote"
+        );
+    }
+
+    for (label, bytes) in [
+        ("an empty input", &b""[..]),
+        ("an input of one byte", &b"{"[..]),
+    ] {
+        assert_eq!(
+            refusal(bytes),
+            Some(DecodeError {
+                id: None,
+                error: ErrorName::Malformed,
+            }),
+            "{label} is malformed, not too large"
         );
     }
 
@@ -114,6 +134,13 @@ fn decode_reply_reads_a_reply_of_reply_max_bytes_and_refuses_one_byte_more_befor
             "fewer characters than the bound in more bytes",
             accented(&head, above),
         ),
+        ("a compact reply with one byte set to NUL", {
+            let mut bytes =
+                format!("{head}\"{}\"}}", "a".repeat(above - head.len() - 3)).into_bytes();
+            assert_eq!(bytes.len(), above);
+            bytes[above / 2] = 0;
+            bytes
+        }),
         ("bytes that are no JSON", vec![b'x'; above]),
         ("bytes that are no UTF-8", vec![0xff; above]),
         (
