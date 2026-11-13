@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Each of the 29 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, and with --all every one of them is there.
+# rule: Each of the 29 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -18,35 +18,35 @@ finish() {
 
 closed_list() {
   cat <<'EOF'
-halvo-learn refusal_unverified_run
-halvo-learn refusal_no_source
-halvo-learn refusal_value_in_label
-halvo-learn refusal_rejected_again
-halvo-learn refusal_compile_run_edit
-halvo-learn refusal_transient_keeps
-halvo-learn refusal_edits_full
-halvo-learn refusal_second_pending
-halvo-learn refusal_failed_after_recovered
-halvo-learn refusal_failure_of_other_step
-halvo-learn refusal_steps_apart
-halvo-learn-store refusal_page_text_instruction
-halvo-learn-store refusal_class_change
-halvo-learn-store refusal_step_too_long
-halvo-learn-store refusal_reverted_not_served
-halvo-learn-store refusal_replay_put_not_stored
-halvo-learn-store refusal_revoke_keeps_row
-halvo-learn-store refusal_cross_workflow_source
-halvo-schema refusal_edit_extra_key
-halvo-learn-gate refusal_delete_leaves_others
-halvo-learn-gate refusal_delete_takes_revoked
-halvo-learn-gate refusal_step_writes_no_edit
-halvo-learn edit_table
-halvo-learn routine_sample
-halvo-learn formal_traces
-halvo-learn-gate constants_match_targets
-halvo-schema kinds_have_workflow_key
-halvo-schema r5_golden_records
-halvo-schema r5_golden_requests
+halvo-learn refusal_unverified_run built
+halvo-learn refusal_no_source built
+halvo-learn refusal_value_in_label built
+halvo-learn refusal_rejected_again built
+halvo-learn refusal_compile_run_edit built
+halvo-learn refusal_transient_keeps built
+halvo-learn refusal_edits_full built
+halvo-learn refusal_second_pending built
+halvo-learn refusal_failed_after_recovered built
+halvo-learn refusal_failure_of_other_step built
+halvo-learn refusal_steps_apart built
+halvo-learn-store refusal_page_text_instruction built
+halvo-learn-store refusal_class_change built
+halvo-learn-store refusal_step_too_long built
+halvo-learn-store refusal_reverted_not_served built
+halvo-learn-store refusal_replay_put_not_stored built
+halvo-learn-store refusal_revoke_keeps_row built
+halvo-learn-store refusal_cross_workflow_source built
+halvo-schema refusal_edit_extra_key built
+halvo-learn-gate refusal_delete_leaves_others pending
+halvo-learn-gate refusal_delete_takes_revoked pending
+halvo-learn-gate refusal_step_writes_no_edit pending
+halvo-learn edit_table built
+halvo-learn routine_sample built
+halvo-learn formal_traces pending
+halvo-learn-gate constants_match_targets pending
+halvo-schema kinds_have_workflow_key built
+halvo-schema r5_golden_records built
+halvo-schema r5_golden_requests built
 EOF
 }
 
@@ -60,7 +60,11 @@ names_of() {
       *"$nl"*) rest=${rest#*"$nl"} ;;
       *) rest= ;;
     esac
-    [ "${one%% *}" = "$1" ] && found="$found ${one#* }"
+    if [ "${one%% *}" = "$1" ]; then
+      mark=${one##* }
+      test=${one#* }
+      found="$found ${test%% *}/$mark"
+    fi
   done
   printf '%s\n' "${found# }"
 }
@@ -69,7 +73,12 @@ read_results() {
   awk -v crate="$1" -v names="$2" -v present="$3" '
     BEGIN {
       n = split(names, list, " ")
-      for (i = 1; i <= n; i++) state[list[i]] = "pending"
+      for (i = 1; i <= n; i++) {
+        split(list[i], pair, "/")
+        list[i] = pair[1]
+        mark[pair[1]] = pair[2]
+        state[pair[1]] = "pending"
+      }
     }
     present == "yes" {
       sub(/\r$/, "")
@@ -82,7 +91,11 @@ read_results() {
       else if (state[path] == "pending") state[path] = "ok"
     }
     END {
-      for (i = 1; i <= n; i++) print crate, list[i], state[list[i]]
+      for (i = 1; i <= n; i++) {
+        test = list[i]
+        if (state[test] == "pending" && mark[test] != "pending") state[test] = "miss"
+        print crate, test, state[test]
+      }
     }
   ' "$4"
 }
@@ -158,9 +171,15 @@ stub_test() {
   [ "$fx_build" = ok ] || return 101
   printf 'running 9 tests%s\n' "$eol"
   printf 'test src/lib.rs - edit_step (line 5) ... ok%s\n' "$eol"
-  printf 'test %s_other ... ok%s\n' "$1" "$eol"
   code=0
+  if [ "$fx_other" = ok ]; then
+    printf 'test %s_other ... ok%s\n' "$1" "$eol"
+  else
+    printf 'test %s_other ... FAILED%s\n' "$1" "$eol"
+    code=101
+  fi
   for test in $names; do
+    test=${test%/*}
     case " $fx_missing " in
       *" $test "*) continue ;;
     esac
@@ -207,16 +226,17 @@ stub_cargo() {
 
 fixture() {
   case_name=$1
-  fx_members='halvo-learn halvo-schema'
+  fx_members='halvo-learn halvo-schema halvo-learn-store'
   fx_metadata=ok
   fx_build=ok
   fx_crlf=no
   fx_prefix=
-  fx_missing='formal_traces refusal_edit_extra_key kinds_have_workflow_key r5_golden_records r5_golden_requests'
+  fx_missing='formal_traces'
   fx_failed=
   fx_ignored=
   fx_renamed=
   fx_twice=
+  fx_other=ok
   case_all=no
 }
 
@@ -258,23 +278,37 @@ self_test() {
   all_crates='halvo-learn halvo-schema halvo-learn-store halvo-learn-gate'
 
   fixture unit-landed
-  check PASS 'rule tests=29 ok=13 pending=16 miss=0'
+  check PASS 'rule tests=29 ok=24 pending=5 miss=0'
 
   fixture failed-test
   fx_failed=refusal_no_source
-  check FAIL-miss 'rule tests=29 ok=12 pending=16 miss=1'
+  check FAIL-miss 'rule tests=29 ok=23 pending=5 miss=1'
 
   fixture ignored-test
   fx_ignored=edit_table
-  check FAIL-miss 'rule tests=29 ok=12 pending=16 miss=1'
+  check FAIL-miss 'rule tests=29 ok=23 pending=5 miss=1'
 
   fixture one-line-ok-one-failed
   fx_twice=routine_sample
-  check FAIL-miss 'rule tests=29 ok=12 pending=16 miss=1'
+  check FAIL-miss 'rule tests=29 ok=23 pending=5 miss=1'
+
+  fixture built-test-line-missing
+  fx_missing='formal_traces refusal_cross_workflow_source'
+  check FAIL-miss 'rule tests=29 ok=23 pending=5 miss=1'
+
+  fixture built-crate-absent
+  fx_members='halvo-learn halvo-schema'
+  check FAIL-miss 'rule tests=29 ok=17 pending=5 miss=7'
+
+  fixture pending-test-failed
+  fx_members=$all_crates
+  fx_missing=
+  fx_failed=constants_match_targets
+  check FAIL-miss 'rule tests=29 ok=28 pending=0 miss=1'
 
   fixture all-with-one-test-line-missing
   fx_members=$all_crates
-  fx_missing=r5_golden_requests
+  fx_missing=constants_match_targets
   case_all=yes
   check FAIL-pending 'rule tests=29 ok=28 pending=1 miss=0'
 
@@ -286,12 +320,16 @@ self_test() {
 
   fixture one-test-line-missing-without-all
   fx_members=$all_crates
-  fx_missing=r5_golden_requests
+  fx_missing=constants_match_targets
   check PASS 'rule tests=29 ok=28 pending=1 miss=0'
 
   fixture build-fails
   fx_build=failed
-  check FAIL-cargo 'rule tests=29 ok=0 pending=29 miss=0'
+  check FAIL-miss 'rule tests=29 ok=0 pending=5 miss=24'
+
+  fixture other-test-fails
+  fx_other=failed
+  check FAIL-cargo 'rule tests=29 ok=24 pending=5 miss=0'
 
   fixture metadata-fails
   fx_metadata=failed
@@ -299,26 +337,32 @@ self_test() {
 
   fixture module-path
   fx_prefix=tests::
-  check PASS 'rule tests=29 ok=13 pending=16 miss=0'
+  check PASS 'rule tests=29 ok=24 pending=5 miss=0'
 
   fixture longer-name
   fx_renamed=edit_table
-  check PASS 'rule tests=29 ok=12 pending=17 miss=0'
+  check FAIL-miss 'rule tests=29 ok=23 pending=5 miss=1'
+
+  fixture longer-name-of-a-pending-test
+  fx_members=$all_crates
+  fx_missing=
+  fx_renamed=constants_match_targets
+  check PASS 'rule tests=29 ok=28 pending=1 miss=0'
 
   fixture longer-name-with-all
   fx_members=$all_crates
   fx_missing=
-  fx_renamed=edit_table
+  fx_renamed=constants_match_targets
   case_all=yes
   check FAIL-pending 'rule tests=29 ok=28 pending=1 miss=0'
 
   fixture carriage-returns
   fx_crlf=yes
-  check PASS 'rule tests=29 ok=13 pending=16 miss=0'
+  check PASS 'rule tests=29 ok=24 pending=5 miss=0'
 
   fixture crate-absent
   fx_members=halvo-schema
-  check PASS 'rule tests=29 ok=0 pending=29 miss=0'
+  check FAIL-miss 'rule tests=29 ok=4 pending=5 miss=20'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
