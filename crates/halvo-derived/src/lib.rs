@@ -72,7 +72,7 @@ use halvo_schema_core::record::RecurrenceStep;
 
 pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError, StoredFault};
-pub use handler::{Cause, Committed, Handler, HandlerCx, Refusal, Takes};
+pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
 pub use report::{Counts, Report};

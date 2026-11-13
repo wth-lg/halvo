@@ -29,6 +29,12 @@ impl Writer {
     pub(crate) fn may_write_own(self) -> bool {
         matches!(self, Writer::Runner | Writer::Coordinator)
     }
+
+    /// A handler's commit refuses a bounded record whose day the store will not keep; a step's drops and counts it,
+    /// as `commit_batch` does an episode, so that one late record does not hold back the rest.
+    pub(crate) fn refuses_day(self) -> bool {
+        !matches!(self, Writer::Step)
+    }
 }
 
 /// The values under the rule keys of a record, which the store reads for itself.
@@ -77,8 +83,12 @@ fn rule_keys(entry: &KindEntry, json: &str) -> Option<RuleKeys> {
 /// (`OtherFamily`), or a kind of origin own while the call is a step's or that of a handler of a further role
 /// (`OwnOrigin`); when `kinds::check_record` refuses a record (`Record`, with that function's error, which names the
 /// kind, the key and the rule and never a value); and when a record's workflow key names a workflow that is not
-/// stored (`NoWorkflow`). A record of a window kind whose expiry has passed or whose segments name a purged ordinal,
-/// and a record of a bounded kind whose day lies outside its bound, is dropped and the rest of the list is applied.
+/// stored (`NoWorkflow`). In the commit of a handler (a `runner` request, a `coordinator_write` or a request of a
+/// further role) it also refuses the whole list for a record of a bounded kind whose day lies after the clock's day
+/// or already outside its kind's bound (`Day`, with `DayFault::AfterToday` or `DayFault::OutsideBound`); the store
+/// sets and mends no day. In the commit of a step such a record is dropped and counted, and the rest of the list is
+/// applied, as is a record of a window kind whose expiry has passed or whose segments name a purged ordinal in the
+/// commit of every writer.
 pub(crate) fn typed_commit(
     db: &Db,
     family: &str,
@@ -124,7 +134,19 @@ pub(crate) fn typed_commit(
             }
             let keeps = match entry.class {
                 RetentionClass::Bounded { days } => {
-                    keys.day.is_some_and(|day| now.keeps_day(days, day))
+                    let day = keys.day.ok_or_else(|| {
+                        refuse(Cause::Record(format!(
+                            "{}: the rule keys: unreadable",
+                            entry.name
+                        )))
+                    })?;
+                    match now.day_fault(days, day) {
+                        None => true,
+                        Some(fault) if writer.refuses_day() => {
+                            return Err(refuse(Cause::Day(fault)))
+                        }
+                        Some(_) => false,
+                    }
                 }
                 RetentionClass::Window => {
                     keys.expires

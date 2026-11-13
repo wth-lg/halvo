@@ -13,6 +13,7 @@ use halvo_schema_core::record::Instant;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
+use crate::handler::DayFault;
 use crate::host::{Clock, DbKey, IdSource, ReportSink};
 use crate::report::{Counts, Report};
 use crate::sql::{self, Sql};
@@ -279,7 +280,20 @@ pub(crate) struct Now {
 impl Now {
     /// A bounded row of `day` stays while today minus its day is from 0 to `days` minus 1.
     pub(crate) fn keeps_day(self, days: u16, day: u32) -> bool {
-        (0..i64::from(days)).contains(&(self.today - i64::from(day)))
+        self.day_fault(days, day).is_none()
+    }
+
+    /// Why the store will not keep a bounded row of `day` under a bound of `days`: its day lies after today, or today
+    /// minus its day is `days` or more. None where it keeps it.
+    pub(crate) fn day_fault(self, days: u16, day: u32) -> Option<DayFault> {
+        let age = self.today - i64::from(day);
+        if age < 0 {
+            Some(DayFault::AfterToday)
+        } else if age >= i64::from(days) {
+            Some(DayFault::OutsideBound)
+        } else {
+            None
+        }
     }
 
     /// A window row stays while its expiry instant lies after now.

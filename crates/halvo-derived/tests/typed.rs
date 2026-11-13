@@ -8,8 +8,8 @@ use common::{
     TestClock, FRONT, NOTE, NOTE_UNKEYED, OWN, TRACE,
 };
 use halvo_derived::{
-    Cause, Committed, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store, StoredFault,
-    Takes,
+    Cause, Committed, DayFault, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store,
+    StoredFault, Takes,
 };
 use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 use halvo_schema_core::record::{
@@ -922,4 +922,151 @@ fn a_window_record_that_names_one_segment_twice_is_stored_once_and_goes_with_its
         ),
         2
     );
+}
+
+/// A bounded test kind of 10 days, beside `NOTE` of 93.
+static NOTE_TEN: KindEntry = KindEntry {
+    name: "test_note_ten",
+    class: RetentionClass::Bounded { days: 10 },
+    ..NOTE
+};
+
+fn note_ten(workflow: &str, day: u32) -> TypedRecord {
+    TypedRecord {
+        kind: "test_note_ten",
+        json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{day},"n":1}}"#),
+    }
+}
+
+type Answers = Rc<RefCell<Vec<Result<Committed, Refusal>>>>;
+
+/// A handler that commits the list that the test put in `records` and keeps the typed commit's answer.
+fn keeping(records: &Records, answers: &Answers) -> Box<dyn Handler> {
+    let records = Rc::clone(records);
+    let answers = Rc::clone(answers);
+    Box::new(FnHandler(move |_: &RawRequest, cx: &mut HandlerCx<'_>| {
+        let answer = cx.commit(&records.borrow());
+        answers.borrow_mut().push(answer);
+        Ok(reply("null"))
+    }))
+}
+
+#[test]
+fn a_handler_s_typed_commit_refuses_the_list_for_a_bounded_day_after_the_clock_or_outside_its_bound(
+) {
+    let scratch = Scratch::new("day-refused");
+    let clock = TestClock::at_day(DAY);
+    let entries: &[&'static KindEntry] = &[&NOTE, &NOTE_TEN];
+    let w = workflow(&scratch, &clock, entries);
+    let records: Records = Rc::new(RefCell::new(Vec::new()));
+    let answers: Answers = Rc::new(RefCell::new(Vec::new()));
+    let step: Records = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        with_step(&clock, &step, vec![])
+            .handler("test", Takes::Runner, keeping(&records, &answers))
+            .handler(
+                "test",
+                Takes::Coordinator(&["test_put"]),
+                keeping(&records, &answers),
+            )
+            .handler(
+                "test",
+                Takes::Role("test_role"),
+                keeping(&records, &answers),
+            )
+    };
+    let requests = [
+        raw_request("runner", "{}"),
+        raw_request("coordinator_write", r#"{"op":"test_put"}"#),
+        raw_request("test_role", "{}"),
+    ];
+    let cases = [
+        (
+            "runner, after the clock",
+            note(&w, DAY + 1, 2),
+            DayFault::AfterToday,
+        ),
+        (
+            "coordinator, 93 days",
+            note(&w, DAY - 93, 2),
+            DayFault::OutsideBound,
+        ),
+        (
+            "further role, 10 days",
+            note_ten(&w, DAY - 10),
+            DayFault::OutsideBound,
+        ),
+    ];
+    for ((name, middle, fault), request) in cases.into_iter().zip(&requests) {
+        drop(open_entries(&scratch, host(), entries).unwrap());
+        let before = tables(&scratch);
+        *records.borrow_mut() = vec![note(&w, DAY, 1), middle, note(&w, DAY, 3)];
+        let mut store = open_entries(&scratch, host(), entries).unwrap();
+        store.handle(request).unwrap();
+        drop(store);
+        assert_eq!(
+            answers.borrow_mut().pop(),
+            Some(Err(Refusal {
+                index: 1,
+                cause: Cause::Day(fault)
+            })),
+            "{name}"
+        );
+        assert_eq!(tables(&scratch), before, "{name}");
+    }
+    let refused = Refusal {
+        index: 1,
+        cause: Cause::Day(DayFault::AfterToday),
+    };
+    assert_eq!(
+        refused.to_string(),
+        "record 1: a bounded day after the clock's day"
+    );
+    *records.borrow_mut() = vec![
+        note(&w, DAY, 4),
+        note(&w, DAY - 92, 5),
+        note_ten(&w, DAY - 9),
+    ];
+    let mut store = open_entries(&scratch, host(), entries).unwrap();
+    store.handle(&requests[0]).unwrap();
+    drop(store);
+    assert_eq!(
+        answers.borrow_mut().pop(),
+        Some(Ok(Committed {
+            stored: 3,
+            dropped: 0
+        })),
+        "the clock's day and the last day inside each bound are stored"
+    );
+    assert_eq!(kind_rows(&scratch, "test_note").len(), 2);
+    assert_eq!(kind_rows(&scratch, "test_note_ten").len(), 1);
+    *step.borrow_mut() = vec![
+        note(&w, DAY + 1, 6),
+        note(&w, DAY - 93, 7),
+        note_ten(&w, DAY - 10),
+    ];
+    let mut store = open_entries(&scratch, host(), entries).unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(9, DAY + 1, None), episode(8, DAY - 93, None)],
+            position(2, 0),
+            &mut Seq(1),
+        )
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        outcome.steps,
+        vec![Ok(Committed {
+            stored: 0,
+            dropped: 3
+        })],
+        "a step's typed commit drops and counts"
+    );
+    assert_eq!(
+        (outcome.summaries, outcome.outside),
+        (0, 2),
+        "commit_batch counts the episodes as outside"
+    );
+    assert_eq!(kind_rows(&scratch, "test_note").len(), 2);
 }

@@ -40,8 +40,10 @@ pub enum Takes {
 pub struct Committed {
     /// Records stored.
     pub stored: u64,
-    /// Records dropped and not refused: a window record whose expiry has passed or that names a purged ordinal, and a
-    /// bounded record whose day lies outside its bound.
+    /// Records dropped and not refused: a window record whose expiry has passed or that names a purged ordinal, and,
+    /// in a step's commit alone, a bounded record whose day lies after the clock's day or outside its bound. A
+    /// handler's commit refuses the whole list for such a bounded record instead (`Cause::Day`), so in a handler's
+    /// commit `dropped` counts window records alone.
     pub dropped: u64,
 }
 
@@ -61,8 +63,20 @@ pub enum Cause {
     Record(String),
     /// The record's workflow key names a workflow that is not stored.
     NoWorkflow,
+    /// The record is of a bounded kind and the store will not keep its day: the day lies after the clock's day, or
+    /// already outside its kind's bound. Only a handler's typed commit refuses for it.
+    Day(DayFault),
     /// A fault of the store.
     Fault(Fault),
+}
+
+/// Which day of a bounded record a handler's typed commit refuses. It holds no day and no other value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DayFault {
+    /// The day lies after the clock's day.
+    AfterToday,
+    /// The day lies already outside the bound of its kind: the clock's day less the kind's days, or earlier.
+    OutsideBound,
 }
 
 /// The refusal of a typed commit: nothing of the list was stored. `index` is the place of the refused record in the
@@ -82,6 +96,16 @@ impl fmt::Display for Refusal {
             Cause::OwnOrigin => write!(f, "record {}: a kind of origin own", self.index),
             Cause::Record(error) => write!(f, "record {}: {error}", self.index),
             Cause::NoWorkflow => write!(f, "record {}: no stored workflow", self.index),
+            Cause::Day(DayFault::AfterToday) => {
+                write!(
+                    f,
+                    "record {}: a bounded day after the clock's day",
+                    self.index
+                )
+            }
+            Cause::Day(DayFault::OutsideBound) => {
+                write!(f, "record {}: a bounded day outside its bound", self.index)
+            }
             Cause::Fault(fault) => write!(f, "record {}: {fault}", self.index),
         }
     }
