@@ -35,9 +35,10 @@ export function isPort(value) {
 }
 
 /**
- * Reads the arguments of a command that takes one optional flag with a value, then one or more files.
- * Returns `{ value, files }`, with `value` null where the flag is absent, or null for a usage error: an unknown
- * flag, the flag twice or without a value, a value that `accepts` refuses, or no file.
+ * Reads the arguments of a command that takes one optional flag with a value and one or more files; the flag may
+ * stand before, between or after the files. Returns `{ value, files }`, with `value` null where the flag is absent,
+ * or null for a usage error: an unknown flag, the flag twice or without a value, a value that `accepts` refuses,
+ * or no file.
  */
 export function readArgs(argv, flag, accepts) {
   let value = null;
