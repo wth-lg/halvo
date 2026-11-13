@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build.
+# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build, except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -10,6 +10,8 @@ cap=crates/halvo-route/data/cap.txt
 bar=docs/r6/bar.md
 recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
+pinned_path=scripts/r6/ci.d/80-r6-absent.sh
+pinned_blob=a0cbd1d17f92e6135678879353c57137fc2ac1fb
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 period=month status=provisional'
 case $0 in
@@ -184,7 +186,42 @@ decoded_hits() {
   ' "$@"
 }
 
+pinned_holds() {
+  tab=$(printf '\t')
+  entry=$(git ls-tree HEAD -- "$pinned_path" 2>/dev/null) || return 1
+  case $entry in
+    "100644 blob $pinned_blob$tab$pinned_path" | "100755 blob $pinned_blob$tab$pinned_path") ;;
+    *) return 1 ;;
+  esac
+  if [ ! -f "$pinned_path" ]; then
+    return 1
+  fi
+  work_blob=$(git hash-object --no-filters -- "$pinned_path" 2>/dev/null) || return 1
+  [ "$work_blob" = "$pinned_blob" ]
+}
+
+pin_report() {
+  tab=$(printf '\t')
+  entry=$(git ls-tree HEAD -- "$pinned_path" 2>/dev/null) || entry=
+  head_entry=absent
+  if [ -n "$entry" ]; then
+    read -r entry_mode entry_type entry_id <<EOF
+${entry%%"$tab"*}
+EOF
+    head_entry=$entry_mode:$entry_type:$entry_id
+  fi
+  work_entry=absent
+  if [ -f "$pinned_path" ]; then
+    work_entry=$(git hash-object --no-filters -- "$pinned_path" 2>/dev/null) || work_entry=absent
+  fi
+  printf 'pin path=%s want=%s head=%s work=%s\n' "$pinned_path" "$pinned_blob" "$head_entry" "$work_entry"
+}
+
 scan_flags() {
+  exempt=
+  if pinned_holds; then
+    exempt=$pinned_path
+  fi
   git -c core.quotepath=off ls-files -z >"$scratch/tracked.z" || return 2
   tr '\000' '\n' <"$scratch/tracked.z" >"$scratch/tracked.txt" || return 2
   found=0
@@ -224,17 +261,21 @@ scan_flags() {
     case $? in
       0)
         tr '\000' '\n' <"$scratch/hits.z" >"$scratch/hits.txt" || return 2
-        sed 's/^/sets /' "$scratch/hits.txt"
-        found=1
+        while IFS= read -r hit; do
+          [ "$hit" = "$exempt" ] && continue
+          printf 'sets %s\n' "$hit"
+          found=1
+        done <"$scratch/hits.txt"
         ;;
       1) ;;
       *) return 2 ;;
     esac
     decoded_hits "$@" >"$scratch/decoded.txt" || return 2
-    if [ -s "$scratch/decoded.txt" ]; then
-      cat "$scratch/decoded.txt"
+    while IFS= read -r hit; do
+      [ "$hit" = "sets $exempt" ] && continue
+      printf '%s\n' "$hit"
       found=1
-    fi
+    done <"$scratch/decoded.txt"
   fi
   return "$found"
 }
@@ -307,6 +348,9 @@ measure() {
 
   if ! scan_flags >"$artifacts/flags.txt" 2>"$artifacts/flags.err"; then
     cause=${cause:-flags}
+    if grep -qxF "sets $pinned_path" "$artifacts/flags.txt"; then
+      pin_report
+    fi
   fi
 
   if [ -n "$cause" ]; then
@@ -379,6 +423,58 @@ flags_case() {
     check "$label" "$dir" PASS "PASS $name"
   else
     check "$label" "$dir" FAIL "FAIL $name (flags)"
+  fi
+}
+
+pinned_case() {
+  label=$1
+  want=$2
+  dir=$work/flags/$label
+  mkdir -p "$dir/scripts/r6/ci.d" || exit 2
+  git -C "$dir" init -q || exit 2
+  case $label in
+    pinned-bytes-at-another-path) cp "$pinned_path" "$dir/scripts/r6/ci.d/81-r6-copy.sh" || exit 2 ;;
+    pinned-name-in-another-directory) cp "$pinned_path" "$dir/scripts/r6/80-r6-absent.sh" || exit 2 ;;
+    pinned-path-in-another-letter-case) cp "$pinned_path" "$dir/scripts/r6/ci.d/80-R6-absent.sh" || exit 2 ;;
+    *) cp "$pinned_path" "$dir/$pinned_path" || exit 2 ;;
+  esac
+  case $label in
+    pinned-path-with-one-byte-more | pinned-bytes-in-the-work-tree-alone) printf '\n' >>"$dir/$pinned_path" || exit 2 ;;
+    pinned-beside-a-second-script) printf 'export %s%s=x\n' RUST FLAGS >"$dir/scripts/x.sh" || exit 2 ;;
+    pinned-beside-an-escaped-second-script) printf 'export %s\\x46%s=x\n' RUST LAGS >"$dir/scripts/x.sh" || exit 2 ;;
+    pinned-beside-a-second-script-with-a-nul) printf 'x\000 export %s%s=x\n' RUST FLAGS >"$dir/scripts/x.sh" || exit 2 ;;
+  esac
+  git -C "$dir" add -A || exit 2
+  case $label in
+    pinned-path-as-a-symbolic-link)
+      link=$(printf '../../../pinned-target.sh' | git -C "$dir" hash-object -w --stdin) || exit 2
+      git -C "$dir" update-index --cacheinfo "120000,$link,$pinned_path" || exit 2
+      ;;
+    pinned-blob-under-the-mode-of-a-link)
+      git -C "$dir" update-index --cacheinfo "120000,$pinned_blob,$pinned_path" || exit 2
+      ;;
+  esac
+  git -C "$dir" commit -q -m fixture || exit 2
+  case $label in
+    pinned-bytes-in-the-work-tree-alone) cp "$pinned_path" "$dir/$pinned_path" || exit 2 ;;
+    pinned-bytes-in-the-commit-alone) printf '\n' >>"$dir/$pinned_path" || exit 2 ;;
+  esac
+  (cd "$dir" && scratch=$work/flags/$label.scan && mkdir "$scratch" && scan_flags >"$scratch.out" 2>&1)
+  code=$?
+  got=exit-$code
+  [ "$code" -eq 1 ] && got=FAIL
+  [ "$code" -eq 0 ] && got=PASS
+  case $label in
+    pinned-beside-*)
+      grep -qx 'sets scripts/x.sh' "$work/flags/$label.scan.out" || got=$got-without-the-second-script
+      grep -q "^sets $pinned_path\$" "$work/flags/$label.scan.out" && got=$got-naming-the-pinned-script
+      ;;
+  esac
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$label" "$want" "$got"
+  if [ "$got" != "$want" ]; then
+    wrong="$wrong $label"
+  elif [ "$want" = FAIL ]; then
+    rejected=$((rejected + 1))
   fi
 }
 
@@ -614,6 +710,22 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   check nul-byte "$nul" FAIL "FAIL $name (flags)"
   flags_case this-check-as-it-is PASS "scripts/r6/ci.d/$name.sh" "$(cat "$self")"
   flags_case other-words PASS scripts/z.sh "cargo rustc -- --${word_cfg} testing" crates/z/build.rs "fn main() { println!(\"cargo:rustc-${word_cfg}=test_hosted\"); }"
+  for label in pinned-bytes-at-another-path pinned-name-in-another-directory pinned-path-with-one-byte-more \
+    pinned-bytes-in-the-work-tree-alone pinned-bytes-in-the-commit-alone pinned-path-as-a-symbolic-link \
+    pinned-blob-under-the-mode-of-a-link pinned-path-in-another-letter-case pinned-beside-a-second-script \
+    pinned-beside-an-escaped-second-script pinned-beside-a-second-script-with-a-nul; do
+    pinned_case "$label" FAIL
+  done
+  pinned_case pinned-bytes-at-the-path PASS
+  report=$work/flags/pin-report
+  make_repo "$report"
+  mkdir -p "$report/scripts/r6/ci.d" || exit 2
+  cp "$pinned_path" "$report/$pinned_path" || exit 2
+  printf '\n' >>"$report/$pinned_path" || exit 2
+  git -C "$report" add -A || exit 2
+  git -C "$report" commit -q -m fixture || exit 2
+  found_blob=$(git -C "$report" rev-parse "HEAD:$pinned_path") || exit 2
+  check failure-line-names-the-ids "$report" FAIL "pin path=$pinned_path want=$pinned_blob head=100644:blob:$found_blob work=$found_blob"
   flags_case words-in-a-document PASS docs/notes.md "Never set $setting or $cfg_test."
   flags_case untracked-config PASS
   mkdir -p "$work/flags/untracked-config/.cargo" || exit 2
