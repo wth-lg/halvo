@@ -345,9 +345,70 @@ const EDIT_KEYS: [(&str, &str, &str, &[&str]); 15] = [
     ("target", r#""value":"a.pay""#, r#""value":@"#, NOT_TEXT),
 ];
 
+const WITNESS_HOMES: [(&str, &str, &str, &str); 9] = [
+    (
+        A_NAME,
+        "learn_edit",
+        r#""cause":"class_mismatch""#,
+        r#""cause":@"#,
+    ),
+    (
+        AN_ID,
+        "learn_edit",
+        r#""on":"4b3a29180f7e6d5c4b3a29180f7e6d5c""#,
+        r#""on":@"#,
+    ),
+    (
+        A_HASH,
+        "agent_effect",
+        r#""digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""#,
+        r#""digest":@"#,
+    ),
+    (A_TEXT, "learn_edit", r#""value":"a.pay""#, r#""value":@"#),
+    (A_SITE, "learn_routine", r#""site":null"#, r#""site":@"#),
+    (ONE, "learn_edit", r#""rev":3"#, r#""rev":@"#),
+    (TWO, "learn_edit", r#""n":7"#, r#""n":@"#),
+    (
+        MINUS_ONE,
+        "agent_effect",
+        r#""at":1794339000000000001"#,
+        r#""at":@"#,
+    ),
+    (
+        ABOVE_U32,
+        "agent_effect",
+        r#""at":1794339000000000001"#,
+        r#""at":@"#,
+    ),
+];
+
+fn registered(name: &str) -> &'static KindEntry {
+    registry()
+        .find(|k| k.name == name)
+        .unwrap_or_else(|| panic!("no kind {name}"))
+}
+
 #[test]
 fn a_value_of_another_field_type_under_each_key_of_an_edit_row_is_refused_by_the_entry_and_the_parser(
 ) {
+    let witnesses = [
+        A_NAME, AN_ID, A_HASH, A_TEXT, A_SITE, ONE, TWO, MINUS_ONE, ABOVE_U32,
+    ];
+    assert_eq!(WITNESS_HOMES.map(|(value, ..)| value), witnesses);
+    for (value, kind, from, to) in WITNESS_HOMES {
+        let row = match kind {
+            "learn_edit" => OTHER_EDITS[1],
+            "learn_routine" => OTHER_ROUTINES[0],
+            _ => registered(kind).example,
+        };
+        assert_eq!(row.matches(from).count(), 1, "{from}");
+        let line = row.replacen(from, &to.replacen('@', value, 1), 1);
+        assert_eq!(
+            check_record(registered(kind), &line),
+            Ok(()),
+            "{kind}: {value}"
+        );
+    }
     let edit = entry("learn_edit");
     let row = OTHER_EDITS[1];
     assert_eq!(check_record(edit, row), Ok(()));
