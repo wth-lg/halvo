@@ -555,3 +555,85 @@ fn a_carry_that_fails_leaves_the_folder_as_it_was() {
     assert_eq!(cause, Some(Cause::StepFailed));
     assert_eq!(before, after, "the folder after a carry that failed");
 }
+
+/// The answer of the coordinator to the windows run 43366645986: `prepare` reads the workbook
+/// before it waits for the lock and opens it again under the lock. A workbook that another
+/// program saved while `prepare` waited no longer holds the bytes that `prepare` read: it
+/// refuses with `Error::Io` of the kind `Interrupted`, the cause `step_failed`, and writes
+/// nothing.
+#[test]
+fn a_workbook_changed_while_prepare_waits_for_the_lock_is_refused_and_nothing_is_written() {
+    let scratch = Scratch::new("cp124-changed-while-waiting");
+    let data = Scratch::new("cp124-changed-while-waiting-data");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let locks = own_locks(&data.dir);
+    let folder = Folder::new(&scratch.dir, locks.clone()).expect("the folder opens");
+    let held = locks.hold(&scratch.dir).expect("the lock");
+    let worker =
+        thread::spawn(move || prepare_at(&folder, Path::new("values.xlsx"), RUN, "B5").map(drop));
+    thread::sleep(Duration::from_millis(800));
+    let mut saved = fs::read(corpus("values.xlsx")).expect("read");
+    saved.extend_from_slice(b"saved again by another program");
+    fs::write(scratch.path("values.xlsx"), &saved).expect("save the workbook");
+    drop(held);
+    let answer = worker.join().expect("the prepare thread");
+    let cause = answer.as_ref().err().map(halvo_sheet::Error::cause);
+    println!("cp124 changed-while-waiting answer={answer:?} cause={cause:?}");
+    assert_eq!(
+        answer,
+        Err(halvo_sheet::Error::Io(std::io::ErrorKind::Interrupted))
+    );
+    assert_eq!(cause, Some(Cause::StepFailed));
+    assert_eq!(scratch.names(""), vec!["values.xlsx".to_string()]);
+    assert_eq!(fs::read(scratch.path("values.xlsx")).expect("read"), saved);
+}
+
+/// The fault of the windows run 43366645986 in a form that macOS shows: while `prepare` waits
+/// for the lock, no descriptor of the process names the workbook (`lsof` of the process), so a
+/// folder that the person moves while `prepare` waits is never held open. The folder moves,
+/// `prepare` fails, and the moved folder holds the workbook alone.
+#[cfg(target_os = "macos")]
+#[test]
+fn prepare_holds_no_descriptor_on_the_workbook_while_it_waits_for_the_lock() {
+    let scratch = Scratch::new("cp124-no-handle-while-waiting");
+    let data = Scratch::new("cp124-no-handle-while-waiting-data");
+    fs::create_dir_all(scratch.path("folder/sub")).expect("mkdir");
+    fs::copy(
+        corpus("values.xlsx"),
+        scratch.path("folder/sub/values.xlsx"),
+    )
+    .expect("copy");
+    let locks = own_locks(&data.dir);
+    let folder = Folder::new(&scratch.path("folder"), locks.clone()).expect("the folder opens");
+    let held = locks.hold(&scratch.path("folder/sub")).expect("the lock");
+    let worker = thread::spawn(move || {
+        prepare_at(&folder, Path::new("sub/values.xlsx"), RUN, "B5").map(drop)
+    });
+    thread::sleep(Duration::from_millis(800));
+    let listed = Command::new("lsof")
+        .args(["-n", "-P", "-Fn", "-p", &std::process::id().to_string()])
+        .output()
+        .expect("lsof runs");
+    let names = String::from_utf8_lossy(&listed.stdout);
+    let open = names
+        .lines()
+        .filter(|line| line.starts_with('n') && line.ends_with("/sub/values.xlsx"))
+        .count();
+    let moved = fs::rename(scratch.path("folder/sub"), scratch.path("folder/sub-moved"));
+    drop(held);
+    let answer = worker.join().expect("the prepare thread");
+    println!(
+        "cp124 waiting descriptors_on_the_workbook={open} moved={} answer={answer:?}",
+        moved.is_ok()
+    );
+    assert_eq!(
+        open, 0,
+        "a descriptor names the workbook while prepare waits"
+    );
+    assert!(moved.is_ok(), "the folder moves while prepare waits");
+    assert!(answer.is_err(), "prepare of a workbook whose folder moved");
+    assert_eq!(
+        scratch.names("folder/sub-moved"),
+        vec!["values.xlsx".to_string()]
+    );
+}
