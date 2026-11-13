@@ -573,3 +573,36 @@ fn a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is
     drop(store);
     assert_eq!(after_twice(&scratch, &clock), (1, false, false));
 }
+
+/// Two scratch directories of one name in one process get two paths, and both stand.
+#[test]
+fn two_scratch_directories_of_one_name_in_one_process_get_two_paths() {
+    let first = Scratch::new("twice");
+    let second = Scratch::new("twice");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+}
+
+/// The name of a scratch directory, for one process id and one counter, differs for two readings of the clock, so a
+/// process id that the system hands out again names another directory.
+#[test]
+fn the_scratch_leaf_name_differs_for_two_readings_of_the_clock() {
+    assert_ne!(
+        common::leaf_name("same", 4242, 1_000, 7),
+        common::leaf_name("same", 4242, 1_001, 7)
+    );
+}
+
+/// A second making of a scratch leaf that exists fails, and leaves the first one's content as it was.
+#[test]
+fn a_second_making_of_a_scratch_leaf_that_exists_fails() {
+    let parent = Scratch::new("leaf-parent");
+    let made = common::make_leaf(parent.path(), "leaf").unwrap();
+    std::fs::write(made.join("kept"), b"kept").unwrap();
+    let again = common::make_leaf(parent.path(), "leaf");
+    assert_eq!(
+        again.err().map(|e| e.kind()),
+        Some(std::io::ErrorKind::AlreadyExists)
+    );
+    assert_eq!(std::fs::read(made.join("kept")).unwrap(), b"kept");
+}

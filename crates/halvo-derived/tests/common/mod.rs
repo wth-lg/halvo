@@ -26,13 +26,45 @@ pub struct Scratch {
     path: PathBuf,
 }
 
+/// One reading of the clock, in nanoseconds since 1970, taken once for the process at its first scratch directory.
+fn process_nanos() -> u128 {
+    static AT: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
+    *AT.get_or_init(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    })
+}
+
+/// The name of a scratch directory: the test's name, the process id, the process's one reading of the clock and the
+/// counter, so that a process id that the system hands out again meets no directory of an earlier process.
+pub fn leaf_name(name: &str, pid: u32, nanos: u128, n: usize) -> String {
+    format!("derived-{name}-{pid}-{nanos}-{n}")
+}
+
+/// Makes `parent` where it is missing and then the new directory `leaf` under it, which must not exist.
+pub fn make_leaf(parent: &Path, leaf: &str) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(parent)?;
+    let path = parent.join(leaf);
+    std::fs::create_dir(&path)?;
+    Ok(path)
+}
+
 impl Scratch {
+    /// A new directory under the target's tmp directory, removed when the value is dropped. A leaf that exists
+    /// already fails the test at once with its path.
     pub fn new(name: &str) -> Scratch {
         static COUNT: AtomicUsize = AtomicUsize::new(0);
         let n = COUNT.fetch_add(1, Ordering::Relaxed);
-        let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join(format!("derived-{name}-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&path).unwrap();
+        let parent = Path::new(env!("CARGO_TARGET_TMPDIR"));
+        let leaf = leaf_name(name, std::process::id(), process_nanos(), n);
+        let path = make_leaf(parent, &leaf).unwrap_or_else(|e| {
+            panic!(
+                "the scratch directory {} cannot be made: {e}",
+                parent.join(&leaf).display()
+            )
+        });
         Scratch { path }
     }
 

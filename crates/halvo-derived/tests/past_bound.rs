@@ -975,3 +975,14 @@ fn a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_reque
         "the next request starts after the day of going"
     );
 }
+
+/// After a `Fixture` is dropped, its directory is gone: the store, which holds files in it, is dropped before the
+/// directory is removed.
+#[test]
+fn a_dropped_fixture_leaves_no_directory() {
+    let fx = Fixture::new("fixture-drop", Bound::Unchanged);
+    let path = fx.scratch.path().to_path_buf();
+    assert!(path.join("derived").join("derived.db").exists());
+    drop(fx);
+    assert!(!path.exists(), "the directory of a dropped fixture");
+}

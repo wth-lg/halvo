@@ -161,6 +161,11 @@ esac
 #= src/lib.rs tests::the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open
 #= tests/cases.rs a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call
 #= tests/cases.rs a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered
+#= tests/cases.rs two_scratch_directories_of_one_name_in_one_process_get_two_paths
+#= tests/cases.rs the_scratch_leaf_name_differs_for_two_readings_of_the_clock
+#= tests/cases.rs a_second_making_of_a_scratch_leaf_that_exists_fails
+#= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
+#= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

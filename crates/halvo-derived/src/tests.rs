@@ -157,16 +157,55 @@ impl IdSource for Counting {
 /// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
 /// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
 /// `<target>/<profile>/deps/<binary>`.
-fn data_dir(name: &str) -> PathBuf {
+/// A data directory of a unit test, removed when the guard is dropped.
+struct UnitDir(PathBuf);
+
+impl UnitDir {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for UnitDir {
+    fn drop(&mut self) {
+        if let Err(e) = std::fs::remove_dir_all(&self.0) {
+            eprintln!(
+                "the unit directory {} was not removed: {e}",
+                self.0.display()
+            );
+        }
+    }
+}
+
+/// One reading of the clock, in nanoseconds since 1970, taken once for the process at its first unit directory.
+fn process_nanos() -> u128 {
+    static AT: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
+    *AT.get_or_init(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    })
+}
+
+/// A new data directory under the target's tmp directory, named by the test's name, the process id, the process's one
+/// reading of the clock and the counter, and made with `create_dir`: a leaf that exists already fails the test at once
+/// with its path.
+fn data_dir(name: &str) -> UnitDir {
     static COUNT: AtomicUsize = AtomicUsize::new(0);
     let n = COUNT.fetch_add(1, Ordering::Relaxed);
     let exe = std::env::current_exe().unwrap();
-    let target = exe.ancestors().nth(3).unwrap();
-    let path = target
-        .join("tmp")
-        .join(format!("derived-unit-{name}-{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&path).unwrap();
-    path
+    let parent = exe.ancestors().nth(3).unwrap().join("tmp");
+    let path = parent.join(format!(
+        "derived-unit-{name}-{}-{}-{n}",
+        std::process::id(),
+        process_nanos()
+    ));
+    std::fs::create_dir_all(&parent).unwrap();
+    if let Err(e) = std::fs::create_dir(&path) {
+        panic!("the unit directory {} cannot be made: {e}", path.display());
+    }
+    UnitDir(path)
 }
 
 fn open_unit(dir: &Path) -> Store {
@@ -193,10 +232,10 @@ fn secure_delete(store: &Store) -> i64 {
 #[test]
 fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open() {
     let dir = data_dir("secure-delete");
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(secure_delete(&store), 1, "after the first open");
     drop(store);
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(
         secure_delete(&store),
         1,
@@ -216,10 +255,10 @@ fn the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_an
             .query_row("PRAGMA temp_store", [], |r| r.get(0))
             .unwrap()
     };
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(temp_store(&store), 2, "after the first open");
     drop(store);
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(
         temp_store(&store),
         2,
@@ -563,13 +602,15 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .handler("test", crate::Takes::Runner, asker())
         .handler("test", crate::Takes::Role("test_role"), asker())
         .handler("test", crate::Takes::Coordinator(&["held"]), asker());
-    let started = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = data_dir(&format!("held-fault-{started}"));
-    let mut store =
-        Store::open(&dir, &DbKey::new([7; 32]), &entries, host, &mut Counting(0)).unwrap();
+    let dir = data_dir("held-fault");
+    let mut store = Store::open(
+        dir.path(),
+        &DbKey::new([7; 32]),
+        &entries,
+        host,
+        &mut Counting(0),
+    )
+    .unwrap();
     store
         .db
         .conn
@@ -588,7 +629,7 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .execute_batch("ALTER TABLE rows_away RENAME TO rows")
         .unwrap();
     drop(store);
-    std::fs::remove_dir_all(&dir).unwrap();
+    drop(dir);
     let answers = answers.borrow().clone();
     assert_eq!(
         answers[..2],
@@ -600,4 +641,13 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         "E4: the coordinator_write answered {:?}",
         answers[2]
     );
+}
+
+/// Two unit directories of one name in one process get two paths, and each is made new.
+#[test]
+fn two_unit_directories_of_one_name_in_one_process_get_two_paths() {
+    let first = data_dir("twice");
+    let second = data_dir("twice");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
 }
