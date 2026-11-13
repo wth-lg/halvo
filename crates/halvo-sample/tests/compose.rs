@@ -1067,7 +1067,7 @@ fn compose_takes_and_refuses_each_fixture_of_the_reader_as_the_reader_does() {
     let dir = scratch("pairs");
     write(&dir.join("rates.toml"), &rates(20, 4).write());
     let cases = pairs();
-    assert!(cases.len() >= 100, "{}", cases.len());
+    assert_eq!(cases.len(), 135);
     let verdicts: Vec<(bool, bool)> = std::thread::scope(|scope| {
         let chunks: Vec<Vec<(usize, &Case)>> = (0..4)
             .map(|t| {
@@ -1133,7 +1133,7 @@ fn verdict(dir: &Path, k: usize, (_, files, _): &Case) -> (bool, bool) {
         args.extend(paths.iter().map(|p| s(p)));
         let a: Vec<&str> = args.iter().map(String::as_str).collect();
         let o = run(&a);
-        (by_node, !o.stderr.starts_with("REFUSED site-data:"))
+        (by_node, compose_takes(&o, k))
     }
 }
 
@@ -1231,4 +1231,14 @@ fn ranges_takes_no_other_flag_and_no_other_argument() {
     assert_eq!(o.code, 0);
     assert_eq!(o.stdout.lines().count(), 15);
     assert!(o.stderr.is_empty());
+}
+
+fn compose_takes(o: &common::Out, k: usize) -> bool {
+    let one_line = o.stderr.lines().count() == 1;
+    match o.code {
+        0 => true,
+        2 if one_line && o.stderr.starts_with("REFUSED short: ") => true,
+        2 if one_line && o.stderr.starts_with("REFUSED site-data: ") => false,
+        code => panic!("compose on case {k}: exit {code}, {}", o.stderr),
+    }
 }
