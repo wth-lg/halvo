@@ -164,6 +164,8 @@ mod unix_dir {
 
     fn opened(fd: libc::c_int, at: RawFd, name: &CStr) -> io::Result<OwnedFd> {
         if fd >= 0 {
+            // SAFETY: an open call answered this descriptor and nothing else owns
+            // it, so the OwnedFd becomes its one owner and closes it once.
             return Ok(unsafe { OwnedFd::from_raw_fd(fd) });
         }
         let e = io::Error::last_os_error();
@@ -171,7 +173,9 @@ mod unix_dir {
             Some(libc::ELOOP | libc::ENOTDIR) => {}
             _ => return Err(e),
         }
+        // SAFETY: libc::stat is plain data, for which all-zero bytes are a valid value.
         let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: name is NUL-terminated and st is a stat; both outlive the call.
         let linked =
             unsafe { libc::fstatat(at, name.as_ptr(), &mut st, libc::AT_SYMLINK_NOFOLLOW) } == 0
                 && kind(&st) == EntryKind::Link;
@@ -190,6 +194,8 @@ mod unix_dir {
 
     fn path_of(fd: RawFd) -> io::Result<PathBuf> {
         let mut buf = vec![0u8; libc::PATH_MAX as usize];
+        // SAFETY: F_GETPATH writes at most PATH_MAX bytes, which buf holds, and fd
+        // is a descriptor that the caller keeps open across the call.
         checked(unsafe { libc::fcntl(fd, libc::F_GETPATH, buf.as_mut_ptr()) })?;
         let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
         buf.truncate(len);
@@ -198,13 +204,17 @@ mod unix_dir {
 
     fn stat_at(fd: RawFd, name: &OsStr) -> io::Result<libc::stat> {
         let c = c_name(name)?;
+        // SAFETY: libc::stat is plain data, for which all-zero bytes are a valid value.
         let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: c is NUL-terminated and st is a stat; both outlive the call.
         checked(unsafe { libc::fstatat(fd, c.as_ptr(), &mut st, libc::AT_SYMLINK_NOFOLLOW) })?;
         Ok(st)
     }
 
     fn stat_of(fd: RawFd) -> io::Result<libc::stat> {
+        // SAFETY: libc::stat is plain data, for which all-zero bytes are a valid value.
         let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: st is a stat that outlives the call, which writes only into it.
         checked(unsafe { libc::fstat(fd, &mut st) })?;
         Ok(st)
     }
@@ -224,6 +234,7 @@ mod unix_dir {
     impl Dir {
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
             let c = c_name(path.as_os_str())?;
+            // SAFETY: c is NUL-terminated and outlives the call.
             let fd = opened(
                 unsafe { libc::open(c.as_ptr(), DIR_FLAGS) },
                 libc::AT_FDCWD,
@@ -243,6 +254,8 @@ mod unix_dir {
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {
             let c = c_name(name)?;
             let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
             let fd = opened(unsafe { libc::openat(at, c.as_ptr(), DIR_FLAGS) }, at, &c)?;
             Ok(Dir {
                 fd,
@@ -252,6 +265,8 @@ mod unix_dir {
 
         pub(crate) fn create_dir(&self, name: &OsStr) -> io::Result<()> {
             let c = c_name(name)?;
+            // SAFETY: c is NUL-terminated, and the descriptor is this handle's, open
+            // while self lives.
             if unsafe { libc::mkdirat(self.fd.as_raw_fd(), c.as_ptr(), 0o700) } < 0 {
                 let e = io::Error::last_os_error();
                 if e.kind() != io::ErrorKind::AlreadyExists {
@@ -262,6 +277,7 @@ mod unix_dir {
         }
 
         pub(crate) fn make_private(&self) -> io::Result<()> {
+            // SAFETY: the descriptor is this handle's, open while self lives.
             checked(unsafe { libc::fchmod(self.fd.as_raw_fd(), 0o700) })
         }
 
@@ -275,23 +291,35 @@ mod unix_dir {
 
         pub(crate) fn entries(&self) -> io::Result<Vec<Entry>> {
             let at = self.fd.as_raw_fd();
+            // SAFETY: "." is a NUL-terminated literal, and at is this handle's
+            // descriptor, open while self lives.
             let fd = opened(
                 unsafe { libc::openat(at, c".".as_ptr(), DIR_FLAGS) },
                 at,
                 c".",
             )?;
             let raw = std::os::fd::IntoRawFd::into_raw_fd(fd);
+            // SAFETY: raw came from into_raw_fd, so nothing else owns it, and a
+            // stream that fdopendir answers takes that one ownership.
             let stream = unsafe { libc::fdopendir(raw) };
             if stream.is_null() {
                 let e = io::Error::last_os_error();
+                // SAFETY: fdopendir failed, so raw is still ours alone and is closed
+                // here once. Its result is not read: the call already answers
+                // fdopendir's error, and a second error changes nothing that a
+                // caller can do.
                 unsafe { libc::close(raw) };
                 return Err(e);
             }
             let mut names = Vec::new();
             let listed = loop {
+                // SAFETY: __error gives this thread's errno, a valid int for the
+                // thread's life.
                 unsafe { *libc::__error() = 0 };
+                // SAFETY: stream is open until the one closedir below.
                 let entry = unsafe { libc::readdir(stream) };
                 if entry.is_null() {
+                    // SAFETY: as above, the errno of this thread.
                     let errno = unsafe { *libc::__error() };
                     break if errno == 0 {
                         Ok(())
@@ -299,13 +327,21 @@ mod unix_dir {
                         Err(io::Error::from_raw_os_error(errno))
                     };
                 }
+                // SAFETY: readdir answered an entry, whose d_name is NUL-terminated
+                // and stays valid until the next call on the stream; the bytes are
+                // copied before that.
                 let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes();
                 if name != b"." && name != b".." {
                     names.push(OsString::from_vec(name.to_vec()));
                 }
             };
-            unsafe { libc::closedir(stream) };
+            // SAFETY: stream came from fdopendir and is closed here, once.
+            let closed = match unsafe { libc::closedir(stream) } {
+                0 => Ok(()),
+                _ => Err(io::Error::last_os_error()),
+            };
             listed?;
+            closed?;
             let mut entries = Vec::new();
             for name in names {
                 match self.entry(&name) {
@@ -321,6 +357,8 @@ mod unix_dir {
             let c = c_name(name)?;
             let flags = libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
             let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
             let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)?;
             match kind(&stat_of(fd.as_raw_fd())?) {
                 EntryKind::File => Ok(File::from(fd)),
@@ -333,6 +371,8 @@ mod unix_dir {
             let c = c_name(name)?;
             let flags =
                 libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+            // SAFETY: c is NUL-terminated, the descriptor is this handle's, and the
+            // mode is the one variadic argument that O_CREAT reads.
             let fd = unsafe {
                 libc::openat(
                     self.fd.as_raw_fd(),
@@ -344,28 +384,36 @@ mod unix_dir {
             if fd < 0 {
                 return Err(io::Error::last_os_error());
             }
+            // SAFETY: openat answered this descriptor and nothing else owns it, so
+            // the OwnedFd becomes its one owner.
             Ok(File::from(unsafe { OwnedFd::from_raw_fd(fd) }))
         }
 
         pub(crate) fn rename(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
             let (from, to) = (c_name(from)?, c_name(to)?);
             let fd = self.fd.as_raw_fd();
+            // SAFETY: from and to are NUL-terminated, and fd is this handle's
+            // descriptor, open while self lives.
             checked(unsafe { libc::renameat(fd, from.as_ptr(), fd, to.as_ptr()) })
         }
 
         pub(crate) fn remove_file(&self, name: &OsStr) -> io::Result<()> {
             let c = c_name(name)?;
+            // SAFETY: c is NUL-terminated, and the descriptor is this handle's.
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), 0) })
         }
 
         pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
             let c = c_name(name)?;
+            // SAFETY: c is NUL-terminated, and the descriptor is this handle's.
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
         }
 
         pub(crate) fn still_named(&self) -> io::Result<bool> {
             let c = c_name(self.path.as_os_str())?;
+            // SAFETY: libc::stat is plain data, for which all-zero bytes are a valid value.
             let mut st: libc::stat = unsafe { std::mem::zeroed() };
+            // SAFETY: c is NUL-terminated and st is a stat; both outlive the call.
             if unsafe { libc::lstat(c.as_ptr(), &mut st) } < 0 {
                 let e = io::Error::last_os_error();
                 return match e.kind() {
@@ -1039,6 +1087,7 @@ mod tests {
                 .into_encoded_bytes(),
         )
         .unwrap();
+        // SAFETY: fifo is a NUL-terminated name that outlives the call.
         assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
         let handle = held(&dir);
 

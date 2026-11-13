@@ -1492,6 +1492,7 @@ fn open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_
 #[cfg(unix)]
 fn make_fifo(path: &Path) {
     let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+    // SAFETY: name is a NUL-terminated copy that outlives the call.
     assert_eq!(
         unsafe { libc::mkfifo(name.as_ptr(), 0o600) },
         0,
