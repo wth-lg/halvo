@@ -55,6 +55,16 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tree
   fi
+  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    {
+      count = split($0, field, " ")
+      if (count && field[1] !~ /^(#|\?|!|H)$/) {
+        printf "tree changed=before %s %s\n", field[1], field[count]
+        bad = 1
+      }
+    }
+    END { exit bad }
+  ' || finish tree
 }
 
 tree_same() {
@@ -202,6 +212,128 @@ self_case() {
   fi
 }
 
+# tree_git ARGS: the stand-in for git in the tree cases: the two reads of the tree, from the case's status file.
+tree_git() {
+  case $* in
+    '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all')
+      cat "$TREE_DIR/status"
+      ;;
+    'ls-files -v')
+      printf 'H %s\nH fixtures/r5/trains/sample.jsonl\n' "$script_path"
+      ;;
+    *) return 97 ;;
+  esac
+}
+
+# tree_cargo ARGS: the stand-in for cargo in the tree cases: records the call, changes the tree when the case asks it
+# to at the build, and fails when the case's build fails.
+tree_cargo() {
+  printf '%s\n' "$*" >>"$TREE_DIR/cargo.calls"
+  if [ "$TREE_CHANGE_AT" = build ]; then
+    printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/status"
+  fi
+  [ "$TREE_BUILD" = ok ] || return 101
+}
+
+tree_gate() {
+  cat <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >>"$TREE_DIR/gate.calls"
+if [ "$TREE_CHANGE_AT" = gate ]; then
+  printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/status"
+fi
+case $* in
+  routine) printf 'routine trains=135 plays=270 same=270 result=ok\n' ;;
+  *) printf 'REFUSED store: the derived store is not in this build\n' >&2; exit 2 ;;
+esac
+EOF
+}
+
+# tree_case LABEL WANT TEXT LINE_BEFORE CHANGE_AT CHANGE_LINE BUILD CARGO: runs measure, the function that the check
+# runs, in a subshell with the stand-ins for git and for cargo (or no cargo when CARGO is no) and with the stand-in gate
+# where the lookup finds the built binary, and records whether the last line, the text and the calls are the wanted.
+tree_case() {
+  label=$1
+  want=$2
+  text=$3
+  TREE_DIR=$work/tree-$label
+  TREE_CHANGE_AT=$5
+  TREE_CHANGE_LINE=$6
+  TREE_BUILD=$7
+  export TREE_DIR TREE_CHANGE_AT TREE_CHANGE_LINE TREE_BUILD
+  mkdir -p "$TREE_DIR/repo/target/debug" "$TREE_DIR/art" "$work/no-cargo" || broken
+  printf '# branch.oid 1111111111111111111111111111111111111111\n# branch.head r5\n' >"$TREE_DIR/status" || broken
+  if [ -n "$4" ]; then
+    printf '%s\n' "$4" >>"$TREE_DIR/status" || broken
+  fi
+  tree_gate >"$TREE_DIR/repo/target/debug/learn-gate" || broken
+  chmod +x "$TREE_DIR/repo/target/debug/learn-gate" || broken
+  out=$(
+    git() {
+      tree_git "$@"
+    }
+    if [ "$8" = yes ]; then
+      cargo() {
+        tree_cargo "$@"
+      }
+    else
+      PATH=$work/no-cargo:/usr/bin:/bin
+    fi
+    CI_D_REPO=$TREE_DIR/repo
+    CI_D_ARTIFACTS=$TREE_DIR/art
+    CARGO_TARGET_DIR=$TREE_DIR/repo/target
+    measure
+  )
+  code=$?
+  last=${out##*"$nl"}
+  case $code:$last in
+    "0:PASS $name") got=PASS ;;
+    "1:FAIL $name ("*")")
+      got=${last#"FAIL $name ("}
+      got=FAIL-${got%)}
+      ;;
+    *) got=exit-$code ;;
+  esac
+  case $out in
+    *"$text"*) ;;
+    *) got=$got-without-the-text ;;
+  esac
+  case $label in
+    changed-before | staged-before | sample-before)
+      [ ! -e "$TREE_DIR/cargo.calls" ] || got=$got-after-a-cargo-call
+      ;;
+    build-fails)
+      [ ! -e "$TREE_DIR/gate.calls" ] || got=$got-after-a-gate-call
+      ;;
+  esac
+  printf 'case %s want=%s got=%s\n' "$label" "$want" "$got" >>"$work/tree-cases.txt"
+  if [ "$got" != "$want" ]; then
+    wrong="$wrong tree-$label:$got"
+  elif [ "$want" = PASS ]; then
+    tree_passed=$((tree_passed + 1))
+  else
+    tree_rejected=$((tree_rejected + 1))
+  fi
+}
+
+tree_cases() {
+  oid=e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+  changed="1 .M N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/routine.rs"
+  staged="1 M. N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/routine.rs"
+  sample="1 .M N... 100644 100644 100644 $oid $oid fixtures/r5/trains/sample.jsonl"
+  later="1 .M N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/main.rs"
+  tree_passed=0
+  tree_rejected=0
+  tree_case changed-before FAIL-tree 'tree changed=before 1 crates/halvo-learn-gate/src/routine.rs' "$changed" "" "" ok yes
+  tree_case staged-before FAIL-tree 'tree changed=before 1 crates/halvo-learn-gate/src/routine.rs' "$staged" "" "" ok yes
+  tree_case sample-before FAIL-tree 'tree changed=before 1 fixtures/r5/trains/sample.jsonl' "$sample" "" "" ok yes
+  tree_case untracked-before PASS "PASS $name" '? notes.txt' "" "" ok yes
+  tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
+  tree_case play-changes FAIL-tree 'tree changed=after-gate' "" gate "$later" ok yes
+  tree_case no-cargo FAIL-cargo "FAIL $name (cargo)" "" "" "" ok no
+  tree_case build-fails FAIL-build "FAIL $name (build)" "" "" "" fails yes
+}
+
 self_test() {
   made=$(mktemp -d "${TMPDIR:-/tmp}/55-r5-routine.XXXXXX") || broken
   work=$made
@@ -236,8 +368,13 @@ self_test() {
   self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
   self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
   self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
+  tree_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+    exit 1
+  fi
+  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 7 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 7)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
@@ -248,7 +385,7 @@ self_test() {
     printf 'FAIL self-test:%s (%s failing fixtures rejected, not %s)\n' "$name" "$rejected" "$failing_fixtures"
     exit 1
   fi
-  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$((rejected + tree_rejected))"
 }
 
 case ${1:-} in
