@@ -1,17 +1,8 @@
 use crate::daemon::DaemonError;
-use crate::secure_input::SecureInputState;
 use crate::secure_input_macos::SecureInputRefused;
 
 pub(crate) fn secure_input_on(byte: u8) -> bool {
     byte != 0
-}
-
-pub(crate) fn secure_input_state(on: bool) -> SecureInputState {
-    if on {
-        SecureInputState::Active
-    } else {
-        SecureInputState::Inactive
-    }
 }
 
 pub(crate) fn hold_status(status: i32) -> Result<(), i32> {

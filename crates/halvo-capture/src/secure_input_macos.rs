@@ -1,9 +1,7 @@
 //! macOS secure-input guard.
 #![deny(clippy::undocumented_unsafe_blocks)]
 
-use crate::macos::screen::self_exclusion_enforced_in_filter;
-use crate::macos::secure_input_byte::{secure_input_on, secure_input_state};
-use crate::secure_input::{SecureInputError, SecureInputGuard, SecureInputState};
+use crate::macos::secure_input_byte::secure_input_on;
 
 #[link(name = "Carbon", kind = "framework")]
 extern "C" {
@@ -77,26 +75,6 @@ pub(crate) fn disable_secure_event_input() -> i32 {
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
         crate::macos::secure_input_byte::release_hold(self.release);
-    }
-}
-
-/// The macOS [`SecureInputGuard`].
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MacosSecureInput;
-
-impl MacosSecureInput {
-    pub const fn new() -> Self {
-        Self
-    }
-}
-
-impl SecureInputGuard for MacosSecureInput {
-    fn state(&self) -> SecureInputState {
-        secure_input_state(secure_input_active())
-    }
-
-    fn exclude_self_window(&self) -> Result<(), SecureInputError> {
-        self_exclusion_enforced_in_filter()
     }
 }
 
@@ -256,7 +234,7 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use super::test_support::{agreed_reading, one_hold_at_a_time, reads_on_within};
+    use super::test_support::{agreed_reading, one_hold_at_a_time};
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -349,13 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn guard_reports_a_boolean_state_without_panicking() {
-        let guard = MacosSecureInput::new();
-        let _ = guard.is_active();
-        assert!(guard.exclude_self_window().is_ok());
-    }
-
-    #[test]
     fn the_predicate_follows_the_session_reading_through_a_hold() {
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
@@ -375,27 +346,5 @@ mod tests {
             "during the hold: (predicate, session)"
         );
         assert_eq!(after.0, after.1, "after the hold: (predicate, session)");
-    }
-
-    #[test]
-    fn the_guard_state_reads_off_on_during_a_hold_and_off_again() {
-        let one = one_hold_at_a_time();
-        let limit = Duration::from_secs(2);
-        let guard_on = || MacosSecureInput::new().state() == SecureInputState::Active;
-        let before = agreed_reading(guard_on, limit);
-        let Some(hold) =
-            one.hold_or_skip("the_guard_state_reads_off_on_during_a_hold_and_off_again")
-        else {
-            return;
-        };
-        let during = reads_on_within(guard_on, limit);
-        drop(hold);
-        let after = agreed_reading(guard_on, limit);
-        assert_eq!(before.0, before.1, "before the hold: (guard, session)");
-        assert!(
-            during,
-            "during an accepted hold the guard does not read Active"
-        );
-        assert_eq!(after.0, after.1, "after the hold: (guard, session)");
     }
 }
