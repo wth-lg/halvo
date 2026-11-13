@@ -254,6 +254,7 @@ body_case() {
     changed) printf 'four\n' >"$work/case-$1/streams/gen-dev-s001/day-001.jsonl" ;;
     missing) mv "$work/case-$1/streams/gen-dev-s001/labels.jsonl" "$work/moved-$1" ;;
     extra) printf 'five\n' >"$work/case-$1/streams/gen-dev-s001/day-002.jsonl" ;;
+    manifest-byte) sed 's/^seed = 7$/seed = 8/' "$work/committed.toml" >"$work/case-$1/manifest.toml" ;;
     *) : ;;
   esac
   state=$(r2_body_check "$work/case-$1" "$work/committed.toml") || state=unread
@@ -274,7 +275,7 @@ body_fixtures() {
   printf 'one\n' >"$work/body/streams/gen-dev-s001/day-001.jsonl" || self_fail "the body fixture cannot be written"
   printf 'two\n' >"$work/body/streams/gen-dev-s001/labels.jsonl" || self_fail "the body fixture cannot be written"
   printf 'three\n' >"$work/body/script-manifest.jsonl" || self_fail "the body fixture cannot be written"
-  : >"$work/committed.toml"
+  printf 'seed = 7\n' >"$work/committed.toml" || self_fail "the body fixture cannot be written"
   for f in script-manifest.jsonl streams/gen-dev-s001/day-001.jsonl streams/gen-dev-s001/labels.jsonl; do
     h=$(sha "$work/body/$f") || self_fail "the body fixture cannot be hashed"
     printf '[[file]]\npath = "%s"\nsha256 = "%s"\n' "$f" "$h" >>"$work/committed.toml" || self_fail "the body fixture cannot be written"
@@ -284,6 +285,7 @@ body_fixtures() {
   body_case changed 'files that differ: 1, missing: 0, extra: 0, the first streams/gen-dev-s001/day-001.jsonl'
   body_case missing 'files that differ: 0, missing: 1, extra: 0, the first streams/gen-dev-s001/labels.jsonl'
   body_case extra 'files that differ: 0, missing: 0, extra: 1, the first streams/gen-dev-s001/day-002.jsonl'
+  body_case manifest-byte 'files that differ: 1, missing: 0, extra: 0, the first manifest.toml'
 }
 
 self_test() {
