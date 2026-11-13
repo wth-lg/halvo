@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no anchor, alias or tag, and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too).
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too).
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -88,7 +88,7 @@ measure() {
     quote*) finding "ci.yml line ${span#quote } has a quote that this lint reads as running past the line's end; write the value on one line, or as a block scalar with | or > on the key's line and its text indented below the key (a block header alone on the next line, and a plain value continued onto a line that starts with a quote, read so too)" ;;
     flow*) finding "ci.yml line ${span#flow } has a [ or { that this lint reads as running past the line's end; write it on one line, or in block form with one item or key on each line (a plain value continued onto a line that starts with [ or { reads so too)" ;;
     explicit*) finding "ci.yml line ${span#explicit } starts a key with ? and a blank, one of the keys in the explicit form of YAML, which this lint does not read; write the key in the plain form key: value" ;;
-    sign*) finding "ci.yml line ${span#sign } starts a node with &, * or ! (an anchor, an alias or a tag), which this lint does not read; write the value itself with no sign (a plain value continued onto a line that starts with & or ! reads so too: write it on one line, or as a block scalar with | or > on the key's line)" ;;
+    sign*) finding "ci.yml line ${span#sign } starts a node with &, * or !, which this lint reads as an anchor, an alias or a tag and does not read; take an anchor, an alias or a tag out and write the value itself, and put a value that begins with &, * or ! as text in quotes, as in '!cancelled()' (a plain value continued onto a line that starts with &, * or ! reads so too: write it on one line, in quotes, or as a block scalar with | or > on the key's line)" ;;
   esac
   entries=$(ls -A .github/workflows) || fail ".github/workflows cannot be listed"
   [ "$entries" = ci.yml ] ||
@@ -470,6 +470,14 @@ EOF
   check alias-with-no-anchor FAIL 'ci.yml line 8 starts a node with &, * or !'
   tree plain-continuation-that-starts-with-ampersands "7s/\$/\\${nl}    env:\\${nl}      CMD: a\\${nl}        \\&\\& b/"
   check plain-continuation-that-starts-with-ampersands FAIL 'ci.yml line 10 starts a node with &, * or !'
+  tree if-that-begins-with-a-bang "10s/\$/\\${nl}      - if: !cancelled()\\${nl}        run: echo x/"
+  check if-that-begins-with-a-bang FAIL 'ci.yml line 11 starts a node with &, * or !, which this lint reads as an anchor, an alias or a tag and does not read; take an anchor, an alias or a tag out and write the value itself, and put a value that begins with &, * or ! as text in quotes'
+  tree if-that-begins-with-a-bang-in-quotes "10s/\$/\\${nl}      - if: '!cancelled()'\\${nl}        run: echo x/"
+  check if-that-begins-with-a-bang-in-quotes PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree plain-continuation-that-starts-with-an-asterisk "7s/\$/\\${nl}    env:\\${nl}      CMD: a\\${nl}        * b/"
+  check plain-continuation-that-starts-with-an-asterisk FAIL 'ci.yml line 10 starts a node with &, * or !'
+  tree plain-continuation-that-starts-with-a-bang "7s/\$/\\${nl}    env:\\${nl}      CMD: a\\${nl}        ! b/"
+  check plain-continuation-that-starts-with-a-bang FAIL 'ci.yml line 10 starts a node with &, * or !'
   tree quoted-name-holds-the-permissions "1s/.*/name: \"ci\\${nl}permissions:\\${nl}  contents: read\\${nl}\"/;3,4d"
   check quoted-name-holds-the-permissions FAIL 'ci.yml line 1 has a quote that this lint reads as running past the line'"'"'s end'
   tree open-flow-map-with-no-quote "8s/.*/    env: { A: b,\\${nl}    timeout-minutes: 30\\${nl}    }/"
