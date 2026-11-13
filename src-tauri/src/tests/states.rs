@@ -441,15 +441,16 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
 }
 
 #[test]
-fn no_reply_holds_a_store_backend() {
+fn no_reply_holds_the_key_of_the_old_store_description() {
+    let key = ["store", "backend"].join("_");
     for (name, view) in states() {
         let text = serde_json::to_string(&view).expect("the view writes");
-        assert!(!text.contains("store_backend"), "{name}");
+        assert!(!text.contains(&key), "{name}");
     }
     for entry in std::fs::read_dir(fixtures_dir()).expect("the fixtures are listed") {
         let path = entry.expect("an entry").path();
         let text = std::fs::read_to_string(&path).expect("a fixture reads");
-        assert!(!text.contains("store_backend"), "{}", path.display());
+        assert!(!text.contains(&key), "{}", path.display());
     }
 }
 
