@@ -879,6 +879,16 @@ mod tests {
         );
     }
 
+    /// The data directory that ctl is given in these tests: an absolute path on each system.
+    fn ctl_data_dir() -> crate::paths::DataDir {
+        crate::paths::DataDir::from_flag(if cfg!(windows) {
+            r"C:\halvo-data"
+        } else {
+            "/halvo-data"
+        })
+        .unwrap()
+    }
+
     const DELETE_REFUSED_STDOUT: &str = "delete_refused\n";
     const DELETE_REFUSED_STDERR: &str = "halvo-capture: this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again\n";
 
@@ -889,7 +899,7 @@ mod tests {
         let printed = crate::ctl_text::print(
             &crate::ctl_text::Verb::DeleteAll(armed),
             reply,
-            &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+            &ctl_data_dir(),
         );
         (printed.stdout, printed.stderr, printed.status)
     }
@@ -1052,7 +1062,7 @@ mod tests {
             let printed = crate::ctl_text::print(
                 &crate::ctl_text::Verb::Status { indicator: false },
                 Err(error),
-                &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+                &ctl_data_dir(),
             );
             assert_eq!(
                 (printed.stdout.as_str(), printed.stderr, printed.status),
@@ -1548,7 +1558,7 @@ mod tests {
         let printed = crate::ctl_text::print(
             &crate::ctl_text::Verb::Pause,
             Ok(Reply::CaptureChanged(reply)),
-            &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+            &ctl_data_dir(),
         );
         assert_eq!(printed.stdout, "capture=pausing\n");
         assert_eq!(
