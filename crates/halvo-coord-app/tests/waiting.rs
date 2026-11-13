@@ -231,3 +231,49 @@ fn a_hide_and_a_show_before_the_waiting_call_wakes_still_end_it_with_closed() {
     assert_eq!(reply, fixture("reply-closed"));
     assert!(took < ms(5_000), "{took:?}");
 }
+
+#[test]
+fn a_next_whose_seq_is_old_answers_well_inside_one_coalesce() {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let (reply, took) = wait_next(&main, 0).join().unwrap();
+    assert!(
+        took < ms(1_000),
+        "at once, not a coalesce of 2 s later: {took:?}"
+    );
+    assert_eq!(seq_of(&reply), u64::from(hub.coordinator().snapshot().seq));
+}
+
+#[test]
+fn a_waiting_next_answers_one_coalesce_after_the_change_and_not_later() {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let seq = hub.coordinator().snapshot().seq;
+    let waiting = wait_next(&main, seq);
+    sleep(ms(300));
+    let changed = Instant::now();
+    hub.coordinator()
+        .control(&agent(0), Action::RunNow)
+        .unwrap();
+    let (reply, _) = waiting.join().unwrap();
+    let after = changed.elapsed();
+    assert!(
+        after >= ms(1_000) && after < ms(3_000),
+        "point 1 of draft-rulings-u41-gates.md waits for a ruling: as built, a call that waits \
+         answers coalesce_ms (2 s here) after the first change that it sees; it answered {after:?} \
+         after the change"
+    );
+    assert!(seq_of(&reply) > u64::from(seq));
+}
+
+#[test]
+fn a_next_with_no_change_answers_after_next_wait_and_not_later() {
+    let hub = hub(0, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let (reply, took) = wait_next(&main, 1).join().unwrap();
+    assert!(
+        took >= ms(3_000) && took < ms(6_000),
+        "next_wait is 4 s: {took:?}"
+    );
+    assert_eq!(reply, fixture("reply-next-same"));
+}
