@@ -6,6 +6,8 @@
 
 use std::net::IpAddr;
 
+use crate::procs::{self, Proc};
+
 /// The protocol of a socket that a table names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Proto {
@@ -29,8 +31,14 @@ pub struct Socket {
 /// process once. `candidates` are the processes whose descriptors are read on macOS; Windows
 /// reads its one table and takes no candidates.
 pub fn owners_of_connection(peer_port: u16, relay_port: u16, candidates: &[u32]) -> Vec<u32> {
-    let mut owners: Vec<u32> = sockets(candidates)
-        .into_iter()
+    owners_among(&sockets(candidates), peer_port, relay_port)
+}
+
+/// The processes among `sockets` that hold the connection from 127.0.0.1:`peer_port` to
+/// 127.0.0.1:`relay_port`, each once: a listening socket holds no connection.
+pub fn owners_among(sockets: &[Socket], peer_port: u16, relay_port: u16) -> Vec<u32> {
+    let mut owners: Vec<u32> = sockets
+        .iter()
         .filter(|s| {
             s.proto == Proto::Tcp
                 && !s.listening
@@ -55,6 +63,106 @@ pub fn sockets(pids: &[u32]) -> Vec<Socket> {
 /// Every process number of the system.
 pub fn all_pids() -> Vec<u32> {
     sys::all_pids()
+}
+
+/// A connection that the relay refused because its other end was not one process of the
+/// browser's tree, as the system's table read it while the relay held the socket: the port of the
+/// other end, how many owners the table named and of them how many were in the tree, and why.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForeignPeer {
+    pub peer_port: u16,
+    pub owners: usize,
+    pub in_tree: usize,
+    pub cause: &'static str,
+}
+
+/// Whether the other end of the relay's connection from `peer_port` belongs to exactly one process,
+/// and that process to the tree of the browser `root`, read from the system's table while the
+/// caller holds the accepted socket: on macOS the descriptors of the tree's processes and then of
+/// every other process that this user may read, on Windows the table of TCP connections with owner
+/// ids. The owner is read twice, before and after the tree, and must be the same process both
+/// times; a pid whose creation time is not the one that the tree recorded is not in the tree. The
+/// reads hold the start lock, so that no child of this process is between its start and its
+/// program, when it could hold a copy of a descriptor of this process. Gives the owner's number.
+pub fn check_peer(
+    root: Option<&Proc>,
+    peer_port: u16,
+    relay_port: u16,
+) -> Result<u32, ForeignPeer> {
+    let _held = crate::start::lock();
+    let Some(root) = root else {
+        return Err(foreign(peer_port, 0, 0, "no_browser"));
+    };
+    check_peer_with(
+        root,
+        peer_port,
+        &mut || owners(peer_port, relay_port, root),
+        &procs::table,
+    )
+}
+
+fn foreign(peer_port: u16, owners: usize, in_tree: usize, cause: &'static str) -> ForeignPeer {
+    ForeignPeer {
+        peer_port,
+        owners,
+        in_tree,
+        cause,
+    }
+}
+
+/// `check_peer` with the read of the connection's owners and of the process table given, for
+/// tests; the caller holds the start lock.
+pub fn check_peer_with(
+    root: &Proc,
+    peer_port: u16,
+    owners: &mut dyn FnMut() -> Vec<u32>,
+    table: &dyn Fn() -> std::io::Result<Vec<Proc>>,
+) -> Result<u32, ForeignPeer> {
+    let first = owners();
+    let table = table().map_err(|_| foreign(peer_port, 0, 0, "table"))?;
+    let tree: Vec<u32> = procs::descendants(&table, std::slice::from_ref(root))
+        .into_iter()
+        .filter(|p| table.iter().any(|t| procs::same(t, p)))
+        .map(|p| p.pid)
+        .collect();
+    let in_tree = first.iter().filter(|p| tree.contains(p)).count();
+    match first.as_slice() {
+        [] => return Err(foreign(peer_port, 0, 0, "no_owner")),
+        [one] if tree.contains(one) => {}
+        [_] => return Err(foreign(peer_port, 1, 0, "outside_tree")),
+        many => return Err(foreign(peer_port, many.len(), in_tree, "several_owners")),
+    }
+    let again = owners();
+    if again != first {
+        return Err(foreign(peer_port, again.len(), in_tree, "owner_changed"));
+    }
+    Ok(first[0])
+}
+
+#[cfg(target_os = "macos")]
+fn owners(peer_port: u16, relay_port: u16, root: &Proc) -> Vec<u32> {
+    let table = procs::table().unwrap_or_default();
+    let tree: Vec<u32> = procs::descendants(&table, std::slice::from_ref(root))
+        .iter()
+        .map(|p| p.pid)
+        .collect();
+    let mut found = owners_of_connection(peer_port, relay_port, &tree);
+    if found.len() == 1 {
+        let me = std::process::id();
+        let others: Vec<u32> = all_pids()
+            .into_iter()
+            .filter(|p| !tree.contains(p) && *p != me)
+            .collect();
+        found.extend(owners_of_connection(peer_port, relay_port, &others));
+    }
+    found.sort_unstable();
+    found.dedup();
+    found
+}
+
+#[cfg(not(target_os = "macos"))]
+fn owners(peer_port: u16, relay_port: u16, _root: &Proc) -> Vec<u32> {
+    owners_of_connection(peer_port, relay_port, &[])
 }
 
 #[cfg(windows)]
@@ -459,6 +567,7 @@ mod sys {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn the_table_names_this_process_as_the_one_owner_of_its_own_connection() {
@@ -477,5 +586,95 @@ mod tests {
             .iter()
             .any(|s| s.pid == me && s.listening && s.local.1 == relay_port));
         assert!(all_pids().contains(&me));
+    }
+
+    fn socket(pid: u32, local: u16, remote: u16, listening: bool) -> Socket {
+        Socket {
+            pid,
+            proto: Proto::Tcp,
+            local: (IpAddr::V4(Ipv4Addr::LOCALHOST), local),
+            remote: (IpAddr::V4(Ipv4Addr::LOCALHOST), remote),
+            listening,
+        }
+    }
+
+    /// M21: a listening socket is no owner of a connection, also when its ports are the
+    /// connection's.
+    #[test]
+    fn a_listening_socket_is_no_owner_of_the_connection() {
+        let rows = [
+            socket(10, 5000, 6000, false),
+            socket(11, 5000, 6000, true),
+            socket(12, 5000, 6001, false),
+            Socket {
+                proto: Proto::Udp,
+                ..socket(13, 5000, 6000, false)
+            },
+        ];
+        assert_eq!(owners_among(&rows, 5000, 6000), vec![10]);
+    }
+
+    fn row(pid: u32, ppid: u32, started_us: u64) -> Proc {
+        Proc {
+            pid,
+            ppid,
+            started_us,
+            exe: None,
+        }
+    }
+
+    fn table() -> std::io::Result<Vec<Proc>> {
+        Ok(vec![row(100, 1, 10), row(101, 100, 20), row(102, 1, 30)])
+    }
+
+    /// M31: the owner is read a second time after the tree and must be the first read's.
+    #[test]
+    fn an_owner_that_changed_between_the_two_reads_is_refused() {
+        let root = row(100, 1, 10);
+        let mut reads = vec![vec![101], vec![102]].into_iter();
+        let got = check_peer_with(
+            &root,
+            5000,
+            &mut || reads.next().unwrap_or_default(),
+            &table,
+        );
+        assert_eq!(got.err().map(|f| f.cause), Some("owner_changed"));
+        let mut reads = vec![vec![101], vec![101]].into_iter();
+        let got = check_peer_with(
+            &root,
+            5000,
+            &mut || reads.next().unwrap_or_default(),
+            &table,
+        );
+        assert_eq!(got, Ok(101));
+    }
+
+    #[test]
+    fn a_peer_with_no_owner_several_owners_or_one_outside_the_tree_is_refused() {
+        let root = row(100, 1, 10);
+        for (owners, cause) in [
+            (vec![], "no_owner"),
+            (vec![102], "outside_tree"),
+            (vec![100, 101], "several_owners"),
+        ] {
+            let got = check_peer_with(&root, 5000, &mut || owners.clone(), &table);
+            assert_eq!(got.err().map(|f| f.cause), Some(cause));
+        }
+        let failing = || -> std::io::Result<Vec<Proc>> { Err(std::io::ErrorKind::Other.into()) };
+        let got = check_peer_with(&root, 5000, &mut || vec![101], &failing);
+        assert_eq!(got.err().map(|f| f.cause), Some("table"));
+        let reused = row(101, 100, 5);
+        let got = check_peer_with(&root, 5000, &mut || vec![101], &|| {
+            Ok(vec![row(100, 1, 10), reused.clone()])
+        });
+        assert_eq!(got.err().map(|f| f.cause), Some("outside_tree"));
+    }
+
+    #[test]
+    fn no_browser_named_refuses_every_peer() {
+        assert_eq!(
+            check_peer(None, 5000, 6000).err().map(|f| f.cause),
+            Some("no_browser")
+        );
     }
 }
