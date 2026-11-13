@@ -75,26 +75,6 @@ pub fn tree_of_with(
     tree
 }
 
-/// The profile directory that a browser's arguments name with `--user-data-dir=`: the argument's
-/// value, or on Windows, where the arguments are one command line, the value up to its closing
-/// quote when the switch stands inside quotes and up to the next space when it does not.
-pub fn profile_of(args: &[String]) -> Option<String> {
-    for a in args {
-        if let Some(p) = a.strip_prefix("--user-data-dir=") {
-            return Some(p.to_string()).filter(|p| !p.is_empty());
-        }
-        if let Some(at) = a.find("--user-data-dir=") {
-            let rest = &a[at + "--user-data-dir=".len()..];
-            let quoted = a[..at].ends_with('"');
-            let end = rest
-                .find(if quoted { '"' } else { ' ' })
-                .unwrap_or(rest.len());
-            return Some(rest[..end].to_string()).filter(|p| !p.is_empty());
-        }
-    }
-    None
-}
-
 /// Whether `text` names `profile` as a whole path: an occurrence that the end of the text, a path
 /// separator, a quote or a space follows, so a profile whose name begins another's names only its
 /// own processes.

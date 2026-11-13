@@ -419,10 +419,13 @@ impl Executor {
             return Err(fail_early(&mut child, Fault::new("browser_start", "table")));
         };
         opts.relay.trust(Some(root.clone()));
-        let mut guard = match opts
-            .relay
-            .start_guard(&opts.guard, &root, &temp.join(GUARD_RECORD))
-        {
+        let mut guard = match opts.relay.start_guard(
+            &opts.guard,
+            &root,
+            &temp.join(GUARD_RECORD),
+            &opts.profile,
+            &opts.browser,
+        ) {
             Ok(g) => g,
             Err(step) => {
                 opts.relay.trust(None);
@@ -447,7 +450,9 @@ impl Executor {
                 return Err(fail(&mut child, &wire_task, fault));
             }
             let tree = root.clone();
-            let _ = tokio::task::spawn_blocking(move || crate::guard::end_tree_now(&tree)).await;
+            let run = crate::checks::Mark::new(&opts.profile, &opts.browser, root.started_us);
+            let _ =
+                tokio::task::spawn_blocking(move || crate::guard::end_tree_now(&tree, &run)).await;
             return Err(fail(
                 &mut child,
                 &wire_task,
@@ -1667,6 +1672,14 @@ pub(crate) mod tests {
         let fence = std::fs::canonicalize(exe.ancestors().nth(3).unwrap().join("tmp")).unwrap();
         let num = |i: usize| args.get(i).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
         let start = Instant::now();
+        let mark = match (args.get(6), args.get(7)) {
+            (Some(profile), Some(program)) => Some(crate::checks::Mark::new(
+                Path::new(profile),
+                Path::new(program),
+                num(2),
+            )),
+            _ => None,
+        };
         let code = crate::guard::guard_loop(
             num(1) as u32,
             num(2),
@@ -1677,6 +1690,7 @@ pub(crate) mod tests {
             crate::guard::GuardIo {
                 read: &mut || crate::procs::table().ok(),
                 args: &crate::checks::command_args,
+                mark: mark.as_ref(),
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| std::thread::sleep(crate::guard::POLL),
                 end: &mut |p, force| {

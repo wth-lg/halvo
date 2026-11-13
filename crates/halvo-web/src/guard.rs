@@ -7,7 +7,10 @@ use std::time::Duration;
 use crate::procs::{self, Proc};
 
 /// The flag of the program that the guard runs:
-/// `--relay-guard <pid> <creation time in µs> <executor pid> <executor creation time> <record>`.
+/// `--relay-guard <pid> <creation time in µs> <executor pid> <executor creation time> <record>
+/// <profile> <program>`: the browser's first process and the executor, each by number and creation
+/// time, the file of the guard's record, and the run's profile directory and the browser's program,
+/// from which the guard builds the run's mark (CP-126 E1 (b), CP-170 E1) before its first read.
 pub const GUARD_FLAG: &str = "--relay-guard";
 
 /// `GRACE_MS`: how long the guard waits, once its executor is gone, for the browser to end by
@@ -48,9 +51,12 @@ pub enum Trigger {
 /// of the act, called once.
 pub struct GuardIo<'a> {
     pub read: &'a mut dyn FnMut() -> Option<Vec<Proc>>,
-    /// The arguments of a process by its number (`checks::command_args` in the product), from
-    /// which the loop takes the run's mark and tests a process against it.
+    /// The arguments of a process by its number (`checks::command_args` in the product), by which
+    /// the loop tests a process against the run's mark.
     pub args: &'a dyn Fn(u32) -> Option<Vec<String>>,
+    /// The run's mark, which the executor gives the guard at its start; `None` takes no process by
+    /// the dead parent's number.
+    pub mark: Option<&'a crate::checks::Mark>,
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(bool),
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
@@ -131,6 +137,14 @@ pub fn guard_main(argv: &[String]) -> i32 {
         return 2;
     };
     let record = argv.get(4).map(std::path::PathBuf::from);
+    let mark = match (argv.get(5), argv.get(6)) {
+        (Some(profile), Some(program)) => Some(crate::checks::Mark::new(
+            std::path::Path::new(profile),
+            std::path::Path::new(program),
+            started_us,
+        )),
+        _ => None,
+    };
     let start = std::time::Instant::now();
     guard_loop(
         pid as u32,
@@ -142,6 +156,7 @@ pub fn guard_main(argv: &[String]) -> i32 {
         GuardIo {
             read: &mut || procs::table().ok(),
             args: &crate::checks::command_args,
+            mark: mark.as_ref(),
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -243,6 +258,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let GuardIo {
         read,
         args,
+        mark,
         now_ms,
         pause,
         end,
@@ -265,7 +281,6 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let mut act = GuardAct::default();
     let mut gone_at: Option<u128> = None;
     let mut group_held = false;
-    let mut mark: Option<crate::checks::Mark> = None;
     let (grace, margin) = match trigger {
         Trigger::ExecutorGone { .. } => (GRACE.as_millis(), PORT_MARGIN.as_millis()),
         Trigger::Now => (0, 0),
@@ -288,18 +303,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 known.push(r.clone());
             }
         }
-        if mark.is_none() && table.iter().any(|t| procs::same(t, &root)) {
-            mark = mark_of(&root, args);
-        }
-        let running = members(
-            &mut known,
-            &table,
-            &root,
-            me,
-            group_held,
-            mark.as_ref(),
-            args,
-        );
+        let running = members(&mut known, &table, &root, me, group_held, mark, args);
         group_held = root.pgid == root.pid
             && table
                 .iter()
@@ -363,19 +367,6 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     }
 }
 
-/// The run's mark (CP-126 E1 (b)) from the browser's first process: the profile that its own
-/// arguments name, its program's bundle or install directory, and its creation time. `None` while
-/// either cannot be read.
-fn mark_of(root: &Proc, args: &dyn Fn(u32) -> Option<Vec<String>>) -> Option<crate::checks::Mark> {
-    let profile = crate::checks::profile_of(&args(root.pid)?)?;
-    let exe = root.exe.as_deref()?;
-    Some(crate::checks::Mark {
-        profile,
-        since_us: root.started_us,
-        root: procs::bundle_root(exe),
-    })
-}
-
 /// Notes in the record a process that the loop asked or forced: its program's file name, and
 /// whether it is the browser's first process.
 fn note(act: &mut GuardAct, p: &Proc, root: &Proc) {
@@ -391,8 +382,8 @@ fn note(act: &mut GuardAct, p: &Proc, root: &Proc) {
 }
 
 /// Ends the tree of `root` by the guard's rule at once (`Trigger::Now`), with the system's table,
-/// ask and forced end: the executor's end of a start that gave no first reply (CP-158 (1)).
-pub fn end_tree_now(root: &Proc) -> GuardAct {
+/// ask and forced end and the run's `mark`: the executor's end of a start that gave no first reply (CP-158 (1)).
+pub fn end_tree_now(root: &Proc, mark: &crate::checks::Mark) -> GuardAct {
     let start = std::time::Instant::now();
     let mut done = GuardAct::default();
     guard_loop(
@@ -407,6 +398,7 @@ pub fn end_tree_now(root: &Proc) -> GuardAct {
                 procs::table().ok()
             },
             args: &crate::checks::command_args,
+            mark: Some(mark),
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -449,6 +441,7 @@ mod tests {
         table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
         args: &dyn Fn(u32) -> Option<Vec<String>>,
     ) -> (i32, u128, Ends, Option<GuardAct>) {
+        let mark = run_mark();
         let clock = Cell::new(0u128);
         let ends = RefCell::new(Vec::new());
         let mut record = None;
@@ -464,6 +457,7 @@ mod tests {
                     table(clock.get(), &ends.borrow())
                 },
                 args,
+                mark: Some(&mark),
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + step),
                 end: &mut |p, force| {
@@ -505,6 +499,15 @@ mod tests {
                     "--user-data-dir=/p".to_string(),
                 ]
             })
+        }
+    }
+
+    /// The mark of the runs of the stand-in tables: the profile `/p`, the bundle `/B.app`, from 7 µs.
+    fn run_mark() -> crate::checks::Mark {
+        crate::checks::Mark {
+            profile: "/p".into(),
+            since_us: 7,
+            root: std::path::PathBuf::from("/B.app"),
         }
     }
 
@@ -797,8 +800,10 @@ mod tests {
         let root = in_bundle(100, 5, 10, 0);
         let k = in_bundle(200, 100, 20, 0);
         let mut known = Vec::new();
-        let mark = mark_of(&root, &args);
-        assert!(mark.is_some());
+        let mark = Some(crate::checks::Mark {
+            since_us: 10,
+            ..run_mark()
+        });
         let first = members(
             &mut known,
             &[root.clone(), k.clone()],
@@ -1086,6 +1091,7 @@ mod tests {
                     Some(v)
                 },
                 args: &|_| None,
+                mark: None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + 10),
                 end: &mut |p, force| fence.pass(p, force, &send),
@@ -1166,6 +1172,7 @@ mod tests {
                     procs::table().ok()
                 },
                 args: &crate::checks::command_args,
+                mark: None,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| {
                     assert!(

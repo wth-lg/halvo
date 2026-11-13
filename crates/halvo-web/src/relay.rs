@@ -335,7 +335,7 @@ impl Drop for Relay {
 impl RelayHandle {
     /// Starts the guard of the relay's port for the browser `root` (`guard::guard_main`): the
     /// guard's program with `GUARD_FLAG`, the root's and this process's numbers and creation
-    /// times and the record's path, the relay's listener placed in it, under the start lock, with
+    /// times, the record's path, the run's profile and the browser's program (the run's mark), the relay's listener placed in it, under the start lock, with
     /// the guard's environment and the system directory (CP-160 (1)). The error names the step
     /// that failed.
     pub fn start_guard(
@@ -343,6 +343,8 @@ impl RelayHandle {
         guard: &crate::guard::GuardProgram,
         root: &Proc,
         record: &std::path::Path,
+        profile: &std::path::Path,
+        program: &std::path::Path,
     ) -> Result<crate::start::Started, &'static str> {
         let listener = self.shared.listener.lock().map_err(|_| "relay")?;
         let raw = (*listener).ok_or("relay_closed")?;
@@ -357,6 +359,8 @@ impl RelayHandle {
             me.pid.to_string().into(),
             me.started_us.to_string().into(),
             record.as_os_str().to_owned(),
+            profile.as_os_str().to_owned(),
+            program.as_os_str().to_owned(),
         ]);
         let spec = crate::start::Spec {
             program: &guard.program,
@@ -756,7 +760,13 @@ mod tests {
         };
         let mut started = relay
             .handle()
-            .start_guard(&guard, &root, &dir.join("record"))
+            .start_guard(
+                &guard,
+                &root,
+                &dir.join("record"),
+                std::path::Path::new("/p/profile"),
+                std::path::Path::new("/b/chrome"),
+            )
             .expect("started");
         let deadline = std::time::Instant::now() + Duration::from_secs(20);
         let text = loop {
@@ -773,7 +783,7 @@ mod tests {
         started.kill();
         let own = me();
         let args = format!(
-            "args 4242 77 {} {} {}",
+            "args 4242 77 {} {} {} /p/profile /b/chrome",
             own.pid,
             own.started_us,
             dir.join("record").display()
@@ -808,7 +818,13 @@ mod tests {
     ) -> Result<(), &'static str> {
         let shared = Arc::new(Shared::default());
         RelayHandle { shared }
-            .start_guard(guard, root, &dir.join("record"))
+            .start_guard(
+                guard,
+                root,
+                &dir.join("record"),
+                std::path::Path::new("/p/profile"),
+                std::path::Path::new("/b/chrome"),
+            )
             .map(|mut s| s.kill())
     }
 
