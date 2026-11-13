@@ -169,7 +169,7 @@ fn printable(word: &str) -> &str {
 mod tests {
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::process::Command;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     use halvo_route::policy::{Basis, PickCell, Row};
     use halvo_route::tier::Level;
@@ -188,14 +188,36 @@ mod tests {
 
     struct Counting;
 
+    static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
+    static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
     static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
     static BYTES: AtomicU64 = AtomicU64::new(0);
+
+    thread_local! {
+        static MARK: u8 = const { 0 };
+    }
+
+    fn this_thread() -> usize {
+        MARK.with(|mark| std::ptr::from_ref(mark).addr())
+    }
 
     #[allow(unsafe_code)]
     unsafe impl GlobalAlloc for Counting {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            ALLOCATIONS.fetch_add(1, Ordering::SeqCst);
-            BYTES.fetch_add(layout.size() as u64, Ordering::SeqCst);
+            let me = this_thread();
+            let first =
+                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
+                    Ok(_) => me,
+                    Err(first) => first,
+                };
+            let (calls, bytes) = if me == first {
+                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
+            } else {
+                (&ALLOCATIONS, &BYTES)
+            };
+            calls.fetch_add(1, Ordering::SeqCst);
+            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
             System.alloc(layout)
         }
 
@@ -207,17 +229,60 @@ mod tests {
     #[global_allocator]
     static COUNTING: Counting = Counting;
 
-    fn allocations<T>(work: impl FnOnce() -> T) -> ((u64, u64), T) {
-        let before = (
+    fn first_thread() -> (u64, u64) {
+        (
+            FIRST_ALLOCATIONS.load(Ordering::SeqCst),
+            FIRST_BYTES.load(Ordering::SeqCst),
+        )
+    }
+
+    fn other_threads() -> (u64, u64) {
+        (
             ALLOCATIONS.load(Ordering::SeqCst),
             BYTES.load(Ordering::SeqCst),
-        );
+        )
+    }
+
+    fn since(before: (u64, u64), after: (u64, u64)) -> (u64, u64) {
+        (after.0 - before.0, after.1 - before.1)
+    }
+
+    struct Window {
+        first: (u64, u64),
+        others: (u64, u64),
+    }
+
+    impl Window {
+        fn all(&self) -> (u64, u64) {
+            (self.first.0 + self.others.0, self.first.1 + self.others.1)
+        }
+    }
+
+    fn allocations<T>(work: impl FnOnce() -> T) -> (Window, T) {
+        let before = (first_thread(), other_threads());
         let held = work();
-        let after = (
-            ALLOCATIONS.load(Ordering::SeqCst),
-            BYTES.load(Ordering::SeqCst),
+        let after = (first_thread(), other_threads());
+        let window = Window {
+            first: since(before.0, after.0),
+            others: since(before.1, after.1),
+        };
+        (window, held)
+    }
+
+    fn print_windows(start: (u64, u64), windows: [(&str, &Window); 2]) {
+        let end = first_thread();
+        let on_first = this_thread() == FIRST_THREAD.load(Ordering::SeqCst);
+        for (name, window) in windows {
+            println!(
+                "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
+                window.first.0, window.first.1, window.others.0, window.others.1
+            );
+        }
+        println!(
+            "first_thread start_calls={} start_bytes={} end_calls={} end_bytes={} \
+             test_on_first_thread={on_first}",
+            start.0, start.1, end.0, end.1
         );
-        ((after.0 - before.0, after.1 - before.1), held)
     }
 
     fn in_a_child_alone(name: &str) -> bool {
@@ -279,6 +344,7 @@ mod tests {
 
     #[test]
     fn probe_allocates_nothing_per_round() {
+        let start = first_thread();
         if !in_a_child_alone("probe::tests::probe_allocates_nothing_per_round") {
             return;
         }
@@ -286,6 +352,7 @@ mod tests {
         assert!(run(&data, 1).ok);
         let one = allocations(|| run(&data, 1));
         let many = allocations(|| run(&data, CHECK_ROUNDS));
+        print_windows(start, [("rounds=1", &one.0), ("rounds=many", &many.0)]);
         assert_eq!(
             (one.1, many.1),
             (
@@ -299,7 +366,7 @@ mod tests {
                 }
             )
         );
-        assert_eq!(many.0, one.0);
+        assert_eq!(many.0.all(), one.0.all());
     }
 
     #[test]
@@ -369,18 +436,21 @@ mod tests {
 
     #[test]
     fn the_count_sees_allocations_of_every_thread() {
+        let start = first_thread();
         if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
             return;
         }
-        let (count, _) = allocations(|| std::hint::black_box(Box::new(1_u64)) == Box::new(1));
-        assert_eq!(count, (2, 16));
-        let (count, _) = allocations(|| {
+        let (boxes, _) = allocations(|| std::hint::black_box(Box::new(1_u64)) == Box::new(1));
+        let (started, _) = allocations(|| {
             std::thread::scope(|scope| {
                 scope
                     .spawn(|| std::hint::black_box(vec![0_u8; 4096]))
                     .join()
             })
         });
+        print_windows(start, [("boxes", &boxes), ("started", &started)]);
+        assert_eq!(boxes.all(), (2, 16));
+        let count = started.all();
         assert!(count.0 >= 1 && count.1 >= 4096, "{count:?}");
     }
 
