@@ -386,6 +386,7 @@ fn printed(stdout: String, status: i32) -> Printed {
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
     let reply = match result {
         Ok(reply) => reply,
+        Err(ClientError::Daemon(error)) => Reply::Error(error),
         Err(ClientError::Unreachable { endpoint }) => {
             return failed(
                 format!("capture service not running at {endpoint}"),
