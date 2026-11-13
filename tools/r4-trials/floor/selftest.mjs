@@ -1,10 +1,15 @@
 // usage: node tools/r4-trials/floor/selftest.mjs [DIR]
 // Runs the cases of every *.test.mjs of DIR, by default the trial's tests/, one after another,
 // and prints a line per failed case and `floor self-test: K of N ok`. It starts no app and no
-// browser. Exit: 0 when every case passes and there is one, 1 otherwise.
+// browser. It removes every directory that its cases made with tests/temp.mjs on its way out.
+// Exit: 0 when every case passes and there is one, 1 otherwise.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { cleanUp } from './tests/temp.mjs';
+
+process.on('exit', cleanUp);
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit(1));
 
 const dir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs')).sort();

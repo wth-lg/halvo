@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LIST, parseList } from '../list.mjs';
 import { checkResult, parseCell } from '../result.mjs';
+import { tempDir } from './temp.mjs';
 
 const HERE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const features = parseList(fs.readFileSync(LIST, 'utf8')).features;
@@ -29,7 +30,7 @@ function refused(r) {
   assert.match(r.stderr, /^REFUSED usage: [^\n]*\n$/);
 }
 
-const missingPath = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-missing-')), 'none.md');
+const missingPath = () => path.join(tempDir('missing'), 'none.md');
 
 /** The cases of ruling RD-41 D1, D2 and D5 on the result file. */
 export const cases = [
@@ -69,11 +70,9 @@ export const cases = [
     assert.ok(problems(text).includes('the file holds no cell of hosted-mac'));
     assert.equal(problems(file([guest, mac, win], ['verdict floor=guest oldest_run=14.0 missing=0'])), '');
   }],
-  ['a_comment_line_that_says_where_the_cells_came_from_stands', () => {
+  ['f5_a_comment_line_in_the_result_file_is_refused', () => {
     const note = '# The cell of hosted-mac is from run 1, the cell of hosted-win from run 2.';
-    assert.equal(problems([...readings, mac, win, note, verdict].join('\n') + '\n'), '');
-    assert.equal(problems([note, ...readings, mac, win, verdict].join('\n') + '\n'), '');
-    assert.ok(problems([...readings, mac, win, verdict, note].join('\n') + '\n').includes('the file does not end in one verdict line'));
+    assert.ok(problems([...readings, mac, win, note, verdict].join('\n') + '\n').includes('line 8 is no reading, cell, figure or verdict line'));
   }],
   ['d5_a_result_file_that_cannot_be_read_is_refused', () => {
     refused(result(['check', '--file', missingPath()]));

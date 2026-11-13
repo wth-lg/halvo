@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { denied, LIST, main, parseCases, parseList } from '../list.mjs';
+import { tempDir } from './temp.mjs';
 
 const text = fs.readFileSync(LIST, 'utf8');
 const lines = text.split('\n');
@@ -42,7 +43,7 @@ export const cases = [
     assert.equal(problems(allowAt('17.0')), '');
   }],
   ['d3_a_view_that_cannot_be_read_is_a_miss', () => {
-    const missing = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-view-')), 'gone.js');
+    const missing = path.join(tempDir('view'), 'gone.js');
     const r = run(['check', missing]);
     assert.equal(r.code, 1);
     assert.match(r.out, /^miss the view gone\.js cannot be read$/m);

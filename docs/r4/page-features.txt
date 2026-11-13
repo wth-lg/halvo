@@ -54,7 +54,8 @@ allow	array_from	9	typeof Array.from === 'function'
 # The floor's web views have the segmenter: macOS 14.0 has Safari 17.0, and Safari has it since 14.1; Windows has the WebView2 runtime, which has it since Edge 87 of 2020-11-19. The floor trial's cells found it in the web view of macOS 15.8.2 and in WebView2 156.0.0.0 on Windows 10.0.26100.33674 (docs/r4/trials/floor.md). The needs view makes the segmenter at its first line of work, so in an engine below the floor, which lacks it, no card is shown at all (ruling RD-32 (f)).
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter, Safari 14.1 of 2021-04-26
 allow	intl_segmenter	14.1	typeof Intl.Segmenter === 'function' && typeof new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment === 'function'
-# U0.3 wrote the allow lines below for each web API that the two views call and for the CSS features that they use, where the list had no line (rulings RD-27 (b), RD-30 (6)),
+# U0.3 wrote the allow lines below for each web API that the two views call and that had no line, and for some of the CSS that they use: with the lines above,
+# 12 of the 47 CSS properties that the views' style strings set have an allow line, and 35 have none (rulings RD-27 (b), RD-30 (6));
 # and the deny lines after them for the features that reached Safari after the floor and that a view could use.
 # Each version and date below was read on 2026-11-12 from @mdn/browser-compat-data 8.1.8 of 2026-11-02, whose package states the licence CC0-1.0;
 # no file of that package is in this repository: tools/r4-trials/floor/features.mjs makes these lines from it and checks them against it.
@@ -176,7 +177,10 @@ allow	css_focus	1	CSS.supports('selector(:focus)')
 allow	css_child	1	CSS.supports('selector(a > b)')
 # The deny patterns read the text of a view file. They do not hold a global or a method held under another name (const O = Object; O.groupBy, const n = navigation),
 # an iterator kept in a variable before a helper is called on it, an event name put together from parts, a comment between an object and its member, or a \u escape inside a name.
-# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached: the patterns refuse them, because a narrower pattern would let the denied feature pass.
+# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached, nor call a variable textBox or a class text-box: the patterns refuse them,
+# because a narrower pattern would let the denied feature pass.
+# details_name follows a variable that a view sets to a call whose first argument is 'details', and a variable named details; it does not follow a details element
+# that is passed in, found by a query or made where no such call names it, nor tell such an element from another object that has a name.
 # The check does not hold accent-color, relaxed CSS nesting or the relative colour form rgb(from ...), because the floor has a partial form of each that a pattern cannot tell apart,
 # nor a text-decoration shorthand whose colour is a colour name.
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/groupBy, Safari 17.4 of 2024-03-05
@@ -300,7 +304,7 @@ deny	css_backdrop_filter	18	(?<![\w-])backdrop-filter\b|\bbackdropFilter\b
 # https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/counter-set, Safari 17.2 of 2023-12-11
 deny	css_counter_set	17.2	\bcounter-set\b|\bcounterSet\b
 # https://developer.mozilla.org/ (html.elements.details.name), Safari 17.2 of 2023-12-11
-deny	details_name	17.2	\bdetails\s*(?:\?\.|\.)name\s*=(?!=)|\bdetails\s*(?:\?\.|\.)setAttribute\s*\(\s*['"]name['"]|<details\b[^>]{0,200}\sname\s*=
+deny	details_name	17.2	\bdetails\s*(?:\?\.|\.)name\s*=(?!=)|\bdetails\s*(?:\?\.|\.)setAttribute\s*\(\s*['"]name['"]|<details\b[^>]{0,200}\sname\s*=|\b([A-Za-z_$][\w$]*)\s*=\s*[^;\n]{0,200}\(\s*['"]details['"][^;\n]{0,200}[;\n][\s\S]{0,4000}?\b\1\s*(?:\?\.|\.)(?:name\s*=(?!=)|setAttribute\s*\(\s*['"]name['"])
 # https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/white-space-collapse, Safari 17.4 of 2024-03-05
 deny	css_white_space_collapse	17.4	\bwhite-space-collapse\b|\bwhiteSpaceCollapse\b
 # https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/view-transition-name, Safari 18 of 2024-09-16

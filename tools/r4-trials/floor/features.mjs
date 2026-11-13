@@ -148,7 +148,7 @@ export const DENY = [
   ['css_scope', 'css.at-rules.scope', '@scope\\b'],
   ['css_backdrop_filter', 'css.properties.backdrop-filter', `(?<![\\w-])backdrop-filter\\b|\\bbackdropFilter\\b`],
   ['css_counter_set', 'css.properties.counter-set', css('counter-set', 'counterSet')],
-  ['details_name', 'html.elements.details.name', any(`\\bdetails\\s*(?:\\?\\.|\\.)name\\s*=(?!=)`, `\\bdetails\\s*(?:\\?\\.|\\.)setAttribute\\s*\\(\\s*['"]name['"]`, `<details\\b[^>]{0,200}\\sname\\s*=`)],
+  ['details_name', 'html.elements.details.name', any(`\\bdetails\\s*(?:\\?\\.|\\.)name\\s*=(?!=)`, `\\bdetails\\s*(?:\\?\\.|\\.)setAttribute\\s*\\(\\s*['"]name['"]`, `<details\\b[^>]{0,200}\\sname\\s*=`, String.raw`\b([A-Za-z_$][\w$]*)\s*=\s*[^;\n]{0,200}\(\s*['"]details['"][^;\n]{0,200}[;\n][\s\S]{0,4000}?\b\1\s*(?:\?\.|\.)(?:name\s*=(?!=)|setAttribute\s*\(\s*['"]name['"])`)],
   ['css_white_space_collapse', 'css.properties.white-space-collapse', css('white-space-collapse', 'whiteSpaceCollapse')],
   ['css_view_transition_name', 'css.properties.view-transition-name', css('view-transition-name', 'viewTransitionName')],
   ['css_mask_border', 'css.properties.mask-border', `(?<![\\w-])mask-border\\b|\\bmaskBorder\\b`],
@@ -174,7 +174,10 @@ export const DENY = [
 export const LIMITS = [
   '# The deny patterns read the text of a view file. They do not hold a global or a method held under another name (const O = Object; O.groupBy, const n = navigation),',
   '# an iterator kept in a variable before a helper is called on it, an event name put together from parts, a comment between an object and its member, or a \\u escape inside a name.',
-  '# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached: the patterns refuse them, because a narrower pattern would let the denied feature pass.',
+  '# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached, nor call a variable textBox or a class text-box: the patterns refuse them,',
+  '# because a narrower pattern would let the denied feature pass.',
+  '# details_name follows a variable that a view sets to a call whose first argument is \'details\', and a variable named details; it does not follow a details element',
+  '# that is passed in, found by a query or made where no such call names it, nor tell such an element from another object that has a name.',
   '# The check does not hold accent-color, relaxed CSS nesting or the relative colour form rgb(from ...), because the floor has a partial form of each that a pattern cannot tell apart,',
   '# nor a text-decoration shorthand whose colour is a colour name.',
 ];
@@ -220,7 +223,8 @@ export function lines(data, rows = ROWS) {
     out.push(`# ${found.page}, Safari ${found.version} of ${found.date}`);
     out.push([kind, name, found.version, cell].join('\t'));
   };
-  out.push('# U0.3 wrote the allow lines below for each web API that the two views call and for the CSS features that they use, where the list had no line (rulings RD-27 (b), RD-30 (6)),');
+  out.push('# U0.3 wrote the allow lines below for each web API that the two views call and that had no line, and for some of the CSS that they use: with the lines above,');
+  out.push('# 12 of the 47 CSS properties that the views\' style strings set have an allow line, and 35 have none (rulings RD-27 (b), RD-30 (6));');
   out.push('# and the deny lines after them for the features that reached Safari after the floor and that a view could use.');
   out.push(`# Each version and date below was read on 2026-11-12 from @mdn/browser-compat-data ${data.__meta.version} of ${data.__meta.timestamp.slice(0, 10)}, whose package states the licence CC0-1.0;`);
   out.push('# no file of that package is in this repository: tools/r4-trials/floor/features.mjs makes these lines from it and checks them against it.');

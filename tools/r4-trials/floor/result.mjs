@@ -1,8 +1,7 @@
 // usage: node tools/r4-trials/floor/result.mjs check [--file FILE] [--list FILE]
 // Checks docs/r4/trials/floor.md (contracts.md I11.1, I11.4): its reading lines are the lines
 // that read.sh prints, then its cell lines, its figure lines and last the verdict line, which is
-// the verdict that the rule gives for its cells and the list; a comment line, which starts with
-// "# ", may stand anywhere but last.
+// the verdict that the rule gives for its cells and the list, and no other line (I11.1).
 // Exit: 0 when every check holds, 1 when one misses, 2 on a refusal.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -48,7 +47,6 @@ export function checkResult(text, readings, features) {
   let at = 0;
   const cells = [];
   lines.forEach((line, i) => {
-    if (line.startsWith('# ')) return;
     const kind = line.split(' ')[0];
     if (!Object.hasOwn(order, kind)) {
       problems.push(`line ${i + 1} is no reading, cell, figure or verdict line`);

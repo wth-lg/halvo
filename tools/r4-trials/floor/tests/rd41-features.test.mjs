@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lines, lookup, verify } from '../features.mjs';
+import { tempDir } from './temp.mjs';
 
 const FEATURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'features.mjs');
 const compat = (safari, url = true) => ({ __compat: { ...(url ? { mdn_url: 'https://developer.mozilla.org/docs/Web/API/Fx' } : {}), support: { safari } } });
@@ -43,7 +44,7 @@ function cli(argv) {
 }
 
 function dataFile() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-data-'));
+  const dir = tempDir('data');
   const file = path.join(dir, 'data.json');
   fs.writeFileSync(file, JSON.stringify(fixture()));
   return { dir, file };

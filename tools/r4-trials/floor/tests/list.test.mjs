@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CASES, checkCases, compareVersions, denied, LIST, main, parseCases, parseList, PROBE, probeSource } from '../list.mjs';
+import { tempDir } from './temp.mjs';
 
 const text = fs.readFileSync(LIST, 'utf8');
 const casesText = fs.readFileSync(CASES, 'utf8');
@@ -75,7 +76,7 @@ export const cases = [
     }
   }],
   ['check_finds_a_probe_that_is_not_the_lists', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-probe-'));
+    const dir = tempDir('probe');
     const stale = path.join(dir, 'probe.js');
     fs.writeFileSync(stale, fs.readFileSync(PROBE, 'utf8').replace(/\n {2}\["[a-z0-9_]+", [^\n]*\n/, '\n'));
     const r = run(['check', '--probe', stale]);
@@ -123,7 +124,7 @@ export const cases = [
     assert.equal(fs.readFileSync(PROBE, 'utf8'), probeSource(parseList(text).features));
   }],
   ['check_finds_a_denied_use_in_a_view_and_passes_a_clean_one', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-list-'));
+    const dir = tempDir('list');
     const bad = path.join(dir, 'bad.js');
     const good = path.join(dir, 'good.js');
     fs.writeFileSync(bad, "(function () { const g = Object.groupBy([], String); document.ariaNotify('x'); })();\n");

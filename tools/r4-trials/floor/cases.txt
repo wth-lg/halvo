@@ -203,3 +203,7 @@ free	'.hn-link{text-decoration-color:#c00}',
 free	'.hn-choice{align-items:center;justify-content:space-between}',
 free	const textWrapper = el('div', 'hn-text', '');
 free	const textBoxes = [];
+use	details_name	const det = document.createElement('details'); det.name = 'group';
+use	details_name	let more; more = el('details', 'hn-more', ''); more.setAttribute('name', 'group');
+free	const box = document.createElement('input'); box.name = 'group';
+free	const more = el('details', 'hn-more', ''); const row = { name: 'x' }; row.name = 'group';

@@ -51,8 +51,8 @@ export const cases = [
       [file([macLine], verdict).replace(readings[0], readings[0].replace('17.0', '16.6')), 'the reading lines are not the lines that read.sh prints'],
       [file([macLine], verdict).replace(macLine, macLine.replace(' aria_notify=undefined', '')), 'a cell line out of form'],
       [file([macLine], verdict).replace('\n', '\r\n'), 'holds a carriage return'],
+      ['# Floor\n' + file([macLine], verdict), 'line 1 is no reading, cell, figure or verdict line'],
       ['Floor\n' + file([macLine], verdict), 'line 1 is no reading, cell, figure or verdict line'],
-      ['#Floor\n' + file([macLine], verdict), 'line 1 is no reading, cell, figure or verdict line'],
     ];
     for (const [text, expected] of bad) {
       const problems = checkResult(text, readings, features).join('\n');

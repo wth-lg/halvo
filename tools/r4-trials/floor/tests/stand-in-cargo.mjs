@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { tempDir } from './temp.mjs';
 
 const CARGO = ['cargo', 'cargo.exe', 'cargo.cmd'];
 
@@ -13,7 +14,7 @@ export function holdsCargo(dir) {
  * `cargo` that writes one line to `record` and exits 1, then every directory of this process's
  * PATH that holds no cargo, so that the child finds sh and git and no other cargo. */
 export function standInPath() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-cargo-'));
+  const dir = tempDir('cargo');
   const record = path.join(dir, 'called.txt');
   const cargo = path.join(dir, 'cargo');
   fs.writeFileSync(cargo, `#!/bin/sh\necho "cargo $*" >> '${record.replace(/\\/g, '/')}'\nexit 1\n`);
