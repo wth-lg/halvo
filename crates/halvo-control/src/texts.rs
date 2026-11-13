@@ -34,9 +34,10 @@ pub const SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF: &str = "Screen a
 /// words are the owner's to change (owner's list, entry I-81).
 pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
 
-/// Beside the macOS password sentence, the key typed ahead of a focus move into a password field
-/// (ruling MA-11 (c)(ii)); the words are the owner's to change (owner's list, entry I-83).
-pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before the program has moved to its password field can be noted: when it was pressed and in which app, never which key. To be sure, wait until the cursor is in the password field, or pause capture before you sign in.";
+/// Beside the macOS password sentence, a key typed before a program or page has reacted (ruling
+/// MA-11 (c)(ii), with the words of ruling MA-12 H5); the words are the owner's to change (owner's
+/// list, entry I-83).
+pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
 
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
 
@@ -576,7 +577,7 @@ mod tests {
         );
         assert_eq!(
             KEY_TYPED_AHEAD_CAN_BE_NOTED,
-            "A key that you press before the program has moved to its password field can be noted: when it was pressed and in which app, never which key. To be sure, wait until the cursor is in the password field, or pause capture before you sign in."
+            "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password."
         );
         for platform in [Platform::Macos, Platform::Windows] {
             for &guard in PasswordGuard::ALL {
@@ -683,7 +684,7 @@ mod tests {
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
     const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
     const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
-    const TA: &str = "A key that you press before the program has moved to its password field can be noted: when it was pressed and in which app, never which key. To be sure, wait until the cursor is in the password field, or pause capture before you sign in.";
+    const TA: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
     const TITLE_ON: &str = "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.";
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
     const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
