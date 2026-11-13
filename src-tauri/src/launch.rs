@@ -3,27 +3,18 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// How the app was started, parsed once from its arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Launch {
-    /// No argument: the app with its window and its tray.
     Run,
-    /// `--version`: print the version and exit 0.
     Version,
-    /// `--check-page --config-dir DIR --within-s N`: load the page in a hidden
-    /// window with the consent settings under DIR, print one line once the page
-    /// has the reply of every read command, and exit 0; exit 1 when N seconds
-    /// pass first.
     CheckPage {
         config_dir: PathBuf,
         within: Duration,
     },
 }
 
-/// The largest N of `--within-s N`.
 pub const MAX_WITHIN_S: u64 = 3600;
 
-/// Why the arguments are no launch. The app prints it with `USAGE` and exits 64.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Usage {
     NotUnicode,
@@ -56,7 +47,6 @@ impl fmt::Display for Usage {
 
 pub const USAGE: &str = "usage: halvo [--version | --check-page --config-dir DIR --within-s N]";
 
-/// Parses the arguments of the app, without the program name.
 pub fn parse<I: IntoIterator<Item = OsString>>(args: I) -> Result<Launch, Usage> {
     let args = args
         .into_iter()

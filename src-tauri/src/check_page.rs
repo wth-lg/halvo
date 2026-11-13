@@ -10,14 +10,10 @@ use crate::app::{self, PageLoads};
 use crate::commands::names;
 use crate::unwired_store;
 
-/// What the page reports to the check, as one string of the characters that
-/// a command name and a version hold: the version text that the page shows and
-/// the commands that have answered it at least once.
 const PROBE: &str = "(function () { var ok = /^[A-Za-z0-9_:|.+-]+$/; var r = (window.Halvo && Halvo.ipc && Halvo.ipc.replied) ? Halvo.ipc.replied() : []; var v = (document.getElementById('version') || {}).textContent || ''; return 'version=' + (ok.test(v) ? v : '-') + ' replied=' + r.filter(function (n) { return ok.test(n); }).join(','); })()";
 
 const POLL: Duration = Duration::from_millis(200);
 
-/// The read commands of every module, in the order of the module list.
 pub fn reads() -> Vec<&'static str> {
     names::MODULES
         .iter()
@@ -27,8 +23,7 @@ pub fn reads() -> Vec<&'static str> {
 
 /// The line that the check prints for `seen`, the JSON text of the probe's
 /// string, or None while the page lacks the reply of a read command or shows
-/// another version than `version`. Every comparison is exact, so a quote or a
-/// backslash in `seen` makes a name or the version differ and gives None.
+/// another version than `version`.
 pub fn line(seen: &str, version: &str) -> Option<String> {
     let text = seen.strip_prefix('"')?.strip_suffix('"')?;
     let (shown, replied) = text.strip_prefix("version=")?.split_once(" replied=")?;
@@ -45,10 +40,6 @@ fn no_tray(_app: &AppHandle<Wry>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Runs `halvo --check-page`: the app with its page in a hidden window, its
-/// consent settings and web view data under `config_dir`, no tray and no
-/// capture. Prints one line and returns 0 once the page has the reply of every
-/// read command; prints why and exits 1 when `within` passes first.
 pub fn run(config_dir: PathBuf, within: Duration) -> i32 {
     let started = Instant::now();
     std::thread::spawn(move || {

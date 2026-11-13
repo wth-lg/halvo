@@ -32,8 +32,6 @@ pub fn read_json(path: &Path) -> Value {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("{} is no JSON: {e}", path.display()))
 }
 
-/// A fresh directory under the target directory's tmp, the directory that
-/// cargo names CARGO_TARGET_TMPDIR for integration tests.
 pub fn scratch_dir(name: &str) -> PathBuf {
     let exe = std::env::current_exe().expect("the test binary has a path");
     let target = exe
@@ -175,9 +173,6 @@ pub struct TestApp {
     pub probe: FakeProbe,
 }
 
-/// The app built on the mock runtime from the real context, with a fake store
-/// and a fake probe and its settings under `config_dir`, after one iteration
-/// of the event loop, which runs the set-up.
 pub fn test_app(config_dir: PathBuf) -> TestApp {
     let probe = FakeProbe::default();
     let parts = test_parts(config_dir, &probe);
@@ -264,8 +259,6 @@ fn is_unknown_command(reply: &Result<Value, Value>) -> bool {
     matches!(reply, Err(Value::String(text)) if text.contains("not found"))
 }
 
-/// The names that a test asks a handler about: every name of every module,
-/// every command of calls.json and one name that no module has.
 fn candidate_names() -> BTreeSet<String> {
     let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
         .expect("calls.json lists calls");
@@ -277,7 +270,6 @@ fn candidate_names() -> BTreeSet<String> {
         .collect()
 }
 
-/// The candidate names that `handler` answers, on an app built with it alone.
 fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet<String> {
     let probe = FakeProbe::default();
     let mut app = app::build(mock_builder(), test_parts(scratch_dir(name), &probe))

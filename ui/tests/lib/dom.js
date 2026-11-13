@@ -303,7 +303,6 @@ class Document extends Node {
   }
 }
 
-/** Parses `html` into a Document and returns it with the scripts in document order. */
 function parse(html) {
   const document = new Document();
   const scripts = [];

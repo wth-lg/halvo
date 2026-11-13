@@ -1,13 +1,6 @@
-// Loads a page file into an offscreen WKWebView, the engine of the app on
-// macOS, with a stub of the Tauri call injected before the page scripts run.
-// It reads which element sits at the centre of "Delete everything" before and
-// after that button's own click, clicks the element at the same point once
-// more, and counts the delete_all calls. No window is shown, the process never
-// becomes active, and no input event of the system is posted: element.click()
-// dispatches a DOM event inside this offscreen view only.
-// Usage: xcrun swift delete-confirm.swift <path of index.html>
-// Exit status: 0 when the second click lands on no control that deletes, 1
-// when it does, 2 when the page did not load or the probe failed.
+// No window is shown, the process never becomes active, and no input event of
+// the system is posted: element.click() dispatches a DOM event inside this
+// offscreen view only.
 import AppKit
 import WebKit
 

@@ -9,12 +9,10 @@ const UI = path.resolve(__dirname, "..", "..");
 const APP = path.join(UI, "app");
 const FIXTURES = path.join(UI, "tests", "fixtures", "capture");
 
-/** The parsed JSON of ui/tests/fixtures/capture/<name>.json, a fresh copy on each call. */
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8"));
 }
 
-/** The list of ui/tests/fixtures/capture/calls.json. */
 function calls() {
   return fixture("calls");
 }
@@ -47,7 +45,6 @@ class Clock {
     await timer.fn();
     await settle();
   }
-  /** Moves the clock `ms` forward and runs every timer that falls due, in order of time and then of creation. */
   async advance(ms) {
     const end = this.now + ms;
     for (;;) {
@@ -59,7 +56,6 @@ class Clock {
     this.now = end;
     await settle();
   }
-  /** Runs once each repeating timer whose period is `ms`, in order of creation, without moving the clock. */
   async fire(ms) {
     for (const timer of this.timers.filter((t) => t.repeat && t.period === ms)) {
       await timer.fn();
@@ -77,11 +73,6 @@ function defaultReplies() {
   };
 }
 
-/**
- * Loads the page of `dir` (default ui/app) in the stub DOM with a fake clock.
- * `replies` maps a command to a value or to a function of the arguments that
- * returns the reply or throws the error text. Returns the page handle.
- */
 async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);

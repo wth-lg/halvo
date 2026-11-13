@@ -4,14 +4,6 @@
   var entries = [];
   var feeds = {};
 
-  /**
-   * Halvo.views.add({id, order, heading, mount, show, hide}) adds a view to the
-   * view list. The frame renders the views as sections in ascending `order`,
-   * each under a level-2 heading that holds `heading`, calls `mount(element)`
-   * with the element under the heading, and then `show()`.
-   * Halvo.views.window(state) calls `show()` of every view for "shown" and
-   * `hide()` for any other state.
-   */
   Halvo.views = {
     add: function (view) {
       entries.push(view);
@@ -24,11 +16,6 @@
     },
   };
 
-  /**
-   * Halvo.feed(name) is the shared reply of one read: `set(value)` hands the
-   * value to every function given to `on`, and `refresh()` runs the reader
-   * that the owning view gave to `source`.
-   */
   Halvo.feed = function (name) {
     if (!feeds[name]) {
       var listeners = [];
@@ -53,7 +40,6 @@
     return feeds[name];
   };
 
-  /** Halvo.el(tag, props, children) makes an element with the given properties and children. */
   Halvo.el = function (tag, props, children) {
     var element = document.createElement(tag);
     Object.keys(props || {}).forEach(function (key) {
@@ -68,12 +54,10 @@
     return element;
   };
 
-  /** Halvo.showError(e) shows the text of `e` in the error line, or clears it for a falsy `e`. */
   Halvo.showError = function (e) {
     document.getElementById("error").textContent = e ? String(e) : "";
   };
 
-  /** Halvo.formatBytes(n) is `n` bytes as text in B, KB, MB, GB or TB. */
   Halvo.formatBytes = function (n) {
     if (n < 1024) return n + " B";
     var units = ["KB", "MB", "GB", "TB"];

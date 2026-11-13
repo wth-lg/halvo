@@ -15,16 +15,9 @@ use crate::commands::{self, capture::AppState};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// The script that tells the page of the window main that the window was
-/// hidden or shown, so that a view can disarm a control.
 pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.window('hidden')";
 pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
 
-/// What the app is built from: the directory of the consent settings (the
-/// app config directory when `None`), the store, its one-line description,
-/// the permission probe, the opener of a settings pane, the tray installer,
-/// whether the window main is shown at its creation, and the data directory of
-/// the web view (the default when `None`; Windows and Linux only).
 pub struct Parts<R: Runtime> {
     pub config_dir: Option<PathBuf>,
     pub store: Box<dyn DataStore + Send>,
@@ -36,7 +29,6 @@ pub struct Parts<R: Runtime> {
     pub webview_data_dir: Option<PathBuf>,
 }
 
-/// How many times the page of the window main has finished loading.
 #[derive(Default)]
 pub struct PageLoads(AtomicU32);
 
@@ -46,12 +38,10 @@ impl PageLoads {
     }
 }
 
-/// The context generated from tauri.conf.json, the capabilities and ui/app.
 pub fn context<R: Runtime>() -> Context<R> {
     tauri::generate_context!()
 }
 
-/// Adds the commands, the set-up and the window rules to `builder`.
 pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
     builder
         .invoke_handler(commands::handler())
@@ -109,9 +99,6 @@ pub fn is_app_url(url: &Url) -> bool {
     url.scheme() == scheme && url.host_str() == Some(host) && url.port().is_none()
 }
 
-/// Builds the window main from its entry in tauri.conf.json, with the
-/// navigation rule `is_app_url`, shown or hidden, and with its web view data
-/// under `data_dir` when one is given.
 fn main_window<R: Runtime>(
     app: &AppHandle<R>,
     visible: bool,
