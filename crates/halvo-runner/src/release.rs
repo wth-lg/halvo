@@ -47,14 +47,18 @@ pub(crate) trait Paused {
 
 /// A request of an effect that left.
 pub(crate) trait Left {
-    /// Waits for the request's reply, within the maker's own bound; whether it came.
+    /// Waits for the request's reply, within the maker's own bound: whether it came, and whether the maker reads it
+    /// as made.
     fn reply(self: Box<Self>) -> Replied;
 }
 
-/// Whether the reply to a request that left came.
+/// What came of a request that left: an answer that the maker reads as made, from the one success status that its
+/// request has; an answer that it does not read as made, which may be a refusal, an error or a redirect; or no
+/// answer (CP-159 G4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Replied {
-    Reply,
+    Made,
+    Answered,
     NoReply,
 }
 
@@ -281,8 +285,8 @@ impl Runner {
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
                 return match left.reply() {
-                    Replied::Reply => self.advance(one.at, EffectMove::Commit).map(|_| None),
-                    Replied::NoReply => {
+                    Replied::Made => self.advance(one.at, EffectMove::Commit).map(|_| None),
+                    Replied::Answered | Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))
                     }
                 };

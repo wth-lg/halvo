@@ -12,8 +12,9 @@ use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, WebOrigin}
 use halvo_schema::Category;
 
 use super::suite::{
-    answer_of, changed_on_page, commit_without_reply, http,
-    origins_that_keep_the_pay_origin_let_the_request_leave,
+    a_delete_answered_401_is_not_committed, a_payment_answered_400_is_not_committed,
+    a_second_allow_for_an_instrument_not_offered_leaves_no_payment, answer_of, changed_on_page,
+    commit_without_reply, http, origins_that_keep_the_pay_origin_let_the_request_leave,
     pay_origin_gone_at_the_load_before_the_begin, payee_changed_at_the_load_before_the_begin,
     request_bytes, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
     stopped_between_begin_and_commit, Case, Fixture, Maker,
@@ -39,13 +40,14 @@ fn between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str> {
     Some(&text[from..to])
 }
 
-/// A request that left on its own connection.
-struct Sent(TcpStream);
+/// A request that left on its own connection, and the one success status of its kind.
+struct Sent(TcpStream, u16);
 
 impl Left for Sent {
     fn reply(self: Box<Self>) -> Replied {
         match answer_of(self.0, REPLY_WAIT) {
-            Some(_) => Replied::Reply,
+            Some(answer) if answer.status == self.1 => Replied::Made,
+            Some(_) => Replied::Answered,
             None => Replied::NoReply,
         }
     }
@@ -90,7 +92,7 @@ impl Paused for Delete {
             &[("Authorization", &auth)],
             b"",
         );
-        Box::new(Sent(send_bytes(self.port, &bytes)))
+        Box::new(Sent(send_bytes(self.port, &bytes), 204))
     }
 
     fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
@@ -161,7 +163,7 @@ impl Paused for Pay {
             &[("Content-Type", "application/x-www-form-urlencoded")],
             form.as_bytes(),
         );
-        Box::new(Sent(send_bytes(self.port, &bytes)))
+        Box::new(Sent(send_bytes(self.port, &bytes), 200))
     }
 
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
@@ -175,6 +177,14 @@ impl Paused for Pay {
     }
 }
 
+/// The instrument of the payment of `case`: the seed's first, or one that the service does not offer.
+fn instrument_of(fixture: &Fixture, case: Case) -> String {
+    if case == Case::NotOffered {
+        return "Card ending 0000".to_string();
+    }
+    text(&fixture.seed()["utility"]["instruments"][0])
+}
+
 /// The stand-in maker.
 struct Standin;
 
@@ -185,20 +195,20 @@ fn text(value: &serde_json::Value) -> String {
 impl Maker for Standin {
     fn category(&self, case: Case) -> Category {
         match case {
-            Case::NoReply => Category::CalendarCleanup,
-            Case::AmountChanges => Category::UtilityBillPayment,
+            Case::NoReply | Case::AnotherToken => Category::CalendarCleanup,
+            Case::AmountChanges | Case::NotOffered => Category::UtilityBillPayment,
         }
     }
 
     fn bindings(&self, fixture: &Fixture, case: Case) -> (Vec<WebOrigin>, Vec<Slot>) {
         let seed = fixture.seed();
         match case {
-            Case::NoReply => (vec![fixture.origin("calendar")], Vec::new()),
-            Case::AmountChanges => (
+            Case::NoReply | Case::AnotherToken => (vec![fixture.origin("calendar")], Vec::new()),
+            Case::AmountChanges | Case::NotOffered => (
                 vec![fixture.origin("utility"), fixture.origin("pay")],
                 vec![
                     slot("payee", &text(&seed["utility"]["payee"])),
-                    slot("instrument", &text(&seed["utility"]["instruments"][0])),
+                    slot("instrument", &instrument_of(fixture, case)),
                 ],
             ),
         }
@@ -208,7 +218,7 @@ impl Maker for Standin {
         let seed = fixture.seed();
         let port = fixture.port();
         match case {
-            Case::NoReply => {
+            Case::NoReply | Case::AnotherToken => {
                 let token = text(&seed["credentials"]["token"]);
                 let auth = format!("Bearer {token}");
                 let listed = http(
@@ -227,9 +237,14 @@ impl Maker for Standin {
                     .iter()
                     .map(|e| text(&e["id"]))
                     .collect();
+                let token = if case == Case::AnotherToken {
+                    "another-token".to_string()
+                } else {
+                    token
+                };
                 Box::new(Delete { port, token, ids })
             }
-            Case::AmountChanges => {
+            Case::AmountChanges | Case::NotOffered => {
                 let form = format!(
                     "email={}&password={}",
                     text(&seed["credentials"]["user"]).replace('@', "%40"),
@@ -270,7 +285,7 @@ impl Maker for Standin {
                     pay: fixture.origin("pay"),
                     token,
                     payee: text(&seed["utility"]["payee"]),
-                    instrument: text(&seed["utility"]["instruments"][0]),
+                    instrument: instrument_of(fixture, case),
                 })
             }
         }
@@ -310,4 +325,19 @@ fn the_pay_origin_gone_at_the_load_before_the_begin_ends_the_run_refused_origin(
 #[test]
 fn origins_that_keep_the_pay_origin_let_the_request_leave_once() {
     origins_that_keep_the_pay_origin_let_the_request_leave(&mut Standin);
+}
+
+#[test]
+fn a_payment_answered_400_gets_no_committed_row() {
+    a_payment_answered_400_is_not_committed(&mut Standin);
+}
+
+#[test]
+fn a_delete_answered_401_gets_no_committed_row() {
+    a_delete_answered_401_is_not_committed(&mut Standin);
+}
+
+#[test]
+fn a_second_allow_for_an_instrument_not_offered_makes_no_payment() {
+    a_second_allow_for_an_instrument_not_offered_leaves_no_payment(&mut Standin);
 }

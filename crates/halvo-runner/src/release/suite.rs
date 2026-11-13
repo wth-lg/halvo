@@ -46,6 +46,11 @@ pub(crate) enum Case {
     /// `changed_on_page`: a `payment` of the bill whose amount the payment frame shows, under the variant
     /// `amount_changes`.
     AmountChanges,
+    /// A `delete` whose request carries a token that the service refuses, so that it is answered 401.
+    AnotherToken,
+    /// The `payment` of [`Case::AmountChanges`] with an instrument that the service does not offer, both in the
+    /// bindings and in the request, so that it is answered 400.
+    NotOffered,
 }
 
 /// A request maker as the suite drives it.
@@ -1052,4 +1057,116 @@ pub(crate) fn origins_that_keep_the_pay_origin_let_the_request_leave(maker: &mut
             "page origin dropped: {drop_page}"
         );
     }
+}
+
+/// The answers of the ruling CP-159 G4: a request that was answered, and that the maker does not read as made, gets
+/// no `committed` row; the effect stays `releasing`, the runner hands back `effect_unknown` and ends
+/// `effect_unknown`, and after the run's end the effect is `unknown`.
+fn answered_and_not_made(record: &Record) {
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing
+        ],
+        "no committed row"
+    );
+    assert_eq!(record.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(record.done(), Some(Outcome::EffectUnknown));
+    let effect = record.effects()[0].effect.clone();
+    assert_eq!(record.after_end.get(&effect), Some(&EffectState::Unknown));
+}
+
+/// The slot `instrument` set to an instrument that the service does not offer, from the load of the count `from` on.
+fn instrument_not_offered_from(from: usize) -> SlotsAt {
+    Box::new(move |load, slots| {
+        if load >= from {
+            for s in slots.iter_mut() {
+                if s.name.as_str() == "instrument" {
+                    *s = slot("instrument", "Card ending 0000");
+                }
+            }
+        }
+    })
+}
+
+/// CP-159 G4: a payment whose request the service answers 400 (an instrument that it does not offer) is not made.
+pub(crate) fn a_payment_answered_400_is_not_committed(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::NotOffered);
+    let record = run_path(
+        maker.category(Case::NotOffered),
+        maker.bindings(&fixture, Case::NotOffered),
+        request,
+        Plan::plain(),
+    );
+    answered_and_not_made(&record);
+    let after = fixture.state();
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+}
+
+/// CP-159 G4: a delete whose request the service answers 401 (another token) is not made.
+pub(crate) fn a_delete_answered_401_is_not_committed(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::AnotherToken);
+    let before = fixture.state();
+    let record = run_path(
+        maker.category(Case::AnotherToken),
+        maker.bindings(&fixture, Case::AnotherToken),
+        request,
+        Plan::plain(),
+    );
+    answered_and_not_made(&record);
+    let after = fixture.state();
+    assert!(after["calendar"]["deleted"]
+        .as_array()
+        .expect("deleted")
+        .is_empty());
+    assert_eq!(
+        count(&after, "unauthorized") - count(&before, "unauthorized"),
+        1,
+        "the one request was answered 401"
+    );
+}
+
+/// CP-159 G4, the case that the correction of E1 held back: after a second Allow for an instrument that the
+/// service does not offer, the fixture holds no payment and the effect's last row is not `committed`.
+pub(crate) fn a_second_allow_for_an_instrument_not_offered_leaves_no_payment(
+    maker: &mut dyn Maker,
+) {
+    let fixture = Fixture::start();
+    fixture.reset(&[]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            slots_at: Some(instrument_not_offered_from(2)),
+            ..Plan::plain()
+        },
+    );
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 2, "a second card");
+    assert_eq!(
+        field(&confirms[1], FieldName::Instrument),
+        "Card ending 0000"
+    );
+    let after = fixture.state();
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+    assert_eq!(
+        record.states().last(),
+        Some(&EffectState::Releasing),
+        "not committed"
+    );
+    assert_eq!(record.done(), Some(Outcome::EffectUnknown));
 }

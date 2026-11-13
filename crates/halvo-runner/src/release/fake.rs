@@ -35,7 +35,7 @@ struct Answers;
 
 impl Left for Answers {
     fn reply(self: Box<Self>) -> Replied {
-        Replied::Reply
+        Replied::Made
     }
 }
 
