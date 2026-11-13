@@ -670,6 +670,25 @@ mod tests {
     }
 
     #[test]
+    fn the_process_mta_reference_is_taken_once_and_holds_an_mta_for_a_new_thread() {
+        use windows::Win32::System::Com::{
+            CoGetApartmentType, APTTYPE, APTTYPEQUALIFIER, APTTYPEQUALIFIER_IMPLICIT_MTA,
+            APTTYPE_MTA,
+        };
+        assert!(hold_process_mta().is_ok());
+        assert!(hold_process_mta().is_ok());
+        let apartment = std::thread::spawn(|| {
+            let mut kind = APTTYPE::default();
+            let mut qualifier = APTTYPEQUALIFIER::default();
+            // SAFETY: both pointers are live locals that the call writes.
+            unsafe { CoGetApartmentType(&mut kind, &mut qualifier) }.map(|()| (kind, qualifier))
+        })
+        .join()
+        .expect("the probe thread");
+        assert_eq!(apartment, Ok((APTTYPE_MTA, APTTYPEQUALIFIER_IMPLICIT_MTA)));
+    }
+
+    #[test]
     fn a_zero_area_frame_is_not_recorded() {
         assert!(frame_packet(0, 1080, String::new(), 1).is_none());
         assert!(frame_packet(1920, 0, String::new(), 1).is_none());
