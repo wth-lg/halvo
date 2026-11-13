@@ -17,6 +17,8 @@ FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH='remove each listed line from its commit
 
 exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
 
+own_directory=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || own_directory=
+
 synopsis() {
   cat <<EOF
   sh scripts/check-commit-messages.sh [--no-exempt] [--default-ref <ref>] [<range>]
@@ -133,6 +135,12 @@ Three layers apply this predicate.
      default branch: scripts/merge-pr.sh checks that message before the merge.
      It does not run for a push whose newest commit says [skip ci], and it reads
      a description again only when a commit is pushed.
+The commits of a range and of a push come from scripts/commit-range.sh, the
+one function that scripts/check-home-paths.sh calls too, so both checks of the
+hook read the same commits. This script reads that file beside itself, or,
+when it runs as text without its path (sh -c, as the CI step runs the copy of
+the default branch), from scripts/ in the work tree: there the copy of the
+default branch lists the commits with the function of the work tree.
 No layer reads the author or the committer of a commit, or words that are
 spelled in another way. Before the layers, the tracked file .claude/settings.json
 tells Claude Code to add no attribution line, and the CI step checks it.
@@ -269,22 +277,29 @@ require_repository_with_exempt_commit() {
   fi
 }
 
+load_commit_range() {
+  range_file=$own_directory/commit-range.sh
+  if [ ! -f "$range_file" ]; then
+    top=$(git rev-parse --show-toplevel 2>/dev/null) || top=
+    range_file=$top/scripts/commit-range.sh
+  fi
+  [ -f "$range_file" ] || die 'scripts/commit-range.sh, which lists the commits of a range or a push, is neither beside this script nor in the work tree, so no commit could be checked'
+  # shellcheck source=scripts/commit-range.sh
+  . "$range_file"
+}
+
 resolve_default_ref() {
   if [ -n "$default_ref" ]; then
     git rev-parse -q --verify "$default_ref^{commit}" >/dev/null ||
       die "--default-ref $default_ref does not name a commit in this clone"
   else
-    default_ref=$(git symbolic-ref -q refs/remotes/origin/HEAD) || default_ref=
-    if [ -z "$default_ref" ] && git rev-parse -q --verify "$DEFAULT_REF_WITHOUT_ORIGIN_HEAD^{commit}" >/dev/null; then
-      default_ref=$DEFAULT_REF_WITHOUT_ORIGIN_HEAD
-    fi
+    default_ref=$(commit_range_default_ref)
   fi
 }
 
 check_commits() {
   label=$1
-  shift
-  commits=$(git rev-list --reverse "$@" --) || die "git rev-list could not list the commits of '$label'"
+  commits=$2
 
   total=0
   bad=0
@@ -324,55 +339,35 @@ check_commits() {
   } >&2
 }
 
-is_object_id() {
-  case $1 in
-    ''|*[!0-9a-f]*) return 1 ;;
-  esac
-  [ ${#1} = 40 ] || [ ${#1} = 64 ]
-}
-
 check_push() {
   remote=$1
   require_repository_with_exempt_commit
+  load_commit_range
   resolve_default_ref
-  default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
-  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=$default_ref
-  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=
+  default_ref_of_remote=$(commit_range_default_of_remote "$remote" "$default_ref")
   while IFS= read -r pushed_ref; do
-    remote_object=${pushed_ref##* }
-    rest=${pushed_ref% *}
-    remote_ref=${rest##* }
-    rest=${rest% *}
-    local_object=${rest##* }
-    local_ref=${rest% *}
-    if ! { is_object_id "$local_object" && is_object_id "$remote_object"; }; then
+    commit_range_read_push_line "$pushed_ref" ||
       die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref"
-    fi
-    case $local_object in
-      *[!0]*) ;;
-      *) continue ;;
+    range_status=0
+    commits=$(commit_range_of_push "$NEWEST_EXEMPT_COMMIT" "$default_ref_of_remote") || range_status=$?
+    case $range_status in
+      0) ;;
+      3) die "git cannot resolve the object $push_local_object that the push names for $push_local_ref, so the push was not checked" ;;
+      *) die "git rev-list could not list the commits of the push of $push_local_ref" ;;
     esac
-    git rev-parse -q --verify "$local_object^{commit}" >/dev/null || continue
-    set -- "$local_object" "^$NEWEST_EXEMPT_COMMIT"
-    case $remote_object in
-      *[!0]*)
-        if git cat-file -e "$remote_object^{commit}" 2>/dev/null; then set -- "$@" "^$remote_object"; fi
-        ;;
-    esac
-    if [ -n "$default_ref_of_remote" ]; then set -- "$@" "^$default_ref_of_remote"; fi
-    check_commits "push of $local_ref to $remote_ref" "$@"
+    check_commits "$(commit_range_push_label)" "$commits"
   done
   [ "$any_range_failed" = 0 ]
 }
 
 check_range() {
   require_repository_with_exempt_commit
+  load_commit_range
   resolve_default_ref
-  if [ "$exempt" = 1 ]; then
-    check_commits "$1" --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT"
-  else
-    check_commits "$1" --end-of-options "$1"
-  fi
+  exempt_commit=
+  [ "$exempt" = 0 ] || exempt_commit=$NEWEST_EXEMPT_COMMIT
+  commits=$(commit_range "$exempt_commit" "$1") || die "git rev-list could not list the commits of '$1'"
+  check_commits "$1" "$commits"
   [ "$any_range_failed" = 0 ]
 }
 
@@ -721,6 +716,7 @@ self_test_pre_push() {
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/out"
   cp "$root/.githooks/pre-push" "$work/tree/.githooks/pre-push"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  cp "$root/scripts/commit-range.sh" "$work/tree/scripts/commit-range.sh"
   chmod +x "$work/tree/.githooks/pre-push"
   git clone -q --no-local "$root" "$work/clone"
   git -C "$work/clone" config core.hooksPath "$work/tree/.githooks"

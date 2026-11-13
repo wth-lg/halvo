@@ -56,11 +56,17 @@ in_fixture() {
   git -C "$fixture_dir" -c commit.gpgsign=false -c core.hooksPath="$scratch/no-hooks" "$@"
 }
 
+copy_scripts() {
+  for file in check-home-paths.sh commit-range.sh home-path-allow.txt; do
+    cp "$repo/scripts/$file" "$1/scripts/$file" || exit 2
+  done
+}
+
 fixture() {
   dir=$scratch/$1
   mkdir -p "$dir/scripts" "$scratch/no-hooks" || exit 2
   git init -q "$dir" || exit 2
-  cp "$repo/scripts/check-home-paths.sh" "$repo/scripts/home-path-allow.txt" "$dir/scripts/" || exit 2
+  copy_scripts "$dir"
   printf 'plain\n' >"$dir/notes.txt"
   in_fixture "$1" add -A . || exit 2
   in_fixture "$1" commit -q -m 'first' || exit 2
@@ -121,7 +127,7 @@ self_test() {
 
   git init -q "$scratch/home-path-in-the-root-commit" || exit 2
   mkdir -p "$scratch/home-path-in-the-root-commit/scripts" "$scratch/no-hooks" || exit 2
-  cp "$repo/scripts/check-home-paths.sh" "$repo/scripts/home-path-allow.txt" "$scratch/home-path-in-the-root-commit/scripts/" || exit 2
+  copy_scripts "$scratch/home-path-in-the-root-commit"
   printf 'see /%s/zoe/x\n' "$u" >"$scratch/home-path-in-the-root-commit/notes.txt"
   in_fixture home-path-in-the-root-commit add -A . || exit 2
   in_fixture home-path-in-the-root-commit commit -q -m 'root' || exit 2
