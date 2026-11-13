@@ -115,7 +115,7 @@ impl Runner {
     }
 
     /// One move of the effect at `at` through the step relation and, when it takes it, the row that the move
-    /// stores: the next state. A `rebind` row holds the new digest and no approval.
+    /// stores: the next state.
     pub(crate) fn advance(&mut self, at: usize, step: EffectMove) -> Result<EffectState, Stop> {
         let e = &self.effects[at];
         let now = Effect {
@@ -126,17 +126,34 @@ impl Runner {
             rebinds: e.rebinds,
         };
         let cause = matches!(step, EffectMove::End).then_some(Cause::Ended);
-        let rebound = match &step {
-            EffectMove::Rebind { digest, .. } => Some(digest.clone()),
-            _ => None,
+        let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
+        self.store_row(at, next, cause)?;
+        Ok(next)
+    }
+
+    /// The move `rebind` of the effect at `at` to the bound object `bound`: its row and every later row carry the
+    /// digest of `bound` and its kept fields (A5.2, A7.4, CP-157 E2).
+    pub(crate) fn rebind(&mut self, at: usize, bound: &Bound) -> Result<EffectState, Stop> {
+        let new = digest(bound).map_err(|_| failed(Cause::StepFailed))?;
+        let e = &self.effects[at];
+        let now = Effect {
+            id: e.id.clone(),
+            state: e.state,
+            class: e.class,
+            digest: e.digest.clone(),
+            rebinds: e.rebinds,
+        };
+        let step = EffectMove::Rebind {
+            digest: new.clone(),
+            class: bound.class(),
         };
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
-        if let Some(digest) = rebound {
-            let e = &mut self.effects[at];
-            e.digest = digest;
-            e.rebinds += 1;
-        }
-        self.store_row(at, next, cause)?;
+        let e = &mut self.effects[at];
+        e.digest = new;
+        e.kept = kept_of(bound);
+        e.fields = bound.fields().len() as u32;
+        e.rebinds += 1;
+        self.store_row(at, next, None)?;
         Ok(next)
     }
 

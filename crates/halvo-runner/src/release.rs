@@ -268,13 +268,7 @@ impl Runner {
                     _ => return Err(failed(Cause::Effect)),
                 }
             }
-            self.advance(
-                one.at,
-                EffectMove::Rebind {
-                    digest: read,
-                    class,
-                },
-            )?;
+            self.rebind(one.at, &now)?;
             one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
             one.bound = now;
             self.confirm(&[(one.at, &one.bound)])?;

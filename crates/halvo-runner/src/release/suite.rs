@@ -580,6 +580,15 @@ pub(crate) fn run_path(
     }
 }
 
+/// The value of the kept field `name` of an effect row.
+fn kept(row: &AgentEffect, name: FieldName) -> String {
+    row.kept
+        .iter()
+        .find(|k| k.name == name)
+        .map(|k| k.value.joined())
+        .unwrap_or_default()
+}
+
 /// The value of the field `name` in the bound object of an effect of a confirmation request.
 fn field(request: &ConfirmRequest, name: FieldName) -> String {
     request.effects[0]
@@ -696,6 +705,19 @@ pub(crate) fn changed_on_page(maker: &mut dyn Maker) {
     assert_ne!(effects[1].approval, effects[3].approval, "a new approval");
     assert_eq!(effects[4].digest, confirms[1].effects[0].digest);
     assert_eq!(effects[4].approval, effects[3].approval);
+    let kept_amounts: Vec<String> = effects.iter().map(|e| kept(e, FieldName::Amount)).collect();
+    assert_eq!(
+        kept_amounts,
+        [
+            money(due),
+            money(due),
+            money(due + 100),
+            money(due + 100),
+            money(due + 100),
+            money(due + 100)
+        ],
+        "each row keeps the fields of the object whose digest it carries (A7.4, CP-157 E2)"
+    );
     let paid: Vec<u64> = after["utility"]["payments"]
         .as_array()
         .expect("the payments")
