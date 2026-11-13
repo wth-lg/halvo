@@ -177,8 +177,16 @@ pnpm_platform() {
 }
 
 pnpm_lock_integrity() {
-  if [ ! -f "$1" ]; then
+  if [ ! -e "$1" ]; then
     echo no-file
+    return 1
+  fi
+  if [ ! -f "$1" ]; then
+    echo not-a-file
+    return 1
+  fi
+  if [ ! -r "$1" ]; then
+    echo unreadable
     return 1
   fi
   LC_ALL=C tr '\000' '\001' <"$1" 2>/dev/null | LC_ALL=C awk -v want="$2" -v q="'" '
@@ -208,6 +216,7 @@ pnpm_lock_integrity() {
     {
       sub(/\r$/, "")
       line = $0
+      if (length(line) > 1024) refuse("long")
       if (NR == 1) { if (line != "---") refuse("form"); next }
       if (line == "---") exit
       if (expect) {
@@ -289,6 +298,7 @@ pnpm_lock_integrity() {
     }
     END {
       if (answer == "" && expect) answer = "no-resolution " entry
+      if (answer == "" && NR == 0) answer = "empty"
       if (answer == "" && entries == 0) answer = "no-entry"
       if (answer != "") { print answer; exit 1 }
       print "value " value
@@ -352,6 +362,16 @@ ensure_pnpm() {
       fix="take backend/pnpm-lock.yaml as main holds it"
       case $answer in
         no-file) cause="there is no backend/pnpm-lock.yaml" ;;
+        not-a-file)
+          cause="backend/pnpm-lock.yaml is not a regular file"
+          fix="move it away and take backend/pnpm-lock.yaml as main holds it"
+          ;;
+        unreadable)
+          cause="this user may not read backend/pnpm-lock.yaml"
+          fix="give yourself the right to read it, for example with chmod u+r backend/pnpm-lock.yaml"
+          ;;
+        empty) cause="backend/pnpm-lock.yaml is empty" ;;
+        "long "*) cause="line ${answer#long } of backend/pnpm-lock.yaml has more than 1,024 characters, more than a YAML key may have and more than any line that pnpm writes there" ;;
         "form "*) cause="line ${answer#form } of backend/pnpm-lock.yaml is in no form that this script reads in the lock's first document" ;;
         "repeat "*) cause="line ${answer#repeat } of backend/pnpm-lock.yaml repeats a key of the lock's first document" ;;
         no-entry)
@@ -854,8 +874,8 @@ EOF
   new_backend_case backend-download-form
   run_ensure_backend ok
   first_call=$(sed -n 1p "$case_dir/curl-args" 2>/dev/null) || first_call=none
-  case "$first_call" in
-    -*f*" "*) ;;
+  case "${first_call%% *}" in
+    -*f*) ;;
     *) problems="$problems; curl did not get -f: $first_call" ;;
   esac
   case "$first_call" in
@@ -954,6 +974,46 @@ EOF
   run_ensure_backend fails
   expect_nothing_installed
   [ "$(count 'prerequisites: error: there is no backend/pnpm-lock.yaml, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing lock and what to do"
+  verdict "$name"
+
+  name='a directory in the place of the lock is named as no regular file, with what to do, before any download'
+  new_backend_case backend-lock-directory
+  mv "$case_dir/repo/backend/pnpm-lock.yaml" "$case_dir/repo/backend/pnpm-lock.yaml.moved"
+  mkdir "$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'prerequisites: error: backend/pnpm-lock.yaml is not a regular file, so the platform package cannot be checked; move it away and take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the directory and what to do"
+  verdict "$name"
+
+  name='a lock that this user may not read is named so, with what to do, and the shell prints no line of its own'
+  new_backend_case backend-lock-unreadable
+  chmod 000 "$case_dir/repo/backend/pnpm-lock.yaml"
+  if [ -r "$case_dir/repo/backend/pnpm-lock.yaml" ]; then
+    echo "  this platform or user reads a file of mode 000, so the case holds nothing here"
+  else
+    run_ensure_backend fails
+    expect_nothing_installed
+    [ "$(count 'prerequisites: error: this user may not read backend/pnpm-lock.yaml, so the platform package cannot be checked; give yourself the right to read it, for example with chmod u+r backend/pnpm-lock.yaml, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the unreadable lock and what to do"
+    [ "$(count 'Permission denied' "$case_dir/output")" = 0 ] || problems="$problems; the shell printed a line of its own"
+  fi
+  chmod 644 "$case_dir/repo/backend/pnpm-lock.yaml"
+  verdict "$name"
+
+  name='an empty lock is named so, with what to do, before any download'
+  new_backend_case backend-lock-empty
+  : >"$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'prerequisites: error: backend/pnpm-lock.yaml is empty, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the empty lock and what to do"
+  verdict "$name"
+
+  name='a key line of more than 1,024 characters is named by its number, before any download'
+  new_backend_case backend-lock-long-key
+  long_name=$(printf '%01100d' 0 | tr 0 a)
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$long_name@12.14.0" "$(integrity_of "$platform_asset")"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'prerequisites: error: line 18 of backend/pnpm-lock.yaml has more than 1,024 characters, more than a YAML key may have and more than any line that pnpm writes there, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the long key and what to do"
   verdict "$name"
 
   name='a line of the lock in no form that the script reads is named by its number, before any download'
@@ -1359,6 +1419,26 @@ EOF
   printf '  bad: [\n' >"$case_dir/insert"
   lock_variant after '    optional: true'
   lock_reads '' 'a line that no YAML reader reads'
+  printf "      '@pnpm/exe.p': 1.0.0\n" >"$case_dir/insert"
+  lock_variant after "      '@pnpm/exe.p': 1.0.0"
+  lock_reads '' 'a name twice under optionalDependencies:'
+  printf '        specifier: 1.0.0\n' >"$case_dir/insert"
+  lock_variant after '        specifier: 1.0.0'
+  lock_reads '' 'specifier twice under the pnpm manager'
+  printf '        version: 1.0.0\n' >"$case_dir/insert"
+  lock_variant after '        version: 1.0.0'
+  lock_reads '' 'version twice under the pnpm manager'
+  long_name=$(printf '%01100d' 0 | tr 0 a)
+  printf "  '@pnpm/exe.%s@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n" "$long_name" "$other" >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'another entry whose key line has more than 1,024 characters'
+  printf "      '@pnpm/exe.%s': 1.0.0\n" "$long_name" >"$case_dir/insert"
+  lock_variant after "      '@pnpm/exe.p': 1.0.0"
+  lock_reads '' 'a name of more than 1,024 characters under optionalDependencies:'
+  printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n" >"$lock_file"
+  lock_reads '' 'the entry as the last line of the lock'
+  printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n---\n" >"$lock_file"
+  lock_reads '' 'the entry as the last line of the first document'
   printf "\r  '@pnpm/exe.q@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
   lock_variant after '    libc: [glibc]'
   lock_reads '' 'a lone carriage return after the entry'
