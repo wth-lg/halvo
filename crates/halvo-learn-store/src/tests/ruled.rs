@@ -409,3 +409,16 @@ fn f5_steps_fetched_under_another_number_than_the_loaded_one_are_answered_base()
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert_eq!(answer(&mut w, 2, 2, proposal), Err(AdmitCause::Base));
 }
+
+#[test]
+fn f4_a_load_that_a_store_fault_refuses_drops_nothing() {
+    let mut w = active_world();
+    w.replay(2);
+    w.host.agent.fault = true;
+    assert!(w
+        .runner(json!({"op": "load", "agent": agent(1), "run": run(2)}))
+        .is_err());
+    w.host.agent.fault = false;
+    assert!(holds(&w, 2));
+    assert!(w.handlers.facts.contains_key(&id(2)));
+}
