@@ -9,7 +9,7 @@ if (input !== 'pipe' && input !== 'null') {
 }
 const server = spawn(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'server.mjs'), ...rest], {
   stdio: [input === 'pipe' ? 'pipe' : 'ignore', 'pipe', 'ignore'],
-  detached: true,
+  detached: input === 'pipe',
   windowsHide: true,
 });
 server.stdin?.on('error', () => {});

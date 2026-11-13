@@ -149,6 +149,7 @@ function stopServer(s) {
 }
 
 const GONE_MS = 5000;
+const UNIX = process.platform !== 'win32';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -242,8 +243,8 @@ async function closeInput(c, s, end) {
   }
 }
 
-async function startParent(input) {
-  const parent = spawn(process.execPath, [join(HERE, 'parent.mjs'), input, '--port', '0'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+async function startParent(input, { group = false } = {}) {
+  const parent = spawn(process.execPath, [join(HERE, 'parent.mjs'), input, '--port', '0'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, detached: group });
   parent.stdin.on('error', () => {});
   const h = { parent, exit: new Promise((resolve) => parent.on('exit', resolve)), pid: null, port: null };
   const m = /^server (\d+) (\d+)$/.exec((await firstLine(parent.stdout, 15000)) || '');
@@ -322,6 +323,23 @@ async function lifetimeCases() {
       c.ok(await goneBy(h.pid, deadline), 'stand_in_parent_ends_it_within_5s');
     } finally {
       await endParent(h);
+    }
+  });
+
+  await run(UNIX ? 'lifetime-null-input-ends-with-its-process-group' : 'lifetime-null-input-ends-with-its-job', async (c) => {
+    for (const sig of UNIX ? ['SIGINT', 'SIGTERM', 'SIGKILL'] : ['SIGKILL']) {
+      const name = UNIX ? sig : 'hard_kill';
+      const h = await startParent('null', { group: UNIX });
+      try {
+        if (!c.ok(h.pid !== null, `server_started_${name}`)) continue;
+        const deadline = Date.now() + GONE_MS;
+        if (UNIX) process.kill(-h.parent.pid, sig);
+        else h.parent.kill('SIGKILL');
+        c.ok(await goneBy(h.pid, deadline), `server_gone_within_5s_after_${name}`);
+        c.ok(await refused(h.port), `port_closed_after_${name}`);
+      } finally {
+        await endParent(h);
+      }
     }
   });
 }
