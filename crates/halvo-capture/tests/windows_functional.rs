@@ -2733,9 +2733,12 @@ fn pointer_moves_coalesce() {
 /// starts (W3-7 (4)): a fresh detector can read Unknown at its start, and a key
 /// typed before its next read is withheld. The fixture moves the focus to its
 /// password field and back, and the test waits, at most 3 s, until the gate
-/// reads the plain field as Clear.
+/// reads the plain field as Clear, and at least 1 s from the source's start,
+/// as c1 does: a key typed in the first few hundred ms after a start has been
+/// withheld on the hosted runner.
 fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInputSource) -> bool {
     use halvo_capture::secure_input::windows::FieldState;
+    let started = Instant::now();
     let at_start = keyboard.field_state();
     if let Some(fields) = fields {
         fields.focus(Field::Password);
@@ -2752,14 +2755,38 @@ fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInpu
         std::thread::sleep(Duration::from_millis(20));
     }
     std::thread::sleep(Duration::from_millis(150));
+    if let Some(left) = Duration::from_secs(1).checked_sub(started.elapsed()) {
+        std::thread::sleep(left);
+    }
+    let _ = seam::take();
     say(
         test,
         format!(
             "gate_at_start={at_start:?} gate_reads_clear_before_typing={clear} waited_ms={}",
-            began.elapsed().as_millis()
+            started.elapsed().as_millis()
         ),
     );
     clear
+}
+
+/// Prints how many keys each rule of the gate decided since the last read of
+/// the seam, as numbers alone.
+fn rules_of_the_gate(test: &str) {
+    let decided = seam::take();
+    let mut by_rule: BTreeMap<String, usize> = BTreeMap::new();
+    for key in &decided {
+        *by_rule
+            .entry(format!("{:?}_{:?}", key.verdict, key.rule))
+            .or_default() += 1;
+    }
+    say(
+        test,
+        format!(
+            "keys_decided={} by_verdict_and_rule={}",
+            decided.len(),
+            format!("{by_rule:?}").replace(' ', "")
+        ),
+    );
 }
 
 #[test]
@@ -3296,6 +3323,7 @@ fn x3_attribution_before_the_first_foreground_change() {
                 .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
                 .count()
         };
+        rules_of_the_gate("x3");
         let child_app = |events: &[CaptureStreamEvent]| {
             events
                 .iter()

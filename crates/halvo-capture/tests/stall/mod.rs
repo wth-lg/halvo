@@ -1128,6 +1128,13 @@ fn run_rounds(
             reset_arg |= ARG_START_IN_PASSWORD;
         }
         let reset = fixture.ask(CMD_RESET, reset_arg, "reset");
+        if phase.lead == Lead::Enter {
+            // Enter moves no focus, so its latch stays open until a move:
+            // the fixture's own move closes the latch of the round before.
+            let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
+            std::thread::sleep(Duration::from_millis(250));
+            let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
+        }
         let _ = events.drain_for(Duration::from_millis(400));
         let _ = seam::take();
         let before = keyboard.health().counters;
