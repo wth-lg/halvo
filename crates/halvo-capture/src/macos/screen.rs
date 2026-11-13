@@ -560,9 +560,8 @@ mod tests {
         keep_for_the_life_of_the_process(Some(output), Some(DispatchQueue::new("kept", None)));
         assert_eq!(
             writer
-                .receiver()
                 .recv_timeout(Duration::from_secs(1))
-                .map(|event| event.modality),
+                .map(|received| received.event().modality),
             Err(RecvTimeoutError::Disconnected),
             "the kept output still holds a handle of the sink"
         );
@@ -579,9 +578,8 @@ mod tests {
         drop(handle);
         assert_eq!(
             writer
-                .receiver()
                 .recv_timeout(Duration::from_secs(1))
-                .map(|event| event.modality),
+                .map(|received| received.event().modality),
             Err(RecvTimeoutError::Disconnected),
             "a kept output emitted an event or still holds a handle"
         );

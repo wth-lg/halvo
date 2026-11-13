@@ -438,8 +438,8 @@ fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modalit
     let mut kinds = Vec::new();
     loop {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
-        match writer.receiver().recv_timeout(left) {
-            Ok(event) => kinds.push(event.modality),
+        match writer.recv_timeout(left) {
+            Ok(received) => kinds.push(received.event().modality),
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return kinds,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => panic!(
                 "the sink did not close within 2 s: something still holds the sink's handle \
