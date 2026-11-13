@@ -218,6 +218,20 @@ fn expected_keys() -> BTreeSet<String> {
     for m in 1..=12 {
         k.insert(format!("month.{m}"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "delete",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}"));
+    }
+    for n in ["file", "range"] {
+        k.insert(format!("field.local_edit.{n}"));
+    }
     k
 }
 
@@ -236,7 +250,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 200);
+    assert_eq!(seen.len(), 209);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

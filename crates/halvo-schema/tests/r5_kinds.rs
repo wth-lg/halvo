@@ -215,3 +215,32 @@ fn the_error_names_of_the_learning_handlers_are_declared_and_read_back() {
         assert_eq!(reply.outcome.map(|_| ()), Err(error));
     }
 }
+
+#[test]
+fn the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table() {
+    let edit = entry("learn_edit");
+    assert_eq!(edit.class, RetentionClass::Kept);
+    assert_eq!(edit.origin, Origin::Own);
+    assert_eq!(edit.family, "learn");
+    assert_eq!(edit.workflow_key, Some("workflow"));
+    assert_eq!(
+        edit.fields,
+        [
+            ("v", Version),
+            ("workflow", Id),
+            ("agent", Id),
+            ("edit", Id),
+            ("rev", Count),
+            ("base", Count),
+            ("n", Count),
+            ("state", Name),
+            ("cause", Name),
+            ("on", Id),
+            ("runs", Id),
+            ("first", Day),
+            ("last", Day),
+            ("clean", Count),
+            ("target", FieldType::OwnText),
+        ]
+    );
+}
