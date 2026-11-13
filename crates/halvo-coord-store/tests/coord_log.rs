@@ -199,6 +199,16 @@ fn day_refusals() {
         ),
         Err(ErrorName::Malformed)
     );
+    assert_eq!(
+        send(
+            &mut store,
+            &[
+                hold_set(1, 1, 1, TODAY, late),
+                hold_set(1, 1, 2, TODAY - 1, late)
+            ]
+        ),
+        Err(ErrorName::Malformed)
+    );
     assert!(rows(&store).is_empty());
     assert_eq!(
         send(
