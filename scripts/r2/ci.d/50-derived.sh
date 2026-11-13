@@ -19,6 +19,8 @@ esac
 #= src/lib.rs tests::a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it_is_not
 #= src/lib.rs tests::the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open
 #= src/lib.rs tests::rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one
+#= src/lib.rs tests::the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing
+#= src/lib.rs tests::rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone
 #= tests/open.rs open_refuses_a_key_that_does_not_open_the_database
 #= tests/open.rs open_refuses_while_another_store_holds_the_writer_lock
 #= tests/open.rs the_database_refuses_another_connection_while_the_store_is_open
@@ -68,6 +70,7 @@ esac
 #= tests/typed.rs a_window_record_whose_expiry_has_passed_is_dropped_and_counted_by_a_handler_and_by_a_step
 #= tests/typed.rs a_handler_s_row_read_leaves_out_a_bounded_row_from_the_first_instant_of_its_day_of_going
 #= tests/typed.rs row_read_visits_the_rows_of_its_own_family_alone_in_byte_order
+#= tests/typed.rs a_handler_s_keyed_row_read_hands_out_the_rows_of_the_whole_read_that_name_its_workflow_and_no_other
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused
 #= tests/state.rs the_state_call_refuses_a_proposed_a_dismissed_and_a_missing_workflow_and_an_active_one_with_no_agent
 #= tests/state.rs the_state_call_answers_no_workflow_for_a_workflow_that_is_not_stored_before_the_rules_of_the_move

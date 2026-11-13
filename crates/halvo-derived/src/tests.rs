@@ -245,3 +245,188 @@ fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_wi
         "the expiry leaves exactly what the read handed out"
     );
 }
+
+/// The plan of a statement as `EXPLAIN QUERY PLAN` gives it on the store's schema, one detail per line.
+fn plan_of(statement: sql::Sql) -> Vec<String> {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    let mut plan = conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {}", statement.text()))
+        .unwrap();
+    let mut found = plan.raw_query();
+    let mut details = Vec::new();
+    while let Some(row) = found.next().unwrap() {
+        details.push(row.get(3).unwrap());
+    }
+    details
+}
+
+/// DS-4 H2: the keyed row read searches the index of the read of the whole kind by its kind, as that read does, so it
+/// walks no more than that read and sorts nothing.
+#[test]
+fn the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing() {
+    let whole = plan_of(sql::ROWS_READ);
+    assert_eq!(whole, ["SEARCH rows USING INDEX rows_read (kind=?)"]);
+    assert_eq!(plan_of(sql::ROWS_READ_UNDER), whole);
+}
+
+/// RD-64 (a) and DS-4 at the level of the statement: the keyed row read hands out the rows of its kind whose workflow
+/// column names its workflow and that the read of the whole kind hands out, and no row of another workflow, no row
+/// whose column is empty while its text names the workflow, and no row of the family `workflow`.
+#[test]
+fn rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    let w1 = "10000000000000000000000000000001";
+    let w2 = "20000000000000000000000000000002";
+    for (kind, family, body, class, day, gone, expires, workflow) in [
+        (
+            "k",
+            "test",
+            "bounded without a day",
+            1,
+            None,
+            None,
+            None,
+            Some(w1),
+        ),
+        (
+            "k",
+            "test",
+            "bounded inside",
+            1,
+            Some(TODAY),
+            Some(TODAY + 1),
+            None,
+            Some(w1),
+        ),
+        (
+            "k",
+            "test",
+            "bounded gone today",
+            1,
+            Some(TODAY - 9),
+            Some(TODAY),
+            None,
+            Some(w1),
+        ),
+        (
+            "k",
+            "test",
+            "bounded three ahead",
+            1,
+            Some(TODAY + 3),
+            Some(TODAY + 96),
+            None,
+            Some(w1),
+        ),
+        ("k", "test", "kept", 2, None, None, None, Some(w1)),
+        ("k", "test", "kept of w2", 2, None, None, None, Some(w2)),
+        (
+            "k",
+            "test",
+            "kept, w1 in its text alone",
+            2,
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            "k",
+            "test",
+            "window inside",
+            0,
+            None,
+            None,
+            Some(NOW.now + 1),
+            Some(w1),
+        ),
+        (
+            "k",
+            "test",
+            "window at now",
+            0,
+            None,
+            None,
+            Some(NOW.now),
+            Some(w1),
+        ),
+        (
+            "k",
+            "workflow",
+            "of the family workflow",
+            2,
+            None,
+            None,
+            None,
+            Some(w1),
+        ),
+        (
+            "workflow",
+            "workflow",
+            "workflow w1",
+            2,
+            None,
+            None,
+            None,
+            Some(w1),
+        ),
+        (
+            "workflow",
+            "workflow",
+            "workflow w2",
+            2,
+            None,
+            None,
+            None,
+            Some(w2),
+        ),
+    ] {
+        conn.execute(
+            "INSERT INTO rows (kind, family, class, day, gone, expires, workflow, body) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![kind, family, class, day, gone, expires, workflow, body],
+        )
+        .unwrap();
+    }
+    let read = |statement: sql::Sql, workflow: &str| -> Vec<String> {
+        conn.prepare(statement.text())
+            .unwrap()
+            .query_map(
+                crate::db::reading!(NOW, ":kind" => "k", ":workflow" => workflow),
+                |r| r.get(0),
+            )
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    assert_eq!(
+        read(sql::ROWS_READ_UNDER, w1),
+        ["bounded inside", "kept", "window inside"]
+    );
+    assert_eq!(read(sql::ROWS_READ_UNDER, w2), ["kept of w2"]);
+    let whole: Vec<String> = conn
+        .prepare(sql::ROWS_READ.text())
+        .unwrap()
+        .query_map(crate::db::reading!(NOW, ":kind" => "k"), |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        whole,
+        [
+            "bounded inside",
+            "kept",
+            "kept of w2",
+            "kept, w1 in its text alone",
+            "window inside"
+        ]
+    );
+    assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 4);
+    assert_eq!(
+        read(sql::ROWS_READ_UNDER, w1),
+        ["bounded inside", "kept", "window inside"],
+        "the expiry leaves what the keyed read handed out"
+    );
+}

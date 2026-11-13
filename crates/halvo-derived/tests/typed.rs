@@ -11,6 +11,7 @@ use halvo_derived::{
     Cause, Committed, DayFault, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store,
     StoredFault, Takes,
 };
+use halvo_schema_core::ids::WorkflowId;
 use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 use halvo_schema_core::record::{
     Ordinal, RecurrenceStep, RowRead, SummaryRead, TypedRecord, WriterStep,
@@ -1269,5 +1270,278 @@ fn a_handler_s_row_read_leaves_out_a_bounded_row_from_the_first_instant_of_its_d
         (vec![1, 1, 0, 0], true),
         "(rows visited on the row's day, one nanosecond before its day of going, at its first instant with no \
          expiry run, after the expiry; the expiry removed rows)"
+    );
+}
+
+/// The kind `test_note` under another name with no workflow key in its entry: its records name a workflow under the
+/// key `workflow`, and the store keeps no workflow column for its rows.
+static PLAIN: KindEntry = KindEntry {
+    name: "test_plain",
+    workflow_key: None,
+    ..NOTE
+};
+
+/// What a handler of the family `test` reads in one request: the kind, and the workflow of a keyed read or none for
+/// the read of the whole kind.
+type Asks = Rc<RefCell<Vec<(&'static str, Option<WorkflowId>)>>>;
+
+/// A runner handler that passes the request on first where `pass` is set, then commits the records that the test
+/// put in `records`, then makes the reads that the test put in `asks` and keeps what each visited in `seen`.
+fn keyed_handler(pass: bool, records: &Records, asks: &Asks, seen: &Seen) -> Box<dyn Handler> {
+    let records = Rc::clone(records);
+    let asks = Rc::clone(asks);
+    let seen = Rc::clone(seen);
+    Box::new(FnHandler(move |_: &RawRequest, cx: &mut HandlerCx<'_>| {
+        if pass {
+            cx.pass_on()?;
+        }
+        let list: Vec<TypedRecord> = records.borrow_mut().drain(..).collect();
+        if !list.is_empty() {
+            assert!(matches!(cx.commit(&list), Ok(c) if c.dropped == 0));
+        }
+        for (kind, workflow) in asks.borrow().iter() {
+            let mut rows = Vec::new();
+            match workflow {
+                Some(w) => cx
+                    .rows()
+                    .for_each_under(kind, w, &mut |row| rows.push(row.to_owned())),
+                None => cx
+                    .rows()
+                    .for_each(kind, &mut |row| rows.push(row.to_owned())),
+            }
+            seen.borrow_mut().push(rows);
+        }
+        Ok(reply("null"))
+    }))
+}
+
+type Seen = Rc<RefCell<Vec<Vec<String>>>>;
+
+/// A store with two workflows and, for each, rows of a bounded, a window and a kept kind of the family `test`, a
+/// row of the family `front`, and rows of `test_plain` that name the first workflow in their text alone. The
+/// bounded rows of the first workflow lie on DAY, DAY - 92 (going on DAY + 1), DAY + 2 and DAY + 3, the last two
+/// committed with the clock on their own day; its window rows expire at noon of DAY plus an hour and far later. The
+/// clock is then set to `at`.
+struct Keyed {
+    store: Store,
+    first: WorkflowId,
+    second: WorkflowId,
+    asks: Asks,
+    seen: Seen,
+    scratch: Scratch,
+}
+
+const NOON: i64 = 43_200_000_000_000;
+const HOUR: i64 = 3_600_000_000_000;
+
+fn plain(workflow: &str, day: u32, n: u32) -> TypedRecord {
+    TypedRecord {
+        kind: "test_plain",
+        json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{day},"n":{n}}}"#),
+    }
+}
+
+impl Keyed {
+    fn new(at: i64) -> Keyed {
+        let scratch = Scratch::new("keyed");
+        let clock = TestClock::at_day(DAY);
+        let (w1, w2) = two_workflows(&scratch, &clock);
+        let records: Records = Rc::new(RefCell::new(Vec::new()));
+        let front: Records = Rc::new(RefCell::new(Vec::new()));
+        let asks: Asks = Rc::new(RefCell::new(Vec::new()));
+        let seen: Seen = Rc::new(RefCell::new(Vec::new()));
+        let none: Asks = Rc::new(RefCell::new(Vec::new()));
+        let host = base(&clock, Grouping { min: 1 })
+            .handler(
+                "front",
+                Takes::Runner,
+                keyed_handler(true, &front, &none, &Rc::new(RefCell::new(Vec::new()))),
+            )
+            .handler(
+                "test",
+                Takes::Runner,
+                keyed_handler(false, &records, &asks, &seen),
+            );
+        let mut store =
+            open_entries(&scratch, host, &[&NOTE, &TRACE, &OWN, &FRONT, &PLAIN]).unwrap();
+        let soon = i64::from(DAY) * common::DAY_NS + NOON + HOUR;
+        *records.borrow_mut() = vec![
+            note(&w1, DAY, 2),
+            note(&w1, DAY, 1),
+            note(&w1, DAY - 92, 3),
+            note(&w2, DAY, 4),
+            trace_until(&w1, 11, soon),
+            trace_until(&w1, 12, FAR),
+            trace_until(&w2, 13, FAR),
+            own(&w2, "Second"),
+            own(&w1, "First"),
+            plain(&w1, DAY, 5),
+        ];
+        *front.borrow_mut() = vec![TypedRecord {
+            kind: "front_mark",
+            json: format!(r#"{{"v":1,"workflow":"{w1}","seen":1}}"#),
+        }];
+        let request = raw_request("runner", "{}");
+        store.handle(&request).unwrap();
+        for (day, n) in [(DAY + 2, 6), (DAY + 3, 7)] {
+            clock.set_day(day);
+            *records.borrow_mut() = vec![note(&w1, day, n)];
+            store.handle(&request).unwrap();
+        }
+        assert!(records.borrow().is_empty() && front.borrow().is_empty());
+        clock.set(at);
+        Keyed {
+            store,
+            first: WorkflowId::parse(&w1).unwrap(),
+            second: WorkflowId::parse(&w2).unwrap(),
+            asks,
+            seen,
+            scratch,
+        }
+    }
+
+    /// The rows that each of `asks` visits, in one handled request.
+    fn read(&mut self, asks: Vec<(&'static str, Option<WorkflowId>)>) -> Vec<Vec<String>> {
+        *self.asks.borrow_mut() = asks;
+        self.seen.borrow_mut().clear();
+        self.store.handle(&raw_request("runner", "{}")).unwrap();
+        self.seen.borrow().clone()
+    }
+}
+
+/// The workflow id that a row of a test kind names under the key `workflow`.
+fn named(row: &str) -> String {
+    let value: serde_json::Value = serde_json::from_str(row).unwrap();
+    value["workflow"].as_str().unwrap().to_owned()
+}
+
+/// RD-64 (a), C2.11: at each clock, a handler's keyed read of a kind of its own family hands out, for each
+/// workflow, exactly the rows of the read of the whole kind that name that workflow, in the same order; before an
+/// expiry and after it at the same clock alike, so by DS-4's rule; and nothing for a kind whose rows hold no workflow
+/// column, a kind of another family, a kind of the workflow run, a kind that is not registered or a workflow that is
+/// not stored.
+#[test]
+fn a_handler_s_keyed_row_read_hands_out_the_rows_of_the_whole_read_that_name_its_workflow_and_no_other(
+) {
+    let day = |d: u32| i64::from(d) * common::DAY_NS;
+    let soon = day(DAY) + NOON + HOUR;
+    let clocks = [
+        ("noon of DAY", day(DAY) + NOON),
+        ("expiry - 1", soon - 1),
+        ("expiry", soon),
+        ("going - 1", day(DAY + 1) - 1),
+        ("going", day(DAY + 1)),
+        ("noon of DAY + 1", day(DAY + 1) + NOON),
+        ("one day back", day(DAY - 1) + NOON),
+        ("DAY + 93", day(DAY + 93)),
+    ];
+    let keyed_kinds = ["test_note", "test_trace", "test_own"];
+    let empty_kinds = [
+        "test_plain",
+        "front_mark",
+        "support",
+        "workflow",
+        "summary",
+        "evidence",
+        "test_missing",
+    ];
+    let mut walked = Vec::new();
+    for (label, at) in clocks {
+        let mut fx = Keyed::new(at);
+        let (w1, w2) = (fx.first.clone(), fx.second.clone());
+        let stray = WorkflowId::from_random([9; 16]);
+        let mut asks = Vec::new();
+        for kind in keyed_kinds {
+            asks.push((kind, None));
+            asks.push((kind, Some(w1.clone())));
+            asks.push((kind, Some(w2.clone())));
+            asks.push((kind, Some(stray.clone())));
+        }
+        for kind in empty_kinds {
+            asks.push((kind, Some(w1.clone())));
+        }
+        asks.push(("test_plain", None));
+        let before = fx.read(asks.clone());
+        for (k, kind) in keyed_kinds.iter().enumerate() {
+            let whole = &before[4 * k];
+            for (j, w) in [&w1, &w2, &stray].iter().enumerate() {
+                let want: Vec<String> = whole
+                    .iter()
+                    .filter(|row| named(row) == w.as_str())
+                    .cloned()
+                    .collect();
+                assert_eq!(
+                    before[4 * k + 1 + j],
+                    want,
+                    "{label}: {kind} under workflow {j}"
+                );
+            }
+        }
+        for (k, kind) in empty_kinds.iter().enumerate() {
+            assert!(
+                before[12 + k].is_empty(),
+                "{label}: {kind} under the first workflow"
+            );
+        }
+        let plain_rows = &before[12 + empty_kinds.len()];
+        assert!(
+            plain_rows.iter().all(|row| named(row) == w1.as_str()),
+            "{label}: the rows of test_plain name the first workflow"
+        );
+        let removed = fx.store.expire().unwrap();
+        let after = fx.read(asks);
+        assert_eq!(
+            before, after,
+            "{label}: the reads before and after the expiry"
+        );
+        walked.push((
+            label,
+            before[1].len(),
+            before[5].len(),
+            before[9].len(),
+            removed > 0,
+        ));
+    }
+    assert_eq!(
+        walked,
+        vec![
+            ("noon of DAY", 4, 2, 1, true),
+            ("expiry - 1", 4, 2, 1, true),
+            ("expiry", 4, 1, 1, true),
+            ("going - 1", 4, 1, 1, true),
+            ("going", 4, 1, 1, true),
+            ("noon of DAY + 1", 4, 1, 1, true),
+            ("one day back", 3, 2, 1, true),
+            ("DAY + 93", 2, 1, 1, true),
+        ],
+        "(clock, the first workflow's rows of test_note, of test_trace and of test_own, the expiry removed rows)"
+    );
+    let mut fx = Keyed::new(day(DAY) + NOON);
+    let w1 = fx.first.clone();
+    let rows = fx.read(vec![("test_note", Some(w1.clone()))]).remove(0);
+    let w = w1.as_str();
+    assert_eq!(
+        rows,
+        vec![
+            format!(r#"{{"v":1,"workflow":"{w}","day":{},"n":3}}"#, DAY - 92),
+            format!(r#"{{"v":1,"workflow":"{w}","day":{DAY},"n":1}}"#),
+            format!(r#"{{"v":1,"workflow":"{w}","day":{DAY},"n":2}}"#),
+            format!(r#"{{"v":1,"workflow":"{w}","day":{},"n":6}}"#, DAY + 2),
+        ],
+        "the first workflow's rows of test_note in ascending byte order"
+    );
+    drop(fx.store);
+    assert_eq!(
+        (
+            count(&fx.scratch, "SELECT count(*) FROM rows WHERE kind = 'front_mark'"),
+            count(&fx.scratch, "SELECT count(*) FROM rows WHERE kind = 'test_plain'"),
+            count(
+                &fx.scratch,
+                "SELECT count(*) FROM rows WHERE kind = 'support' AND workflow IS NOT NULL"
+            ),
+        ),
+        (1, 1, 2),
+        "(rows of front_mark, of test_plain, support rows with a workflow column) stand while the keyed read hands \
+         none of them out"
     );
 }

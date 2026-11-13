@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::fmt;
 
-use halvo_schema_core::record::{RowRead, TypedRecord, WriterStep};
+use halvo_schema_core::record::{TypedRecord, WriterStep};
 use halvo_schema_core::request::{ErrorName, RawRequest};
 use serde::de::{self, Deserializer, IgnoredAny, MapAccess, Visitor};
 use serde_json::value::RawValue;
@@ -179,10 +179,11 @@ impl HandlerCx<'_> {
         Ok(committed)
     }
 
-    /// The read of the rows of the handler's own family, as they stand: it hands out exactly the rows that an expiry
-    /// at the clock would leave (DS-4), by the one reading of the host's clock that `Store::handle` took at the
-    /// start of this request, so that every read of one request reads by one clock. No read writes.
-    pub fn rows(&self) -> impl RowRead + '_ {
+    /// The read of the rows of the handler's own family, as they stand: of one kind whole by `RowRead::for_each`, or
+    /// of one kind under one workflow id by `Rows::for_each_under`. It hands out exactly the rows that an expiry at
+    /// the clock would leave (DS-4), by the one reading of the host's clock that `Store::handle` took at the start of
+    /// this request, so that every read of one request reads by one clock. No read writes.
+    pub fn rows(&self) -> Rows<'_> {
         Rows {
             db: self.db,
             family: self.family(),

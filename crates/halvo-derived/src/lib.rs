@@ -28,10 +28,11 @@
 //! other body does.
 //!
 //! While it answers a request a handler gets four calls of the store and no other: `HandlerCx::commit`, the typed
-//! commit; `HandlerCx::state`, the state call; `HandlerCx::rows`, the read of the rows of its own family; and
-//! `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored workflow. The store knows for
-//! which request it runs a typed commit and takes it from no argument: a record of a kind of origin own is stored for
-//! a `runner` request and a `coordinator_write`, and refused from a step and for a request of a further role.
+//! commit; `HandlerCx::state`, the state call; `HandlerCx::rows`, the read of the rows of its own family, of one kind
+//! whole or of one kind under one workflow id (`Rows::for_each_under`); and `HandlerCx::workflow` and
+//! `HandlerCx::evidence`, the interface read of one stored workflow. The store knows for which request it runs a typed
+//! commit and takes it from no argument: a record of a kind of origin own is stored for a `runner` request and a
+//! `coordinator_write`, and refused from a step and for a request of a further role.
 //!
 //! # What a read hands out
 //!
@@ -39,10 +40,11 @@
 //! its stored day of going lies after the clock's day, its day lies at most two days after the clock's day, and it
 //! has a day; a window row while its `expires` lies after the clock's instant; a kept row always; and an evidence or
 //! a support row only while the summary that it names is handed out. That holds for a step's summary read and row
-//! read, a handler's `rows`, `workflow` and `evidence`, and the interface read. The summary read leaves out, by a
-//! sentence of its own, a summary of a day after the clock's day as well. The four conditions are written once, in
-//! `sql`, and the expiry's statements and the reads are made from them. No read writes: a row that the reads leave out
-//! stays stored, counted and found by a delete or a purge until an expiry removes it, and the revision rises then.
+//! read, a handler's `rows`, of one kind whole or under one workflow id, `workflow` and `evidence`, and the interface
+//! read. The summary read leaves out, by a sentence of its own, a summary of a day after the clock's day as well. The
+//! four conditions are written once, in `sql`, and the expiry's statements and the reads are made from them. No read
+//! writes: a row that the reads leave out stays stored, counted and found by a delete or a purge until an expiry
+//! removes it, and the revision rises then.
 //!
 //! The clock is the host's. The store reads it once at the start of each call of the host, `commit_batch` for the
 //! reads of every step, `Store::interface_read` for one page, and `Store::handle` for every read of one request, the
@@ -94,6 +96,7 @@ pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
 pub use report::{Counts, Report};
 pub use state::MoveTo;
+pub use typed::Rows;
 
 use db::Db;
 
