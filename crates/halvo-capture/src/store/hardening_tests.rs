@@ -6792,7 +6792,10 @@ fn a_volume_name_that_leads_to_another_directory_is_refused_and_a_create_leaves_
     let created = EncryptedStore::create(&fresh, Box::new(custody), DEFAULT_RETENTION);
     name_seams::give_name(None);
     let created = answer_text(&created);
-    assert!(opened.starts_with("Obstructed {"), "open answered {opened}");
+    assert_eq!(
+        opened,
+        "Obstructed { name: Database, met: DatabaseOutsideTheDirectory }"
+    );
     assert!(
         created.starts_with("Obstructed {"),
         "create answered {created}"
@@ -8471,10 +8474,79 @@ fn an_old_log_with_bytes_in_the_directory_while_sqlite_holds_another_log_is_refu
     drop(seam);
     println!(
         "W6 answer={opened} log_at_the_name_after_the_close={:?}",
-        std::fs::metadata(store_dir.join("store.db-wal")).map(|m| m.len()).ok()
+        std::fs::metadata(store_dir.join("store.db-wal"))
+            .map(|m| m.len())
+            .ok()
     );
     assert_eq!(
         opened,
         "Obstructed { name: Log, met: DatabaseOutsideTheDirectory }"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_all_reports_a_database_name_that_it_cannot_remove() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    std::fs::create_dir_all(store_dir.join("store.db-shm").join("held")).unwrap();
+    let report = delete_report(&store.delete_all());
+    assert!(report.database_left, "{report:?}");
+    assert_eq!(report.not_followed, 1, "{report:?}");
+    assert!(report.root_destroyed(), "{report:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_database_file_swapped_at_its_name_after_sqlite_opened_it_is_refused() {
+    use super::db::SEAM_AFTER_THE_FIRST_READ;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let decoy_source = tempfile::tempdir().unwrap();
+    let (decoy_store, _, _, _) = file_root_store(decoy_source.path());
+    let act = {
+        let (store_dir, aside, decoy) = (
+            store_dir.clone(),
+            dir.path().join("store-db-aside"),
+            decoy_store.join("store.db"),
+        );
+        move || {
+            std::fs::rename(store_dir.join("store.db"), &aside).unwrap();
+            std::fs::copy(&decoy, store_dir.join("store.db")).unwrap();
+        }
+    };
+    let seam = super::failpoint::at(SEAM_AFTER_THE_FIRST_READ, nth_call(1, act));
+    let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    drop(seam);
+    assert_eq!(
+        opened,
+        "Obstructed { name: Database, met: DatabaseOutsideTheDirectory }"
+    );
+}
+
+#[test]
+fn a_key_file_is_published_create_only_and_an_entry_at_its_name_stays() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let wrapped = custody
+        .wrap_store_key(
+            &StoreKey::from_bytes([0x19; 32]),
+            crate::custody::KeyLabel::STORE,
+        )
+        .unwrap();
+    let before = std::fs::read(KeyFile::path(&store_dir)).unwrap();
+    let place = KeyFile::at(&KeyFile::path(&store_dir)).unwrap();
+    let published = place.publish(&KeyFile::new(
+        &custody,
+        crate::custody::KeyLabel::STORE,
+        &wrapped,
+    ));
+    assert!(
+        matches!(published, Err(StoreError::AlreadyExists)),
+        "{published:?}"
+    );
+    assert_eq!(std::fs::read(KeyFile::path(&store_dir)).unwrap(), before);
+    assert!(!store_dir.join("store.key.tmp").exists());
 }
