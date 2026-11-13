@@ -767,10 +767,17 @@ mod tests {
             .iter()
             .find(|c| c.rule == "pipe_holder" && c.pid == child)
             .cloned();
-        let n = |cs: &[Count]| cs.iter().map(|c| (c.rule, c.count)).collect::<Vec<_>>();
+        // the two rules that the print names: each count is the number of processes named for it,
+        // and `check` counts the pipe's holders as `check_counted` does (the other rules read this
+        // test process, whose listeners the suite's other tests change between the two reads)
+        let count = |cs: &[Count], rule: &str| cs.iter().find(|c| c.rule == rule).unwrap().count;
+        for rule in ["port_flag", "pipe_holder"] {
+            let named = counted.iter().filter(|c| c.rule == rule).count();
+            assert_eq!(count(&counts, rule), named, "{rule}: {counted:?}");
+        }
         assert_eq!(
-            n(&counts),
-            n(&plain),
+            count(&counts, "pipe_holder"),
+            count(&plain, "pipe_holder"),
             "the print changed what the check counts"
         );
         let holder =
