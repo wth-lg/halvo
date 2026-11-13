@@ -341,7 +341,8 @@ placing_fixture() {
     *) wrong="$wrong placing-first" ;;
   esac
   ensure_call "$target" r2_body_build >/dev/null
-  [ "$(ls -A "$target/r2")" = gen-dev ] || wrong="$wrong placing-over-same"
+  names=$(ls -A "$target/r2") || names=unread
+  [ "$names" = gen-dev ] || wrong="$wrong placing-over-same"
   i=1
   while [ "$i" -le 5 ]; do
     { printf 'four\n' >"$target/r2/gen-dev/streams/gen-dev-s001/day-001.jsonl"; } 2>/dev/null || :
@@ -350,7 +351,8 @@ placing_fixture() {
       'body gen-dev built '*' s') : ;;
       *) wrong="$wrong placing-replacement-$i" ;;
     esac
-    [ "$(ls -A "$target/r2")" = gen-dev ] || wrong="$wrong placing-names-$i"
+    names=$(ls -A "$target/r2") || names=unread
+    [ "$names" = gen-dev ] || wrong="$wrong placing-names-$i"
     i=$((i + 1))
   done
 }
