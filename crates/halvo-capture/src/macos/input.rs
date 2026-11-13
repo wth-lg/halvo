@@ -67,9 +67,9 @@ impl TapPort {
         let port = self.port.load(Ordering::Relaxed);
         if !port.is_null() {
             // SAFETY: outside tests `port` is set only by `SystemTapMaker::enable`,
-            // to the mach port of the tap that it returns beside a
-            // `PortClearedOnDrop`, which sets it back to null before that tap
-            // drops. So a port that is not null belongs to a tap that is alive,
+            // to the mach port of the tap that it returns inside a
+            // `PortClearedFirst`, whose Drop sets it back to null before that
+            // tap drops. So a port that is not null belongs to a tap that is alive,
             // as long as the load above and this call do not straddle the drop:
             // the one caller outside tests is the tap's callback, which runs on
             // the tap thread, and that thread drops the tap only after its run
@@ -80,11 +80,17 @@ impl TapPort {
     }
 }
 
-struct PortClearedOnDrop(TapPort);
+/// A tap with the port that names it. Its Drop clears the port, and only then
+/// does the tap drop, with the fields.
+struct PortClearedFirst<T> {
+    port: TapPort,
+    tap: T,
+}
 
-impl Drop for PortClearedOnDrop {
+impl<T> Drop for PortClearedFirst<T> {
     fn drop(&mut self) {
-        self.0.store(std::ptr::null_mut());
+        self.port.store(std::ptr::null_mut());
+        let _ = &self.tap;
     }
 }
 
@@ -274,7 +280,7 @@ struct SystemTapMaker;
 
 impl TapMaker for SystemTapMaker {
     type Tap = CGEventTap<'static>;
-    type Enabled = (PortClearedOnDrop, CFRunLoopSource, CGEventTap<'static>);
+    type Enabled = PortClearedFirst<(CFRunLoopSource, CGEventTap<'static>)>;
 
     fn make<F>(self, settings: TapSettings, callback: F) -> Result<Self::Tap, ()>
     where
@@ -295,14 +301,16 @@ impl TapMaker for SystemTapMaker {
             .map_err(|()| CaptureError::Start("the tap's run loop source was not made".into()))?;
 
         port.store(tap.mach_port().as_concrete_TypeRef() as *mut c_void);
-        let port = PortClearedOnDrop(port);
 
         let run_loop = CFRunLoop::get_current();
         // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
         // CoreFoundation exports and never writes.
         run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
         tap.enable();
-        Ok((port, source, tap))
+        Ok(PortClearedFirst {
+            port,
+            tap: (source, tap),
+        })
     }
 }
 
@@ -423,10 +431,49 @@ impl HoldSlot {
     }
 }
 
+/// A hold slot at a fixed address with the timer that holds that address. Its
+/// Drop invalidates the timer, and only then does the slot drop.
+struct TimedHold {
+    slot: Box<HoldSlot>,
+    timer: Option<CFRunLoopTimer>,
+    invalidate: fn(&CFRunLoopTimer),
+}
+
+impl TimedHold {
+    fn new(slot: HoldSlot) -> Self {
+        Self {
+            slot: Box::new(slot),
+            timer: None,
+            invalidate,
+        }
+    }
+
+    fn take_now(&mut self) {
+        self.slot.take();
+    }
+
+    fn take_after(&mut self, delay: Duration) {
+        let info = (&mut *self.slot as *mut HoldSlot).cast::<c_void>();
+        let timer = timer_at(delay, hold_timer_fired, info);
+        add_to_this_run_loop(&timer);
+        self.timer = Some(timer);
+    }
+}
+
+impl Drop for TimedHold {
+    fn drop(&mut self) {
+        if let Some(timer) = self.timer.take() {
+            (self.invalidate)(&timer);
+        }
+    }
+}
+
 extern "C" fn hold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
-    // SAFETY: `info` is the `HoldSlot` that the tap thread keeps on its stack
-    // until its run loop has ended and this timer is invalidated, and the timer
-    // fires on the tap thread alone, so no other reference to the slot exists.
+    // SAFETY: `info` is the boxed `HoldSlot` of a `TimedHold`, whose box keeps
+    // it at one address and whose Drop invalidates this timer before the slot
+    // drops; the timer fires on the tap thread alone, which owns the TimedHold
+    // and touches the slot only outside the run loop, so no other reference to
+    // the slot exists.
     let slot = unsafe { &mut *info.cast::<HoldSlot>() };
     slot.take();
 }
@@ -492,13 +539,13 @@ impl TapThread {
             std::thread::Builder::new()
                 .name("halvo-input-tap".into())
                 .spawn(move || {
-                    let mut slot = HoldSlot {
+                    let mut slot = TimedHold::new(HoldSlot {
                         hold,
                         held: None,
                         refusal,
-                    };
+                    });
                     if plan == HoldPlan::After(Duration::ZERO) {
-                        slot.take();
+                        slot.take_now();
                     }
                     let installed = match install() {
                         Ok(installed) => installed,
@@ -507,15 +554,11 @@ impl TapThread {
                             return;
                         }
                     };
-                    let hold_timer = match plan {
-                        HoldPlan::After(delay) if !delay.is_zero() => {
-                            let info = (&mut slot as *mut HoldSlot).cast::<c_void>();
-                            let timer = timer_at(delay, hold_timer_fired, info);
-                            add_to_this_run_loop(&timer);
-                            Some(timer)
+                    if let HoldPlan::After(delay) = plan {
+                        if !delay.is_zero() {
+                            slot.take_after(delay);
                         }
-                        _ => None,
-                    };
+                    }
                     let idle = timer_at(
                         Duration::from_secs(86_400 * 365),
                         idle_timer_fired,
@@ -530,11 +573,8 @@ impl TapThread {
                         CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, RUN_SLICE, false);
                     }
                     drop(installed);
-                    if let Some(timer) = hold_timer {
-                        invalidate(&timer);
-                    }
-                    invalidate(&idle);
                     drop(slot);
+                    invalidate(&idle);
                 })
                 .map_err(spawn_failure)?
         };
@@ -1120,9 +1160,73 @@ mod tests {
         let port = TapPort::with_enable(record_enable);
         let clone = port.clone();
         port.store(std::ptr::NonNull::<c_void>::dangling().as_ptr());
-        drop(PortClearedOnDrop(port));
+        drop(PortClearedFirst { port, tap: () });
         clone.reenable();
         ENABLE_CALLS.with(|calls| assert_eq!(*calls.borrow(), []));
+    }
+
+    struct SeesThePort(TapPort, Arc<Mutex<Option<bool>>>);
+
+    impl Drop for SeesThePort {
+        fn drop(&mut self) {
+            let cleared = self.0.port.load(Ordering::Relaxed).is_null();
+            *self.1.lock().unwrap_or_else(PoisonError::into_inner) = Some(cleared);
+        }
+    }
+
+    #[test]
+    fn the_port_is_cleared_before_the_tap_drops() {
+        let port = TapPort::with_enable(record_enable);
+        port.store(std::ptr::NonNull::<c_void>::dangling().as_ptr());
+        let seen = Arc::new(Mutex::new(None));
+        drop(PortClearedFirst {
+            port: port.clone(),
+            tap: SeesThePort(port, seen.clone()),
+        });
+        assert_eq!(
+            *seen.lock().unwrap_or_else(PoisonError::into_inner),
+            Some(true),
+            "the tap dropped while its port was still set"
+        );
+    }
+
+    fn invalidate_and_log(timer: &CFRunLoopTimer) {
+        log_step("invalidate");
+        invalidate(timer);
+    }
+
+    #[test]
+    fn a_timed_hold_invalidates_its_timer_before_its_slot_releases_the_hold() {
+        let _one = HOLD_LOG_TESTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        HOLD_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        let mut hold = TimedHold::new(HoldSlot {
+            hold: shim_hold,
+            held: None,
+            refusal: Arc::new(Mutex::new(None)),
+        });
+        hold.invalidate = invalidate_and_log;
+        hold.take_now();
+        let address = &*hold.slot as *const HoldSlot;
+        hold.take_after(Duration::from_secs(3600));
+        let moved = std::mem::replace(
+            &mut hold,
+            TimedHold::new(HoldSlot {
+                hold: shim_hold,
+                held: None,
+                refusal: Arc::new(Mutex::new(None)),
+            }),
+        );
+        let same_address = std::ptr::eq(&*moved.slot, address);
+        drop(moved);
+        let log = std::mem::take(&mut *HOLD_LOG.lock().unwrap_or_else(PoisonError::into_inner));
+        let steps: Vec<&str> = log.iter().map(|&(step, _)| step).collect();
+        assert!(same_address, "the slot moved when its owner moved");
+        assert_eq!(steps, ["enable", "invalidate", "disable"]);
     }
 
     extern "C" fn never_fires(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
