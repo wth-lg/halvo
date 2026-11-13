@@ -48,6 +48,21 @@ fn pinned_files_hold_their_hashes() {
 }
 
 #[test]
+fn the_manifest_holds_the_package_and_the_dev_dependencies_alone() {
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+        .expect("the crate's manifest");
+    let tables: Vec<&str> = manifest
+        .lines()
+        .filter(|line| line.trim_start().starts_with('['))
+        .collect();
+    assert_eq!(
+        (manifest.lines().next(), tables),
+        (Some("[package]"), vec!["[package]", "[dev-dependencies]"]),
+        "halvo-route has no dependency outside the workspace (contracts.md T0.7): its manifest opens with [package] and holds no table but [package] and [dev-dependencies]"
+    );
+}
+
+#[test]
 fn no_grant_in_release() {
     let ruling = release::ruling();
     let mut lists: Vec<Vec<PartKind>> = PartKind::ALL.iter().map(|part| vec![*part]).collect();
