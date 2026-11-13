@@ -641,8 +641,11 @@ EOF
   cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
   run_ensure_backend ok
   run_ensure_backend ok
-  [ "$(count "node backend/scripts/fetch-licenses.mjs in $repo_dir" "$case_dir/calls")" = 2 ] || problems="$problems; backend/scripts/fetch-licenses.mjs did not run at the repository root on each run"
-  [ "$(sed -n '2,3p' "$case_dir/calls" | tr '\n' ';')" = "fetch-tools $repo_dir;node backend/scripts/fetch-licenses.mjs in $repo_dir;" ] || problems="$problems; the licences were not fetched right after the tools"
+  fetched=$(count "node backend/scripts/fetch-licenses.mjs in $repo_dir" "$case_dir/calls")
+  [ "$fetched" = 2 ] || problems="$problems; backend/scripts/fetch-licenses.mjs did not run at the repository root on each run"
+  second=$(sed -n 2p "$case_dir/calls")
+  third=$(sed -n 3p "$case_dir/calls")
+  [ "$second;$third" = "fetch-tools $repo_dir;node backend/scripts/fetch-licenses.mjs in $repo_dir" ] || problems="$problems; the licences were not fetched right after the tools"
   verdict "$name"
 
   name='a failed fetch of the licences fails the step, and one line says what to do'
@@ -650,7 +653,8 @@ EOF
   cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
   echo 1 >"$case_dir/node.exit"
   run_ensure_backend fails
-  [ "$(count 'backend/scripts/fetch-licenses.mjs could not fetch a licence from the package registry; its lines above name the package, check the network or its proxy, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed fetch of the licences"
+  told=$(count 'backend/scripts/fetch-licenses.mjs could not fetch a licence from the package registry; its lines above name the package, check the network or its proxy, then run sh scripts/prerequisites.sh again' "$case_dir/output")
+  [ "$told" = 1 ] || problems="$problems; no line said what to do after the failed fetch of the licences"
   verdict "$name"
 
   name='a failed fetch of the pinned tools fetches no licence'
@@ -658,7 +662,8 @@ EOF
   cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
   printf 'exit 1\n' >>"$case_dir/repo/backend/scripts/fetch-tools.sh"
   run_ensure_backend fails
-  [ "$(count 'node ' "$case_dir/calls")" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
+  fetched=$(count 'node ' "$case_dir/calls")
+  [ "$fetched" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
   verdict "$name"
 
   if [ "$failures" -gt 0 ]; then
