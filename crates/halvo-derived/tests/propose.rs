@@ -9,11 +9,12 @@ use common::{
 };
 use halvo_derived::{Host, IdSource, ProposalOutcome};
 use halvo_schema_core::category::SeedCategory;
-use halvo_schema_core::ids::WorkflowId;
+use halvo_schema_core::ids::{RequestId, WorkflowId};
 use halvo_schema_core::record::{
     Confidence, Episode, Proposal, Recurrence, RecurrenceStep, SummaryRead, Support, Trigger,
     Workflow, WorkflowState,
 };
+use halvo_schema_core::request::{InterfaceRead, InterfaceRole, ReplyResult};
 use halvo_schema_core::site::{AppId, DomainSource, ObservedSite, SiteDomain, SiteValue};
 
 const DAY: u32 = 20_767;
@@ -428,4 +429,137 @@ impl RecurrenceStep for BoxedStep {
     fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
         self.0.propose(summaries)
     }
+}
+
+/// A proposal of the category of `episode` and its key (no site, the browser app) over `ids`.
+fn over(ids: &[u64]) -> Proposal {
+    let mut p = proposal(SeedCategory::UtilityBillPayment, ids);
+    p.recurrence.count = ids.len() as u32;
+    p
+}
+
+fn support_ids(scratch: &Scratch) -> Vec<String> {
+    let mut ids: Vec<String> = supports(scratch)
+        .iter()
+        .map(|s| s.summary.as_str().to_owned())
+        .collect();
+    ids.sort();
+    ids
+}
+
+#[test]
+fn the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alone() {
+    let scratch = Scratch::new("support-replaced");
+    let clock = TestClock::at_day(DAY);
+    let fixed = Rc::new(RefCell::new(vec![over(&[1, 2])]));
+    let host = || Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host()).unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, None),
+                episode(2, DAY, None),
+                episode(3, DAY, None),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!(outcome.proposals.stored, 1);
+    drop(store);
+    let id = |n: u64| summary_id(n).as_str().to_owned();
+    assert_eq!(support_ids(&scratch), vec![id(1), id(2)]);
+    let before = revision(&scratch);
+    *fixed.borrow_mut() = vec![over(&[2, 3])];
+    let mut store = open_host(&scratch, host()).unwrap();
+    let outcome = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(outcome.proposals.updated, 1);
+    let report = store.report().unwrap();
+    let role = InterfaceRole::claim();
+    let page = store
+        .interface_read(&InterfaceRead::workflows(
+            &role,
+            RequestId::from_random([1; 16]),
+            None,
+        ))
+        .unwrap();
+    drop(store);
+    let ReplyResult::Workflows(page) = page else {
+        panic!("no workflows page");
+    };
+    let read: Vec<String> = page.workflows[0]
+        .summaries
+        .iter()
+        .map(|s| s.as_str().to_owned())
+        .collect();
+    assert_eq!(
+        (support_ids(&scratch), read),
+        (vec![id(2), id(3)], vec![id(2), id(3)]),
+        "(the support rows, the read's summaries)"
+    );
+    assert_eq!(
+        report.counts.bounded, 5,
+        "three summaries and the two support rows of the latest proposal"
+    );
+    assert_eq!(revision(&scratch), before + 1);
+}
+
+/// Pins the store as built: a proposal that names a stored summary outside its bound, already past it or ahead of
+/// the clock's day, is refused and counted in `refused`. No sentence of C2.4 or C2.11 says what the store does with
+/// such a proposal; the point is with the planner (DS-3, m42), and a later sentence turns this test knowingly.
+#[test]
+fn a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built() {
+    let scratch = Scratch::new("proposal-outside");
+    let clock = TestClock::at_day(DAY);
+    let fixed = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY - 92, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    clock.set_day(DAY + 1);
+    *fixed.borrow_mut() = vec![over(&[1])];
+    let past = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(3, DAY + 1, None)],
+            position(2, 0),
+            &mut Seq(200),
+        )
+        .unwrap();
+    clock.set_day(DAY);
+    *fixed.borrow_mut() = vec![over(&[3])];
+    let ahead = store
+        .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        (
+            (past.summaries, past.proposals.refused, past.proposals.stored),
+            (ahead.proposals.refused, ahead.proposals.stored)
+        ),
+        ((1, 1, 0), (1, 0)),
+        "((summaries stored, refused, stored) one day past the bound, (refused, stored) one day ahead)"
+    );
+    assert_eq!(workflows(&scratch).len(), 0);
+    assert_eq!(supports(&scratch).len(), 0);
+    let clock = TestClock::at_day(DAY + 1);
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host).unwrap();
+    let control = store
+        .commit_batch(&store_id(1), &[], position(4, 0), &mut Seq(400))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        control.proposals.stored, 1,
+        "the control: the same proposal inside the bound is stored"
+    );
 }

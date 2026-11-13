@@ -253,3 +253,45 @@ fn the_state_call_answers_no_workflow_for_a_workflow_that_is_not_stored_before_t
         "deleted"
     );
 }
+
+#[test]
+fn a_state_call_in_the_same_state_sets_the_agent_given_or_clears_it() {
+    let scratch = Scratch::new("state-same-agent");
+    let clock = TestClock::at_day(DAY);
+    let (mut store, w) = proposed(&scratch, &clock, SET);
+    approve(&mut store, &w);
+    drop(store);
+    let a = "4".repeat(32);
+    let b = "5".repeat(32);
+    let steps: [(&str, Option<&str>); 5] = [
+        ("approved", Some(&a)),
+        ("approved", Some(&b)),
+        ("approved", None),
+        ("active", Some(&a)),
+        ("active", Some(&b)),
+    ];
+    let mut seen = Vec::new();
+    for (state, with) in steps {
+        let before = revision(&scratch);
+        let mut store = open_host(&scratch, host(&clock, SET)).unwrap();
+        let answer = call(&mut store, "coordinator_write", &w, state, with);
+        drop(store);
+        let Workflow::Full(full) = stored(&scratch) else {
+            panic!("dismissed");
+        };
+        seen.push((
+            answer,
+            full.state.as_str().to_owned(),
+            full.agent.as_ref().map(|x| x.as_str().to_owned()),
+            revision(&scratch) - before,
+        ));
+    }
+    let want: Vec<_> = steps
+        .iter()
+        .map(|(state, with)| (Ok(()), (*state).to_owned(), with.map(|x| x.to_owned()), 1))
+        .collect();
+    assert_eq!(
+        seen, want,
+        "(answer, state, agent, rise of the revision) per call: each call sets the agent given, once"
+    );
+}

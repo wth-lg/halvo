@@ -1070,3 +1070,154 @@ fn a_handler_s_typed_commit_refuses_the_list_for_a_bounded_day_after_the_clock_o
     );
     assert_eq!(kind_rows(&scratch, "test_note").len(), 2);
 }
+
+/// A handler that passes the request on and answers what the handler behind answers.
+fn passing() -> Box<dyn Handler> {
+    Box::new(FnHandler(|_: &RawRequest, cx: &mut HandlerCx<'_>| {
+        cx.pass_on()
+    }))
+}
+
+/// A handler that commits one record of origin own with `text` and keeps the typed commit's answer.
+fn committing_own(workflow: &str, text: &'static str, answers: &Answers) -> Box<dyn Handler> {
+    let workflow = workflow.to_owned();
+    let answers = Rc::clone(answers);
+    Box::new(FnHandler(move |_: &RawRequest, cx: &mut HandlerCx<'_>| {
+        let answer = cx.commit(&[own(&workflow, text)]);
+        answers.borrow_mut().push(answer);
+        Ok(reply("null"))
+    }))
+}
+
+#[test]
+fn a_request_of_a_further_role_that_a_handler_passes_on_stores_no_record_of_origin_own() {
+    let scratch = Scratch::new("pass-on-own");
+    let clock = TestClock::at_day(DAY);
+    let w = workflow(&scratch, &clock, &[&OWN]);
+    let answers: Answers = Rc::new(RefCell::new(Vec::new()));
+    let role = || Takes::Role("test_role");
+    let cases: [(&str, Host, RawRequest, bool); 3] = [
+        (
+            "a further role, one handler in front",
+            base(&clock, Grouping { min: 1 })
+                .handler("test", role(), passing())
+                .handler("test", role(), committing_own(&w, "Behind two", &answers)),
+            raw_request("test_role", "{}"),
+            false,
+        ),
+        (
+            "a further role, three handlers deep",
+            base(&clock, Grouping { min: 1 })
+                .handler("test", role(), passing())
+                .handler("test", role(), passing())
+                .handler("test", role(), committing_own(&w, "Behind three", &answers)),
+            raw_request("test_role", "{}"),
+            false,
+        ),
+        (
+            "a runner request passed on, the control",
+            base(&clock, Grouping { min: 1 })
+                .handler("test", Takes::Runner, passing())
+                .handler(
+                    "test",
+                    Takes::Runner,
+                    committing_own(&w, "Behind a runner", &answers),
+                ),
+            raw_request("runner", "{}"),
+            true,
+        ),
+    ];
+    let mut seen = Vec::new();
+    for (name, host, request, stores) in cases {
+        let mut store = open_entries(&scratch, host, &[&OWN]).unwrap();
+        store.handle(&request).unwrap();
+        drop(store);
+        let answer = answers.borrow_mut().pop().unwrap();
+        let rows = kind_rows(&scratch, "test_own").len();
+        seen.push((name, answer.is_ok(), rows));
+        if !stores {
+            assert_eq!(
+                answer,
+                Err(Refusal {
+                    index: 0,
+                    cause: Cause::OwnOrigin
+                }),
+                "{name}"
+            );
+        }
+    }
+    assert_eq!(
+        seen,
+        vec![
+            ("a further role, one handler in front", false, 0),
+            ("a further role, three handlers deep", false, 0),
+            ("a runner request passed on, the control", true, 1),
+        ]
+    );
+    assert!(kind_rows(&scratch, "test_own")[0].contains("Behind a runner"));
+}
+
+fn trace_until(workflow: &str, segment: u64, expires: i64) -> TypedRecord {
+    TypedRecord {
+        kind: "test_trace",
+        json: format!(
+            r#"{{"v":1,"workflow":"{workflow}","segments":[{segment}],"expires":{expires}}}"#
+        ),
+    }
+}
+
+#[test]
+fn a_window_record_whose_expiry_has_passed_is_dropped_and_counted_by_a_handler_and_by_a_step() {
+    let scratch = Scratch::new("window-expired");
+    let clock = TestClock::at_day(DAY);
+    let entries: &[&'static KindEntry] = &[&NOTE, &TRACE];
+    let w = workflow(&scratch, &clock, entries);
+    let records: Records = Rc::new(RefCell::new(Vec::new()));
+    let answers: Answers = Rc::new(RefCell::new(Vec::new()));
+    let step: Records = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        with_step(&clock, &step, vec![]).handler("test", Takes::Runner, keeping(&records, &answers))
+    };
+    let now = clock.now();
+    *records.borrow_mut() = vec![
+        note(&w, DAY, 1),
+        trace_until(&w, 40, now),
+        trace_until(&w, 41, FAR),
+    ];
+    let mut store = open_entries(&scratch, host(), entries).unwrap();
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    *step.borrow_mut() = vec![
+        trace_until(&w, 42, now - 1),
+        note(&w, DAY, 2),
+        trace_until(&w, 43, FAR),
+    ];
+    let outcome = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    let committed = Ok(Committed {
+        stored: 2,
+        dropped: 1,
+    });
+    assert_eq!(
+        answers.borrow_mut().pop(),
+        Some(committed.clone()),
+        "a handler's commit, expiry at the clock's instant"
+    );
+    assert_eq!(
+        outcome.steps,
+        vec![committed],
+        "a step's commit, expiry one nanosecond before it"
+    );
+    assert_eq!(kind_rows(&scratch, "test_note").len(), 2);
+    let traces = kind_rows(&scratch, "test_trace");
+    assert_eq!(traces.len(), 2);
+    assert!(traces.iter().all(|t| t.contains(&FAR.to_string())));
+    assert_eq!(
+        count(
+            &scratch,
+            &format!("SELECT count(*) FROM rows WHERE kind = 'test_trace' AND expires <= {now}")
+        ),
+        0
+    );
+}
