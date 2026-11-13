@@ -97,12 +97,8 @@ r2_body_place() {
 r2_body_build() {
   r2_dir=$(r2_body_dir "$1" "$2") || return 1
   mkdir -p "${r2_dir%/*}" || return 1
-  r2_new=$r2_dir.new.$$
-  r2_n=0
-  while [ -e "$r2_new.$r2_n" ]; do
-    r2_n=$((r2_n + 1))
-  done
-  r2_new=$r2_new.$r2_n
+  r2_slot=$(mktemp -d "$r2_dir.new.XXXXXX") || return 1
+  r2_new=$r2_slot/body
   r2_seed=$(sed -n 's/^seed = //p' "$5") || return 1
   r2_started=$(date +%s)
   (cd "$4" && "$3" build --tier "$2" --seed "$r2_seed" --out "$r2_new" ./*.jsonl) >"$6" 2>&1 || {
