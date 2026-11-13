@@ -16,6 +16,7 @@ extern "C" {
     ) -> i32;
     fn AXUIElementSetMessagingTimeout(element: *const c_void, seconds: f32) -> i32;
     fn AXUIElementGetTypeID() -> CFTypeID;
+    #[allow(clashing_extern_declarations)]
     fn AXIsProcessTrusted() -> u8;
 }
 
@@ -69,7 +70,7 @@ pub fn accessibility_trusted() -> bool {
 
 pub(crate) fn lossy_utf8_len(units: &[u16]) -> u64 {
     char::decode_utf16(units.iter().copied())
-        .map(|unit| unit.map_or(char::REPLACEMENT_CHARACTER, |c| c).len_utf8() as u64)
+        .map(|unit| unit.unwrap_or(char::REPLACEMENT_CHARACTER).len_utf8() as u64)
         .sum()
 }
 
