@@ -25,7 +25,8 @@ pub struct CommitOutcome {
     pub repeated: bool,
     /// Summaries stored.
     pub summaries: u64,
-    /// Episodes skipped because their summary id is stored already or stands earlier in the same batch.
+    /// Episodes skipped because their summary id is stored, by an earlier commit or by an earlier episode of the same
+    /// batch.
     pub skipped: u64,
     /// Episodes whose summary lies outside its bound of 93 days, or after the clock's day, and so is not stored.
     pub outside: u64,
@@ -165,10 +166,13 @@ impl Store {
     ///
     /// The database is bound to the store id of its first commit, and a batch of another store id is refused with
     /// the error name `store`. A position at or before the committed one changes nothing (`repeated`). An episode
-    /// whose summary id is stored, or stands earlier in the batch, is skipped. A summary outside its bound, a day more
-    /// than 92 days before the clock's day or after it, is not stored with its evidence; an evidence row whose expiry
-    /// has passed, or that names a purged ordinal, is not stored, and its summary is. A batch that holds a value that
-    /// its reader would refuse is refused whole with the error name `malformed`, and nothing of it is stored.
+    /// whose summary id is stored, by an earlier commit or by an earlier episode of the same batch, is skipped, and
+    /// its values are not read; an episode whose id an earlier episode of the batch holds but did not store, being
+    /// outside its bound, is taken as any other. A summary outside its bound, a day more than 92 days before the
+    /// clock's day or after it, is not stored with its evidence; an evidence row whose expiry has passed, or that
+    /// names a purged ordinal, is not stored, and its summary is. An episode that is not skipped and holds a value
+    /// that its reader would refuse makes the whole batch refused with the error name `malformed`, and nothing of it
+    /// is stored.
     ///
     /// After the batch's transaction the store calls the host's recurrence step, which reads the summaries inside
     /// their bound through `SummaryRead`, and applies its proposals in one further transaction (`proposals`). When
