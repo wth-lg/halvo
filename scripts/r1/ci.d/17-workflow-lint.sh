@@ -335,13 +335,13 @@ EOF
   tree longer-timeout-beside-a-quoted-name "8s/30/600/;8s/\$/\\${nl}    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
   check longer-timeout-beside-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-an-escaped-double-quote "8s/.*/    name: \"say \\\\\"hi\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check timeout-after-an-escaped-double-quote FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  check timeout-after-an-escaped-double-quote FAIL 'ci.yml line 8 ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-a-doubled-single-quote "8s/.*/    name: 'macos\\${nl}    it''s\\${nl}    timeout-minutes: 30\\${nl}    '/"
   check timeout-after-a-doubled-single-quote FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-a-hash-in-a-quoted-name "8s/.*/    name: \"macos #\\${nl}    timeout-minutes: 30\\${nl}    \"/"
   check timeout-after-a-hash-in-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-tagged-quoted-name "8s/.*/    name: \&n !!str \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/;13s/\$/\\${nl}    name: *n/"
-  check timeout-in-a-tagged-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  check timeout-in-a-tagged-quoted-name FAIL 'ci.yml line 8 ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-quoted-flow-value "8s/.*/    env: { A: a#b, NAME: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \" }/"
   check timeout-in-a-quoted-flow-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-json-like-flow-value "8s/.*/    env: {\"NAME\":\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
@@ -351,7 +351,7 @@ EOF
   tree timeout-in-a-quoted-step-value "8d;10s/.*/      - run: \"true\\${nl}    timeout-minutes: 30\\${nl}      \"/"
   check timeout-in-a-quoted-step-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-step-name-after-a-run-block "8d;10s/.*/      - run: |\\${nl}          true\\${nl}        name: \"step\\${nl}    timeout-minutes: 30\\${nl}        \"/"
-  check timeout-in-a-step-name-after-a-run-block FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  check timeout-in-a-step-name-after-a-run-block FAIL 'ci.yml line 11 ends inside a quoted scalar, which this lint does not read over several lines'
   tree job-in-a-quoted-name "8s/\$/\\${nl}    name: \"macos\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30\\${nl}    \"/;11,15d"
   check job-in-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree tab-before-a-quote-in-a-flow-value "8s/.*/    env: {NAME:${tab}!!str${tab}\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
