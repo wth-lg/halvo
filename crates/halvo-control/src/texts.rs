@@ -82,11 +82,13 @@ fn class(line: &SourceLine) -> SourceClass {
     }
 }
 
+const CLASS_OF_A_MISSING_LINE: SourceClass = SourceClass::MayRun;
+
 fn class_of(sources: &[SourceLine], name: SourceName) -> SourceClass {
     sources
         .iter()
         .find(|s| s.name == name)
-        .map_or(SourceClass::MayRun, class)
+        .map_or(CLASS_OF_A_MISSING_LINE, class)
 }
 
 fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine]) -> Vec<Recorded> {
@@ -188,7 +190,9 @@ pub struct Texts {
 pub fn texts(status: &DaemonStatus) -> Texts {
     let f = status.fields();
     let typing = source_of(Modality::Keystroke, f.platform)
-        .map_or(SourceClass::MayRun, |source| class_of(&f.sources, source));
+        .map_or(CLASS_OF_A_MISSING_LINE, |source| {
+            class_of(&f.sources, source)
+        });
     let passwords = passwords(f.platform, f.password_guard, typing);
     Texts {
         recorded: recorded(f.platform, &f.switches, &f.sources),
