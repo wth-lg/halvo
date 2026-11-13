@@ -397,6 +397,7 @@ object_type! {
         pub reply: StoreReply = "reply" => from_json,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -406,6 +407,7 @@ object_type! {
         pub decision: ConfirmDecision = "decision" => ConfirmDecision::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -415,6 +417,7 @@ object_type! {
         pub result: HandbackResult = "result" => HandbackResult::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 /// `secret_reply`, one of the three answers of `Secrets::read`: `{"t":"secret_reply","answer":"stored","value":"<text>"}`,
@@ -499,8 +502,13 @@ impl SecretReply {
         }
     }
 
-    /// Reads one JSON value of this type and refuses every other input.
+    /// Reads one JSON value of this type and refuses every other input. An input of more than `FRAME_JSON_MAX`
+    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
+    /// `frame_length`.
     pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        if bytes.len() > FRAME_JSON_MAX {
+            return Err(Refusal::length("SecretReply", "frame_length"));
+        }
         Self::from_raw(json::whole("SecretReply", bytes)?)
     }
 
@@ -562,6 +570,7 @@ object_type! {
         pub bound: YesNo = "bound" => from_json,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -569,6 +578,7 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct BrowserReply [t = "browser_reply"] {}
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 macro_rules! frame_enum {

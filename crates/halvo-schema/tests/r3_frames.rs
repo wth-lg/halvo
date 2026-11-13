@@ -1,7 +1,8 @@
 use halvo_schema::executable::body::RunnerCall;
 use halvo_schema::executable::frame::{
-    ConfirmDecision, ConfirmRequest, FromRunner, HandbackRequest, HandbackResult, ReplyError,
-    RunError, SecretReply, StoreRequest, ToRunner, FRAME_JSON_MAX,
+    BindReply, BrowserReply, ConfirmDecision, ConfirmReply, ConfirmRequest, FromRunner,
+    HandbackReply, HandbackRequest, HandbackResult, ReplyError, RunError, SecretReply,
+    StoreReplyFrame, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
 use halvo_schema::executable::names::{SecretAnswer, Unreadable, YesNo};
 use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES, NAMES};
@@ -1642,4 +1643,55 @@ fn a_secret_reply_with_a_key_that_the_contract_does_not_name_is_refused_for_each
             );
         }
     }
+}
+
+#[test]
+fn every_reply_frame_is_counted_on_the_bytes_given_by_its_own_parse() {
+    type Parse = fn(&[u8]) -> Result<(), Refusal>;
+    let parses: [(&str, &str, Parse); 6] = [
+        ("store_reply", "StoreReplyFrame", |b| {
+            StoreReplyFrame::parse(b).map(drop)
+        }),
+        ("confirm_reply", "ConfirmReply", |b| {
+            ConfirmReply::parse(b).map(drop)
+        }),
+        ("handback_reply", "HandbackReply", |b| {
+            HandbackReply::parse(b).map(drop)
+        }),
+        ("secret_reply", "SecretReply", |b| {
+            SecretReply::parse(b).map(drop)
+        }),
+        ("bind_reply", "BindReply", |b| BindReply::parse(b).map(drop)),
+        ("browser_reply", "BrowserReply", |b| {
+            BrowserReply::parse(b).map(drop)
+        }),
+    ];
+    let mut read = 0;
+    for text in to_runner() {
+        let Some((_, type_name, parse)) = parses
+            .iter()
+            .find(|(t, _, _)| text.starts_with(&format!(r#"{{"t":"{t}""#)))
+        else {
+            continue;
+        };
+        read += 1;
+        let room = FRAME_JSON_MAX - text.len();
+        let at = format!("{{{}{}", " ".repeat(room), &text[1..]);
+        assert_eq!(at.len(), FRAME_JSON_MAX);
+        assert!(parse(at.as_bytes()).is_ok(), "{text}");
+        assert!(ToRunner::parse(at.as_bytes()).is_ok(), "{text}");
+        for over in [
+            format!("{}{text}", " ".repeat(room + 1)),
+            format!("{text}{}", "\n".repeat(room + 1)),
+            format!("{{{}{}", "\t".repeat(room + 1), &text[1..]),
+        ] {
+            let refusal = parse(over.as_bytes()).expect_err(&text);
+            assert_eq!(
+                (refusal.cause(), refusal.type_name(), refusal.rule()),
+                (RefusalCause::Length, *type_name, "frame_length"),
+                "{text}"
+            );
+        }
+    }
+    assert_eq!(read, 14);
 }
