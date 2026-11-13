@@ -60,6 +60,10 @@
       {
         "clause": "integrity",
         "id": "r"
+      },
+      {
+        "clause": "integrity",
+        "id": "r"
       }
     ]
   }

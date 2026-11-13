@@ -141,9 +141,10 @@ export function judge({
     if (!sent.has(id)) bad("row-has-request", id, "a ledger row has no driver request");
   }
   const lostHoldClause = kill ? "receipt-has-hold" : "integrity";
-  for (const id of mock.keys()) {
+  for (const [id, upstream] of mock) {
     if (!sent.has(id)) bad("integrity", id, "the mock logged a request the driver did not send");
     else if (!rows.has(id)) bad(lostHoldClause, id, "the mock was called under this id and no hold is stored");
+    if (upstream.calls > 1) bad("integrity", id, `the upstream was called ${upstream.calls} times under this id, where contract 10 allows one call`);
   }
 
   for (const request of sent.values()) {
