@@ -112,6 +112,11 @@ fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
     Ok(())
 }
 
+fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
+    #[allow(deprecated)]
+    app.run_iteration(|_, _| {});
+}
+
 struct Guarded {
     app: App<MockRuntime>,
     shreds: Arc<AtomicU32>,
@@ -134,8 +139,7 @@ impl Guarded {
         let mut app = app::build(mock_builder(), parts)
             .build(context)
             .expect("the app builds on the mock runtime");
-        #[allow(deprecated)]
-        app.run_iteration(|_, _| {});
+        first_iteration_runs_the_set_up(&mut app);
         Self { app, shreds }
     }
 
