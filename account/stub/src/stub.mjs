@@ -214,7 +214,7 @@ function serveControl(app, stop) {
  * makeApp, and answers bytes that are no request with the rejection of a malformed request. With `tlsCa`, the
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
- * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
+ * Resolves to `{app, control, stopped, close, connections}`: the two base URLs, a promise that settles when the stub has stopped,
  * through `close()` or the control route `POST /stop`, and `close()`, which ends every served connection, waits for
  * them no longer than `idleMs` and then closes what is left; a connection that holds part of a request, or requests
  * read and not judged, at that moment gets the record line `incomplete` for each, with no answer. A connection
@@ -226,6 +226,7 @@ function serveControl(app, stop) {
  * its side or `idleMs` has passed since the last answer was written. Where it closes with answers unwritten, after it
  * stopped reading at BODY_CAP, or at the stop while the peer has not ended its side, it first writes the record line
  * `forced-close`.
+ * `connections()` gives the number of served connections of the app-facing port whose socket has not closed yet.
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {
@@ -292,7 +293,8 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
     controlSockets.add(socket);
     socket.on("close", () => controlSockets.delete(socket));
   });
-  return { app: await listen(appServer, tlsCa === undefined ? "http" : "https"), control: await listen(controlServer, "http"), stopped, close };
+  const connections = () => served.size;
+  return { app: await listen(appServer, tlsCa === undefined ? "http" : "https"), control: await listen(controlServer, "http"), stopped, close, connections };
 }
 
 const USAGE = "usage: node account/stub/src/stub.mjs --record DIR [--tls-ca FILE]\n";

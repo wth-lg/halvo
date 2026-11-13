@@ -146,6 +146,21 @@ test("at the stop, each request that the stub read and held unjudged at the boun
   assert.ok(got.slice(judged, -1).every((line) => line.error === "incomplete"));
 });
 
+test("P7-45 a peer that ends its side inside a request reaches the once-only stop twice and gets one 400, one line and one close", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 1000 });
+  const peer = await openPeer(portOf(stub.app));
+  peer.socket.end("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\nGET /v1/done HTTP/1.1\r\nhost: a\r\n");
+  assert.equal(await settled(peer.closed, 3000), true, "the stub closed after the peer ended its side");
+  for (let waited = 0; waited < 2000 && stub.connections() > 0; waited += 20) await pause(20);
+  assert.equal(stub.connections(), 0);
+  const text = peer.got().toString("latin1");
+  assert.equal(text.split("HTTP/1.1 400 ").length - 1, 1, "one 400 for the cut request");
+  assert.equal(answersIn(text), 2);
+  await pause(300);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200, "incomplete"]);
+});
+
 test("a keep-alive connection serves requests in order until one asks to close, and HTTP/1.0 closes after its answer", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });
@@ -535,10 +550,19 @@ test("D1 (ii) past BODY_CAP after a closing request the stub stops reading, wait
   assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200, "a second connection is served while the first one waits");
   state("second-exchange-done");
   const watch = setInterval(() => state("waiting"), 500);
-  const outcome = await settled(peer.closed, 6000);
+  const last = () => lines(dir).filter((line) => line.connection === 1).at(-1)?.error;
+  let forcedAt = null;
+  for (let waited = 0; waited < 6000 && forcedAt === null; waited += 20) {
+    await pause(20);
+    if (last() === "forced-close") forcedAt = performance.now() - started;
+  }
+  for (let waited = 0; waited < 2000 && stub.connections() > 0; waited += 20) await pause(20);
   clearInterval(watch);
   state("after-wait");
-  assert.equal(outcome, true, "the stub closed the first connection at the idle limit");
+  assert.notEqual(forcedAt, null, "the stub wrote forced-close for the first connection");
+  assert.ok(forcedAt >= 2000 - 200 && forcedAt <= 2000 + 2500, `forced-close came ${Math.round(forcedAt)} ms after the start; the bound is 2,000 ms after the answer`);
+  assert.equal(stub.connections(), 0, "the stub holds no open connection once it has closed the first one");
+  peer.socket.destroy();
   assert.equal(answersIn(peer.got()), 1);
   assert.equal(parse(peer.got()).status, 200);
   assert.deepEqual(lines(dir).filter((line) => line.connection === 1).map((line) => line.status ?? line.error), [200, "forced-close"]);
