@@ -75,6 +75,18 @@ The driver refuses an entry of a `ci.d` directory, prints `FAIL <name> (<cause>)
 
 With no script for the job the driver prints `FAIL run-ci-d (no scripts for <job>)` and exits 1, also with `--self-test`. The one exception is `--self-test run-ci-d`, which runs the driver's own cases and needs no script.
 
+## The weekly run
+
+The workflow `ci` also runs on the event `schedule`, on Sundays at 03:17 UTC, on the newest commit of main. It runs both jobs with every step, and on this event the Rust cache step of each job takes the prefix key `v0-rust-cold`, so it restores no Rust build cache and saves none. GitHub may start a scheduled run late when many runs are queued.
+
+The run is there for two things. A break that only a restored Rust build cache hides shows here first, and its jobs are the only measure of a job that builds everything without that cache.
+
+A red weekly run shows in the repository's Actions list under the event `schedule`. Its jobs are checks on main's newest commit, beside the jobs of that commit's push run, so a red weekly run beside a green push run of the same commit is a break that the cache hid, not a red main. GitHub tells the account that last changed the cron line of the workflow file, or the account that last switched the schedule on again, as that account's notification settings for GitHub Actions choose.
+
+No gate and no merge script reads the weekly run: `scripts/merge-pr.sh` reads the events `push` and `pull_request` alone. To mend a red run, read the failed job's log and fix the fault on a branch through a pull request, as any other fault.
+
+In a public repository GitHub switches a schedule off after 60 days without activity in the repository. The owner switches it on again on the repository's Actions page: select the workflow `ci`, then Enable workflow.
+
 ## The scripts root
 
 The driver lists every entry of `scripts/*/ci.d/`, hidden entries included, in byte order of the path, so `scripts/r1/ci.d/` runs before `scripts/r2/ci.d/`, and it runs each entry that is a regular file named `NN-name.sh`. When `CI_D_SCRIPTS` is set, it lists `$CI_D_SCRIPTS/*/ci.d/` instead. This command shows that an empty set fails:
