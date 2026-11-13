@@ -74,10 +74,18 @@ fn assert_refused(args: &[&str], line: &str) {
 fn refusals_of_usage() {
     assert_refused(&[], "REFUSED usage: no command");
     assert_refused(&["simulate"], "REFUSED usage: unknown command");
-    for command in ["spend-sim", "probe"] {
-        assert_refused(&[command], "REFUSED usage: not built");
-        assert_refused(&[command, "--seed", "1"], "REFUSED usage: not built");
-    }
+    assert_refused(&["spend-sim"], "REFUSED usage: not built");
+    assert_refused(&["spend-sim", "--seed", "1"], "REFUSED usage: not built");
+    assert_refused(&["probe"], "REFUSED usage: --rounds is required");
+    assert_refused(
+        &["probe", "--seed", "1"],
+        "REFUSED usage: unknown argument --seed",
+    );
+    let probe = run(&["probe", "--rounds", "100000"]);
+    assert_eq!(
+        (probe.code, probe.stdout.as_str(), probe.stderr.as_str()),
+        (Some(0), "probe rounds=100000 ok=yes\n", "")
+    );
     assert_refused(
         &["generate", "--seed", "1"],
         "REFUSED usage: --out is required",
