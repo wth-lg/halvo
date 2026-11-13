@@ -182,6 +182,99 @@ unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
     0
 }
 
+struct CountingAllocator;
+
+thread_local! {
+    static COUNTED_ALLOCATIONS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+fn count_allocation() {
+    let _ = COUNTED_ALLOCATIONS.try_with(|count| {
+        if let Some(n) = count.get() {
+            count.set(Some(n + 1));
+        }
+    });
+}
+
+// SAFETY: every call goes to the system allocator with the same arguments;
+// the count is a thread-local cell with a constant initializer, which takes
+// no allocation.
+unsafe impl std::alloc::GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        count_allocation();
+        // SAFETY: the caller's contract is the system allocator's.
+        unsafe { std::alloc::System.alloc(layout) }
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+        count_allocation();
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.alloc_zeroed(layout) }
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, size: usize) -> *mut u8 {
+        count_allocation();
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.realloc(ptr, layout, size) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.dealloc(ptr, layout) }
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+/// The allocations that `body` makes on this thread.
+fn allocations_of(body: impl FnOnce()) -> u64 {
+    COUNTED_ALLOCATIONS.with(|count| count.set(Some(0)));
+    body();
+    COUNTED_ALLOCATIONS
+        .with(|count| count.replace(None))
+        .unwrap_or(0)
+}
+
+#[test]
+#[ignore = "functional: calls the fault handler of the functional check"]
+fn the_fault_line_allocates_nothing() {
+    let control = allocations_of(|| {
+        std::hint::black_box(Box::new(7u64));
+    });
+    let mut record = ExceptionRecord {
+        code: 0xC000_0005,
+        flags: 0,
+        record: core::ptr::null_mut(),
+        address: on_fault as *mut core::ffi::c_void,
+        params: 0,
+        info: [0; 15],
+    };
+    let mut pointers = ExceptionPointers {
+        record: &mut record,
+        context: core::ptr::null_mut(),
+    };
+    let before = FAULT_LINES.load(std::sync::atomic::Ordering::SeqCst);
+    let mut answer = -1;
+    let handler = allocations_of(|| {
+        // SAFETY: `pointers` and `record` are live locals shaped as the system
+        // passes them, and the handler reads them only during the call.
+        answer = unsafe { on_fault(&mut pointers) };
+    });
+    let lines = FAULT_LINES.load(std::sync::atomic::Ordering::SeqCst) - before;
+    say(
+        "fault-line",
+        format!("allocations_of_one_box={control} allocations_of_the_handler={handler} fault_lines_written={lines}"),
+    );
+    assert_eq!(
+        control, 1,
+        "INCONCLUSIVE: the counting allocator did not count a box"
+    );
+    assert_eq!(lines, 1, "INCONCLUSIVE: the handler wrote no fault line");
+    assert_eq!(answer, 0, "the handler must let the search go on");
+    assert_eq!(handler, 0, "the fault line allocated");
+}
+
 fn install_fault_line() {
     // SAFETY: `on_fault` has the PVECTORED_EXCEPTION_HANDLER signature and
     // lives for the whole process.
