@@ -129,6 +129,42 @@ fn drift_arm_with_every_occurrence_restarted_expires_more_runs() {
 }
 
 #[test]
+fn drift_prints_a_miss_and_exits_1() {
+    let dir = scratch("drift-miss");
+    std::fs::create_dir_all(dir.join("docs/r5")).expect("a targets directory");
+    let targets =
+        std::fs::read_to_string(repo().join("docs/r5/targets.toml")).expect("the targets file");
+    assert!(targets.contains("dev_critical = 7\n"));
+    std::fs::write(
+        dir.join("docs/r5/targets.toml"),
+        targets.replacen("dev_critical = 7\n", "dev_critical = 9\n", 1),
+    )
+    .expect("a targets file of the test's own");
+    let cases = repo().join("fixtures/r5/cases/dev");
+    let out = gate(
+        &[
+            "drift",
+            "--gate",
+            "dev",
+            "--cases",
+            cases.to_str().expect("a path"),
+        ],
+        &dir,
+    );
+    let lines = stdout(&out);
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some("drift result=miss"),
+        "{out:?}"
+    );
+    assert!(
+        lines[lines.len() - 2].contains(" wins=8 losses=0 critical=9 "),
+        "{out:?}"
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+#[test]
 fn drift_refuses_the_derived_store_with_store() {
     let out = gate(
         &[
