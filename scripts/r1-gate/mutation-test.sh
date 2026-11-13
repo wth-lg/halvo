@@ -1335,6 +1335,7 @@ STUB
 stub_gate_hold() {
   mkdir -p "$gate_scratch/$1/bin"
   for stub in deletion no-ll-hook; do
+    # shellcheck disable=SC2016
     printf '#!/bin/sh\nprintf "%s\\n" >> "${0%%/*}/../../bin/starts"\nprintf "PASS %s\\n"\n' "$stub" "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
   done
   cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
@@ -1458,6 +1459,7 @@ test_after_a_signal() {
   test_after_dir=$gate_scratch/test-after-a-signal
   mkdir -p "$test_after_dir/work"
   ( work=$test_after_dir/work; tree=$test_after_dir; row_name=held; stop_row=held; stop_signal=TERM; stop_status=143
+    # shellcheck disable=SC2016
     test_wait case 30 sh -c ': > "$1/started"' sh "$test_after_dir" ) > "$test_after_dir.out" 2>&1
   test_after_status=$?
   [ "$test_after_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$test_after_status"; return 1; }
