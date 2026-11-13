@@ -5,6 +5,7 @@ use halvo_agent_gate::configs::{
     config_line, configs, ConfigLine, ConfigResult, Configs, StateRead,
 };
 use halvo_agent_gate::GateHost;
+use halvo_schema::executable::{AgentConfig, CoordinatorReply};
 use halvo_schema::{AgentId, ErrorName, SeedCategory, Workflow, WorkflowId};
 use serde_json::json;
 
@@ -226,4 +227,89 @@ fn a_report_passes_only_with_one_line_per_category_in_order() {
     let mut swapped = all;
     swapped.swap(0, 1);
     assert!(!Configs::from_lines(swapped).pass());
+}
+
+#[test]
+fn the_count_line_counts_only_lines_that_pass() {
+    let all: Vec<ConfigLine> = SeedCategory::ALL.iter().map(|&c| good_line(c)).collect();
+    let mut paused = all.clone();
+    paused[3].state = StateRead::Paused;
+    let mut no_agent = all.clone();
+    no_agent[7].agent_set = false;
+    let mut not_stored = all;
+    not_stored[0].stored = false;
+    for lines in [paused, no_agent, not_stored] {
+        let report = Configs::from_lines(lines);
+        assert_eq!(report.valid(), 9);
+        assert!(report
+            .render()
+            .ends_with("configs seeds=10 valid=9 store=memory\n"));
+    }
+}
+
+fn preset_json(tier: &str) -> AgentConfig {
+    let config = halvo_policy::preset(
+        halvo_schema::Category::from(SeedCategory::UtilityBillPayment),
+        WorkflowId::from_random([0x35; 16]),
+        AgentId::from_random([0x45; 16]),
+    )
+    .expect("a preset");
+    let json = config
+        .to_json()
+        .expect("JSON")
+        .replace("\"tier\":\"on_device\"", &format!("\"tier\":\"{tier}\""));
+    AgentConfig::parse(json.as_bytes()).expect("a parsed configuration")
+}
+
+#[test]
+fn a_stored_configuration_that_validate_refuses_prints_its_cause() {
+    let rev = CoordinatorReply::parse(br#"{"rev":1}"#).expect("a reply");
+    let frontier = preset_json("frontier");
+    let result = ConfigResult::of(Some(&frontier), &Ok(rev.clone()));
+    assert_eq!(
+        result,
+        ConfigResult::Invalid(halvo_policy::ConfigCause::Tier)
+    );
+    assert_eq!(result.as_str(), "tier");
+    let on_device = preset_json("on_device");
+    assert_eq!(
+        ConfigResult::of(Some(&on_device), &Ok(rev)),
+        ConfigResult::Valid
+    );
+}
+
+#[test]
+fn a_line_with_nothing_stored_never_prints_valid() {
+    let rev = CoordinatorReply::parse(br#"{"rev":1}"#).expect("a reply");
+    assert_eq!(ConfigResult::of(None, &Ok(rev)), ConfigResult::Missing);
+    assert_eq!(
+        ConfigResult::of(None, &Err(declared("binding"))),
+        ConfigResult::Refused(declared("binding"))
+    );
+}
+
+#[test]
+fn a_seed_workflow_is_approved_with_no_agent_before_create_agent() {
+    let mut host = GateHost::new();
+    let workflow = host.put_seed_workflow(SeedCategory::Email);
+    let Some(Workflow::Full(w)) = host.workflow(&workflow) else {
+        panic!("a full workflow");
+    };
+    assert_eq!(w.state, halvo_schema::WorkflowState::Approved);
+    assert_eq!(w.agent, None);
+}
+
+#[test]
+fn the_state_is_read_back_as_the_store_holds_it() {
+    for (state, read) in [("active", "active"), ("paused", "paused")] {
+        let mut host = GateHost::new();
+        let workflow = WorkflowId::from_random([0x36; 16]);
+        let agent = AgentId::from_random([0x46; 16]);
+        host.put_record(record(&workflow, "email", state, Some(&agent)));
+        let line = config_line(&mut host, &workflow, SeedCategory::Email);
+        assert_eq!(
+            line.render(),
+            format!("config category=email stored=no state={read} agent=none result=binding")
+        );
+    }
 }

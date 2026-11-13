@@ -1,6 +1,6 @@
 use halvo_policy::{validate, ConfigCause};
 use halvo_schema::executable::body::CreateAgent;
-use halvo_schema::executable::CoordinatorCall;
+use halvo_schema::executable::{AgentConfig, CoordinatorCall, CoordinatorReply};
 use halvo_schema::{AgentId, ErrorName, SeedCategory, Workflow, WorkflowId, WorkflowState};
 
 use crate::host::{minted, GateHost};
@@ -57,6 +57,23 @@ pub enum ConfigResult {
 }
 
 impl ConfigResult {
+    /// The result of a line from the agent's newest stored configuration and the handler's answer to
+    /// `create_agent`: the answer of `validate` where a configuration is stored, else the handler's refusal, else
+    /// `none`.
+    pub fn of(
+        newest: Option<&AgentConfig>,
+        answer: &Result<CoordinatorReply, ErrorName>,
+    ) -> ConfigResult {
+        match (newest, answer) {
+            (Some(config), _) => match validate(config) {
+                Ok(()) => ConfigResult::Valid,
+                Err(cause) => ConfigResult::Invalid(cause),
+            },
+            (None, Err(error)) => ConfigResult::Refused(*error),
+            (None, Ok(_)) => ConfigResult::Missing,
+        }
+    }
+
     /// The name that the line prints after `result=`.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -127,12 +144,10 @@ impl Configs {
         &self.lines
     }
 
-    /// The count of lines whose result is `valid`.
+    /// The count of lines that pass: `stored=yes state=approved agent=set result=valid` (plan.md P3's gate line), so
+    /// that the count line never counts a line that fails.
     pub fn valid(&self) -> usize {
-        self.lines
-            .iter()
-            .filter(|l| l.result == ConfigResult::Valid)
-            .count()
+        self.lines.iter().filter(|l| l.pass()).count()
     }
 
     /// Whether the report holds one line for each seed category, in the order of A1.1, and every line passes.
@@ -182,14 +197,7 @@ pub fn config_line(
     let stored_workflow = host.workflow(workflow);
     let agent_set =
         matches!(&stored_workflow, Some(Workflow::Full(w)) if w.agent.as_ref() == Some(&agent));
-    let result = match (&newest, answer) {
-        (Some(config), _) => match validate(config) {
-            Ok(()) => ConfigResult::Valid,
-            Err(cause) => ConfigResult::Invalid(cause),
-        },
-        (None, Err(error)) => ConfigResult::Refused(error),
-        (None, Ok(_)) => ConfigResult::Missing,
-    };
+    let result = ConfigResult::of(newest.as_ref(), &answer);
     ConfigLine {
         category,
         stored: newest.is_some(),
