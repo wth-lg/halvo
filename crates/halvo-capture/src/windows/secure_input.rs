@@ -248,6 +248,13 @@ impl PasswordGate {
         }
     }
 
+    /// Closes the gate for keys from `tick` on until the next field mark: a
+    /// click that the detector's thread saw, whose mark may come after keys
+    /// that the input thread already holds.
+    pub(crate) fn click(&self, tick: u32) {
+        self.latch(tick);
+    }
+
     /// Closes the gate at `tick` until the next field mark: a key or a click
     /// that moves the focus before the focus event arrives.
     pub(crate) fn latch(&self, tick: u32) {
@@ -1074,6 +1081,52 @@ mod tests {
         let key = gate.hold(u32::MAX - 50, false);
         assert_eq!(reading(&gate, &key, 30), None);
         assert_eq!(reading(&gate, &key, 80), Some(Ok(())));
+    }
+
+    fn cleared(gate: &PasswordGate, key: &HeldKey, now: u32) -> bool {
+        reading(gate, key, now) == Some(Ok(()))
+    }
+
+    #[test]
+    fn a_click_that_reaches_the_gate_after_a_later_key_still_closes_it() {
+        let gate = PasswordGate::new();
+        gate.field(FieldState::Clear);
+        let key = gate.hold(1_000, false);
+        gate.click(990);
+        assert_eq!(reading(&gate, &key, 1_200), None);
+        gate.field(FieldState::Password);
+        assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Active)));
+    }
+
+    #[test]
+    fn a_click_before_the_key_across_the_wrap_of_the_tick_count_closes_the_gate() {
+        let gate = PasswordGate::new();
+        gate.field(FieldState::Clear);
+        let key = gate.hold(5, false);
+        gate.click(u32::MAX - 5);
+        gate.field(FieldState::Password);
+        assert!(!cleared(&gate, &key, 200));
+    }
+
+    #[test]
+    fn a_click_after_the_key_leaves_the_key_to_the_read_before_it() {
+        let gate = PasswordGate::new();
+        gate.field(FieldState::Clear);
+        let key = gate.hold(1_000, false);
+        gate.click(1_030);
+        gate.field(FieldState::Password);
+        assert!(cleared(&gate, &key, 1_200));
+    }
+
+    #[test]
+    fn a_second_focus_move_before_the_first_read_leaves_the_key_unknown() {
+        let gate = PasswordGate::new();
+        gate.field(FieldState::Clear);
+        gate.latch(1_000);
+        let key = gate.hold(1_010, false);
+        gate.latch(1_020);
+        gate.field(FieldState::Clear);
+        assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Unknown)));
     }
 
     #[test]
