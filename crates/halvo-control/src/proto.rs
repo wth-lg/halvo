@@ -342,6 +342,10 @@ pub enum ReplyError {
     Version(u64),
     #[error("the reply does not fit protocol version 1: {0}")]
     Body(String),
+    /// The reply holds, where protocol v1 reads a value of a closed list, a text that is no
+    /// value of that list, as a daemon of a later build may send.
+    #[error("the reply does not fit protocol version 1: {0}")]
+    UnknownValue(UnknownSpelling),
     /// The reply carries a status whose fields read as a status and break a rule of
     /// [`DaemonStatus`].
     #[error("{0}")]
@@ -360,6 +364,56 @@ fn broken_status_rule(body: &Object) -> Option<StatusError> {
     DaemonStatus::new(fields).err()
 }
 
+fn outside<T: FromStr<Err = UnknownSpelling>>() -> Option<UnknownSpelling> {
+    "".parse::<T>().err()
+}
+
+/// The closed lists that a reply of protocol v1 reads, each as the error that a text outside it
+/// gives.
+const REPLY_LISTS: &[fn() -> Option<UnknownSpelling>] = &[
+    outside::<ErrorCode>,
+    outside::<RootDestroyed>,
+    outside::<IntentState>,
+    outside::<Platform>,
+    outside::<Parent>,
+    outside::<CaptureState>,
+    outside::<Capture>,
+    outside::<CaptureReason>,
+    outside::<Lease>,
+    outside::<StoreState>,
+    outside::<StoreErrorKind>,
+    outside::<Health>,
+    outside::<DrainError>,
+    outside::<ExpiryError>,
+    outside::<LastStop>,
+    outside::<StopKind>,
+    outside::<StateFile>,
+    outside::<SourceName>,
+    outside::<SourceStateName>,
+    outside::<Reason>,
+    outside::<SwitchName>,
+    outside::<OnOff>,
+    outside::<PasswordGuard>,
+    outside::<Custody>,
+    outside::<Modality>,
+    outside::<Permission>,
+    outside::<GrantState>,
+    outside::<RequestOutcome>,
+    outside::<crate::onboarding::WalkbackAction>,
+];
+
+/// The closed list whose value is missing from it, when that is the error of a decode.
+fn outside_a_list(error: &serde_json::Error) -> Option<UnknownSpelling> {
+    let text = error.to_string();
+    REPLY_LISTS
+        .iter()
+        .filter_map(|list| list())
+        .find(|outside| {
+            let outside = outside.to_string();
+            text == outside || text.starts_with(&format!("{outside} at line "))
+        })
+}
+
 /// A field that this build does not know is skipped.
 pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     let (version, body) = read_envelope(frame).ok_or(ReplyError::NotAnEnvelope)?;
@@ -368,9 +422,10 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     }
     let body = body.ok_or(ReplyError::NotAnEnvelope)?;
     serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
-        match broken_status_rule(&body) {
-            Some(broken) => ReplyError::Status(broken),
-            None => ReplyError::Body(e.to_string()),
+        match (broken_status_rule(&body), outside_a_list(&e)) {
+            (Some(broken), _) => ReplyError::Status(broken),
+            (None, Some(outside)) => ReplyError::UnknownValue(outside),
+            (None, None) => ReplyError::Body(e.to_string()),
         }
     })
 }
@@ -1928,6 +1983,260 @@ mod tests {
         }
         replies
     }
+
+    fn string_leaves(value: &serde_json::Value, at: String, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(_) => out.push(at),
+            serde_json::Value::Array(items) => {
+                for (i, item) in items.iter().enumerate() {
+                    string_leaves(item, format!("{at}/{i}"), out);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for (key, item) in map {
+                    string_leaves(item, format!("{at}/{key}"), out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A status of macOS in which every field that can be null holds a value.
+    fn a_status_with_every_field_set() -> DaemonStatus {
+        let at = |text: &str| -> Option<UtcSecond> { Some(text.parse().unwrap()) };
+        let error = SourceError {
+            kind: "os_error".parse().unwrap(),
+            stage: "start".parse().unwrap(),
+            os_domain: "osstatus".parse().unwrap(),
+            os_code: -3801,
+        };
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.capture = Capture::Faulted;
+        f.capture_reason = Some(CaptureReason::Store);
+        for line in &mut f.sources {
+            if line.state != SourceState::Off {
+                line.state = SourceState::Failed {
+                    reason: Reason::OsError,
+                    error: Some(error.clone()),
+                };
+                line.unstopped = true;
+            }
+        }
+        f.store = StoreState::Unavailable;
+        f.store_error = Some(StoreErrorKind::Io);
+        f.store_retry_in_s = Some(5);
+        f.drain = Health::Failing;
+        f.drain_error = Some(DrainError::Io);
+        f.drain_since = at("2026-11-12T09:00:02Z");
+        f.expiry = Health::Failing;
+        f.expiry_error = Some(ExpiryError::Io);
+        f.last_eviction_at = at("2026-11-12T09:00:03Z");
+        f.last_stop = LastStop::SourceNotStopped;
+        f.last_stop_newest_capture = at("2026-11-12T08:59:59Z");
+        f.last_stop_kind = Some(StopKind::Pause);
+        f.last_stop_lost = LostRecord {
+            events: 1,
+            first: at("2026-11-12T08:59:58Z"),
+            last: at("2026-11-12T08:59:59Z"),
+            error: Some("io".parse().unwrap()),
+            final_figures: false,
+        };
+        f.last_stop_sources = vec![StopSourceLine {
+            name: SourceName::Input,
+            error,
+        }];
+        f.permissions[0].grant = GrantState::NotGranted;
+        f.permissions[0].once_granted = true;
+        f.onboarding = crate::testing::onboarding_of(f.platform, &f.permissions);
+        f.screen_filter_excludes_app = Some(true);
+        DaemonStatus::new(f).unwrap()
+    }
+
+    /// For each text of each sample reply, the answer of the decoder when that text is one that
+    /// no list of v1 holds, by the place of the text with each index written as *.
+    fn answers_to_a_text_outside_v1() -> std::collections::BTreeMap<String, String> {
+        let mut answers = std::collections::BTreeMap::<String, String>::new();
+        let every_field = Reply::Status(a_status_with_every_field_set());
+        for reply in every_reply().into_iter().chain([every_field]) {
+            let json = serde_json::to_value(&reply).unwrap();
+            let mut leaves = Vec::new();
+            string_leaves(&json, String::new(), &mut leaves);
+            for pointer in leaves {
+                let mut changed = json.clone();
+                *changed.pointer_mut(&pointer).unwrap() = serde_json::Value::from("not_in_v1");
+                let frame = serde_json::json!({ "v": 1, "body": changed }).to_string();
+                let answer = match decode_reply(frame.as_bytes()) {
+                    Ok(_) => "taken".to_string(),
+                    Err(ReplyError::UnknownValue(outside)) => outside.to_string(),
+                    Err(ReplyError::Body(_)) => "body".to_string(),
+                    Err(other) => format!("{other:?}"),
+                };
+                let place: Vec<&str> = pointer
+                    .split('/')
+                    .map(|part| {
+                        if part.bytes().all(|b| b.is_ascii_digit()) && !part.is_empty() {
+                            "*"
+                        } else {
+                            part
+                        }
+                    })
+                    .collect();
+                let place = format!("{}{}", reply.kind(), place.join("/"));
+                let before = answers.insert(place.clone(), answer.clone());
+                assert!(
+                    before.is_none() || before.as_deref() == Some(answer.as_str()),
+                    "{place}: {before:?} and {answer}"
+                );
+            }
+        }
+        answers
+    }
+
+    #[test]
+    fn a_text_outside_a_closed_list_of_v1_is_an_unknown_value_at_every_place_of_every_reply() {
+        let answers = answers_to_a_text_outside_v1();
+        let printed: String = answers
+            .iter()
+            .map(|(place, answer)| format!("{place} {answer}\n"))
+            .collect();
+        assert_eq!(printed, PLACES_AND_ANSWERS, "\n{printed}");
+    }
+
+    const PLACES_AND_ANSWERS: &str = "\
+already_deleted/current body
+already_deleted/kind body
+cap_set/kind body
+cap_set/status/capture not a spelling of a capture state
+cap_set/status/custody not a spelling of a custody
+cap_set/status/daemon_version body
+cap_set/status/desired not a spelling of a capture state
+cap_set/status/drain not a spelling of a health
+cap_set/status/enabled_sources/* not a spelling of a source name
+cap_set/status/expiry not a spelling of a health
+cap_set/status/kinds/*/name not a spelling of a kind
+cap_set/status/last_expiry_at body
+cap_set/status/last_flush_at body
+cap_set/status/last_stop not a spelling of a last stop
+cap_set/status/lease not a spelling of a lease
+cap_set/status/parent not a spelling of a parent watch
+cap_set/status/password_guard not a spelling of a password guard
+cap_set/status/platform not a spelling of a platform
+cap_set/status/sources/*/name not a spelling of a source name
+cap_set/status/sources/*/state not a spelling of a source state
+cap_set/status/started_at body
+cap_set/status/state_file not a spelling of a state file
+cap_set/status/store not a spelling of a store state
+cap_set/status/store_id body
+cap_set/status/switches/*/name not a spelling of a switch
+cap_set/status/switches/*/value not a spelling of a switch value
+capture_changed/capture not a spelling of a capture state
+capture_changed/custody not a spelling of a custody
+capture_changed/daemon_version body
+capture_changed/desired not a spelling of a capture state
+capture_changed/drain not a spelling of a health
+capture_changed/enabled_sources/* not a spelling of a source name
+capture_changed/expiry not a spelling of a health
+capture_changed/kind body
+capture_changed/kinds/*/name not a spelling of a kind
+capture_changed/last_expiry_at body
+capture_changed/last_flush_at body
+capture_changed/last_stop not a spelling of a last stop
+capture_changed/lease not a spelling of a lease
+capture_changed/onboarding/permissions/*/grant not a spelling of a grant state
+capture_changed/onboarding/permissions/*/pane_name taken
+capture_changed/onboarding/permissions/*/permission not a spelling of a permission
+capture_changed/onboarding/permissions/*/settings_url taken
+capture_changed/onboarding/permissions/*/why taken
+capture_changed/parent not a spelling of a parent watch
+capture_changed/password_guard not a spelling of a password guard
+capture_changed/permissions/*/at_start not a spelling of a grant state
+capture_changed/permissions/*/grant not a spelling of a grant state
+capture_changed/permissions/*/name not a spelling of a permission
+capture_changed/platform not a spelling of a platform
+capture_changed/sources/*/name not a spelling of a source name
+capture_changed/sources/*/state not a spelling of a source state
+capture_changed/started_at body
+capture_changed/state_file not a spelling of a state file
+capture_changed/store not a spelling of a store state
+capture_changed/store_id body
+capture_changed/switches/*/name not a spelling of a switch
+capture_changed/switches/*/value not a spelling of a switch value
+delete_refused/kind body
+deleted/kind body
+deleted/report/intent not a spelling of a intent result
+deleted/report/root_destroyed not a spelling of a root result
+deleted/store body
+error/code not a spelling of a error code
+error/kind body
+error/message taken
+inventory/as_of body
+inventory/ext/*/name taken
+inventory/ext/*/rows/*/k taken
+inventory/ext/*/rows/*/v taken
+inventory/kind body
+inventory/rows/*/day body
+inventory/rows/*/modality not a spelling of a kind
+inventory/store body
+permission_requested/kind body
+permission_requested/outcome not a spelling of a request outcome
+status/capture not a spelling of a capture state
+status/capture_reason not a spelling of a capture reason
+status/custody not a spelling of a custody
+status/daemon_version body
+status/desired not a spelling of a capture state
+status/drain not a spelling of a health
+status/drain_error not a spelling of a drain error
+status/drain_since body
+status/enabled_sources/* not a spelling of a source name
+status/expiry not a spelling of a health
+status/expiry_error not a spelling of a expiry error
+status/kind body
+status/kinds/*/name not a spelling of a kind
+status/last_eviction_at body
+status/last_expiry_at body
+status/last_flush_at body
+status/last_stop not a spelling of a last stop
+status/last_stop_kind not a spelling of a stop kind
+status/last_stop_lost/error taken
+status/last_stop_lost/first body
+status/last_stop_lost/last body
+status/last_stop_newest_capture body
+status/last_stop_sources/*/error/kind taken
+status/last_stop_sources/*/error/os_domain taken
+status/last_stop_sources/*/error/stage taken
+status/last_stop_sources/*/name not a spelling of a source name
+status/lease not a spelling of a lease
+status/onboarding/lost_grants/* not a spelling of a permission
+status/onboarding/permissions/*/grant not a spelling of a grant state
+status/onboarding/permissions/*/pane_name taken
+status/onboarding/permissions/*/permission not a spelling of a permission
+status/onboarding/permissions/*/settings_url taken
+status/onboarding/permissions/*/why taken
+status/onboarding/walkback/*/action not a spelling of a walk-back action
+status/onboarding/walkback/*/permission not a spelling of a permission
+status/onboarding/walkback/*/settings_url taken
+status/onboarding/walkback/*/text taken
+status/parent not a spelling of a parent watch
+status/password_guard not a spelling of a password guard
+status/permissions/*/at_start not a spelling of a grant state
+status/permissions/*/grant not a spelling of a grant state
+status/permissions/*/name not a spelling of a permission
+status/platform not a spelling of a platform
+status/sources/*/error/kind taken
+status/sources/*/error/os_domain taken
+status/sources/*/error/stage taken
+status/sources/*/name not a spelling of a source name
+status/sources/*/reason not a spelling of a source reason
+status/sources/*/state not a spelling of a source state
+status/started_at body
+status/state_file not a spelling of a state file
+status/store not a spelling of a store state
+status/store_error not a spelling of a store error
+status/store_id body
+status/switches/*/name not a spelling of a switch
+status/switches/*/value not a spelling of a switch value
+stopped/kind body
+";
 
     fn through_the_wire_request(request: &Request) -> Decoded {
         let mut frame = Vec::new();
