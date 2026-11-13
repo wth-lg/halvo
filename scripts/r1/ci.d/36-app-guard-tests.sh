@@ -10,6 +10,7 @@ the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_dele
 a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window'
 test_command='test --workspace --locked --test page_guard'
 tree_command='tree -p halvo -e normal --target all -f {p} {f} --prefix none --locked'
+esc=$(printf '\033')
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -27,8 +28,8 @@ broke() {
 }
 
 tests_decide() {
-  tr -d '\r' <"$2" >"$2.lf" || broke "rule 1: the output of the test run cannot be read"
-  tr -d '\r' <"$3" >"$3.lf" || broke "rule 1: the cargo output of the test run cannot be read"
+  tr -d '\r' <"$2" | sed "s/${esc}\\[[0-9;]*m//g" >"$2.lf" || broke "rule 1: the output of the test run cannot be read"
+  tr -d '\r' <"$3" | sed "s/${esc}\\[[0-9;]*m//g" >"$3.lf" || broke "rule 1: the cargo output of the test run cannot be read"
   [ "$1" = 0 ] || broke "rule 1: cargo $test_command exited $1"
   runs=$(grep -c -E '^[[:space:]]*(Running|Doc-tests) ' "$3.lf")
   guard_runs=$(grep -c -E '^[[:space:]]*Running tests[/\\]page_guard\.rs \(' "$3.lf")
@@ -72,7 +73,10 @@ tree_decide() {
   [ "$lines" -gt 0 ] || broke "rule 2: cargo tree names no package tauri"
   named=$(awk '
     $1 == "tauri" && $2 ~ /^v[0-9]/ {
-      n = split($3, features, ",")
+      last = $NF
+      if (last == "(*)") last = $(NF - 1)
+      if (last ~ /^v[0-9]/ || last ~ /\)$/) next
+      n = split(last, features, ",")
       for (i = 1; i <= n; i++) if (features[i] == "unstable" || features[i] == "test") print features[i]
     }
   ' "$2.lf" | sort -u | tr '\n' ' ')
@@ -80,13 +84,23 @@ tree_decide() {
   printf 'tauri lines in the normal tree on every target: %s\n' "$lines"
 }
 
+config_kind() {
+  lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  case $lower in
+    tauri.conf.json | tauri.*.conf.json) printf 'json\n' ;;
+    *.conf.json5 | tauri.toml | tauri.*.toml) printf 'other\n' ;;
+    *) printf 'none\n' ;;
+  esac
+}
+
 config_decide() {
   [ -f "$1/tauri.conf.json" ] || broke "rule 2: src-tauri/tauri.conf.json is missing"
   for file in "$1"/*; do
     [ -f "$file" ] || continue
     base=${file##*/}
-    case $base in
-      tauri.conf.json | tauri.*.conf.json)
+    kind=$(config_kind "$base")
+    case $kind in
+      json)
         verdict=$(node -e '
           const fs = require("fs");
           let config;
@@ -101,7 +115,7 @@ config_decide() {
           *) broke "rule 2: node did not read src-tauri/$base" ;;
         esac
         ;;
-      *.conf.json5 | Tauri.toml | Tauri.*.toml)
+      other)
         broke "rule 2: src-tauri/$base is a form of tauri configuration that this check does not read, so write it as JSON"
         ;;
       *) ;;
@@ -131,12 +145,8 @@ measure() {
   mkdir "$work/config" || fail "the directory of the configuration cannot be made"
   configs=$(git ls-tree --name-only HEAD src-tauri/) || fail "git ls-tree failed"
   for path in $configs; do
-    case ${path##*/} in
-      tauri.conf.json | tauri.*.conf.json | *.conf.json5 | Tauri.toml | Tauri.*.toml)
-        git show "HEAD:$path" >"$work/config/${path##*/}" || fail "git show HEAD:$path failed"
-        ;;
-      *) ;;
-    esac
+    kind=$(config_kind "${path##*/}")
+    [ "$kind" = none ] || git show "HEAD:$path" >"$work/config/${path##*/}" || fail "git show HEAD:$path failed"
   done
   config_decide "$work/config"
   cargo test --workspace --locked --test page_guard >"$work/test.out" 2>"$work/test.err"
@@ -383,6 +393,7 @@ test a_new_guard_test_of_the_file ... ok' "$keep"
      Running unittests src/main.rs (target/debug/deps/halvo-0123456789abcdef)'
   check_tests two-running-lines "FAIL rule 1: the run printed no single line running N tests" 0 '/^running 12 tests$/a\
 running 3 tests' "$keep"
+  check_tests cargo-colour-on-standard-error PASS 0 "$keep" "s/^\\( *\\)\\([A-Z][a-z]*\\) /\\1${esc}[1m${esc}[92m\\2${esc}[0m /"
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
   check_tree tree-passes PASS 0 "$keep"
@@ -394,6 +405,9 @@ running 3 tests' "$keep"
   check_tree unstable-on-another-package-alone PASS 0 's/^tauri-runtime-wry v2.10.1 common-controls-v6,x11$/tauri-runtime-wry v2.10.1 common-controls-v6,unstable,x11/'
   check_tree tauri-with-test-and-unstable "FAIL rule 2: tauri's resolved features in a normal build name test unstable;" 0 's/^\(tauri v2.12.5 \)common-controls-v6,/\1common-controls-v6,unstable,test,/'
   check_tree unstable-only-on-the-repeated-tauri-line "FAIL rule 2: tauri's resolved features in a normal build name unstable;" 0 's/^\(tauri v2.12.5 \)\(.*\) (\*)$/\1unstable,\2 (*)/'
+  check_tree tauri-from-a-path-source "FAIL rule 2: tauri's resolved features in a normal build name unstable;" 0 's|^tauri v2.12.5 common-controls-v6,|tauri v2.12.5 (/work/tauri/crates/tauri) common-controls-v6,unstable,|'
+  check_tree tauri-from-a-git-source "FAIL rule 2: tauri's resolved features in a normal build name test;" 0 's|^tauri v2.12.5 common-controls-v6,|tauri v2.12.5 (https://github.com/tauri-apps/tauri?rev=1a2b3c#1a2b3c4d) common-controls-v6,test,|'
+  check_tree tauri-from-a-path-source-with-no-feature PASS 0 's|^tauri v2.12.5 common-controls-v6,.*,x11$|tauri v2.12.5 (/work/tauri/crates/tauri)|'
   check_tree no-tauri-line "FAIL rule 2: cargo tree names no package tauri" 0 '/^tauri v/d'
   check_tree cargo-tree-exits-101 "FAIL rule 2: cargo tree -p halvo -e normal --target all -f {p} {f} --prefix none --locked exited 101" 101 "$keep"
 
@@ -406,6 +420,9 @@ running 3 tests' "$keep"
   check_config windows-config-with-build-features "FAIL rule 2: src-tauri/tauri.windows.conf.json holds build.features" tauri.conf.json "$keep" tauri.windows.conf.json 's|^    "frontendDist": "../ui/app"$|    "frontendDist": "../ui/app", "features": ["unstable"]|'
   check_config config-as-json5 "FAIL rule 2: src-tauri/tauri.macos.conf.json5 is a form of tauri configuration that this check does not read" tauri.conf.json "$keep" tauri.macos.conf.json5
   check_config config-as-tauri-toml "FAIL rule 2: src-tauri/Tauri.toml is a form of tauri configuration that this check does not read" tauri.conf.json "$keep" Tauri.toml
+  check_config platform-config-in-other-case "FAIL rule 2: src-tauri/Tauri.macos.conf.json holds build.features" tauri.conf.json "$keep" Tauri.macos.conf.json 's|^    "frontendDist": "../ui/app"$|    "frontendDist": "../ui/app", "features": ["unstable"]|'
+  check_config platform-toml-in-lower-case "FAIL rule 2: src-tauri/tauri.macos.toml is a form of tauri configuration that this check does not read" tauri.conf.json "$keep" tauri.macos.toml
+  check_config json5-in-upper-case "FAIL rule 2: src-tauri/tauri.windows.conf.JSON5 is a form of tauri configuration that this check does not read" tauri.conf.json "$keep" tauri.windows.conf.JSON5
   check_config config-not-json "FAIL rule 2: src-tauri/tauri.conf.json is no JSON that node reads" tauri.conf.json 's/^{$/{,/'
   check_config config-missing "FAIL rule 2: src-tauri/tauri.conf.json is missing" '' "$keep"
 
