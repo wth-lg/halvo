@@ -47,6 +47,7 @@ esac
 #= tests/propose.rs the_recurrence_step_reads_the_summaries_inside_their_bound_by_day_and_then_id
 #= tests/propose.rs the_summary_read_leaves_out_a_summary_whose_stored_day_of_going_has_come
 #= tests/propose.rs of_proposals_of_one_key_in_one_call_the_first_that_passes_stands_and_each_later_one_is_refused
+#= tests/propose.rs the_summary_read_visits_a_summary_of_a_day_after_the_clock_s_day_only_once_the_clock_reaches_it
 #= tests/decide.rs while_a_dismissed_workflow_is_stored_no_proposal_with_its_key_is_stored
 #= tests/decide.rs delete_removes_every_row_that_names_the_workflow_and_every_summary_of_its_key
 #= tests/decide.rs delete_of_a_dismissed_workflow_removes_the_summaries_of_its_key
@@ -94,6 +95,7 @@ esac
 #= tests/read.rs the_evidence_read_leaves_out_a_window_row_from_its_expiry_instant
 #= tests/read.rs the_hint_falls_to_the_next_evidence_row_inside_its_window_and_is_null_when_none_is_left
 #= tests/read.rs a_page_of_the_bound_stays_whole_when_the_other_evidence_row_has_passed_its_expiry
+#= tests/read.rs a_page_of_the_bound_stays_whole_beside_a_support_row_that_is_due_by_its_summary_or_by_its_own_day
 #= tests/export.rs export_proposals_writes_the_header_and_one_line_per_proposed_workflow_in_order
 #= tests/export.rs export_proposals_writes_no_id_of_a_support_row_past_its_bound
 #= tests/past_bound.rs every_read_hands_out_what_an_expiry_at_its_clock_would_leave
@@ -106,6 +108,7 @@ esac
 #= tests/past_bound.rs a_clock_set_back_over_a_deadline_hands_a_row_out_again_until_the_host_s_expiry_has_run
 #= tests/past_bound.rs every_read_of_one_call_reads_by_one_reading_of_the_host_s_clock
 #= tests/past_bound.rs the_interface_read_leaves_rows_past_their_bound_out_of_summaries_and_evidence_pages
+#= tests/past_bound.rs a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_request
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
