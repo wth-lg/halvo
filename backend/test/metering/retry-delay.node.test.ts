@@ -76,4 +76,34 @@ describe("the delay between the tries of one interval (unit 5.4, ruling P7-77, p
     expect((await w.intervals())[0]?.delay).toBe(CAP);
     w.close();
   });
+
+  test("a refusal stored for the first time sets the delay back to the retry delay, and the same refusal again while it is pending changes nothing, so the delay doubles", async () => {
+    const w = await world({ subscribed: false, faults: [{ kind: "request-lost" }] });
+    await w.use("r1", 30_000);
+    await w.clock(END);
+    await w.clock(END + SYNC_RETRY_MS);
+    const [row] = await w.intervals();
+    expect(w.calls.map((each) => `${each.kind} ${each.answer}`)).toEqual(["send failed", "send refused unknown_account", "read total 0", "send refused unknown_account"]);
+    expect([row?.pending_refusal, row?.refusals, row?.delay, row?.next_attempt]).toEqual(["unknown_account", 0, 4 * SYNC_RETRY_MS, END + SYNC_RETRY_MS + 4 * SYNC_RETRY_MS]);
+    w.close();
+  });
+
+  test("a meter that never answers: the close at SEND_LIMIT_MS comes at the bound itself, since no try is set later than it, after about 820 tries at the capped delay", async () => {
+    const w = await world({ always: { kind: "request-lost" } });
+    await w.use("r1", 30_000);
+    await w.clock(END);
+    const limit = END - 1000 + metering.SEND_LIMIT_MS;
+    let at = END;
+    for (let tries = 0; tries < 2_000; tries += 1) {
+      const [row] = await w.intervals();
+      if (row?.outcome !== null) break;
+      at = Number(row?.next_attempt);
+      await w.clock(at);
+    }
+    const [row] = await w.intervals();
+    expect([row?.outcome, row?.refusal, row?.closed_at, at]).toEqual(["not-billable", "send_limit", limit, limit]);
+    expect(w.calls.length).toBeGreaterThan(800);
+    expect(w.calls.length).toBeLessThan(900);
+    w.close();
+  });
 });

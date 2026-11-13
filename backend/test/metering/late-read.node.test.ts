@@ -25,6 +25,17 @@ test("the late point's span is the uniqueness window less the shipped margin of 
   expect(metering.LATE_READ_SPAN_MS).toBe(UNIQUENESS_WINDOW_MS - MARGIN);
 });
 
+test("with a margin above 300 s the late point is never later than the uniqueness window less the margin: with a margin of 600 s the read 85,800 s after the unanswered send decides", async () => {
+  const w = await world({ config: { marginSeconds: 600 }, faults: [{ kind: "request-lost" }, { kind: "refuse", reason: "unknown_account" }, { kind: "none" }, { kind: "refuse", reason: "unknown_account" }] });
+  await w.use("r1", 30_000);
+  await w.clock(END);
+  await w.clock(END + SYNC_RETRY_MS);
+  await w.clock(END + UNIQUENESS_WINDOW_MS - 600_000);
+  expect(kinds(w.calls)).toEqual(["send failed", "send refused unknown_account", "read total 0", "send refused unknown_account", "read total 0", "send recorded"]);
+  expect(await state(w)).toEqual(["acknowledged", null, 1, null, 0]);
+  w.close();
+});
+
 describe("a read made before the late point decides nothing (unit 5.4, ruling P7-77, part 7)", () => {
   test("case 7: a send recorded late in the window of the first attempt, its answer lost, then refusals: the late point counts from that send, the reads before it only acknowledge, and the interval is acknowledged once the lag has passed", async () => {
     const w = await world({
@@ -122,6 +133,20 @@ describe("a read made before the late point decides nothing (unit 5.4, ruling P7
     expect(w.lines.filter((line) => line === NOT_BILLABLE)).toEqual([NOT_BILLABLE]);
     expect(w.meter.recordedEvents(ACCOUNT)).toEqual([]);
     expect(await w.entries().destroy(HASH)).toEqual({ result: "deleted" });
+    w.close();
+  });
+
+  test("a refusal with another reason while one is pending replaces the pending reason, counts nothing, ends the round and sets the delay back to the retry delay", async () => {
+    const w = await world({
+      faults: [{ kind: "request-lost" }, { kind: "refuse", reason: "unknown_account" }, { kind: "none" }, { kind: "refuse", reason: "amount_not_whole_minor_units" }],
+    });
+    await w.use("r1", 30_000);
+    await w.clock(END);
+    await w.clock(END + SYNC_RETRY_MS);
+    const [row] = await w.intervals();
+    expect(kinds(w.calls)).toEqual(["send failed", "send refused unknown_account", "read total 0", "send refused amount_not_whole_minor_units"]);
+    expect(await state(w)).toEqual([null, null, 0, "amount_not_whole_minor_units", 1]);
+    expect([row?.delay, row?.next_attempt]).toEqual([SYNC_RETRY_MS, END + 2 * SYNC_RETRY_MS]);
     w.close();
   });
 
