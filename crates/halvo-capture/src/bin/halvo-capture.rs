@@ -12,10 +12,7 @@ use halvo_control::paths::SystemAccount;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-static STDOUT_OPEN_AT_START: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-
 fn main() -> ExitCode {
-    STDOUT_OPEN_AT_START.get_or_init(daemon::signal::standard_output_is_open);
     if let Err(error) = daemon::signal::prepare() {
         return fail(format_args!("the signal flag was not installed: {error}"));
     }
@@ -46,10 +43,9 @@ fn main() -> ExitCode {
     }
 }
 
+/// Writes `text` to standard output and flushes it; a write that fails, as
+/// into a pipe whose reader is gone, is exit 1 with no panic.
 fn print_checked(text: &str) -> ExitCode {
-    if STDOUT_OPEN_AT_START.get() != Some(&true) {
-        return fail(format_args!("the standard output is closed"));
-    }
     let mut out = std::io::stdout().lock();
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => ExitCode::SUCCESS,
