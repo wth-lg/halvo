@@ -118,8 +118,12 @@ export async function sayRule(harness, origin, fixtures, states) {
       const heading = document.getElementById('view-agents');
       for (const e of heading ? heading.closest('section').querySelectorAll('[role="status"]') : []) e.r4pageMark = 'kept';
     });
-    await harness.act(h, { act: control, param: row.agent });
-    await harness.settled(h);
+    try {
+      await harness.act(h, { act: control, param: row.agent });
+      await harness.settled(h);
+    } catch {
+      return { read: 1, misses: ['agents:press'] };
+    }
     const r = await h.page.evaluate(regionNow, 'agents');
     const misses = [];
     if (r.count !== 1) misses.push('agents:count');
