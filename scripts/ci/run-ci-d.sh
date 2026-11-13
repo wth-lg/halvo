@@ -326,18 +326,23 @@ tree_report() {
 tree_check() {
   tree_state "$tmp/tree.after"
   while IFS= read -r tree_line; do
-    grep -qxF -e "$tree_line" "$tmp/tree.before" || tree_report "$1" "$tree_line"
+    grep -qxF -e "$tree_line" "$tmp/tree.before" && continue
+    tree_report "$1" "$tree_line"
+    printf '%s\n' "$tree_line" >>"$tmp/tree.reported"
   done <"$tmp/tree.after"
   while IFS= read -r tree_line; do
     case $tree_line in
       'HEAD '* | 'GIT config '* | 'GIT info/attributes '*) continue ;;
     esac
-    grep -qxF -e "$tree_line" "$tmp/tree.after" || tree_report "$1" "$tree_line"
+    grep -qxF -e "$tree_line" "$tmp/tree.after" && continue
+    grep -qxF -e "$tree_line" "$tmp/tree.reported" && continue
+    tree_report "$1" "$tree_line"
   done <"$tmp/tree.before"
   mv "$tmp/tree.after" "$tmp/tree.before"
 }
 
 tree_start() {
+  : >"$tmp/tree.reported"
   tree_state "$tmp/tree.before"
   while IFS= read -r tree_line; do
     tree_report '' "$tree_line"
@@ -512,7 +517,7 @@ st_interrupt() {
   trap '' INT TERM HUP USR1
   [ -z "$st_sleep" ] || kill -s TERM "$st_sleep" 2>/dev/null
   st_groups=
-  for st_i in $st_running; do
+  for st_i in $st_running $st_ending; do
     eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i"
     st_sp=
     [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
@@ -538,6 +543,17 @@ st_interrupt() {
   for st_g in $st_groups; do
     st_group KILL "$st_g"
   done
+  if [ "$mode" != self-test ]; then
+    st_i=$st_next
+    while [ "$st_i" -lt "$st_n" ]; do
+      eval "st_k=\$st_kind_$st_i st_x=\$st_state_$st_i st_d=\${st_dir_$st_i-}"
+      if [ "$st_k" = script ] && [ "$st_x" != waiting ]; then
+        [ ! -e "$st_d/out" ] || cat "$st_d/out"
+        [ ! -e "$st_d/err" ] || cat "$st_d/err" >&2
+      fi
+      st_i=$((st_i + 1))
+    done
+  fi
   printf 'FAIL run-ci-d (the step was interrupted by %s; every %s that it started is ended)\n' "$1" "$st_what"
   exit "$2"
 }
@@ -607,8 +623,10 @@ st_poll() {
   done
   st_running=$st_left
   [ "$mode" != self-test ] || return 0
+  st_ending=$st_ended
   for st_i in $st_ended; do
     st_finish "$st_i"
+    st_ending=${st_ending#" $st_i"}
   done
 }
 
@@ -1487,6 +1505,32 @@ own_self_test() {
     case_absent='PASS 30-c'
     own_case "step-ci.d-with-a-free-check-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every script that it started is ended)" macos
   done
+  new_repo && add_script r1 10-a.sh "$good" "printf 'line of 10-a\\n'; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.10-a\"; wait; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$free" "printf 'line of 20-b\\n'; : >\"\$CI_D_REPO/ended.20-b\"; printf 'PASS 20-b\\n'"
+  case_signal=INT
+  case_wait='started.10-a ended.20-b'
+  case_max_s=30
+  case_signal_min=2
+  case_first='line of 10-a'
+  case_then='line of 20-b'
+  own_case output-of-started-checks-printed-when-the-step-is-interrupted 130 'FAIL run-ci-d (the step was interrupted by INT; every script that it started is ended)' macos
+  ignores_term='( trap "" TERM; sleep 60 ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  new_repo && add_script r1 05-x.sh "$free" "$prelude_any; $ignores_term; w started.10-a && w started.20-b || exit 1; : >\"\$CI_D_REPO/x-ended\"; $check_passes" &&
+    add_script r1 10-a.sh "$good" "$prelude_any; : >\"\$CI_D_REPO/started.10-a\"; ( trap '' TERM; w x-ended; sleep 6; : >\"\$CI_D_REPO/signal-now\"; sleep 60 ) >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; w x-ended || exit 1; sleep 1; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; : >\"\$CI_D_REPO/started.20-b\"; sleep 60 >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; w x-ended || exit 1; sleep 1; $check_passes"
+  case_check_jobs=2
+  case_signal=INT
+  case_wait='signal-now'
+  case_max_s=40
+  case_signal_min=2
+  own_case group-of-a-check-that-ended-and-is-not-yet-finished-is-ended-by-an-interrupt 130 'FAIL run-ci-d (the step was interrupted by INT; every script that it started is ended)' macos
+  new_repo && track_file &&
+    add_script r1 10-a.sh "$good" "$prelude_any; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; : >\"\$CI_D_REPO/dirty\"; w tmpdir.20-b || exit 1; read -r t <\"\$CI_D_REPO/tmpdir.20-b\"; n=0; while [ -e \"\$t\" ] && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; git -C \"\$CI_D_REPO\" checkout -q -- tracked.txt; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; w dirty || exit 1; printf '%s\\n' \"\$TMPDIR\" >\"\$CI_D_REPO/tmpdir.20-b\"; $check_passes"
+  case_first='FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)'
+  case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
+  case_absent='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
+  own_case change-undone-after-its-report-is-not-reported-again 1 'ci.d macos: 2 passed, 1 failed, 0 skipped' macos
   for signal in INT:130 TERM:143 HUP:129; do
     new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes" &&
       add_script r1 20-b.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes"
@@ -1530,6 +1574,7 @@ st_word=
 st_nm=
 st_sleep=
 st_beside=' '
+st_ending=
 st_line=
 st_q_file=
 st_q_name=
