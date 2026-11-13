@@ -8,8 +8,28 @@ case $0 in
   *) self=$(pwd)/$0 ;;
 esac
 sequences=docs/r6/gateway/sequences.jsonl
-refusal_cases='no_hold over_room second_dispatch ruling_none no_cap not_active zero_amount final_state admit_ruling admit_no_cap admit_over_room admit_sum admit_overflow leave_ruling leave_local leave_ceiling leave_part leave_origin leave_consent'
-required_tests='formal_traces no_grant_in_release sequences_same'
+bound_tests='halvo-route tests/refusal_spend.rs refusal_no_hold case
+halvo-route tests/refusal_spend.rs refusal_over_room case
+halvo-route tests/refusal_spend.rs refusal_second_dispatch case
+halvo-route tests/refusal_spend.rs refusal_ruling_none case
+halvo-route tests/refusal_spend.rs refusal_no_cap case
+halvo-route tests/refusal_spend.rs refusal_not_active case
+halvo-route tests/refusal_spend.rs refusal_zero_amount case
+halvo-route tests/refusal_spend.rs refusal_final_state case
+halvo-route src/lib.rs admit::tests::refusal_admit_ruling case
+halvo-route src/lib.rs admit::tests::refusal_admit_no_cap case
+halvo-route src/lib.rs admit::tests::refusal_admit_over_room case
+halvo-route src/lib.rs admit::tests::refusal_admit_sum case
+halvo-route src/lib.rs admit::tests::refusal_admit_overflow case
+halvo-route src/lib.rs leave::tests::refusal_leave_ruling case
+halvo-route src/lib.rs leave::tests::refusal_leave_local case
+halvo-route src/lib.rs leave::tests::refusal_leave_ceiling case
+halvo-route src/lib.rs leave::tests::refusal_leave_part case
+halvo-route src/lib.rs leave::tests::refusal_leave_origin case
+halvo-route src/lib.rs leave::tests::refusal_leave_consent case
+halvo-route tests/formal_traces.rs formal_traces test
+halvo-route tests/no_grant_in_release.rs no_grant_in_release test
+halvo-route-gate tests/sequences_same.rs sequences_same test'
 sim_cases='near_cap fan_out cap_lowered stream_cut error_burst second_device'
 want_last='spend cases=6 overruns=0 above_cap=0 admit_sum=ok result=pass'
 
@@ -53,46 +73,97 @@ tree_clean() {
     }'
 }
 
-count_refusals() {
-  awk -v cases="$refusal_cases" '
-    { sub(/\r$/, "") }
-    /^test [^ ]+ \.\.\. ok$/ {
-      path = substr($0, 6, length($0) - 12)
-      n = split(path, part, "::")
-      ok[part[n]] = 1
-    }
-    END {
-      count = split(cases, list, " ")
-      for (i = 1; i <= count; i++) {
-        if (("refusal_" list[i]) in ok) found++
-        else print "refusal missing=refusal_" list[i] >"/dev/stderr"
+bound_of() {
+  R6_BOUND=$bound_tests awk -v package="$1" '
+    BEGIN {
+      n = split(ENVIRON["R6_BOUND"], line, "\n")
+      for (i = 1; i <= n; i++) {
+        split(line[i], field, " ")
+        if (field[1] == package) print line[i]
       }
-      print found + 0
-    }' "$1"
+    }'
 }
 
-count_required() {
-  awk -v names="$required_tests" '
-    { sub(/\r$/, "") }
-    /^ *Doc-tests / { target = "" }
-    /^ *Running / {
-      target = $0
-      sub(/^ *Running /, "", target)
-      sub(/ \(.*$/, "", target)
-      gsub(/\\/, "/", target)
+read_bound() {
+  awk -v crate="$1" -v list_code="$list_code" -v ignored_code="$ignored_code" -v run_code="$run_code" '
+    function target_of(line,    paren, bin) {
+      sub(/^ *Running /, "", line)
+      gsub(/\\/, "/", line)
+      paren = index(line, " (")
+      if (paren == 0 || line !~ /\)$/) return ""
+      bin = substr(line, paren + 2, length(line) - paren - 2)
+      sub(/.*\//, "", bin)
+      sub(/\.exe$/, "", bin)
+      sub(/-[0-9a-f]+$/, "", bin)
+      return bin " " substr(line, 1, paren - 1)
     }
-    /^test [^ ]+ \.\.\. ok$/ {
-      path = substr($0, 6, length($0) - 12)
-      if (target == "tests/" path ".rs") ok[path] = 1
-    }
-    END {
-      count = split(names, list, " ")
-      for (i = 1; i <= count; i++) {
-        if (list[i] in ok) found++
-        else print "required missing=" list[i] >"/dev/stderr"
+    FILENAME == ARGV[1] || FILENAME == ARGV[2] || FILENAME == ARGV[3] {
+      sub(/\r$/, "")
+      if ($0 ~ /^ *Doc-tests /) {
+        target = ""
+      } else if ($0 ~ /^ *Running /) {
+        target = target_of($0)
+      } else {
+        if (FILENAME == ARGV[1] && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
+        if (FILENAME == ARGV[2] && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
+        if (FILENAME == ARGV[3] && $0 ~ /^test [^ ]+ \.\.\. ok$/) passed[target " " substr($0, 6, length($0) - 12)] = 1
+        if (FILENAME == ARGV[3] && $0 ~ /^test result: ok\. /) summary[target] = 1
       }
-      print found + 0
-    }' "$1"
+      next
+    }
+    {
+      if ($2 == "src/lib.rs") {
+        bin = crate
+        gsub(/-/, "_", bin)
+        key = bin " unittests src/lib.rs"
+      } else {
+        bin = $2
+        sub(/^tests\//, "", bin)
+        sub(/\.rs$/, "", bin)
+        key = bin " " $2
+      }
+      miss = ""
+      if (list_code != 0 || !((key " " $3) in listed)) miss = miss ",listed"
+      if (ignored_code != 0 || ((key " " $3) in ignored)) miss = miss ",ignored"
+      if (run_code != 0 || !(key in summary) || !((key " " $3) in passed)) miss = miss ",ran"
+      if (miss == "") print $4 " ok " $1 " " $2 " " $3
+      else print $4 " miss=" substr(miss, 2) " " $1 " " $2 " " $3
+    }
+  ' "$artifacts/list-$1.txt" "$artifacts/ignored-$1.txt" "$artifacts/exact-$1.txt" -
+}
+
+run_bound() {
+  package=$1
+  wanted=$(bound_of "$package")
+  sources=$(printf '%s\n' "$wanted" | awk '!seen[$2]++ { print $2 }')
+  set --
+  while read -r source; do
+    case $source in
+      src/lib.rs) set -- "$@" --lib ;;
+      *)
+        stem=${source#tests/}
+        set -- "$@" --test "${stem%.rs}"
+        ;;
+    esac
+  done <<EOF
+$sources
+EOF
+  cargo test --locked -p "$package" "$@" -- --list >"$artifacts/list-$package.txt" 2>&1 </dev/null
+  list_code=$?
+  tree_same "after-list-$package" tests
+  cargo test --locked -p "$package" "$@" -- --list --ignored >"$artifacts/ignored-$package.txt" 2>&1 </dev/null
+  ignored_code=$?
+  tree_same "after-ignored-$package" tests
+  set -- "$@" -- --exact
+  while read -r _ _ test_name _; do
+    set -- "$@" "$test_name"
+  done <<EOF
+$wanted
+EOF
+  cargo test --locked -p "$package" "$@" >"$artifacts/exact-$package.txt" 2>&1 </dev/null
+  run_code=$?
+  tree_same "after-exact-$package" tests
+  printf '%s\n' "$wanted" | read_bound "$package" >>"$artifacts/bound.txt"
 }
 
 sim_holds() {
@@ -123,6 +194,7 @@ measure() {
   CARGO_TERM_COLOR=never
   export CARGO_TERM_QUIET CARGO_TERM_VERBOSE CARGO_TERM_COLOR
   : >"$artifacts/tree.txt"
+  : >"$artifacts/bound.txt"
   cause=
 
   tree_before=$(tree_state 2>&1) || tree_before=
@@ -140,8 +212,11 @@ measure() {
   cargo test --locked -p halvo-route -p halvo-route-gate >"$artifacts/cargo-test.txt" 2>&1 </dev/null
   test_code=$?
   tree_same after-tests tests
-  refusals=$(count_refusals "$artifacts/cargo-test.txt" 2>"$artifacts/refusals.txt") || refusals=0
-  required=$(count_required "$artifacts/cargo-test.txt" 2>"$artifacts/required.txt") || required=0
+  for package in halvo-route halvo-route-gate; do
+    run_bound "$package"
+  done
+  refusals=$(grep -c '^case ok ' "$artifacts/bound.txt") || refusals=0
+  required=$(grep -c '^test ok ' "$artifacts/bound.txt") || required=0
   printf 'refusals expected=19 ok=%s\n' "$refusals"
   printf 'tests required=3 ok=%s\n' "$required"
   if [ "$test_code" -ne 0 ] || [ "$required" != 3 ]; then
@@ -185,8 +260,12 @@ note() {
 }
 
 reset_stubs() {
+  STUB_DIR=$work/stub
   STUB_TEST_OUT=$work/test-good.txt
   STUB_TEST_EXIT=0
+  STUB_LIST_EXIT=0
+  STUB_IGNORED_EXIT=0
+  STUB_EXACT_EXIT=0
   STUB_SIM_OUT=$work/sim-good.txt
   STUB_SIM_EXIT=0
   STUB_FRESH=$work/committed.jsonl
@@ -198,14 +277,20 @@ reset_stubs() {
   cp "$work/clean-flags.txt" "$work/tree/flags" || exit 2
 }
 
+stub_case() {
+  STUB_DIR=$work/stub-$1
+  mkdir "$STUB_DIR" || exit 2
+  cp "$work/stub/"* "$STUB_DIR/" || exit 2
+}
+
 check() {
   out=$(
     PATH=$work/bin:$PATH
     CI_D_REPO=$STUB_REPO
     CI_D_ARTIFACTS=$work/artifacts/$1
     STUB_TREE=$work/tree
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_TEST_OUT STUB_TEST_EXIT STUB_SIM_OUT STUB_SIM_EXIT
-    export STUB_FRESH STUB_COMMITTED STUB_CHANGE STUB_CHANGED
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_DIR STUB_TEST_OUT STUB_TEST_EXIT STUB_SIM_OUT STUB_SIM_EXIT
+    export STUB_LIST_EXIT STUB_IGNORED_EXIT STUB_EXACT_EXIT STUB_FRESH STUB_COMMITTED STUB_CHANGE STUB_CHANGED
     sh "$self" 2>&1
   )
   code=$?
@@ -231,6 +316,9 @@ check() {
 write_stubs() {
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
+route='test --locked -p halvo-route --test refusal_spend --lib --test formal_traces --test no_grant_in_release'
+route_names='refusal_no_hold refusal_over_room refusal_second_dispatch refusal_ruling_none refusal_no_cap refusal_not_active refusal_zero_amount refusal_final_state admit::tests::refusal_admit_ruling admit::tests::refusal_admit_no_cap admit::tests::refusal_admit_over_room admit::tests::refusal_admit_sum admit::tests::refusal_admit_overflow leave::tests::refusal_leave_ruling leave::tests::refusal_leave_local leave::tests::refusal_leave_ceiling leave::tests::refusal_leave_part leave::tests::refusal_leave_origin leave::tests::refusal_leave_consent formal_traces no_grant_in_release'
+gate='test --locked -p halvo-route-gate --test sequences_same'
 case $* in
   'test --locked -p halvo-route -p halvo-route-gate')
     cat "$STUB_TEST_OUT"
@@ -241,6 +329,32 @@ case $* in
       blob) cp "$STUB_CHANGED" "$STUB_COMMITTED" ;;
     esac
     exit "$STUB_TEST_EXIT"
+    ;;
+  "$route -- --list")
+    cat "$STUB_DIR/list-halvo-route.txt"
+    [ "$STUB_CHANGE" != list ] || printf '? crates/halvo-route/tests/new.rs\n' >>"$STUB_TREE/status"
+    exit "$STUB_LIST_EXIT"
+    ;;
+  "$route -- --list --ignored")
+    cat "$STUB_DIR/ignored-halvo-route.txt"
+    exit "$STUB_IGNORED_EXIT"
+    ;;
+  "$route -- --exact $route_names")
+    cat "$STUB_DIR/exact-halvo-route.txt"
+    [ "$STUB_CHANGE" != exact ] || printf '1 .M N... 100644 100644 100644 0 0 scripts/r6/required-tests.txt\n' >>"$STUB_TREE/status"
+    exit "$STUB_EXACT_EXIT"
+    ;;
+  "$gate -- --list")
+    cat "$STUB_DIR/list-halvo-route-gate.txt"
+    exit 0
+    ;;
+  "$gate -- --list --ignored")
+    cat "$STUB_DIR/ignored-halvo-route-gate.txt"
+    exit 0
+    ;;
+  "$gate -- --exact sequences_same")
+    cat "$STUB_DIR/exact-halvo-route-gate.txt"
+    exit 0
     ;;
   'run -q --locked -p halvo-route-gate --bin route-gate -- spend-sim --seed 1 --export '*)
     shift 12
@@ -276,30 +390,37 @@ EOF
 }
 
 write_fixtures() {
-  {
-    printf '     Running unittests src/lib.rs (target/debug/deps/halvo_route-0123456789abcdef)\n'
-    for case_word in $refusal_cases; do
-      case $case_word in
-        admit_* | leave_*) printf 'test %s::tests::refusal_%s ... ok\n' "${case_word%%_*}" "$case_word" ;;
-      esac
-    done
-    printf 'test admit::tests::not_refusal_no_cap ... ok\n'
-    printf '     Running tests/formal_traces.rs (target/debug/deps/formal_traces-0123456789abcdef)\n'
-    printf 'test formal_traces ... ok\n'
-    printf '     Running tests/no_grant_in_release.rs (target/debug/deps/no_grant_in_release-0123456789abcdef)\n'
-    printf 'test no_grant_in_release ... ok\n'
-    printf '     Running tests/refusal_spend.rs (target/debug/deps/refusal_spend-0123456789abcdef)\n'
-    for case_word in $refusal_cases; do
-      case $case_word in
-        admit_* | leave_*) ;;
-        *) printf 'test refusal_%s ... ok\n' "$case_word" ;;
-      esac
-    done
-    printf '     Running tests/sequences_same.rs (target/debug/deps/sequences_same-0123456789abcdef)\n'
-    printf 'test sequences_same ... ok\n'
-    printf '   Doc-tests halvo_route\n'
-    printf 'test result: ok. 0 passed; 0 failed\n'
-  } >"$work/test-good.txt" || exit 2
+  for package in halvo-route halvo-route-gate; do
+    bound_of "$package" | awk -v package="$package" -v dir="$work/stub" '
+      {
+        if ($2 == "src/lib.rs") {
+          bin = package
+          gsub(/-/, "_", bin)
+          printed = "unittests src/lib.rs"
+        } else {
+          bin = $2
+          sub(/^tests\//, "", bin)
+          sub(/\.rs$/, "", bin)
+          printed = $2
+        }
+        if (!(printed in order)) {
+          order[printed] = ++n
+          head[n] = "     Running " printed " (target/debug/deps/" bin "-0123456789abcdef)"
+        }
+        k = order[printed]
+        names[k] = names[k] $3 ": test\n"
+        oks[k] = oks[k] "test " $3 " ... ok\n"
+        count[k]++
+      }
+      END {
+        for (k = 1; k <= n; k++) {
+          printf "%s\n%s\n%d tests, 0 benchmarks\n", head[k], names[k], count[k] >(dir "/list-" package ".txt")
+          printf "%s\n\n0 tests, 0 benchmarks\n", head[k] >(dir "/ignored-" package ".txt")
+          printf "%s\n\nrunning %d tests\n%s\ntest result: ok. %d passed; 0 failed\n\n", head[k], count[k], oks[k], count[k] >(dir "/exact-" package ".txt")
+        }
+      }' || exit 2
+  done
+  cat "$work/stub/exact-halvo-route.txt" "$work/stub/exact-halvo-route-gate.txt" >"$work/test-good.txt" || exit 2
   {
     for case_word in $sim_cases; do
       printf 'spend case=%s tasks=2 reserves=6 admitted=0 refused_over_cap=1 expired=0 overruns=0 above_cap=0 stopped_mid_run=0\n' "$case_word"
@@ -315,10 +436,102 @@ variant() {
   cmp -s "$2" "$3" && exit 2
 }
 
+bound_cases() {
+  stub_case carriage-returns
+  for file in "$work/stub/"*; do
+    awk '{ printf "%s\r\n", $0 }' "$file" >"$STUB_DIR/${file##*/}" || exit 2
+  done
+  check carriage-returns PASS 'refusals expected=19 ok=19
+tests required=3 ok=3' "PASS $name"
+
+  stub_case windows-paths
+  for file in "$work/stub/"*; do
+    awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' \
+      "$file" >"$STUB_DIR/${file##*/}" || exit 2
+  done
+  check windows-paths PASS 'refusals expected=19 ok=19
+tests required=3 ok=3' "PASS $name"
+
+  STUB_TEST_EXIT=101
+  check cargo-test-fails FAIL "refusals expected=19 ok=19" "FAIL $name (tests)"
+
+  stub_case ignored-test-whose-ok-line-another-writes
+  printf '     Running tests/sequences_same.rs (target/debug/deps/sequences_same-0123456789abcdef)\nsequences_same: test\n' \
+    >"$STUB_DIR/ignored-halvo-route-gate.txt" || exit 2
+  check ignored-test-whose-ok-line-another-writes FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
+
+  stub_case ignored-case-with-stand-ins-elsewhere
+  printf '     Running tests/refusal_spend.rs (target/debug/deps/refusal_spend-0123456789abcdef)\nrefusal_no_hold: test\n' \
+    >"$STUB_DIR/ignored-halvo-route.txt" || exit 2
+  variant 's/^test refusal_no_hold \.\.\. ok$/test refusal_no_hold ... ignored/' "$work/stub/exact-halvo-route.txt" "$STUB_DIR/exact-halvo-route.txt"
+  {
+    cat "$work/test-good.txt"
+    printf '     Running tests/prices_data.rs (target/debug/deps/prices_data-0123456789abcdef)\ntest refusal_no_hold ... ok\n'
+    printf '     Running unittests src/lib.rs (target/debug/deps/halvo_route_gate-0123456789abcdef)\ntest spendsim::tests::refusal_no_hold ... ok\ntest refusal_no_hold ... ok\n'
+  } >"$work/test-stand-ins.txt" || exit 2
+  STUB_TEST_OUT=$work/test-stand-ins.txt
+  check ignored-case-with-stand-ins-elsewhere FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
+
+  stub_case a-child-prints-a-target-line
+  printf '     Running tests/formal_traces.rs (target/debug/deps/formal_traces-0123456789abcdef)\nformal_traces: test\n' \
+    >"$STUB_DIR/ignored-halvo-route.txt" || exit 2
+  variant 's/^test formal_traces \.\.\. ok$/test formal_traces ... ignored/' "$work/stub/exact-halvo-route.txt" "$STUB_DIR/exact-halvo-route.txt"
+  {
+    cat "$work/test-good.txt"
+    printf '     Running tests/pick_rules.rs (target/debug/deps/pick_rules-0123456789abcdef)\n'
+    printf '     Running tests/formal_traces.rs (target/debug/deps/formal_traces-0)\ntest formal_traces ... ok\n'
+  } >"$work/test-child.txt" || exit 2
+  STUB_TEST_OUT=$work/test-child.txt
+  check a-child-prints-a-target-line FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
+
+  stub_case bound-run-without-its-ok-line
+  variant '/^test refusal_no_cap \.\.\. ok$/d' "$work/stub/exact-halvo-route.txt" "$STUB_DIR/exact-halvo-route.txt"
+  check bound-run-without-its-ok-line FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
+
+  stub_case not-in-its-list
+  variant '/^admit::tests::refusal_admit_sum: test$/d' "$work/stub/list-halvo-route.txt" "$STUB_DIR/list-halvo-route.txt"
+  check not-in-its-list FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
+
+  stub_case under-another-bound-target
+  for kind in list exact; do
+    awk -v kind="$kind" '
+      kind == "list" && $0 == "refusal_no_hold: test" { next }
+      kind == "exact" && $0 == "test refusal_no_hold ... ok" { next }
+      { print }
+      /Running tests\/formal_traces\.rs / { print (kind == "list" ? "refusal_no_hold: test" : "test refusal_no_hold ... ok") }
+    ' "$work/stub/$kind-halvo-route.txt" >"$STUB_DIR/$kind-halvo-route.txt" || exit 2
+  done
+  check under-another-bound-target FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
+
+  stub_case required-in-a-module
+  for kind in list exact; do
+    sed 's/^no_grant_in_release: test$/tests::no_grant_in_release: test/; s/^test no_grant_in_release \.\.\. ok$/test tests::no_grant_in_release ... ok/' \
+      "$work/stub/$kind-halvo-route.txt" >"$STUB_DIR/$kind-halvo-route.txt" || exit 2
+  done
+  check required-in-a-module FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
+
+  stub_case summary-missing
+  awk '/Running tests\/refusal_spend\.rs / { inside = 1 } /Running unittests / { inside = 0 } inside && /^test result: / { next } { print }' \
+    "$work/stub/exact-halvo-route.txt" >"$STUB_DIR/exact-halvo-route.txt" || exit 2
+  check summary-missing FAIL 'refusals expected=19 ok=11' "FAIL $name (refusals)"
+
+  STUB_EXACT_EXIT=101
+  check bound-run-fails FAIL 'refusals expected=19 ok=0
+tests required=3 ok=1' "FAIL $name (tests)"
+  STUB_LIST_EXIT=101
+  check list-run-fails FAIL 'refusals expected=19 ok=0' "FAIL $name (tests)"
+  STUB_IGNORED_EXIT=101
+  check ignored-run-fails FAIL 'refusals expected=19 ok=0' "FAIL $name (tests)"
+  STUB_CHANGE=list
+  check list-run-changes-the-tree FAIL "FAIL $name (tests)"
+  STUB_CHANGE=exact
+  check bound-run-changes-the-tree FAIL "FAIL $name (tests)"
+}
+
 self_test() {
   enter_repo
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/bin" "$work/repo" "$work/artifacts" "$work/tree" || exit 2
+  mkdir -p "$work/bin" "$work/repo" "$work/artifacts" "$work/tree" "$work/stub" || exit 2
   git -c core.autocrlf=false cat-file blob "HEAD:$sequences" >"$work/committed.jsonl" || exit 2
   [ -s "$work/committed.jsonl" ] || exit 2
   variant '1s/"answer":"ok"/"answer":"state"/' "$work/committed.jsonl" "$work/one-answer.jsonl"
@@ -336,37 +549,7 @@ tests required=3 ok=3
 spend case=near_cap ' "$want_last
 sequences lines=$committed_lines same=yes
 PASS $name"
-  awk '{ printf "%s\r\n", $0 }' "$work/test-good.txt" >"$work/test-crlf.txt" || exit 2
-  awk '{ printf "%s\r\n", $0 }' "$work/sim-good.txt" >"$work/sim-crlf.txt" || exit 2
-  STUB_TEST_OUT=$work/test-crlf.txt
-  STUB_SIM_OUT=$work/sim-crlf.txt
-  check carriage-returns PASS 'refusals expected=19 ok=19
-tests required=3 ok=3' "PASS $name"
-  sed 's/^\(  *Running \)tests\/\([a-z_]*\)\.rs (target\/debug\//\1tests\\\2.rs (target\\debug\\/' "$work/test-good.txt" >"$work/test-backslash.txt" || exit 2
-  STUB_TEST_OUT=$work/test-backslash.txt
-  check windows-paths PASS 'tests required=3 ok=3' "PASS $name"
-
-  STUB_TEST_EXIT=101
-  check cargo-test-fails FAIL "refusals expected=19 ok=19" "FAIL $name (tests)"
-  variant '/refusal_admit_sum /d' "$work/test-good.txt" "$work/test-no-sum.txt"
-  STUB_TEST_OUT=$work/test-no-sum.txt
-  check one-refusal-missing FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
-  variant 's/^test refusal_no_cap \.\.\. ok$/test refusal_no_cap ... FAILED/' "$work/test-good.txt" "$work/test-failed.txt"
-  STUB_TEST_OUT=$work/test-failed.txt
-  check one-refusal-failed FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
-  variant 's/^test refusal_no_hold \.\.\. ok$/test not_refusal_no_hold ... ok/' "$work/test-good.txt" "$work/test-prefix.txt"
-  STUB_TEST_OUT=$work/test-prefix.txt
-  check a-longer-name-is-not-the-case FAIL 'refusals expected=19 ok=18' "FAIL $name (refusals)"
-  variant '/^test sequences_same /d' "$work/test-good.txt" "$work/test-no-sequences.txt"
-  STUB_TEST_OUT=$work/test-no-sequences.txt
-  check required-missing FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
-  awk '/^test formal_traces /{ next } { print } /^test refusal_no_hold /{ print "test formal_traces ... ok" }' \
-    "$work/test-good.txt" >"$work/test-other-target.txt" || exit 2
-  STUB_TEST_OUT=$work/test-other-target.txt
-  check required-under-another-target FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
-  variant 's/^test no_grant_in_release \.\.\. ok$/test tests::no_grant_in_release ... ok/' "$work/test-good.txt" "$work/test-module.txt"
-  STUB_TEST_OUT=$work/test-module.txt
-  check required-in-a-module FAIL 'tests required=3 ok=2' "FAIL $name (tests)"
+  bound_cases
 
   variant 's/result=pass$/result=fail/' "$work/sim-good.txt" "$work/sim-fail.txt"
   STUB_SIM_OUT=$work/sim-fail.txt
@@ -442,7 +625,8 @@ tests required=3 ok=3' "PASS $name"
   STUB_SIM_EXIT=1
   STUB_COMMITTED=$work/one-answer.jsonl
   check causes-name-the-first FAIL "FAIL $name (tests)"
-  STUB_TEST_OUT=$work/test-no-sum.txt
+  stub_case refusals-before-sequences
+  variant '/^test refusal_no_cap \.\.\. ok$/d' "$work/stub/exact-halvo-route.txt" "$STUB_DIR/exact-halvo-route.txt"
   STUB_COMMITTED=$work/one-answer.jsonl
   check refusals-before-sequences FAIL "FAIL $name (refusals)"
   STUB_REPO=$work/no-such-directory
