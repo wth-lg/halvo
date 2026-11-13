@@ -205,7 +205,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="REFUSED store: the derived store is not in this build$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=13
+  failing_fixtures=14
   wrong=
   rejected=0
   self_case good "" "$ok" 0 "" "$store_refusal" 2
@@ -220,6 +220,7 @@ self_test() {
   self_case line-with-a-path result "routine trains=135 path=/x/sample.jsonl result=ok$nl" 0 "" "$store_refusal" 2
   self_case refused refused "" 2 "" "$store_refusal" 2
   self_case derived-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "" 1
+  self_case derived-miss-read-as-ok derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=ok$nl" "" 0
   self_case derived-ok-with-exit-1 derived "$ok" 0 "$want_derived$nl" "" 1
   self_case derived-on-memory derived "$ok" 0 "routine trains=5 plays=10 same=10 store=memory result=ok$nl" "" 0
   self_case derived-usage derived "$ok" 0 "" "REFUSED usage: an argument that the command does not take$nl" 2
