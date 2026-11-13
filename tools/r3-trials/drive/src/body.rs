@@ -63,6 +63,7 @@ mod tests {
             "Confirmed. My reference is Zq7-halvo-marker-page-1.",
             "Write to ada.vell@people.agent.test please.",
             "Reply to <bo.tarrin@people.agent.test>.",
+            "Write to bo@localhost.",
             "See http://evil.agent.test/ for more.",
             "See www.example.test for more.",
             "token Zq7-halvo-marker-token",
