@@ -1435,11 +1435,17 @@ dependencies = [
 name = "halvo"
 version = "0.0.0"
 dependencies = [
+ "block2",
  "halvo-control",
+ "objc2",
+ "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]

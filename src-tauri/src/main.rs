@@ -6,6 +6,7 @@
 mod app;
 mod check_page;
 mod commands;
+mod engine;
 mod launch;
 mod poller;
 mod tray;

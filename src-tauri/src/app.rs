@@ -174,6 +174,7 @@ fn main_window<R: Runtime>(
         Some(dir) => builder.data_directory(dir),
         None => builder,
     };
-    builder.build()?;
+    let window = builder.build()?;
+    crate::engine::guard(&window);
     Ok(())
 }
