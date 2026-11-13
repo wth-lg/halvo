@@ -294,3 +294,147 @@ fn expiry_at_open_removes_a_row_past_its_bound_of_a_kind_that_the_open_does_not_
     drop(open_host(&scratch, plain(&clock)).unwrap());
     assert_eq!(bodies(&scratch, "test_bound").len(), 0);
 }
+
+static NOTE_10: KindEntry = KindEntry {
+    class: RetentionClass::Bounded { days: 10 },
+    ..NOTE
+};
+
+#[test]
+fn the_report_gives_the_deadline_of_the_bound_that_the_store_expires_by() {
+    let scratch = Scratch::new("deadline-shortened");
+    let clock = TestClock::at_day(DAY);
+    let emitted = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }))
+            .step("test", Box::new(Emit(Rc::clone(&emitted))))
+    };
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    drop(store);
+    let stored: halvo_schema_core::record::Workflow =
+        serde_json::from_str(&bodies(&scratch, "workflow")[0]).unwrap();
+    emitted.borrow_mut().push(TypedRecord {
+        kind: "test_note",
+        json: format!(
+            r#"{{"v":1,"workflow":"{}","day":{DAY},"n":1}}"#,
+            stored.id().as_str()
+        ),
+    });
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    drop(store);
+    let store = open_entries(&scratch, plain(&clock), &[&NOTE_10]).unwrap();
+    let report = store.report().unwrap();
+    drop(store);
+    assert_eq!(report.expiry, Some(Instant(1_795_132_800_000_000_000)));
+    assert_eq!(report.expiry, Some(Instant(i64::from(DAY + 10) * DAY_NS)));
+}
+
+static B1_30: KindEntry = KindEntry {
+    name: "test_b1",
+    class: RetentionClass::Bounded { days: 30 },
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: None,
+    fields: &[("v", FieldType::Version), ("day", FieldType::Day)],
+    example: r#"{"v":1,"day":20767}"#,
+};
+
+static B2_40: KindEntry = KindEntry {
+    name: "test_b2",
+    class: RetentionClass::Bounded { days: 40 },
+    ..B1_30
+};
+
+static B2_20: KindEntry = KindEntry {
+    class: RetentionClass::Bounded { days: 20 },
+    ..B2_40
+};
+
+static B3_10: KindEntry = KindEntry {
+    name: "test_b3",
+    class: RetentionClass::Bounded { days: 10 },
+    ..B1_30
+};
+
+static B3_50: KindEntry = KindEntry {
+    class: RetentionClass::Bounded { days: 50 },
+    ..B3_10
+};
+
+static W_ONE: KindEntry = KindEntry {
+    name: "test_w",
+    class: RetentionClass::Window,
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: None,
+    fields: &[
+        ("v", FieldType::Version),
+        ("segments", FieldType::Ordinal),
+        ("expires", FieldType::Instant),
+    ],
+    example: r#"{"v":1,"segments":[4410],"expires":1795478400000000000}"#,
+};
+
+#[test]
+fn expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_none() {
+    let scratch = Scratch::new("deadline-rule");
+    let clock = TestClock::at_day(DAY);
+    let window_ends = i64::from(DAY + 25) * DAY_NS + 3_600_000_000_000;
+    let emitted = Rc::new(RefCell::new(
+        ["test_b1", "test_b2", "test_b3"]
+            .iter()
+            .map(|kind| TypedRecord {
+                kind,
+                json: format!(r#"{{"v":1,"day":{DAY}}}"#),
+            })
+            .chain([TypedRecord {
+                kind: "test_w",
+                json: format!(r#"{{"v":1,"segments":[5],"expires":{window_ends}}}"#),
+            }])
+            .collect::<Vec<_>>(),
+    ));
+    let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .step("test", Box::new(Emit(Rc::clone(&emitted))));
+    let mut store = open_entries(&scratch, host, &[&B1_30, &B2_40, &B3_10, &W_ONE]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    assert_eq!(bodies(&scratch, "test_b1").len(), 1);
+    let mut store =
+        open_entries(&scratch, plain(&clock), &[&B1_30, &B2_20, &B3_50, &W_ONE]).unwrap();
+    let mut deadlines = Vec::new();
+    while let Some(deadline) = store.report().unwrap().expiry {
+        clock.set(deadline.0 - 1);
+        assert_eq!(
+            store.expire().unwrap(),
+            0,
+            "one nanosecond before {deadline:?}"
+        );
+        clock.set(deadline.0);
+        assert!(store.expire().unwrap() >= 1, "at {deadline:?}");
+        deadlines.push(deadline.0);
+    }
+    drop(store);
+    assert_eq!(
+        deadlines,
+        vec![
+            i64::from(DAY + 10) * DAY_NS,
+            i64::from(DAY + 20) * DAY_NS,
+            window_ends,
+            i64::from(DAY + 30) * DAY_NS,
+        ],
+        "the row stored under 10 days goes on its day plus 10 although its entry now gives 50"
+    );
+}

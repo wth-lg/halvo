@@ -85,7 +85,7 @@ catalogue! {
     EXPIRE_GONE = "SELECT id, family FROM rows WHERE gone <= ?1";
     EXPIRE_AHEAD = "SELECT id, family FROM rows WHERE day > ?1";
     EXPIRE_WINDOW = "SELECT id, family FROM rows WHERE expires <= ?1";
-    EXPIRE_KIND = "SELECT id, family FROM rows WHERE kind = ?1 AND day <= ?2";
+    BOUND_GONE = "UPDATE rows SET gone = day + ?2 WHERE kind = ?1 AND gone > day + ?2";
     STORED_OTHER_CLASS = "SELECT id FROM rows WHERE kind = ?1 AND class <> ?2 LIMIT 1";
     STORED_OTHER_WORKFLOW = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL \
         AND json_extract(body, ?2) IS NOT workflow LIMIT 1";

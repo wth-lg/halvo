@@ -105,9 +105,10 @@ impl Store {
     /// every open the store reconciles: it runs the truncating checkpoint, adds a revision of 0 for each family of
     /// `entries` that has none, fills the workflow column of each row of a kind whose entry gives a `workflow_key`
     /// from the value under that key where the row holds none, removes every evidence or support row whose summary
-    /// is not stored and every row that names a workflow that is not stored, and then runs the expiry of
-    /// `Store::expire`, which reads the bound of each bounded kind from its entry in `entries` as well as from the
-    /// row. `ids` gives the key of the site hash when the database is created.
+    /// is not stored and every row that names a workflow that is not stored, brings the day on which each stored
+    /// bounded row goes to the bound of its kind's entry in `entries` where that bound is the shorter, and then runs
+    /// the expiry of `Store::expire`, which reads that day as the report's deadline does. `ids` gives the key of the
+    /// site hash when the database is created.
     /// It also fails when a step or a handler of `host` names the family `workflow` or a family outside the form of
     /// 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`.
     pub fn open(

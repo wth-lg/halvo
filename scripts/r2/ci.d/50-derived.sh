@@ -58,6 +58,8 @@ esac
 #= tests/expiry.rs expiry_at_open_reads_the_bound_of_the_entry_that_names_the_kind
 #= tests/expiry.rs expiry_at_open_removes_a_row_past_its_bound_of_a_kind_that_the_open_does_not_name
 #= tests/expiry.rs the_store_gives_its_host_the_report_after_each_committed_transaction
+#= tests/expiry.rs the_report_gives_the_deadline_of_the_bound_that_the_store_expires_by
+#= tests/expiry.rs expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_none
 #= tests/read.rs a_page_of_261120_bytes_passes_and_a_page_one_byte_longer_is_refused
 #= tests/read.rs a_page_holds_whole_items_while_the_reply_stays_inside_its_bound
 #= tests/read.rs a_page_counts_the_id_under_next_against_the_bound

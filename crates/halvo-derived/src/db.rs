@@ -192,22 +192,27 @@ impl Tx<'_> {
         Ok(id)
     }
 
-    /// The expiry by class, from the store's own rows: every bounded row whose bound has passed on the local day of
-    /// the clock, by the bound of its kind's entry when it was stored and by the bound of the entry of `entries` that
-    /// names its kind, or whose day lies after the clock's day, every window row whose expiry instant has passed, and
-    /// then every row that names a summary or a workflow that is not stored. It returns the number of rows removed.
-    pub(crate) fn expire(&self, now: Now, entries: &[&KindEntry]) -> Result<u64, Fault> {
-        let mut removed = self.remove(sql::EXPIRE_GONE, [now.today])?
+    /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local
+    /// day of the clock, or whose day lies after the clock's day, every window row whose expiry instant has passed,
+    /// and then every row that names a summary or a workflow that is not stored. It returns the number of rows
+    /// removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too.
+    pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
+        let removed = self.remove(sql::EXPIRE_GONE, [now.today])?
             + self.remove(sql::EXPIRE_AHEAD, [now.today])?
             + self.remove(sql::EXPIRE_WINDOW, [now.now])?;
+        Ok(removed + self.sweep()?)
+    }
+
+    /// Brings `gone` of every stored bounded row of a kind of `entries` to the bound that its entry gives now, where
+    /// that bound is the shorter: a row goes on the earlier of the day from the bound that was stored with it and the
+    /// day from the bound in force. A lengthened bound leaves `gone` as it was.
+    pub(crate) fn bound_gone(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
         for entry in entries {
             if let RetentionClass::Bounded { days } = entry.class {
-                let last_gone = now.today - i64::from(days);
-                removed +=
-                    self.remove(sql::EXPIRE_KIND, rusqlite::params![entry.name, last_gone])?;
+                self.exec(sql::BOUND_GONE, rusqlite::params![entry.name, days])?;
             }
         }
-        Ok(removed + self.sweep()?)
+        Ok(())
     }
 
     /// Fills the workflow column of every row of a kind whose entry gives a `workflow_key` and that holds none, from
@@ -510,8 +515,9 @@ impl Db {
                 tx.exec(sql::REVISION_ENSURE, [family])?;
             }
             tx.fill_workflow(&self.entries)?;
+            tx.bound_gone(&self.entries)?;
             tx.sweep()?;
-            tx.expire(now, &self.entries)
+            tx.expire(now)
         })?;
         Ok(())
     }
