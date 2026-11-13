@@ -28,6 +28,7 @@ enum Fault {
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
     PhantomRecordAtTheWatermarkAfterAShred,
+    WatermarkFallsWhenEverySegmentIsShredded,
     ExpiryMovesFromReadToRead,
     ExpiryMovesFromConnectionToConnection,
     ExpiryMovesFromCursorToCursor,
@@ -132,6 +133,7 @@ impl Subject for Fixture {
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
         let fault = self.fault;
         let shredded = self.first_live > 1;
+        let all_shredded = self.first_live > self.files.len() as u64;
         let set_a = self.set_a;
         let restarted = self.restarted;
         self.connections += 1;
@@ -147,6 +149,7 @@ impl Subject for Fixture {
                     let mut wrong = Wrong {
                         fault,
                         shredded,
+                        all_shredded,
                         set_a,
                         restarted,
                         at_watermark: false,
@@ -204,6 +207,7 @@ fn error(cause: Cause) -> ServerMessage {
 struct Wrong {
     fault: Fault,
     shredded: bool,
+    all_shredded: bool,
     set_a: bool,
     restarted: bool,
     at_watermark: bool,
@@ -220,7 +224,10 @@ impl Wrong {
             self.fault,
             WatermarkRefusedAfterAShred | RisenWatermarkRefusedAfterAShred
         );
-        if refuses && self.shredded && open.position() == t.watermark() {
+        let fallen = self.fault == WatermarkFallsWhenEverySegmentIsShredded
+            && self.all_shredded
+            && open.position() > Position { seg: 1, idx: 0 };
+        if fallen || (refuses && self.shredded && open.position() == t.watermark()) {
             return error(Cause::BadPosition);
         }
         let reply = open_reply(t, self.fault, open);
@@ -487,6 +494,10 @@ fn conformance_check_open_at_the_watermark_after_a_shred() {
             (RisenWatermarkRefusedAfterAShred, [None, check, None, None]),
             (
                 PhantomRecordAtTheWatermarkAfterAShred,
+                [None, check, None, None],
+            ),
+            (
+                WatermarkFallsWhenEverySegmentIsShredded,
                 [None, check, None, None],
             ),
         ],

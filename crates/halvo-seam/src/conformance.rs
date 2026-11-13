@@ -47,9 +47,11 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// gets `bad-request`, whether it names S with another position, a kinds filter and a range, or another store
 /// id, and also while the cursor stands at the watermark; the cursor that was open then serves the whole
 /// reference read, and at the watermark a `read_batch` serves nothing.
-/// `open_at_the_watermark_after_a_shred`, in the case
-/// `shredded`: after `shred_oldest`, an `open_cursor` with S at W, and at the highest watermark of the replies
-/// after the shred where that is above W, is no error, and its read serves no entry. `filtered_stops`, in the
+/// `open_at_the_watermark_after_a_shred`, in the case `shredded`: after `shred_oldest`, an `open_cursor` with
+/// S at W, and at the highest watermark of the replies after the shred where that is above W, is no error,
+/// and its read serves no entry; after further calls of `shred_oldest` until every segment of the reference
+/// read is shredded, an `open_cursor` with S at W is no error, serves no entry and gets no watermark below W.
+/// `filtered_stops`, in the
 /// case `store_changed` after its read of set C: reads of set C under four filters (`window_title`, the range
 /// from the `at` of its 101st entry to that of its 401st, both, and `keystroke`), from the zero position and
 /// from its 151st entry, in which the 262,144 bytes of C5.7 item 5 stop Batches; each Batch holds every entry
@@ -662,7 +664,8 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
 
 /// The case `shredded` (C5.13 item 7): after `shred_oldest`, a read from the last position of the lowest
 /// segment and one from the zero position serve the entries above that segment, at the same positions, and
-/// no `expiry` names it; last, the check `open_at_the_watermark_after_a_shred` of `CHECKS`.
+/// no `expiry` names it; last, the check `open_at_the_watermark_after_a_shred` of `CHECKS`, which shreds every
+/// segment of the reference read.
 pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
     let instants = conn.end();
@@ -697,7 +700,38 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
         }
         top = top.max(reading.top);
     }
-    at_the_watermark(&mut conn, &rf, top).map_err(|e| format!("check {}: {e}", CHECKS[2]))
+    at_the_watermark(&mut conn, &rf, top).map_err(|e| format!("check {}: {e}", CHECKS[2]))?;
+    every_segment_shredded(subject, conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[2]))
+}
+
+fn every_segment_shredded<S: Subject>(
+    subject: &mut S,
+    conn: Conn<S>,
+    rf: &Reference,
+) -> Result<(), String> {
+    let mut segs: Vec<u64> = rf.r.iter().map(|e| e.pos.seg).collect();
+    segs.dedup();
+    let instants = conn.end();
+    for _ in 1..segs.len() {
+        subject.shred_oldest()?;
+    }
+    let mut conn = connect(subject, instants)?;
+    let what = "after shred_oldest of every segment of the reference read";
+    let reading = read(&mut conn, Some(&rf.s), rf.w, None, None)
+        .map_err(|e| format!("{what}, the read from the watermark {}: {e}", show(rf.w)))?;
+    if !reading.entries.is_empty() {
+        return Err(format!(
+            "{what}, the read from the watermark {} served {} entries; want none",
+            show(rf.w),
+            reading.entries.len()
+        ));
+    }
+    if reading.low < rf.w {
+        return Err(format!(
+            "{what}, a watermark below that of the reference read"
+        ));
+    }
+    Ok(())
 }
 
 fn at_the_watermark<S: Subject>(
