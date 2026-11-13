@@ -42,3 +42,19 @@ option_then_right order line attempt model=standin_option_then_right machine=* t
 option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 option_then_right order line drive model=standin_option_then_right machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
 option_then_right order requesthas (refused: the page did not take it
+right bill requestlacks " credential
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line drive model=standin_sign_in_click machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+sign_in_click bill requestlacks " credential
+sign_in_click bill tracelacks compile failed cause=provenance
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line drive model=standin_extract_then_click machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+extract_then_click bill tracehas run kind=compile i=1 steps_ok=true list_ok=true entries=1 allowed=1 signins=1 failed_signins=0

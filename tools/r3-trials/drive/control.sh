@@ -9,7 +9,8 @@ usage: sh tools/r3-trials/drive/control.sh --mode MODE --task bill|order --brows
 The control of the driver trial (ruling CP-173 E1): one cell of seed 1 in which the
 stand-in child r3-standin of this crate takes the place of the model. It loads nothing
 and takes no model lock; its mode is the one line of control/<mode>.txt: right,
-effect_early, option_then_right, or, on bill alone, sign_in_click and option_line.
+effect_early, option_then_right, or, on bill alone, sign_in_click, option_line and
+extract_then_click.
 
 It refuses a browser and a port as run.sh does, builds the crate with cargo build
 --release --locked, and calls r3-drive with the argument list of run.sh, in which three
@@ -22,8 +23,8 @@ or "effect allowed", the last with its origin cut off), and last one line
   control mode=<m> machine=<x> task=<t> result=<as_expected|differs|reading>
 
 from a field-by-field reading of the attempt and drive lines against control/expected.txt,
-where * is an open field, and of the trace and request lines that it names. The modes
-sign_in_click and option_line have no expected lines: result=reading. The cell's
+where * is an open field, and of the texts that the trace or the request log of the cell
+must hold or must not hold. A mode with no expected lines gives result=reading. The cell's
 directory under TMPDIR or /tmp keeps the trace, the playbook and the request log, which
 no line prints.
 
@@ -67,8 +68,8 @@ while [ $# -gt 0 ]; do
 done
 case $mode in
   right | effect_early | option_then_right) ;;
-  sign_in_click | option_line) [ "$task" = bill ] || refuse usage "--mode $mode runs on bill alone" ;;
-  *) refuse usage "--mode takes right, effect_early, option_then_right, sign_in_click or option_line" ;;
+  sign_in_click | option_line | extract_then_click) [ "$task" = bill ] || refuse usage "--mode $mode runs on bill alone" ;;
+  *) refuse usage "--mode takes right, effect_early, option_then_right, sign_in_click, option_line or extract_then_click" ;;
 esac
 case $task in
   bill | order) ;;
@@ -172,6 +173,7 @@ result=$(awk -v mode="$mode" -v task="$task" -v dir="$dir" '
     else if (kind == "tracehas" && !holds(dir "/trace.txt", rest)) bad++
     else if (kind == "tracelacks" && holds(dir "/trace.txt", rest)) bad++
     else if (kind == "requesthas" && !holds(dir "/requests.txt", rest)) bad++
+    else if (kind == "requestlacks" && holds(dir "/requests.txt", rest)) bad++
     next
   }
   /^(attempt|drive) / { got[++ng] = $0 }

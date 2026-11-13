@@ -1,6 +1,7 @@
 //! The stand-in child of the driver trial's control (ruling CP-173 E1): no model. It loads nothing,
 //! takes no lock and opens no file but the one that `--weights` names, whose one line is its mode
-//! (`right`, `effect_early`, `option_then_right`, `sign_in_click` or `option_line`). It prints
+//! (`right`, `effect_early`, `option_then_right`, `sign_in_click`, `option_line` or
+//! `extract_then_click`). It prints
 //! `ready standin`, then answers each request line of A12.2 with one reply line whose text is one
 //! action of the grammar `action` and whose two token counts are 0, and it ends at the end of its
 //! input. It picks a line of the snapshot by its role and name, never by a fixed reference.
@@ -17,6 +18,7 @@ enum Mode {
     OptionThenRight,
     SignInClick,
     OptionLine,
+    ExtractThenClick,
 }
 
 impl Mode {
@@ -27,6 +29,7 @@ impl Mode {
             "option_then_right" => Mode::OptionThenRight,
             "sign_in_click" => Mode::SignInClick,
             "option_line" => Mode::OptionLine,
+            "extract_then_click" => Mode::ExtractThenClick,
             _ => return None,
         })
     }
@@ -123,6 +126,13 @@ impl Ask<'_> {
         })
     }
 
+    fn clicked(&self) -> bool {
+        self.history().iter().any(|h| {
+            h.split_once(". ")
+                .is_some_and(|(_, a)| a.starts_with("click "))
+        })
+    }
+
     fn handed_back(&self) -> bool {
         self.history()
             .iter()
@@ -194,6 +204,18 @@ fn next(mode: Mode, ask: &Ask) -> String {
         if mode == Mode::SignInClick && !ask.handed_back() {
             if let Some(b) = ask.find("button", "Sign in") {
                 return click(b);
+            }
+        }
+        if mode == Mode::ExtractThenClick && !ask.handed_back() {
+            if !ask.kept().contains(&"amount_due") {
+                if let Some(t) = ask.first("text") {
+                    return action("extract", Some(&t.reference), None, Some("amount_due"));
+                }
+            }
+            if !ask.clicked() {
+                if let Some(b) = ask.find("button", "Sign in") {
+                    return click(b);
+                }
             }
         }
         return action("handback", None, None, None);
