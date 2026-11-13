@@ -185,6 +185,14 @@ fn refusal_edit_extra_key() {
 }
 
 #[test]
+fn the_active_reverted_and_withdrawn_rows_pass_the_check_of_the_registered_entry() {
+    let registered = KINDS.iter().find(|k| k.name == "learn_edit").unwrap();
+    for line in [EDIT_ACTIVE, EDIT_REVERTED, EDIT_WITHDRAWN] {
+        assert_eq!(check_record(registered, line), Ok(()), "{line}");
+    }
+}
+
+#[test]
 fn the_stand_in_of_the_edit_kind_is_the_registered_entry() {
     let registered: Vec<&KindEntry> = KINDS.iter().filter(|k| k.name == "learn_edit").collect();
     assert_eq!(registered, [&learn_edit_stand_in()]);
