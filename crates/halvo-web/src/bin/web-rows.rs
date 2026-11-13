@@ -131,6 +131,7 @@ fn handler_runs(since_us: u64) -> bool {
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn crash_reading(
     browser: &Path,
     port: u16,
@@ -138,8 +139,17 @@ async fn crash_reading(
     name: &str,
     means: CrashMeans,
     crash: bool,
+    origin: &crash_row::Listing,
 ) -> Result<Reading, String> {
-    crash_reading_at(browser, port, dir, name, means, crash, 0).await
+    crash_reading_at(browser, port, dir, name, means, crash, 0, origin).await
+}
+
+/// The listing of the places outside a profile, taken before a row's first reading (CP-186 T3).
+fn origin_of(dir: &Path) -> crash_row::Listing {
+    let profile = dir.join("p-origin");
+    let mut temp = profile.clone().into_os_string();
+    temp.push("-tmp");
+    crash_row::snapshot(&crash_row::places(&profile, Path::new(&temp)))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -151,6 +161,7 @@ async fn crash_reading_at(
     means: CrashMeans,
     crash: bool,
     relay_port: u16,
+    origin: &crash_row::Listing,
 ) -> Result<Reading, String> {
     let profile = dir.join(format!("p-{name}"));
     let mut temp = profile.clone().into_os_string();
@@ -223,13 +234,17 @@ async fn crash_reading_at(
     let stopped = ex.stop_and_remove().await;
     relay.stop();
     let left = crash_row::left_outside(&changed, &places);
+    let removals = crash_row::removals(&changed, &places, origin);
     println!(
-        "row crash reading={name} handler={handler} later_changes={later_changes} tunnels_after_crash={sent} refused_after_crash={refused} left_count={} left_bytes={} left_places={} dumps_left={} dumps_inside_profile={inside_dumps} removed={}",
+        "row crash reading={name} handler={handler} later_changes={later_changes} tunnels_after_crash={sent} refused_after_crash={refused} left_count={} left_bytes={} left_places={} dumps_left={} dumps_inside_profile={inside_dumps} removed={} removed_files_deciding={} removed_files_own={} removed_files_temp={}",
         left.len(),
         left.iter().map(|f| f.size).sum::<u64>(),
         by_place(&left),
         left.iter().filter(|f| crash_row::is_dump(f)).count(),
-        if stopped.removed { "yes" } else { "no" }
+        if stopped.removed { "yes" } else { "no" },
+        removals.deciding,
+        removals.own,
+        removals.temp
     );
     Ok(Reading {
         places,
@@ -962,6 +977,7 @@ async fn crash_one(argv: &[String]) -> (usize, usize) {
         return (0, 1);
     };
     let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let origin = origin_of(&dir);
     let got = crash_reading_at(
         &browser,
         port,
@@ -970,6 +986,7 @@ async fn crash_one(argv: &[String]) -> (usize, usize) {
         CrashMeans::Product,
         true,
         relay_port,
+        &origin,
     )
     .await;
     let _ = std::fs::remove_dir(&dir);
@@ -1009,22 +1026,50 @@ async fn crash(argv: &[String]) -> (usize, usize) {
             None => "unread",
         }
     );
-    let baseline =
-        match crash_reading(&browser, port, &dir, "baseline", CrashMeans::Product, false).await {
-            Ok(r) => r,
-            Err(cause) => {
-                println!("row crash machine={machine} browser={kind} result=notrun cause={cause}");
-                return (0, 1);
-            }
-        };
-    let control = crash_reading(&browser, port, &dir, "control", CrashMeans::Without, true).await;
+    let origin = origin_of(&dir);
+    let baseline = match crash_reading(
+        &browser,
+        port,
+        &dir,
+        "baseline",
+        CrashMeans::Product,
+        false,
+        &origin,
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(cause) => {
+            println!("row crash machine={machine} browser={kind} result=notrun cause={cause}");
+            return (0, 1);
+        }
+    };
+    let control = crash_reading(
+        &browser,
+        port,
+        &dir,
+        "control",
+        CrashMeans::Without,
+        true,
+        &origin,
+    )
+    .await;
     let mut means: Vec<(&str, CrashMeans)> = vec![("product", CrashMeans::Product)];
     for (i, (name, _)) in halvo_web::CRASH_CANDIDATES.iter().enumerate() {
         means.push((name, CrashMeans::Candidate(i)));
     }
     let mut product_ok = false;
     for (name, m) in means {
-        let with = crash_reading(&browser, port, &dir, &format!("means-{name}"), m, true).await;
+        let with = crash_reading(
+            &browser,
+            port,
+            &dir,
+            &format!("means-{name}"),
+            m,
+            true,
+            &origin,
+        )
+        .await;
         let line = match (&with, &control) {
             (Ok(w), Ok(c)) => {
                 let beyond = crash_row::beyond(&w.left, &baseline.left);
@@ -1032,6 +1077,7 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                     c.changed.iter().filter(|f| crash_row::is_dump(f)).collect();
                 let verdict = crash_row::result(
                     &w.places,
+                    &origin,
                     &facts_of(&baseline),
                     &facts_of(w),
                     &c.changed,
@@ -1060,6 +1106,9 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                     if w.inside_dumps > 0 { "yes" } else { "no" },
                     w.handler,
                     if w.removed && baseline.removed { "yes" } else { "no" },
+                ) + &format!(
+                    " removed_files_deciding={}",
+                    crash_row::removals(&w.changed, &w.places, &origin).deciding
                 ) + &cause
             }
             (Err(cause), _) | (_, Err(cause)) => {

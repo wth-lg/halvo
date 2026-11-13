@@ -26,7 +26,17 @@ pub struct File {
     pub modified: u64,
     /// Whether the entry is a symbolic link, whose size is the length of its target.
     pub link: bool,
+    /// Whether the entry stood in the earlier listing and is gone from the later one; its size
+    /// and time are the earlier listing's (CP-186 T3).
+    pub removed: bool,
 }
+
+/// One listing: each file by place and path, with its size, its time of change and whether it is
+/// a link.
+pub type Listing = BTreeMap<(&'static str, String), (u64, u64, bool)>;
+
+/// The name of the place of the system's temporary directory.
+pub const SYSTEM_TEMP: &str = "system_temp";
 
 /// The deepest level under a place's root that the listing reads.
 pub const DEPTH: usize = 12;
@@ -78,22 +88,64 @@ fn walk(
     }
 }
 
-/// The files of `after` that are new against `before` or changed in size or time.
-pub fn changed(
-    before: &BTreeMap<(&'static str, String), (u64, u64, bool)>,
-    after: &BTreeMap<(&'static str, String), (u64, u64, bool)>,
-) -> Vec<File> {
-    after
+/// The files of `after` that are new against `before` or changed in size or time, and every file
+/// of `before` that `after` lacks, marked as removed (CP-186 T3).
+pub fn changed(before: &Listing, after: &Listing) -> Vec<File> {
+    let file = |(place, rel): &(&'static str, String),
+                (size, modified, link): &(u64, u64, bool),
+                removed| File {
+        place,
+        rel: rel.clone(),
+        size: *size,
+        modified: *modified,
+        link: *link,
+        removed,
+    };
+    let mut out: Vec<File> = after
         .iter()
         .filter(|(k, v)| before.get(*k) != Some(*v))
-        .map(|((place, rel), (size, modified, link))| File {
-            place,
-            rel: rel.clone(),
-            size: *size,
-            modified: *modified,
-            link: *link,
-        })
-        .collect()
+        .map(|(k, v)| file(k, v, false))
+        .collect();
+    out.extend(
+        before
+            .iter()
+            .filter(|(k, _)| !after.contains_key(*k))
+            .map(|(k, v)| file(k, v, true)),
+    );
+    out
+}
+
+/// The removals of a reading (CP-186 T3), in three counts. `deciding`: a file that stood in
+/// `origin`, the listing taken before the row's first reading, removed at a place that is neither
+/// inside the profile, nor a report place of the system, nor the system's temporary directory.
+/// `own`: such a removal of a file that `origin` lacks, which an earlier reading of the row left
+/// and which decides nothing. `temp`: a removal in the system's temporary directory, which decides
+/// nothing, because other programs of the machine remove their own files there during a reading.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Removals {
+    pub deciding: usize,
+    pub own: usize,
+    pub temp: usize,
+}
+
+pub fn removals(changed: &[File], places: &[Place], origin: &Listing) -> Removals {
+    let mut r = Removals::default();
+    for f in changed.iter().filter(|f| f.removed) {
+        let Some(p) = places.iter().find(|p| p.name == f.place) else {
+            continue;
+        };
+        if p.inside_profile || p.system {
+            continue;
+        }
+        if p.name == SYSTEM_TEMP {
+            r.temp += 1;
+        } else if origin.contains_key(&(f.place, f.rel.clone())) {
+            r.deciding += 1;
+        } else {
+            r.own += 1;
+        }
+    }
+    r
 }
 
 /// A file's name for the comparison of two readings: its path, with the random part of the
@@ -134,10 +186,12 @@ pub fn is_dump(f: &File) -> bool {
             .any(|d| rel.starts_with(d) || rel.contains(&format!("/{d}")))
 }
 
-/// What one reading left outside the profile and the temporary directory, which the stop removes.
+/// What one reading left outside the profile and the temporary directory, which the stop removes;
+/// a removal is no file left.
 pub fn left_outside(changed: &[File], places: &[Place]) -> Vec<File> {
     changed
         .iter()
+        .filter(|f| !f.removed)
         .filter(|f| {
             places
                 .iter()
@@ -207,16 +261,22 @@ fn deciding(places: &[Place], f: &File) -> bool {
 /// (`sent`), or when the stop did not remove the profile and the temporary directory in the
 /// reading with the means or in the start with no crash (`not_removed`); (c) `notrun`
 /// (`no_dump_inside`) when the reading with the means shows no dump inside its profile, the sign
-/// that its crash was taken (`Executor::crash` drops the command's answer); (d) `notrun`
+/// that its crash was taken (`Executor::crash` drops the command's answer), and also `miss`
+/// (`removed_outside`) when the reading with the means removed a file that stood before the
+/// row's first reading (`removals`, `deciding`); (d) `notrun`
 /// (`handler`) when its crash handler still ran when the listing was taken; (e) `ok`.
 pub fn result(
     places: &[Place],
+    origin: &Listing,
     baseline: &Facts,
     means: &Facts,
     control: &[File],
     sent_after_crash: usize,
 ) -> Verdict {
-    if !control.iter().any(|f| is_dump(f) && deciding(places, f)) {
+    if !control
+        .iter()
+        .any(|f| !f.removed && is_dump(f) && deciding(places, f))
+    {
         return Verdict::of("notrun", "control_no_dump");
     }
     let left_means = left_outside(&means.changed, places);
@@ -232,6 +292,9 @@ pub fn result(
     }
     if !means.removed || !baseline.removed {
         return Verdict::of("miss", "not_removed");
+    }
+    if removals(&means.changed, places, origin).deciding > 0 {
+        return Verdict::of("miss", "removed_outside");
     }
     if means.dumps_inside_profile == 0 {
         return Verdict::of("notrun", "no_dump_inside");
@@ -531,6 +594,7 @@ mod tests {
             size,
             modified: 1,
             link: false,
+            removed: false,
         }
     }
 
@@ -592,7 +656,80 @@ mod tests {
     }
 
     fn res(places: &[Place], b: &Facts, m: &Facts, c: &[File], sent: usize) -> &'static str {
-        result(places, b, m, c, sent).result
+        result(places, &Listing::new(), b, m, c, sent).result
+    }
+
+    /// CP-186 T3, the review's case crash/03: a file that stood before and is gone after is in the
+    /// listing, marked as removed.
+    #[test]
+    fn t3_a_file_removed_outside_the_profile_is_in_the_listing() {
+        let mut before = Listing::new();
+        before.insert(
+            ("account_db", "completed/older-report.dmp".to_string()),
+            (4096, 10, false),
+        );
+        let got = changed(&before, &Listing::new());
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert!(got[0].removed);
+        assert_eq!(got[0].rel, "completed/older-report.dmp");
+    }
+
+    /// CP-186 T3: a removal at the account's crash place of a file that stood before the row reads
+    /// miss; the same for a file that an earlier reading of the row left decides nothing; a
+    /// removal in the system's temporary directory is counted and decides nothing.
+    #[test]
+    fn t3_a_removal_outside_the_profile_of_a_file_that_stood_before_reads_miss() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+            place(SYSTEM_TEMP, PathBuf::from("/t"), false, false),
+            place("reports", PathBuf::from("/r"), false, true),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let mut origin = Listing::new();
+        origin.insert(("crashpad", "settings.dat".to_string()), (40, 1, false));
+        let gone = |place: &'static str, rel: &str| File {
+            removed: true,
+            ..file(place, rel, 40)
+        };
+        let before_row = taken(vec![gone("crashpad", "settings.dat")]);
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &before_row, &control, 0),
+            Verdict::of("miss", "removed_outside")
+        );
+        assert_eq!(
+            removals(&before_row.changed, &places, &origin),
+            Removals {
+                deciding: 1,
+                own: 0,
+                temp: 0
+            }
+        );
+        let own = taken(vec![gone("crashpad", "completed/earlier-reading.dmp")]);
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &own, &control, 0),
+            Verdict::of("ok", "-")
+        );
+        assert_eq!(removals(&own.changed, &places, &origin).own, 1);
+        let temp = taken(vec![gone(SYSTEM_TEMP, "other-program.lock")]);
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &temp, &control, 0),
+            Verdict::of("ok", "-")
+        );
+        assert_eq!(removals(&temp.changed, &places, &origin).temp, 1);
+        let gone_dump = vec![gone("crashpad", "completed/abc.dmp")];
+        assert_eq!(
+            result(
+                &places,
+                &origin,
+                &start(vec![]),
+                &taken(vec![]),
+                &gone_dump,
+                0
+            )
+            .cause,
+            "control_no_dump"
+        );
     }
 
     /// CP-167 E3: a row whose control left no dump reads notrun, never ok, also when the crash
@@ -603,7 +740,7 @@ mod tests {
         let (b, m) = (start(vec![]), taken(vec![]));
         let control = vec![file("crashpad", "settings.dat", 40)];
         assert_eq!(
-            result(&places, &b, &m, &control, 0),
+            result(&places, &Listing::new(), &b, &m, &control, 0),
             Verdict::of("notrun", "control_no_dump")
         );
         assert_eq!(res(&places, &b, &m, &[], 0), "notrun");
@@ -620,7 +757,14 @@ mod tests {
         let places = row_places();
         let control = vec![file("reports", "OtherApp-2026-11-13-120000.ips", 9000)];
         assert_eq!(
-            result(&places, &start(vec![]), &taken(vec![]), &control, 0),
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &taken(vec![]),
+                &control,
+                0
+            ),
             Verdict::of("notrun", "control_no_dump")
         );
     }
@@ -636,7 +780,14 @@ mod tests {
             ..taken(vec![])
         };
         assert_eq!(
-            result(&places, &start(vec![]), &means, &control, 0),
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &means,
+                &control,
+                0
+            ),
             Verdict::of("notrun", "no_dump_inside")
         );
     }
@@ -653,7 +804,14 @@ mod tests {
             ..taken(vec![])
         };
         assert_eq!(
-            result(&places, &start(vec![]), &means, &control, 0),
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &means,
+                &control,
+                0
+            ),
             Verdict::of("notrun", "handler")
         );
         assert_eq!(
@@ -673,7 +831,14 @@ mod tests {
             ..taken(vec![])
         };
         assert_eq!(
-            result(&places, &start(vec![]), &means, &control, 0),
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &means,
+                &control,
+                0
+            ),
             Verdict::of("miss", "not_removed")
         );
         let base = Facts {
@@ -681,7 +846,7 @@ mod tests {
             ..start(vec![])
         };
         assert_eq!(
-            result(&places, &base, &taken(vec![]), &control, 0),
+            result(&places, &Listing::new(), &base, &taken(vec![]), &control, 0),
             Verdict::of("miss", "not_removed")
         );
     }
@@ -697,7 +862,14 @@ mod tests {
             ..taken(vec![file("crashpad", "completed/x.dmp", 9)])
         };
         assert_eq!(
-            result(&places, &start(vec![]), &means, &control, 0),
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &means,
+                &control,
+                0
+            ),
             Verdict::of("miss", "beyond")
         );
     }
@@ -754,6 +926,7 @@ mod tests {
         assert_eq!(
             result(
                 &chrome_mac,
+                &Listing::new(),
                 &start(start_left("chrome_helper_cache")),
                 &taken(means_left("chrome_helper_cache")),
                 &control,
@@ -775,6 +948,7 @@ mod tests {
         assert_eq!(
             result(
                 &edge_mac,
+                &Listing::new(),
                 &start(start_left("edge_helper_cache")),
                 &taken(edge_means),
                 &edge_control,
@@ -793,7 +967,7 @@ mod tests {
             let control = vec![file("profile", "Crashpad/reports/c.dmp", size)];
             let means = taken(vec![file("profile", "Crashpad/reports/m.dmp", size)]);
             assert_eq!(
-                result(&win, &start(vec![]), &means, &control, 0),
+                result(&win, &Listing::new(), &start(vec![]), &means, &control, 0),
                 Verdict::of("ok", "-")
             );
         }
@@ -817,7 +991,7 @@ mod tests {
         let resized = taken(vec![file("crashpad", "settings.dat", 41)]);
         assert_eq!(res(&places, &baseline, &resized, &control, 0), "miss");
         assert_eq!(
-            result(&places, &baseline, &same, &control, 1),
+            result(&places, &Listing::new(), &baseline, &same, &control, 1),
             Verdict::of("miss", "sent")
         );
         let reported = taken(vec![
