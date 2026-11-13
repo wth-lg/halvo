@@ -7,7 +7,9 @@ import { connect } from "node:tls";
 import { connect as netConnect } from "node:net";
 import { join } from "node:path";
 import { makeTestAuthority, TlsError } from "../src/tls.mjs";
-import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub } from "./support.mjs";
+import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub, openPeer, answersIn, keepsPromise } from "./support.mjs";
+
+const CAP = '{"cap":{"amount":1,"period":"week"}}';
 
 const SERVER_AUTH = "1.3.6.1.5.5.7.3.1";
 const DAY = 86400000;
@@ -47,6 +49,27 @@ test("the test authority signs a server certificate for 127.0.0.1 alone, valid f
 function tlsExchange(port, bytes, options) {
   return exchange(port, bytes, (where) => connect({ ...where, ...options }));
 }
+
+test("D1 (i) over TLS: a peer that reads late after a closing request gets its answer and the stub's end, and later bytes reach the raw file alone", async () => {
+  const keys = fresh();
+  const dir = fresh();
+  const stub = await startStub({ record: dir, tlsCa: join(keys, "ca.pem") });
+  const ca = readFileSync(join(keys, "ca.pem"));
+  const sent = Buffer.concat([request("GET", "/v1/done"), request("POST", "/v1/checkout", [...appHeaders(), ["content-type", "application/json"]], CAP), Buffer.alloc(200000, 0x61)]);
+  const peer = await openPeer(portOf(stub.app), (where) => connect({ ...where, ca }), "secureConnect");
+  peer.socket.pause();
+  peer.socket.write(sent);
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  peer.socket.resume();
+  assert.equal(await Promise.race([peer.ended, new Promise((resolve) => setTimeout(() => resolve("timeout"), 3000))]), true);
+  peer.socket.end();
+  assert.equal(await Promise.race([peer.closed, new Promise((resolve) => setTimeout(() => resolve("timeout"), 3000))]), true);
+  assert.equal(answersIn(peer.got()), 1);
+  assert.equal(parse(peer.got()).status, 200);
+  assert.deepEqual(keepsPromise(dir, { 1: 1 }), []);
+  assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), sent);
+  await stub.close();
+});
 
 test("over TLS the stub serves and records in plain text for a client that is given the authority's file", async () => {
   const keys = fresh();

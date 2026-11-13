@@ -4,7 +4,7 @@ import { createServer as createTlsServer } from "node:tls";
 import { readFileSync } from "node:fs";
 import { loadSchema } from "./schema.mjs";
 import { makeApp } from "./app.mjs";
-import { makeReader } from "./wire.mjs";
+import { makeReader, BODY_CAP } from "./wire.mjs";
 import { openRecord, RecordError } from "./record.mjs";
 import { makeTestAuthority, writeAuthority, TlsError } from "./tls.mjs";
 
@@ -65,7 +65,34 @@ function serve(socket, connection, app, record, idleMs) {
   let held = false;
   let ended = false;
   let stopping = false;
+  let after = 0;
+  let capped = false;
+  let written = null;
+  let closer = null;
   const quiet = () => clearTimeout(timer);
+  const wrote = () => {
+    written = Date.now();
+  };
+  const due = () => (written === null ? 0 : written + idleMs);
+  const closeNow = () => {
+    if (socket.destroyed) return;
+    clearTimeout(closer);
+    if (capped || !socket.writableFinished) record.refused({ connection, error: "forced-close" });
+    socket.destroy();
+  };
+  const linger = () => {
+    if (socket.destroyed || !socket.writableFinished) return;
+    clearTimeout(closer);
+    const left = due() - Date.now();
+    if ((ended && !capped) || left <= 0) closeNow();
+    else closer = setTimeout(linger, left);
+  };
+  const take = (chunk) => {
+    after += chunk.length;
+    if (after < BODY_CAP) return;
+    capped = true;
+    socket.pause();
+  };
   const settle = () => {
     if (socket.writableEnded) return;
     if (socket.writableNeedDrain) {
@@ -83,15 +110,19 @@ function serve(socket, connection, app, record, idleMs) {
     arm();
   };
   const onData = (chunk) => {
+    if (socket.writableEnded) {
+      take(chunk);
+      return;
+    }
     reader.feed(chunk);
     settle();
   };
   const stop = (last) => {
     if (socket.writableEnded) return;
     quiet();
-    socket.removeListener("data", onData);
-    socket.pause();
-    socket.end(last ?? Buffer.alloc(0), () => socket.destroy());
+    if (last !== undefined) socket.write(last, wrote);
+    socket.end(linger);
+    if (!capped) socket.resume();
   };
   const reader = makeReader({
     request(message) {
@@ -107,12 +138,12 @@ function serve(socket, connection, app, record, idleMs) {
       }
       const close = closes(message);
       if (close) stop(answerBytes(method, answer, close));
-      else socket.write(answerBytes(method, answer, close));
+      else socket.write(answerBytes(method, answer, close), wrote);
       return !close;
     },
     malformed(cause) {
       record.refused({ connection, error: cause });
-      stop(answerBytes("", app.malformed(), true));
+      stop(stopping ? undefined : answerBytes("", app.malformed(), true));
     },
     full: () => !stopping && socket.writableNeedDrain,
     interim: () => socket.write(CONTINUE),
@@ -127,7 +158,10 @@ function serve(socket, connection, app, record, idleMs) {
   }
   arm();
   socket.on("data", onData);
-  socket.on("close", quiet);
+  socket.on("close", () => {
+    quiet();
+    clearTimeout(closer);
+  });
   socket.on("drain", () => {
     if (!held || socket.writableEnded) return;
     held = false;
@@ -136,16 +170,18 @@ function serve(socket, connection, app, record, idleMs) {
   });
   socket.on("end", () => {
     ended = true;
-    if (!held) settle();
+    if (socket.writableEnded) linger();
+    else if (!held) settle();
   });
   socket.on("error", () => {});
-  return () => {
+  const cut = () => {
     if (socket.writableEnded) return;
     stopping = true;
     reader.resume();
     reader.end();
     stop();
   };
+  return { cut, closeNow };
 }
 
 function serveControl(app, stop) {
@@ -199,12 +235,12 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
+  const served = new Map();
   const onSocket = (socket) => {
     const { connection, opened } = record.connection(socket);
     if (opened) {
-      const cut = serve(socket, connection, app, record, idleMs);
-      cuts.add(cut);
-      socket.once("close", () => cuts.delete(cut));
+      served.set(socket, serve(socket, connection, app, record, idleMs));
+      socket.once("close", () => served.delete(socket));
       return;
     }
     socket.destroy();
@@ -220,7 +256,6 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
     });
   }
   const sockets = new Set();
-  const cuts = new Set();
   appServer.on("connection", (socket) => {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
@@ -229,8 +264,20 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   let closing = null;
   const close = () => {
     if (closing === null) {
-      for (const cut of cuts) cut();
-      closing = Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => {
+      const peer = (socket) => `${socket.remoteAddress}:${socket.remotePort}`;
+      const kept = new Set([...served.keys()].map(peer));
+      for (const socket of sockets) if (!kept.has(peer(socket))) socket.destroy();
+      for (const { cut } of served.values()) cut();
+      let timer;
+      const closed = [...served.keys()].map((socket) => new Promise((resolve) => socket.once("close", resolve)));
+      const limit = new Promise((resolve) => {
+        timer = setTimeout(resolve, idleMs);
+      });
+      const waited = Promise.race([Promise.all(closed), limit]).then(() => {
+        clearTimeout(timer);
+        for (const { closeNow } of served.values()) closeNow();
+      });
+      closing = Promise.all([waited.then(() => shut(appServer, sockets)), shut(controlServer, controlSockets)]).then(() => {
         record.close();
         done();
       });
