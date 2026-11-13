@@ -737,9 +737,17 @@ fn golden_names() {
     for absent in ["probe", "instant", "ordinal", "own_text", "hash", "version"] {
         assert!(!locked.contains(absent), "{absent}");
     }
-    for absent in ["role", "days", "capture", "own"] {
+    for absent in ["days", "capture", "own"] {
         assert!(!file.contains(absent), "{absent}");
     }
+}
+
+#[test]
+fn the_committed_names_file_holds_no_line_role() {
+    assert!(
+        !committed("names.txt").lines().any(|line| line == "role"),
+        "tests/golden/names.txt holds the line role, which contracts.md C1.10 keeps out of it"
+    );
 }
 
 #[test]
