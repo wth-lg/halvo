@@ -179,6 +179,15 @@ pub struct Parts {
 
 /// Where the library keeps its marks, the runner binary that it starts, how long a start waits, and how long a
 /// runner whose link closed has to end by itself before the library ends what is left.
+///
+/// The library starts the runner with three of its handles or descriptors open in it and no other: the two ends of
+/// the link as the runner's standard input and output, and the null device as its standard error, which nobody
+/// reads. The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
+/// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
+/// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them.
+/// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
+/// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
+/// `data_dir` and the paths of a `RunSpec` are absolute: `absolute_paths` names the first that is not.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub data_dir: PathBuf,
@@ -197,6 +206,45 @@ impl Config {
             link_end: LINK_END,
         }
     }
+}
+
+/// A path of a start that is not absolute, named by what it is (ruling CP-160 (1) (e)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelativePath {
+    /// `Config::runner`, the runner binary.
+    Runner,
+    /// `RunSpec::browser`, which the library passes on as `--browser`.
+    Browser,
+    /// `RunSpec::model`, which the library passes on as `--model`.
+    Model,
+    /// `Config::data_dir`.
+    DataDir,
+}
+
+/// Refuses a start whose runner path, `--browser`, `--model` or data directory is not absolute, naming the first of
+/// them in that order: the runner works in the system's directory and not in the library's, where a relative path
+/// names another file. `Supervisor::start` does not call it yet; until it does, a relative path reaches the runner
+/// as its caller gave it.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "its call at the top of Supervisor::start is the first line of the next unit of src/supervisor.rs"
+    )
+)]
+pub fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
+    let paths = [
+        (Some(&config.runner), RelativePath::Runner),
+        (Some(&spec.browser), RelativePath::Browser),
+        (spec.model.as_ref(), RelativePath::Model),
+        (Some(&config.data_dir), RelativePath::DataDir),
+    ];
+    for (path, name) in paths {
+        if path.is_some_and(|p| !p.is_absolute()) {
+            return Err(name);
+        }
+    }
+    Ok(())
 }
 
 /// The answer of `reap` for one mark.
@@ -220,6 +268,90 @@ pub struct ReapAnswer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    const ROOT: &str = "/halvo";
+    #[cfg(windows)]
+    const ROOT: &str = r"C:\halvo";
+
+    fn absolute(name: &str) -> PathBuf {
+        PathBuf::from(ROOT).join(name)
+    }
+
+    fn spec(browser: PathBuf, model: Option<PathBuf>) -> RunSpec {
+        RunSpec {
+            run: RunId::from_random([1; 16]),
+            agent: AgentId::from_random([2; 16]),
+            workflow: WorkflowId::from_random([3; 16]),
+            mode: Mode::Replay,
+            browser,
+            model,
+            headed: false,
+        }
+    }
+
+    fn config(data_dir: PathBuf, runner: PathBuf) -> Config {
+        Config::new(data_dir, runner)
+    }
+
+    #[test]
+    fn a_start_whose_paths_are_all_absolute_passes_with_a_model_and_without() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(absolute_paths(&c, &spec(absolute("browser"), None)), Ok(()));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), Some(absolute("model")))),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_relative_runner_path_is_refused() {
+        let c = config(absolute("data"), PathBuf::from("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::Runner)
+        );
+    }
+
+    #[test]
+    fn a_relative_browser_path_is_refused() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(PathBuf::from("bin/browser"), None)),
+            Err(RelativePath::Browser)
+        );
+    }
+
+    #[test]
+    fn a_relative_model_path_is_refused() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(
+                &c,
+                &spec(absolute("browser"), Some(PathBuf::from("model.gguf")))
+            ),
+            Err(RelativePath::Model)
+        );
+    }
+
+    #[test]
+    fn a_relative_data_directory_is_refused() {
+        let c = config(PathBuf::from("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::DataDir)
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_path_with_no_drive_is_refused() {
+        let c = config(PathBuf::from(r"\data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::DataDir)
+        );
+    }
 
     #[test]
     fn a_new_config_waits_ten_seconds_for_hello_and_link_end_twenty_seconds_for_a_closed_link() {
