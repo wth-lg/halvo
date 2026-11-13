@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,211 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format
+      - name: Loop of this run's test binaries (scratch)
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        env:
+          LOOP_DEADLINE_S: "4200"
+          LOOP_PACKAGES: "halvo-schema-core halvo-schema halvo-redact"
+          LOOP_PROBES: "0"
+        run: |
+          cat >"$RUNNER_TEMP/loop.py" <<'LOOPEOF'
+          import json
+          import re
+          import os
+          import subprocess
+          import sys
+          import tempfile
+          import time
+
+          ROUNDS = int(os.environ.get("LOOP_ROUNDS", "200"))
+          SLOW_ROUNDS = int(os.environ.get("LOOP_SLOW_ROUNDS", "20"))
+          SLOW_S = 2.0
+          DEADLINE_S = float(os.environ.get("LOOP_DEADLINE_S", "3600"))
+          RUN_LIMIT_S = 600
+          OUTPUT_LIMIT = 4000
+          PACKAGES = os.environ.get(
+              "LOOP_PACKAGES",
+              "halvo-schema-core halvo-schema halvo-seam halvo-redact halvo-derived halvo-cap",
+          ).split()
+          SKIP = set(os.environ.get("LOOP_SKIP_PACKAGES", "").split())
+          PROBES = os.environ.get("LOOP_PROBES", "1") == "1"
+          WORDS = [
+              "export-names-",
+              "golden-export-names-",
+              "golden-leaf-",
+              "r4-golden-",
+              "r4-export-names-",
+              "r4-names-leaf-",
+              "r5-export-names-",
+              "r5-names-leaf-",
+              "r2-probes-",
+          ]
+          repo = os.getcwd()
+          started = time.monotonic()
+
+
+          def say(line):
+              print(line, flush=True)
+
+
+          def build(args, cwd):
+              out = subprocess.run(
+                  ["cargo", "test", "--locked", "--no-run", "--message-format=json"] + args,
+                  cwd=cwd,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              )
+              if out.returncode != 0:
+                  say(f"LOOP build failed: cargo exited {out.returncode} in {os.path.relpath(cwd, repo)}")
+                  sys.exit(1)
+              found = []
+              for line in out.stdout.splitlines():
+                  try:
+                      msg = json.loads(line)
+                  except ValueError:
+                      continue
+                  if msg.get("reason") != "compiler-artifact" or not msg.get("profile", {}).get("test"):
+                      continue
+                  exe = msg.get("executable")
+                  if not exe:
+                      continue
+                  manifest = os.path.dirname(msg["manifest_path"])
+                  found.append((os.path.basename(manifest), msg["target"]["name"], exe, manifest))
+              return found
+
+
+          def entries(path):
+              try:
+                  return set(os.listdir(path))
+              except FileNotFoundError:
+                  return set()
+
+
+          def word_of(name):
+              for word in WORDS:
+                  if name.startswith(word):
+                      return word
+              return None
+
+
+          def failures(text):
+              names = []
+              for line in text.splitlines():
+                  line = line.rstrip("\r")
+                  if line.startswith("test ") and line.endswith(" ... FAILED"):
+                      names.append(line[5:-11])
+              return names
+
+
+          def section(text, name):
+              lines = text.replace("\r", "").split("\n")
+              head = f"---- {name} stdout ----"
+              if head not in lines:
+                  return text[-OUTPUT_LIMIT:]
+              i = lines.index(head)
+              j = i + 1
+              while j < len(lines) and not lines[j].startswith("---- ") and lines[j] != "failures:":
+                  j += 1
+              return "\n".join(lines[i:j])[:OUTPUT_LIMIT]
+
+
+          binaries = []
+          if PACKAGES:
+              args = []
+              for p in PACKAGES:
+                  if p not in SKIP:
+                      args += ["-p", p]
+              if args:
+                  binaries += build(args, repo)
+          if PROBES:
+              binaries += build([], os.path.join(repo, "tools", "r2-probes"))
+          seen = set()
+          binaries = [b for b in binaries if not (b[2] in seen or seen.add(b[2]))]
+          binaries.sort(key=lambda b: (b[0], b[1]))
+          say(f"LOOP binaries: {len(binaries)} of packages {' '.join(sorted({b[0] for b in binaries}))}")
+
+          tmp_root = os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()
+          real_tmp = tempfile.gettempdir()
+          loop_tmp = tempfile.mkdtemp(prefix="loop-tmp-", dir=tmp_root)
+          target_tmps = sorted({os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(b[2]))), "tmp") for b in binaries})
+          target_before = {t: entries(t) for t in target_tmps}
+          real_before = entries(real_tmp)
+          env = dict(os.environ, TMPDIR=loop_tmp, TMP=loop_tmp, TEMP=loop_tmp)
+
+          red = False
+          not_run = []
+          for package, target, exe, manifest in binaries:
+              if time.monotonic() - started > DEADLINE_S:
+                  not_run.append(f"{package}/{target}")
+                  continue
+              run_env = dict(env, CARGO_MANIFEST_DIR=manifest, CARGO_PKG_NAME=package)
+              passed = failed = 0
+              first_fail = {}
+              fail_count = {}
+              rounds = ROUNDS
+              t0 = time.monotonic()
+              cut = None
+              r = 0
+              while r < rounds:
+                  r += 1
+                  if time.monotonic() - started > DEADLINE_S:
+                      cut = r - 1
+                      break
+                  r0 = time.monotonic()
+                  try:
+                      out = subprocess.run([exe], cwd=manifest, env=run_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=RUN_LIMIT_S)
+                      code, text = out.returncode, out.stdout.decode("utf-8", "replace")
+                  except subprocess.TimeoutExpired as e:
+                      code, text = "timeout", (e.output or b"").decode("utf-8", "replace")
+                  if r == 1 and time.monotonic() - r0 > SLOW_S and ROUNDS > SLOW_ROUNDS:
+                      rounds = SLOW_ROUNDS
+                      say(f"LOOP slow {package}/{target}: first run {time.monotonic() - r0:.1f} s, so {SLOW_ROUNDS} rounds")
+                  if code == 0:
+                      passed += 1
+                      continue
+                  failed += 1
+                  names = failures(text) or [f"(binary exit {code})"]
+                  for name in names:
+                      fail_count[name] = fail_count.get(name, 0) + 1
+                      if name not in first_fail:
+                          first_fail[name] = r
+                          say(f"LOOP failed {package}/{target} {name} first in round {r} (exit {code}); its output:")
+                          say(section(text, name))
+              seconds = time.monotonic() - t0
+              say(f"LOOP {package}/{target}: rounds {passed + failed} passed {passed} failed {failed} seconds {seconds:.1f}" + (f" CUT at round {cut} by the deadline" if cut is not None else ""))
+              for name, count in sorted(fail_count.items()):
+                  say(f"LOOP failing test {package}/{target} {name}: failed {count} of {passed + failed}, first in round {first_fail[name]}")
+              if failed or cut is not None:
+                  red = True
+
+          for t in target_tmps:
+              after = entries(t)
+              new = after - target_before[t]
+              by_word = {}
+              for name in new:
+                  key = re.sub(r"-[0-9].*$", "", name)
+                  by_word[key] = by_word.get(key, 0) + 1
+              ours = len([n for n in new if word_of(n)])
+              red = red or ours > 0
+              say(f"LOOP target tmp {os.path.relpath(t, repo)}: entries before {len(target_before[t])} after {len(after)} new {len(new)}, of them made by the unit's helpers {ours}; new by word: {sorted(by_word.items())}")
+          left = entries(loop_tmp)
+          mine = sorted(n for n in left if word_of(n))
+          red = red or bool(mine)
+          say(f"LOOP system temp of the loop: entries left {len(left)}, of them made by the unit's helpers {len(mine)}")
+          real_new = entries(real_tmp) - real_before
+          red = red or any(word_of(n) for n in real_new)
+          say(f"LOOP system temp of the runner: new entries {len(real_new)}, of them made by the unit's helpers {len([n for n in real_new if word_of(n)])}")
+          if not_run:
+              red = True
+              say(f"LOOP not run, the deadline passed: {' '.join(not_run)}")
+          say(f"LOOP seconds {time.monotonic() - started:.0f}")
+          sys.exit(1 if red else 0)
+          LOOPEOF
+          py=$(command -v python || command -v python3)
+          "$py" "$RUNNER_TEMP/loop.py"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +312,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-schema
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 20-schema
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -187,6 +348,208 @@ jobs:
             *"Co-Authored-By: Probe"*) ;;
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
+      - name: Loop of this run's test binaries (scratch)
+        shell: bash
+        env:
+          LOOP_DEADLINE_S: "4200"
+          LOOP_PACKAGES: "halvo-schema-core halvo-schema halvo-redact"
+          LOOP_PROBES: "0"
+        run: |
+          cat >"$RUNNER_TEMP/loop.py" <<'LOOPEOF'
+          import json
+          import re
+          import os
+          import subprocess
+          import sys
+          import tempfile
+          import time
+
+          ROUNDS = int(os.environ.get("LOOP_ROUNDS", "200"))
+          SLOW_ROUNDS = int(os.environ.get("LOOP_SLOW_ROUNDS", "20"))
+          SLOW_S = 2.0
+          DEADLINE_S = float(os.environ.get("LOOP_DEADLINE_S", "3600"))
+          RUN_LIMIT_S = 600
+          OUTPUT_LIMIT = 4000
+          PACKAGES = os.environ.get(
+              "LOOP_PACKAGES",
+              "halvo-schema-core halvo-schema halvo-seam halvo-redact halvo-derived halvo-cap",
+          ).split()
+          SKIP = set(os.environ.get("LOOP_SKIP_PACKAGES", "").split())
+          PROBES = os.environ.get("LOOP_PROBES", "1") == "1"
+          WORDS = [
+              "export-names-",
+              "golden-export-names-",
+              "golden-leaf-",
+              "r4-golden-",
+              "r4-export-names-",
+              "r4-names-leaf-",
+              "r5-export-names-",
+              "r5-names-leaf-",
+              "r2-probes-",
+          ]
+          repo = os.getcwd()
+          started = time.monotonic()
+
+
+          def say(line):
+              print(line, flush=True)
+
+
+          def build(args, cwd):
+              out = subprocess.run(
+                  ["cargo", "test", "--locked", "--no-run", "--message-format=json"] + args,
+                  cwd=cwd,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              )
+              if out.returncode != 0:
+                  say(f"LOOP build failed: cargo exited {out.returncode} in {os.path.relpath(cwd, repo)}")
+                  sys.exit(1)
+              found = []
+              for line in out.stdout.splitlines():
+                  try:
+                      msg = json.loads(line)
+                  except ValueError:
+                      continue
+                  if msg.get("reason") != "compiler-artifact" or not msg.get("profile", {}).get("test"):
+                      continue
+                  exe = msg.get("executable")
+                  if not exe:
+                      continue
+                  manifest = os.path.dirname(msg["manifest_path"])
+                  found.append((os.path.basename(manifest), msg["target"]["name"], exe, manifest))
+              return found
+
+
+          def entries(path):
+              try:
+                  return set(os.listdir(path))
+              except FileNotFoundError:
+                  return set()
+
+
+          def word_of(name):
+              for word in WORDS:
+                  if name.startswith(word):
+                      return word
+              return None
+
+
+          def failures(text):
+              names = []
+              for line in text.splitlines():
+                  line = line.rstrip("\r")
+                  if line.startswith("test ") and line.endswith(" ... FAILED"):
+                      names.append(line[5:-11])
+              return names
+
+
+          def section(text, name):
+              lines = text.replace("\r", "").split("\n")
+              head = f"---- {name} stdout ----"
+              if head not in lines:
+                  return text[-OUTPUT_LIMIT:]
+              i = lines.index(head)
+              j = i + 1
+              while j < len(lines) and not lines[j].startswith("---- ") and lines[j] != "failures:":
+                  j += 1
+              return "\n".join(lines[i:j])[:OUTPUT_LIMIT]
+
+
+          binaries = []
+          if PACKAGES:
+              args = []
+              for p in PACKAGES:
+                  if p not in SKIP:
+                      args += ["-p", p]
+              if args:
+                  binaries += build(args, repo)
+          if PROBES:
+              binaries += build([], os.path.join(repo, "tools", "r2-probes"))
+          seen = set()
+          binaries = [b for b in binaries if not (b[2] in seen or seen.add(b[2]))]
+          binaries.sort(key=lambda b: (b[0], b[1]))
+          say(f"LOOP binaries: {len(binaries)} of packages {' '.join(sorted({b[0] for b in binaries}))}")
+
+          tmp_root = os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()
+          real_tmp = tempfile.gettempdir()
+          loop_tmp = tempfile.mkdtemp(prefix="loop-tmp-", dir=tmp_root)
+          target_tmps = sorted({os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(b[2]))), "tmp") for b in binaries})
+          target_before = {t: entries(t) for t in target_tmps}
+          real_before = entries(real_tmp)
+          env = dict(os.environ, TMPDIR=loop_tmp, TMP=loop_tmp, TEMP=loop_tmp)
+
+          red = False
+          not_run = []
+          for package, target, exe, manifest in binaries:
+              if time.monotonic() - started > DEADLINE_S:
+                  not_run.append(f"{package}/{target}")
+                  continue
+              run_env = dict(env, CARGO_MANIFEST_DIR=manifest, CARGO_PKG_NAME=package)
+              passed = failed = 0
+              first_fail = {}
+              fail_count = {}
+              rounds = ROUNDS
+              t0 = time.monotonic()
+              cut = None
+              r = 0
+              while r < rounds:
+                  r += 1
+                  if time.monotonic() - started > DEADLINE_S:
+                      cut = r - 1
+                      break
+                  r0 = time.monotonic()
+                  try:
+                      out = subprocess.run([exe], cwd=manifest, env=run_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=RUN_LIMIT_S)
+                      code, text = out.returncode, out.stdout.decode("utf-8", "replace")
+                  except subprocess.TimeoutExpired as e:
+                      code, text = "timeout", (e.output or b"").decode("utf-8", "replace")
+                  if r == 1 and time.monotonic() - r0 > SLOW_S and ROUNDS > SLOW_ROUNDS:
+                      rounds = SLOW_ROUNDS
+                      say(f"LOOP slow {package}/{target}: first run {time.monotonic() - r0:.1f} s, so {SLOW_ROUNDS} rounds")
+                  if code == 0:
+                      passed += 1
+                      continue
+                  failed += 1
+                  names = failures(text) or [f"(binary exit {code})"]
+                  for name in names:
+                      fail_count[name] = fail_count.get(name, 0) + 1
+                      if name not in first_fail:
+                          first_fail[name] = r
+                          say(f"LOOP failed {package}/{target} {name} first in round {r} (exit {code}); its output:")
+                          say(section(text, name))
+              seconds = time.monotonic() - t0
+              say(f"LOOP {package}/{target}: rounds {passed + failed} passed {passed} failed {failed} seconds {seconds:.1f}" + (f" CUT at round {cut} by the deadline" if cut is not None else ""))
+              for name, count in sorted(fail_count.items()):
+                  say(f"LOOP failing test {package}/{target} {name}: failed {count} of {passed + failed}, first in round {first_fail[name]}")
+              if failed or cut is not None:
+                  red = True
+
+          for t in target_tmps:
+              after = entries(t)
+              new = after - target_before[t]
+              by_word = {}
+              for name in new:
+                  key = re.sub(r"-[0-9].*$", "", name)
+                  by_word[key] = by_word.get(key, 0) + 1
+              ours = len([n for n in new if word_of(n)])
+              red = red or ours > 0
+              say(f"LOOP target tmp {os.path.relpath(t, repo)}: entries before {len(target_before[t])} after {len(after)} new {len(new)}, of them made by the unit's helpers {ours}; new by word: {sorted(by_word.items())}")
+          left = entries(loop_tmp)
+          mine = sorted(n for n in left if word_of(n))
+          red = red or bool(mine)
+          say(f"LOOP system temp of the loop: entries left {len(left)}, of them made by the unit's helpers {len(mine)}")
+          real_new = entries(real_tmp) - real_before
+          red = red or any(word_of(n) for n in real_new)
+          say(f"LOOP system temp of the runner: new entries {len(real_new)}, of them made by the unit's helpers {len([n for n in real_new if word_of(n)])}")
+          if not_run:
+              red = True
+              say(f"LOOP not run, the deadline passed: {' '.join(not_run)}")
+          say(f"LOOP seconds {time.monotonic() - started:.0f}")
+          sys.exit(1 if red else 0)
+          LOOPEOF
+          py=$(command -v python || command -v python3)
+          "$py" "$RUNNER_TEMP/loop.py"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
