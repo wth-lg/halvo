@@ -52,6 +52,15 @@ impl Drop for WriterLock {
     }
 }
 
+/// How an open keys the database: by the host's key in every build, or by none in a build with the cargo feature
+/// `test-host` alone, so that a test reads the bytes of the rows in the files.
+#[derive(Clone, Copy)]
+pub(crate) enum Keying<'k> {
+    Key(&'k DbKey),
+    #[cfg(feature = "test-host")]
+    Keyless,
+}
+
 pub(crate) struct Paths {
     pub(crate) db: PathBuf,
     pub(crate) wal: PathBuf,
@@ -423,7 +432,7 @@ impl Drop for Db {
 impl Db {
     pub(crate) fn open(
         data_dir: &Path,
-        key: &DbKey,
+        keying: Keying<'_>,
         entries: &[&'static KindEntry],
         clock: Box<dyn Clock>,
         sink: Option<ReportSink>,
@@ -438,7 +447,11 @@ impl Db {
         let mut conn = Connection::open(&paths.db).map_err(|e| OpenError::Fault(db_fault(e)))?;
         conn.busy_timeout(Duration::ZERO)
             .map_err(|e| OpenError::Fault(db_fault(e)))?;
-        set_key(&conn, key)?;
+        match keying {
+            Keying::Key(key) => set_key(&conn, key)?,
+            #[cfg(feature = "test-host")]
+            Keying::Keyless => {}
+        }
         pragma(&conn, "PRAGMA locking_mode = EXCLUSIVE;")?;
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)

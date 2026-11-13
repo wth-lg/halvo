@@ -11,8 +11,42 @@ use halvo_schema_core::record::{Workflow, WorkflowState};
 use halvo_schema_core::request::{InterfaceRead, ReplyResult};
 use serde::Serialize;
 
-use crate::error::Error;
+use halvo_schema_core::kinds::KindEntry;
+
+use crate::db::Keying;
+use crate::error::{Error, OpenError};
+use crate::host::{Host, IdSource};
 use crate::read::ReadHandle;
+use crate::Store;
+
+/// Opens the store under `<data_dir>/derived/` as `Store::open` does, with every setting and every check of the
+/// product, secure delete, the write-ahead log and its truncating checkpoint among them, and with no key: the files
+/// hold the rows as SQLite writes them, so that a test can search their bytes for what a row held. A database that a
+/// key made is refused as `OpenError::Sealed`. Only a build with the cargo feature `test-host` has it.
+pub fn open_keyless(
+    data_dir: &Path,
+    entries: &[&'static KindEntry],
+    host: Host,
+    ids: &mut dyn IdSource,
+) -> Result<Store, OpenError> {
+    Store::open_keyed(data_dir, Keying::Keyless, entries, host, ids)
+}
+
+/// The delete of everything that the derived store holds: it drops `store`, so that the store's connection closes
+/// before its writer lock is released, and then removes the directory `derived/` of the store with every file in
+/// it, the database, its write-ahead log, its shared-memory file, the writer lock and the key file among them. It
+/// returns the error of the removal, after which a part of the directory may be left.
+pub fn delete_all(store: Store) -> std::io::Result<()> {
+    let dir = store
+        .db
+        .paths
+        .db
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or(ErrorKind::NotFound)?;
+    drop(store);
+    std::fs::remove_dir_all(dir)
+}
 
 /// One stream of an export: its stream id and a handle of the interface-read role on its database.
 pub struct Stream<'s> {

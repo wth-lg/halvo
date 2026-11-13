@@ -115,7 +115,7 @@ pub use report::{Counts, Report};
 pub use state::{HeldRefusal, MoveTo};
 pub use typed::Rows;
 
-use db::Db;
+use db::{Db, Keying};
 
 /// The derived store, open. It holds the writer lock of `derived/` and the exclusive lock of its database until it
 /// is dropped.
@@ -155,6 +155,16 @@ impl Store {
         host: Host,
         ids: &mut dyn IdSource,
     ) -> Result<Store, OpenError> {
+        Store::open_keyed(data_dir, Keying::Key(key), entries, host, ids)
+    }
+
+    pub(crate) fn open_keyed(
+        data_dir: &Path,
+        keying: Keying<'_>,
+        entries: &[&'static KindEntry],
+        host: Host,
+        ids: &mut dyn IdSource,
+    ) -> Result<Store, OpenError> {
         let families = host
             .steps
             .iter()
@@ -169,7 +179,7 @@ impl Store {
                 return Err(OpenError::Family(family));
             }
         }
-        let db = Db::open(data_dir, key, entries, host.clock, host.report, ids)?;
+        let db = Db::open(data_dir, keying, entries, host.clock, host.report, ids)?;
         Ok(Store {
             db,
             recurrence: host.recurrence,

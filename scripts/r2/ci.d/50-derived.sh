@@ -137,6 +137,7 @@ esac
 #= tests/past_bound.rs the_interface_read_leaves_rows_past_their_bound_out_of_summaries_and_evidence_pages
 #= tests/past_bound.rs a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_request
 #= tests/startup.rs stores_opened_at_once_on_many_threads_of_a_new_process_all_open
+#= tests/privacy.rs privacy_scrub
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
