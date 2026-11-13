@@ -218,9 +218,10 @@ impl<C: Connector> Client<C> {
     }
 
     fn status_reply(&self, request: Request) -> Result<DaemonStatus, ClientError> {
-        match self.call(request)? {
-            Reply::Status(status) | Reply::CaptureChanged(status) => Ok(status),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+        let changes_capture = matches!(request, Request::Pause | Request::Resume);
+        match (changes_capture, self.call(request)?) {
+            (false, Reply::Status(status)) | (true, Reply::CaptureChanged(status)) => Ok(status),
+            (_, other) => Err(ClientError::UnexpectedReply { kind: other.kind() }),
         }
     }
 
@@ -791,6 +792,46 @@ mod tests {
         daemon.set_inventory(sample_inventory(sections));
         let (client, _) = client(daemon);
         assert_eq!(daemon_error(client.inventory()), ErrorCode::Internal);
+    }
+
+    #[test]
+    fn pause_and_resume_take_capture_changed_alone_and_the_reads_take_status_alone() {
+        let status = || sample_status(Platform::Macos);
+        let with = |reply: Reply| {
+            let mut daemon = ScriptedDaemon::new(status());
+            daemon.set_raw_reply(framed(&crate::proto::encode_reply(&reply)));
+            client(daemon).0
+        };
+        let plain = with(Reply::Status(status()));
+        assert!(matches!(
+            plain.pause(),
+            Err(ClientError::UnexpectedReply { kind: "status" })
+        ));
+        assert!(matches!(
+            plain.resume(),
+            Err(ClientError::UnexpectedReply { kind: "status" })
+        ));
+        let changed = with(Reply::CaptureChanged(status()));
+        assert!(matches!(
+            changed.status(),
+            Err(ClientError::UnexpectedReply {
+                kind: "capture_changed"
+            })
+        ));
+        assert!(matches!(
+            changed.status_claiming_the_indicator(),
+            Err(ClientError::UnexpectedReply { .. })
+        ));
+        assert!(matches!(
+            changed.acknowledge_lost_permission(Permission::Accessibility),
+            Err(ClientError::UnexpectedReply { .. })
+        ));
+        assert!(matches!(
+            changed.permission_asked(Permission::Accessibility),
+            Err(ClientError::UnexpectedReply { .. })
+        ));
+        assert!(changed.pause().is_ok());
+        assert!(plain.status().is_ok());
     }
 
     #[test]
