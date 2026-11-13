@@ -105,14 +105,29 @@ pub struct GuardAct {
     /// The file names of the programs of those members.
     pub left_programs: Vec<String>,
     /// Why the record was written: `act` at the ask, `tree_gone` once no member ran,
-    /// `left_unmarked` at `LEFT_CAP`.
+    /// `left_unmarked` at `LEFT_CAP`; with no act, `untimed` or `table_unread` at the guard's end
+    /// (CP-186 S4).
     pub cause: &'static str,
+    /// Whether the guard asked or ended anything, or left a member at an ask or forced end.
+    pub acted: bool,
 }
 
 impl GuardAct {
     /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..
-    /// executor_untimed=.. left=.. left_programs=.. cause=..`.
+    /// executor_untimed=.. left=.. left_programs=.. cause=..` once the guard acted; before that,
+    /// `guard_read executor_untimed=.. cause=..`, which says that nothing was ended (CP-186 S4).
     pub fn line(&self) -> String {
+        if !self.acted {
+            return format!(
+                "guard_read executor_untimed={} cause={}",
+                self.untimed,
+                if self.cause.is_empty() {
+                    "-"
+                } else {
+                    self.cause
+                }
+            );
+        }
         let names = |v: &[String]| {
             if v.is_empty() {
                 "-".to_string()
@@ -363,6 +378,10 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             let now = now_ms();
             let since = *unread_since.get_or_insert(now);
             if now.saturating_sub(since) >= UNREAD_CAP.as_millis() {
+                if !acted && act.untimed > 0 {
+                    act.cause = "table_unread";
+                    record(&act);
+                }
                 eprintln!("guard_end cause=table_unread");
                 return 3;
             }
@@ -393,6 +412,10 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             }
             let since = *gone_at.get_or_insert(now);
             if now.saturating_sub(since) >= margin {
+                if !acted && act.untimed > 0 {
+                    act.cause = "untimed";
+                    record(&act);
+                }
                 return 0;
             }
             pause(false);
@@ -414,6 +437,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 act.asked = asked;
                 act.forced = forced;
                 act.cause = "left_unmarked";
+                act.acted = true;
                 record(&act);
                 eprintln!(
                     "guard_end cause=left_unmarked running={} programs={}",
@@ -456,6 +480,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                         asked_at = Some(now);
                         act.asked = asked;
                         act.cause = "act";
+                        act.acted = true;
                         record(&act);
                     }
                     Some(at) if now.saturating_sub(at) >= TERM_WAIT.as_millis() => {
@@ -1383,6 +1408,31 @@ mod tests {
         assert!(last
             .line()
             .ends_with("left=1 left_programs=Mail cause=left_unmarked"));
+    }
+
+    /// CP-186 S4: the count of reads in which the executor's row had no creation time reaches the
+    /// guard's record also when the guard never acted, in a line that says nothing was ended.
+    #[test]
+    fn s4_the_untimed_count_reaches_the_record_when_the_guard_never_acted() {
+        let (code, _, ends, record) = run_windows(executor(50), 20, &|t, _| {
+            let mut v = Vec::new();
+            if t < 1_000 {
+                v.push(untimed(Some(OWN)));
+            }
+            if t < 500 {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+        let record = record.expect("a record of the untimed reads");
+        assert!(!record.acted);
+        assert_eq!(record.untimed, 25);
+        assert_eq!(
+            record.line(),
+            "guard_read executor_untimed=25 cause=untimed"
+        );
     }
 
     /// CP-185 (9), fifth case: the guard's entry refuses a start without the run's profile or the
