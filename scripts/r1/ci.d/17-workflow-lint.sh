@@ -97,7 +97,48 @@ EOF
       if (timed == 1) good++
       job = ""
     }
+    function past(line, i, c,    n, d) {
+      for (n = length(line); i <= n; i++) {
+        d = substr(line, i, 1)
+        if (c == "\"" && d == "\\") i++
+        else if (d == c && c == q && substr(line, i + 1, 1) == q) i++
+        else if (d == c) return i
+      }
+      return 0
+    }
+    function scan(line,    i, n, c, nx, start, prev, after, tok, keycol) {
+      n = length(line); i = 1; start = 1; prev = " "
+      if (quote != "") {
+        i = past(line, 1, quote)
+        if (!i) return
+        quote = ""; start = 0; after = 1; prev = q; i++
+      }
+      for (; i <= n; i++) {
+        c = substr(line, i, 1); nx = substr(line, i + 1, 1)
+        if (c ~ /[ \t]/) { prev = " "; continue }
+        if (c == "#" && prev == " ") return
+        prev = c
+        if (start && (c == "\"" || c == q)) {
+          tok = i; i = past(line, i + 1, c)
+          if (!i) { quote = c; return }
+          start = 0; after = 1; continue
+        }
+        if (c == ":" && (after || nx == "" || nx ~ /[ \t]/ || (depth && nx ~ /[],}]/))) { if (!depth) keycol = tok; start = 1; after = 0; continue }
+        if (start && (c == "-" || c == "?") && (nx == "" || nx ~ /[ \t]/)) { if (!depth) keycol = i; continue }
+        if (start && (c == "[" || c == "{")) { depth++; continue }
+        if (depth && (c == "]" || c == "}")) { depth--; start = 0; after = 1; continue }
+        if (depth && c == ",") { start = 1; after = 0; continue }
+        if (start && !depth && (c == "|" || c == ">")) { block = keycol ? keycol : i; return }
+        if (start && (c == "&" || c == "!")) { while (i < n && substr(line, i + 1, 1) !~ /[ \t]/) i++; continue }
+        if (start) { start = 0; tok = i }
+        after = 0
+      }
+    }
     BEGIN { key = "^[\"" q "]?jobs[\"" q "]?[[:space:]]*:" }
+    { inside = quote != "" }
+    block && /[^ \t]/ && match($0, /[^ \t]/) <= block { block = 0 }
+    !block { scan($0) }
+    inside { next }
     in_jobs && /^[^[:space:]#]/ { finish(); in_jobs = 0 }
     $0 ~ key { blocks++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) inline = 1; in_jobs = 1; next }
     in_jobs && /^  [^[:space:]#]/ { finish(); job = $0; sub(/^  /, "", job); sub(/[[:space:]]*:.*$/, "", job); gsub(q, "", job); gsub(/"/, "", job); timed = 0; next }
@@ -286,6 +327,38 @@ EOF
   check explicit-uses-key FAIL 'keys in the explicit form of YAML'
   tree explicit-job-permissions "7s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
   check explicit-job-permissions FAIL 'keys in the explicit form of YAML'
+  tree timeout-in-a-double-quoted-name "8s/.*/    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
+  check timeout-in-a-double-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-single-quoted-name "8s/.*/    name: 'macos\\${nl}    timeout-minutes: 30\\${nl}    '/"
+  check timeout-in-a-single-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree longer-timeout-beside-a-quoted-name "8s/30/600/;8s/\$/\\${nl}    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
+  check longer-timeout-beside-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-after-an-escaped-double-quote "8s/.*/    name: \"say \\\\\"hi\\${nl}    timeout-minutes: 30\\${nl}    \"/"
+  check timeout-after-an-escaped-double-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-after-a-doubled-single-quote "8s/.*/    name: 'it''s\\${nl}    timeout-minutes: 30\\${nl}    '/"
+  check timeout-after-a-doubled-single-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-after-a-hash-in-a-quoted-name "8s/.*/    name: \"macos #\\${nl}    timeout-minutes: 30\\${nl}    \"/"
+  check timeout-after-a-hash-in-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-tagged-quoted-name "8s/.*/    name: !!str \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
+  check timeout-in-a-tagged-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-quoted-flow-value "8s/.*/    env: { NAME: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \" }/"
+  check timeout-in-a-quoted-flow-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-json-like-flow-value "8s/.*/    env: {\"NAME\":\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
+  check timeout-in-a-json-like-flow-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-quoted-item-of-a-flow-list-over-lines "8s/.*/    strategy: { matrix: { os: [a,\\${nl}      b, \"c\\${nl}    timeout-minutes: 30\\${nl}    \"] } }/"
+  check timeout-in-a-quoted-item-of-a-flow-list-over-lines FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-quoted-step-value "8d;10s/.*/      - run: \"true\\${nl}    timeout-minutes: 30\\${nl}      \"/"
+  check timeout-in-a-quoted-step-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-in-a-step-name-after-a-run-block "8d;10s/.*/      - run: |\\${nl}          true\\${nl}        name: \"step\\${nl}    timeout-minutes: 30\\${nl}        \"/"
+  check timeout-in-a-step-name-after-a-run-block FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree job-in-a-quoted-name "8s/\$/\\${nl}    name: \"macos\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30\\${nl}    \"/;11,15d"
+  check job-in-a-quoted-name FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos)'
+  tree quotes-that-close-on-their-line "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"/;12s/\$/\\${nl}    name: it's windows, \"one # 'two/"
+  check quotes-that-close-on-their-line PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree quoted-names-over-two-lines-before-the-timeout "7s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;12s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
+  check quoted-names-over-two-lines-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree run-block-with-an-open-quote "10s/\$/\\${nl}      - run: |\\${nl}          printf '%s' \"x: 'y\"/"
+  check run-block-with-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
