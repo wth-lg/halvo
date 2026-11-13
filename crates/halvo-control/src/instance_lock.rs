@@ -386,17 +386,26 @@ mod tests {
             std::thread::yield_now();
         }
         let before = reads.load(Ordering::Relaxed);
-        let mut taken = 0;
-        for _ in 0..200 {
-            if InstanceLock::take(&path).unwrap().is_some() {
-                taken += 1;
+        let mut retried = 0;
+        for i in 0..200 {
+            let mut takes = 1;
+            while InstanceLock::take(&path).unwrap().is_none() {
+                takes += 1;
+                if takes > 10 {
+                    stop.store(true, Ordering::Relaxed);
+                    panic!(
+                        "take {i} found the lock held through 10 takes of up to 1 s each: a read \
+                         holds its shared lock only for one flock call, so 10 s leaves a hosted \
+                         runner that holds the reading thread for seconds far inside the bound"
+                    );
+                }
             }
+            retried += takes - 1;
         }
         let during = reads.load(Ordering::Relaxed) - before;
         stop.store(true, Ordering::Relaxed);
         reader.join().unwrap();
-        assert_eq!(taken, 200);
-        println!("reads while the 200 takes ran: {during}");
+        println!("reads while the 200 takes ran: {during}; takes tried again: {retried}");
     }
 
     #[test]

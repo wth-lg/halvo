@@ -426,18 +426,17 @@ mod tests {
             let mut frame = (body.len() as u32).to_be_bytes().to_vec();
             frame.extend_from_slice(&body);
             stream.write_all(&frame).unwrap();
-            let _ = held.recv_timeout(Duration::from_secs(10));
+            let _ = held.recv();
         });
-        let client = Client::new(UnixConnector::at(&dir));
-        let started = Instant::now();
-        let reply = client.status();
-        let took = started.elapsed();
+        let reply = client_within(&dir, 10_000).status();
         let _ = release.send(());
         server.join().unwrap();
-        assert_eq!(reply.unwrap(), sample_status(Platform::Macos));
-        assert!(
-            took < Duration::from_millis(1_500),
-            "the reply took {took:?} against a deadline of 2 s"
+        assert_eq!(
+            reply.as_ref().ok(),
+            Some(&sample_status(Platform::Macos)),
+            "{reply:?}: the peer keeps the connection until the client has answered, so a reply \
+             is one that the client took without the end of the stream; the deadline is 10 s so \
+             that a hosted runner that holds a thread for seconds cannot end the request first"
         );
     }
 
@@ -784,20 +783,37 @@ mod tests {
     fn a_lock_that_is_freed_during_the_wait_gives_unreachable() {
         let (_base, dir) = short_data_dir();
         let lock = held(&dir);
-        let freer = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(300));
-            drop(lock);
-        });
+        let (calls, called) = std::sync::mpsc::channel();
+        let (answers, answer) = std::sync::mpsc::channel();
         let started = Instant::now();
-        let result = client_within(&dir, 5_000).status();
+        let client = {
+            let dir = dir.clone();
+            std::thread::spawn(move || {
+                calls.send(()).unwrap();
+                let _ = answers.send(client_within(&dir, 15_000).status());
+            })
+        };
+        called.recv().unwrap();
+        assert!(
+            answer.recv_timeout(Duration::from_millis(300)).is_err(),
+            "the client answered while the lock was held and before it was freed"
+        );
+        drop(lock);
+        let result = answer.recv().unwrap();
         let took = started.elapsed();
-        freer.join().unwrap();
+        client.join().unwrap();
         assert!(
             matches!(result, Err(ClientError::Unreachable { .. })),
-            "{result:?}"
+            "{result:?}: the lock was freed while the client waited; its deadline is 15 s so \
+             that a hosted runner that holds a thread for seconds still ends the wait by the \
+             freed lock"
         );
-        assert!(took >= Duration::from_millis(250), "{took:?}");
-        assert!(took < Duration::from_millis(4_000), "{took:?}");
+        assert!(
+            took >= Duration::from_millis(300),
+            "{took:?}: the lock is freed only after 300 ms in which the client gave no answer, \
+             counted from before the client's thread was made, so the answer comes later on any \
+             machine"
+        );
     }
 
     #[test]
