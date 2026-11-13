@@ -320,20 +320,32 @@ fn replace_with_temp(
     std::fs::File::open(dir)?.sync_all()
 }
 
+/// What a remove of the login item did: its file's outcome, and the error of the sweep of
+/// the temporary files of dead installs when that sweep failed.
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct LoginItemRemoval {
+    pub outcome: RemoveOutcome,
+    pub sweep: Option<std::io::Error>,
+}
+
 /// Takes the login item's file away, then the temporary files of dead installs. An error
-/// of that sweep is returned after the file is gone.
+/// of the file's removal is the error of the call; an error of the sweep is reported beside
+/// the outcome, so that a removed login item reads as removed.
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
-) -> std::io::Result<RemoveOutcome> {
-    let removed = match std::fs::remove_file(login_item_path(spec, dir)) {
+) -> std::io::Result<LoginItemRemoval> {
+    let outcome = match std::fs::remove_file(login_item_path(spec, dir)) {
         Ok(()) => RemoveOutcome::Removed,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => RemoveOutcome::Absent,
         Err(e) => return Err(e),
     };
-    remove_temp_files_of_dead_installs(spec, dir)?;
-    Ok(removed)
+    Ok(LoginItemRemoval {
+        outcome,
+        sweep: remove_temp_files_of_dead_installs(spec, dir).err(),
+    })
 }
 
 pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -849,7 +861,7 @@ mod login_item_tests {
             LoginItemState::Stale
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Removed
         );
         assert_eq!(
@@ -857,7 +869,7 @@ mod login_item_tests {
             LoginItemState::Absent
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Absent
         );
     }
@@ -964,7 +976,7 @@ mod login_item_tests {
             InstallOutcome::Written
         );
         assert_eq!(
-            remove_login_item(&spec, &dir).unwrap(),
+            remove_login_item(&spec, &dir).unwrap().outcome,
             RemoveOutcome::Removed
         );
         assert!(!login_item_path(&spec, &dir).exists());
@@ -979,14 +991,46 @@ mod login_item_tests {
         let dir = agents(home.path());
         let spec = login_item();
         install_login_item(&spec, &dir).unwrap();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
-        let removed = remove_login_item(&spec, &dir);
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let removed = {
+            let _back = ModeFor::set(dir.path(), 0o555, 0o755);
+            remove_login_item(&spec, &dir)
+        };
         assert_eq!(
-            removed.map_err(|e| e.kind()),
+            removed.map(|r| r.outcome).map_err(|e| e.kind()),
             Err(std::io::ErrorKind::PermissionDenied)
         );
         assert!(login_item_path(&spec, &dir).exists());
+    }
+
+    struct ModeFor<'a> {
+        path: &'a Path,
+        back: u32,
+    }
+
+    impl<'a> ModeFor<'a> {
+        fn set(path: &'a Path, mode: u32, back: u32) -> Self {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+            Self { path, back }
+        }
+    }
+
+    impl Drop for ModeFor<'_> {
+        fn drop(&mut self) {
+            let _ = std::fs::set_permissions(self.path, std::fs::Permissions::from_mode(self.back));
+        }
+    }
+
+    #[test]
+    fn a_mode_set_for_a_test_is_put_back_when_the_test_panics() {
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("d");
+        std::fs::create_dir(&dir).unwrap();
+        let unwound = std::panic::catch_unwind(|| {
+            let _back = ModeFor::set(&dir, 0o300, 0o755);
+            panic!("a panic inside the call");
+        });
+        assert!(unwound.is_err());
+        assert_eq!(mode(&dir), 0o755);
     }
 
     #[test]
@@ -996,13 +1040,15 @@ mod login_item_tests {
         let dir = agents(home.path());
         let spec = login_item();
         install_login_item(&spec, &dir).unwrap();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o300)).unwrap();
-        let removed = remove_login_item(&spec, &dir);
-        let left = login_item_path(&spec, &dir).exists();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let (removed, left) = {
+            let _back = ModeFor::set(dir.path(), 0o300, 0o755);
+            let removed = remove_login_item(&spec, &dir).unwrap();
+            (removed, login_item_path(&spec, &dir).exists())
+        };
+        assert_eq!(removed.outcome, RemoveOutcome::Removed);
         assert_eq!(
-            removed.map_err(|e| e.kind()),
-            Err(std::io::ErrorKind::PermissionDenied)
+            removed.sweep.map(|e| e.kind()),
+            Some(std::io::ErrorKind::PermissionDenied)
         );
         assert!(!left, "the login item stayed");
     }

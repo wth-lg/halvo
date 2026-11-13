@@ -1317,6 +1317,13 @@ mod tests {
     }
 
     #[test]
+    fn an_observation_window_without_one_of_its_keys_is_refused() {
+        every_key_is_read::<ObservationWindow>(
+            &serde_json::json!({"rolling_days": 14, "first_report_day": 7}),
+        );
+    }
+
+    #[test]
     fn an_instant_writes_and_reads_the_utc_form_with_a_z() {
         for (seconds, text) in [
             (0, "1970-01-01T00:00:00Z"),
