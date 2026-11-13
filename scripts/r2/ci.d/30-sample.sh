@@ -108,7 +108,11 @@ measure() {
   g=$head/golden
   cargo build --locked -q -p halvo-sample
   record cargo-build "$?"
-  bin=$CI_D_REPO/target/debug/halvo-sample
+  case ${CARGO_TARGET_DIR:-} in
+    '') bin=$CI_D_REPO/target/debug/halvo-sample ;;
+    /* | [A-Za-z]:*) bin=$CARGO_TARGET_DIR/debug/halvo-sample ;;
+    *) bin=$CI_D_REPO/$CARGO_TARGET_DIR/debug/halvo-sample ;;
+  esac
   [ -f "$bin.exe" ] && bin=$bin.exe
   sample build --seed 1 --out "$work/golden" "$g/script.jsonl" "$g/marked.jsonl" >"$CI_D_ARTIFACTS/golden-build.txt"
   record golden-build "$?"
