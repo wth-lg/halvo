@@ -17,7 +17,7 @@ mod wired;
 
 pub use attention::Attention;
 pub use bell::Bell;
-pub use handler::{handler, MAIN, REFUSED};
+pub use handler::{handler, handler_with, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;

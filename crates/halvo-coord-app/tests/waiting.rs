@@ -1,12 +1,13 @@
 mod support;
 
 use halvo_coord::types::{Action, Limits, RunEvent};
-use halvo_coord_app::{on_window_event, Close, Core, Hub, Waits, CLOSE};
+use halvo_coord_app::{on_window_event, Close, Core, Hub, Reply, Waits, CLOSE};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
-use support::{agent, app, fixture, invoke, started, world, Counts, Dialogs, Shared};
+use support::{agent, app, fixture, invoke, invoke_body, started, world, Counts, Dialogs, Shared};
+use tauri::ipc::InvokeBody;
 use tauri::test::MockRuntime;
 use tauri::{WebviewWindow, WindowEvent};
 
@@ -26,7 +27,7 @@ fn hub(agents: usize, next: u64, coalesce: u64) -> Arc<Hub<Shared>> {
         Dialogs::default().boxed(),
         waits,
     );
-    hub.coordinator().tick();
+    Core::tick(&*hub);
     hub
 }
 
@@ -259,9 +260,8 @@ fn a_waiting_next_answers_one_coalesce_after_the_change_and_not_later() {
     let after = changed.elapsed();
     assert!(
         after >= ms(1_000) && after < ms(3_000),
-        "point 1 of draft-rulings-u41-gates.md waits for a ruling: as built, a call that waits \
-         answers coalesce_ms (2 s here) after the first change that it sees; it answered {after:?} \
-         after the change"
+        "RD-74 point 1: a call that waits answers coalesce_ms (2 s here) after the first change \
+         that it sees; it answered {after:?} after the change"
     );
     assert!(seq_of(&reply) > u64::from(seq));
 }
@@ -278,37 +278,132 @@ fn a_next_with_no_change_answers_after_next_wait_and_not_later() {
     assert_eq!(reply, fixture("reply-next-same"));
 }
 
-const PIN: &str =
-    "draft-rulings-u41-gates.md waits for a ruling; this test pins what the head does today";
-
 #[test]
-fn pin_point_2_a_next_whose_arguments_do_not_fit_answers_the_whole_state_at_once() {
-    let hub = hub(1, 4_000, 2_000);
-    let (_app, main, _other) = app(hub.clone());
-    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
-    hub.hidden();
-    for _ in 0..2 {
-        let start = Instant::now();
-        let reply = invoke(&main, "agents_next", json!({"after": "x"}));
-        let took = start.elapsed();
-        assert_eq!(
-            reply,
-            Ok(state.clone()),
-            "point 2 of {PIN}: the whole state, also while the window is hidden"
-        );
-        assert!(
-            took < ms(1_000),
-            "point 2 of {PIN}: at once, with no coalescing: {took:?}"
-        );
-    }
-}
-
-#[test]
-fn pin_point_4_a_next_whose_after_is_above_the_seq_answers_the_whole_state_at_once() {
+fn a_next_whose_after_is_above_the_seq_answers_the_whole_state_at_once() {
     let hub = hub(1, 4_000, 2_000);
     let (_app, main, _other) = app(hub.clone());
     let seq = hub.coordinator().snapshot().seq;
     let (reply, took) = wait_next(&main, seq + 5).join().unwrap();
-    assert_eq!(seq_of(&reply), u64::from(seq), "point 4 of {PIN}");
-    assert!(took < ms(1_000), "point 4 of {PIN}: at once: {took:?}");
+    assert_eq!(
+        seq_of(&reply),
+        u64::from(seq),
+        "RD-74 point 4: the whole state when its seq is not after"
+    );
+    assert!(took < ms(1_000), "RD-74 point 4: at once: {took:?}");
+}
+
+fn a_next_that_does_not_fit(body: impl Fn() -> InvokeBody) {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
+    hub.hidden();
+    assert_eq!(
+        invoke_body(&main, "agents_next", body()),
+        Ok(fixture("reply-closed")),
+        "hidden, as a call with after 0"
+    );
+    hub.shown();
+    let first = Instant::now();
+    assert_eq!(invoke_body(&main, "agents_next", body()), Ok(state.clone()));
+    assert!(first.elapsed() < ms(1_000), "{:?}", first.elapsed());
+    let second = Instant::now();
+    assert_eq!(invoke_body(&main, "agents_next", body()), Ok(state));
+    let took = second.elapsed();
+    assert!(
+        took >= ms(1_000) && took < ms(3_000),
+        "a second such call answers one coalesce (2 s) after the first: {took:?}"
+    );
+}
+
+#[test]
+fn a_next_whose_after_is_no_number_is_answered_as_after_0() {
+    a_next_that_does_not_fit(|| InvokeBody::Json(json!({"after": "x"})));
+}
+
+#[test]
+fn a_next_with_no_after_is_answered_as_after_0() {
+    a_next_that_does_not_fit(|| InvokeBody::Json(json!({})));
+}
+
+#[test]
+fn a_next_with_an_extra_key_is_answered_as_after_0() {
+    a_next_that_does_not_fit(|| InvokeBody::Json(json!({"after": 1, "extra": 1})));
+}
+
+#[test]
+fn a_next_whose_body_is_no_json_is_answered_as_after_0() {
+    a_next_that_does_not_fit(|| InvokeBody::Raw(b"{}".to_vec()));
+}
+
+#[test]
+fn before_its_first_tick_the_hub_answers_the_stand_in_and_a_waiting_next_the_first_state() {
+    let hub = Hub::with_waits(
+        world(1, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+        Waits {
+            next: ms(4_000),
+            coalesce: ms(2_000),
+        },
+    );
+    let stand_in = format!(
+        r#"{{"seq":0,"rows":[],"items":[],"note":{}}}"#,
+        serde_json::to_string(&halvo_coord::words::text("note.no_service", &[]).unwrap()).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_string(&hub.call("agents_snapshot", Some(&json!({})))).unwrap(),
+        stand_in
+    );
+    hub.hidden();
+    assert_eq!(
+        serde_json::to_string(&hub.call("agents_next", Some(&json!({"after": 0})))).unwrap(),
+        fixture("reply-closed"),
+        "the hide rule holds before the first tick"
+    );
+    hub.shown();
+    let waiting = {
+        let hub = hub.clone();
+        std::thread::spawn(move || {
+            let start = Instant::now();
+            let reply = hub.call("agents_next", Some(&json!({"after": 0})));
+            (reply, start.elapsed())
+        })
+    };
+    sleep(ms(500));
+    assert!(!waiting.is_finished(), "it waits for the first tick");
+    hub.tick();
+    let (reply, took) = waiting.join().unwrap();
+    assert_eq!(reply, Reply::Snapshot(hub.coordinator().snapshot()));
+    assert!(serde_json::to_value(&reply).unwrap()["seq"].as_u64() >= Some(1));
+    assert!(
+        took < ms(2_500),
+        "answered after the tick, not at the deadline: {took:?}"
+    );
+    assert_eq!(
+        hub.call("agents_snapshot", Some(&json!({}))),
+        Reply::Snapshot(hub.coordinator().snapshot())
+    );
+}
+
+#[test]
+fn a_hub_whose_first_tick_never_comes_answers_next_with_the_stand_in_at_its_wait() {
+    let hub = Hub::with_waits(
+        world(1, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+        Waits {
+            next: ms(1_500),
+            coalesce: ms(100),
+        },
+    );
+    let start = Instant::now();
+    let reply = hub.call("agents_next", Some(&json!({"after": 3})));
+    assert!(start.elapsed() >= ms(1_400), "{:?}", start.elapsed());
+    assert_eq!(
+        serde_json::to_value(&reply).unwrap()["seq"],
+        json!(0),
+        "the stand-in's seq"
+    );
 }

@@ -17,7 +17,7 @@ fn hub(agents: usize) -> std::sync::Arc<Hub<support::Shared>> {
         Counts::default().sink(),
         Dialogs::default().boxed(),
     );
-    hub.coordinator().tick();
+    Core::tick(&*hub);
     hub
 }
 
@@ -476,32 +476,101 @@ fn every_name_of_the_list_with_arguments_that_fit_is_answered_other_than_malform
     );
 }
 
-const PIN: &str =
-    "draft-rulings-u41-gates.md waits for a ruling; this test pins what the head does today";
+fn stand_in() -> String {
+    format!(
+        r#"{{"seq":0,"rows":[],"items":[],"note":{}}}"#,
+        serde_json::to_string(&halvo_coord::words::text("note.no_service", &[]).unwrap()).unwrap()
+    )
+}
 
-#[test]
-fn pin_point_3_main_before_agents_is_managed_is_refused_and_a_fresh_hub_answers_seq_1() {
-    let bare = tauri::test::mock_builder()
-        .invoke_handler(halvo_coord_app::handler())
+/// A mock app with the handler of `next` milliseconds of wait and the windows main and other,
+/// which manages no Agents.
+fn bare(
+    next: u64,
+) -> (
+    tauri::App<tauri::test::MockRuntime>,
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+) {
+    let app = tauri::test::mock_builder()
+        .invoke_handler(halvo_coord_app::handler_with(halvo_coord_app::Waits {
+            next: std::time::Duration::from_millis(next),
+            coalesce: std::time::Duration::from_millis(100),
+        }))
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
-    let main = tauri::WebviewWindowBuilder::new(&bare, "main", Default::default())
+    let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
         .build()
         .unwrap();
-    assert_eq!(
-        invoke(&main, "agents_snapshot", json!({})),
-        Err(json!(REFUSED)),
-        "point 3 of {PIN}: rejected with the text REFUSED"
-    );
+    let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+        .build()
+        .unwrap();
+    (app, main, other)
+}
+
+#[test]
+fn the_seq_of_a_new_coordinator_is_at_least_1() {
     let fresh = Hub::new(
         world(1, Limits::PRODUCT),
         Limits::PRODUCT,
         Counts::default().sink(),
         Dialogs::default().boxed(),
     );
+    assert!(fresh.coordinator().snapshot().seq >= 1);
+    Core::tick(&*fresh);
+    assert!(fresh.coordinator().snapshot().seq >= 1);
+}
+
+#[test]
+fn before_agents_is_managed_another_window_is_refused_and_main_gets_the_stand_in_or_a_cause() {
+    let (_app, main, other) = bare(1_000);
+    for command in LIST.iter().map(|c| c.name) {
+        assert_eq!(
+            invoke(&other, command, args_of(command)),
+            Err(json!(REFUSED)),
+            "{command} from the window other"
+        );
+    }
+    assert_eq!(invoke(&main, "agents_snapshot", json!({})), Ok(stand_in()));
+    let causes = [
+        ("agents_card", "no_service"),
+        ("agents_answer", "no_service"),
+        ("agents_setup_typed", "unknown_item"),
+        ("agents_present", "no_service"),
+        ("agents_control", "no_service"),
+    ];
+    for (command, cause) in causes {
+        assert_eq!(
+            invoke(&main, command, args_of(command)),
+            Ok(fixture(&format!("reply-error-{cause}"))),
+            "{command}"
+        );
+    }
+}
+
+#[test]
+fn before_agents_is_managed_a_next_is_held_and_answers_the_stand_in_at_its_wait() {
+    let (_app, main, _other) = bare(1_500);
+    let start = std::time::Instant::now();
+    let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 1})));
+    std::thread::sleep(std::time::Duration::from_millis(1_000));
+    assert!(!waiting.is_finished(), "no answer inside a second");
+    assert_eq!(waiting.join().unwrap(), Ok(stand_in()));
+    assert!(start.elapsed() >= std::time::Duration::from_millis(1_400));
+}
+
+#[test]
+fn a_held_next_is_handed_to_the_hub_once_the_app_manages_agents() {
+    let (app, main, _other) = bare(10_000);
+    let start = std::time::Instant::now();
+    let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 0})));
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let hub = hub(1);
+    tauri::Manager::manage(&app, halvo_coord_app::Agents(hub.clone()));
+    let reply = waiting.join().unwrap();
     assert_eq!(
-        serde_json::to_string(&Core::call(&*fresh, "agents_snapshot", Some(&json!({})))).unwrap(),
-        r#"{"seq":1,"rows":[],"items":[],"note":null}"#,
-        "point 3 of {PIN}: before the first tick"
+        reply,
+        Ok(serde_json::to_string(&hub.coordinator().snapshot()).unwrap())
     );
+    assert!(start.elapsed() < std::time::Duration::from_millis(5_000));
 }

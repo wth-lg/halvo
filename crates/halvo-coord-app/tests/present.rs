@@ -26,7 +26,7 @@ fn confirming_with(class: Class, present: Box<dyn Present>) -> (Arc<Hub<Shared>>
         present,
     );
     let c = hub.coordinator();
-    c.tick();
+    Core::tick(&*hub);
     c.control(&agent(0), Action::RunNow).unwrap();
     let run = started(&hub).pop().unwrap();
     c.on_run(&run, RunEvent::Hello).unwrap();

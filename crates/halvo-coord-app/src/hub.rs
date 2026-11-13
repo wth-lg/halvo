@@ -10,9 +10,10 @@ use halvo_coord::types::{
     Action, AgentId, Card, Cause, Choice, ClosedReply, ConfigView, ErrorReply, ItemId, Limits,
     OkReply, Param, Snapshot, YesNo,
 };
-use halvo_coord::Coordinator;
+use halvo_coord::{words, Coordinator};
 use serde::{Serialize, Serializer};
 use serde_json::Value;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
@@ -52,9 +53,13 @@ impl From<Result<(), Cause>> for Reply {
     }
 }
 
-/// The waits of the waiting call (I8.2): the longest wait of one `agents_next`, after which it
-/// answers the old `seq` with empty lists, and the time inside which changes reach the page as
-/// one reply, which is also the least time between two replies that carry a state.
+/// The waits of each waiting call of `agents_next` (I8.2, ruling RD-74 point 1). A call whose
+/// `after` is not the state's `seq` when it comes is answered at once, but no sooner than
+/// `coalesce` after the last reply of `agents_next` with a state that the hub had sent when the
+/// call looked. A call that waits is answered `coalesce` after the first change that it sees,
+/// with the state that the coordinator holds then. After `next` with no change it answers its
+/// own `after` with empty lists and no note, and reads the state no second time. Two calls that
+/// wait at once each get their reply.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Waits {
     /// `next_wait_s`.
@@ -78,10 +83,16 @@ impl Waits {
 pub trait Core: Send + Sync {
     /// Runs the command of `LIST` named `command` with the arguments of its call, which are
     /// none when the call's body is no JSON; the reply of every refusal is
-    /// `{"error":"<cause>"}`, so the call never fails. A command that `LIST` gives no error
-    /// cause, `agents_snapshot` and `agents_next`, is never refused: with arguments that do not
-    /// fit the list it answers the whole state at once. A name outside `LIST` answers
-    /// `{"error":"malformed"}`.
+    /// `{"error":"<cause>"}`, so the call never fails. A name outside `LIST` answers
+    /// `{"error":"malformed"}`. `agents_snapshot` and `agents_next`, to which `LIST` gives no
+    /// error cause, are never refused (ruling RD-74 point 2): `agents_snapshot` answers the
+    /// state whatever its arguments, and a call of `agents_next` whose arguments do not fit
+    /// (an `after` that is no count, no `after`, an extra key or a body that is no JSON) is
+    /// answered as a call with `after` 0, so that it is closed while the window is hidden and
+    /// bound by `Waits` while it is shown. Until the first `tick` has returned (ruling RD-74
+    /// point 3), `agents_snapshot` answers the stand-in state, `seq` 0 with empty lists and the
+    /// note `note.no_service`, without taking the coordinator's lock, and `agents_next` waits
+    /// for that return within its wait and under the hide rule, and else answers the stand-in.
     fn call(&self, command: &str, args: Option<&Value>) -> Reply;
 
     /// The hook of the window `main` shown: from now on `agents_next` waits again.
@@ -96,7 +107,8 @@ pub trait Core: Send + Sync {
     fn destroyed(&self);
 
     /// The hook of the app's start and of each pass of the status poller: one tick of the
-    /// coordinator (I5.9), whose first tick recovers the life (I5.8).
+    /// coordinator (I5.9), whose first tick recovers the life (I5.8). After its first return it
+    /// rings the bell, so that a waiting `agents_next` answers the first state.
     fn tick(&self);
 
     /// The hook before the capture run's quit function sends its pause (I5.7, I5.9, ruling
@@ -168,7 +180,18 @@ pub struct Agents(pub Arc<dyn Core>);
 
 type Cfg<P> = <P as Owner>::Config;
 
-const LOOK: Duration = Duration::from_millis(100);
+pub(crate) const LOOK: Duration = Duration::from_millis(100);
+
+/// The stand-in state of I8.1 (ruling RD-74 3.1): `seq` 0, the `seq` of no state, empty lists
+/// and the note `note.no_service`, which the page reads while no coordinator can serve it.
+pub(crate) fn stand_in() -> Snapshot {
+    Snapshot {
+        seq: 0,
+        rows: Vec::new(),
+        items: Vec::new(),
+        note: words::text("note.no_service", &[]).ok(),
+    }
+}
 
 /// The coordinator of the app over its ports `P`, the bell of its page and tray, and the waits
 /// of the waiting call.
@@ -181,6 +204,7 @@ pub struct Hub<P: Owner> {
     open: Arc<Mutex<Vec<ItemId>>>,
     me: Weak<Hub<P>>,
     grace: Duration,
+    ticked: AtomicBool,
 }
 
 impl<P> Hub<P>
@@ -222,6 +246,7 @@ where
             open: Arc::new(Mutex::new(Vec::new())),
             me: me.clone(),
             grace: Duration::from_secs(limits.cancel_grace_s),
+            ticked: AtomicBool::new(false),
         })
     }
 
@@ -234,7 +259,7 @@ where
         let item = || ItemId::parse(args.text("item"));
         let agent = || AgentId::parse(args.text("agent"));
         Some(match command {
-            "agents_snapshot" => Reply::Snapshot(self.coord.snapshot()),
+            "agents_snapshot" => self.snapshot(),
             "agents_next" => self.next(args.count("after")?),
             "agents_card" => match agent().and_then(|a| self.coord.card(&a)) {
                 Ok(card) => Reply::Card(card),
@@ -294,6 +319,14 @@ where
         Ok(())
     }
 
+    fn snapshot(&self) -> Reply {
+        if self.ticked.load(Ordering::SeqCst) {
+            Reply::Snapshot(self.coord.snapshot())
+        } else {
+            Reply::Snapshot(stand_in())
+        }
+    }
+
     fn next(&self, after: u32) -> Reply {
         let entry = self.bell.mark();
         let deadline = Instant::now() + self.waits.next;
@@ -305,6 +338,13 @@ where
                 return Reply::Closed;
             }
             let now = Instant::now();
+            if !self.ticked.load(Ordering::SeqCst) {
+                if now >= deadline {
+                    return Reply::Snapshot(stand_in());
+                }
+                seen = self.bell.wait(seen, deadline);
+                continue;
+            }
             if due.is_none() && self.coord.next(after) != Next::Same {
                 let from = if first {
                     now
@@ -323,7 +363,14 @@ where
                     }
                     due = None;
                 }
-                None if now >= deadline => return Reply::Snapshot(self.coord.same()),
+                None if now >= deadline => {
+                    return Reply::Snapshot(Snapshot {
+                        seq: after,
+                        rows: Vec::new(),
+                        items: Vec::new(),
+                        note: None,
+                    })
+                }
                 _ => {}
             }
             seen = self.bell.wait(seen, due.unwrap_or(deadline));
@@ -348,7 +395,8 @@ where
             Ok(args) => self
                 .run(found.name, &args)
                 .unwrap_or(Reply::Error(Cause::Malformed)),
-            Err(_) if found.errors.is_empty() => Reply::Snapshot(self.coord.snapshot()),
+            Err(_) if found.name == "agents_next" => self.next(0),
+            Err(_) if found.errors.is_empty() => self.snapshot(),
             Err(cause) => Reply::Error(cause),
         }
     }
@@ -367,6 +415,9 @@ where
 
     fn tick(&self) {
         self.coord.tick();
+        if !self.ticked.swap(true, Ordering::SeqCst) {
+            self.bell.ring();
+        }
     }
 
     fn quit(&self, budget: Option<Duration>) {
