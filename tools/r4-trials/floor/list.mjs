@@ -19,7 +19,7 @@ export const FLOOR = '17.0';
 const NAME = /^[a-z0-9_]{1,32}$/;
 const VERSION = /^[0-9]+(?:\.[0-9]+){0,2}$/;
 const EVAL = /\b(?:eval|Function)\s*\(/;
-const SOURCE = /^# https:\/\/\S+.*, Safari ([0-9]+(?:\.[0-9]+){0,2}) of ([0-9]{4}-[0-9]{2}-[0-9]{2})$/;
+const SOURCE = /^# https:\/\/\S+.*, Safari ([0-9]+(?:\.[0-9]+){0,2}) of (\S+)$/;
 const LANGUAGE = new Set(['true', 'false', 'null', 'undefined', 'NaN', 'Infinity', 'typeof', 'void', 'new', 'in', 'instanceof',
   'delete', 'function', 'return', 'var', 'let', 'const', 'if', 'else', 'this']);
 
