@@ -2397,6 +2397,18 @@ fn pointer_moves_coalesce() {
             &events.drain_for(Duration::from_millis(1500)),
             Modality::Pointer,
         );
+        std::thread::sleep(Duration::from_millis(300));
+        let coalesced_before = pointer.handoff_counts().coalesced;
+        let mut segment_sent = send(&[mouse_move(3, 0)]);
+        std::thread::sleep(Duration::from_millis(10));
+        segment_sent += send(&[wheel_notch()]);
+        std::thread::sleep(Duration::from_millis(10));
+        segment_sent += send(&[mouse_move(-3, 0)]);
+        let segment = count(
+            &events.drain_for(Duration::from_millis(700)),
+            Modality::Pointer,
+        );
+        let segment_coalesced = pointer.handoff_counts().coalesced - coalesced_before;
         let _ = pointer.shutdown();
         let counts = pointer.handoff_counts();
         let accepted = first + second;
@@ -2405,7 +2417,8 @@ fn pointer_moves_coalesce() {
             format!(
                 "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted} \
                  sendinput_wheel_events_accepted={wheel} pointer_events={pointers} \
-                 coalesced={} lost={}",
+                 coalesced={} lost={} move_notch_move_accepted={segment_sent} \
+                 move_notch_move_events={segment} move_notch_move_coalesced={segment_coalesced}",
                 show(&start),
                 counts.coalesced,
                 counts.lost,
@@ -2426,6 +2439,15 @@ fn pointer_moves_coalesce() {
             pointers as u64 + counts.coalesced,
             u64::from(accepted) + 1,
             "the wheel packet inside the burst is not its own pointer event"
+        );
+        assert_eq!(
+            segment_sent, 3,
+            "INCONCLUSIVE: SendInput did not insert the move, the notch and the move"
+        );
+        assert_eq!(
+            (segment, segment_coalesced),
+            (3, 0),
+            "a wheel notch 10 ms after a move and 10 ms before the next was folded into the motion sample"
         );
     });
 }
@@ -2642,13 +2664,20 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             })
             .expect("spawn the stop thread");
         std::thread::sleep(Duration::from_millis(200));
+        let mut before_release = 0u64;
+        while let Ok(received) = writer.try_recv() {
+            if received.event().modality == Modality::Keystroke {
+                before_release += 1;
+            }
+        }
         drop(held);
         let outcome = returned.recv_timeout(Duration::from_secs(5));
         let events = forward(writer);
-        let delivered = count(
-            &events.drain_for(Duration::from_secs(1)),
-            Modality::Keystroke,
-        ) as u64;
+        let delivered = before_release
+            + count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            ) as u64;
         let (stopped, lost) = match &outcome {
             Ok((stopped, lost)) => (format!("{stopped:?}"), *lost),
             Err(e) => (format!("no answer ({e:?})"), 0),
@@ -2657,6 +2686,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             "queued-at-stop",
             format!(
                 "keyboard_start={} presses=5 sendinput_key_events_accepted={accepted} \
+                 keystrokes_before_the_release={before_release} \
                  stop={stopped} keystrokes_delivered={delivered} lost={lost} \
                  neither_delivered_nor_counted={}",
                 show(&start),
@@ -2668,6 +2698,10 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         assert_eq!(
             accepted, 10,
             "INCONCLUSIVE: SendInput did not insert every key event"
+        );
+        assert_eq!(
+            before_release, 0,
+            "the hold did not take: keystrokes reached the sink before the hold was released, so this run shows nothing about input queued at a stop"
         );
         assert!(
             matches!(outcome, Ok((Ok(()), _))),
