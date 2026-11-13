@@ -2102,6 +2102,50 @@ mod tests {
         }
     }
 
+    /// A frame of version 2 whose body holds in `x` arrays nested so that the frame nests
+    /// `levels` deep, each object and each array counted, the frame's own object among them.
+    fn version_2_nested(levels: usize) -> Vec<u8> {
+        let arrays = levels - 2;
+        let mut frame = br#"{"v":2,"body":{"x":"#.to_vec();
+        for _ in 0..arrays {
+            frame.push(b'[');
+        }
+        for _ in 0..arrays {
+            frame.push(b']');
+        }
+        frame.extend_from_slice(b"}}");
+        frame
+    }
+
+    #[test]
+    fn a_frame_of_another_version_is_unsupported_version_only_when_the_decoder_reads_all_of_it() {
+        let code = |frame: &[u8]| decode_request(frame).unwrap_err().code();
+        assert_eq!(code(&version_2_nested(127)), ErrorCode::UnsupportedVersion);
+        assert_eq!(
+            code(&version_2_nested(128)),
+            ErrorCode::InvalidArgument,
+            "one level deeper than the 127 that the decoder reads"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e300}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e400}}"#),
+            ErrorCode::InvalidArgument,
+            "a number outside a 64-bit float"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800\udc00"}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800"}}"#),
+            ErrorCode::InvalidArgument,
+            "a lone surrogate escape"
+        );
+    }
+
     /// The sample status as JSON, with `store`, `store_error` and `store_retry_in_s` set.
     fn status_json_with_store(store: &str, error: &str, retry: u64) -> serde_json::Value {
         let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
