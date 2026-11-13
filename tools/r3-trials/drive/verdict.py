@@ -382,7 +382,7 @@ def self_test():
         ("the token synthetic", good + ["attempt model=synthetic machine=mac task=bill seed=1 kind=compile i=1 pass=no steps=0 wall_s=0 tokens_in=0 tokens_out=0"]),
         ("the token none", good + ["reply model=none machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1"]),
         ("a drive line of the token none", good + ["drive model=none machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
-        ("bodies above 2", [l.replace("bodies=2 of=2", "bodies=20 of=2") if l.startswith("reply model=m_a machine=mac seed=1 ") else l for l in good]),
+        ("bodies above 2", [l.replace("bodies=2 of=2", "bodies=20 of=2") if l.startswith("reply model=m_a machine=mac seed=1 ") else l.replace("pass=yes steps=0", "pass=no steps=0") if l.startswith("attempt model=m_a machine=mac task=reply seed=1 ") else l for l in good]),
         ("a drive line of the task reply", good + ["drive model=m_a machine=mac task=reply seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
     ]
     for name, body in bad_cases:
@@ -400,7 +400,8 @@ def self_test():
                 if run(full("m_a", (machine, task, seed, miss))) != "verdict driver=none path=B writer=m_a":
                     lost_one += 1
     expect("one missed cell of the twelve takes the driver out", lost_one, 0)
-    expect("bodies are a count, not a first letter", writes("m_a", {(m, s): {"bodies": "20"} for m in MACHINES for s in SEEDS}), False)
+    expect("bodies are a count, not a first letter", writes("m_a", {("m_a", m, s): {"bodies": "20"} for m in MACHINES for s in SEEDS}), False)
+    expect("bodies of 2 on every line write", writes("m_a", {("m_a", m, s): {"bodies": "2"} for m in MACHINES for s in SEEDS}), True)
     cells = "```text\nbound x\nverdict candidates=m_a,m_b\n```\n"
 
     def call(lines, argv):
