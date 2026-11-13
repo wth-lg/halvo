@@ -2620,17 +2620,40 @@ stopped/kind body
                     serde_json::from_value::<DaemonStatus>(unmarked).is_ok(),
                     "{platform:?} {capture:?} without the mark"
                 );
-                let marked =
-                    serde_json::from_value::<DaemonStatus>(json_with_mark(fields, Some(first)));
+                let marked = serde_json::from_value::<DaemonStatus>(json_with_mark(
+                    fields.clone(),
+                    Some(first),
+                ));
                 if matches!(
                     capture,
                     Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume
                 ) {
+                    let refused = Err("the status does not hold together: paused, no_indicator and awaiting_resume have no source that a stop did not end".to_string());
                     assert_eq!(
                         marked.map(|_| ()).map_err(|e| e.to_string()),
-                        Err("the status does not hold together: paused, no_indicator and awaiting_resume have no source that a stop did not end".to_string()),
+                        refused,
                         "{platform:?} {capture:?}"
                     );
+                    for read in [SourceState::Off, SourceState::Stopped { by_user: false }] {
+                        let line = fields
+                            .sources
+                            .iter()
+                            .find(|l| l.state == read)
+                            .map(|l| l.name)
+                            .unwrap_or_else(|| {
+                                panic!("{platform:?} {capture:?}: no line reads {read:?}")
+                            });
+                        let marked = serde_json::from_value::<DaemonStatus>(json_with_mark(
+                            fields.clone(),
+                            Some(line),
+                        ));
+                        assert_eq!(
+                            marked.map(|_| ()).map_err(|e| e.to_string()),
+                            refused,
+                            "{platform:?} {capture:?}, the mark on the {} line, which reads {read:?}",
+                            line.as_str()
+                        );
+                    }
                 } else {
                     assert!(marked.is_ok(), "{platform:?} {capture:?}: {marked:?}");
                 }
