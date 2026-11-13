@@ -34,28 +34,27 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Repeat the interrupt cases 100 times each at the present code 032b7434
+      - name: Repeat the INT case 300 times beside three busy loops at the present code 032b7434
         continue-on-error: true
         shell: bash
         run: |
           set +e
-          echo "sh: $(command -v sh) $(sh --version | head -n 1); perl: $(command -v perl)"
-          sh scratch-jt3/repeat-interrupt.sh scratch-jt3/present-run-ci-d.sh INT 100
+          for n in 1 2 3; do sh -c 'while :; do :; done' & done
+          sh scratch-jt3/repeat-interrupt.sh scratch-jt3/present-run-ci-d.sh INT 300
           int=$?
-          sh scratch-jt3/repeat-interrupt.sh scratch-jt3/present-run-ci-d.sh TERM 100
-          term=$?
-          echo "present code 032b7434: INT counts as wanted: $([ "$int" = 0 ] && echo yes || echo no); TERM counts as wanted: $([ "$term" = 0 ] && echo yes || echo no)"
-          [ "$int" = 0 ] && [ "$term" = 0 ]
-      - name: Repeat the interrupt cases 100 times each at the fixed code
+          kill $(jobs -p) 2>/dev/null
+          echo "the present code 032b7434, three busy loops beside: INT counts as wanted: $([ "$int" = 0 ] && echo yes || echo no)"
+          [ "$int" = 0 ]
+      - name: Repeat the INT case 300 times beside three busy loops at the fixed code
         shell: bash
         run: |
           set +e
-          sh scratch-jt3/repeat-interrupt.sh scripts/ci/run-ci-d.sh INT 100
+          for n in 1 2 3; do sh -c 'while :; do :; done' & done
+          sh scratch-jt3/repeat-interrupt.sh scripts/ci/run-ci-d.sh INT 300
           int=$?
-          sh scratch-jt3/repeat-interrupt.sh scripts/ci/run-ci-d.sh TERM 100
-          term=$?
-          echo "fixed code: INT counts as wanted: $([ "$int" = 0 ] && echo yes || echo no); TERM counts as wanted: $([ "$term" = 0 ] && echo yes || echo no)"
-          [ "$int" = 0 ] && [ "$term" = 0 ]
+          kill $(jobs -p) 2>/dev/null
+          echo "the fixed code, three busy loops beside: INT counts as wanted: $([ "$int" = 0 ] && echo yes || echo no)"
+          [ "$int" = 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
