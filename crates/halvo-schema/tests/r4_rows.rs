@@ -362,7 +362,10 @@ fn r4_rows_a_start_of_the_scheduler_with_a_null_slot_is_refused() {
     let refusal = CoordEvent::parse(text.as_bytes()).expect_err(
         "I5.3 and I7.1: a start by the scheduler is for a slot, and run_started schedule with a null slot is taken",
     );
-    assert_eq!((refusal.key(), refusal.rule()), (Some("slot"), "no_slot"));
+    assert_eq!(
+        (refusal.type_name(), refusal.key(), refusal.rule()),
+        ("CoordEvent", Some("slot"), "no_slot")
+    );
     let log = format!(
         r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{text}]}}"#
     );
