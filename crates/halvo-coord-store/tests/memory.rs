@@ -128,6 +128,43 @@ fn a_step_that_returns_a_coord_event_is_refused() {
 }
 
 #[test]
+fn every_step_runs_after_a_batch() {
+    let mut store = store()
+        .with_step(Box::new(Returns(Vec::new())))
+        .with_step(Box::new(Returns(vec![typed(row(1, TODAY))])));
+    assert_eq!(store.after_batch(), Err(CommitRefused::OwnFromStep));
+    assert!(rows(&store).is_empty());
+}
+
+#[test]
+fn the_read_hands_out_a_row_two_days_ahead_and_not_three() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    assert_eq!(Host::commit(&mut store, vec![typed(row(1, TODAY))]), Ok(()));
+    clock.set(noon(TODAY - 2));
+    assert_eq!(rows(&store), [row(1, TODAY)]);
+    clock.set(noon(TODAY - 3));
+    assert!(rows(&store).is_empty());
+    clock.set(noon(TODAY));
+    assert_eq!(rows(&store), [row(1, TODAY)]);
+}
+
+#[test]
+fn the_read_hands_out_no_row_past_its_bound() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    assert_eq!(
+        Host::commit(
+            &mut store,
+            vec![typed(row(1, TODAY - 92)), typed(row(2, TODAY))]
+        ),
+        Ok(())
+    );
+    clock.set(noon(TODAY + 1));
+    assert_eq!(rows(&store), [row(2, TODAY)]);
+    clock.set(noon(TODAY + 93));
+    assert!(rows(&store).is_empty());
+}
+
+#[test]
 fn expiry_keeps_92_days_back() {
     let (mut store, clock) = store_at(noon(TODAY), 0);
     assert_eq!(

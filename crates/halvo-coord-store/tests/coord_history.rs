@@ -122,6 +122,22 @@ fn the_stored_last_is_that_of_the_rows_that_stand() {
 }
 
 #[test]
+fn the_read_leaves_out_rows_past_their_bound_with_no_expiry() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    fill(&mut store, 3);
+    clock.set(noon(TODAY + 93));
+    assert_eq!(read(&mut store, None), Ok((vec![], 0)));
+    assert_eq!(
+        coordinator(&mut store, &log(&[row(4, TODAY + 93)])),
+        Err(declared("seq"))
+    );
+    assert_eq!(
+        coordinator(&mut store, &log(&[row(1, TODAY + 93)])),
+        stored(1)
+    );
+}
+
+#[test]
 fn takes_the_keys_of_the_body_in_any_order() {
     let mut store = store();
     fill(&mut store, 1);

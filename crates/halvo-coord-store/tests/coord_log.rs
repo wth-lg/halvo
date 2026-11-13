@@ -253,3 +253,70 @@ fn a_cancelled_lapse_of_an_item_that_no_run_holds_is_stored() {
     );
     assert_eq!(send(&mut store, &[raised, lapsed]), stored(2));
 }
+
+const EAST: i64 = 5 * 3_600;
+
+#[test]
+fn a_negative_at_is_refused_east_of_utc() {
+    let (mut store, _) = store_at(at(10, 3_600, EAST), EAST);
+    assert_eq!(
+        send(&mut store, &[hold_set(1, 1, 1, 0, -1)]),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
+}
+
+#[test]
+fn a_negative_at_is_refused_west_of_utc() {
+    let (mut store, _) = store_at(at(10, 3_600, WEST), WEST);
+    assert_eq!(
+        send(&mut store, &[hold_set(1, 1, 1, 0, -1)]),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
+}
+
+#[test]
+fn a_negative_at_in_the_second_record_refuses_the_body() {
+    let (mut store, _) = store_at(at(10, 3_600, EAST), EAST);
+    let first = hold_set(1, 1, 1, 10, at(10, 1_800, EAST));
+    assert_eq!(
+        send(&mut store, &[first.clone(), hold_set(1, 1, 2, 0, -1)]),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
+    assert_eq!(send(&mut store, &[first]), stored(1));
+}
+
+#[test]
+fn the_reply_of_a_stored_body_is_the_count() {
+    let mut store = store();
+    let one = send(&mut store, &[row(1, TODAY)]).expect("stored");
+    assert_eq!(one.to_json().expect("written"), r#"{"stored":1}"#);
+    let eight: Vec<String> = (2..=9).map(|n| row(n, TODAY)).collect();
+    let reply = send(&mut store, &eight).expect("stored");
+    assert_eq!(reply.to_json().expect("written"), r#"{"stored":8}"#);
+}
+
+#[test]
+fn the_day_tie_comes_before_the_seq_check() {
+    let mut store = store();
+    assert_eq!(send(&mut store, &[row(1, TODAY), row(2, TODAY)]), stored(2));
+    let stale_and_off_day = hold_set(1, 1, 1, TODAY - 1, noon(TODAY));
+    assert_eq!(
+        send(&mut store, &[stale_and_off_day]),
+        Err(ErrorName::Malformed)
+    );
+    assert_eq!(rows(&store).len(), 2);
+}
+
+#[test]
+fn an_op_of_neither_body_stores_nothing() {
+    let mut store = store();
+    let body = log_body(1, 1, &[row(1, TODAY)]).replacen("coord_log", "coord_delete", 1);
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &body)),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
+}

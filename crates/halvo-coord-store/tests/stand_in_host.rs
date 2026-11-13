@@ -91,6 +91,33 @@ fn a_stored_row_that_the_reader_refuses_is_store() {
 }
 
 #[test]
+fn one_unreadable_row_of_another_agent_is_store_for_every_agent() {
+    let mut readable = store();
+    assert_eq!(
+        Host::commit(
+            &mut readable,
+            vec![typed(row(1, TODAY)), typed(row(2, TODAY))]
+        ),
+        Ok(())
+    );
+    let theirs = hold_set(2, 2, 1, TODAY, noon(TODAY)).replacen(r#""v":1"#, r#""v":2"#, 1);
+    let mut host = StandIn {
+        store: readable,
+        extra: vec![theirs],
+        refusal: None,
+    };
+    assert_eq!(
+        coordinator(&mut host, &log(&[row(3, TODAY)])),
+        Err(ErrorName::Store)
+    );
+    assert_eq!(
+        coordinator(&mut host, &history(None)),
+        Err(ErrorName::Store)
+    );
+    assert_eq!(rows(&host.store).len(), 2);
+}
+
+#[test]
 fn two_stored_rows_of_one_seq_are_store() {
     let mut host = stand_in(vec![row(1, TODAY), row(1, TODAY)], None);
     assert_eq!(

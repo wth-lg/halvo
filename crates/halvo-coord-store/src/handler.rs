@@ -36,23 +36,32 @@ fn declared(name: &str) -> ErrorName {
 }
 
 /// Answers one request of the owner whose body is a coordinator body of the interface run (contracts.md I7.2,
-/// I7.3): the reply, or the error name of the first check that refuses it. A refused request stores nothing.
+/// I7.3): the reply, or the error name of the first check that refuses it. A refused request stores nothing. The
+/// checks run in this order, and the first that refuses answers:
 ///
-/// - Any request that is not a `coordinator_write` is `role`, whatever its body.
-/// - A body that `CoordLog::parse` and `CoordHistory::parse` both refuse, as read from the bytes of the body as they
-///   arrived, is `malformed`.
-/// - Both bodies: `no_workflow` for a workflow that is not stored; `binding` unless the stored workflow's agent is
-///   the body's agent.
-/// - `coord_log`: `malformed` for a record whose `day` is not the local day of its `at` by the store's clock;
-///   `seq` unless the records' `seq` are the stored last `seq` of the workflow and agent plus 1, 2 and on, the last
-///   being 0 where none is stored. It commits, in one typed commit, the text that `CoordEvent::to_json` writes for
-///   each record, never the bytes that arrived, and answers `malformed` where the commit refuses a day after the
-///   clock's day or outside the bound of 93 days, or a record that `check_record` refuses, `no_workflow` where it
-///   finds no stored workflow, and `store` for any other refusal. It answers the number of records stored.
-/// - `coord_history`: the stored records of the workflow and agent whose `seq` is above `after`, or every one where
-///   it is null, at most `HISTORY_PAGE` in ascending `seq`, gaps allowed, with `last` the largest stored `seq` of
-///   the workflow and agent, or 0 where none is stored. It stores nothing.
-/// - A stored row of the family that the typed reader refuses, read for either body, is `store`.
+/// 1. Any request that is not a `coordinator_write` is `role`, whatever its body.
+/// 2. A body that `CoordLog::parse` and `CoordHistory::parse` both refuse, as read from the bytes of the body as
+///    they arrived, is `malformed`; so is a body whose `op` is neither of `OPS`.
+/// 3. `no_workflow` for a workflow that is not stored.
+/// 4. `binding` unless the stored workflow's agent is the body's agent.
+/// 5. `coord_log` alone: `malformed` for a record whose `at` is below 0 (CP-122 (b)), and then `malformed` for a
+///    record whose `day` is not the local day of its `at` by the store's clock. This tie is the handler's alone;
+///    the store's commit holds the two clock bounds and no tie (CP-122 (b), (e), (j)).
+/// 6. `store` where the typed reader refuses one stored row of the kind `coord_event`, of any workflow and agent:
+///    such a row answers `store` to both bodies for every workflow and agent, because the seq rule and `last` rest
+///    on every row of the asker's pair and an unreadable row cannot be put to its pair.
+/// 7. `coord_log` alone: `seq` unless the records' `seq` are the stored last `seq` of the workflow and agent plus 1,
+///    2 and on, the last being 0 where none is stored.
+/// 8. `coord_log` alone: one typed commit of the text that `CoordEvent::to_json` writes for each record, never the
+///    bytes that arrived; the commit's two clock bounds run here, last. It answers `malformed` where the commit
+///    refuses a day after the clock's day or outside the bound of 93 days, or a record that `check_record` refuses,
+///    `no_workflow` where it finds no stored workflow, and `store` for any other refusal; so a record that the
+///    clock bounds refuse, sent with a wrong `seq`, answers `seq`.
+///
+/// `coord_log` answers `{"stored":n}`, n the number of records stored. `coord_history` answers the stored records of
+/// the workflow and agent whose `seq` is above `after`, or every one where it is null, at most `HISTORY_PAGE` in
+/// ascending `seq`, gaps allowed, with `last` the largest stored `seq` of the workflow and agent, or 0 where none is
+/// stored; it stores nothing. Both read the rows that the host's row read hands out.
 pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordReply, ErrorName> {
     if request.role() != Some(Role::Coordinator) {
         return Err(ErrorName::Role);
@@ -105,6 +114,9 @@ fn commit_error(refused: CommitRefused) -> ErrorName {
 
 fn coord_log(host: &mut dyn Host, b: &CoordLog) -> Result<Stored, ErrorName> {
     bound(&*host, &b.workflow, &b.agent)?;
+    if b.records.iter().any(|r| r.at.0 < 0) {
+        return Err(ErrorName::Malformed);
+    }
     let clock = host.clock();
     if b.records.iter().any(|r| clock.day(r.at) != r.day) {
         return Err(ErrorName::Malformed);

@@ -30,7 +30,13 @@ impl SummaryRead for NoSummaries {
 /// reader, a stored workflow, and a bounded day that is neither after the clock's day nor outside its bound.
 /// `after_batch` runs the steps as the derived store does after a committed batch and refuses a record of origin own
 /// that a step returns, which every kind of the family is. `expire` removes the rows past their bound by W-C2.5.
-/// This store holds no delete of a workflow: the cascade of W-C3.10 is the derived store's.
+/// Its row read hands out exactly the rows that an expiry at the read's clock would leave (the workflow run's ruling
+/// DS-4): the read and `expire` rest on one condition, so that a row past its bound, or more than two days ahead of
+/// the clock, is never handed out, called `expire` or not. A row of a bounded kind that the read cannot date is
+/// handed out and never hidden, so that the handler answers `store` for it; `expire` removes it. What this stand-in
+/// lacks against the derived store: one reading of the clock for a whole request, which is the adapter's; here each
+/// read and each commit reads the clock anew. This store holds no delete of a workflow: the cascade of W-C3.10 is
+/// the derived store's.
 pub struct MemoryStore {
     clock: Box<dyn Clock>,
     workflows: BTreeMap<WorkflowId, Workflow>,
@@ -78,7 +84,8 @@ impl MemoryStore {
     pub fn expire(&mut self) -> usize {
         let today = self.today();
         let before = self.rows.len();
-        self.rows.retain(|(kind, json)| keeps(today, kind, json));
+        self.rows
+            .retain(|(kind, json)| keeps(today, kind, json) == Some(true));
         before - self.rows.len()
     }
 
@@ -140,21 +147,20 @@ fn day_fault(today: i64, days: u16, day: u32) -> Option<DayFault> {
     }
 }
 
-fn keeps(today: i64, kind: &str, json: &str) -> bool {
+fn keeps(today: i64, kind: &str, json: &str) -> Option<bool> {
     let Some(RetentionClass::Bounded { days }) = entry(kind).map(|e| e.class) else {
-        return true;
+        return Some(true);
     };
-    let Ok(event) = CoordEvent::parse(json.as_bytes()) else {
-        return false;
-    };
+    let event = CoordEvent::parse(json.as_bytes()).ok()?;
     let age = today - i64::from(event.day);
-    age < i64::from(days) && age >= -AHEAD_DAYS
+    Some(age < i64::from(days) && age >= -AHEAD_DAYS)
 }
 
 impl RowRead for MemoryStore {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        let today = self.today();
         for (k, row) in &self.rows {
-            if *k == kind {
+            if *k == kind && keeps(today, k, row) != Some(false) {
                 visit(row);
             }
         }
@@ -180,5 +186,35 @@ impl Host for MemoryStore {
 
     fn clock(&self) -> &dyn Clock {
         &*self.clock
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use halvo_schema::Instant;
+
+    const DAY_NS: i64 = 86_400_000_000_000;
+
+    struct At(i64);
+
+    impl Clock for At {
+        fn now(&self) -> Instant {
+            Instant(self.0)
+        }
+
+        fn day(&self, at: Instant) -> u32 {
+            u32::try_from(at.0.div_euclid(DAY_NS)).unwrap_or(0)
+        }
+    }
+
+    #[test]
+    fn the_read_hands_out_a_row_that_it_cannot_date() {
+        let mut store = MemoryStore::new(Box::new(At(20_771 * DAY_NS)));
+        store.rows.push(("coord_event", r#"{"v":2}"#.to_owned()));
+        let mut seen = Vec::new();
+        store.for_each("coord_event", &mut |row| seen.push(row.to_owned()));
+        assert_eq!(seen, [r#"{"v":2}"#]);
+        assert_eq!(store.expire(), 1);
     }
 }

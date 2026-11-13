@@ -1,8 +1,28 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{coordinator, CommitRefused};
+use halvo_coord_store::{coordinator, CommitRefused, OPS};
+use halvo_schema::coordinator::body::{CoordHistory, CoordLog};
 use halvo_schema::{ErrorName, RowRead, SummaryRead, TypedRecord, WriterStep};
+
+#[test]
+fn ops_names_the_two_bodies() {
+    assert_eq!(OPS, ["coord_log", "coord_history"]);
+    assert!(OPS.contains(&CoordLog::OP));
+    assert!(OPS.contains(&CoordHistory::OP));
+}
+
+#[test]
+fn a_further_role_with_a_history_body_is_role() {
+    let mut store = store();
+    assert_eq!(
+        coordinator(
+            &mut store,
+            &request("probe_role", &history_body(1, 1, None))
+        ),
+        Err(ErrorName::Role)
+    );
+}
 
 struct Returns(Vec<TypedRecord>);
 
