@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Each of the 42 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them, a test of a binary's unit tests under that binary's section alone; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
+# rule: Each of the 42 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them; one line counts them and names none, and the entries go to its artifacts directory) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them, a test of a binary's unit tests under that binary's section alone; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -80,8 +80,8 @@ names_of() {
       third=${fields%% *}
       case $second:$fields in
         src/main.rs:*" "*" "*)
-          rest=${fields#* }
-          found="$found $second:$third|${rest%% *}|${rest#* }"
+          after_binary=${fields#* }
+          found="$found $second:$third|${after_binary%% *}|${after_binary#* }"
           ;;
         *:*" "*) found="$found $second|$third|${fields#* }" ;;
         *) found="$found |$second|$third" ;;
@@ -208,16 +208,15 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tests
   fi
-  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
-    {
-      count = split($0, field, " ")
-      if (count && field[1] !~ /^(#|\?|!|H)$/) {
-        printf "tree changed=before %s %s\n", field[1], field[count]
-        bad = 1
-      }
-    }
-    END { exit bad }
-  ' || finish tests
+  changed=$(printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    { count = split($0, field, " "); if (count && field[1] !~ /^(#|\?|!|H)$/) n++ }
+    END { print n + 0 }
+  ') || finish read
+  if [ "$changed" -gt 0 ]; then
+    printf '%s\n%s\n' "$status_before" "$files_before" >"$dir/tree-before.txt" || finish artifacts
+    printf 'tree changed=before files=%s\n' "$changed"
+    finish tests
+  fi
 }
 
 tree_same() {
@@ -360,6 +359,9 @@ stub_test() {
     case " $fx_renamed " in
       *" $test "*) path=${path}_rows ;;
     esac
+    case " $fx_as_library " in
+      *" $test "*) target=src/lib.rs ;;
+    esac
     stub_running "$target" "$1"
     case " $fx_twice " in
       *" $test "*)
@@ -437,6 +439,7 @@ fixture() {
   fx_extra_crate=
   fx_extra_target=
   fx_extra_path=
+  fx_as_library=
   fx_list=
   fx_git=ok
   fx_own_line="H $script_path"
@@ -447,6 +450,14 @@ fixture() {
   printf '%s\n' 1111111111111111111111111111111111111111 >"$work/oid" || exit 2
   : >"$work/status" || exit 2
   : >"$work/flags" || exit 2
+}
+
+# hidden WORD: the output of the last check does not hold WORD, and its tree-before.txt does.
+hidden() {
+  case $out in
+    *"$1"*) wrong="$wrong $case_name:printed" ;;
+  esac
+  grep -q "$1" "$self_art/$case_name/tree-before.txt" 2>/dev/null || wrong="$wrong $case_name:artifacts"
 }
 
 check() {
@@ -606,6 +617,31 @@ self_test() {
   fx_extra_path=tests::targets::constants_match_targets
   check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
+  fixture binary-line-first-then-library-and-pending-lines
+  fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
+    $0 == first { next }
+    $0 == "halvo-learn-gate refusal_delete_leaves_others pending" {
+      print first
+      print "halvo-learn-gate src/lib.rs tests::library::a_library_test_of_the_crate built"
+      next
+    }
+    { print }
+  ')"
+  check PASS 'rule tests=42 ok=39 pending=3 miss=0'
+
+  fixture binary-line-moved-before-the-pending-lines
+  fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
+    $0 == first { next }
+    $0 == "halvo-learn-gate refusal_delete_leaves_others pending" { print first }
+    { print }
+  ')"
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
+
+  fixture library-test-listed-in-the-binary-form
+  fx_list="$(closed_list | sed 's|^halvo-learn-store src/lib.rs tests::propose::refusal_page_text_instruction built$|halvo-learn-store src/main.rs halvo_learn_store tests::propose::refusal_page_text_instruction built|')"
+  fx_as_library=refusal_page_text_instruction
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
+
   fixture binary-line-without-its-binary
   fx_list="$(closed_list | sed 's|^halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built$|halvo-learn-gate src/main.rs tests::targets::constants_match_targets built|')"
   check FAIL-list 'list form=bad'
@@ -641,26 +677,35 @@ self_test() {
 
   fixture changed-file-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/ids.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/ids.rs'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture two-changed-files-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/finish.rs\n1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/edges.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/tests/finish.rs
-tree changed=before 1 crates/halvo-learn-store/src/tests/edges.rs'
+  check FAIL-tests 'tree changed=before files=2'
 
   fixture changed-file-rewritten-by-a-test
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/lib.rs\n' >"$work/status"
   fx_change_at=halvo-learn
   fx_change_file=rewrite
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn/src/lib.rs'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture changed-file-outside-the-crates-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 CHANGELOG.md\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 CHANGELOG.md'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture staged-file-before-the-run
   printf '1 M. N... 100644 100644 100644 0000 0000 crates/halvo-schema/src/learning.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-schema/src/learning.rs'
+  check FAIL-tests 'tree changed=before files=1'
+
+  fixture changed-file-with-a-word-of-its-own
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/zqtreeword.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqtreeword
+
+  fixture changed-file-under-heldout
+  printf '1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/heldout/zqmadeupcase.jsonl\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqmadeupcase
 
   fixture test-run-changes-a-tracked-file
   fx_change_at=halvo-schema
