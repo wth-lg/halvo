@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn ctl_takes_the_directory_of_the_flag_and_without_it_the_default_directory_of_this_user() {
+        let dir = if cfg!(windows) { r"C:\d" } else { "/d" };
+        let flagged = parse(&args(&["--data-dir", dir, "status"])).unwrap();
+        assert_eq!(
+            flagged.data_dir().unwrap(),
+            DataDir::from_flag(dir).unwrap()
+        );
+        let plain = parse(&args(&["status"])).unwrap();
+        assert_eq!(plain.data_dir(), DataDir::for_current_user());
+    }
+
+    #[test]
     fn the_grammar_takes_each_verb_of_c2_2() {
         let dir = if cfg!(windows) { r"C:\d" } else { "/d" };
         let cases: Vec<(Vec<&str>, Verb)> = vec![
