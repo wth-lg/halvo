@@ -156,7 +156,7 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
         FieldState::Password => Judgment::Decided(SecureInputReading::Active),
         FieldState::Unknown => Judgment::Decided(SecureInputReading::Unknown),
         FieldState::Clear if now.wrapping_sub(key.tick) < ms(KEY_HOLD) => Judgment::Wait,
-        FieldState::Clear => Judgment::Decided(SecureInputReading::Unknown),
+        FieldState::Clear => Judgment::Decided(SecureInputReading::Inactive),
     }
 }
 

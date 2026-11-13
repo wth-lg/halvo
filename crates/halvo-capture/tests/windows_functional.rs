@@ -4175,6 +4175,85 @@ fn password_field_fixture_firefox() {
     browser_fixture("fixture-firefox", &FIREFOX);
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x1_keystrokes_typed_into_a_password_field() {
+    with_deadline("x1", Duration::from_secs(90), || {
+        const LETTERS: u32 = 5;
+        env_report("x1");
+        source_built_by_test("x1", "keyboard");
+        let fields = FieldWindow::open("x1", Field::Plain);
+        let (sink, events) = capture(4096);
+        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
+        let mut keyboard = RawInputSource::keyboard(last_app, PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+
+        let plain_focused = fields.focus(Field::Plain);
+        let plain_before = events.drain_for(Duration::from_millis(500));
+        let plain_accepted = type_letters_slowly(LETTERS);
+        let plain_typed = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        );
+        let plain_characters = fields.text_len(Field::Plain);
+        let plain_gate = keyboard.field_state();
+        say(
+            "x1",
+            format!(
+                "keyboard_start={} window_foreground={} method={} \
+                 plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
+                 sendinput_key_events_accepted={plain_accepted} \
+                 characters_in_plain_field={plain_characters} gate_in_plain_field={plain_gate:?} \
+                 keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
+                show(&start),
+                fields.foreground,
+                fields.method,
+                count(&plain_before, Modality::Keystroke),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            plain_focused && plain_characters == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the plain field"
+        );
+        assert_eq!(
+            plain_typed, LETTERS as usize,
+            "the keyboard source did not record the keys typed into the plain field"
+        );
+
+        let password_focused = fields.focus(Field::Password);
+        let before = events.drain_for(Duration::from_millis(500));
+        let accepted = type_letters_slowly(LETTERS);
+        let during = events.drain_for(Duration::from_secs(1));
+        let characters = fields.text_len(Field::Password);
+        let password_gate = keyboard.field_state();
+        let withheld = keyboard.health().counters.keys_withheld;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let typed = count(&during, Modality::Keystroke);
+        say(
+            "x1",
+            format!(
+                "password_field_has_focus={password_focused} letters_sent={LETTERS} \
+                 sendinput_key_events_accepted={accepted} \
+                 characters_in_password_field={characters} gate_in_password_field={password_gate:?} \
+                 keys_withheld={withheld} \
+                 keystroke_events_before_typing_into_password_field={}",
+                count(&before, Modality::Keystroke),
+            ),
+        );
+        assert!(
+            password_focused && characters == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the password field"
+        );
+        let evidence: String = format!(
+            "TF x1 keystroke_events_while_typing_into_password_field={typed} \
+            plain_field_keystroke_events={plain_typed}"
+        );
+        println!("{evidence}");
+        assert!(typed == 0 && withheld, "{evidence}");
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -4215,87 +4294,6 @@ mod known_defect {
             Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
             None => false,
         }
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x1_keystrokes_typed_into_a_password_field() {
-        with_deadline("x1", Duration::from_secs(90), || {
-            const LETTERS: u32 = 5;
-            env_report("x1");
-            source_built_by_test("x1", "keyboard");
-            let fields = FieldWindow::open("x1", Field::Plain);
-            let (sink, events) = capture(4096);
-            let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-            let mut keyboard = RawInputSource::keyboard(last_app, PasswordGate::new());
-            let start = keyboard.begin(SourceContext::new(sink.clone()));
-
-            let plain_focused = fields.focus(Field::Plain);
-            let plain_before = events.drain_for(Duration::from_millis(500));
-            let plain_accepted = type_letters_slowly(LETTERS);
-            let plain_typed = count(
-                &events.drain_for(Duration::from_secs(1)),
-                Modality::Keystroke,
-            );
-            let plain_characters = fields.text_len(Field::Plain);
-            let plain_gate = keyboard.field_state();
-            say(
-                "x1",
-                format!(
-                    "keyboard_start={} window_foreground={} method={} \
-                     plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
-                     sendinput_key_events_accepted={plain_accepted} \
-                     characters_in_plain_field={plain_characters} gate_in_plain_field={plain_gate:?} \
-                     keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
-                    show(&start),
-                    fields.foreground,
-                    fields.method,
-                    count(&plain_before, Modality::Keystroke),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert!(
-                plain_focused && plain_characters == LETTERS as i32,
-                "INCONCLUSIVE: the scripted keys did not reach the plain field"
-            );
-            assert_eq!(
-                plain_typed, LETTERS as usize,
-                "the keyboard source did not record the keys typed into the plain field"
-            );
-
-            let password_focused = fields.focus(Field::Password);
-            let before = events.drain_for(Duration::from_millis(500));
-            let accepted = type_letters_slowly(LETTERS);
-            let during = events.drain_for(Duration::from_secs(1));
-            let characters = fields.text_len(Field::Password);
-            let password_gate = keyboard.field_state();
-            let withheld = keyboard.health().counters.keys_withheld;
-            let _ = stop_counted(&mut keyboard, "keyboard");
-            let typed = count(&during, Modality::Keystroke);
-            say(
-                "x1",
-                format!(
-                    "password_field_has_focus={password_focused} letters_sent={LETTERS} \
-                     sendinput_key_events_accepted={accepted} \
-                     characters_in_password_field={characters} gate_in_password_field={password_gate:?} \
-                     keys_withheld={withheld} \
-                     keystroke_events_before_typing_into_password_field={}",
-                    count(&before, Modality::Keystroke),
-                ),
-            );
-            assert!(
-                password_focused && characters == LETTERS as i32,
-                "INCONCLUSIVE: the scripted keys did not reach the password field"
-            );
-            defect!(
-                "RR-windows-01",
-                typed == 0 && withheld,
-                format!(
-                    "TF x1 keystroke_events_while_typing_into_password_field={typed} \
-                     plain_field_keystroke_events={plain_typed}"
-                )
-            );
-        });
     }
 
     fn powershell_line(script: &str) -> String {
