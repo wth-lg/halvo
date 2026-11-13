@@ -1,13 +1,17 @@
 //! SQLCipher metadata store and the [`EncryptedStore`].
 
+use std::ffi::OsStr;
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
+use halvo_sqlcipher::rusqlite::config::DbConfig;
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -16,8 +20,42 @@ use crate::custody::{
 };
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
+use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
+
+const KEY_FILE_VERSION: u32 = 1;
+const DATABASE_VERSION: i64 = 1;
+const KEY_FILE: &str = "store.key";
+const KEY_FILE_TEMP: &str = "store.key.tmp";
+const DATABASE_FILE: &str = "store.db";
+const DATABASE_LOG: &str = "store.db-wal";
+const LINKED_DATABASE: &str = "the database file of the store is a link";
+const STORE_DIR_MOVED: &str = "the store directory no longer stands at its name";
+const LINKED_SIDE_FILE: &str = "a file beside the database of the store is a link";
+const DATABASE_SIDE_FILES: [&str; 3] = [DATABASE_LOG, "store.db-shm", "store.db-journal"];
+
+#[cfg(test)]
+pub(crate) const SEAM_BEFORE_THE_LOOK: &str = "a database open, before its look";
+#[cfg(test)]
+pub(crate) const SEAM_AFTER_THE_LAST_LOOK: &str = "a database open, after its last look";
+#[cfg(test)]
+pub(crate) const SEAM_BEFORE_THE_MODE_STEP: &str = "the mode step of store.db";
+#[cfg(test)]
+pub(crate) const SEAM_SIZE_AFTER_THE_LISTING: &str = "the size, after its first listing";
+
+#[derive(Deserialize)]
+struct KeyFileVersion {
+    version: u32,
+}
+
+fn known_version(found: i64, supported: i64) -> StoreResult<()> {
+    match found.cmp(&supported) {
+        std::cmp::Ordering::Equal => Ok(()),
+        std::cmp::Ordering::Greater => Err(StoreError::NewerStore { found, supported }),
+        std::cmp::Ordering::Less => Err(StoreError::OlderStore { found, supported }),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct KeyFile {
@@ -32,18 +70,45 @@ impl KeyFile {
         store_dir.join("store.key")
     }
 
-    fn write(&self, store_dir: &Path) -> StoreResult<()> {
+    fn is_in(store_dir: &Dir) -> StoreResult<bool> {
+        match store_dir.entry(OsStr::new(KEY_FILE)) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
+    fn write(&self, store_dir: &Dir) -> StoreResult<()> {
         let json =
             serde_json::to_vec_pretty(self).map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
-        std::fs::write(Self::path(store_dir), json).map_err(io_error)
+        durable::write_durably(
+            &OsFs,
+            store_dir,
+            OsStr::new(KEY_FILE_TEMP),
+            OsStr::new(KEY_FILE),
+            io_error,
+            |_| Ok(()),
+            |dir, temp| match dir.remove_file(temp) {
+                Err(e) if e.kind() != ErrorKind::NotFound => Err(io_error(e)),
+                _ => Ok(()),
+            },
+            |out| out.write_all(&json).map_err(io_error),
+        )
     }
 
     pub(crate) fn read(store_dir: &Path) -> StoreResult<Self> {
-        let json = match std::fs::read(Self::path(store_dir)) {
+        Self::read_in(&Dir::open(store_dir).map_err(store_dir_error)?)
+    }
+
+    fn read_in(store_dir: &Dir) -> StoreResult<Self> {
+        let json = match read_whole(store_dir, KEY_FILE) {
             Ok(json) => json,
             Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::Sealed),
-            Err(e) => return Err(io_error(e)),
+            Err(e) => return Err(key_file_error(e)),
         };
+        serde_json::from_slice::<KeyFileVersion>(&json)
+            .map_err(|_| StoreError::KeyFileUnparseable)
+            .and_then(|head| known_version(i64::from(head.version), i64::from(KEY_FILE_VERSION)))?;
         serde_json::from_slice(&json).map_err(|_| StoreError::KeyFileUnparseable)
     }
 
@@ -60,7 +125,13 @@ impl KeyFile {
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
         failpoint::hit("key_file_destroy")?;
         let path = Self::path(store_dir);
-        match File::options().write(true).open(&path) {
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) if meta.file_type().is_symlink() => return remove_if_present(&path),
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(io_error(e)),
+        }
+        match durable::no_follow(File::options().write(true)).open(&path) {
             Ok(mut file) => {
                 let len = file.metadata().map_err(io_error)?.len() as usize;
                 file.write_all(&vec![0u8; len]).map_err(io_error)?;
@@ -77,35 +148,154 @@ fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
 }
 
-#[cfg(test)]
-pub(crate) mod failpoint {
-    use std::cell::Cell;
+fn read_whole(store_dir: &Dir, name: &str) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    store_dir
+        .open_file(OsStr::new(name))?
+        .read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
 
-    use super::{StoreError, StoreResult};
-
-    thread_local! {
-        static ARMED: Cell<Option<&'static str>> = const { Cell::new(None) };
-    }
-
-    pub(crate) fn arm(name: &'static str) {
-        ARMED.with(|armed| armed.set(Some(name)));
-    }
-
-    pub(crate) fn hit(name: &'static str) -> StoreResult<()> {
-        if ARMED.with(|armed| armed.get()) == Some(name) {
-            ARMED.with(|armed| armed.set(None));
-            return Err(StoreError::Io(std::io::ErrorKind::Other));
+fn key_file_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => {
+            StoreError::Corrupt("the key file of the store is a link".to_string())
         }
-        Ok(())
+        Some(_) => StoreError::KeyFileUnparseable,
+        None => io_error(e),
     }
 }
 
-#[cfg(not(test))]
-mod failpoint {
-    pub(super) fn hit(_name: &'static str) -> super::StoreResult<()> {
-        Ok(())
+fn store_dir_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => StoreError::Corrupt("the store directory is a link".to_string()),
+        #[cfg(windows)]
+        Some(Refused::Moved) => StoreError::Corrupt(STORE_DIR_MOVED.to_string()),
+        Some(_) => StoreError::Io(ErrorKind::NotADirectory),
+        None => io_error(e),
     }
 }
+
+fn database_file_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => StoreError::Corrupt(LINKED_DATABASE.to_string()),
+        Some(_) => StoreError::DatabaseUnreadable,
+        None if e.kind() == ErrorKind::NotFound => StoreError::DatabaseMissing,
+        None => io_error(e),
+    }
+}
+
+fn database_open_error(e: rusqlite::Error) -> StoreError {
+    match &e {
+        rusqlite::Error::SqliteFailure(failure, _)
+            if failure.extended_code == rusqlite::ffi::SQLITE_CANTOPEN_SYMLINK =>
+        {
+            StoreError::Corrupt(LINKED_DATABASE.to_string())
+        }
+        _ => db_error(e),
+    }
+}
+
+const DATABASE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_WRITE
+    .union(OpenFlags::SQLITE_OPEN_NO_MUTEX)
+    .union(OpenFlags::SQLITE_OPEN_NOFOLLOW);
+
+const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
+    .union(OpenFlags::SQLITE_OPEN_NO_MUTEX)
+    .union(OpenFlags::SQLITE_OPEN_NOFOLLOW);
+
+/// Opens the connection on the database file of `store_dir`. On macOS the
+/// store first sets the mode of the file to 0600 on its own descriptor and
+/// closes that descriptor before SQLite opens the name, because closing a
+/// descriptor of the file after SQLite took its locks would drop them.
+#[cfg(unix)]
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
+    use std::os::unix::fs::PermissionsExt;
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
+    store_dir
+        .open_file(OsStr::new(DATABASE_FILE))
+        .map_err(database_file_error)?
+        .set_permissions(std::fs::Permissions::from_mode(0o600))
+        .map_err(io_error)?;
+    open_connection(store_dir, flags)
+}
+
+/// SQLite opens the database by its name under the handle's name, so the
+/// store goes on only while that name still stands for the handle's own
+/// directory.
+fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
+    match store_dir.still_named() {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(StoreError::Corrupt(STORE_DIR_MOVED.to_string())),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// Opens the connection on the database file of `store_dir`. On Windows the
+/// store holds the file from its check until the connection is open, with a
+/// handle that shares no delete, so no other file can take the name.
+#[cfg(windows)]
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
+    open_connection(store_dir, flags)
+}
+
+/// The one open of SQLite in the store, for the probe and for both
+/// connections: a look at the four names of the database through the
+/// handle, the last look at the handle's name, then SQLite's open of the
+/// database by that name with the flags that the caller passes.
+fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_LOOK);
+    look_at_the_database_files(store_dir)?;
+    #[cfg(windows)]
+    let held = hold_the_database_file(store_dir)?;
+    refuse_a_moved_store_dir(store_dir)?;
+    #[cfg(test)]
+    failpoint::seam(SEAM_AFTER_THE_LAST_LOOK);
+    let conn =
+        Connection::open_with_flags(Db::path(store_dir.path()), flags).map_err(database_open_error);
+    #[cfg(windows)]
+    drop(held);
+    conn
+}
+
+/// On Windows the database file is held from the look until the connection
+/// is open, with a handle that shares no delete, so no other file can take
+/// its name meanwhile.
+#[cfg(windows)]
+fn hold_the_database_file(store_dir: &Dir) -> StoreResult<Option<File>> {
+    match store_dir.hold_file(OsStr::new(DATABASE_FILE)) {
+        Ok(held) => Ok(Some(held)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(database_file_error(e)),
+    }
+}
+
+/// Reads store.db and its three side files through the handle, following no
+/// link and without a wait: each is absent or a regular file, a link answers
+/// Corrupt, and a name that is no regular file answers DatabaseUnreadable.
+fn look_at_the_database_files(store_dir: &Dir) -> StoreResult<()> {
+    let names = [(DATABASE_FILE, LINKED_DATABASE)]
+        .into_iter()
+        .chain(DATABASE_SIDE_FILES.map(|name| (name, LINKED_SIDE_FILE)));
+    for (name, linked) in names {
+        match store_dir.entry(OsStr::new(name)) {
+            Ok(entry) if entry.kind == EntryKind::File => {}
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                return Err(StoreError::Corrupt(linked.to_string()))
+            }
+            Ok(_) => return Err(StoreError::DatabaseUnreadable),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(io_error(e)),
+        }
+    }
+    Ok(())
+}
+
+pub(crate) use super::failpoint;
 
 pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
@@ -137,8 +327,8 @@ pub(crate) fn remove_if_present(path: &Path) -> StoreResult<()> {
     }
 }
 
-fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
-    match std::fs::remove_dir_all(path) {
+fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
+    match store_dir.remove_file(OsStr::new(name)) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         Err(e) => Err(io_error(e)),
@@ -149,19 +339,40 @@ struct WriterLock {
     file: File,
 }
 
+const LOCK_FILE_OPEN_TRIES: u32 = 4;
+
 impl WriterLock {
     fn take(store_dir: &Path) -> StoreResult<Self> {
-        let file = File::options()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(store_dir.join("writer.lock"))
-            .map_err(io_error)?;
+        Self::take_with(store_dir, &mut Self::open_lock_file)
+    }
+
+    fn take_with(
+        store_dir: &Path,
+        open: &mut dyn FnMut(&Path) -> std::io::Result<File>,
+    ) -> StoreResult<Self> {
+        let path = store_dir.join("writer.lock");
+        let mut tries = 1;
+        let file = loop {
+            match open(&path) {
+                Err(e) if e.kind() == ErrorKind::NotFound && tries < LOCK_FILE_OPEN_TRIES => {
+                    tries += 1
+                }
+                opened => break opened.map_err(io_error)?,
+            }
+        };
         match file.try_lock() {
             Ok(()) => Ok(Self { file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked(store_dir.to_path_buf())),
             Err(TryLockError::Error(e)) => Err(io_error(e)),
         }
+    }
+
+    fn open_lock_file(path: &Path) -> std::io::Result<File> {
+        let mut options = File::options();
+        options.create(true).truncate(false).write(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        durable::no_follow(&mut options).open(path)
     }
 }
 
@@ -179,8 +390,17 @@ pub(crate) struct Checkpoint {
 
 pub(crate) struct Db {
     conn: Connection,
-    wal_path: PathBuf,
+    store_dir: Dir,
+    log_name: std::ffi::OsString,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Database {
+    New,
+    Existing,
+}
+
+const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
 
 impl Db {
     pub(crate) fn path(store_dir: &Path) -> PathBuf {
@@ -202,30 +422,131 @@ impl Db {
             .try_for_each(|p| remove_if_present(p))
     }
 
-    pub(crate) fn open(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
-        let path = Self::path(store_dir);
-        let conn = Connection::open(&path).map_err(db_error)?;
+    fn destroy_in(store_dir: &Dir) -> StoreResult<()> {
+        [DATABASE_FILE, DATABASE_LOG, "store.db-shm"]
+            .iter()
+            .try_for_each(|name| remove_in(store_dir, name))
+    }
+
+    pub(crate) fn open(store_dir: &Dir, key: &[u8; 32]) -> StoreResult<Self> {
+        Self::open_file(store_dir, key, Database::New)
+    }
+
+    pub(crate) fn open_existing(store_dir: &Dir, key: &[u8; 32]) -> StoreResult<Self> {
+        Self::open_file(store_dir, key, Database::Existing)
+    }
+
+    fn refuse_a_linked_file(store_dir: &Dir) -> StoreResult<()> {
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_DATABASE.to_string()))
+            }
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
+    fn refuse_a_live_holder(store_dir: &Dir) -> StoreResult<()> {
+        halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => {}
+            _ => return Ok(()),
+        }
+        let probe = match open_connection(store_dir, PROBE_OPEN) {
+            Ok(probe) => probe,
+            Err(StoreError::Db(_)) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        probe.busy_timeout(Duration::ZERO).map_err(db_error)?;
+        probe
+            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+            .map_err(db_error)?;
+        let read = probe.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+            r.get::<_, i64>(0)
+        });
+        match read.map_err(|e| e.sqlite_error_code()) {
+            Err(Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)) => {
+                Err(StoreError::Locked(store_dir.path().to_path_buf()))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn require_file(store_dir: &Dir) -> StoreResult<()> {
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_DATABASE.to_string()))
+            }
+            Ok(entry) if entry.kind == EntryKind::File && entry.len == 0 => {
+                Err(StoreError::DatabaseMissing)
+            }
+            Ok(entry) if entry.kind == EntryKind::File => Ok(()),
+            Ok(_) => Err(StoreError::DatabaseUnreadable),
+            Err(e) if e.kind() == ErrorKind::NotFound => Err(StoreError::DatabaseMissing),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
+    fn open_file(store_dir: &Dir, key: &[u8; 32], database: Database) -> StoreResult<Self> {
+        if database == Database::Existing {
+            Self::require_file(store_dir)?;
+        }
+        halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
+        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(_) => true,
+            Err(e) if e.kind() == ErrorKind::NotFound => false,
+            Err(e) => return Err(io_error(e)),
+        };
+        if database == Database::New {
+            store_dir
+                .create_new(OsStr::new(DATABASE_FILE))
+                .map_err(io_error)?;
+        }
+        let conn = open_database(store_dir, DATABASE_OPEN)?;
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
+            .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
-        verify_key(&conn, store_dir)?;
+        verify_key(&conn, store_dir.path())?;
+        if database == Database::Existing {
+            known_version(pragma_int(&conn, "user_version")?, DATABASE_VERSION)?;
+        }
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
-             PRAGMA journal_mode = WAL;\n\
-             PRAGMA foreign_keys = ON;",
+             PRAGMA foreign_keys = ON;\n\
+             PRAGMA checkpoint_fullfsync = ON;\n\
+             PRAGMA cipher_log_level = NONE;",
         )
         .map_err(db_error)?;
+        require_write_ahead_log(&conn)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
+        require_checkpoint_fullfsync(&conn)?;
+        require_cipher_log_level_none(&conn)?;
+        require_pinned_cipher(&conn)?;
         let db = Self {
             conn,
-            wal_path: path.with_extension("db-wal"),
+            store_dir: store_dir.try_clone().map_err(io_error)?,
+            log_name: DATABASE_LOG.into(),
         };
-        db.init_schema()?;
+        match database {
+            Database::New => {
+                db.init_schema()?;
+                db.conn
+                    .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
+                    .map_err(db_error)?;
+            }
+            Database::Existing => db.require_schema()?,
+        }
         db.enable_fts_secure_delete()?;
         failpoint::hit("db_open")?;
+        db.conn
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)
+            .map_err(db_error)?;
         Ok(db)
     }
 
@@ -255,6 +576,28 @@ impl Db {
                  CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
             )
             .map_err(db_error)
+    }
+
+    fn require_schema(&self) -> StoreResult<()> {
+        for table in SCHEMA_TABLES {
+            let defined: i64 = self
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |r| r.get(0),
+                )
+                .map_err(unreadable_or_db_error)?;
+            if defined != 1 {
+                return Err(StoreError::DatabaseUnreadable);
+            }
+            self.conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .map_err(unreadable_or_db_error)?;
+        }
+        Ok(())
     }
 
     fn enable_fts_secure_delete(&self) -> StoreResult<()> {
@@ -377,8 +720,12 @@ impl Db {
     }
 
     pub(crate) fn wal_bytes(&self) -> StoreResult<u64> {
-        match std::fs::metadata(&self.wal_path) {
-            Ok(metadata) => Ok(metadata.len()),
+        match self.store_dir.entry(&self.log_name) {
+            Ok(entry) if entry.kind == EntryKind::File => Ok(entry.len),
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_SIDE_FILE.to_string()))
+            }
+            Ok(_) => Err(StoreError::Io(ErrorKind::InvalidData)),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(0),
             Err(e) => Err(io_error(e)),
         }
@@ -409,12 +756,23 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
     })
     .map(|_| ())
     .map_err(|e| match e.sqlite_error_code() {
-        Some(ErrorCode::NotADatabase) => StoreError::Sealed,
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => {
+            StoreError::DatabaseUnreadable
+        }
         Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => {
             StoreError::Locked(store_dir.to_path_buf())
         }
         _ => db_error(e),
     })
+}
+
+fn unreadable_or_db_error(e: rusqlite::Error) -> StoreError {
+    match e.sqlite_error_code() {
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => {
+            StoreError::DatabaseUnreadable
+        }
+        _ => db_error(e),
+    }
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
@@ -424,14 +782,70 @@ fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
     }
 }
 
+fn require_write_ahead_log(conn: &Connection) -> StoreResult<()> {
+    let mode: String = conn
+        .query_row("PRAGMA journal_mode = WAL;", [], |r| r.get(0))
+        .map_err(db_error)?;
+    if mode == "wal" {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("journal_mode"))
+    }
+}
+
+const CIPHER_PROVIDER: &str = "libtomcrypt";
+const CIPHER_VERSION: &str = "4.19.0";
+
+fn require_pinned_cipher(conn: &Connection) -> StoreResult<()> {
+    let text = |pragma: &str| -> StoreResult<String> {
+        conn.query_row(pragma, [], |r| r.get(0)).map_err(db_error)
+    };
+    cipher_in_effect(
+        &text("PRAGMA cipher_provider")?,
+        &text("PRAGMA cipher_version")?,
+        halvo_sqlcipher::os_entropy_hook_installed(),
+    )
+}
+
+fn cipher_in_effect(provider: &str, version: &str, os_entropy_hook: bool) -> StoreResult<()> {
+    if provider != CIPHER_PROVIDER {
+        return Err(StoreError::SettingNotInEffect("cipher_provider"));
+    }
+    if version.split_whitespace().next() != Some(CIPHER_VERSION) {
+        return Err(StoreError::SettingNotInEffect("cipher_version"));
+    }
+    if !os_entropy_hook {
+        return Err(StoreError::SettingNotInEffect("os_entropy_hook"));
+    }
+    Ok(())
+}
+
 fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
     let mode: String = conn
-        .query_row("PRAGMA locking_mode", [], |r| r.get(0))
+        .query_row("PRAGMA main.locking_mode", [], |r| r.get(0))
         .map_err(db_error)?;
     if mode == "exclusive" {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("locking_mode"))
+    }
+}
+
+fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
+    let level: String = conn
+        .query_row("PRAGMA cipher_log_level", [], |r| r.get(0))
+        .map_err(db_error)?;
+    if level == "NONE" {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("cipher_log_level"))
+    }
+}
+
+fn require_checkpoint_fullfsync(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "checkpoint_fullfsync")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("checkpoint_fullfsync")),
     }
 }
 
@@ -471,10 +885,12 @@ enum Keyed {
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
-    dir: PathBuf,
+    dir: Dir,
     retention: Duration,
     custody: Box<dyn KeyCustody + Send>,
     keyed: Keyed,
+    fs: Arc<dyn DurableFs>,
+    unwrap_time: Duration,
     _writer_lock: WriterLock,
 }
 
@@ -482,30 +898,49 @@ impl EncryptedStore {
     /// Create a fresh store in `dir`: open a new database under a random store
     /// key, wrap that key with `custody` and write the store-key file. A
     /// directory with a store-key file already holds a store; one without is
-    /// free, and any keyless leftovers in it are removed. When a step fails, the
-    /// database and key files that the call made are removed and the root that
-    /// it made is destroyed; the directory and its `writer.lock` stay.
+    /// free, and any keyless leftovers in it are removed. When a step fails,
+    /// the call removes the database and key files that it made and destroys
+    /// the root that it made, and answers the step's error; when one of those
+    /// removals fails, it answers that removal's error in its place, and what
+    /// it could not remove is left. The directory and its `writer.lock` stay.
+    /// It opens `writer.lock` by name without `O_NONBLOCK`, so a FIFO there
+    /// makes it wait for good.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
         retention: Duration,
     ) -> StoreResult<Self> {
-        std::fs::create_dir_all(dir).map_err(io_error)?;
-        let _writer_lock = WriterLock::take(dir)?;
-        if KeyFile::path(dir).exists() {
-            return Err(StoreError::AlreadyExists(dir.to_path_buf()));
+        Self::create_with(dir, custody, retention, &mut WriterLock::open_lock_file)
+    }
+
+    pub(crate) fn create_with(
+        dir: &Path,
+        custody: Box<dyn KeyCustody + Send>,
+        retention: Duration,
+        open_lock: &mut dyn FnMut(&Path) -> std::io::Result<File>,
+    ) -> StoreResult<Self> {
+        durable::create_private_dir_all(dir).map_err(io_error)?;
+        let store = Dir::open(dir).map_err(store_dir_error)?;
+        store.make_private().map_err(io_error)?;
+        let dir = &store;
+        let _writer_lock = WriterLock::take_with(dir.path(), open_lock)?;
+        if KeyFile::is_in(dir)? {
+            return Err(StoreError::AlreadyExists(dir.path().to_path_buf()));
         }
-        Db::destroy(dir)?;
-        remove_dir_if_present(&segment::segments_root(dir))?;
+        Db::destroy_in(dir)?;
+        segment::remove_segments_tree(dir)?;
+        remove_in(dir, KEY_FILE_TEMP)?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         match Self::write_key_file(dir, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
-                dir: dir.to_path_buf(),
+                dir: store,
                 retention,
                 custody,
                 keyed: Keyed::Open { db, store_key },
+                fs: Arc::new(OsFs),
+                unwrap_time: Duration::ZERO,
                 _writer_lock,
             }),
             Err(e) => {
@@ -515,7 +950,7 @@ impl EncryptedStore {
         }
     }
 
-    fn under_a_new_root(dir: &Path, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
+    fn under_a_new_root(dir: &Dir, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
         match custody.create_root() {
             Ok(()) => Ok(db),
             Err(e) => {
@@ -526,13 +961,13 @@ impl EncryptedStore {
     }
 
     fn write_key_file(
-        dir: &Path,
+        dir: &Dir,
         custody: &dyn KeyCustody,
         store_key: &StoreKey,
     ) -> StoreResult<()> {
         let wrapped = custody.wrap_store_key(store_key)?;
         KeyFile {
-            version: 1,
+            version: KEY_FILE_VERSION,
             custody_kind: custody.kind(),
             root_id: custody.root_id(),
             wrapped_store_key_b64: BASE64.encode(&wrapped.0),
@@ -540,17 +975,17 @@ impl EncryptedStore {
         .write(dir)
     }
 
-    fn without_database(dir: &Path, cause: StoreError) -> StoreError {
-        match Db::destroy(dir) {
+    fn without_database(dir: &Dir, cause: StoreError) -> StoreError {
+        match Db::destroy_in(dir) {
             Ok(()) => cause,
             Err(left_behind) => left_behind,
         }
     }
 
-    fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
+    fn abandon_create(dir: &Dir, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
         let root = custody.destroy_root().map_err(StoreError::Custody);
-        let key_file = KeyFile::destroy(dir);
-        let database = Db::destroy(dir);
+        let key_file = KeyFile::destroy(dir.path());
+        let database = Db::destroy_in(dir);
         match root.and(key_file).and(database) {
             Ok(()) => cause,
             Err(left_behind) => left_behind,
@@ -558,19 +993,22 @@ impl EncryptedStore {
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through the custody it names** and open the database. A `store.db` that
-    /// is missing or empty is made as a new, empty database: the store opens,
-    /// and none of the segments or events that it held reads again. Fails
-    /// [`StoreError::Locked`] while another writer holds the directory, and
-    /// [`StoreError::Sealed`] when `store.key` is missing (delete-all ran, or no
-    /// store was made here) and when the unwrapped key does not open the
-    /// database: a key of another store, a damaged first page, or a file
-    /// shorter than one page. Fails [`StoreError::KeyFileUnparseable`] for a key
-    /// file that does not parse or whose wrapped key has another length than a
-    /// wrap, and [`StoreError::Custody`] with the custody's own variant when the
-    /// custody kind is not in this build or the unwrap fails:
+    /// through the custody it names** and open the database. `open` never
+    /// makes a database. Fails [`StoreError::Locked`] while another writer holds
+    /// the directory, [`StoreError::Sealed`] when `store.key` is missing
+    /// (delete-all ran, or no store was made here), [`StoreError::DatabaseMissing`]
+    /// when `store.db` is missing or empty, and
+    /// [`StoreError::DatabaseUnreadable`] when the unwrapped key does not open
+    /// the database: a key of another store, a damaged page, a cut file, or a
+    /// database without the store's tables. Fails
+    /// [`StoreError::KeyFileUnparseable`] for a key file that does not parse or
+    /// whose wrapped key has another length than a wrap, and
+    /// [`StoreError::Custody`] with the custody's own variant when the custody
+    /// kind is not in this build or the unwrap fails:
     /// [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`] and
     /// [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
+    /// It opens `writer.lock` by name without `O_NONBLOCK`, so a FIFO there
+    /// makes it wait for good.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, retention, custody_for)
     }
@@ -583,17 +1021,26 @@ impl EncryptedStore {
             RootId,
         ) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
-        let _writer_lock = WriterLock::take(dir)?;
-        let key_file = KeyFile::read(dir)?;
+        let store = Dir::open(dir).map_err(store_dir_error)?;
+        store.make_private().map_err(io_error)?;
+        let _writer_lock = WriterLock::take(store.path())?;
+        let key_file = KeyFile::read_in(&store)?;
         let wrapped = key_file.wrapped_store_key()?;
+        segment::refuse_a_linked_segments_root(&store)?;
+        Db::refuse_a_linked_file(&store)?;
+        Db::refuse_a_live_holder(&store)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
+        let started = Instant::now();
         let store_key = custody.unwrap_store_key(&wrapped)?;
-        let db = Db::open(dir, store_key.expose())?;
+        let unwrap_time = started.elapsed();
+        let db = Db::open_existing(&store, store_key.expose())?;
         Ok(Self {
-            dir: dir.to_path_buf(),
+            dir: store,
             retention,
             custody,
             keyed: Keyed::Open { db, store_key },
+            fs: Arc::new(OsFs),
+            unwrap_time,
             _writer_lock,
         })
     }
@@ -610,7 +1057,26 @@ impl EncryptedStore {
     }
 
     pub(crate) fn dir(&self) -> &Path {
+        self.dir.path()
+    }
+
+    pub(crate) fn handle(&self) -> &Dir {
         &self.dir
+    }
+
+    /// How long the custody unwrap of the store key took when `open` made this
+    /// handle; zero for a handle from `create`, which unwraps nothing.
+    pub fn unwrap_time(&self) -> Duration {
+        self.unwrap_time
+    }
+
+    pub(crate) fn fs(&self) -> &dyn DurableFs {
+        self.fs.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn use_fs(&mut self, fs: Arc<dyn DurableFs>) {
+        self.fs = fs;
     }
 
     pub(crate) fn store_key(&self) -> StoreResult<&StoreKey> {
@@ -671,9 +1137,10 @@ impl EncryptedStore {
             segment_id,
             segment_key_id,
         };
-        let byte_len = segment::write_segment_file(&self.dir, &seg_key, &header, bytes)?;
+        let byte_len =
+            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
         if let Err(e) = db.commit_segment_key(segment_key_id, &wrapped) {
-            remove_if_present(&segment::segment_path(&self.dir, segment_id))?;
+            segment::remove_written_segment(&self.dir, segment_id)?;
             return Err(e);
         }
         Ok((
@@ -703,28 +1170,49 @@ impl SegmentStore for EncryptedStore {
     }
 }
 
-pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
-    let mut total = 0u64;
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(p) = stack.pop() {
-        let entries = match std::fs::read_dir(&p) {
-            Ok(e) => e,
-            Err(e) if e.kind() == ErrorKind::NotFound => continue,
-            Err(e) => return Err(io_error(e)),
-        };
+fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
+    match dir.entries() {
+        Ok(entries) => Ok(entries),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// The bytes of the regular files below `dir`, each directory opened and
+/// listed through the handle of its parent; a link is neither followed nor
+/// counted.
+pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
+    type Pending = Vec<(Option<Rc<Dir>>, std::ffi::OsString)>;
+    fn take(
+        parent: Option<&Rc<Dir>>,
+        entries: Vec<durable::Entry>,
+        total: &mut u64,
+        pending: &mut Pending,
+    ) {
         for entry in entries {
-            let entry = entry.map_err(io_error)?;
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(e) if e.kind() == ErrorKind::NotFound => continue,
-                Err(e) => return Err(io_error(e)),
-            };
-            if meta.is_dir() {
-                stack.push(entry.path());
-            } else {
-                total += meta.len();
+            match entry.kind {
+                EntryKind::File => *total += entry.len,
+                EntryKind::Dir => pending.push((parent.cloned(), entry.name)),
+                EntryKind::Link | EntryKind::Other => {}
             }
         }
+    }
+    let mut total = 0u64;
+    let mut pending = Pending::new();
+    take(None, listed(dir)?, &mut total, &mut pending);
+    #[cfg(test)]
+    failpoint::seam(SEAM_SIZE_AFTER_THE_LISTING);
+    while let Some((parent, name)) = pending.pop() {
+        let opened = match &parent {
+            Some(parent) => parent.open_dir(&name),
+            None => dir.open_dir(&name),
+        };
+        let below = match opened {
+            Ok(below) => Rc::new(below),
+            Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => continue,
+            Err(e) => return Err(io_error(e)),
+        };
+        take(Some(&below), listed(&below)?, &mut total, &mut pending);
     }
     Ok(total)
 }
@@ -738,40 +1226,43 @@ pub(crate) mod test_support {
 
     use super::EncryptedStore;
     use crate::custody::dev_fallback::DevFallbackCustody;
-    use crate::custody::RootId;
+    use crate::store::roots::RootGuard;
     use crate::store::DEFAULT_RETENTION;
 
-    pub(crate) struct TestStore(EncryptedStore);
+    pub(crate) struct TestStore {
+        store: EncryptedStore,
+        _root: RootGuard,
+    }
 
     impl Deref for TestStore {
         type Target = EncryptedStore;
         fn deref(&self) -> &EncryptedStore {
-            &self.0
+            &self.store
         }
     }
 
     impl DerefMut for TestStore {
         fn deref_mut(&mut self) -> &mut EncryptedStore {
-            &mut self.0
-        }
-    }
-
-    impl Drop for TestStore {
-        fn drop(&mut self) {
-            self.0
-                .destroy_root()
-                .expect("the test store's platform root is destroyed when the test ends");
+            &mut self.store
         }
     }
 
     pub(crate) fn make_store(dir: &Path) -> TestStore {
-        let custody = DevFallbackCustody::new(RootId::fresh());
-        TestStore(EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap())
+        let root = RootGuard::fresh();
+        let custody = DevFallbackCustody::new(root.id());
+        TestStore {
+            store: EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap(),
+            _root: root,
+        }
     }
 
     #[cfg(unix)]
     pub(crate) fn duplicate_writer_lock_descriptor(store: &EncryptedStore) -> std::fs::File {
         store._writer_lock.file.try_clone().unwrap()
+    }
+
+    pub(crate) fn key_statement(key: &[u8; 32]) -> zeroize::Zeroizing<String> {
+        super::key_pragma(key)
     }
 }
 
@@ -781,6 +1272,7 @@ mod tests {
     use super::*;
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
+    use crate::store::roots::RootGuard;
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
 
     #[test]
@@ -796,15 +1288,15 @@ mod tests {
     #[test]
     fn a_write_ahead_log_that_cannot_be_read_fails_the_checkpoint() {
         let dir = tempfile::tempdir().unwrap();
-        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
-        db.wal_path = dir.path().join("no-such-wal");
+        let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
+        db.log_name = "no-such-wal".into();
         assert!(
             db.checkpoint_truncate().is_ok(),
             "a missing write-ahead log is not an empty one"
         );
         let looping = dir.path().join("looping-wal");
         std::os::unix::fs::symlink(&looping, &looping).unwrap();
-        db.wal_path = looping;
+        db.log_name = "looping-wal".into();
         let checkpoint = db.checkpoint_truncate();
         assert!(
             checkpoint.is_err(),
@@ -875,10 +1367,10 @@ mod tests {
     #[test]
     fn a_checkpoint_that_leaves_bytes_in_the_wal_is_incomplete_and_no_sqlite_code() {
         let dir = tempfile::tempdir().unwrap();
-        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
         let wal = dir.path().join("a-wal-that-keeps-bytes");
         std::fs::write(&wal, [1u8; 100]).unwrap();
-        db.wal_path = wal;
+        db.log_name = "a-wal-that-keeps-bytes".into();
         let checkpoint = db.checkpoint_truncate();
         assert!(
             matches!(
@@ -931,6 +1423,59 @@ mod tests {
         assert_eq!(db.pragma_int("secure_delete").unwrap(), 1);
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
+        assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
+        let text = |pragma: &str| -> String {
+            db.connection().query_row(pragma, [], |r| r.get(0)).unwrap()
+        };
+        assert_eq!(text("PRAGMA journal_mode"), "wal");
+        assert_eq!(text("PRAGMA main.locking_mode"), "exclusive");
+        assert_eq!(text("PRAGMA cipher_log_level"), "NONE");
+        assert_eq!(db.cipher_provider().unwrap(), "libtomcrypt");
+        assert!(
+            text("PRAGMA cipher_version").starts_with("4.19.0"),
+            "{}",
+            text("PRAGMA cipher_version")
+        );
+        assert!(
+            halvo_sqlcipher::os_entropy_hook_installed(),
+            "LibTomCrypt's random source is not the OS entropy hook"
+        );
+    }
+
+    #[test]
+    fn a_cipher_other_than_the_pinned_one_is_refused() {
+        let cases = [
+            ("libtomcrypt", "4.19.0 community", true, None),
+            ("openssl", "4.19.0 community", true, Some("cipher_provider")),
+            (
+                "libtomcrypt",
+                "4.6.1 community",
+                true,
+                Some("cipher_version"),
+            ),
+            (
+                "libtomcrypt",
+                "4.19.01 community",
+                true,
+                Some("cipher_version"),
+            ),
+            (
+                "libtomcrypt",
+                "4.19.0 community",
+                false,
+                Some("os_entropy_hook"),
+            ),
+        ];
+        for (provider, version, hook, refused) in cases {
+            let answer = cipher_in_effect(provider, version, hook);
+            match refused {
+                None => assert!(answer.is_ok(), "{provider} {version} {hook}: {answer:?}"),
+                Some(name) => assert!(
+                    matches!(answer, Err(StoreError::SettingNotInEffect(n)) if n == name),
+                    "{provider} {version} {hook}: {answer:?}"
+                ),
+            }
+        }
     }
 
     fn persistent_store(dir: &Path) -> (EncryptedStore, RootId) {
@@ -944,6 +1489,7 @@ mod tests {
     fn a_second_writer_on_the_same_directory_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let (first, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         assert!(matches!(
             EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
             Err(StoreError::Locked(_))
@@ -952,6 +1498,138 @@ mod tests {
         EncryptedStore::open(dir.path(), DEFAULT_RETENTION)
             .expect("a dropped writer leaves the store free to reopen");
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    }
+
+    #[test]
+    #[ignore = "a measure of contention, 1,000,000 takes of the lock while another thread unlinks the file every 1 ms, 30 to 50 s on a Mac; the seam tests of the retry run by default; run it by hand when the code of WriterLock changes: cargo test -p halvo-capture --lib -- --ignored --exact store::db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file --nocapture"]
+    fn a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::Arc;
+
+        const TAKERS: usize = 5;
+        #[cfg(not(windows))]
+        const TAKES: u64 = 1_000_000;
+        #[cfg(windows)]
+        const TAKES: u64 = 20_000;
+
+        let dir = tempfile::tempdir().unwrap();
+        let taken = Arc::new(AtomicU64::new(0));
+        let takers: Vec<_> = (0..TAKERS)
+            .map(|_| {
+                let (dir, taken) = (dir.path().to_path_buf(), Arc::clone(&taken));
+                std::thread::spawn(move || {
+                    let (mut not_found, mut first_not_found, mut denied) = (0u64, None, 0u64);
+                    let mut other = Vec::new();
+                    loop {
+                        let take = taken.fetch_add(1, Ordering::Relaxed) + 1;
+                        if take > TAKES {
+                            break;
+                        }
+                        durable::make_private(&dir).unwrap();
+                        match WriterLock::take(&dir) {
+                            Ok(lock) => drop(lock),
+                            Err(StoreError::Locked(_)) => {}
+                            Err(StoreError::Io(ErrorKind::NotFound)) => {
+                                not_found += 1;
+                                first_not_found.get_or_insert(take);
+                            }
+                            Err(StoreError::Io(ErrorKind::PermissionDenied)) if cfg!(windows) => {
+                                denied += 1
+                            }
+                            Err(e) => other.push(format!("{e:?}")),
+                        }
+                    }
+                    (not_found, first_not_found, denied, other)
+                })
+            })
+            .collect();
+        let lock_file = dir.path().join("writer.lock");
+        let mut unlinks = 0u64;
+        while !takers.iter().all(|taker| taker.is_finished()) {
+            if std::fs::remove_file(&lock_file).is_ok() {
+                unlinks += 1;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let (mut not_found, mut first_not_found, mut denied, mut other) =
+            (0u64, None::<u64>, 0u64, Vec::new());
+        for taker in takers {
+            let (n, first, d, o) = taker.join().unwrap();
+            not_found += n;
+            first_not_found = match (first_not_found, first) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+            denied += d;
+            other.extend(o);
+        }
+        println!(
+            "TAKES takes={TAKES} takers={TAKERS} unlinks={unlinks} not_found={not_found} \
+             first_not_found_at_take={first_not_found:?} permission_denied={denied} other_errors={}",
+            other.len()
+        );
+        assert!(unlinks > 0, "the file was never unlinked during the takes");
+        assert_eq!(
+            not_found, 0,
+            "{not_found} of {TAKES} takes answered Io(NotFound), the first at take {first_not_found:?}"
+        );
+        assert!(other.is_empty(), "takes answered {other:?}");
+    }
+
+    fn take_whose_first_opens_answer(failing: u32, kind: ErrorKind) -> (StoreResult<()>, u32) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tries = 0;
+        let taken = WriterLock::take_with(dir.path(), &mut |path| {
+            tries += 1;
+            if tries <= failing {
+                Err(std::io::Error::from(kind))
+            } else {
+                WriterLock::open_lock_file(path)
+            }
+        })
+        .map(drop);
+        (taken, tries)
+    }
+
+    #[test]
+    fn a_take_tries_the_open_of_the_lock_file_again_while_it_answers_not_found() {
+        let mut wrong = Vec::new();
+        for failing in 0..=3 {
+            let (taken, tries) = take_whose_first_opens_answer(failing, ErrorKind::NotFound);
+            if taken.is_err() || tries != failing + 1 {
+                wrong.push(format!(
+                    "{failing} opens that answer NotFound: {taken:?} after {tries} tries"
+                ));
+            }
+        }
+        let (taken, tries) = take_whose_first_opens_answer(4, ErrorKind::NotFound);
+        if !matches!(taken, Err(StoreError::Io(ErrorKind::NotFound))) || tries != 4 {
+            wrong.push(format!(
+                "4 opens that answer NotFound: {taken:?} after {tries} tries"
+            ));
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[test]
+    fn a_take_hands_on_an_open_error_of_another_kind_after_one_try() {
+        let (taken, tries) = take_whose_first_opens_answer(1, ErrorKind::PermissionDenied);
+        assert!(
+            matches!(taken, Err(StoreError::Io(ErrorKind::PermissionDenied))) && tries == 1,
+            "an open that answered PermissionDenied: {taken:?} after {tries} tries"
+        );
+    }
+
+    #[test]
+    fn a_take_of_the_writer_lock_in_a_directory_that_is_gone_answers_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("gone");
+        let taken = WriterLock::take(&gone).map(drop);
+        assert!(
+            matches!(taken, Err(StoreError::Io(ErrorKind::NotFound))),
+            "a take in a directory that is gone answered {taken:?}"
+        );
+        assert!(!gone.exists(), "a take made the directory that was gone");
     }
 
     #[test]
@@ -990,9 +1668,10 @@ mod tests {
     fn create_refuses_a_directory_that_already_holds_a_store() {
         let dir = tempfile::tempdir().unwrap();
         drop(make_store(dir.path()));
+        let second_root = RootGuard::fresh();
         let again = EncryptedStore::create(
             dir.path(),
-            Box::new(DevFallbackCustody::new(RootId::fresh())),
+            Box::new(DevFallbackCustody::new(second_root.id())),
             DEFAULT_RETENTION,
         );
         assert!(matches!(again, Err(StoreError::AlreadyExists(_))));
@@ -1002,6 +1681,7 @@ mod tests {
     fn open_reports_a_missing_root_as_root_missing() {
         let dir = tempfile::tempdir().unwrap();
         let (store, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         drop(store);
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
         assert!(matches!(
@@ -1013,7 +1693,8 @@ mod tests {
     #[test]
     fn open_rebuilds_the_custody_from_the_key_file() {
         let dir = tempfile::tempdir().unwrap();
-        let (mut store, _) = persistent_store(dir.path());
+        let (mut store, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         let (seg_ref, _) = store
             .write_segment(&mut std::io::Cursor::new(b"persisted"))
             .unwrap();
@@ -1058,7 +1739,8 @@ mod tests {
         let seg_key =
             segment::unwrap_segment_key(store.store_key().unwrap().expose(), &wrapped).unwrap();
         let mut plain = Vec::new();
-        segment::read_segment_file(store.dir(), &seg_key, seg_ref.segment_id, &mut plain).unwrap();
+        segment::read_segment_file(store.handle(), &seg_key, seg_ref.segment_id, &mut plain)
+            .unwrap();
         assert_eq!(plain, b"screen frame bytes");
         let mut again = Vec::new();
         assert_eq!(
@@ -1066,5 +1748,49 @@ mod tests {
             18
         );
         assert_eq!(again, b"screen frame bytes");
+    }
+
+    #[test]
+    fn the_open_flag_constants_carry_no_follow_and_neither_uri_nor_create() {
+        for flags in [DATABASE_OPEN, PROBE_OPEN] {
+            assert!(flags.contains(OpenFlags::SQLITE_OPEN_NOFOLLOW), "{flags:?}");
+            assert!(!flags.contains(OpenFlags::SQLITE_OPEN_URI), "{flags:?}");
+            assert!(!flags.contains(OpenFlags::SQLITE_OPEN_CREATE), "{flags:?}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sqlite_under_the_constant_flags_refuses_a_link_and_the_store_maps_it_to_corrupt() {
+        halvo_sqlcipher::initialize().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = Dir::open(dir.path()).unwrap();
+        let target = resolved.path().join("target.db");
+        Connection::open(&target)
+            .unwrap()
+            .execute_batch("CREATE TABLE t (x INTEGER);")
+            .unwrap();
+        let bytes = std::fs::read(&target).unwrap();
+        let link = resolved.path().join("store.db");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        for flags in [DATABASE_OPEN, PROBE_OPEN] {
+            let answer = Connection::open_with_flags(&link, flags)
+                .and_then(|conn| {
+                    conn.query_row("SELECT count(*) FROM t", [], |r| r.get::<_, i64>(0))
+                })
+                .map_err(database_open_error);
+            assert!(
+                matches!(&answer, Err(StoreError::Corrupt(text)) if text == LINKED_DATABASE),
+                "{flags:?}: {answer:?}"
+            );
+        }
+        let mut names: Vec<String> = std::fs::read_dir(resolved.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["store.db", "target.db"]);
+        assert!(std::fs::read(&target).unwrap() == bytes);
     }
 }

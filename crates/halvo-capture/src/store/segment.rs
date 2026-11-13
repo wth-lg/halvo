@@ -1,5 +1,6 @@
 //! Per-segment XChaCha20-Poly1305 file writer and reader.
 
+use std::ffi::{OsStr, OsString};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -15,7 +16,7 @@ use crate::custody::dev_fallback::{aead_open, aead_seal};
 use crate::custody::wiped_on_drop;
 use crate::event::SegmentKeyId;
 
-use super::db::remove_if_present;
+use super::durable::{self, Dir, DurableFs, EntryKind, Refused};
 use super::{StoreError, StoreResult};
 
 pub(crate) const CHUNK: usize = 64 * 1024;
@@ -28,6 +29,11 @@ const HEADER_LEN: usize = MAGIC.len() + size_of::<u8>() + size_of::<Uuid>() + si
 const SEGMENT_KEY_AAD: &[u8] = b"halvo-segment-key";
 const SEGMENT_EXT: &str = "seg";
 const PARTIAL_EXT: &str = "seg.tmp";
+const SEGMENTS: &str = "segments";
+const LINKED_SEGMENTS: &str = "the segments directory of the store is a link";
+const LINKED_SHARD: &str = "a shard of the segments directory of the store is a link";
+const LINKED_SEGMENT_FILE: &str = "a segment file of the store is a link";
+const SEGMENT_FILE_NOT_REGULAR: &str = "a segment file of the store is no regular file";
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub(crate) struct SegmentKey(Box<[u8; 32]>);
@@ -66,61 +72,153 @@ pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreR
 }
 
 pub(crate) fn segments_root(store_dir: &Path) -> PathBuf {
-    store_dir.join("segments")
+    store_dir.join(SEGMENTS)
 }
 
 pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
-    let id = segment_id.simple().to_string();
-    let shard = &id[..2];
+    let names = SegmentNames::of(segment_id);
     segments_root(store_dir)
-        .join(shard)
-        .join(format!("{id}.{SEGMENT_EXT}"))
+        .join(&names.shard)
+        .join(&names.file)
+}
+
+struct SegmentNames {
+    shard: OsString,
+    file: OsString,
+    partial: OsString,
+}
+
+impl SegmentNames {
+    fn of(segment_id: Uuid) -> Self {
+        let id = segment_id.simple().to_string();
+        Self {
+            shard: OsString::from(&id[..2]),
+            file: OsString::from(format!("{id}.{SEGMENT_EXT}")),
+            partial: OsString::from(format!("{id}.{PARTIAL_EXT}")),
+        }
+    }
 }
 
 pub(crate) enum SegmentFile {
-    Segment { id: Uuid, path: PathBuf },
-    Other(PathBuf),
+    Segment(Uuid),
+    Partial,
 }
 
 impl SegmentFile {
-    pub(crate) fn path(&self) -> &Path {
-        match self {
-            SegmentFile::Segment { path, .. } | SegmentFile::Other(path) => path,
+    fn named(shard: &str, name: &str) -> Option<Self> {
+        let (stem, partial) = match name.strip_suffix(&format!(".{PARTIAL_EXT}")) {
+            Some(stem) => (stem, true),
+            None => (name.strip_suffix(&format!(".{SEGMENT_EXT}"))?, false),
+        };
+        if !is_lower_hex(stem, 32) || !stem.starts_with(shard) {
+            return None;
         }
-    }
-
-    fn classify(path: PathBuf) -> Self {
-        let id = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .and_then(|n| n.strip_suffix(&format!(".{SEGMENT_EXT}")))
-            .and_then(|stem| Uuid::parse_str(stem).ok());
-        match id {
-            Some(id) => SegmentFile::Segment { id, path },
-            None => SegmentFile::Other(path),
-        }
+        let id = Uuid::parse_str(stem).ok()?;
+        Some(if partial {
+            SegmentFile::Partial
+        } else {
+            SegmentFile::Segment(id)
+        })
     }
 }
 
-pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<Vec<SegmentFile>> {
-    let mut files = Vec::new();
-    let mut stack = vec![segments_root(store_dir)];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
+fn is_lower_hex(text: &str, len: usize) -> bool {
+    text.len() == len && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+fn refused_or_io(e: io::Error, link: &str) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => StoreError::Corrupt(link.to_string()),
+        Some(Refused::NotADirectory) => StoreError::Io(io::ErrorKind::NotADirectory),
+        Some(Refused::NotARegularFile) => StoreError::Corrupt(SEGMENT_FILE_NOT_REGULAR.to_string()),
+        #[cfg(windows)]
+        Some(Refused::Moved) => StoreError::Corrupt(link.to_string()),
+        None => io_error(e),
+    }
+}
+
+pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
+    store_dir
+        .remove_tree(OsStr::new(SEGMENTS))
+        .map_err(io_error)
+}
+
+pub(crate) fn refuse_a_linked_segments_root(store_dir: &Dir) -> StoreResult<()> {
+    match store_dir.entry(OsStr::new(SEGMENTS)) {
+        Ok(entry) if entry.kind == EntryKind::Link => {
+            Err(StoreError::Corrupt(LINKED_SEGMENTS.to_string()))
+        }
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// What a sweep of the segment files did: the files that it removed, the
+/// entries that it took as no files of the store, and the first removal that
+/// failed, after it tried every other one.
+pub(crate) struct SegmentSweep {
+    pub(crate) removed: u64,
+    pub(crate) not_store_files: u64,
+    pub(crate) first_failure: Option<StoreError>,
+}
+
+pub(crate) fn sweep_segment_files(
+    store_dir: &Dir,
+    fs: &dyn DurableFs,
+    keep: &dyn Fn(Uuid) -> bool,
+) -> StoreResult<SegmentSweep> {
+    let mut sweep = SegmentSweep {
+        removed: 0,
+        not_store_files: 0,
+        first_failure: None,
+    };
+    let segments = match fs.open_dir(store_dir, OsStr::new(SEGMENTS)) {
+        Ok(segments) => segments,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(sweep),
+        Err(e) => return Err(refused_or_io(e, LINKED_SEGMENTS)),
+    };
+    for shard_entry in fs.entries(&segments).map_err(io_error)? {
+        let shard_name = match shard_entry.name.to_str() {
+            Some(name) if shard_entry.kind == EntryKind::Dir && is_lower_hex(name, 2) => name,
+            _ => {
+                sweep.not_store_files += 1;
+                continue;
+            }
+        };
+        let shard = match fs.open_dir(&segments, &shard_entry.name) {
+            Ok(shard) => shard,
             Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+            Err(e) if durable::refusal(&e).is_some() => {
+                sweep.not_store_files += 1;
+                continue;
+            }
             Err(e) => return Err(io_error(e)),
         };
-        for entry in entries {
-            let path = entry.map_err(io_error)?.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else {
-                files.push(SegmentFile::classify(path));
+        for entry in fs.entries(&shard).map_err(io_error)? {
+            let named = match entry.name.to_str() {
+                Some(name) if entry.kind == EntryKind::File => SegmentFile::named(shard_name, name),
+                _ => None,
+            };
+            match named {
+                None => sweep.not_store_files += 1,
+                Some(SegmentFile::Segment(id)) if keep(id) => {}
+                Some(_) => match remove_segment_file(fs, &shard, &entry.name) {
+                    Ok(()) => sweep.removed += 1,
+                    Err(e) => {
+                        sweep.first_failure.get_or_insert(e);
+                    }
+                },
             }
         }
+        if !segments
+            .names(&shard_entry.name, &shard)
+            .map_err(io_error)?
+        {
+            sweep.not_store_files += 1;
+        }
     }
-    Ok(files)
+    Ok(sweep)
 }
 
 pub(crate) struct SegmentHeader {
@@ -292,56 +390,94 @@ fn emit_plaintext(out: &mut dyn Write, opened: Result<Vec<u8>, aead::Error>) -> 
     Ok(plaintext.len() as u64)
 }
 
-pub(crate) fn write_segment_file(
-    store_dir: &Path,
-    seg_key: &SegmentKey,
-    header: &SegmentHeader,
-    plaintext: &mut dyn Read,
-) -> StoreResult<u64> {
-    let path = segment_path(store_dir, header.segment_id);
-    let partial = path.with_extension(PARTIAL_EXT);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(io_error)?;
-    }
-    let written = write_complete(&partial, seg_key, header, plaintext).and_then(|written| {
-        std::fs::rename(&partial, &path).map_err(io_error)?;
-        Ok(written)
-    });
-    if written.is_err() {
-        let _ = std::fs::remove_file(&partial);
-    }
-    written
+fn open_or_make(parent: &Dir, name: &OsStr, link: &str) -> StoreResult<Dir> {
+    parent.create_dir(name).map_err(io_error)?;
+    parent.open_dir(name).map_err(|e| refused_or_io(e, link))
 }
 
-fn write_complete(
-    partial: &Path,
+pub(crate) fn write_segment_file(
+    store_dir: &Dir,
+    fs: &dyn DurableFs,
     seg_key: &SegmentKey,
     header: &SegmentHeader,
     plaintext: &mut dyn Read,
 ) -> StoreResult<u64> {
-    let file = std::fs::File::create(partial).map_err(io_error)?;
-    let mut writer = io::BufWriter::new(file);
-    let written = encrypt_segment(plaintext, &mut writer, seg_key, header)?;
-    writer.flush().map_err(io_error)?;
-    writer.get_ref().sync_all().map_err(io_error)?;
-    Ok(written)
+    let names = SegmentNames::of(header.segment_id);
+    let segments = open_or_make(store_dir, OsStr::new(SEGMENTS), LINKED_SEGMENTS)?;
+    let shard = open_or_make(&segments, &names.shard, LINKED_SHARD)?;
+    durable::write_durably(
+        fs,
+        &shard,
+        &names.partial,
+        &names.file,
+        io_error,
+        |written| {
+            match segments.names(&names.shard, &shard) {
+                Ok(true) => {}
+                Ok(false) => return Err(StoreError::Corrupt(LINKED_SHARD.to_string())),
+                Err(e) => return Err(io_error(e)),
+            }
+            match shard.names_file(&names.partial, written) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(StoreError::Corrupt(LINKED_SEGMENT_FILE.to_string())),
+                Err(e) => Err(io_error(e)),
+            }
+        },
+        |shard, partial| {
+            let _ = shard.remove_file(partial);
+            Ok(())
+        },
+        |out| encrypt_segment(plaintext, out, seg_key, header),
+    )
+}
+
+fn missing_or(segment_id: Uuid, link: &'static str) -> impl Fn(io::Error) -> StoreError {
+    move |e| match e.kind() {
+        io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
+        _ => refused_or_io(e, link),
+    }
 }
 
 pub(crate) fn read_segment_file(
-    store_dir: &Path,
+    store_dir: &Dir,
     seg_key: &SegmentKey,
     segment_id: Uuid,
     out: &mut dyn Write,
 ) -> StoreResult<u64> {
-    let file =
-        std::fs::File::open(segment_path(store_dir, segment_id)).map_err(|e| match e.kind() {
-            io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
-            _ => io_error(e),
-        })?;
+    let names = SegmentNames::of(segment_id);
+    let segments = store_dir
+        .open_dir(OsStr::new(SEGMENTS))
+        .map_err(missing_or(segment_id, LINKED_SEGMENTS))?;
+    let shard = segments
+        .open_dir(&names.shard)
+        .map_err(missing_or(segment_id, LINKED_SHARD))?;
+    let file = shard.open_file(&names.file).map_err(|e| match e.kind() {
+        io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
+        _ => refused_or_io(e, LINKED_SEGMENT_FILE),
+    })?;
     let mut reader = io::BufReader::new(file);
     decrypt_segment(&mut reader, &mut io::sink(), seg_key)?;
     reader.seek(SeekFrom::Start(0)).map_err(io_error)?;
     decrypt_segment(&mut reader, out, seg_key)
+}
+
+/// Removes the file of a segment that this store wrote, through the handles
+/// of its directories; a name that is gone or that is no directory of the
+/// store leaves nothing to remove.
+pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> StoreResult<()> {
+    let names = SegmentNames::of(segment_id);
+    let shard = store_dir
+        .open_dir(OsStr::new(SEGMENTS))
+        .and_then(|segments| segments.open_dir(&names.shard));
+    let removed = match shard {
+        Ok(shard) => shard.remove_file(&names.file),
+        Err(e) => Err(e),
+    };
+    match removed {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound || durable::refusal(&e).is_some() => Ok(()),
+        Err(e) => Err(io_error(e)),
+    }
 }
 
 pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> StoreResult<Vec<u8>> {
@@ -350,8 +486,13 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
     Ok(plaintext)
 }
 
-pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
-    remove_if_present(path)
+pub(crate) fn remove_segment_file(
+    fs: &dyn DurableFs,
+    shard: &Dir,
+    name: &OsStr,
+) -> StoreResult<()> {
+    super::failpoint::hit("segment_file_remove")?;
+    durable::remove_durably(fs, shard, name).map_err(io_error)
 }
 
 #[cfg(test)]
@@ -539,8 +680,10 @@ pub(crate) mod tests {
             segment_id: Uuid::now_v7(),
             segment_key_id: SegmentKeyId(5),
         };
+        let store_dir = Dir::open(dir.path()).unwrap();
         let written = write_segment_file(
-            dir.path(),
+            &store_dir,
+            &crate::store::durable::OsFs,
             &seg_key,
             &header,
             &mut io::Cursor::new(&plaintext),
@@ -551,7 +694,7 @@ pub(crate) mod tests {
         let seg_key = unwrap_segment_key(&store_key, &wrapped).unwrap();
         assert_eq!(seg_key.expose(), &seg_key_bytes);
         let mut got = Vec::new();
-        let read = read_segment_file(dir.path(), &seg_key, header.segment_id, &mut got).unwrap();
+        let read = read_segment_file(&store_dir, &seg_key, header.segment_id, &mut got).unwrap();
         assert_eq!(read, len as u64);
         assert_eq!(got, plaintext);
     }
@@ -575,7 +718,8 @@ pub(crate) mod tests {
             segment_key_id: SegmentKeyId(1),
         };
         write_segment_file(
-            dir.path(),
+            &Dir::open(dir.path()).unwrap(),
+            &crate::store::durable::OsFs,
             &seg_key,
             &header,
             &mut io::Cursor::new(b"secret bytes"),
