@@ -1521,6 +1521,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-coord-app"
+version = "0.0.0"
+dependencies = [
+ "halvo-coord",
+ "serde",
+ "serde_json",
+ "tauri",
+]
+
+[[package]]
 name = "halvo-learn"
 version = "0.0.0"
 dependencies = [
