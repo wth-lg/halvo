@@ -177,14 +177,14 @@ pub(crate) fn set_support(
     Ok(changed)
 }
 
-/// Applies the proposals of one call of the recurrence step by the table of the workflow record: a proposal whose
-/// key no stored workflow holds is stored as a new workflow in the state `proposed`; one whose key a dismissed
-/// workflow holds is dropped; one whose key a workflow in another state holds changes that row, which keeps its id,
-/// its state and its agent and takes the proposal's app, trigger, recurrence and confidence, and its support rows
-/// become those of the proposal's summaries. A proposal that names a summary stored under another key than its own
-/// is refused, so every summary that supports a workflow, or once did, holds the workflow's key. Of the proposals
-/// with one key that are not refused, the last stands. The ids of the new
-/// workflows are drawn from `ids` in the order of their category and then of their lowest supporting summary id.
+/// Applies the proposals of one call of the recurrence step by the table of the workflow record: a proposal whose key
+/// no stored workflow holds is stored as a new workflow in the state `proposed`; one whose key a dismissed workflow
+/// holds is dropped; one whose key a workflow in another state holds changes that row, which keeps its id, its state
+/// and its agent and takes the proposal's app, trigger, recurrence and confidence, and its support rows become those
+/// of the proposal's summaries. A proposal that names a summary stored under another key than its own is refused, so
+/// every summary that supports a workflow, or once did, holds the workflow's key. Of the proposals with one key that
+/// are not refused, the last stands. The ids of the new workflows are drawn from `ids` in the order of their category
+/// and then of their lowest supporting summary id.
 pub(crate) fn apply(
     tx: &Tx<'_>,
     now: Now,
