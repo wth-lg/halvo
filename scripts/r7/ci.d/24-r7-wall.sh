@@ -61,6 +61,7 @@ judge() {
     }
     function under_backend(r,   l) { l = lower(r); return l == "backend" || index(l, "backend/") == 1 }
     function tracked(r) { return r != "" && ((r in known) || (r in tracked_dir) || (r in stem)) }
+    function tracked_file(r) { return r != "" && ((r in known) || (r in stem)) }
     function dir_of(p,   k) { k = match(p, /\/[^\/]*$/); return k ? substr(p, 1, k - 1) : "" }
     function side_of(p,   l) {
       l = lower(p)
@@ -168,29 +169,10 @@ judge() {
       for (k = 1; k <= n; k++) if (sg[k] in link_name) return 1
       return 0
     }
-    function normal(s,   k, m, id, qc, out, rest, mm) {
+    function normal(s,   k, m, id, qc) {
       sub(/\r$/, "", s)
       gsub(/\\\\/, "/", s)
       while (k = match(s, /\\[A-Za-z0-9_.-]/)) s = substr(s, 1, k - 1) "/" substr(s, k + 1)
-      while (match(s, dot_chain)) {
-        m = substr(s, RSTART, RLENGTH)
-        sub(sep_at_end, "/", m)
-        s = substr(s, 1, RSTART - 1) m substr(s, RSTART + RLENGTH)
-      }
-      out = ""
-      rest = s
-      while (match(rest, join_call)) {
-        m = substr(rest, RSTART, RLENGTH)
-        out = out substr(rest, 1, RSTART - 1)
-        rest = substr(rest, RSTART + RLENGTH)
-        while (match(m, comma_chain)) {
-          mm = substr(m, RSTART, RLENGTH)
-          sub(comma_at_end, "/", mm)
-          m = substr(m, 1, RSTART - 1) mm substr(m, RSTART + RLENGTH)
-        }
-        out = out m
-      }
-      s = out rest
       while (match(s, join_var)) {
         m = substr(s, RSTART, RLENGTH)
         qc = substr(m, length(m) - 2, 1)
@@ -246,11 +228,15 @@ judge() {
         i = rest_index(sg, from, n)
         r = walk("", sg, i, n)
         rb = walk("backend", sg, i, n)
-        if (!inside(r) && tracked(r) && !tracked(rb)) problem(where, "reads " r ", a tracked path of the app, after a variable or a command substitution: " tok fix_dir)
+        if (!inside(r) && (chain_mode ? tracked_file(r) : tracked(r)) && !tracked(rb)) problem(where, "reads " r ", a tracked path of the app, after a variable or a command substitution: " tok fix_dir)
         return
       }
       if (climbs || linked || kind == "top" || kind == "manifest") {
         r = walk(base, sg, from, n)
+        if (chain_mode) {
+          if (r != "^" && r != "@" && r != "~" && r != "" && !inside(r) && tracked_file(r)) problem(where, "reads " r " outside backend/ and formal/r7-ledger/: " tok fix)
+          return
+        }
         if (r == "^") { problem(where, "climbs above the repository: " tok fix); return }
         if (r == "@") { problem(where, "reaches an absolute path through a link: " tok fix_ask); return }
         if (r == "~") { problem(where, "follows a loop of links: " tok fix_ask); return }
@@ -258,7 +244,7 @@ judge() {
         if (substr(r, 1, 1) == "$" && (kind == "top" || kind == "file")) { problem(where, "names a path from the top whose next part the check cannot read: " tok "; write the path from backend/'"'"'s own directory, or ask for a ruling"); return }
         if (!inside(r)) { problem(where, "reads " r " outside backend/ and formal/r7-ledger/: " tok fix); return }
       }
-      if (kind == "plain" && climbs) {
+      if (kind == "plain" && climbs && !chain_mode) {
         r = walk(base, sg, from, n)
         prev = ""
         for (i = from; i <= n; i++) {
@@ -297,6 +283,11 @@ judge() {
           r2 = walk("", sg, 1, n)
           if (under_backend(r2) && !(dotted && tracked(r1))) hit = r2
         }
+      }
+      if (hit != "" && chain_mode && !tracked_file(hit)) hit = ""
+      if (chain_mode) {
+        if (hit != "" && !(index(path, "account/schema/") == 1 && (hit in copied))) problem(where, "reads under backend/: " hit " by " tok fix_md)
+        return
       }
       if (hit != "") {
         if (index(path, "account/schema/") == 1 && (hit in copied)) return
@@ -357,7 +348,8 @@ judge() {
     function app_line(s,   low) {
       low = lower(s)
       if (s ~ enters_word || s ~ enters_mark || s ~ enters_tool) { problem(where, "enters backend/ as a directory or a project" fix_md); return }
-      if (s ~ operand || s ~ archive) { problem(where, "gives backend to a command of the closed list as its first path operand" fix_md); return }
+      if (s ~ archive) { problem(where, "gives backend to tar or zip on one line, as a command or as a sentence; reword a sentence, or ask for a ruling"); return }
+      if (s ~ operand) { problem(where, "gives backend to a command of the closed list as its first path operand" fix_md); return }
       if (low ~ defaults) { problem(where, "takes the word backend as a parameter default" fix_md); return }
       if (low ~ braces) { problem(where, "names backend/ in a brace group" fix_md); return }
       if (low ~ assigns) { problem(where, "assigns the word backend to a name, a label or an attribute" fix_name); return }
@@ -365,6 +357,7 @@ judge() {
       words(s)
     }
     function line_of(s,   rest, off, tok, before, pos) {
+      chain_mode = 0
       s = normal(s)
       if (side == "app") {
         app_line(s)
@@ -381,6 +374,34 @@ judge() {
         before = refused[side] + 0
         token(tok, s, pos)
         if (refused[side] + 0 > before) return
+      }
+      chains(s)
+    }
+    function chains(s,   rest, off, n, i, j, st, en, sv, c, last, before) {
+      n = 0
+      rest = s
+      off = 0
+      while (match(rest, string_re)) {
+        n++
+        st[n] = off + RSTART
+        en[n] = off + RSTART + RLENGTH - 1
+        sv[n] = substr(rest, RSTART + 1, RLENGTH - 2)
+        off += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      for (i = 1; i < n; i++) {
+        if (sv[i] !~ /(^|\/)\.\.(\/|$)/) continue
+        c = sv[i]
+        for (j = i + 1; j <= n; j++) {
+          if (substr(s, en[j - 1] + 1, st[j] - en[j - 1] - 1) !~ sep_gap) break
+          c = c "/" sv[j]
+          last = j == n || substr(s, en[j] + 1, st[j + 1] - en[j] - 1) !~ sep_gap
+          chain_mode = !last
+          before = refused[side] + 0
+          token(c, s, st[i] + 1)
+          chain_mode = 0
+          if (refused[side] + 0 > before) return
+        }
       }
     }
     BEGIN {
@@ -402,7 +423,9 @@ judge() {
       enters_tool = "(^|[^A-Za-z0-9_-])((tsc|vue-tsc)([ \t]+[^ \t;&|]+)*[ \t]+-p|(npm|pnpm|yarn)([ \t]+[^ \t;&|]+)*[ \t]+-w)([ \t]+|[ \t]*=[ \t]*)" bk "([^A-Za-z0-9_./-]|$)"
       enters_mark = "(working-directory:|cwd:|cwd=|current_dir\\()[ \t]*" bk "([^A-Za-z0-9_./-]|$)"
       operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
-      archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+-[A-Za-z0-9-]+([ \t]+[^- \t;&|][^ \t;&|]*)?)*[ \t]+" bk "([ \t;&|)]|$)"
+      archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
+      string_re = "\"[^\"]*\"|" q "[^" q "]*" q "|`[^`]*`"
+      sep_gap = "^[ \t]*(,|\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*$"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
       braces = "\\{([^{}]*,)?[ \t]*backend[ \t]*(,[^{}]*)?\\}/"
       assigns = "(^|[^a-z0-9_])[a-z_][a-z0-9_]*[ \t]*(:[^=]*)?=[ \t]*" word "[ \t]*(;|,|$|&&|\\|\\||\\))"
@@ -659,10 +682,9 @@ It fails when:
   --dir, --prefix, --manifest-path, --project, --workspace,
   working-directory:, cwd:, cwd= or current_dir(, with -p of tsc or vue-tsc,
   or with -w of npm, pnpm or yarn, each option in its own letter case; gives
-  it as the operand of tar or zip after their options, each option with at
-  most one argument (a sentence that names tar is no command); or gives it as
-  the first path operand of
-  cat, cp, mv, ln, ls, find, rsync or du. A word that stands alone is no
+  it as the first path operand of cat, cp, mv, ln, ls, find, rsync or du; or
+  names tar or zip before the word backend on one line, which is refused as a
+  command or as a sentence alike (reword such a sentence). A word that stands alone is no
   path: a comment or a sentence that names the backend is read and passes;
 - a tracked link of the app points under backend/, a tracked link of either
   side points to an absolute or a drive-letter path, or a link is part of a
@@ -700,6 +722,11 @@ Readings that refuse an honest line, with the form to write in its place:
   "$(dirname "$0")/../gate/prompt-budget.json";
 - in the app, a comment that names a path under backend/ is refused: write it
   in a .md file;
+- on either side, the strings of one line are placed each by itself, as the
+  chain of a run of strings joined by a comma, ").join(" or "/", and as each
+  shorter chain of that run (a shorter chain is refused when it names a
+  tracked file of the other side), so two unrelated strings that chain into
+  a path of the other side are refused: put the strings on two lines;
 - in the app, the word backend assigned to a name, as a label or as an
   attribute value is refused: give it another name.
 
@@ -1106,7 +1133,7 @@ cp "$dir/src/types.ts" ui/src/types.ts' 'scripts/types.sh:1: takes the word back
   case_with app-joins-backend-to-a-path src-tauri/build.rs 'let p = root.join("backend").join("contract");' 'src-tauri/build.rs:1: joins the word backend'
   case_with app-joins-backend-as-a-second-argument scripts/j.mjs 'const p = path.join(root, "backend");' 'scripts/j.mjs:1: joins the word backend'
   case_with app-pushes-backend-to-a-path scripts/j.mjs 'parts.push("backend");' 'scripts/j.mjs:1: joins the word backend'
-  case_with app-joins-a-climb-to-backend scripts/j.mjs 'const p = join(root, "..", "backend", "src");' 'scripts/j.mjs:1: reads under backend/'
+  case_with app-joins-a-climb-to-backend scripts/j.mjs 'const p = join(root, "..", "backend", "src");' 'scripts/j.mjs:1: joins the word backend'
   case_with app-names-backend-in-another-case tools/x.sh 'cat Backend/src/types.ts' 'tools/x.sh:1: reads under backend/'
   case_with app-names-backend-with-windows-separators tools/x.ps1 'Get-Content ..\backend\src\types.ts' 'tools/x.ps1:1: reads under backend/'
   case_with app-names-backend-by-a-glob Cargo.toml 'members = ["src-tauri", "b*/spikes/s3/crate"]' 'Cargo.toml:1: reads under backend/'
@@ -1369,8 +1396,8 @@ cat "$HERE/../src-tauri/tauri.conf.json"' 'backend/spikes/s1/peek.sh:3: reads sr
   case_with backend-climbs-after-an-unread-variable-to-the-app backend/stress/driver.mjs 'ctx.registry ??= join(ctx.outDir, "..", "src-tauri", "tauri.conf.json");' 'backend/stress/driver.mjs:1: reads src-tauri/tauri.conf.json, a tracked path of the app'
   case_with backend-climbs-after-an-unread-variable-to-the-root-manifest backend/stress/driver.mjs 'ctx.registry ??= join(ctx.outDir, "..", "Cargo.toml");' 'backend/stress/driver.mjs:1: reads Cargo.toml, a tracked path of the app'
 
-  case_with app-archives-backend-with-tar scripts/pack.sh 'tar -czf dist/app.tgz backend' 'scripts/pack.sh:1: gives backend to a command'
-  case_with app-archives-backend-with-zip scripts/pack.sh 'zip -r dist/app.zip backend' 'scripts/pack.sh:1: gives backend to a command'
+  case_with app-archives-backend-with-tar scripts/pack.sh 'tar -czf dist/app.tgz backend' 'scripts/pack.sh:1: gives backend to tar or zip'
+  case_with app-archives-backend-with-zip scripts/pack.sh 'zip -r dist/app.zip backend' 'scripts/pack.sh:1: gives backend to tar or zip'
   case_with app-cats-backend scripts/list.sh 'cat backend' 'scripts/list.sh:1: gives backend to a command'
   case_with app-moves-backend scripts/list.sh 'mv backend old-server' 'scripts/list.sh:1: gives backend to a command'
   case_with app-links-backend scripts/list.sh 'ln -s backend server' 'scripts/list.sh:1: gives backend to a command'
@@ -1396,8 +1423,22 @@ const text = readFileSync(root + "/../crates/halvo-capture/src/lib.rs", "utf8");
 here += "/../..";
 const text = readFileSync(here + "/../crates/halvo-capture/src/lib.rs", "utf8");' 'backend/scripts/peek-plus.mjs:3: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
   pass_with backend-joins-pieces-to-its-own-path backend/src/own.mjs 'const p = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "stack.sh");' 'read:backend/src/own.mjs'
-  pass_with app-comment-names-zip-and-then-the-backend crates/halvo-x/src/lib.rs '// Releases ship the app as one zip file and the backend as a Worker' 'read:crates/halvo-x/src/lib.rs'
-  pass_with a-root-text-names-tar-and-then-the-backend RELEASE-NOTES.txt 'Each tar of a release leaves out the backend' 'read:RELEASE-NOTES.txt'
+  case_with app-comment-names-zip-and-then-the-backend crates/halvo-x/src/lib.rs '// Releases ship the app as one zip file and the backend as a Worker' 'crates/halvo-x/src/lib.rs:1: gives backend to tar or zip'
+  case_with a-root-text-names-tar-and-then-the-backend RELEASE-NOTES.txt 'Each tar of a release leaves out the backend' 'RELEASE-NOTES.txt:1: gives backend to tar or zip'
+  case_with app-archives-backend-with-old-style-tar scripts/pack.sh 'tar czf dist/app.tgz backend' 'scripts/pack.sh:1: gives backend to tar or zip'
+  case_with app-archives-backend-to-standard-output scripts/pack.sh 'tar cf - backend | gzip > dist/app.tgz' 'scripts/pack.sh:1: gives backend to tar or zip'
+  case_with app-archives-backend-with-a-long-option scripts/pack.sh 'tar --exclude=node_modules -czf dist/app.tgz backend' 'scripts/pack.sh:1: gives backend to tar or zip'
+  pass_with app-archives-the-ui scripts/pack.sh 'tar -czf dist/app.tgz ui/dist'
+  case_with backend-joins-three-levels-of-calls backend/src/v.mjs 'const p = join(dirname(fileURLToPath(new URL(import.meta.url))), "..", "..", "crates", "halvo-capture", "src", "lib.rs");' 'backend/src/v.mjs:1: reads crates'
+  case_with backend-joins-an-array-of-pieces backend/src/v.mjs 'const p = ["..", "..", "crates", "halvo-capture", "src", "lib.rs"].join("/");' 'backend/src/v.mjs:1: reads crates'
+  case_with backend-reads-the-app-by-pieces-with-a-tail backend/src/v.mjs 'const t = read(process.env.ROOT + "/..", "crates", "halvo-capture", "src", "lib.rs", "utf8");' 'backend/src/v.mjs:1: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  pass_with backend-passes-two-strings-that-name-nothing-outside backend/src/log.mjs 'log("../x", "y");' 'read:backend/src/log.mjs'
+
+  case_with t1-app-tar-dashless-options scripts/pack1.sh 'tar czf dist/app.tgz backend' 'scripts/pack1.sh:1: gives backend to tar or zip'
+  case_with t2-app-tar-long-option-with-equals scripts/pack2.sh 'tar --exclude=node_modules -czf dist/app.tgz backend' 'scripts/pack2.sh:1: gives backend to tar or zip'
+  case_with t3-app-tar-to-standard-output scripts/pack3.sh 'tar -cf - backend | gzip > dist/app.tgz' 'scripts/pack3.sh:1: gives backend to tar or zip'
+  case_with j1-backend-python-path-pieces backend/scripts/peek_path.py 'TEXT = Path("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_path.py:1: reads crates'
+  case_with j2-backend-python-joinpath backend/scripts/peek_joinpath.py 'TEXT = Path(__file__).parent.joinpath("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_joinpath.py:1: reads crates'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
