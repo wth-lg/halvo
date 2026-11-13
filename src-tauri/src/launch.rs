@@ -65,8 +65,10 @@ impl fmt::Display for Usage {
 
 pub const USAGE: &str = "usage: halvo [--version | --check-page --config-dir DIR --within-s N]";
 
-pub fn parse<I: IntoIterator<Item = OsString>>(args: I) -> Result<Launch, Usage> {
-    let args = args
+pub fn parse<I: IntoIterator<Item = OsString>>(
+    args_after_program_name: I,
+) -> Result<Launch, Usage> {
+    let args = args_after_program_name
         .into_iter()
         .map(|arg| arg.into_string().map_err(|_| Usage::NotUnicode))
         .collect::<Result<Vec<String>, Usage>>()?;

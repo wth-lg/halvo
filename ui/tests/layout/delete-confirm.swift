@@ -4,6 +4,10 @@
 import AppKit
 import WebKit
 
+guard CommandLine.arguments.count == 2 else {
+    FileHandle.standardError.write("usage: xcrun swift delete-confirm.swift <path of index.html>\n".data(using: .utf8)!)
+    exit(64)
+}
 let page = URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL
 
 let stub = """

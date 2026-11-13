@@ -180,9 +180,13 @@ pub fn test_app(config_dir: PathBuf) -> TestApp {
     let mut app = app::build(mock_builder(), parts)
         .build(app::context())
         .expect("the app builds on the mock runtime");
+    first_iteration_runs_the_set_up(&mut app);
+    TestApp { app, probe }
+}
+
+fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
     #[allow(deprecated)]
     app.run_iteration(|_, _| {});
-    TestApp { app, probe }
 }
 
 pub fn main_window(app: &App<MockRuntime>) -> WebviewWindow<MockRuntime> {
@@ -277,8 +281,7 @@ fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet
         .invoke_handler(handler)
         .build(app::context())
         .expect("the app builds on the mock runtime");
-    #[allow(deprecated)]
-    app.run_iteration(|_, _| {});
+    first_iteration_runs_the_set_up(&mut app);
     let window = main_window(&app);
     candidate_names()
         .into_iter()
