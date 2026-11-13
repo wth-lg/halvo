@@ -315,9 +315,14 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         let answer = self.schedule.run(&mut self.store, job);
         self.schedule.done(job, &answer);
         match answer {
-            Ok(_) => {
+            Ok(pass) => {
                 match job {
-                    Job::Expire { .. } => self.counters.expired(now.wall),
+                    Job::Expire { .. } => {
+                        self.counters.expired(now.wall);
+                        if !pass.shredded.is_empty() {
+                            self.read_usage();
+                        }
+                    }
                     Job::Evict => {
                         self.counters.evicted(now.wall);
                         self.read_usage();
@@ -550,7 +555,10 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         };
         match answer {
             Ok(written) => self.acknowledged(written.disk_bytes, now),
-            Err(WriteFault::AlreadyWritten { .. }) => self.acknowledged(0, now),
+            Err(WriteFault::AlreadyWritten { .. }) => {
+                self.acknowledged(0, now);
+                self.read_usage();
+            }
             Err(WriteFault::Refused) => self.reject(now),
             Err(fault) => self.fail(fault, now),
         }
@@ -1299,13 +1307,28 @@ mod tests {
         use std::io;
         use std::time::Duration;
 
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::Arc;
+        use std::time::SystemTime;
+
+        use halvo_control::model::StorageCap;
+
         use crate::daemon::counters::Snapshot;
-        use crate::daemon::maintenance::{Clocks, CLOCK_STEP_GRACE, MAINTENANCE_INTERVAL};
-        use crate::daemon::model_store::{
-            foreground, foreground_now, noon, open_floor, Call, Harness, ModelStore, AT_NOON,
+        use crate::daemon::maintenance::{
+            Clocks, CLOCK_STEP_GRACE, MAINTENANCE_INTERVAL, SHRED_CHUNK,
         };
-        use crate::daemon::owner::{Answer, Command, DrainCause, Report, FREE_SPACE_FLOOR_BYTES};
-        use crate::daemon::port::{MaintFault, Pass, WriteFault};
+        use crate::daemon::model_store::{
+            foreground, foreground_now, noon, open_floor, Call, Harness, ManualClocks, ModelStore,
+            WriteScript, AT_NOON,
+        };
+        use crate::daemon::owner::{
+            Answer, Command, DrainCause, Owner, OwnerParts, Report, FREE_SPACE_FLOOR_BYTES,
+        };
+        use crate::daemon::port::{
+            ByteBound, CaptureStore, MaintFault, MaintainStore, Ordinal, Pass, SegmentWrite, Usage,
+            WriteFault, Written,
+        };
+        use crate::sink;
 
         const SECOND: Duration = Duration::from_secs(1);
 
@@ -1516,6 +1539,146 @@ mod tests {
                     (DrainCause::Io, first_since)
                 ],
                 "one report per change of the cause, each with the since of the first fault"
+            );
+        }
+
+        /// A store whose expiry frees what it shreds, as the port's text says.
+        struct Shrinking {
+            inner: ModelStore,
+            disk: Arc<AtomicU64>,
+        }
+
+        impl MaintainStore for Shrinking {
+            fn expire_due(
+                &mut self,
+                now: SystemTime,
+                max_segments: usize,
+            ) -> Result<Pass, MaintFault> {
+                let pass = self.inner.expire_due(now, max_segments)?;
+                if !pass.shredded.is_empty() {
+                    self.disk.store(0, Ordering::Relaxed);
+                }
+                Ok(pass)
+            }
+
+            fn evict_to(
+                &mut self,
+                bound: ByteBound,
+                max_segments: usize,
+            ) -> Result<Pass, MaintFault> {
+                self.inner.evict_to(bound, max_segments)
+            }
+
+            fn usage(&mut self) -> Result<Usage, MaintFault> {
+                let disk = self.disk.load(Ordering::Relaxed);
+                Ok(Usage {
+                    disk_bytes: disk,
+                    logical_bytes: disk,
+                })
+            }
+        }
+
+        impl CaptureStore for Shrinking {
+            fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+                let written = self.inner.write_batch(write)?;
+                self.disk.fetch_add(written.disk_bytes, Ordering::Relaxed);
+                Ok(written)
+            }
+
+            fn volume_free_bytes(&self) -> io::Result<u64> {
+                self.inner.volume_free_bytes()
+            }
+        }
+
+        #[test]
+        fn the_disk_total_follows_an_expiry_that_shredded() {
+            let model = ModelStore::new();
+            let disk = Arc::new(AtomicU64::new(0));
+            let clocks = ManualClocks::at(noon());
+            let (sink, writer) = sink::channel(64);
+            let (mut owner, handle, _reports) = Owner::open(OwnerParts {
+                writer,
+                store: Shrinking {
+                    inner: model.clone(),
+                    disk: disk.clone(),
+                },
+                clocks: clocks.clone(),
+                floor: open_floor(),
+                cap: StorageCap::DEFAULT,
+                shred_chunk: SHRED_CHUNK,
+            });
+            let ask = |owner: &mut Owner<Shrinking, ManualClocks>, command| {
+                let pending = handle.ask(command).unwrap();
+                owner.pass(Duration::ZERO);
+                pending.try_answer().unwrap()
+            };
+            ask(&mut owner, Command::ClosePause);
+            for _ in 0..3 {
+                sink.emit_event(foreground(&AT_NOON, Duration::ZERO));
+            }
+            ask(&mut owner, Command::Settle);
+            owner.pass(Duration::ZERO);
+            let before = owner.snapshot().disk_bytes;
+            model.script_expire(vec![Ok(Pass {
+                shredded: vec![Ordinal::new(1)],
+                more_due: false,
+                owed: false,
+            })]);
+            ask(&mut owner, Command::OpenPause);
+            for _ in 0..10 {
+                clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+                owner.pass(Duration::ZERO);
+                owner.pass(Duration::ZERO);
+            }
+            let after = owner.snapshot();
+            println!(
+                "ADV2 f4 disk_bytes before the expiry = {before:?}; 10 deadlines after an expiry that shredded the one segment: snapshot.disk_bytes = {:?}, the store's usage() = {}, last_expiry_at moved = {}",
+                after.disk_bytes,
+                disk.load(Ordering::Relaxed),
+                after.last_expiry_at != Some(noon())
+            );
+            assert_eq!(
+                after.disk_bytes,
+                Some(disk.load(Ordering::Relaxed)),
+                "the snapshot's disk total is not the store's usage 10 deadlines after the expiry"
+            );
+        }
+
+        #[test]
+        fn a_retry_after_a_lost_answer_counts_the_disk_bytes_of_the_stored_segment() {
+            let mut harness = Harness::new();
+            harness
+                .store
+                .script_writes([WriteScript::KeepThenFail(WriteFault::Io(
+                    io::ErrorKind::Other,
+                ))]);
+            harness.ask(Command::ClosePause);
+            harness.emit(foreground_now());
+            harness.ask(Command::Settle);
+            assert_eq!(
+                harness.store.batches().len(),
+                1,
+                "the store did not keep the batch"
+            );
+            let Answer::Settled(snapshot) = harness.ask(Command::Settle) else {
+                panic!("no settle answer");
+            };
+            assert_eq!(
+                snapshot.events_persisted, 1,
+                "the retry was not acknowledged"
+            );
+            println!(
+                "ADV2 a-state3 the Settled answer's disk_bytes = {:?}; the snapshot one pass later = {:?}",
+                snapshot.disk_bytes,
+                {
+                    harness.pass();
+                    harness.owner.snapshot().disk_bytes
+                }
+            );
+            assert_ne!(
+                snapshot.disk_bytes,
+                Some(0),
+                "the snapshot counts no disk bytes for the stored segment"
             );
         }
     }
