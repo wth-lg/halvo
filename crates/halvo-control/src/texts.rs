@@ -48,12 +48,9 @@ pub struct Recorded {
 /// The sentences of `recorded` for the switches a daemon reports, in their order. A sentence
 /// that says a source does not record is given only while that source's line reads off (a
 /// source with no line reads as off); beside a line that is not off, a sentence that says the
-/// source runs stands in its place.
-pub fn recorded(
-    platform: Platform,
-    switches: &[SwitchLine],
-    sources: &[SourceLine],
-) -> Vec<Recorded> {
+/// source runs stands in its place. It is private: [`texts`] is the one way in, and it passes
+/// every source line of a status, which the status type requires for its platform.
+fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine]) -> Vec<Recorded> {
     let off = |name: SourceName| {
         sources
             .iter()
