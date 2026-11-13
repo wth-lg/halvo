@@ -958,8 +958,15 @@ pub struct Reply {
 /// run declares (`ErrorName::read`), and any other name is `malformed`. A result is the null
 /// result when it is `null`, a workflows page when it is an object whose keys are exactly `workflows` and
 /// `next`, an evidence page when they are exactly `evidence` and `next`, and else the raw value; a page that
-/// breaks a rule of its type is `malformed`. It applies no length bound.
+/// breaks a rule of its type is `malformed`. Before it reads anything it refuses an input longer than
+/// `REPLY_MAX` bytes as given, white space included, with `too_large` and a null id.
 pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
+    if bytes.len() > REPLY_MAX {
+        return Err(DecodeError {
+            id: None,
+            error: ErrorName::TooLarge,
+        });
+    }
     let fields = Fields::read(bytes).ok_or(DecodeError {
         id: None,
         error: ErrorName::Malformed,
