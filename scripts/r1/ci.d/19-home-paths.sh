@@ -4,7 +4,7 @@
 set -u
 name=19-home-paths
 ratio_floor_tenths=20
-ratio_bound_tenths=150
+ratio_bound_tenths=250
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

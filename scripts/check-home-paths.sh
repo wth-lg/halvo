@@ -711,6 +711,7 @@ message_of_object() {
   git cat-file "$2" "$1" >"$work/object" </dev/null || die "git cannot read the $2 $1"
   printf '\001message %s %s\n' "$1" "$2"
   sed -e '1,/^$/d' -e 's/^/+/' "$work/object" || die "sed could not read the message of the $2 $1"
+  printf '\n'
 }
 
 messages() {
@@ -887,6 +888,7 @@ file_as_added_lines() {
   esac
   printf 'new file mode 100644\n@@ -0,0 +1 @@\n'
   git cat-file blob "$2" </dev/null | tr -d '\000' | sed 's/^/+/' || die "git cannot read $1 in HEAD"
+  printf '\n'
 }
 
 check_stale() {
@@ -1530,6 +1532,15 @@ self_test_commits() {
       case_scan stale-check-of-a-file-listed-by-its-quoted-name 0 'entries read 1, stale 0.' --allow "$work/list-quoted-name" --stale
       ;;
   esac
+
+  printf 'see /%s/una' Users >"$case_repo/no-final-newline.txt"
+  expand_fixture 'see /{U}/una' >"$case_repo/zz.txt"
+  commit_case 'a listed file without a final newline before another listed file' >/dev/null || die 'commit failed'
+  {
+    expand_fixture "no-final-newline.txt${tab}/{U}/una${tab}made up"
+    expand_fixture "zz.txt${tab}/{U}/una${tab}made up"
+  } >"$work/list-no-final-newline"
+  case_scan stale-check-of-a-file-after-one-without-a-final-newline 0 'entries read 2, stale 0.' --allow "$work/list-no-final-newline" --stale
 
   new_case_repo list-of-the-newest-commit
   mkdir -p "$case_repo/scripts" || die 'mkdir failed'
