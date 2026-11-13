@@ -20,6 +20,9 @@ enum Fault {
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
     OpenWhileOpenGetsBadPosition,
+    OpenAtTheWatermarkGetsBadPosition,
+    OpenAtTheWatermarkRewindsTheCursor,
+    OpenWithSTakesItsRange,
     OpenWhileOpenMovesTheCursor,
     OpenWhileOpenTakesItsRange,
     OpenWithAnotherIdWhileOpenClosesIt,
@@ -28,6 +31,8 @@ enum Fault {
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
     PhantomRecordAtTheWatermarkAfterAShred,
+    PhantomRecordAfterEveryShred,
+    WatermarkRefusedAfterOneShred,
     WatermarkFallsWhenEverySegmentIsShredded,
     ExpiryMovesFromReadToRead,
     ExpiryMovesFromConnectionToConnection,
@@ -39,6 +44,7 @@ enum Fault {
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
     NextInTheFirstSegmentAtAStop,
+    DropsTheFirstRecordOfTheSecondFile,
 }
 
 use Fault::*;
@@ -136,6 +142,8 @@ impl Subject for Fixture {
         let fault = self.fault;
         let shredded = self.first_live > 1;
         let all_shredded = self.first_live > self.files.len() as u64;
+        let one_shred = self.first_live == 2;
+        let two_files = self.files.len() == 2;
         let set_a = self.set_a;
         let restarted = self.restarted;
         self.connections += 1;
@@ -152,6 +160,8 @@ impl Subject for Fixture {
                         fault,
                         shredded,
                         all_shredded,
+                        one_shred,
+                        two_files,
                         set_a,
                         restarted,
                         at_watermark: false,
@@ -211,6 +221,8 @@ struct Wrong {
     fault: Fault,
     shredded: bool,
     all_shredded: bool,
+    one_shred: bool,
+    two_files: bool,
     set_a: bool,
     restarted: bool,
     at_watermark: bool,
@@ -227,7 +239,7 @@ impl Wrong {
         let refuses = matches!(
             self.fault,
             WatermarkRefusedAfterAShred | RisenWatermarkRefusedAfterAShred
-        );
+        ) || (self.fault == WatermarkRefusedAfterOneShred && self.one_shred);
         let fallen = self.fault == WatermarkFallsWhenEverySegmentIsShredded
             && self.all_shredded
             && open.position() > Position { seg: 1, idx: 0 };
@@ -236,8 +248,27 @@ impl Wrong {
         }
         let reply = open_reply(t, self.fault, open);
         let refused = matches!(&reply, ServerMessage::Error(e) if *e.cause() == Cause::BadRequest);
+        let names_s = open.store() == Some(t.store());
         let reply = match self.fault {
-            OpenWhileOpenTakesItsRange if refused => {
+            OpenWhileOpenGetsBadPosition if refused && !self.at_watermark => {
+                error(Cause::BadPosition)
+            }
+            OpenAtTheWatermarkGetsBadPosition if refused && self.at_watermark => {
+                error(Cause::BadPosition)
+            }
+            OpenAtTheWatermarkRewindsTheCursor if refused && self.at_watermark => {
+                if let Some(first) = self.last.clone() {
+                    let back =
+                        OpenCursor::at(t.store().clone(), ZERO, first.kinds().cloned(), None)
+                            .unwrap();
+                    t.handle(&ClientMessage::Close);
+                    t.handle(&ClientMessage::OpenCursor(back));
+                }
+                reply
+            }
+            OpenWhileOpenTakesItsRange | OpenWithSTakesItsRange
+                if refused && (self.fault == OpenWhileOpenTakesItsRange || names_s) =>
+            {
                 if let Some(first) = self.last.clone() {
                     let taken = OpenCursor::at(
                         t.store().clone(),
@@ -292,11 +323,12 @@ impl Wrong {
         };
         let w = t.watermark();
         let at_w = self.last.as_ref().is_some_and(|o| o.position() == w);
-        if self.fault == PhantomRecordAtTheWatermarkAfterAShred
-            && self.shredded
-            && at_w
-            && b.records.is_empty()
-        {
+        let phantom = match self.fault {
+            PhantomRecordAtTheWatermarkAfterAShred => self.shredded && !self.all_shredded,
+            PhantomRecordAfterEveryShred => self.all_shredded,
+            _ => false,
+        };
+        if phantom && at_w && b.records.is_empty() {
             let line = conformance::SET_A[0].split_inclusive('\n').next().unwrap();
             let record = CaptureRecord::read_line(line.as_bytes()).unwrap();
             b.expiry = vec![Expiry {
@@ -325,6 +357,11 @@ impl Wrong {
                     };
                 }
             }
+        }
+        if self.fault == DropsTheFirstRecordOfTheSecondFile && self.two_files {
+            b.records.retain(|e| e.pos != Position { seg: 2, idx: 0 });
+            let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
+            b.expiry.retain(|x| segs.contains(&x.seg));
         }
         if self.fault == NothingOnAFurtherConnection && self.further {
             b.records.clear();
@@ -400,11 +437,6 @@ fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> Serv
         {
             t.handle(&ClientMessage::Close);
             ServerMessage::Error(e)
-        }
-        (OpenWhileOpenGetsBadPosition, ServerMessage::Error(e))
-            if *e.cause() == Cause::BadRequest =>
-        {
-            error(Cause::BadPosition)
         }
         (OpenWhileOpenMovesTheCursor, ServerMessage::Error(e))
             if *e.cause() == Cause::BadRequest =>
@@ -490,6 +522,15 @@ fn conformance_check_open_while_open() {
             (OpenWhileOpenServes, [check, None, check, None]),
             (OpenWhileOpenClosesTheCursor, [check, None, check, None]),
             (OpenWhileOpenGetsBadPosition, [check, None, check, None]),
+            (
+                OpenAtTheWatermarkGetsBadPosition,
+                [check, None, check, None],
+            ),
+            (
+                OpenAtTheWatermarkRewindsTheCursor,
+                [check, None, check, None],
+            ),
+            (OpenWithSTakesItsRange, [check, None, check, None]),
             (OpenWhileOpenMovesTheCursor, [check, None, check, None]),
             (OpenWhileOpenTakesItsRange, [check, None, check, None]),
             (
@@ -517,6 +558,8 @@ fn conformance_check_open_at_the_watermark_after_a_shred() {
                 PhantomRecordAtTheWatermarkAfterAShred,
                 [None, check, None, None],
             ),
+            (PhantomRecordAfterEveryShred, [None, check, None, None]),
+            (WatermarkRefusedAfterOneShred, [None, check, None, None]),
             (
                 WatermarkFallsWhenEverySegmentIsShredded,
                 [None, check, None, None],
@@ -560,6 +603,10 @@ fn conformance_check_filtered_stops() {
             (FilteredStopRepeatsInTheNextBatch, [None, None, None, check]),
             (FilteredStopSkipsARecord, [None, None, None, check]),
             (NextInTheFirstSegmentAtAStop, [None, None, None, check]),
+            (
+                DropsTheFirstRecordOfTheSecondFile,
+                [None, None, None, check],
+            ),
         ],
     );
 }
