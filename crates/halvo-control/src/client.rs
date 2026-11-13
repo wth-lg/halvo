@@ -755,11 +755,12 @@ mod tests {
             TIMED_RUN_INTERRUPTED,
             TIMED_RUN_SOURCE_FAILED,
             RESTART,
+            SOURCE_NOT_STOPPED,
             USAGE,
             UNREACHABLE,
             BUSY,
         ];
-        assert_eq!(all, [0, 1, 2, 3, 4, 64, 69, 75]);
+        assert_eq!(all, [0, 1, 2, 3, 4, 5, 64, 69, 75]);
         assert_eq!(FINAL_FLUSH_FAILED, ERROR);
     }
 

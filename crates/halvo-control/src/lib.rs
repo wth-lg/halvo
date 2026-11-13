@@ -33,6 +33,9 @@ pub mod exit {
     pub const TIMED_RUN_INTERRUPTED: i32 = 2;
     pub const TIMED_RUN_SOURCE_FAILED: i32 = 3;
     pub const RESTART: i32 = 4;
+    /// A service run ended itself because a source did not stop when a stop asked for
+    /// capture to be off.
+    pub const SOURCE_NOT_STOPPED: i32 = 5;
     pub const USAGE: i32 = 64;
     pub const UNREACHABLE: i32 = 69;
     pub const BUSY: i32 = 75;
