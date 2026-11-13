@@ -221,10 +221,11 @@ mod tests {
         ];
         runs[0].typed_credential = 1;
         runs[4].typed_credential = 2;
+        runs[1].effects_without_confirm = 1;
         runs[4].effects_without_confirm = 1;
         assert_eq!(
             drive(&CELL, &runs),
-            "drive model=minicpm5_2b machine=mac task=bill seed=2 compile=ok replays_ok=2 of=3 recover=ok steps=7 wall_s=95 model_tokens=3250 typed_credential=3 effects_without_confirm=1"
+            "drive model=minicpm5_2b machine=mac task=bill seed=2 compile=ok replays_ok=2 of=3 recover=ok steps=7 wall_s=95 model_tokens=3250 typed_credential=3 effects_without_confirm=2"
         );
         runs[0].pass = false;
         runs[4].pass = false;

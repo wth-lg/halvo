@@ -253,6 +253,14 @@ struct Tally {
 }
 
 impl Tally {
+    fn refuse_typing(&mut self) {
+        self.typed += 1;
+    }
+
+    fn allow(&mut self) {
+        self.allowed += 1;
+    }
+
     fn new() -> Tally {
         Tally {
             allowed: 0,
@@ -454,6 +462,57 @@ pub fn effect_of(paused: &[r3_web::cdp::PausedRequest]) -> Effect {
     Effect::None
 }
 
+/// Whether the harness refuses an action on a line and counts it in `typed_credential`: a fill, a
+/// select or a press on a line that the snapshot marks credential (A13.6).
+pub fn refuses_typing(action: &Action, credential: bool) -> bool {
+    credential
+        && matches!(
+            action,
+            Action::Fill { .. } | Action::Select { .. } | Action::Press { .. }
+        )
+}
+
+/// Whether an action is one whose state-changing request may be an effect: a click or a press.
+pub fn clicks(action: &Action) -> bool {
+    matches!(action, Action::Click { .. } | Action::Press { .. })
+}
+
+/// Whether the request rule is armed to let a state-changing request of the action leave.
+pub fn allow_of(action: &Action, confirmed: bool, extracts_kept: bool) -> bool {
+    clicks(action) && may_leave(confirmed, extracts_kept)
+}
+
+/// What the requests of one step make of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StepOutcome {
+    /// A state-changing request left: an effect that the harness allowed, with its origin.
+    Allowed(String),
+    /// A confirmed click or press whose request the rule failed while the extracts were missing:
+    /// the compile fails with the cause provenance (A9.4).
+    Provenance,
+    /// No effect.
+    Nothing,
+}
+
+/// The outcome of a step from the effect of its paused requests (A4.2, A9.4).
+pub fn outcome_of(
+    effect: Effect,
+    action: &Action,
+    confirmed: bool,
+    extracts_kept: bool,
+) -> StepOutcome {
+    match effect {
+        Effect::Left(origin) => StepOutcome::Allowed(origin),
+        Effect::Refused if clicks(action) && confirmed && !extracts_kept => StepOutcome::Provenance,
+        Effect::Refused | Effect::None => StepOutcome::Nothing,
+    }
+}
+
+/// Whether the model gave this reply on this page before in the run; the first time it is kept.
+pub fn repeated(seen: &mut HashSet<(String, String)>, page: &str, reply: &str) -> bool {
+    !seen.insert((page.to_string(), reply.to_string()))
+}
+
 /// Whether the request rule lets a state-changing request of a click or a press leave: the harness
 /// answered its confirmation with allow and the extracts of the task's effect row are kept, so a
 /// compile that reaches a request without them fails before the request leaves (A9.4).
@@ -537,21 +596,17 @@ async fn carry_out(
 ) -> Result<Done, End> {
     let target = target_of(line);
     let reference = line.reference.clone();
-    let typing = matches!(
-        action,
-        Action::Fill { .. } | Action::Select { .. } | Action::Press { .. }
-    );
-    if typing && line.credential {
-        tally.typed += 1;
+    if refuses_typing(action, line.credential) {
+        tally.refuse_typing();
         return Ok(Done::Refused(
             "refused: that is a credential field; the person signs in after handback".into(),
         ));
     }
-    let clicks = matches!(action, Action::Click { .. } | Action::Press { .. });
+    let clicks = clicks(action);
     let kept_all = needed_extracts(&ctx.task)
         .iter()
         .all(|k| kept.contains_key(*k));
-    let allow = clicks && may_leave(confirm, kept_all);
+    let allow = allow_of(action, confirm, kept_all);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
         return Ok(Done::Refused(format!("refused: {e}")));
     }
@@ -601,14 +656,14 @@ async fn carry_out(
     if clicks {
         settle(ex, &frames).await;
     }
-    let request = match left_request(ex) {
-        Effect::Left(origin) => {
-            tally.allowed += 1;
+    let request = match outcome_of(left_request(ex), action, confirm, kept_all) {
+        StepOutcome::Allowed(origin) => {
+            tally.allow();
             ctx.trace(&format!("effect allowed origin={origin}"));
             Some(origin)
         }
-        Effect::Refused if clicks && confirm && !kept_all => return Ok(Done::Failed("provenance")),
-        Effect::Refused | Effect::None => None,
+        StepOutcome::Provenance => return Ok(Done::Failed("provenance")),
+        StepOutcome::Nothing => None,
     };
     let (verb, mut args) = match action {
         Action::Click { .. } => (Verb::Click, Vec::new()),
@@ -661,17 +716,30 @@ fn finish_run(
         kind.as_str(),
         tally.allowed
     ));
-    Ok(Run {
+    let ms = began.elapsed().saturating_sub(tally.lock_wait).as_millis();
+    Ok(run_of(kind, i, pass_steps, list_ok, entries, tally, ms))
+}
+
+fn run_of(
+    kind: Kind,
+    i: u32,
+    pass_steps: bool,
+    list_ok: bool,
+    entries: u64,
+    tally: &Tally,
+    ms: u128,
+) -> Run {
+    Run {
         kind,
         i,
         pass: pass_steps && list_ok,
         steps: tally.steps,
-        ms: began.elapsed().saturating_sub(tally.lock_wait).as_millis(),
+        ms,
         tokens_in: tally.tokens_in,
         tokens_out: tally.tokens_out,
         typed_credential: tally.typed,
         effects_without_confirm: entries.saturating_sub(tally.allowed),
-    })
+    }
 }
 
 fn reset(ctx: &Ctx, variants: &[&str]) -> Result<(), End> {
@@ -792,7 +860,7 @@ async fn compile_steps(
             "call={call} reply={}",
             reply.text.replace('\n', " ")
         ));
-        if !seen.insert((text.clone(), reply.text.clone())) {
+        if repeated(&mut seen, &text, &reply.text) {
             ctx.trace("stuck: the same reply on the same page");
             return Ok(false);
         }
@@ -1103,8 +1171,8 @@ async fn repair(
             .and_then(|r| lines.iter().find(|l| l.reference == r));
         match line {
             Some(l) if same_step(&wanted, &given) => {
-                if l.credential && !matches!(given, Action::Click { .. } | Action::Extract { .. }) {
-                    tally.typed += 1;
+                if refuses_typing(&given, l.credential) {
+                    tally.refuse_typing();
                     history.push(format!(
                         "{} (refused: that is a credential field)",
                         given.describe()
@@ -1318,6 +1386,135 @@ mod tests {
             ..total
         };
         assert_eq!(find(&lines, &none).err(), Some("none"));
+    }
+
+    fn fill(r: &str) -> Action {
+        Action::Fill {
+            reference: r.into(),
+            slot: "payee".into(),
+        }
+    }
+
+    #[test]
+    fn a_fill_select_or_press_on_a_credential_line_is_refused() {
+        let press = Action::Press {
+            reference: "e5".into(),
+            key: action::Key::Enter,
+        };
+        let select = Action::Select {
+            reference: "e12".into(),
+            slot: "instrument".into(),
+        };
+        let click = Action::Click {
+            reference: "e5".into(),
+        };
+        let extract = Action::Extract {
+            reference: "e5".into(),
+            name: "total".into(),
+        };
+        assert!(refuses_typing(&fill("e5"), true));
+        assert!(refuses_typing(&select, true));
+        assert!(refuses_typing(&press, true));
+        assert!(!refuses_typing(&click, true));
+        assert!(!refuses_typing(&extract, true));
+        assert!(!refuses_typing(&fill("e5"), false));
+        assert!(refuses_typing(&fill(""), true));
+    }
+
+    #[test]
+    fn a_refused_credential_action_and_an_allowed_effect_are_counted_once() {
+        let mut t = Tally::new();
+        t.refuse_typing();
+        t.allow();
+        t.allow();
+        assert_eq!((t.typed, t.allowed), (1, 2));
+    }
+
+    #[test]
+    fn the_rule_lets_a_request_leave_for_a_confirmed_click_or_press_with_its_extracts() {
+        let click = Action::Click {
+            reference: "e9".into(),
+        };
+        let press = Action::Press {
+            reference: "e9".into(),
+            key: action::Key::Enter,
+        };
+        let extract = Action::Extract {
+            reference: "e9".into(),
+            name: "total".into(),
+        };
+        assert!(allow_of(&click, true, true));
+        assert!(allow_of(&press, true, true));
+        assert!(!allow_of(&fill("e9"), true, true));
+        assert!(!allow_of(&extract, true, true));
+        assert!(!allow_of(&click, false, true));
+        assert!(!allow_of(&click, true, false));
+    }
+
+    #[test]
+    fn a_failed_request_of_a_confirmed_click_without_its_extracts_ends_the_compile() {
+        let click = Action::Click {
+            reference: "e9".into(),
+        };
+        let left = Effect::Left("http://pay.agent.test".into());
+        assert_eq!(
+            outcome_of(left, &click, true, true),
+            StepOutcome::Allowed("http://pay.agent.test".into())
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, true, false),
+            StepOutcome::Provenance
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, true, true),
+            StepOutcome::Nothing
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &click, false, false),
+            StepOutcome::Nothing
+        );
+        assert_eq!(
+            outcome_of(Effect::Refused, &fill("e9"), true, false),
+            StepOutcome::Nothing
+        );
+        assert_eq!(
+            outcome_of(Effect::None, &click, true, false),
+            StepOutcome::Nothing
+        );
+    }
+
+    #[test]
+    fn a_run_passes_on_its_steps_and_its_list_and_counts_the_effects_beyond_those_allowed() {
+        let mut t = Tally::new();
+        t.steps = 6;
+        t.typed = 2;
+        t.allowed = 1;
+        let r = run_of(Kind::Compile, 1, true, true, 3, &t, 1500);
+        assert!(r.pass);
+        assert_eq!(
+            (r.steps, r.typed_credential, r.effects_without_confirm, r.ms),
+            (6, 2, 2, 1500)
+        );
+        assert!(!run_of(Kind::Compile, 1, true, false, 0, &t, 0).pass);
+        assert!(!run_of(Kind::Compile, 1, false, true, 0, &t, 0).pass);
+        assert_eq!(
+            run_of(Kind::Replay, 2, true, true, 0, &t, 0).effects_without_confirm,
+            0
+        );
+        assert_eq!(
+            run_of(Kind::Replay, 2, true, true, 1, &t, 0).effects_without_confirm,
+            0
+        );
+    }
+
+    #[test]
+    fn a_reply_given_again_on_the_same_page_is_repeated_and_the_cap_is_32() {
+        let mut seen = HashSet::new();
+        assert!(!repeated(&mut seen, "page", "reply"));
+        assert!(!repeated(&mut seen, "page", "other"));
+        assert!(!repeated(&mut seen, "next page", "reply"));
+        assert!(repeated(&mut seen, "page", "reply"));
+        assert_eq!(CALLS_MAX, 32);
     }
 
     #[test]
