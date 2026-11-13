@@ -77,7 +77,7 @@ function serve(socket, connection, app, record, idleMs) {
   const closeNow = () => {
     if (socket.destroyed) return;
     clearTimeout(closer);
-    if (capped || !socket.writableFinished) record.refused({ connection, error: "forced-close" });
+    if (capped || !socket.writableFinished || (stopping && !ended)) record.refused({ connection, error: "forced-close" });
     socket.destroy();
   };
   const linger = () => {
@@ -173,8 +173,8 @@ function serve(socket, connection, app, record, idleMs) {
   });
   socket.on("error", () => {});
   const cut = () => {
-    if (socket.writableEnded) return;
     stopping = true;
+    if (socket.writableEnded) return;
     reader.resume();
     reader.end();
     stop();
@@ -223,8 +223,9 @@ function serveControl(app, stop) {
  * connection, after the idle limit, a refusal, an answer that closes, the peer's end or the stop, it reads no request
  * of it again: it ends its side after the last answer, takes what still arrives into the raw file alone, at most
  * BODY_CAP bytes and the rest of that read, and closes the socket once every answer is written and the peer has ended
- * its side or `idleMs` has passed since the last answer was written. Where it closes with answers unwritten, or after
- * it stopped reading at BODY_CAP, it first writes the record line `forced-close`.
+ * its side or `idleMs` has passed since the last answer was written. Where it closes with answers unwritten, after it
+ * stopped reading at BODY_CAP, or at the stop while the peer has not ended its side, it first writes the record line
+ * `forced-close`.
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {

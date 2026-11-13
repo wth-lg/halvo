@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
@@ -109,7 +109,10 @@ test("a request still open when the stub stops gets one line incomplete, and a c
     else await exchange(portOf(stub.control), request("POST", "/stop"));
     await stub.stopped;
     for (const client of clients) client.socket.destroy();
-    assert.deepEqual(lines(dir).map((line) => [line.connection, line.status ?? line.error]), [[3, 200], [1, "incomplete"], [2, "incomplete"]], how);
+    const got = lines(dir).map((line) => [line.connection, line.status ?? line.error]);
+    assert.deepEqual(got.slice(0, 3), [[3, 200], [1, "incomplete"], [2, "incomplete"]], how);
+    const of = (connection) => got.filter(([number]) => number === connection).map(([, kind]) => kind);
+    assert.deepEqual([of(1), of(2), of(3), of(4)], [["incomplete", "forced-close"], ["incomplete", "forced-close"], [200, "forced-close"], ["forced-close"]], how);
   }
 });
 
@@ -505,19 +508,37 @@ test("D1 (i) a peer that reads late after a closing request gets its answer and 
   assert.equal(parse(await exchange(port, request("GET", "/v1/subscription", appHeaders()))).body, '{"result":"no-such-account"}');
 });
 
-test("D1 (ii) past BODY_CAP after a closing request the stub stops reading, waits out the idle limit, and closes with forced-close", async () => {
+test("D1 (ii) past BODY_CAP after a closing request the stub stops reading, waits out the idle limit, and closes with forced-close", async (t) => {
   const dir = fresh();
   const stub = await startStub({ record: dir, idleMs: 2000 });
   const port = portOf(stub.app);
   const closing = request("GET", "/v1/done");
   const peer = await openPeer(port);
+  const started = performance.now();
+  let closedAt = null;
+  peer.closed.then(() => {
+    closedAt = Math.round(performance.now() - started);
+  });
+  const state = (step) => {
+    const file = join(dir, "connection-000001.raw");
+    const raw = existsSync(file) ? readFileSync(file).length : "none";
+    const kinds = lines(dir).filter((line) => line.connection === 1).map((line) => line.status ?? line.error);
+    t.diagnostic(`d1ii ${step} at=${Math.round(performance.now() - started)}ms raw=${raw} lines=${JSON.stringify(kinds)} read=${peer.got().length} answers=${answersIn(peer.got())} queued=${peer.socket.writableLength} destroyed=${peer.socket.destroyed} closedAt=${closedAt}`);
+  };
   peer.socket.pause();
   peer.socket.write(Buffer.concat([closing, Buffer.alloc(16 * 1048576, 0x61)]));
+  state("written");
   await pause(500);
   peer.socket.resume();
+  state("resumed");
   await pause(300);
   assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200, "a second connection is served while the first one waits");
-  assert.equal(await settled(peer.closed, 6000), true, "the stub closed the first connection at the idle limit");
+  state("second-exchange-done");
+  const watch = setInterval(() => state("waiting"), 500);
+  const outcome = await settled(peer.closed, 6000);
+  clearInterval(watch);
+  state("after-wait");
+  assert.equal(outcome, true, "the stub closed the first connection at the idle limit");
   assert.equal(answersIn(peer.got()), 1);
   assert.equal(parse(peer.got()).status, 200);
   assert.deepEqual(lines(dir).filter((line) => line.connection === 1).map((line) => line.status ?? line.error), [200, "forced-close"]);
@@ -658,6 +679,30 @@ test("D3 at the stop, a TLS connection still in its handshake is closed at once,
   assert.ok(performance.now() - started < 700);
   await stopping;
   served.socket.destroy();
+});
+
+test("P7-70 the stop writes forced-close for a client that has not ended its side, whatever the system took of its answers, and no line for one that has", async () => {
+  for (const how of ["close", "stop"]) {
+    const dir = fresh();
+    const stub = await startStub({ record: dir, idleMs: 500 });
+    const silent = await openPeer(portOf(stub.app));
+    silent.socket.pause();
+    silent.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+    for (let waited = 0; waited < 2000 && lines(dir).length === 0; waited += 10) await pause(10);
+    const ending = await openPeer(portOf(stub.app));
+    ending.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+    for (let waited = 0; waited < 2000 && answersIn(ending.got()) === 0; waited += 10) await pause(10);
+    ending.socket.end();
+    assert.equal(await settled(ending.closed, 3000), true, "the client that ended its side was closed before the stop");
+    if (how === "close") stub.close();
+    else exchange(portOf(stub.control), request("POST", "/stop"));
+    assert.equal(await settled(stub.stopped.then(() => true), 3000), true, how);
+    silent.socket.destroy();
+    const of = (connection) => lines(dir).filter((line) => line.connection === connection).map((line) => line.status ?? line.error);
+    assert.deepEqual(of(1), [200, "forced-close"], how);
+    assert.deepEqual(of(2), [200], how);
+    assert.deepEqual(keepsPromise(dir, { 1: 0, 2: 1 }), [1], how);
+  }
 });
 
 if (process.platform !== "win32") {
