@@ -18,3 +18,5 @@ crates/halvo-agent-store/tests/bindings.rs	\\Users\\Book.xlsx	a made-up file nam
 crates/halvo-coord/src/types/reply.rs	/home/pat	a made-up account name, pat, in a documentation test of the card's file field
 crates/halvo-coord/src/types/reply.rs	C:\\Users\\pat	a made-up account name, pat, in a documentation test of the card's file field
 scripts/r1-gate/fixtures/c2-unreachable.txt	/Users/example	a made-up account name, example, in a fixture of the gate's status text; the file comes with the capture run's unit gate-2 in the same landing, so this entry stands ahead of it
+crates/halvo-control/src/proto.rs	/Users/a	a made-up account name, a, in a test frame of the reply decoder for the field os_domain
+crates/halvo-control/src/ctl_text.rs	/Users/example	a made-up account name, example, in the test of the text for a daemon that cannot be reached
