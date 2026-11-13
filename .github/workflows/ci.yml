@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,107 +14,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 90
@@ -140,21 +41,132 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-app-links-no-store 21-tree-bans 30-app-page-test 32-app-check-page 36-app-guard-tests
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-app-links-no-store 21-tree-bans 30-app-page-test 32-app-check-page 36-app-guard-tests
+      - name: app-2 new tests, 200 runs (scratch only)
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 30
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e
+          bin=$(cargo test -p halvo --locked --bin halvo --no-run 2>&1 | sed -n 's/.*Executable unittests src\/main.rs (\(.*\))/\1/p' | head -n 1)
+          echo "loop binary found: $([ -n "$bin" ] && echo true || echo false)"
+          rust_pass=0; rust_fail=0; page_pass=0; page_fail=0
+          started=$(date +%s)
+          for i in $(seq 1 200); do
+            if "$bin" commands:: tests::layer tests::states engine:: check_page:: tray:: --test-threads=4 > "$RUNNER_TEMP/loop-rust.txt" 2>&1; then rust_pass=$((rust_pass + 1)); else rust_fail=$((rust_fail + 1)); cp "$RUNNER_TEMP/loop-rust.txt" "$RUNNER_TEMP/loop-rust-failed-$i.txt"; grep -E '^test .* FAILED$' "$RUNNER_TEMP/loop-rust.txt" | head -n 5; fi
+          done
+          echo "app-2 loop rust: runs 200, passed $rust_pass, failed $rust_fail, seconds $(( $(date +%s) - started ))"
+          grep -E '^test result' "$RUNNER_TEMP/loop-rust.txt" | tail -n 1
+          started=$(date +%s)
+          for i in $(seq 1 200); do
+            if (cd ui && node --test --test-timeout=30000 tests/page/scenarios.test.js tests/page/states.test.js tests/page/delete.test.js tests/page/words.test.js > "$RUNNER_TEMP/loop-page.txt" 2>&1); then page_pass=$((page_pass + 1)); else page_fail=$((page_fail + 1)); grep -E '^not ok|^# fail' "$RUNNER_TEMP/loop-page.txt" | head -n 5; fi
+          done
+          echo "app-2 loop page: runs 200, passed $page_pass, failed $page_fail, seconds $(( $(date +%s) - started ))"
+          grep -E '^# (tests|pass|fail)' "$RUNNER_TEMP/loop-page.txt" | tr '\n' ' '; echo
+          exit 0
+      - name: app-2 measurement of the engine guard and the download handler (scratch only)
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 30
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          exe=target/debug/halvo
+          [ -f "$exe.exe" ] && exe=$exe.exe
+          downloads="$HOME/Downloads"
+          command -v cygpath >/dev/null 2>&1 && downloads="$(cygpath -u "$USERPROFILE")/Downloads"
+          cat > "$RUNNER_TEMP/listen.py" <<'PYEOF'
+          import socket, sys, threading, time
+          counts = {}
+          lines = {}
+          def serve(port):
+              s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(("127.0.0.1", port)); s.listen(64)
+              counts[port] = 0; lines[port] = 0
+              while True:
+                  c, _ = s.accept(); counts[port] += 1
+                  c.settimeout(2)
+                  try:
+                      data = c.recv(4096)
+                      if data.split(b" ")[0] in (b"GET", b"POST", b"HEAD", b"OPTIONS"): lines[port] += 1
+                      c.sendall(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok")
+                  except Exception:
+                      pass
+                  c.close()
+          ports = [int(p) for p in sys.argv[2:]]
+          for p in ports:
+              threading.Thread(target=serve, args=(p,), daemon=True).start()
+          end = time.time() + int(sys.argv[1])
+          while time.time() < end:
+              time.sleep(0.5)
+              with open(sys.argv[0] + ".out", "w") as f:
+                  f.write(" ".join(f"port{p}_connections={counts.get(p, 0)} port{p}_requests={lines.get(p, 0)}" for p in ports) + "\n")
+          PYEOF
+          "$py" - <<'PYEOF'
+          import re
+          p = "src-tauri/src/check_page.rs"
+          s = open(p).read()
+          probe = '''if let Ok(port) = std::env::var("HALVO_MEASURE_PORT") {
+                      let port: u16 = port.parse().unwrap_or(48123);
+                      let steps = [
+                          ("preconnect", format!("var l=document.createElement('link');l.rel='preconnect';l.href='http://127.0.0.1:{}/';document.head.appendChild(l);var d=document.createElement('link');d.rel='dns-prefetch';d.href='http://127.0.0.1:{}/';document.head.appendChild(d);", port, port)),
+                          ("download", "var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['halvo-measure'],{type:'application/octet-stream'}));a.download='halvo-measure-download.bin';document.body.appendChild(a);a.click();".to_string()),
+                          ("link", format!("var a=document.createElement('a');a.href='http://127.0.0.1:{}/link';document.body.appendChild(a);a.click();", port + 1)),
+                          ("navigate", format!("location.href = 'http://xn--zz.localhost:{}/leak?d=x';", port + 2)),
+                      ];
+                      for (label, script) in steps {
+                          let _ = window.eval(script);
+                          std::thread::sleep(Duration::from_secs(5));
+                          match window.url() {
+                              Ok(url) => eprintln!("halvo-measure {label} window-at-app-origin={}", crate::app::is_app_url(&url)),
+                              Err(_) => eprintln!("halvo-measure {label} window-at-app-origin=unreadable"),
+                          }
+                      }
+                  }
+                  app.exit(Exit::PageLoaded.code());'''
+          assert s.count("app.exit(Exit::PageLoaded.code());") == 1
+          s = s.replace("app.exit(Exit::PageLoaded.code());", probe)
+          open(p, "w").write(s)
+          PYEOF
+          echo "measure probe applied: $(git diff --quiet -- src-tauri/src/check_page.rs && echo false || echo true)"
+          for copy in head guard-off; do
+            if [ "$copy" = guard-off ]; then
+              "$py" - <<'PYEOF'
+          p = "src-tauri/src/app.rs"
+          s = open(p).read()
+          assert s.count("    crate::engine::guard(&window);\n") == 1 and s.count("        .on_download(|_, _| false)\n") == 1
+          s = s.replace("    crate::engine::guard(&window);\n", "    let _ = &window;\n").replace("        .on_download(|_, _| false)\n", "")
+          open(p, "w").write(s)
+          PYEOF
+              echo "guard-off copy applied: $(git diff --quiet -- src-tauri/src/app.rs && echo false || echo true)"
+            fi
+            cargo build -p halvo --locked > "$RUNNER_TEMP/measure-build-$copy.txt" 2>&1
+            echo "measure $copy build exit: $?"
+            ls "$downloads" 2>/dev/null | grep -c 'halvo-measure-download' > "$RUNNER_TEMP/dl-before.txt"
+            "$py" "$RUNNER_TEMP/listen.py" 90 48123 48124 48125 &
+            listener=$!
+            sleep 2
+            dir=$(mktemp -d "$RUNNER_TEMP/measure-XXXXXX")
+            native=$dir
+            command -v cygpath >/dev/null 2>&1 && native=$(cygpath -w "$dir")
+            HALVO_MEASURE_PORT=48123 "$exe" --check-page --data-dir "$native" --within-s 120 > "$RUNNER_TEMP/measure-$copy.out" 2> "$RUNNER_TEMP/measure-$copy.err"
+            echo "measure $copy check-page exit: $?"
+            grep '^page=loaded' "$RUNNER_TEMP/measure-$copy.out" | head -n 1
+            grep 'halvo-measure ' "$RUNNER_TEMP/measure-$copy.err" | sed 's/^/measure '"$copy"' /'
+            sleep 2
+            echo "measure $copy listener: $(cat "$RUNNER_TEMP/listen.py.out" 2>/dev/null) (48123 preconnect, 48124 link, 48125 navigate)"
+            kill "$listener" 2>/dev/null
+            wait "$listener" 2>/dev/null
+            echo "measure $copy download files before: $(cat "$RUNNER_TEMP/dl-before.txt"), after: $(ls "$downloads" 2>/dev/null | grep -c 'halvo-measure-download')"
+          done
+          git checkout -- src-tauri/src/app.rs src-tauri/src/check_page.rs
+          echo "measure tree clean after the restore: $([ -z "$(git status --porcelain)" ] && echo true || echo false)"
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
