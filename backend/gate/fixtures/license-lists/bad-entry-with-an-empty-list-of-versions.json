@@ -1,0 +1,18 @@
+{
+  "expect": "FAIL licenses: 2 problems; first: an exception does not name one package by its exact name, without *, and its versions: {\"package\":\"lightningcss-linux-riscv64-gnu\",\"versions\":[],\"license\":\"MPL-2.0\",\"reason\":\"A test tool.\"}",
+  "extraExceptions": [
+    {
+      "package": "lightningcss-linux-riscv64-gnu",
+      "versions": [],
+      "license": "MPL-2.0",
+      "reason": "A test tool."
+    }
+  ],
+  "packages": [
+    {
+      "id": "lightningcss-linux-riscv64-gnu@1.33.0",
+      "license": "MPL-2.0",
+      "cached": true
+    }
+  ]
+}
