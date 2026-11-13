@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 91 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases check with values of their own. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 95 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -45,7 +45,9 @@ dep-info-name-with-a-newline includes-inside ban-with-a-third-key ban-reason-wit
 ban-line-cut-after-its-reason macos-list-emptied windows-list-emptied
 whole-run-without-a-real-build windows-job-runs-a-macos-build macos-job-misses-a-left-out-case
 windows-job-misses-a-case-of-its-list windows-job-runs-a-left-out-case
-dep-info-name-with-a-tab dep-info-name-with-a-control-character'
+dep-info-name-with-a-tab dep-info-name-with-a-control-character
+end-verdict-reads-the-drivers-job end-verdict-reads-the-cases-that-ran
+end-verdict-reads-the-cases-on-no-list end-verdict-reads-the-left-out-count'
 macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails clippy-fails
 self-hosted-runner actions-not-true hosted-macos hosted-test-fails hosted-line-missing
 hosted-line-of-another-store hosted-file-line-missing hosted-other-job empty-registry
@@ -1054,6 +1056,36 @@ split_verdict() {
   [ "$1" = "$2" ] || printf ' job-not-read'
 }
 
+end_verdict() {
+  # The verdict of this run's split from the values that the run holds: the job read at the
+  # start, the driver's job, the cases that ran, the cases noted on no list and the count left
+  # out. Harness cases call it through end_verdict_of with values of their own.
+  split_verdict "$job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left"
+}
+
+end_verdict_of() {
+  # Calls end_verdict with the five values of a harness case in place of the run's own, in
+  # this shell, and puts the run's own back. The words land in verdict.
+  held_job=$job
+  held_driver=${CI_D_JOB:-}
+  held_ran=$ran
+  held_unlisted=$unlisted
+  held_left=$left
+  job=$1
+  CI_D_JOB=$2
+  ran=$3
+  unlisted=$4
+  left=$5
+  verdict=$(R7_ACCOUNT_CASES='' end_verdict)
+  code=$?
+  job=$held_job
+  CI_D_JOB=$held_driver
+  ran=$held_ran
+  unlisted=$held_unlisted
+  left=$held_left
+  return "$code"
+}
+
 runs_here() {
   selected "$1" || return 1
   takes_case "$1" && return 0
@@ -1733,8 +1765,29 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   else
     harness_case verdict-of-right-values-has-no-word "gave '$verdict'"
   fi
+  if end_verdict_of windows macos "$windows_cases" '' "$macos_count" && [ "$verdict" = ' job-not-read' ]; then
+    harness_case end-verdict-reads-the-drivers-job refused
+  else
+    harness_case end-verdict-reads-the-drivers-job "gave '$verdict'"
+  fi
+  if end_verdict_of macos macos "$without_one" '' 0 && [ "$verdict" = ' not-run:tests-fail' ]; then
+    harness_case end-verdict-reads-the-cases-that-ran refused
+  else
+    harness_case end-verdict-reads-the-cases-that-ran "gave '$verdict'"
+  fi
+  if end_verdict_of macos macos "$all_cases" ' case-of-no-list' 0 && [ "$verdict" = ' on-no-list:case-of-no-list' ]; then
+    harness_case end-verdict-reads-the-cases-on-no-list refused
+  else
+    harness_case end-verdict-reads-the-cases-on-no-list "gave '$verdict'"
+  fi
+  if end_verdict_of windows windows "$windows_cases" '' $((macos_count - 1)) &&
+    [ "$verdict" = " left-out-count:$((macos_count - 1))-not-$macos_count" ]; then
+    harness_case end-verdict-reads-the-left-out-count refused
+  else
+    harness_case end-verdict-reads-the-left-out-count "gave '$verdict'"
+  fi
 
-  split=$(split_verdict "$job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left") ||
+  split=$(end_verdict) ||
     split="$split split-verdict-failed"
   printf 'cases left to the macos job: %s\n' "$left"
   if [ -n "$split$wrong" ]; then
