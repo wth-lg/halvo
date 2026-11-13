@@ -17,6 +17,35 @@ pub mod text;
 #[cfg(test)]
 pub(crate) mod cases;
 
+/// A line that fails to build when `$ty` implements `$trait`: a type that
+/// stands for a decision gains no derive unseen.
+macro_rules! lacks {
+    ($ty:ty, $trait:path) => {
+        const _: fn() = || {
+            trait AmbiguousIfImpl<A> {
+                fn some_item() {}
+            }
+            impl<T: ?Sized> AmbiguousIfImpl<()> for T {}
+            struct Invalid;
+            impl<T: $trait> AmbiguousIfImpl<Invalid> for T {}
+            let _ = <$ty as AmbiguousIfImpl<_>>::some_item;
+        };
+    };
+}
+
+lacks!(crate::secure_input::KeystrokeClearance, Clone);
+lacks!(crate::secure_input::KeystrokeClearance, Default);
+lacks!(
+    crate::secure_input::KeystrokeClearance,
+    serde::de::DeserializeOwned
+);
+lacks!(exclude::Keep<kind::Keystroke>, Clone);
+lacks!(exclude::Keep<kind::Keystroke>, Default);
+lacks!(exclude::Keep<kind::Keystroke>, serde::de::DeserializeOwned);
+lacks!(payload::FoldCount, Default);
+lacks!(payload::FoldCount, serde::de::DeserializeOwned);
+lacks!(crate::event::FloorEvent, Default);
+
 /// The stored resolution of `at` for keystroke and click records (first value
 /// 1,000 ms; a change goes through a plan Revision). Order inside one second is
 /// kept by the sink's number.
@@ -356,6 +385,34 @@ mod tests {
         let title_of_accents = format!("{}x", "é".repeat(600));
         let head = CapturedText::enter(TextField::Title, title_of_accents);
         assert_eq!(stored(&head, TextField::Title), "é".repeat(512));
+    }
+
+    #[test]
+    fn every_control_character_is_written_as_its_escape_and_read_back() {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        for code in 0u8..0x20 {
+            let c = char::from(code);
+            let mut out = String::new();
+            text::push_json_string(&mut out, &format!("a{c}b"));
+            let escape = match code {
+                0x08 => "\\b".to_string(),
+                0x0c => "\\f".to_string(),
+                0x0a => "\\n".to_string(),
+                0x0d => "\\r".to_string(),
+                0x09 => "\\t".to_string(),
+                _ => format!(
+                    "\\u00{}{}",
+                    char::from(HEX[usize::from(code >> 4)]),
+                    char::from(HEX[usize::from(code & 0xf)])
+                ),
+            };
+            assert_eq!(out, format!("\"a{escape}b\""), "U+{code:04X}");
+            let back: String = serde_json::from_str(&out).unwrap();
+            assert_eq!(back, format!("a{c}b"), "U+{code:04X}");
+        }
+        let mut out = String::new();
+        text::push_json_string(&mut out, "\u{1f}\"\\\u{7f}");
+        assert_eq!(out, "\"\\u001f\\\"\\\\\u{7f}\"");
     }
 
     #[test]

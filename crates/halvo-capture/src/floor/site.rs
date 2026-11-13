@@ -176,6 +176,15 @@ mod tests {
         let too_long = format!("{labels}.{}.com", "d".repeat(58));
         assert_eq!(too_long.len(), SITE_MAX_BYTES + 1);
         assert_eq!(cut(&format!("https://{too_long}/")), None);
+        assert_eq!(
+            cut(&format!("https://{}.com/", "a".repeat(63))).map(|d| d.len()),
+            Some(67)
+        );
+        assert_eq!(cut(&format!("https://{}.com/", "a".repeat(64))), None);
+        assert_eq!(
+            cut(&format!("https://{}.example.com/", "a".repeat(64))),
+            None
+        );
         let over = format!("https://example.com/{}", "a".repeat(ADDRESS_MAX_BYTES));
         assert_eq!(cut(&over), None);
         let at_limit = format!("https://example.com/{}", "a".repeat(ADDRESS_MAX_BYTES - 20));

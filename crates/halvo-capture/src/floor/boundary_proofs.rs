@@ -2,7 +2,9 @@
 //! scripts/r1/ci.d/30-core-boundary-proofs.sh. Each proof sits under its own
 //! `halvo_proof` cfg and must fail to build with the error code that the script
 //! names; its twin, under the same name with `_twin`, must build. This module is
-//! outside every guarded module, as a source file of the crate is.
+//! outside every guarded module, as a source file of the crate is. Its one test
+//! is the test of the two debug doors, which the check lets stand here alone
+//! beside daemon/prefill.rs.
 
 #![allow(unexpected_cfgs, dead_code)]
 
@@ -304,4 +306,26 @@ fn synthetic_keep_in_a_release_build_twin(
     subject: super::exclude::Subject,
 ) -> super::exclude::Keep<super::kind::Keystroke> {
     super::exclude::synthetic_keep(subject)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::exclude::{synthetic_keep, ProcessId, Subject};
+    use super::super::kind;
+    use crate::event::AppIdentity;
+    use crate::secure_input::synthetic_clearance;
+    use std::time::Duration;
+
+    #[test]
+    fn the_debug_doors_give_a_site_and_the_age_that_they_are_given() {
+        let subject = Subject::new(
+            AppIdentity::bundle_id("com.apple.Safari".to_string()),
+            ProcessId::new(7),
+        );
+        let (_, site_read) = synthetic_keep::<kind::WindowTitle>(subject).into_parts();
+        assert!(site_read, "the synthetic keep reads the site");
+        let age = Some(Duration::from_millis(1_500));
+        assert_eq!(synthetic_clearance(age).key_age(), age);
+        assert_eq!(synthetic_clearance(None).key_age(), None);
+    }
 }
