@@ -2564,7 +2564,7 @@ stopped/kind body
     fn one_status_for_each_capture_value(platform: Platform) -> Vec<(Capture, StatusFields)> {
         let base = sample_status(platform).into_fields();
         let first = base.enabled_sources[0];
-        let timed_out = SourceState::Failed {
+        let after_an_unanswered_stop = SourceState::Failed {
             reason: Reason::Timeout,
             error: None,
         };
@@ -2577,7 +2577,7 @@ stopped/kind body
                 }
             }
             if let Some(line) = f.sources.iter_mut().find(|l| l.name == first) {
-                line.state = timed_out.clone();
+                line.state = after_an_unanswered_stop.clone();
             }
             change(&mut f);
             (capture, f)
@@ -2599,7 +2599,7 @@ stopped/kind body
                 f.capture_reason = Some(CaptureReason::NoSource);
                 for line in &mut f.sources {
                     if line.state != SourceState::Off {
-                        line.state = timed_out.clone();
+                        line.state = after_an_unanswered_stop.clone();
                     }
                 }
             }),
