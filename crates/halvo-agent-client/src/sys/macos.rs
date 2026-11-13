@@ -3,6 +3,8 @@
 use std::ffi::c_void;
 use std::io;
 use std::mem::{size_of, MaybeUninit};
+use std::os::unix::process::CommandExt;
+use std::process::Command;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -33,7 +35,20 @@ struct ProcBsdInfo {
 
 const _: () = assert!(size_of::<ProcBsdInfo>() == 136);
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct ProcFdInfo {
+    proc_fd: i32,
+    proc_fdtype: u32,
+}
+
+const _: () = assert!(size_of::<ProcFdInfo>() == 8);
+
+const PROC_PIDLISTFDS: i32 = 1;
 const PROC_PIDTBSDINFO: i32 = 3;
+const F_SETFD: i32 = 2;
+const FD_CLOEXEC: i32 = 1;
+const EMFILE: i32 = 24;
 const SZOMB: u32 = 5;
 const SIGKILL: i32 = 9;
 const SIGSTOP: i32 = 17;
@@ -51,6 +66,38 @@ extern "C" {
     fn proc_listallpids(buffer: *mut c_void, size: i32) -> i32;
     fn kill(pid: i32, sig: i32) -> i32;
     fn getentropy(buffer: *mut c_void, len: usize) -> i32;
+    fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+}
+
+/// Makes the process that `cmd` starts close, at its exec and so before it runs, every descriptor beyond its
+/// standard input, output and error. The child reads its list of open descriptors after the fork, into room that
+/// this process makes beforehand for twice as many as it holds now; a list that cannot be read, that fills the room
+/// or a descriptor that cannot be marked fails the start, so that no start goes on with a descriptor left open.
+pub(crate) fn close_beyond_three(cmd: &mut Command) {
+    let own = i32::try_from(std::process::id()).unwrap_or(0);
+    let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    let room = usize::try_from(held).unwrap_or(0) / size_of::<ProcFdInfo>() * 2 + 64;
+    let mut list = vec![ProcFdInfo::default(); room];
+    unsafe {
+        cmd.pre_exec(move || close_at_exec_beyond_three(&mut list));
+    }
+}
+
+fn close_at_exec_beyond_three(list: &mut [ProcFdInfo]) -> io::Result<()> {
+    let room = i32::try_from(std::mem::size_of_val(list))
+        .map_err(|_| io::Error::from_raw_os_error(EMFILE))?;
+    let pid = i32::try_from(std::process::id()).map_err(|_| io::Error::from_raw_os_error(ESRCH))?;
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, list.as_mut_ptr().cast(), room) };
+    if got <= 0 || got >= room {
+        return Err(io::Error::from_raw_os_error(EMFILE));
+    }
+    let open = usize::try_from(got).unwrap_or(0) / size_of::<ProcFdInfo>();
+    for entry in &list[..open] {
+        if entry.proc_fd > 2 && unsafe { fcntl(entry.proc_fd, F_SETFD, FD_CLOEXEC) } == -1 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
 }
 
 /// What the process table holds for one process.

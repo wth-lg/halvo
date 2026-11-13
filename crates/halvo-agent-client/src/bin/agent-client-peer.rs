@@ -109,6 +109,72 @@ fn stderr_kind() -> &'static str {
     }
 }
 
+#[cfg(unix)]
+fn write_inherited(number: &str, text: &[u8]) -> &'static str {
+    extern "C" {
+        fn write(fd: i32, buf: *const std::ffi::c_void, len: usize) -> isize;
+    }
+    match number.parse::<i32>() {
+        Ok(fd) if fd > 2 => {
+            if unsafe { write(fd, text.as_ptr().cast(), text.len()) } > 0 {
+                "wrote"
+            } else {
+                "absent"
+            }
+        }
+        Ok(_) => "own",
+        Err(_) => "bad",
+    }
+}
+
+#[cfg(windows)]
+fn write_inherited(number: &str, text: &[u8]) -> &'static str {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetHandleInformation(handle: *mut c_void, flags: *mut u32) -> i32;
+        fn WriteFile(
+            handle: *mut c_void,
+            buf: *const u8,
+            len: u32,
+            written: *mut u32,
+            overlapped: *mut c_void,
+        ) -> i32;
+    }
+    let Ok(value) = number.parse::<usize>() else {
+        return "bad";
+    };
+    let handle = value as *mut c_void;
+    let own = [
+        io::stdin().as_raw_handle(),
+        io::stdout().as_raw_handle(),
+        io::stderr().as_raw_handle(),
+    ];
+    if own.contains(&handle) {
+        return "own";
+    }
+    let mut flags = 0u32;
+    if unsafe { GetHandleInformation(handle, &mut flags) } == 0 || flags & 1 == 0 {
+        return "absent";
+    }
+    let mut wrote = 0u32;
+    let ok = unsafe {
+        WriteFile(
+            handle,
+            text.as_ptr(),
+            text.len() as u32,
+            &mut wrote,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok != 0 && wrote > 0 {
+        "wrote"
+    } else {
+        "absent"
+    }
+}
+
 fn wait_for_file(path: &Path, within: Duration) -> bool {
     let deadline = std::time::Instant::now() + within;
     while !path.exists() {
@@ -383,6 +449,11 @@ impl Peer {
             }
             "stderr-marker" => self.stderr_marker(rest),
             "stderr-kind" => self.log.line(&format!("stderr-kind {}", stderr_kind())),
+            "write-inherited" => {
+                let (number, text) = rest.split_once(' ').unwrap_or((rest, ""));
+                let result = write_inherited(number, format!("{text}\n").as_bytes());
+                self.log.line(&format!("inherited {number} {result}"));
+            }
             "stderr-flood" => {
                 let (total, after) = rest.split_once(' ').unwrap_or((rest, ""));
                 if !after.is_empty() && !wait_for_file(Path::new(after), Duration::from_secs(30)) {

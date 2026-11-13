@@ -1,5 +1,7 @@
 use std::num::{NonZeroU32, NonZeroU64};
-use std::process::{Child, ChildStdin, ChildStdout, Command};
+#[cfg(target_os = "macos")]
+use std::process::Child;
+use std::process::{ChildStdin, ChildStdout, Command};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -16,7 +18,12 @@ const POLL: Duration = Duration::from_millis(20);
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
 /// facts of its mark's lines, and on Windows the job that holds it.
 pub(crate) struct RunProc {
+    #[cfg(target_os = "macos")]
     child: Child,
+    #[cfg(windows)]
+    child: sys::Process,
+    #[cfg(windows)]
+    link: Option<(ChildStdin, ChildStdout)>,
     reaped: bool,
     line: Option<ProcLine>,
     browser: Option<ProcLine>,
@@ -36,13 +43,21 @@ fn created(us: u64) -> Option<CreationTime> {
     NonZeroU64::new(us).map(CreationTime::from_micros)
 }
 
-/// Starts the runner as the leader of a process group of its own (macOS) or, suspended, in a job of the library's
-/// own that it then lets run (Windows), and reads its line.
+/// Starts the runner of `cmd`, its program and arguments, with three handles or descriptors of the library's open in
+/// it and no other: the two ends of the link as its standard input and output and the null device as its standard
+/// error. On macOS it is the leader of a process group of its own and every other descriptor closes at its exec; on
+/// Windows it starts suspended, with the list of those three as the only handles that it inherits, in a job of the
+/// library's own that then lets it run. Reads its line.
 pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
+        use std::process::Stdio;
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .process_group(0);
+        sys::close_beyond_three(cmd);
         let child = cmd.spawn().map_err(|_| SpawnFailed::NotMade)?;
         let pid = child.id();
         let line = match sys::info(pid) {
@@ -68,22 +83,31 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::io::AsRawHandle;
-        use std::os::windows::process::CommandExt;
+        use std::os::windows::ffi::OsStrExt;
+        let program: Vec<u16> = cmd.get_program().encode_wide().collect();
+        let args: Vec<Vec<u16>> = cmd.get_args().map(|a| a.encode_wide().collect()).collect();
+        let line =
+            command_line(&program, args.iter().map(Vec::as_slice)).ok_or(SpawnFailed::NotMade)?;
+        let application: Vec<u16> = program.into_iter().chain(Some(0)).collect();
         let job = sys::Job::new().map_err(|_| SpawnFailed::NotMade)?;
-        cmd.creation_flags(sys::CREATE_SUSPENDED);
-        let child = cmd.spawn().map_err(|_| SpawnFailed::NotMade)?;
+        let sys::Started {
+            process,
+            thread,
+            stdin,
+            stdout,
+        } = sys::start(&application, line, None, None).map_err(|_| SpawnFailed::NotMade)?;
         let mut proc = RunProc {
-            child,
+            child: process,
+            link: Some((ChildStdin::from(stdin), ChildStdout::from(stdout))),
             reaped: false,
             line: None,
             browser: None,
             job,
         };
-        if proc.job.assign(proc.child.as_raw_handle()).is_err() {
+        if proc.job.assign(proc.child.raw()).is_err() {
             return Err(SpawnFailed::Made(proc));
         }
-        let line = sys::created_of(proc.child.as_raw_handle())
+        let line = sys::created_of(proc.child.raw())
             .and_then(created)
             .and_then(|c| {
                 Some(ProcLine {
@@ -92,12 +116,58 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
                     group: Group::Job,
                 })
             });
-        if line.is_none() || sys::resume(proc.child.id()).is_err() {
+        if line.is_none() || sys::resume(&thread).is_err() {
             return Err(SpawnFailed::Made(proc));
         }
         proc.line = line;
         Ok(proc)
     }
+}
+
+/// The command line of a Windows start: the program in quotes, then each argument, in quotes when it is empty or
+/// holds a space or a tab, with the backslashes before a quote doubled and the quote escaped, as the C runtime
+/// reads a command line back into its arguments; ends in a NUL. None for a NUL in any part or a quote in the
+/// program.
+#[cfg(any(windows, test))]
+fn command_line<'a>(program: &[u16], args: impl Iterator<Item = &'a [u16]>) -> Option<Vec<u16>> {
+    const QUOTE: u16 = b'"' as u16;
+    const BACKSLASH: u16 = b'\\' as u16;
+    const SPACE: u16 = b' ' as u16;
+    const TAB: u16 = b'\t' as u16;
+    if program.contains(&0) || program.contains(&QUOTE) {
+        return None;
+    }
+    let mut line = vec![QUOTE];
+    line.extend_from_slice(program);
+    line.push(QUOTE);
+    for arg in args {
+        if arg.contains(&0) {
+            return None;
+        }
+        line.push(SPACE);
+        let quote = arg.is_empty() || arg.contains(&SPACE) || arg.contains(&TAB);
+        if quote {
+            line.push(QUOTE);
+        }
+        let mut backslashes = 0;
+        for &c in arg {
+            if c == BACKSLASH {
+                backslashes += 1;
+            } else {
+                if c == QUOTE {
+                    line.extend(std::iter::repeat_n(BACKSLASH, backslashes + 1));
+                }
+                backslashes = 0;
+            }
+            line.push(c);
+        }
+        if quote {
+            line.extend(std::iter::repeat_n(BACKSLASH, backslashes));
+            line.push(QUOTE);
+        }
+    }
+    line.push(0);
+    Some(line)
 }
 
 impl RunProc {
@@ -108,7 +178,14 @@ impl RunProc {
 
     /// The two ends of the link.
     pub(crate) fn take_link(&mut self) -> Option<(ChildStdin, ChildStdout)> {
-        Some((self.child.stdin.take()?, self.child.stdout.take()?))
+        #[cfg(target_os = "macos")]
+        {
+            Some((self.child.stdin.take()?, self.child.stdout.take()?))
+        }
+        #[cfg(windows)]
+        {
+            self.link.take()
+        }
     }
 
     /// The browser's line of a frame `browser`, when the frame names a process of this run: on macOS a direct child
@@ -176,7 +253,7 @@ impl RunProc {
             sys::ChildState::Gone => self.reaped = true,
         }
         #[cfg(windows)]
-        if matches!(self.child.try_wait(), Ok(Some(_))) {
+        if self.child.try_wait().is_some() {
             self.reaped = true;
         }
         self.reaped
@@ -432,6 +509,61 @@ fn end_descendant(d: &sys::Info, runner_group: u32) {
         end_group(d.pid);
     } else {
         sys::kill_pid(d.pid);
+    }
+}
+
+#[cfg(test)]
+mod command_line_tests {
+    use super::command_line;
+
+    fn w(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    fn line(program: &str, args: &[&str]) -> Option<String> {
+        let args: Vec<Vec<u16>> = args.iter().map(|a| w(a)).collect();
+        let line = command_line(&w(program), args.iter().map(Vec::as_slice))?;
+        assert_eq!(line.last(), Some(&0), "the command line ends in a NUL");
+        Some(String::from_utf16(&line[..line.len() - 1]).unwrap())
+    }
+
+    #[test]
+    fn the_program_is_quoted_and_a_plain_argument_is_not() {
+        assert_eq!(
+            line(r"C:\a b\runner.exe", &["--run", "abc"]).as_deref(),
+            Some(r#""C:\a b\runner.exe" --run abc"#)
+        );
+    }
+
+    #[test]
+    fn an_empty_argument_and_one_with_a_space_or_a_tab_are_quoted() {
+        assert_eq!(
+            line("p", &["", "a b", "a\tb"]).as_deref(),
+            Some("\"p\" \"\" \"a b\" \"a\tb\"")
+        );
+    }
+
+    #[test]
+    fn a_quote_is_escaped_and_the_backslashes_before_it_are_doubled() {
+        assert_eq!(
+            line("p", &[r#"x"y"#, r#"x\"y"#, r"a\\b"]).as_deref(),
+            Some(r#""p" x\"y x\\\"y a\\b"#)
+        );
+    }
+
+    #[test]
+    fn the_backslashes_before_the_closing_quote_of_a_quoted_argument_are_doubled() {
+        assert_eq!(
+            line("p", &[r"C:\a b\"]).as_deref(),
+            Some(r#""p" "C:\a b\\""#)
+        );
+    }
+
+    #[test]
+    fn a_nul_in_any_part_or_a_quote_in_the_program_gives_no_command_line() {
+        assert_eq!(line("p\0", &[]), None);
+        assert_eq!(line("p", &["a\0b"]), None);
+        assert_eq!(line("p\"q", &[]), None);
     }
 }
 

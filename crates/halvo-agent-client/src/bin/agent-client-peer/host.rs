@@ -3,7 +3,10 @@
 //! prints `started <run id>`, answers every act with yes, logs each request that reaches its owner as one line of
 //! OWNER_LOG, and prints `end <RunEnd as Debug>` when the run has ended. With HOLD_DIR, `Confirmer::answers` prints
 //! `answers-in`, makes the file HOLD_DIR/asked, waits until the file HOLD_DIR/release exists or 60 seconds have
-//! passed, and prints `answers-out` before it answers.
+//! passed, and prints `answers-out` before it answers. Before the start it writes into SCRIPT, for `{host-mark}`,
+//! the number of a descriptor or handle of SCRIPT.mark that it holds open and inheritable (on macOS a descriptor
+//! of at least 200 without close-on-exec), and on Windows for `{host-out}` and `{host-err}` the numbers of its own
+//! standard output and standard error handles.
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -118,6 +121,62 @@ fn id16(salt: u8) -> [u8; 16] {
     b
 }
 
+#[cfg(unix)]
+fn held_open(file: std::fs::File) -> Option<String> {
+    use std::os::fd::IntoRawFd;
+    extern "C" {
+        fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    }
+    const F_DUPFD: i32 = 0;
+    let fd = file.into_raw_fd();
+    let high = unsafe { fcntl(fd, F_DUPFD, 200) };
+    (high >= 200).then(|| high.to_string())
+}
+
+#[cfg(windows)]
+fn held_open(file: std::fs::File) -> Option<String> {
+    use std::os::windows::io::IntoRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn SetHandleInformation(handle: *mut std::ffi::c_void, mask: u32, flags: u32) -> i32;
+    }
+    let handle = file.into_raw_handle();
+    (unsafe { SetHandleInformation(handle, 1, 1) } != 0).then(|| (handle as usize).to_string())
+}
+
+#[cfg(unix)]
+fn own_numbers() -> (String, String) {
+    ("1".to_owned(), "2".to_owned())
+}
+
+#[cfg(windows)]
+fn own_numbers() -> (String, String) {
+    use std::os::windows::io::AsRawHandle;
+    (
+        (io::stdout().as_raw_handle() as usize).to_string(),
+        (io::stderr().as_raw_handle() as usize).to_string(),
+    )
+}
+
+fn fill(script: &Path) -> Option<()> {
+    let text = std::fs::read_to_string(script).ok()?;
+    if !text.contains("{host-") {
+        return Some(());
+    }
+    let mark = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{}.mark", script.display()))
+        .ok()?;
+    let mark = held_open(mark)?;
+    let (out, err) = own_numbers();
+    let text = text
+        .replace("{host-mark}", &mark)
+        .replace("{host-out}", &out)
+        .replace("{host-err}", &err);
+    std::fs::write(script, text).ok()
+}
+
 pub fn run(args: &[String]) {
     let (data, script, owner_log, hold) = match args {
         [data, script, owner_log] => (data, script, owner_log, None),
@@ -130,6 +189,9 @@ pub fn run(args: &[String]) {
     let Ok(me) = std::env::current_exe() else {
         std::process::exit(70);
     };
+    if fill(Path::new(script)).is_none() {
+        std::process::exit(70);
+    }
     let yes = Arc::new(Yes { hold });
     let parts = Parts {
         link: Arc::new(Owner(Mutex::new(log))),
