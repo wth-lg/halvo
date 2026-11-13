@@ -73,8 +73,8 @@ search for states with no next state: an effect has final states.
 
 `Full.cfg` is run by hand, with the same command and `-workers 4`. It prints `8436493
 states generated, 3937389 distinct states found`. After U1.8 (a), on 2026-11-13, it took
-1,014 seconds with four workers through the machine's timed-run helper, at a 1-minute load
-average of 144 before and 212 after; before that change it reached 1,500,352 distinct states
+485 seconds with four workers through the machine's timed-run helper, at a 1-minute load
+average of 160 before and 115 after; before that change it reached 1,500,352 distinct states
 in 306 seconds on 2026-11-12, at a load of 85 before and 94 after. Run it
 after every change of `Confirm.tla`, and run every wrong design of the table that belongs to
 the model with it.
@@ -187,6 +187,9 @@ What the check does not see:
   committed file. The review of U1.8 (a) found that a `Step` that refuses `begin` after
   `not_made` with `unknown`, or a cause that does not fit with `effect`, passes the crate's
   tests after an export.
+- A runner that commits an effect after a reply that says that it was not made. P9, as A5.3
+  states it, holds for any reply; the model's `Commit` takes only a reply that says `made`,
+  and no invariant holds that. A copy whose `Reply` takes every answer as `made` passes.
 - Each job fetches the jar twice, once for the check and once for its self-test.
 - An input that the commit does not hold. The test of `same-as-commit=yes` is `git diff
   --quiet HEAD`, which sees tracked files alone: a commit that drops a configuration file
