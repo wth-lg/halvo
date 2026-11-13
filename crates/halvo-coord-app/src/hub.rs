@@ -360,10 +360,11 @@ where
     fn quit(&self, budget: Option<Duration>) {
         let start = Instant::now();
         let wait = self.coord.quit_stop();
+        let stopped = Instant::now();
         let grace = self.coord.ports().now().map_or(self.grace, |now| {
             Duration::from_millis(wait.until.saturating_sub(now))
         });
-        let end = start + budget.map_or(grace, |b| b.min(grace));
+        let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
         let mut seen = self.bell.mark();
         while self.coord.live() > 0 {
             let now = Instant::now();

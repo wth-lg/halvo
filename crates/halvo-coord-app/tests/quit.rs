@@ -148,3 +148,36 @@ fn for_a_run_stopped_before_the_quit_the_grace_counts_from_its_stop() {
     assert!(took >= ms(250) && took < ms(1_200), "{took:?}");
     assert_eq!(kills(&hub, m), [run]);
 }
+
+#[test]
+fn the_grace_counts_from_the_end_of_a_slow_first_step() {
+    let hub = hub(1);
+    live_run(&hub);
+    let m = mark(&hub);
+    let holder = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.coordinator().ports().inner().with(|_| sleep(ms(700))))
+    };
+    sleep(ms(50));
+    let t0 = Instant::now();
+    let quitting = quit(&hub, None);
+    let (mut cancel_at, mut kill_at) = (None, None);
+    while kill_at.is_none() && t0.elapsed() < ms(6_000) {
+        let calls = calls_since(&hub, m);
+        if cancel_at.is_none() && calls.iter().any(|c| matches!(c, Call::Cancel(_))) {
+            cancel_at = Some(t0.elapsed());
+        }
+        if calls.iter().any(|c| matches!(c, Call::Kill(_))) {
+            kill_at = Some(t0.elapsed());
+        }
+        sleep(ms(10));
+    }
+    holder.join().unwrap();
+    quitting.join().unwrap();
+    let (cancel, kill) = (cancel_at.unwrap(), kill_at.unwrap());
+    assert!(
+        kill - cancel >= ms(900),
+        "the kill came {:?} after the cancel, less than cancel_grace_s = 1 s",
+        kill - cancel
+    );
+}
