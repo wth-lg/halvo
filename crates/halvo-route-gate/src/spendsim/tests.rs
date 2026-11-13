@@ -1170,3 +1170,73 @@ fn the_room_of_an_account_with_an_open_hold_refuses_what_fits_only_without_it() 
     assert!(!outcome.admit_sum_ok);
     assert!(!outcome.passed());
 }
+
+#[test]
+fn over_cap_counts_every_open_hold_whatever_the_amount_asked() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    sim.start("near_cap");
+    let mut fake = sim.account(Some(1));
+    let mut open = sim.slot();
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(6_000)), Ok(()));
+    let mut above = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut above, request_of(5_000)),
+        Err(SpendCause::OverCap)
+    );
+    let mut within = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut within, request_of(4_000)),
+        Ok(())
+    );
+    assert_eq!((fake.account.spent, fake.account.held), (0, 10_000));
+    assert_eq!((sim.counts.refused_over_cap, sim.counts.above_cap), (1, 0));
+}
+
+#[test]
+fn a_hold_that_expires_unsent_beside_an_open_one_leaves_the_open_amount_held() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    sim.start("error_burst");
+    let mut fake = sim.account(Some(1));
+    let mut unsent = sim.slot();
+    let mut open = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut unsent, request_of(4_000)),
+        Ok(())
+    );
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(3_000)), Ok(()));
+    assert_eq!(sim.act(&mut fake, &mut unsent, Move::Expire, None), Ok(()));
+    assert_eq!((fake.account.spent, fake.account.held), (4_000, 3_000));
+    let mut late = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut late, request_of(5_000)),
+        Err(SpendCause::OverCap)
+    );
+}
+
+#[test]
+fn the_room_of_an_account_with_spent_and_held_counts_both() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    sim.start("fan_out");
+    let mut fake = sim.account(Some(1));
+    let mut settled = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut settled, request_of(2_000)),
+        Ok(())
+    );
+    assert_eq!(
+        sim.act(&mut fake, &mut settled, Move::Dispatch, None),
+        Ok(())
+    );
+    assert_eq!(
+        sim.act(&mut fake, &mut settled, Move::Settle { cost: 2_000 }, None),
+        Ok(())
+    );
+    let mut open = sim.slot();
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(5_000)), Ok(()));
+    let room = Room::of(&fake.account, 0).expect("a cap");
+    assert_eq!((room.spent, room.held), (2_000, 5_000));
+    let task = Task::new(vec![request_of(4_000)], false);
+    let mut running = Vec::new();
+    assert!(!sim.admit(&room, &task, &mut running));
+    assert!(sim.outcome.admit_sum_ok && running.is_empty());
+}
