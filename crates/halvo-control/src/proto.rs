@@ -717,6 +717,7 @@ pub enum Capture {
     Pausing,
     Paused,
     NoIndicator,
+    AwaitingResume,
     Faulted,
 }
 
@@ -727,6 +728,7 @@ one_spelling!(Capture, "capture state", [
     Pausing => "pausing",
     Paused => "paused",
     NoIndicator => "no_indicator",
+    AwaitingResume => "awaiting_resume",
     Faulted => "faulted",
 ]);
 
@@ -1419,6 +1421,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     }
     if f.store_error == Some(StoreErrorKind::KeyFile) && f.store_id.is_some() {
         return fail("a store whose key file does not parse has no id");
+    }
+    if f.capture == Capture::AwaitingResume && f.desired != CaptureState::Running {
+        return fail("a capture that awaits a resume has desired running");
     }
     if (f.capture == Capture::Faulted) != f.capture_reason.is_some() {
         return fail("a faulted capture has a reason and no other state has one");
@@ -2394,6 +2399,7 @@ mod tests {
                 "pausing",
                 "paused",
                 "no_indicator",
+                "awaiting_resume",
                 "faulted"
             ]
         );
@@ -2421,6 +2427,33 @@ mod tests {
         assert_eq!(
             last_stop,
             ["none", "clean", "unclean", "source_not_stopped"]
+        );
+    }
+
+    #[test]
+    fn a_status_awaiting_resume_after_a_source_that_did_not_stop_round_trips() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut fields = sample_status(platform).into_fields();
+            fields.capture = Capture::AwaitingResume;
+            fields.last_stop = LastStop::SourceNotStopped;
+            for line in &mut fields.sources {
+                if line.state == SourceState::Running {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            let status = DaemonStatus::new(fields).unwrap();
+            let json = serde_json::to_value(&status).unwrap();
+            assert_eq!(json["capture"], "awaiting_resume");
+            assert_eq!(json["last_stop"], "source_not_stopped");
+            let reply = Reply::Status(status);
+            assert_eq!(through_the_wire_reply(&reply), reply);
+        }
+        let mut paused = sample_status(Platform::Macos).into_fields();
+        paused.capture = Capture::AwaitingResume;
+        paused.desired = crate::model::CaptureState::Paused;
+        assert!(
+            DaemonStatus::new(paused).is_err(),
+            "awaiting_resume says that desired is running"
         );
     }
 

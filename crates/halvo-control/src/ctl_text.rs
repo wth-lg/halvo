@@ -865,6 +865,18 @@ mod tests {
         assert_eq!(printed.status, 1);
     }
 
+    const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=0\nmax_lag_ms=0\nsecure_input_keystrokes=0\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
+
+    #[test]
+    fn a_life_after_a_source_that_did_not_stop_prints_awaiting_resume_and_source_not_stopped() {
+        let status = edited(Platform::Macos, |f| {
+            f.capture = Capture::AwaitingResume;
+            f.last_stop = crate::proto::LastStop::SourceNotStopped;
+            stopped_sources(f);
+        });
+        assert_eq!(status_text(&status), STATUS_AWAITING_RESUME);
+    }
+
     #[test]
     fn a_source_that_failed_with_writer_gone_or_item_closed_prints_its_reason() {
         for (reason, token) in [
