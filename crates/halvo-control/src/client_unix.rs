@@ -312,6 +312,26 @@ mod tests {
     }
 
     #[test]
+    fn f2_the_scripted_unix_server_answers_a_resume_of_a_partial_capture_and_the_next_request() {
+        let (_base, dir) = short_data_dir();
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.sources[2].state = crate::proto::SourceState::Failed {
+            reason: crate::proto::Reason::Permission,
+            error: None,
+        };
+        fields.capture = crate::proto::Capture::Partial;
+        let server = ScriptedUnixServer::start(
+            &dir,
+            ScriptedDaemon::new(crate::proto::DaemonStatus::new(fields).unwrap()),
+        )
+        .unwrap();
+        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        assert!(client.resume().is_ok());
+        assert!(client.status().is_ok());
+        assert_eq!(server.requests().len(), 2);
+    }
+
+    #[test]
     fn a_status_and_a_stop_cross_a_real_socket_of_this_user() {
         let (_base, dir) = short_data_dir();
         let server =

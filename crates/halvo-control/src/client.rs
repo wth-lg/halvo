@@ -1000,6 +1000,102 @@ mod tests {
         assert_eq!(daemon_error(client.inventory()), ErrorCode::Internal);
     }
 
+    fn scripted(edit: impl FnOnce(&mut crate::proto::StatusFields)) -> ScriptedDaemon {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        edit(&mut fields);
+        ScriptedDaemon::new(DaemonStatus::new(fields).unwrap())
+    }
+
+    fn stop_all(f: &mut crate::proto::StatusFields) {
+        for line in &mut f.sources {
+            if line.state != crate::proto::SourceState::Off {
+                line.state = crate::proto::SourceState::Stopped { by_user: false };
+            }
+        }
+    }
+
+    fn lapsed(f: &mut crate::proto::StatusFields) {
+        f.lease = crate::proto::Lease::Lapsed;
+        f.capture = crate::proto::Capture::NoIndicator;
+        stop_all(f);
+    }
+
+    fn paused(f: &mut crate::proto::StatusFields) {
+        f.desired = crate::model::CaptureState::Paused;
+        f.capture = crate::proto::Capture::Paused;
+        stop_all(f);
+    }
+
+    fn input_lost(f: &mut crate::proto::StatusFields) {
+        f.sources[2].state = crate::proto::SourceState::Failed {
+            reason: crate::proto::Reason::Permission,
+            error: None,
+        };
+    }
+
+    fn running_sources(status: &DaemonStatus) -> usize {
+        status
+            .fields()
+            .sources
+            .iter()
+            .filter(|s| s.state == crate::proto::SourceState::Running)
+            .count()
+    }
+
+    #[test]
+    fn d1_a_resume_under_a_lapsed_lease_reads_no_indicator_with_no_source_running() {
+        let (client, _) = client(scripted(lapsed));
+        let after = client.resume().unwrap();
+        assert_eq!(after.fields().capture, crate::proto::Capture::NoIndicator);
+        assert_eq!(running_sources(&after), 0);
+    }
+
+    #[test]
+    fn d2_a_pause_then_a_resume_under_a_lapsed_lease_read_no_indicator() {
+        let (client, _) = client(scripted(lapsed));
+        client.pause().unwrap();
+        let resumed = client.resume().unwrap();
+        assert_eq!(resumed.fields().capture, crate::proto::Capture::NoIndicator);
+        assert_eq!(running_sources(&resumed), 0);
+    }
+
+    #[test]
+    fn d3_a_resume_of_a_partial_capture_answers_partial_and_the_next_request() {
+        let (client, connector) = client(scripted(|f| {
+            input_lost(f);
+            f.capture = crate::proto::Capture::Partial;
+        }));
+        let after = client.resume().unwrap();
+        assert_eq!(after.fields().capture, crate::proto::Capture::Partial);
+        assert!(client.status().is_ok());
+        assert_eq!(connector.requests().len(), 2);
+    }
+
+    #[test]
+    fn d4_a_claim_under_no_indicator_with_a_failed_source_answers_a_status_that_holds_together() {
+        let (client, _) = client(scripted(|f| {
+            lapsed(f);
+            input_lost(f);
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().lease, crate::proto::Lease::Fresh);
+        assert_eq!(claimed.fields().capture, crate::proto::Capture::Partial);
+        assert!(DaemonStatus::new(claimed.into_fields()).is_ok());
+        assert!(client.status().is_ok());
+    }
+
+    #[test]
+    fn d5_a_resume_of_a_pause_with_a_failed_source_answers_a_status_that_holds_together() {
+        let (client, _) = client(scripted(|f| {
+            paused(f);
+            input_lost(f);
+        }));
+        let resumed = client.resume().unwrap();
+        assert_eq!(resumed.fields().capture, crate::proto::Capture::Partial);
+        assert!(DaemonStatus::new(resumed.into_fields()).is_ok());
+        assert!(client.status().is_ok());
+    }
+
     #[test]
     fn in_the_scripted_daemon_a_claim_renews_a_lapsed_lease_and_a_plain_read_does_not() {
         let mut fields = sample_status(Platform::Macos).into_fields();
