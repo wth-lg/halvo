@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No file under crates/halvo-capture/src/daemon/, and not crates/halvo-capture/src/bin/halvo-capture.rs, holds an allow or an expect of dead_code or of an unused lint, no mod line under a test-only cfg in src/daemon/ names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), no cfg under src/daemon/ joins test with a platform but the one condition of daemon/mod.rs, and src/daemon/ holds a .rs file.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; and src/daemon/ holds a file to read.
 set -u
 name=22-daemon-no-dead-allow
 
@@ -21,48 +21,71 @@ scan() {
       exit 1
     }
     function trimmed(text) {
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", text)
+      gsub(/[[:space:]]+/, " ", text)
+      gsub(/^ | $/, "", text)
       return text
     }
+    function count(text, char,    copy) {
+      copy = text
+      return gsub(char, "", copy)
+    }
     function check_allowances() {
-      if (file != "" && joined ~ /(allow|expect)[[:space:]]*\([^)]*(dead_code|unused)/)
-        cause(file, "-", "an allow or an expect of dead_code or of an unused lint")
+      if (file != "" && joined ~ /(allow|expect)[[:space:]]*\([^)]*(dead_code|unused|warnings)/)
+        cause(file, "-", "an allow or an expect of dead_code, of an unused lint or of warnings")
+    }
+    function attribute(text, at) {
+      if (text !~ /cfg[[:space:]]*\(/) return
+      tested = (text ~ /[^A-Za-z0-9_]test[^A-Za-z0-9_]/)
+      platform = (text ~ /(target_os|target_family|target_arch|target_env|target_vendor|[^A-Za-z0-9_]windows[^A-Za-z0-9_]|[^A-Za-z0-9_]unix[^A-Za-z0-9_])/)
+      if (tested && platform) {
+        if (FILENAME != mod_rs) cause(FILENAME, at, "a cfg joins test with a platform outside daemon/mod.rs")
+        if (condition == "") condition = trimmed(text)
+        else if (condition != trimmed(text)) cause(FILENAME, at, "daemon/mod.rs joins test with a platform in a second condition")
+        pending = 0
+      } else {
+        pending = tested
+      }
     }
     FNR == 1 {
       check_allowances()
       file = FILENAME
       joined = ""
       pending = 0
+      open_attr = ""
     }
     {
       joined = joined " " $0
       line = $0
     }
     FILENAME ~ /\/src\/bin\// { next }
-    line ~ /cfg[[:space:]]*\(/ && line ~ /[^a-z_]test[^a-z_]/ &&
-      line ~ /(target_os|target_family|target_arch|target_env|target_vendor|[^a-z_]windows[^a-z_]|[^a-z_]unix[^a-z_])/ {
-      if (FILENAME != mod_rs) cause(FILENAME, FNR, "a cfg joins test with a platform outside daemon/mod.rs")
-      if (condition == "") condition = trimmed(line)
-      else if (condition != trimmed(line)) cause(FILENAME, FNR, "daemon/mod.rs joins test with a platform in a second condition")
+    open_attr != "" {
+      open_attr = open_attr " " line
+      if (count(open_attr, "\\[") > count(open_attr, "\\]")) next
+      attribute(open_attr, attr_at)
+      open_attr = ""
+      next
     }
-    line ~ /#\[[[:space:]]*cfg[[:space:]]*\(/ {
-      pending = (line ~ /cfg[[:space:]]*\([[:space:]]*test[[:space:]]*\)/ ||
-        line ~ /cfg[[:space:]]*\([[:space:]]*all[[:space:]]*\(([^)]*[^a-z_])?test[^a-z_]/)
-      if (!pending) next
+    line ~ /^[[:space:]]*#!?\[/ {
+      if (count(line, "\\[") > count(line, "\\]")) {
+        open_attr = line
+        attr_at = FNR
+        next
+      }
+      attribute(line, FNR)
       rest = line
       sub(/^.*\][[:space:]]*/, "", rest)
       if (rest == "") next
       line = rest
     }
     pending {
-      if (line ~ /^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+[A-Za-z0-9_]+[[:space:]]*;/) {
+      if (line ~ /^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+(r#)?[A-Za-z0-9_]+[[:space:]]*;/) {
         module = line
-        sub(/^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+/, "", module)
+        sub(/^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+(r#)?/, "", module)
         sub(/[[:space:]]*;.*$/, "", module)
         if (module !~ /(_tests|_props)$/ && module !~ /^model_/ && module != "scripted")
-          cause(FILENAME, FNR, "mod " module " under a test-only cfg names a file that is not test support")
+          cause(FILENAME, FNR, "mod " module " under a cfg that names test names a file that is not test support")
         pending = 0
-      } else if (line !~ /^[[:space:]]*(#|\/\/)/ && trimmed(line) != "") {
+      } else if (line !~ /^[[:space:]]*\/\// && trimmed(line) != "") {
         pending = 0
       }
     }
@@ -76,15 +99,20 @@ classify() {
   root=$1
   daemon=$root/crates/halvo-capture/src/daemon
   bin=$root/crates/halvo-capture/src/bin/halvo-capture.rs
-  files=$(find "$daemon" -type f -name '*.rs' 2>/dev/null | LC_ALL=C sort)
+  listed=$(find "$daemon" ! -type d 2>/dev/null | LC_ALL=C sort)
+  files=$(printf '%s\n' "$listed" | grep -v -x -F -e "$daemon/mutants.rows" -e '')
   if [ -z "$files" ]; then
-    printf 'crates/halvo-capture/src/daemon holds no .rs file'
+    printf 'crates/halvo-capture/src/daemon holds no file to read'
     return 1
   fi
   count=$(printf '%s\n' "$files" | grep -c '')
   printf 'daemon files: %s\n' "$count" >&2
   set --
   while IFS= read -r file; do
+    if [ -d "$file" ] || [ ! -r "$file" ]; then
+      printf '%s is a link to a directory or to no readable file' "${file#"$root"/}"
+      return 1
+    fi
     set -- "$@" "$file"
   done <<EOF
 $files
@@ -136,6 +164,8 @@ fixture() {
     '    #[test]' \
     '    fn t() {}' \
     '}' >"$tree/crates/halvo-capture/src/daemon/owner.rs" || exit 2
+  printf '%s\n' 'expiry-never-runs	maintenance.rs	s/a/b/	test x	required	B14-05' \
+    >"$tree/crates/halvo-capture/src/daemon/mutants.rows" || exit 2
   printf 'fn main() {}\n' >"$tree/crates/halvo-capture/src/bin/halvo-capture.rs" || exit 2
 }
 
@@ -178,6 +208,13 @@ self_test() {
   fixture bin-allowance
   add_line bin-allowance bin/halvo-capture.rs '#[allow(unused_imports)]'
   case_of bin-allowance FAIL
+  fixture warnings-group
+  add_line warnings-group daemon/owner.rs '#[allow(warnings)]'
+  add_line warnings-group daemon/owner.rs 'fn unused() {}'
+  case_of warnings-group FAIL
+  fixture warnings-inner
+  add_line warnings-inner daemon/owner.rs '#![allow(warnings)]'
+  case_of warnings-inner FAIL
   fixture test-only-state
   add_line test-only-state daemon/mod.rs '#[cfg(test)] mod state;'
   case_of test-only-state FAIL
@@ -189,11 +226,35 @@ self_test() {
   add_line test-and-feature daemon/mod.rs '#[cfg(all(test, feature = "r2"))]'
   add_line test-and-feature daemon/mod.rs 'mod seam;'
   case_of test-and-feature FAIL
+  fixture any-test
+  add_line any-test daemon/mod.rs '#[cfg(any(test))]'
+  add_line any-test daemon/mod.rs 'mod state;'
+  case_of any-test FAIL
+  fixture raw-name
+  add_line raw-name daemon/mod.rs '#[cfg(test)]'
+  add_line raw-name daemon/mod.rs 'mod r#state;'
+  case_of raw-name FAIL
+  fixture split-cfg
+  add_line split-cfg daemon/mod.rs '#[cfg(all('
+  add_line split-cfg daemon/mod.rs '    test,'
+  add_line split-cfg daemon/mod.rs '    feature = "r2"'
+  add_line split-cfg daemon/mod.rs '))]'
+  add_line split-cfg daemon/mod.rs 'mod seam;'
+  case_of split-cfg FAIL
+  fixture split-platform
+  add_line split-platform daemon/owner.rs '#[cfg(all('
+  add_line split-platform daemon/owner.rs '    test,'
+  add_line split-platform daemon/owner.rs '    target_os = "windows"'
+  add_line split-platform daemon/owner.rs '))]'
+  add_line split-platform daemon/owner.rs 'fn only_in_windows_tests() {}'
+  case_of split-platform FAIL
   fixture test-support-names
   add_line test-support-names daemon/mod.rs '#[cfg(test)]'
   add_line test-support-names daemon/mod.rs 'mod model_clock;'
   add_line test-support-names daemon/mod.rs '#[cfg(all(test, feature = "r2"))]'
   add_line test-support-names daemon/mod.rs 'mod seam_tests;'
+  add_line test-support-names daemon/mod.rs '#[cfg(test)]'
+  add_line test-support-names daemon/mod.rs 'mod r#raw_tests;'
   case_of test-support-names PASS
   fixture platform-in-owner
   add_line platform-in-owner daemon/owner.rs '#[cfg(any(test, windows))]'
@@ -207,8 +268,31 @@ self_test() {
   add_line platform-alone daemon/owner.rs '#[cfg(target_os = "macos")]'
   add_line platform-alone daemon/owner.rs 'fn free() {}'
   case_of platform-alone PASS
+  fixture upper-suffix
+  printf '%s\n' '#![allow(dead_code)]' 'fn reach() {}' >"$work/upper-suffix/crates/halvo-capture/src/daemon/evil.RS" || exit 2
+  case_of upper-suffix FAIL
+  fixture no-suffix
+  printf '%s\n' '#![allow(dead_code)]' >"$work/no-suffix/crates/halvo-capture/src/daemon/evil" || exit 2
+  case_of no-suffix FAIL
+  fixture linked
+  mkdir -p "$work/linked/outside" || exit 2
+  printf '%s\n' '#![allow(dead_code)]' >"$work/linked/outside/linked.txt" || exit 2
+  ln -s ../../../../outside/linked.txt "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" || exit 2
+  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made=link; else made=copy; fi
+  printf 'case %s/linked: ln -s made a %s\n' "$name" "$made"
+  case_of linked FAIL
+  fixture data-file-holds-any-text
+  printf '%s\n' '#![allow(dead_code)]' >"$work/data-file-holds-any-text/crates/halvo-capture/src/daemon/mutants.rows" || exit 2
+  case_of data-file-holds-any-text PASS
+  fixture data-file-renamed
+  mv "$work/data-file-renamed/crates/halvo-capture/src/daemon/mutants.rows" "$work/data-file-renamed/crates/halvo-capture/src/daemon/Mutants.rows" || exit 2
+  printf '%s\n' '#![allow(dead_code)]' >>"$work/data-file-renamed/crates/halvo-capture/src/daemon/Mutants.rows" || exit 2
+  case_of data-file-renamed FAIL
   mkdir -p "$work/empty/crates/halvo-capture/src/daemon" || exit 2
   case_of empty FAIL
+  mkdir -p "$work/data-alone/crates/halvo-capture/src/daemon" || exit 2
+  printf 'x\n' >"$work/data-alone/crates/halvo-capture/src/daemon/mutants.rows" || exit 2
+  case_of data-alone FAIL
   case_of missing FAIL
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

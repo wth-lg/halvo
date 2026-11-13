@@ -102,10 +102,26 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-/// Every file under the directory `dir` of the repository, tracked or not, by
-/// its path from the root, in order.
-fn files_under(dir: &str, out: &mut Vec<String>) {
-    let Ok(entries) = fs::read_dir(root().join(dir)) else {
+/// The files under the directories that these rules read that hold no code,
+/// each by its path from the root, byte for byte. The rules read every other
+/// file there as Rust, whatever its name: the compiler opens a module file by
+/// a path, and a volume that folds case gives `x.RS` for `x.rs`.
+const DATA_FILES: [&str; 7] = [
+    "crates/halvo-capture/Cargo.toml",
+    "crates/halvo-capture/src/custody/mutants.rows",
+    "crates/halvo-capture/src/daemon/mutants.rows",
+    "crates/halvo-capture/src/macos/mutants.rows",
+    "crates/halvo-capture/src/mutants.rows",
+    "crates/halvo-capture/src/store/mutants.rows",
+    "crates/halvo-capture/src/store/testdata/segment-v1.golden",
+];
+
+/// Every file under the directory `dir` of the tree at `base`, tracked or not,
+/// by its path from `base`, in order, but the paths of [`DATA_FILES`]. A
+/// symbolic link is read through: a link to a directory is walked, and any
+/// other link is a file of the list, which a dangling link fails to read.
+fn files_under(base: &Path, dir: &str, out: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(base.join(dir)) else {
         return;
     };
     let mut names: Vec<String> = entries
@@ -115,12 +131,84 @@ fn files_under(dir: &str, out: &mut Vec<String>) {
     names.sort();
     for name in names {
         let path = format!("{dir}/{name}");
-        if root().join(&path).is_dir() {
-            files_under(&path, out);
-        } else {
+        if base.join(&path).is_dir() {
+            files_under(base, &path, out);
+        } else if !DATA_FILES.contains(&path.as_str()) {
             out.push(path);
         }
     }
+}
+
+/// A new directory under the target's directory for the temporary files of
+/// tests, for one tree of a test.
+fn temp_tree(name: &str) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "source-rules-{name}-{}-{nanos}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&base).unwrap();
+    base
+}
+
+/// Writes `text` at `path` under `base`, with the directories above it.
+fn plant(base: &Path, path: &str, text: &str) {
+    let file = base.join(path);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(file, text).unwrap();
+}
+
+/// A link at `path` under `base` to the file `target` beside it; where the
+/// system makes no link, a copy of the target.
+fn link(base: &Path, target: &str, path: &str) -> &'static str {
+    let at = base.join(path);
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(target, &at).unwrap();
+        "link"
+    }
+    #[cfg(not(unix))]
+    {
+        let from = at.parent().unwrap().join(target);
+        match std::os::windows::fs::symlink_file(&from, &at) {
+            Ok(()) => "link",
+            Err(_) => {
+                fs::copy(&from, &at).unwrap();
+                "copy"
+            }
+        }
+    }
+}
+
+/// The files that the rule of the text filter point reads under `base`.
+fn point_files(base: &Path) -> Vec<String> {
+    let mut files = Vec::new();
+    files_under(base, "crates/halvo-capture/src/floor", &mut files);
+    files_under(base, "crates/halvo-capture/src/daemon", &mut files);
+    files
+}
+
+/// The uses of path attributes and include macros in the files that the rule
+/// of the listed uses reads under `base`, and the faults of the reading.
+fn reach_uses(base: &Path) -> (Vec<Use>, Vec<String>) {
+    let mut files = Vec::new();
+    files_under(base, "crates/halvo-capture", &mut files);
+    files_under(base, "src-tauri/src", &mut files);
+    files.push("src-tauri/build.rs".to_owned());
+    let (mut uses, mut faults) = (Vec::new(), Vec::new());
+    for file in &files {
+        match read_tokens_at(base, file) {
+            Err(fault) => faults.push(fault),
+            Ok(t) => {
+                let (found, wrong) = reach_reading(file, &t);
+                uses.extend(found);
+                faults.extend(wrong);
+            }
+        }
+    }
+    (uses, faults)
 }
 
 fn flatten(stream: TokenStream, out: &mut Vec<String>) {
@@ -162,7 +250,11 @@ fn lex(text: &str) -> Result<Vec<String>, String> {
 }
 
 fn read_tokens(file: &str) -> Result<Vec<String>, String> {
-    let text = fs::read_to_string(root().join(file))
+    read_tokens_at(&root(), file)
+}
+
+fn read_tokens_at(base: &Path, file: &str) -> Result<Vec<String>, String> {
+    let text = fs::read_to_string(base.join(file))
         .map_err(|e| format!("{file} cannot be read as UTF-8 text: {e}"))?;
     lex(&text).map_err(|cause| format!("{file} cannot be read as the compiler reads it: {cause}"))
 }
@@ -472,10 +564,41 @@ fn the_reader_finds_a_path_attribute_and_an_include_however_they_are_spelled() {
 
 #[test]
 fn the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon() {
-    let mut files = Vec::new();
-    files_under("crates/halvo-capture/src/floor", &mut files);
-    files_under("crates/halvo-capture/src/daemon", &mut files);
-    files.retain(|f| f.ends_with(".rs"));
+    let tree = temp_tree("point");
+    let daemon = "crates/halvo-capture/src/daemon";
+    for (name, text) in [
+        ("owner.rs", "pub struct Owner;"),
+        ("evil.RS", "pub struct Evil;"),
+        ("noext", "pub struct NoExtension;"),
+        ("mutants.rows", "a\tb"),
+        ("outside.txt", "pub struct Linked;"),
+        ("long.r\u{17f}", "pub struct LongS;"),
+    ] {
+        plant(&tree, &format!("{daemon}/{name}"), text);
+    }
+    plant(&tree, "crates/halvo-capture/src/floor/Mutants.rows", "a\tb");
+    let made = link(&tree, "outside.txt", &format!("{daemon}/linked_tests.rs"));
+    println!("the fixture of a link is a {made}");
+    let mut read = point_files(&tree);
+    read.sort();
+    let mut want: Vec<String> = [
+        "crates/halvo-capture/src/floor/Mutants.rows",
+        "crates/halvo-capture/src/daemon/evil.RS",
+        "crates/halvo-capture/src/daemon/long.r\u{17f}",
+        "crates/halvo-capture/src/daemon/linked_tests.rs",
+        "crates/halvo-capture/src/daemon/noext",
+        "crates/halvo-capture/src/daemon/outside.txt",
+        "crates/halvo-capture/src/daemon/owner.rs",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    want.sort();
+    assert_eq!(
+        read, want,
+        "the rule leaves out a file but the listed data file"
+    );
+    assert!(read_tokens_at(&tree, &format!("{daemon}/linked_tests.rs")).is_ok());
+    let files = point_files(&root());
     assert!(
         files
             .iter()
@@ -583,21 +706,26 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
     for case in kept {
         assert_eq!(code_reach_faults(&[case]), Vec::<String>::new(), "{case:?}");
     }
-    let mut files = Vec::new();
-    files_under("crates/halvo-capture", &mut files);
-    files_under("src-tauri/src", &mut files);
-    files.push("src-tauri/build.rs".to_owned());
-    let (mut uses, mut faults) = (Vec::new(), Vec::new());
-    for file in files.iter().filter(|f| f.ends_with(".rs")) {
-        match read_tokens(file) {
-            Err(fault) => faults.push(fault),
-            Ok(t) => {
-                let (found, wrong) = reach_reading(file, &t);
-                uses.extend(found);
-                faults.extend(wrong);
-            }
-        }
-    }
+    let tree = temp_tree("reach");
+    plant(&tree, "src-tauri/build.rs", "fn main() {}");
+    plant(&tree, "crates/halvo-capture/Cargo.toml", "[package]");
+    plant(
+        &tree,
+        "crates/halvo-capture/src/daemon/evil.RS",
+        "#[path = \"y.rs\"]\nmod y;",
+    );
+    let (found, wrong) = reach_uses(&tree);
+    assert_eq!(wrong, Vec::<String>::new());
+    assert_eq!(
+        found,
+        [(
+            "crates/halvo-capture/src/daemon/evil.RS".to_owned(),
+            "path".to_owned(),
+            "\"y.rs\"".to_owned()
+        )],
+        "a path attribute in a file whose name ends in .RS is not read"
+    );
+    let (mut uses, faults) = reach_uses(&root());
     println!(
         "uses of path attributes and include macros: {}, listed: {}",
         uses.len(),

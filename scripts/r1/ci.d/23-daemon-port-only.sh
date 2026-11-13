@@ -1,41 +1,81 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No file under crates/halvo-capture/src/daemon/ names EncryptedStore, SegmentStore, rusqlite or store::db (also spelled store::{ or with blanks around ::), and src/daemon/ holds a .rs file.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, read as text with its lines joined, names neither EncryptedStore, SegmentStore nor rusqlite, nor a path from crate, $crate, super or halvo_capture to the module store (also after a brace or as r#store), nor store::db or store::{, nor a path segment that a macro's metavariable gives, nor an alias of crate, self or super; and src/daemon/ holds a file to read.
 set -u
 name=23-daemon-port-only
-banned='EncryptedStore|SegmentStore|rusqlite|(^|[^A-Za-z0-9_])store[[:space:]]*::[[:space:]]*(db|[{])'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
 }
 
+scan() {
+  awk '
+    function rel(path) {
+      sub(/^.*\/crates\/halvo-capture\//, "crates/halvo-capture/", path)
+      return path
+    }
+    function judge(    text) {
+      if (file == "") return
+      text = joined
+      gsub(/\$crate/, "crate", text)
+      if (text ~ /(EncryptedStore|SegmentStore|rusqlite)/)
+        why = "names the encrypted store, the segment store or rusqlite"
+      else if (text ~ /(^|[^A-Za-z0-9_])(crate|super|halvo_capture)[[:space:]]*::[[:space:]]*([{]([^}]*[^A-Za-z0-9_])?)?(r#)?store([^A-Za-z0-9_]|$)/)
+        why = "names a path to the module store"
+      else if (text ~ /(^|[^A-Za-z0-9_])(r#)?store[[:space:]]*::[[:space:]]*(r#)?(db|[{])/)
+        why = "names store::db or store::{"
+      else if (text ~ /\$[A-Za-z_][A-Za-z0-9_]*[[:space:]]*::|::[[:space:]]*\$[A-Za-z_]/)
+        why = "builds a path from a macro metavariable"
+      else if (text ~ /(^|[^A-Za-z0-9_])(crate|self|super)[[:space:]]+as[[:space:]]/)
+        why = "makes an alias of crate, self or super"
+      else
+        return
+      print rel(file) ": " why
+      found = 1
+      exit 1
+    }
+    FNR == 1 {
+      judge()
+      file = FILENAME
+      joined = ""
+    }
+    { joined = joined " " $0 }
+    END { if (!found) judge() }
+  ' "$@"
+}
+
 classify() {
-  daemon=$1/crates/halvo-capture/src/daemon
-  files=$(find "$daemon" -type f -name '*.rs' 2>/dev/null | LC_ALL=C sort)
+  root=$1
+  daemon=$root/crates/halvo-capture/src/daemon
+  listed=$(find "$daemon" ! -type d 2>/dev/null | LC_ALL=C sort)
+  files=$(printf '%s\n' "$listed" | grep -v -x -F -e "$daemon/mutants.rows" -e '')
   if [ -z "$files" ]; then
-    printf 'crates/halvo-capture/src/daemon holds no .rs file'
+    printf 'crates/halvo-capture/src/daemon holds no file to read'
     return 1
   fi
   count=$(printf '%s\n' "$files" | grep -c '')
   printf 'daemon files: %s\n' "$count" >&2
   set --
   while IFS= read -r file; do
+    if [ -d "$file" ] || [ ! -r "$file" ]; then
+      printf '%s is a link to a directory or to no readable file' "${file#"$root"/}"
+      return 1
+    fi
     set -- "$@" "$file"
   done <<EOF
 $files
 EOF
-  matches=$(grep -nE "$banned" "$@")
+  found=$(scan "$@")
   status=$?
   case $status in
-    1) return 0 ;;
-    0)
-      first=$(printf '%s\n' "$matches" | sed -e 's|^\([^:]*:[0-9]*\):.*$|\1|' -e 's|^.*/crates/halvo-capture/|crates/halvo-capture/|' -e 1q)
-      printf 'the daemon names the store behind its port at %s' "$first"
+    0) return 0 ;;
+    1)
+      printf 'the daemon reaches the store behind its port: %s' "$found"
       return 1
       ;;
     *)
-      printf 'grep exited %s' "$status"
+      printf 'awk exited %s' "$status"
       return 1
       ;;
   esac
@@ -49,9 +89,10 @@ measure() {
 fixture() {
   tree=$work/$1/crates/halvo-capture/src/daemon
   mkdir -p "$tree" || exit 2
-  printf '%s\n' 'pub mod owner;' 'pub mod port;' >"$tree/mod.rs" || exit 2
-  printf '%s\n' 'use super::port::CaptureStore;' 'pub struct Owner;' >"$tree/owner.rs" || exit 2
-  printf '%s\n' 'pub trait CaptureStore {}' >"$tree/port.rs" || exit 2
+  printf '%s\n' 'pub mod owner;' 'pub mod port;' 'mod model_store;' >"$tree/mod.rs" || exit 2
+  printf '%s\n' 'use super::port::CaptureStore;' 'use crate::daemon::model_store::{Harness, ModelStore};' 'pub struct Owner;' >"$tree/owner.rs" || exit 2
+  printf '%s\n' 'pub trait CaptureStore {}' 'pub struct SegmentWrite;' >"$tree/port.rs" || exit 2
+  printf '%s\n' 'row	owner.rs	s/use crate::store::db::EncryptedStore;/x/	test y	required	P2' >"$tree/mutants.rows" || exit 2
 }
 
 case_of() {
@@ -84,12 +125,40 @@ self_test() {
   with_line store-db-path 'fn g() { let _ = crate::store::db::open; }'
   with_line store-brace 'use crate::store::{db, segment};'
   with_line store-spaced 'use crate::store :: db;'
+  with_line alias 'use crate::store as st;'
+  with_line glob 'use crate::store::*;'
+  with_line raw-ident 'fn h() { let _ = std::any::type_name::<crate::store::r#db::Db>(); }'
+  with_line raw-store 'fn h() { let _ = crate::r#store::db::Db::open; }'
+  with_line macro-arguments 'macro_rules! from { ($m:ident :: $t:ident) => { crate::$m::$t }; }'
+  with_line macro-crate 'macro_rules! from { () => { $crate::store::db::Db }; }'
+  with_line super-path 'use super::super::store::db;'
+  with_line brace-import 'use crate::{daemon, store};'
+  with_line crate-alias 'use crate as root;'
+  fixture split-brace
+  printf '%s\n' 'use crate::{' '    daemon::port,' '    store::db,' '};' >>"$work/split-brace/crates/halvo-capture/src/daemon/owner.rs" || exit 2
+  case_of split-brace FAIL
+  fixture upper-suffix
+  printf '%s\n' 'use crate::store::db::Db;' >"$work/upper-suffix/crates/halvo-capture/src/daemon/evil.RS" || exit 2
+  case_of upper-suffix FAIL
+  fixture no-suffix
+  printf '%s\n' 'use crate::store::db::Db;' >"$work/no-suffix/crates/halvo-capture/src/daemon/evil" || exit 2
+  case_of no-suffix FAIL
+  fixture linked
+  mkdir -p "$work/linked/outside" || exit 2
+  printf '%s\n' 'use crate::store::db::Db;' >"$work/linked/outside/linked.txt" || exit 2
+  ln -s ../../../../outside/linked.txt "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" || exit 2
+  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made=link; else made=copy; fi
+  printf 'case %s/linked: ln -s made a %s\n' "$name" "$made"
+  case_of linked FAIL
+  fixture data-file-renamed
+  mv "$work/data-file-renamed/crates/halvo-capture/src/daemon/mutants.rows" "$work/data-file-renamed/crates/halvo-capture/src/daemon/Mutants.rows" || exit 2
+  case_of data-file-renamed FAIL
   fixture nested
   mkdir -p "$work/nested/crates/halvo-capture/src/daemon/server" || exit 2
   printf '%s\n' 'use rusqlite::Connection;' >"$work/nested/crates/halvo-capture/src/daemon/server/mod.rs" || exit 2
   case_of nested FAIL
   fixture like-names
-  printf '%s\n' 'pub struct StoredText;' 'fn restore_db() {}' 'pub mod store_db_like;' 'use crate::daemon::model_store::{Harness, ModelStore};' 'fn h() { let _ = restore::db; }' >>"$work/like-names/crates/halvo-capture/src/daemon/owner.rs" || exit 2
+  printf '%s\n' 'pub struct StoredText;' 'fn restore_db() {}' 'pub mod store_db_like;' 'fn h() { let _ = restore::db; }' 'use crate::daemon::{model_store, port};' 'fn k(store: &mut ModelStore) { store.records(); }' 'use self::port::CaptureStore as Port;' >>"$work/like-names/crates/halvo-capture/src/daemon/owner.rs" || exit 2
   case_of like-names PASS
   mkdir -p "$work/empty/crates/halvo-capture/src/daemon" || exit 2
   case_of empty FAIL
