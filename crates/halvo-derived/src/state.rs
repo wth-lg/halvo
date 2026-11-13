@@ -29,10 +29,10 @@ impl HandlerCx<'_> {
     /// The state call: in one transaction it moves a stored workflow among `approved`, `active` and `paused`, sets its
     /// agent to `agent` or clears it, and raises the revision of the family `workflow` when the row changes. It
     /// answers `no_workflow` for a workflow that is not stored, before any rule of the move, then `state` for one that
-    /// is `proposed` or `dismissed` and for a call that would leave an `active` or a `paused` workflow with no agent, and changes nothing for a call
-    /// that asks for what the row holds. It takes nothing else, so no free text reaches the workflow. The store offers
-    /// it while a handler answers a `coordinator_write`, the request under which the state of a workflow changes, and
-    /// answers `role` to it while a handler answers a request of another role.
+    /// is `proposed` or `dismissed` and for a call that would leave an `active` or a `paused` workflow with no agent,
+    /// and changes nothing for a call that asks for what the row holds. It takes nothing else, so no free text reaches
+    /// the workflow. The store offers it while a handler answers a `coordinator_write`, the request under which the
+    /// state of a workflow changes, and answers `role` to it while a handler answers a request of another role.
     pub fn state(
         &mut self,
         workflow: &WorkflowId,
