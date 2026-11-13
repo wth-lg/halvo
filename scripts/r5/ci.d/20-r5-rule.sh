@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Each of the 30 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
+# rule: Each of the 42 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them; one line counts them and names none, and the entries go to its artifacts directory) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them, a test of a binary's unit tests under that binary's section alone; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -44,11 +44,23 @@ halvo-learn-gate refusal_step_writes_no_edit pending
 halvo-learn tests/edit_table.rs edit_table built
 halvo-learn tests/routine_sample.rs routine_sample built
 halvo-learn formal_traces pending
-halvo-learn-gate constants_match_targets pending
+halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built
 halvo-schema tests/r5_kinds.rs kinds_have_workflow_key built
 halvo-schema tests/r5_golden.rs r5_golden_records built
 halvo-schema tests/r5_golden.rs r5_golden_requests built
 halvo-schema tests/r5_kinds.rs the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table built
+halvo-schema tests/r5_kinds.rs an_edit_row_of_each_state_passes_the_check_of_the_registered_entry_and_is_written_back_to_its_bytes built
+halvo-schema tests/r5_kinds.rs the_generic_check_and_the_typed_parser_both_refuse_a_row_outside_the_entry built
+halvo-schema tests/r5_kinds.rs a_value_of_another_field_type_under_each_key_of_an_edit_row_is_refused_by_the_entry_and_the_parser built
+halvo-schema tests/r5_records.rs the_stand_in_of_the_edit_kind_is_the_registered_entry built
+halvo-schema tests/r5_records.rs the_active_reverted_and_withdrawn_rows_pass_the_check_of_the_registered_entry built
+halvo-schema tests/r5_records.rs a_target_at_the_byte_bound_is_read_and_written_and_one_byte_more_is_refused_by_each_reader_and_writer built
+halvo-schema tests/r5_records.rs a_target_at_the_byte_bound_with_white_space_around_it_is_read built
+halvo-schema tests/r5_records.rs rows_of_3428_6611_and_9677_bytes_with_targets_above_the_bound_are_refused built
+halvo-schema tests/r5_records.rs the_fullest_edit_row_that_the_writer_writes_holds_at_most_2560_bytes built
+halvo-learn-store src/lib.rs tests::bounds::a_recovery_whose_served_step_has_2048_bytes_is_admitted_stored_and_laid_and_one_of_2049_is_refused_with_length built
+halvo-learn-store src/lib.rs tests::bounds::a_stored_edit_that_makes_its_step_2048_bytes_is_laid_and_one_that_makes_it_2049_is_not built
+halvo-learn-store src/lib.rs tests::bounds::a_candidate_whose_step_on_the_base_at_finish_has_2048_bytes_is_stored_and_one_of_2049_is_not built
 EOF
 }
 
@@ -66,8 +78,12 @@ names_of() {
       second=${fields%% *}
       fields=${fields#* }
       third=${fields%% *}
-      case $fields in
-        *" "*) found="$found $second|$third|${fields#* }" ;;
+      case $second:$fields in
+        src/main.rs:*" "*" "*)
+          after_binary=${fields#* }
+          found="$found $second:$third|${after_binary%% *}|${after_binary#* }"
+          ;;
+        *:*" "*) found="$found $second|$third|${fields#* }" ;;
         *) found="$found |$second|$third" ;;
       esac
     fi
@@ -89,6 +105,11 @@ read_results() {
       return bin " " substr(line, 1, paren - 1)
     }
     function key_of(source,    bin) {
+      if (source ~ /^src\/main\.rs:/) {
+        bin = source
+        sub(/^src\/main\.rs:/, "", bin)
+        return bin " unittests src/main.rs"
+      }
       if (source == "src/lib.rs") {
         bin = crate
         gsub(/-/, "_", bin)
@@ -148,6 +169,7 @@ read_results() {
 list_form() {
   printf '%s\n' "$closed" | awk '
     NF == 4 && $4 == "built" && ($2 == "src/lib.rs" || $2 ~ /^tests\/[a-z0-9_]+\.rs$/) { next }
+    NF == 5 && $5 == "built" && $2 == "src/main.rs" && $3 ~ /^[a-z0-9_]+$/ { next }
     NF == 3 && $3 == "pending" { next }
     { bad = 1 }
     END { exit bad }
@@ -186,16 +208,15 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tests
   fi
-  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
-    {
-      count = split($0, field, " ")
-      if (count && field[1] !~ /^(#|\?|!|H)$/) {
-        printf "tree changed=before %s %s\n", field[1], field[count]
-        bad = 1
-      }
-    }
-    END { exit bad }
-  ' || finish tests
+  changed=$(printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    { count = split($0, field, " "); if (count && field[1] !~ /^(#|\?|!|H)$/) n++ }
+    END { print n + 0 }
+  ') || finish read
+  if [ "$changed" -gt 0 ]; then
+    printf '%s\n%s\n' "$status_before" "$files_before" >"$dir/tree-before.txt" || finish artifacts
+    printf 'tree changed=before files=%s\n' "$changed"
+    finish tests
+  fi
 }
 
 tree_same() {
@@ -270,7 +291,7 @@ measure() {
     esac
   done
   total=$((ok + pending + miss))
-  [ "$total" -eq 30 ] || finish read
+  [ "$total" -eq 42 ] || finish read
   printf 'rule tests=%s ok=%s pending=%s miss=%s\n' "$total" "$ok" "$pending" "$miss"
   [ "$miss" -eq 0 ] || finish miss
   [ "$cargo_failed" = no ] || finish cargo
@@ -294,6 +315,7 @@ stub_running() {
   case $1 in
     '') printf '     Running tests/pending.rs (target/debug/deps/pending-0123456789abcdef)%s\n' "$eol" ;;
     src/lib.rs) printf '     Running unittests src/lib.rs (target/debug/deps/%s-0123456789abcdef)%s\n' "$(printf '%s' "$2" | tr - _)" "$eol" ;;
+    src/main.rs:*) printf '     Running unittests src/main.rs (target/debug/deps/%s-0123456789abcdef)%s\n' "${1#src/main.rs:}" "$eol" ;;
     *)
       bin=${1#tests/}
       printf '     Running %s (target/debug/deps/%s-0123456789abcdef)%s\n' "$1" "${bin%.rs}" "$eol"
@@ -336,6 +358,9 @@ stub_test() {
     esac
     case " $fx_renamed " in
       *" $test "*) path=${path}_rows ;;
+    esac
+    case " $fx_as_library " in
+      *" $test "*) target=src/lib.rs ;;
     esac
     stub_running "$target" "$1"
     case " $fx_twice " in
@@ -400,12 +425,12 @@ stub_cargo() {
 
 fixture() {
   case_name=$1
-  fx_members='halvo-learn halvo-schema halvo-learn-store'
+  fx_members='halvo-learn halvo-schema halvo-learn-store halvo-learn-gate'
   fx_metadata=ok
   fx_build=ok
   fx_crlf=no
   fx_prefix=
-  fx_missing='formal_traces'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit'
   fx_failed=
   fx_ignored=
   fx_renamed=
@@ -414,6 +439,7 @@ fixture() {
   fx_extra_crate=
   fx_extra_target=
   fx_extra_path=
+  fx_as_library=
   fx_list=
   fx_git=ok
   fx_own_line="H $script_path"
@@ -424,6 +450,14 @@ fixture() {
   printf '%s\n' 1111111111111111111111111111111111111111 >"$work/oid" || exit 2
   : >"$work/status" || exit 2
   : >"$work/flags" || exit 2
+}
+
+# hidden WORD: the output of the last check does not hold WORD, and its tree-before.txt does.
+hidden() {
+  case $out in
+    *"$1"*) wrong="$wrong $case_name:printed" ;;
+  esac
+  grep -q "$1" "$self_art/$case_name/tree-before.txt" 2>/dev/null || wrong="$wrong $case_name:artifacts"
 }
 
 check() {
@@ -475,62 +509,62 @@ self_test() {
   all_crates='halvo-learn halvo-schema halvo-learn-store halvo-learn-gate'
 
   fixture unit-landed
-  check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
 
   fixture failed-test
   fx_failed=refusal_no_source
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture ignored-test
   fx_ignored=edit_table
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture one-line-ok-one-failed
   fx_twice=routine_sample
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture built-test-line-missing
-  fx_missing='formal_traces refusal_cross_workflow_source'
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_cross_workflow_source'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture pin-test-line-missing
-  fx_missing='formal_traces the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table'
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture built-crate-absent
   fx_members='halvo-learn halvo-schema'
-  check FAIL-miss 'rule tests=30 ok=18 pending=5 miss=7'
+  check FAIL-miss 'rule tests=42 ok=27 pending=4 miss=11'
 
   fixture pending-test-failed
   fx_members=$all_crates
   fx_missing=
-  fx_failed=constants_match_targets
-  check FAIL-miss 'rule tests=30 ok=29 pending=0 miss=1'
+  fx_failed=refusal_step_writes_no_edit
+  check FAIL-miss 'rule tests=42 ok=41 pending=0 miss=1'
 
   fixture all-with-one-test-line-missing
   fx_members=$all_crates
-  fx_missing=constants_match_targets
+  fx_missing=refusal_step_writes_no_edit
   case_all=yes
-  check FAIL-pending 'rule tests=30 ok=29 pending=1 miss=0'
+  check FAIL-pending 'rule tests=42 ok=41 pending=1 miss=0'
 
   fixture all-present
   fx_members=$all_crates
   fx_missing=
   case_all=yes
-  check PASS 'rule tests=30 ok=30 pending=0 miss=0'
+  check PASS 'rule tests=42 ok=42 pending=0 miss=0'
 
   fixture one-test-line-missing-without-all
   fx_members=$all_crates
-  fx_missing=constants_match_targets
-  check PASS 'rule tests=30 ok=29 pending=1 miss=0'
+  fx_missing=refusal_step_writes_no_edit
+  check PASS 'rule tests=42 ok=41 pending=1 miss=0'
 
   fixture build-fails
   fx_build=failed
-  check FAIL-miss 'rule tests=30 ok=0 pending=5 miss=25'
+  check FAIL-miss 'rule tests=42 ok=0 pending=4 miss=38'
 
   fixture other-test-fails
   fx_other=failed
-  check FAIL-cargo 'rule tests=30 ok=25 pending=5 miss=0'
+  check FAIL-cargo 'rule tests=42 ok=38 pending=4 miss=0'
 
   fixture metadata-fails
   fx_metadata=failed
@@ -538,84 +572,140 @@ self_test() {
 
   fixture module-path
   fx_prefix=tests::
-  check FAIL-miss 'rule tests=30 ok=0 pending=5 miss=25'
+  check FAIL-miss 'rule tests=42 ok=0 pending=4 miss=38'
 
   fixture shadow-in-another-module-of-the-target
-  fx_missing='formal_traces refusal_class_change'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_class_change'
   fx_extra_crate=halvo-learn-store
   fx_extra_target=src/lib.rs
   fx_extra_path=tests::edges::refusal_class_change
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture shadow-in-another-target-of-the-crate
-  fx_missing='formal_traces refusal_no_source'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_no_source'
   fx_extra_crate=halvo-learn
   fx_extra_target=tests/edges.rs
   fx_extra_path=refusal_no_source
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture listed-path-in-another-target
-  fx_missing='formal_traces refusal_revoke_keeps_row'
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_revoke_keeps_row'
   fx_extra_crate=halvo-learn-store
   fx_extra_target=tests/finish.rs
   fx_extra_path=tests::finish::refusal_revoke_keeps_row
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture built-line-without-its-target
   fx_list="$(closed_list | sed 's|^halvo-learn tests/refusals.rs refusal_no_source built$|halvo-learn refusal_no_source built|')"
   check FAIL-list 'list form=bad'
 
+  fixture binary-test-counted-under-its-own-section
+  fx_failed=constants_match_targets
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
+
+  fixture binary-path-under-a-library-section
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit constants_match_targets'
+  fx_extra_crate=halvo-learn-gate
+  fx_extra_target=src/lib.rs
+  fx_extra_path=tests::targets::constants_match_targets
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
+
+  fixture binary-path-under-another-binary
+  fx_missing='formal_traces refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit constants_match_targets'
+  fx_extra_crate=halvo-learn-gate
+  fx_extra_target=src/main.rs:other_bin
+  fx_extra_path=tests::targets::constants_match_targets
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
+
+  fixture binary-line-first-then-library-and-pending-lines
+  fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
+    $0 == first { next }
+    $0 == "halvo-learn-gate refusal_delete_leaves_others pending" {
+      print first
+      print "halvo-learn-gate src/lib.rs tests::library::a_library_test_of_the_crate built"
+      next
+    }
+    { print }
+  ')"
+  check PASS 'rule tests=42 ok=39 pending=3 miss=0'
+
+  fixture binary-line-moved-before-the-pending-lines
+  fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
+    $0 == first { next }
+    $0 == "halvo-learn-gate refusal_delete_leaves_others pending" { print first }
+    { print }
+  ')"
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
+
+  fixture library-test-listed-in-the-binary-form
+  fx_list="$(closed_list | sed 's|^halvo-learn-store src/lib.rs tests::propose::refusal_page_text_instruction built$|halvo-learn-store src/main.rs halvo_learn_store tests::propose::refusal_page_text_instruction built|')"
+  fx_as_library=refusal_page_text_instruction
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
+
+  fixture binary-line-without-its-binary
+  fx_list="$(closed_list | sed 's|^halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built$|halvo-learn-gate src/main.rs tests::targets::constants_match_targets built|')"
+  check FAIL-list 'list form=bad'
+
   fixture longer-name
   fx_renamed=edit_table
-  check FAIL-miss 'rule tests=30 ok=24 pending=5 miss=1'
+  check FAIL-miss 'rule tests=42 ok=37 pending=4 miss=1'
 
   fixture longer-name-of-a-pending-test
   fx_members=$all_crates
   fx_missing=
-  fx_renamed=constants_match_targets
-  check PASS 'rule tests=30 ok=29 pending=1 miss=0'
+  fx_renamed=refusal_step_writes_no_edit
+  check PASS 'rule tests=42 ok=41 pending=1 miss=0'
 
   fixture longer-name-with-all
   fx_members=$all_crates
   fx_missing=
-  fx_renamed=constants_match_targets
+  fx_renamed=refusal_step_writes_no_edit
   case_all=yes
-  check FAIL-pending 'rule tests=30 ok=29 pending=1 miss=0'
+  check FAIL-pending 'rule tests=42 ok=41 pending=1 miss=0'
 
   fixture carriage-returns
   fx_crlf=yes
-  check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
 
   fixture crate-absent
   fx_members=halvo-schema
-  check FAIL-miss 'rule tests=30 ok=5 pending=5 miss=20'
+  check FAIL-miss 'rule tests=42 ok=14 pending=4 miss=24'
 
   fixture untracked-file-before-the-run
   printf '? notes.txt\n' >"$work/status"
-  check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
 
   fixture changed-file-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/ids.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/ids.rs'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture two-changed-files-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/finish.rs\n1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/edges.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/tests/finish.rs
-tree changed=before 1 crates/halvo-learn-store/src/tests/edges.rs'
+  check FAIL-tests 'tree changed=before files=2'
 
   fixture changed-file-rewritten-by-a-test
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/lib.rs\n' >"$work/status"
   fx_change_at=halvo-learn
   fx_change_file=rewrite
-  check FAIL-tests 'tree changed=before 1 crates/halvo-learn/src/lib.rs'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture changed-file-outside-the-crates-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 CHANGELOG.md\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 CHANGELOG.md'
+  check FAIL-tests 'tree changed=before files=1'
 
   fixture staged-file-before-the-run
   printf '1 M. N... 100644 100644 100644 0000 0000 crates/halvo-schema/src/learning.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before 1 crates/halvo-schema/src/learning.rs'
+  check FAIL-tests 'tree changed=before files=1'
+
+  fixture changed-file-with-a-word-of-its-own
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/zqtreeword.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqtreeword
+
+  fixture changed-file-under-heldout
+  printf '1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/heldout/zqmadeupcase.jsonl\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqmadeupcase
 
   fixture test-run-changes-a-tracked-file
   fx_change_at=halvo-schema
@@ -663,7 +753,7 @@ tree changed=before 1 crates/halvo-learn-store/src/tests/edges.rs'
   fixture metadata-file-rewritten-by-a-test
   fx_change_at=halvo-learn
   fx_change_file=metadata
-  check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+  check PASS 'rule tests=42 ok=38 pending=4 miss=0'
 
   fixture git-unreadable
   fx_git=no
