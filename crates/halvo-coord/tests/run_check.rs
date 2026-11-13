@@ -520,3 +520,39 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert_eq!(days.len(), 12);
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
+
+/// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
+/// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
+/// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory
+/// clock's day of its `at` (I7.1; ruling RD-69 E1).
+#[test]
+fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
+    let mut days = Vec::new();
+    let mut take = |w: &World, before: usize, start: u64, least: usize| {
+        let events = w.ports.events.borrow();
+        assert!(events.len() >= before + least, "rows from {start}");
+        for e in &events[before..] {
+            let at = u64::try_from(e.at / 1_000_000).unwrap();
+            let day = halvo_coord::ports::Clock::day(&w.ports, at);
+            assert_eq!(day, Ok(e.day), "{:?} from {start}", e.what);
+            days.push(e.day);
+        }
+    };
+    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+        let mut w = world(&[MANUAL]);
+        let before = w.ports.events.borrow().len();
+        w.ports.set_now(start);
+        w.ports.step_reads(1);
+        let moved = w.act(Act::Start { agent: agent(0) });
+        assert!(moved.report.run.is_some(), "a start from {start}");
+        take(&w, before, start, 1);
+        let mut w = world(&[SLOTTED]);
+        let before = w.ports.events.borrow().len();
+        w.ports.set_now(start);
+        w.ports.step_reads(1);
+        w.act(Act::Tick);
+        w.act(Act::SwitchOff { agent: agent(0) });
+        take(&w, before, start, 2);
+    }
+    assert!(days.contains(&DAY) && days.contains(&(DAY + 1)), "{days:?}");
+}

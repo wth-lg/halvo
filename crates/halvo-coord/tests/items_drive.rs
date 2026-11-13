@@ -1867,3 +1867,39 @@ fn store_at_an_instant_past_the_largest_at_stores_nothing() {
     assert!(l.waiting().is_empty());
     assert!(p.events.borrow().is_empty());
 }
+
+/// A clock whose `now` answers and whose `day` fails (a zone that puts the local instant before
+/// 1970) stamps no row: `store` answers the failure, stores nothing and leaves nothing waiting
+/// (I7.1, I5.10; ruling RD-69 E2).
+#[test]
+fn a_clock_whose_day_fails_stamps_no_row() {
+    let p = ports();
+    let mut l = ledger();
+    p.set_zone(-(NOW as i64) - 86_400_000);
+    assert!(p.now().is_ok());
+    assert!(p.day(NOW).is_err());
+    let stored = store(&p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]);
+    assert_eq!(stored, Err(PortError::NoService));
+    assert!(p.events.borrow().is_empty());
+    assert!(l.waiting().is_empty());
+}
+
+/// The measured text of a body with a `slot_skipped` row whose slot is set, against the text
+/// written out here: the slot is the number of its day, not null (I7.1; ruling RD-69 E3).
+#[test]
+fn log_text_writes_the_slot_of_a_slot_skipped_row() {
+    let e = row(1, What::SlotSkipped { slot: Some(TODAY) });
+    let text = log_text(&workflow_id(1), &agent_id(1), std::slice::from_ref(&e));
+    let ids = r#""workflow":"00000000000000000000000000007701","agent":"00000000000000000000000000006101""#;
+    let written = format!(
+        concat!(
+            r#"{{"op":"coord_log",{ids},"records":[{{"v":1,{ids},"seq":1,"day":20760,"#,
+            r#""at":1793793600000000000,"event":"slot_skipped","run":null,"slot":20760,"#,
+            r#""item":null,"kind":null,"effect":null,"approval":null,"digest":null,"#,
+            r#""answer":null,"cause":null,"trigger":null,"origin":null}}]}}"#
+        ),
+        ids = ids
+    );
+    assert_eq!(text, written);
+    assert_eq!(log_bytes(std::slice::from_ref(&e)), written.len());
+}

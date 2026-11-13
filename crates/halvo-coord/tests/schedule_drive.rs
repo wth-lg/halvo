@@ -2869,3 +2869,35 @@ fn the_rows_of_a_tick_a_start_and_an_end_carry_the_day_of_their_at_across_midnig
     }
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
+
+/// The end of a run takes the coordinator's day first (I5.9): a run that started on `DAY` ends
+/// after local midnight with a start waiting in the queue, and the start that the end serves
+/// finds the board's day and its facts' day at the new day, and stores its row on it (ruling
+/// RD-69 E4).
+#[test]
+fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
+    let mut w = world(&[manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    assert_eq!(w.board.day, DAY);
+    w.ports.set_now(MIDNIGHT + 1_000);
+    let end = w.end(&run, Some(Outcome::Completed));
+    let next = &end.ended[0].next;
+    assert_eq!(next.len(), 1);
+    assert_eq!(
+        (next[0].agent.clone(), next[0].answer),
+        (agent(1), Ok(Answer::Ok))
+    );
+    assert_eq!(w.board.day, DAY + 1, "the board's day");
+    assert_eq!(
+        w.facts(1).today,
+        DAY + 1,
+        "the facts' day of the served start"
+    );
+    let started: Vec<u32> = w
+        .stored()
+        .iter()
+        .filter(|e| e.agent == agent(1) && e.at != 0 && matches!(e.what, What::RunStarted { .. }))
+        .map(|e| e.day)
+        .collect();
+    assert_eq!(started, [DAY + 1]);
+}
