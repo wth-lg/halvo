@@ -9,6 +9,9 @@ use crate::proto::{
     RootDestroyed, StateFile, Stopped,
 };
 
+/// The most bytes of a peer's text that ctl prints on one line of standard error.
+pub const PEER_TEXT_MAX_BYTES: usize = 200;
+
 pub const USAGE: &str = "usage: halvo-capture ctl [--data-dir DIR] status [--indicator] | inventory | pause | resume | stop | delete-all (STORE_ID | -) | set-cap BYTES";
 
 /// One verb of the grammar of contracts.md C2.2.
@@ -843,6 +846,104 @@ mod tests {
         );
         assert_eq!(printed.stdout, "already_deleted store_id=-\n");
         assert_eq!(printed.status, 0);
+    }
+
+    fn one_clean_line(printed: &Printed) {
+        let line = printed.stderr.strip_suffix('\n').expect("a line end");
+        assert!(!line.contains('\n'), "{:?}", printed.stderr);
+        assert!(
+            line.bytes().all(|b| (0x20..=0x7e).contains(&b)),
+            "{:?}",
+            printed.stderr
+        );
+        assert!(line.starts_with("halvo-capture: "), "{:?}", printed.stderr);
+        assert!(line.len() <= "halvo-capture: ".len() + PEER_TEXT_MAX_BYTES);
+    }
+
+    #[test]
+    fn a2_an_error_message_of_the_peer_is_printed_as_one_line_of_printable_ascii() {
+        let message = "\u{1b}]0;Halvo\u{7}\u{1b}[2K\rcapture=paused\nhalvo-capture: capture service not running at /x \u{e9}";
+        let printed = print(
+            &Verb::Pause,
+            Ok(Reply::Error(ErrorReply {
+                code: ErrorCode::Internal,
+                message: message.into(),
+            })),
+            &data_dir(),
+        );
+        one_clean_line(&printed);
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: ?]0;Halvo??[2K?capture=paused?halvo-capture: capture service not running at /x ?\n"
+        );
+        assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn a2b_a_reply_kind_that_is_not_known_puts_no_byte_of_the_peer_beyond_printable_ascii_on_stderr(
+    ) {
+        let body =
+            br#"{"v":1,"body":{"kind":"\u001b[2K\rcapture=paused\nhalvo-capture: deleted"}}"#;
+        let error = crate::proto::decode_reply(body).unwrap_err();
+        let printed = print(
+            &Verb::Pause,
+            Err(ClientError::Protocol(error.to_string())),
+            &data_dir(),
+        );
+        one_clean_line(&printed);
+        assert_eq!(printed.status, 1);
+        assert_eq!(printed.stdout, "");
+    }
+
+    #[test]
+    fn a2c_an_error_message_of_256_kib_is_cut_to_one_bounded_line() {
+        let filler = "halvo-capture: x\n".repeat(14_000);
+        for code in [
+            ErrorCode::Internal,
+            ErrorCode::Busy,
+            ErrorCode::InvalidArgument,
+        ] {
+            let printed = print(
+                &Verb::Status { indicator: false },
+                Ok(Reply::Error(ErrorReply {
+                    code,
+                    message: filler.clone(),
+                })),
+                &data_dir(),
+            );
+            one_clean_line(&printed);
+            assert_eq!(
+                printed.stderr.len(),
+                "halvo-capture: ".len() + PEER_TEXT_MAX_BYTES + 1
+            );
+            assert_eq!(
+                printed.status,
+                [1, 75, 64][[
+                    ErrorCode::Internal,
+                    ErrorCode::Busy,
+                    ErrorCode::InvalidArgument
+                ]
+                .iter()
+                .position(|c| *c == code)
+                .unwrap()]
+            );
+        }
+    }
+
+    #[test]
+    fn ctl_s_own_paths_are_not_cleaned() {
+        let endpoint = "/tmp/\u{e9}t\u{e9}/run/control.sock";
+        let printed = print(
+            &Verb::Stop,
+            Err(ClientError::Unreachable {
+                endpoint: endpoint.into(),
+            }),
+            &data_dir(),
+        );
+        assert_eq!(
+            printed.stderr,
+            format!("halvo-capture: capture service not running at {endpoint}\n")
+        );
     }
 
     #[test]
