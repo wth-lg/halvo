@@ -12,6 +12,7 @@ use tauri::test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY};
 use tauri::webview::{InvokeRequest, WebviewBuilder};
 use tauri::{
     App, Context, LogicalPosition, LogicalSize, Manager, Url, Webview, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 
 #[allow(dead_code)]
@@ -26,6 +27,16 @@ mod launch;
 #[allow(dead_code)]
 #[path = "../src/tray.rs"]
 mod tray;
+
+const OTHER_LABELS: [&str; 2] = ["helper", "zq-label-of-this-test"];
+
+fn widened_by_the_macro() -> Context<MockRuntime> {
+    tauri::generate_context!(
+        "tauri.conf.json",
+        capabilities = ["src-tauri/tests/fixtures/widened-by-the-macro.json"],
+        test = true
+    )
+}
 
 fn scratch(name: &str) -> PathBuf {
     let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-page-guard");
@@ -132,6 +143,19 @@ impl Guarded {
         self.app
             .get_webview_window("main")
             .expect("the set-up made the window main")
+    }
+
+    fn window(&self, label: &str) -> WebviewWindow<MockRuntime> {
+        let builder = WebviewWindowBuilder::new(
+            self.app.handle(),
+            label,
+            WebviewUrl::App("index.html".into()),
+        );
+        #[cfg(windows)]
+        let builder = builder.data_directory(scratch(&format!("window-{label}")).join("webview"));
+        builder
+            .build()
+            .expect("a window builds on the mock runtime")
     }
 
     fn shreds(&self) -> u32 {
@@ -288,4 +312,35 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
         );
     }
     assert_eq!(test.shreds(), 0);
+}
+
+#[test]
+fn a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window() {
+    let plain = Guarded::new("macro-plain", app::context());
+    let widened = Guarded::new("macro-widened", widened_by_the_macro());
+    let version = Ok(Value::String(app::VERSION.to_string()));
+    for label in OTHER_LABELS {
+        let unwidened = plain.window(label);
+        assert_ne!(
+            call(unwidened.as_ref(), "plugin:app|version", app_origin()),
+            version,
+            "the window {label} reads the version with no capability of its own"
+        );
+        let window = widened.window(label);
+        assert_eq!(
+            call(window.as_ref(), "plugin:app|version", app_origin()),
+            version,
+            "the capability handed to the context macro reaches the window {label}"
+        );
+        for command in unit_commands() {
+            assert_eq!(
+                call(window.as_ref(), command, app_origin()),
+                refused(),
+                "{command} from the window {label}, granted by the context macro"
+            );
+        }
+    }
+    assert_eq!(widened.shreds(), 0);
+    assert!(call(widened.main().as_ref(), "delete_all", app_origin()).is_ok());
+    assert_eq!(widened.shreds(), 1);
 }
