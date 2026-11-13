@@ -38,8 +38,10 @@ Until builds are signed, any process of the same user can read whatever a reply 
 | `run_start` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 | `run_end` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 
-Every other op is answered `unsupported_op`, and every version other than 1 is
-answered `unsupported_version`. Expiry, cap eviction and delete-all need no lease;
+Every other op is answered `unsupported_op`. In the key `v` of a frame that is one JSON
+object, a version is an integer from 0 to 18446744073709551615; every version other than 1 is
+answered `unsupported_version`, whatever the rest of the frame holds, and a `v` that is no
+such integer is answered `invalid_argument`. Expiry, cap eviction and delete-all need no lease;
 after a lapse capture reads `no_indicator`, and the lapse writes nothing to the state
 file.
 

@@ -266,24 +266,21 @@ impl<'de> Deserialize<'de> for Unique {
     }
 }
 
-fn read_envelope(frame: &[u8]) -> Option<(Option<u64>, Object)> {
+/// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to
+/// 18446744073709551615, and its body when the object holds `v` and an object `body` alone.
+fn read_envelope(frame: &[u8]) -> Option<(u64, Option<Object>)> {
     if frame.first() != Some(&b'{') || frame.last() != Some(&b'}') {
         return None;
     }
     let Unique(serde_json::Value::Object(mut object)) = serde_json::from_slice(frame).ok()? else {
         return None;
     };
-    if object.len() != 2 {
-        return None;
-    }
-    let version = object.remove("v")?;
-    let serde_json::Value::Object(body) = object.remove("body")? else {
-        return None;
+    let version = object.get("v").and_then(serde_json::Value::as_u64)?;
+    let body = match (object.len(), object.remove("body")) {
+        (2, Some(serde_json::Value::Object(body))) => Some(body),
+        _ => None,
     };
-    match version {
-        serde_json::Value::Number(number) => Some((number.as_u64(), body)),
-        _ => Some((None, body)),
-    }
+    Some((version, body))
 }
 
 /// A version other than [`PROTOCOL_VERSION`] is
@@ -291,16 +288,17 @@ fn read_envelope(frame: &[u8]) -> Option<(Option<u64>, Object)> {
 /// not fit its op, also one with a field the op does not have, is `BadBody`.
 pub fn decode_request(frame: &[u8]) -> Result<Decoded, RequestError> {
     let (version, body) = read_envelope(frame).ok_or(RequestError::NotAnEnvelope)?;
-    let version = version.ok_or(RequestError::NotAnEnvelope)?;
     #[cfg(feature = "r2")]
     {
         if crate::r2::takes_version(version) {
+            let body = body.ok_or(RequestError::NotAnEnvelope)?;
             return Ok(Decoded::Unknown(UnknownRequest { version, body }));
         }
     }
     if version != PROTOCOL_VERSION {
         return Err(RequestError::UnsupportedVersion { version });
     }
+    let body = body.ok_or(RequestError::NotAnEnvelope)?;
     let op = body
         .get("op")
         .and_then(serde_json::Value::as_str)
@@ -338,11 +336,10 @@ pub enum ReplyError {
 /// A field that this build does not know is skipped.
 pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     let (version, body) = read_envelope(frame).ok_or(ReplyError::NotAnEnvelope)?;
-    match version {
-        Some(PROTOCOL_VERSION) => {}
-        Some(other) => return Err(ReplyError::Version(other)),
-        None => return Err(ReplyError::NotAnEnvelope),
+    if version != PROTOCOL_VERSION {
+        return Err(ReplyError::Version(version));
     }
+    let body = body.ok_or(ReplyError::NotAnEnvelope)?;
     serde_json::from_value(serde_json::Value::Object(body))
         .map_err(|e| ReplyError::Body(e.to_string()))
 }
