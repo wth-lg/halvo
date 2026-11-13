@@ -133,6 +133,16 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tests
   fi
+  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    {
+      count = split($0, field, " ")
+      if (count && field[1] !~ /^(#|\?|!|H)$/) {
+        printf "tree changed=before %s %s\n", field[1], field[count]
+        bad = 1
+      }
+    }
+    END { exit bad }
+  ' || finish tests
 }
 
 tree_same() {
