@@ -1,12 +1,17 @@
 use super::Card;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::types::{Class, Field, FieldFrom};
+use halvo_coord::types::{Class, Field, FieldFrom, ItemId};
 
 mod card;
 mod outcome;
+mod serve;
 
 pub const ALLOW: ConfirmAnswer = ConfirmAnswer::Allow;
 pub const REJECT: ConfirmAnswer = ConfirmAnswer::Reject;
+
+pub fn item() -> ItemId {
+    ItemId::parse("00000000000000000000000000000006").unwrap()
+}
 
 pub fn field(label: &str, value: &[&str], from: FieldFrom) -> Field {
     Field {
