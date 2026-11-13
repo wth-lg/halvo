@@ -63,12 +63,11 @@ pub enum ClientError {
     Daemon(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
-    /// A reply of a protocol version other than 1: the daemon and the app are of different
-    /// versions.
+    /// A reply of a protocol version other than 1.
     #[error("the reply could not be read: {}", crate::proto::ReplyError::Version(*version))]
     ReplyOfAnotherVersion { version: u64 },
     /// A reply that holds a text outside a closed list of protocol v1 where it reads a value of
-    /// that list, as a daemon of a later build may send; the error names the list.
+    /// that list; the error names the list.
     #[error("the reply could not be read: {}", crate::proto::ReplyError::UnknownValue(*.0))]
     ValueUnknownToV1(crate::model::UnknownSpelling),
     /// A reply whose status breaks a rule of the status type; the text is the rule's.

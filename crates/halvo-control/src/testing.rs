@@ -270,8 +270,7 @@ fn end_the_person_s_stops(f: &mut StatusFields) {
 /// that are not off: paused when desired is paused; else awaiting_resume under `hold`; else
 /// no_indicator when the lease is not fresh; else running when each of those sources is running
 /// or impaired, partial when some are, and otherwise faulted with the reason that stood, or
-/// no_source when none stood. Beside a source with the mark `unstopped`, paused and no_indicator
-/// read pausing.
+/// no_source when none stood.
 fn settle(f: &mut StatusFields, hold: bool) {
     settle_sources(f, hold);
     if f.sources.iter().any(|s| s.unstopped)
@@ -311,8 +310,6 @@ fn settle_sources(f: &mut StatusFields, hold: bool) {
     f.capture_reason = reason;
 }
 
-/// What a source's `shutdown` answers when the scripted daemon asks it to stop: a stop (Ok or
-/// ThreadEnded), or no stop (Timeout or the `Os` error).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StopAnswer {
     Ok,
@@ -321,8 +318,6 @@ pub enum StopAnswer {
     Os,
 }
 
-/// Asks the source of `line` to stop: a stop leaves the line stopped with no mark, and an answer
-/// that is not a stop leaves it failed with the reason of that answer and the mark `unstopped`.
 fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
     let failed = |reason| SourceState::Failed {
         reason,
@@ -388,7 +383,6 @@ impl ScriptedDaemon {
         }
     }
 
-    /// What `source` answers each later time a Pause asks it to stop; Ok until this is set.
     pub fn set_stop_answer(&mut self, source: SourceName, answer: StopAnswer) {
         self.stop_answers.retain(|(name, _)| *name != source);
         self.stop_answers.push((source, answer));
@@ -1038,9 +1032,6 @@ mod tests {
         }
     }
 
-    /// The statuses that the walk starts from: the sample, each value of capture that waits
-    /// with no source running, and a start beside a marked source with desired paused and a
-    /// lapsed lease.
     fn walk_starts(platform: Platform) -> Vec<DaemonStatus> {
         let sample = sample_status(platform);
         let first = sample.fields().enabled_sources[0];

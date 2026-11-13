@@ -346,7 +346,7 @@ pub enum ReplyError {
     #[error("the reply does not fit protocol version 1: {0}")]
     Body(String),
     /// The reply holds, where protocol v1 reads a value of a closed list, a text that is no
-    /// value of that list, as a daemon of a later build may send.
+    /// value of that list.
     #[error("the reply does not fit protocol version 1: {0}")]
     UnknownValue(UnknownSpelling),
     /// The reply carries a status whose fields read as a status and break a rule of
@@ -372,8 +372,6 @@ fn outside<T: FromStr<Err = UnknownSpelling>>() -> Option<UnknownSpelling> {
     "".parse::<T>().err()
 }
 
-/// The closed lists that a reply of protocol v1 reads, each as the error that a text outside it
-/// gives.
 const REPLY_LISTS: &[fn() -> Option<UnknownSpelling>] = &[
     outside::<ErrorCode>,
     outside::<RootDestroyed>,
@@ -406,7 +404,6 @@ const REPLY_LISTS: &[fn() -> Option<UnknownSpelling>] = &[
     outside::<crate::onboarding::WalkbackAction>,
 ];
 
-/// The closed list whose value is missing from it, when that is the error of a decode.
 fn outside_a_list(error: &serde_json::Error) -> Option<UnknownSpelling> {
     let text = error.to_string();
     REPLY_LISTS
@@ -1355,9 +1352,8 @@ struct SourceLineWire {
 pub struct SourceLine {
     pub name: SourceName,
     pub state: SourceState,
-    /// The mark of a source that a stop did not end: true from the first answer of its
-    /// `shutdown` that is not a stop, in every stop, and false again once a later ask answers Ok
-    /// or ThreadEnded (contracts.md C2.1, ruling PL-8 part (3)(c)). The text of C2.3 does not
+    /// The mark of a source that a stop did not end.
+    /// The text of C2.3 does not
     /// print it.
     pub unstopped: bool,
 }
@@ -1571,7 +1567,7 @@ impl StatusError {
 /// order, the enabled sources against the source lines, the store state against its
 /// cause, and the sums. Beside a source that carries the mark `unstopped`, capture reads
 /// pausing, starting, running, partial or faulted, never paused, no_indicator or
-/// awaiting_resume (ruling PL-8 part (3)(c)).
+/// awaiting_resume.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "StatusFields", into = "StatusFields")]
 pub struct DaemonStatus(StatusFields);
@@ -1792,7 +1788,7 @@ pub enum DeleteDecision {
 /// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
 /// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, an opening store is busy (contracts.md C2.6: the open may yet show an id), and any
+/// refused, an opening store is busy, and any
 /// other store is accepted. The rule reads the store's state, its cause and the two ids, and no
 /// other field of a status.
 pub fn delete_decision(
@@ -2004,7 +2000,6 @@ mod tests {
         }
     }
 
-    /// A status of macOS in which every field that can be null holds a value.
     fn a_status_with_every_field_set() -> DaemonStatus {
         let at = |text: &str| -> Option<UtcSecond> { Some(text.parse().unwrap()) };
         let error = SourceError {
@@ -2055,8 +2050,6 @@ mod tests {
         DaemonStatus::new(f).unwrap()
     }
 
-    /// For each text of each sample reply, the answer of the decoder when that text is one that
-    /// no list of v1 holds, by the place of the text with each index written as *.
     fn answers_to_a_text_outside_v1() -> std::collections::BTreeMap<String, String> {
         let mut answers = std::collections::BTreeMap::<String, String>::new();
         let every_field = Reply::Status(a_status_with_every_field_set());
@@ -2553,8 +2546,6 @@ stopped/kind body
         }
     }
 
-    /// The status as JSON, with the mark `unstopped` of each source entry true for `marked` and
-    /// false for every other source.
     fn json_with_mark(fields: StatusFields, marked: Option<SourceName>) -> serde_json::Value {
         let mut json = serde_json::to_value(fields).unwrap();
         for entry in json["sources"].as_array_mut().unwrap() {
@@ -2564,10 +2555,6 @@ stopped/kind body
         json
     }
 
-    /// For each capture value, a status that the type takes beside the first required source of
-    /// the platform when that source carries no mark: the source reads failed with
-    /// reason=timeout, as a source reads after a stop that it did not answer, except beside
-    /// running, where every required source runs.
     fn one_status_for_each_capture_value(platform: Platform) -> Vec<(Capture, StatusFields)> {
         let base = sample_status(platform).into_fields();
         let first = base.enabled_sources[0];

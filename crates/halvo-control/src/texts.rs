@@ -21,22 +21,15 @@ pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture
 pub const SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF: &str =
     "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
 
-/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line may run:
-/// it failed, or it carries the mark `unstopped`; the words are the owner's to change (owner's
-/// list, entry I-81).
+/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line may run.
 pub const TYPING_MAY_BE_OBSERVED: &str = "Typing may still be observed: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
 /// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line may run and the
-/// switch is off; the words are the owner's to change (owner's list, entry I-81).
+/// switch is off.
 pub const SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
-/// The password sentence where no guard that a status reports protects a password field; the
-/// words are the owner's to change (owner's list, entry I-81).
 pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
 
-/// Beside the macOS password sentence, a key typed before a program or page has reacted (ruling
-/// MA-11 (c)(ii), with the words of ruling MA-12 H5); the words are the owner's to change (owner's
-/// list, entry I-83).
 pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
 
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
@@ -70,7 +63,6 @@ pub struct Recorded {
     pub text: &'static str,
 }
 
-/// What a source line tells of its source (ruling CT-9 (1)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Class {
     Off,
@@ -96,13 +88,6 @@ fn class_of(sources: &[SourceLine], name: SourceName) -> Class {
         .map_or(Class::MayRun, class)
 }
 
-/// The sentences of `recorded` for the switches a daemon reports, in their order. On Windows the
-/// switch key_class, and on both systems the switch screen_activity while it is off, read their
-/// source's line: off gives the sentence that the source does not record, runs the sentence that
-/// it records, stopped no sentence for that switch, and may run the sentence that it may still
-/// record (ruling CT-9 (2)). A source with no line may run. It is private: [`texts`] is the one
-/// way in, and it passes every source line of a status, which the status type requires for its
-/// platform.
 fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine]) -> Vec<Recorded> {
     let mut out = Vec::new();
     for line in switches {
@@ -141,11 +126,6 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
     out
 }
 
-/// The sentence about passwords for the platform, the guard and the class of the line of the
-/// source that observes typing (ruling CT-9 (3)): on Windows beside a typing line that is off the
-/// sentence that no typing is observed, whatever the guard; else macOS with the guard os the
-/// secure-input sentence and Windows with the guard halvo the detector's sentence; and every
-/// other cell [`PASSWORDS_NOT_CONFIRMED`], which promises nothing.
 fn passwords(platform: Platform, guard: PasswordGuard, typing: Class) -> &'static str {
     match (platform, guard, typing) {
         (Platform::Windows, _, Class::Off) => PASSWORDS_WITH_NO_TYPING_ON_WINDOWS,
@@ -195,7 +175,7 @@ pub struct Texts {
     pub recorded: Vec<Recorded>,
     pub passwords: &'static str,
     /// [`KEY_TYPED_AHEAD_CAN_BE_NOTED`] wherever `passwords` is the macOS secure-input sentence,
-    /// and no key elsewhere (ruling MA-11 (c)(ii)).
+    /// and no key elsewhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub typed_ahead: Option<&'static str>,
     pub backup_limit: Option<&'static str>,
@@ -221,7 +201,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
     }
 }
 
-/// The onboarding rows of a status for a view (ruling CT-9 (5)): each row as the status holds it,
+/// The onboarding rows of a status for a view: each row as the status holds it,
 /// but the `why` of the screen row is [`SCREEN_ACTIVITY_NOT_RECORDED`] only while `recorded` of
 /// the same status gives that sentence, and otherwise the row's sentence for the switch
 /// screen_activity on.
@@ -689,8 +669,6 @@ mod tests {
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
     const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
 
-    /// The twelve values of a source line's state and its mark, in the order of ruling CT-9's
-    /// table.
     fn line_values() -> Vec<(&'static str, crate::proto::SourceState, bool)> {
         use crate::proto::{Reason, SourceState};
         let impaired = SourceState::Impaired {
@@ -729,8 +707,6 @@ mod tests {
         ]
     }
 
-    /// A status of `platform` that the type takes, with capture pausing, the line of `source` in
-    /// `state` with `mark`, the switches of `on` on and the others off, and `guard`.
     fn status_beside(
         platform: Platform,
         source: crate::proto::SourceName,
