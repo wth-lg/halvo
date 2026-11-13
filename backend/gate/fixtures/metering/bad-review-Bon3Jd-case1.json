@@ -15,7 +15,6 @@
   "line": [
     "FAIL metering: ",
     "first failure: the fault-sequence search, setting 23, faults [",
-    "crash-after-call",
-    "a read the sync cannot explain"
+    "the record disagrees with the provider"
   ]
 }

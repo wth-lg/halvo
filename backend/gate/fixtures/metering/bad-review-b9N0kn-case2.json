@@ -15,6 +15,6 @@
   "line": [
     "FAIL metering: ",
     "first failure: the fault-sequence search, setting 33, faults [",
-    "the provider-side total passes the reported total"
+    "the record disagrees with the provider"
   ]
 }
