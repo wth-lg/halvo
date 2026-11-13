@@ -48,7 +48,23 @@ scan() {
 classify() {
   root=$1
   daemon=$root/crates/halvo-capture/src/daemon
-  listed=$(find "$daemon" ! -type d 2>/dev/null | LC_ALL=C sort)
+  if [ ! -d "$daemon" ]; then
+    printf 'crates/halvo-capture/src/daemon holds no file to read'
+    return 1
+  fi
+  found=$(find "$daemon" ! -type d 2>&1)
+  find_status=$?
+  broken=$(printf '%s\n' "$found" | awk -v d="$daemon/" 'index($0, d) != 1 && $0 != ""')
+  if [ -n "$broken" ]; then
+    first=$(printf '%s\n' "$broken" | sed -n 1p)
+    printf 'the listing of the daemon directory failed: %s' "${first#*"$root"/}"
+    return 1
+  fi
+  if [ "$find_status" != 0 ]; then
+    printf 'the listing of the daemon directory failed: find exited %s' "$find_status"
+    return 1
+  fi
+  listed=$(printf '%s\n' "$found" | LC_ALL=C sort)
   files=$(printf '%s\n' "$listed" | grep -v -x -F -e "$daemon/mutants.rows" -e '')
   if [ -z "$files" ]; then
     printf 'crates/halvo-capture/src/daemon holds no file to read'
@@ -160,6 +176,22 @@ self_test() {
   fixture like-names
   printf '%s\n' 'pub struct StoredText;' 'fn restore_db() {}' 'pub mod store_db_like;' 'fn h() { let _ = restore::db; }' 'use crate::daemon::{model_store, port};' 'fn k(store: &mut ModelStore) { store.records(); }' 'use self::port::CaptureStore as Port;' >>"$work/like-names/crates/halvo-capture/src/daemon/owner.rs" || exit 2
   case_of like-names PASS
+  fixture unlisted-dir
+  locked=$work/unlisted-dir/crates/halvo-capture/src/daemon/locked
+  mkdir -p "$locked" || exit 2
+  printf '%s\n' 'use crate::store::db::Db;' >"$locked/mod.rs" || exit 2
+  trap 'chmod 755 "$locked" 2>/dev/null' EXIT INT TERM HUP
+  chmod 311 "$locked" || exit 2
+  if [ "$(id -u)" = 0 ]; then
+    printf 'case %s/unlisted-dir: the system'"'"'s first user lists any directory, so the fixture cannot be made; the self-test fails closed\n' "$name"
+    wrong="$wrong unlisted-dir"
+  elif ls "$locked" >/dev/null 2>&1; then
+    printf 'case %s/unlisted-dir: not run, this system lists a directory of mode 311\n' "$name"
+  else
+    case_of unlisted-dir FAIL
+  fi
+  chmod 755 "$locked" || exit 2
+  trap - EXIT INT TERM HUP
   mkdir -p "$work/empty/crates/halvo-capture/src/daemon" || exit 2
   case_of empty FAIL
   case_of missing FAIL

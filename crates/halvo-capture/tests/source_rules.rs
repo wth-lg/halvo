@@ -132,20 +132,29 @@ const DATA_FILES: [&str; 7] = [
 /// Every file under the directory `dir` of the tree at `base`, tracked or not,
 /// by its path from `base`, in order, but the paths of [`DATA_FILES`]. A
 /// symbolic link is read through: a link to a directory is walked, and any
-/// other link is a file of the list, which a dangling link fails to read.
-fn files_under(base: &Path, dir: &str, out: &mut Vec<String>) {
-    let Ok(entries) = fs::read_dir(base.join(dir)) else {
-        return;
+/// other link is a file of the list, which a dangling link fails to read. A
+/// directory that cannot be listed, and an entry that cannot be read, is a
+/// fault in `faults` that names its path.
+fn files_under(base: &Path, dir: &str, out: &mut Vec<String>, faults: &mut Vec<String>) {
+    let entries = match fs::read_dir(base.join(dir)) {
+        Ok(entries) => entries,
+        Err(e) => {
+            faults.push(format!("{dir} cannot be listed: {e}"));
+            return;
+        }
     };
-    let mut names: Vec<String> = entries
-        .filter_map(Result::ok)
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .collect();
+    let mut names = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => names.push(entry.file_name().to_string_lossy().into_owned()),
+            Err(e) => faults.push(format!("an entry of {dir} cannot be read: {e}")),
+        }
+    }
     names.sort();
     for name in names {
         let path = format!("{dir}/{name}");
         if base.join(&path).is_dir() {
-            files_under(base, &path, out);
+            files_under(base, &path, out, faults);
         } else if !DATA_FILES.contains(&path.as_str()) {
             out.push(path);
         }
@@ -195,22 +204,33 @@ fn link(base: &Path, target: &str, path: &str) -> &'static str {
     }
 }
 
-/// The files that the rule of the text filter point reads under `base`.
-fn point_files(base: &Path) -> Vec<String> {
-    let mut files = Vec::new();
-    files_under(base, "crates/halvo-capture/src/floor", &mut files);
-    files_under(base, "crates/halvo-capture/src/daemon", &mut files);
-    files
+/// The files that the rule of the text filter point reads under `base`, and
+/// the faults of their listing.
+fn point_files(base: &Path) -> (Vec<String>, Vec<String>) {
+    let (mut files, mut faults) = (Vec::new(), Vec::new());
+    files_under(
+        base,
+        "crates/halvo-capture/src/floor",
+        &mut files,
+        &mut faults,
+    );
+    files_under(
+        base,
+        "crates/halvo-capture/src/daemon",
+        &mut files,
+        &mut faults,
+    );
+    (files, faults)
 }
 
 /// The uses of path attributes and include macros in the files that the rule
 /// of the listed uses reads under `base`, and the faults of the reading.
 fn reach_uses(base: &Path) -> (Vec<Use>, Vec<String>) {
-    let mut files = Vec::new();
-    files_under(base, "crates/halvo-capture", &mut files);
-    files_under(base, "src-tauri/src", &mut files);
+    let (mut files, mut faults) = (Vec::new(), Vec::new());
+    files_under(base, "crates/halvo-capture", &mut files, &mut faults);
+    files_under(base, "src-tauri/src", &mut files, &mut faults);
     files.push("src-tauri/build.rs".to_owned());
-    let (mut uses, mut faults) = (Vec::new(), Vec::new());
+    let mut uses = Vec::new();
     for file in &files {
         match read_tokens_at(base, file) {
             Err(fault) => faults.push(fault),
@@ -592,7 +612,8 @@ fn the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon() {
     plant(&tree, "crates/halvo-capture/src/floor/Mutants.rows", "a\tb");
     let made = link(&tree, "outside.txt", &format!("{daemon}/linked_tests.rs"));
     println!("the fixture of a link is a {made}");
-    let mut read = point_files(&tree);
+    let (mut read, listing) = point_files(&tree);
+    assert_eq!(listing, Vec::<String>::new());
     read.sort();
     let mut want: Vec<String> = [
         "crates/halvo-capture/src/floor/Mutants.rows",
@@ -611,7 +632,33 @@ fn the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon() {
         "the rule leaves out a file but the listed data file"
     );
     assert!(read_tokens_at(&tree, &format!("{daemon}/linked_tests.rs")).is_ok());
-    let files = point_files(&root());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        struct Guard(PathBuf);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+            }
+        }
+        let locked = tree.join(daemon).join("locked");
+        fs::create_dir_all(&locked).unwrap();
+        fs::write(locked.join("mod.rs"), "pub struct Locked;").unwrap();
+        let _guard = Guard(locked.clone());
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o311)).unwrap();
+        assert!(
+            fs::read_dir(&locked).is_err(),
+            "this account lists a directory of mode 311, as the system's first user does, so the fixture cannot be made"
+        );
+        let (_, listing) = point_files(&tree);
+        assert_eq!(listing.len(), 1, "{listing:?}");
+        assert!(
+            listing[0].starts_with("crates/halvo-capture/src/daemon/locked cannot be listed"),
+            "{listing:?}"
+        );
+    }
+    let (files, listing) = point_files(&root());
+    assert_eq!(listing, Vec::<String>::new());
     assert!(
         files
             .iter()
@@ -751,6 +798,7 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
     }
     let tree = temp_tree("reach");
     plant(&tree, "src-tauri/build.rs", "fn main() {}");
+    plant(&tree, "src-tauri/src/main.rs", "fn main() {}");
     plant(&tree, "crates/halvo-capture/Cargo.toml", "[package]");
     plant(
         &tree,
