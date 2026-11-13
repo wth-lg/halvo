@@ -194,6 +194,7 @@ impl Runner {
         loop {
             let (workbook, dir) = workbook_of(&loaded, &target.file)?;
             if let Some(read) = &self.read_under {
+                slot_path(&loaded, &read.slot)?;
                 let source = slot_text(&loaded, Some(&read.slot))?;
                 if source != read.source || dir != read.folder {
                     return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
