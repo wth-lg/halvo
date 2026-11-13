@@ -746,7 +746,7 @@ fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modalit
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macos::foreground::foreground_state;
+    use crate::macos::foreground::foreground_state_for_test;
     use crate::secure_input_macos::test_support::{
         agreed_reading, one_hold_at_a_time, reads_on_within,
     };
@@ -860,7 +860,7 @@ mod tests {
 
     fn context(read_secure: fn() -> SecureInputState) -> (TapContext, sink::SinkWriter) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let ctx = TapContext {
             sink: handle,
             foreground: reader,
@@ -925,7 +925,7 @@ mod tests {
     #[test]
     fn the_callback_that_the_tap_gets_counts_a_key_read_as_secure() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let counters = InputCounters::new();
         let mut settings = tap_settings();
         settings.secure = || SecureInputState::Active;
@@ -972,7 +972,7 @@ mod tests {
     fn a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs() {
         let kept = Arc::new(Mutex::new(None));
         let (handle, writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state();
+        let (_fg_writer, reader) = foreground_state_for_test();
         let counters = InputCounters::new();
         let mut source = InputSource::new(reader, counters.clone(), HoldPlan::Never);
         let started = source.begin_with(handle, KeepingMaker(kept.clone()), || {});
@@ -1016,7 +1016,7 @@ mod tests {
     fn the_callback_that_the_tap_gets_reenables_a_disabled_tap() {
         ENABLE_CALLS.with(|calls| calls.borrow_mut().clear());
         let (handle, _writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state();
+        let (_fg_writer, reader) = foreground_state_for_test();
         let counters = InputCounters::new();
         let settings = tap_settings();
         let mut ctx = tap_context(handle, reader, counters.clone(), &settings);
@@ -1187,7 +1187,7 @@ mod tests {
     }
 
     fn source_with(plan: HoldPlan) -> InputSource {
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         InputSource::new(reader, InputCounters::new(), plan)
     }
 
@@ -1335,7 +1335,7 @@ mod tests {
     #[test]
     fn a_recorded_key_and_pointer_carry_the_app_in_front() {
         let (handle, writer) = sink::channel(8);
-        let (fg_writer, reader) = foreground_state();
+        let (fg_writer, reader) = foreground_state_for_test();
         fg_writer.set_for_test(Some(crate::macos::foreground::tests_support::front(
             "com.example.editor",
             41,
@@ -1408,7 +1408,7 @@ mod tests {
     fn a_second_source_built_on_the_same_handle_reads_the_first_sources_count() {
         let counters = InputCounters::new();
         let (handle, _writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let first = InputSource::new(reader.clone(), counters.clone(), HoldPlan::Never);
         let ctx = tap_context(
             handle,
@@ -1648,7 +1648,7 @@ mod tests {
 #[cfg(test)]
 mod granted_tests {
     use super::*;
-    use crate::macos::foreground::foreground_state;
+    use crate::macos::foreground::foreground_state_for_test;
     use crate::sink;
 
     #[repr(C)]
@@ -1779,7 +1779,7 @@ mod granted_tests {
     #[ignore = "needs Input Monitoring for the process that runs the tests"]
     fn the_live_tap_is_listen_only() {
         let (handle, drain) = drained_sink();
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
         source
             .begin(crate::source::SourceContext::new(handle))
@@ -1800,7 +1800,7 @@ mod granted_tests {
     #[ignore = "needs Input Monitoring for the process that runs the tests"]
     fn reenable_turns_a_disabled_tap_back_on() {
         let (handle, drain) = drained_sink();
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let port = TapPort::unset();
         let ctx = TapContext {
             sink: handle,
@@ -1845,7 +1845,7 @@ mod granted_tests {
     #[ignore = "needs Input Monitoring for the process that runs the tests"]
     fn start_then_stop_leaves_no_tap_and_no_tap_thread() {
         let (handle, drain) = drained_sink();
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
         source
             .begin(crate::source::SourceContext::new(handle))
@@ -1868,7 +1868,7 @@ mod granted_tests {
 
     fn started_source() -> (InputSource, std::thread::JoinHandle<()>, SinkHandle) {
         let (handle, drain) = drained_sink();
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
         source
             .begin(crate::source::SourceContext::new(handle.clone()))
@@ -1930,7 +1930,7 @@ mod secure_input_invariant {
 
     fn context(capacity: usize) -> (TapContext, sink::SinkWriter) {
         let (handle, writer) = sink::channel(capacity);
-        let (_writer, reader) = crate::macos::foreground::foreground_state();
+        let (_writer, reader) = crate::macos::foreground::foreground_state_for_test();
         let ctx = TapContext {
             sink: handle,
             foreground: reader,

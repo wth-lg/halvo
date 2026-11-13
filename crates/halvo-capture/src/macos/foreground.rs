@@ -91,9 +91,20 @@ pub struct ForegroundWriter(Arc<Mutex<Option<Foreground>>>);
 #[derive(Debug, Clone)]
 pub struct ForegroundReader(Arc<Mutex<Option<Foreground>>>);
 
-pub(crate) fn foreground_state() -> (ForegroundWriter, ForegroundReader) {
+pub(crate) fn foreground_state(
+    _one: crate::macos::run_loop::OneWriter,
+) -> (ForegroundWriter, ForegroundReader) {
+    writer_and_reader()
+}
+
+fn writer_and_reader() -> (ForegroundWriter, ForegroundReader) {
     let shared = Arc::new(Mutex::new(None));
     (ForegroundWriter(shared.clone()), ForegroundReader(shared))
+}
+
+#[cfg(test)]
+pub(crate) fn foreground_state_for_test() -> (ForegroundWriter, ForegroundReader) {
+    writer_and_reader()
 }
 
 impl ForegroundWriter {
@@ -658,7 +669,7 @@ mod tests {
     fn poll(
         readings: Vec<Option<Foreground>>,
     ) -> (Vec<(Modality, String, u64)>, Option<Foreground>) {
-        let (writer, reader) = foreground_state();
+        let (writer, reader) = foreground_state_for_test();
         let mut poller = Poller::new(writer, 5, Arc::default());
         let (handle, sink_writer) = sink::channel(64);
         for reading in readings {
@@ -802,7 +813,7 @@ mod tests {
 
     #[test]
     fn the_writer_clears_the_value_when_it_drops() {
-        let (writer, reader) = foreground_state();
+        let (writer, reader) = foreground_state_for_test();
         writer.set(app("com.example.a", 10));
         drop(writer);
         assert_eq!(reader.get(), None);
@@ -845,7 +856,7 @@ mod tests {
 
     #[test]
     fn three_answers_of_no_window_and_then_a_title_give_exactly_one_title_event() {
-        let (writer, _reader) = foreground_state();
+        let (writer, _reader) = foreground_state_for_test();
         let health = Arc::new(TitleHealth::default());
         let mut poller = Poller::new(writer, 5, health.clone());
         let (handle, sink_writer) = sink::channel(64);
@@ -872,7 +883,7 @@ mod tests {
     fn the_poller_asks_again_for_five_ticks_and_then_stops() {
         assert_eq!(retry_ticks(FOREGROUND_POLL), 5);
         assert_eq!(TITLE_RETRY_WINDOW, Duration::from_millis(2000));
-        let (writer, _reader) = foreground_state();
+        let (writer, _reader) = foreground_state_for_test();
         let mut poller = Poller::new(writer, retry_ticks(FOREGROUND_POLL), Arc::default());
         let (handle, _sink_writer) = sink::channel(64);
         poller.step(app("com.example.a", 10), Vec::new(), &handle);
@@ -888,7 +899,7 @@ mod tests {
 
     #[test]
     fn an_accessibility_error_is_counted_and_not_asked_again() {
-        let (writer, _reader) = foreground_state();
+        let (writer, _reader) = foreground_state_for_test();
         let health = Arc::new(TitleHealth::default());
         let mut poller = Poller::new(writer, 5, health.clone());
         let (handle, _sink_writer) = sink::channel(64);
@@ -905,7 +916,7 @@ mod tests {
 
     #[test]
     fn an_answer_for_an_app_no_longer_in_front_is_dropped() {
-        let (writer, _reader) = foreground_state();
+        let (writer, _reader) = foreground_state_for_test();
         let mut poller = Poller::new(writer, 5, Arc::default());
         let (handle, sink_writer) = sink::channel(64);
         poller.step(app("com.example.a", 10), Vec::new(), &handle);
@@ -937,7 +948,7 @@ mod tests {
         read_front: FrontReader,
         read_title: TitleReader,
     ) -> (ForegroundSource, ForegroundReader) {
-        let (writer, reader) = foreground_state();
+        let (writer, reader) = foreground_state_for_test();
         (
             ForegroundSource::with_readers(interval, writer, turns, read_front, read_title),
             reader,
@@ -1251,7 +1262,7 @@ mod tests {
 
     #[test]
     fn a_missing_grant_reads_impaired_and_counts_no_title_read_error() {
-        let (writer, _reader) = foreground_state();
+        let (writer, _reader) = foreground_state_for_test();
         let health = Arc::new(TitleHealth::default());
         let mut poller = Poller::new(writer, 5, health.clone());
         let (handle, _sink_writer) = sink::channel(64);

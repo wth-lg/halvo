@@ -57,7 +57,21 @@ impl RunLoopTurns {
 
 extern "C" fn keep_the_loop_waiting(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
 
-/// The helper that turns the main run loop.
+/// The value that the one maker of the foreground writer takes. Only this file
+/// makes one, in `claim_on`, which runs once in a process.
+pub(crate) struct OneWriter(());
+
+/// The helper that turns the main run loop. It stays on the thread that made it:
+///
+/// ```
+/// fn on_one_thread<T>() {}
+/// on_one_thread::<halvo_capture::macos::run_loop::MainRunLoop>();
+/// ```
+///
+/// ```compile_fail
+/// fn across_threads<T: Send>() {}
+/// across_threads::<halvo_capture::macos::run_loop::MainRunLoop>();
+/// ```
 pub struct MainRunLoop {
     turns: RunLoopTurns,
     foreground: Option<(ForegroundWriter, ForegroundReader)>,
@@ -120,7 +134,7 @@ fn claim_on(main_thread: bool) -> Result<MainRunLoop, ClaimError> {
     CFRunLoop::get_current().add_timer(&waiting, unsafe { kCFRunLoopCommonModes });
     Ok(MainRunLoop {
         turns: RunLoopTurns::starting_now(),
-        foreground: Some(crate::macos::foreground::foreground_state()),
+        foreground: Some(crate::macos::foreground::foreground_state(OneWriter(()))),
         _waiting: waiting,
         _not_send: PhantomData,
     })
@@ -140,6 +154,28 @@ mod tests {
             MainRunLoop::claim(),
             Err(ClaimError::NotMainThread)
         ));
+    }
+
+    #[test]
+    fn a_claimed_helper_hands_out_the_writer_once_turns_and_refuses_a_second_claim() {
+        let mut helper = claim_on(true).expect("the one claim of this test process");
+        let first = helper.foreground_state().is_some();
+        let second = helper.foreground_state().is_some();
+        let started = Instant::now();
+        helper.turn_for(Duration::from_millis(250));
+        let last = *helper
+            .turns
+            .last
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let again = claim_on(true);
+        assert_eq!((first, second), (true, false), "the pair handed out");
+        assert!(
+            last >= started + Duration::from_millis(250),
+            "the last turn was stamped {:?} after the start",
+            last.duration_since(started)
+        );
+        assert!(matches!(again, Err(ClaimError::AlreadyClaimed)));
     }
 
     #[test]

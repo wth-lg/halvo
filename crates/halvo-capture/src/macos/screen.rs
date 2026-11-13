@@ -488,7 +488,7 @@ fn keep_for_the_life_of_the_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macos::foreground::foreground_state;
+    use crate::macos::foreground::foreground_state_for_test;
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{CFGetRetainCount, CFRelease};
     use objc2::rc::{Allocated, Weak};
@@ -678,7 +678,7 @@ mod tests {
     #[test]
     fn a_kept_output_stays_alive() {
         let (handle, _writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state();
+        let (_fg_writer, reader) = foreground_state_for_test();
         let output = ScreenOutput::new(handle, reader);
         let weak = Weak::from_retained(&output);
         keep_for_the_life_of_the_process(Some(output), None);
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn a_kept_output_lets_the_drain_end() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let output = ScreenOutput::new(handle, reader);
         keep_for_the_life_of_the_process(Some(output), Some(DispatchQueue::new("kept", None)));
         assert_eq!(
@@ -703,7 +703,7 @@ mod tests {
     #[test]
     fn a_sample_that_reaches_a_kept_output_emits_nothing() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let output = ScreenOutput::new(handle.clone(), reader);
         keep_for_the_life_of_the_process(Some(output.clone()), None);
         let frame = Frame::new(16, 16);
@@ -721,7 +721,7 @@ mod tests {
     #[test]
     fn the_stream_output_message_gives_exactly_one_screen_frame_event() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let output = ScreenOutput::new(handle, reader);
         let frame = Frame::new(16, 16);
         deliver(&output, frame.sample());
@@ -735,7 +735,7 @@ mod tests {
     #[test]
     fn the_stream_output_message_keeps_no_reference_to_the_sample() {
         let (handle, _sink_writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let output = ScreenOutput::new(handle, reader);
         let frame = Frame::new(16, 16);
         let before = frame.retain_count();
@@ -753,7 +753,7 @@ mod tests {
 
     fn screen_ivars() -> (ScreenIvars, SinkWriter) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let ivars = ScreenIvars {
             sink: Mutex::new(Some(handle)),
             foreground: reader,
@@ -776,7 +776,7 @@ mod tests {
     #[test]
     fn a_frame_carries_the_app_in_front() {
         let (handle, writer) = sink::channel(8);
-        let (fg_writer, reader) = foreground_state();
+        let (fg_writer, reader) = foreground_state_for_test();
         let front = crate::macos::foreground::tests_support::front("com.example.editor", 41);
         fg_writer.set_for_test(Some(front));
         let ivars = ScreenIvars {
@@ -850,7 +850,7 @@ mod tests {
         Weak<ScreenOutput>,
     ) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state();
+        let (_writer, reader) = foreground_state_for_test();
         let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
         let asks = Rc::new(Cell::new(0));
         let first = source.begin_with(handle.clone(), scripted(answers, &asks));
