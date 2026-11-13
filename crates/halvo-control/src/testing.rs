@@ -310,12 +310,20 @@ fn settle_sources(f: &mut StatusFields, hold: bool) {
     f.capture_reason = reason;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StopAnswer {
+    #[default]
     Ok,
     ThreadEnded,
     Timeout,
     Os,
+}
+
+impl StopAnswer {
+    /// Whether the answer is a stop: Ok and ThreadEnded are, Timeout and the Os error are not.
+    pub const fn is_a_stop(self) -> bool {
+        matches!(self, StopAnswer::Ok | StopAnswer::ThreadEnded)
+    }
 }
 
 fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
@@ -323,12 +331,12 @@ fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
         reason,
         error: None,
     };
-    (line.state, line.unstopped) = match answer {
-        StopAnswer::Ok | StopAnswer::ThreadEnded => {
-            (SourceState::Stopped { by_user: false }, false)
-        }
-        StopAnswer::Timeout => (failed(Reason::Timeout), true),
-        StopAnswer::Os => (failed(Reason::OsError), true),
+    (line.state, line.unstopped) = if answer.is_a_stop() {
+        (SourceState::Stopped { by_user: false }, false)
+    } else if answer == StopAnswer::Timeout {
+        (failed(Reason::Timeout), true)
+    } else {
+        (failed(Reason::OsError), true)
     };
 }
 
@@ -555,7 +563,8 @@ impl ScriptedDaemon {
                             let answer = answers
                                 .iter()
                                 .find(|(name, _)| *name == line.name)
-                                .map_or(StopAnswer::Ok, |(_, answer)| *answer);
+                                .map(|(_, answer)| *answer)
+                                .unwrap_or_default();
                             ask_to_stop(line, answer);
                         }
                     }
@@ -966,6 +975,7 @@ mod tests {
             ] {
                 for stop in [StopAnswer::Ok, StopAnswer::ThreadEnded] {
                     let case = format!("{platform:?} {no_stop:?} then {stop:?}");
+                    assert!(stop.is_a_stop() && !no_stop.is_a_stop(), "{case}");
                     let mut daemon = ScriptedDaemon::new(sample.clone());
                     daemon.set_stop_answer(first, no_stop);
                     let status = changed(daemon.handle(Request::Pause));
