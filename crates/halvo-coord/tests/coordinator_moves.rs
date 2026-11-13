@@ -3681,3 +3681,292 @@ fn the_memory_answer_bind_and_answer_handback_fail_with_an_error_other_than_ende
         assert_eq!(got(&p), 1, "{method:?}");
     }
 }
+
+/// A switch-off of agent `n` whose `hold_set` the owner stored and whose acknowledgement was lost,
+/// in the form `order`: the coordinator does not know the hold (ruling RD-52 (a), the builder's
+/// seed 297).
+fn switched_off_with_a_lost_acknowledgement(c: &Coordinator<Both>, n: usize, order: support::Loss) {
+    c.ports().loss.set(Some(order));
+    let _ = c.control(&agent(n), Action::SwitchOff);
+    c.ports().loss.set(None);
+    let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+    c.ports().ports.events.borrow_mut().extend(lost);
+    let held = c.ports().ports.events.borrow().iter().any(|e| {
+        e.agent == agent(n)
+            && matches!(
+                e.what,
+                What::HoldSet {
+                    cause: halvo_coord::types::HoldSetCause::Person
+                }
+            )
+    });
+    assert!(held, "{order:?}: the owner holds the hold_set");
+}
+
+fn run_starts_of(c: &Coordinator<Both>, n: usize) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n) && matches!(e.what, What::RunStarted { .. }))
+        .count()
+}
+
+fn states_sent(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::AgentState> {
+    calls_since(c, m)
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::Send(Body::SetState { state, .. }) => Some(state),
+            _ => None,
+        })
+        .collect()
+}
+
+/// What every test of RD-52 (a) asserts after the start whose read brought the hold: no
+/// `Runs::start`, no `run_started` row of that start, `set_state` `paused` once and no `active`
+/// or `approved`, and the row offers `switch_on` and no `run_now`, with the status `off` where no
+/// item is open.
+fn refused_after_its_read(c: &Coordinator<Both>, m: usize, n: usize, starts: usize, case: &str) {
+    use halvo_coord::types::{AgentState, Control};
+    assert!(
+        !calls_since(c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_))),
+        "{case}: no Runs::start"
+    );
+    assert_eq!(run_starts_of(c, n), starts, "{case}: no run_started row");
+    assert_eq!(
+        states_sent(c, m),
+        [AgentState::Paused],
+        "{case}: paused once, and no active or approved"
+    );
+    let s = c.snapshot();
+    let row = s.rows.iter().find(|r| r.agent == agent(n)).unwrap();
+    let controls: Vec<Control> = row.controls.iter().map(|t| t.control).collect();
+    assert!(
+        controls.contains(&Control::SwitchOn),
+        "{case}: {controls:?}"
+    );
+    assert!(!controls.contains(&Control::RunNow), "{case}: {controls:?}");
+    let open = s.items.iter().any(|i| i.agent() == &agent(n));
+    if !open {
+        assert_eq!(row.status, Status::Off, "{case}");
+    }
+}
+
+#[test]
+fn a_run_now_whose_read_brings_a_lost_switch_off_is_refused_with_hold_in_both_forms() {
+    for order in ORDERS {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        switched_off_with_a_lost_acknowledgement(&c, 0, order);
+        let starts = run_starts_of(&c, 0);
+        let m = mark(&c);
+        assert_eq!(
+            c.control(&agent(0), Action::RunNow),
+            Err(Cause::Hold),
+            "{order:?}"
+        );
+        refused_after_its_read(&c, m, 0, starts, &format!("{order:?}"));
+    }
+}
+
+/// An agent of `spec` whose events hold the hold `failures`, known to the coordinator.
+fn failures_held(spec: &[support::A]) -> Coordinator<Both> {
+    let both = owner(spec, Limits::PRODUCT);
+    {
+        let mut events = both.ports.events.borrow_mut();
+        let last = events
+            .iter()
+            .filter(|e| e.agent == agent(0))
+            .last()
+            .cloned()
+            .unwrap();
+        events.push(halvo_coord::types::Event {
+            seq: std::num::NonZeroU32::new(last.seq.get() + 1).unwrap(),
+            what: What::HoldSet {
+                cause: halvo_coord::types::HoldSetCause::Failures,
+            },
+            ..last
+        });
+    }
+    let c = Coordinator::new(both, Limits::PRODUCT);
+    c.tick();
+    c
+}
+
+#[test]
+fn a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms(
+) {
+    use halvo_coord::types::Cleared;
+    for order in ORDERS {
+        let c = failures_held(&[MANUAL]);
+        switched_off_with_a_lost_acknowledgement(&c, 0, order);
+        let starts = run_starts_of(&c, 0);
+        let before = events(&c).len();
+        let m = mark(&c);
+        assert_eq!(
+            c.control(&agent(0), Action::RunNow),
+            Err(Cause::Hold),
+            "{order:?}"
+        );
+        assert_eq!(
+            events(&c)[before..],
+            [What::HoldCleared {
+                cause: Cleared::Failures
+            }],
+            "{order:?}: one hold_cleared and nothing else"
+        );
+        refused_after_its_read(&c, m, 0, starts, &format!("{order:?}"));
+    }
+}
+
+#[test]
+fn a_queued_start_of_a_ready_item_whose_read_brings_a_lost_switch_off_is_refused_with_hold_and_leaves_the_item_open_in_both_forms(
+) {
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    for order in ORDERS {
+        let c = coordinator(&[MANUAL, slotted], one);
+        let (ready, kind) = open_item(&c);
+        assert_eq!(kind, ItemKind::Ready);
+        let first = start(&c, 0);
+        switched_off_with_a_lost_acknowledgement(&c, 1, order);
+        let starts = run_starts_of(&c, 1);
+        let m = mark(&c);
+        assert_eq!(
+            c.answer(&ready, Choice::Start, None),
+            Err(Cause::Hold),
+            "{order:?}"
+        );
+        assert!(
+            !events(&c)
+                .iter()
+                .any(|w| matches!(w, What::ItemAnswered { item, .. } if *item == ready)),
+            "{order:?}: no item_answered for the item"
+        );
+        assert!(
+            c.snapshot().items.iter().any(|i| i.item() == &ready),
+            "{order:?}: the item is open"
+        );
+        refused_after_its_read(&c, m, 1, starts, &format!("{order:?}"));
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        assert_eq!(
+            started(&c).len(),
+            1,
+            "{order:?}: the queue holds no start of the agent"
+        );
+        assert_eq!(run_starts_of(&c, 1), starts, "{order:?}");
+    }
+}
+
+#[test]
+fn a_ticks_start_whose_read_brings_a_lost_switch_off_stores_nothing_and_the_next_tick_tries_none_in_both_forms(
+) {
+    let auto = support::A {
+        person: false,
+        slotted: true,
+    };
+    for order in ORDERS {
+        let c = coordinator(&[auto], Limits::PRODUCT);
+        let first = started(&c).last().cloned().expect("the first slot's start");
+        assert_eq!(c.on_run(&first, RunEvent::Hello), Ok(()));
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        c.ports().ports.store_end(
+            &agent(0),
+            PastRun {
+                run: first,
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+        );
+        c.ports().ports.set_clock(T0 + 1_000, DAY);
+        c.tick();
+        switched_off_with_a_lost_acknowledgement(&c, 0, order);
+        let starts = run_starts_of(&c, 0);
+        let before = events(&c).len();
+        let m = mark(&c);
+        c.ports().ports.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+        c.tick();
+        assert_eq!(events(&c).len(), before, "{order:?}: nothing is stored");
+        refused_after_its_read(&c, m, 0, starts, &format!("{order:?}"));
+        let m = mark(&c);
+        let tried = c.ports().ports.tried.borrow().len();
+        c.ports()
+            .ports
+            .set_clock(T0 + 2 * 86_400_000 + 1_000, DAY + 2);
+        c.tick();
+        assert!(
+            !calls_since(&c, m)
+                .iter()
+                .any(|call| matches!(call, Call::Start(_))),
+            "{order:?}"
+        );
+        assert!(
+            !c.ports().ports.tried.borrow()[tried..].iter().any(|t| matches!(
+                &t.call,
+                Call::Log(rows) if rows.iter().any(|e| matches!(e.what, What::RunStarted { .. }))
+            )),
+            "{order:?}: the next tick tries no start of the agent"
+        );
+    }
+}
+
+#[test]
+fn a_start_that_leaves_the_queue_after_a_lost_switch_off_is_dropped_with_hold_and_stores_nothing_in_both_forms(
+) {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    for order in ORDERS {
+        let c = coordinator(&[MANUAL, MANUAL], one);
+        let first = start(&c, 0);
+        assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()), "{order:?}");
+        assert_eq!(started(&c).len(), 1, "{order:?}: agent 1 waits");
+        switched_off_with_a_lost_acknowledgement(&c, 1, order);
+        let starts = run_starts_of(&c, 1);
+        let before = c
+            .ports()
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(1))
+            .count();
+        let m = mark(&c);
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        let after = c
+            .ports()
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(1))
+            .count();
+        assert_eq!(after, before, "{order:?}: nothing is stored for agent 1");
+        refused_after_its_read(&c, m, 1, starts, &format!("{order:?}"));
+        let m = mark(&c);
+        c.ports().ports.set_clock(T0 + 1_000, DAY);
+        c.tick();
+        assert!(
+            !calls_since(&c, m)
+                .iter()
+                .any(|call| matches!(call, Call::Start(_))),
+            "{order:?}: the start was dropped"
+        );
+    }
+}
