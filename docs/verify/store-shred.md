@@ -5,11 +5,13 @@ description: Run and maintain the formal checks of the encrypted store's two saf
 
 # Verify: store crypto-shred and single writer
 
-Six tests check two properties of the real `EncryptedStore`. Three of them
+Eight tests check two properties of the real `EncryptedStore`. Four of them
 run the store under random inputs and fail on the first input that breaks a
 property. Two run the file scan of check 1 on fixed inputs of 1,200
-segments, and one makes every move that fails or is refused in a fixed
-order. They live in `crates/halvo-capture/src/store/formal_tests.rs`,
+segments, one makes every move that fails or is refused in a fixed order,
+and one sets a process that goes around the directory lock against a
+process that holds the store, in two fixed cases. They live in
+`crates/halvo-capture/src/store/formal_tests.rs`,
 compile only under `cfg(test)`, and need only the `proptest` dev-dependency.
 
 ## When to run it
@@ -28,17 +30,26 @@ link come from it. A change elsewhere in the workspace does not need them.
    for it is in no page of `store.db`, no frame of `store.db-wal` and no
    record of `store.db-journal`, the segment reads as `Sealed`, and its
    file is gone. Every segment that was not shredded still reads back its
-   bytes. After delete-all the directory holds no store, and the unwrap of
-   the wrapped store key retained from before fails because its root is
-   missing.
+   bytes. Delete-all destroys the root first and tries every step after
+   it, whatever a step answers. After it returned, with `Ok` or with
+   `DeleteIncomplete`, its handle answers a write with `Sealed`, and the
+   unwrap of the wrapped store key retained from before fails because its
+   root is missing; so does the unwrap of a key file of another label that
+   was wrapped under the same root. The one exception is an error whose
+   report says that the root step itself failed: the report then names the
+   root that stays, every later step was still tried, and the next
+   delete-all on the same handle destroys that root. `Ok` means that the
+   directory holds no store. An error carries a report that says of the
+   root, the key file, the database files and the count of segment files
+   what is on disk, and no step after the one that failed was skipped.
    A move that fails, or that the store refuses, leaves no half store. A
    create that fails after it made its database leaves no file and no
    root. A create under a root that exists is refused, leaves no file, and
    leaves that root to the store that has it. A create whose root step
    fails, whatever the custody answers, leaves no file and destroys no
-   root, because it has made none. A delete-all that stops after
-   it destroyed the root leaves a store that the next delete-all on the
-   same handle finishes. An append whose index row fails leaves no event
+   root, because it has made none. A delete-all that returned an error
+   is finished by the next delete-all on the same handle. An append whose
+   index row fails leaves no event
    row, and a shred removes the event rows of its segment.
    On macOS every file that the store made has mode 0600 and every
    directory that it made has mode 0700, after every operation, as long as
@@ -57,14 +68,25 @@ link come from it. A change elsewhere in the workspace does not need them.
    that the store made with the mode of the umask shows another account of
    the machine the wrapped keys, the ciphertext and the times of the
    segments.
-2. **Single writer.** At most one process holds the store at a time; on
-   macOS the lock is a `flock` on the store directory (store-3), and on
-   Windows `writer.lock`, which a held handle keeps from being unlinked. Every
+2. **Single writer.** At most one process holds the store at a time. Two
+   layers refuse a second one: the lock on the store directory (on macOS a
+   `flock` on the directory itself, on Windows a lock on `writer.lock`,
+   which a held handle keeps from being unlinked), and SQLite's exclusive
+   lock on `store.db`. Every
    contender that waits eventually gets the store, holds it, writes a segment,
    and exits clean. An `open` that begins and ends while another process
    holds the store is refused before it asks its custody for the store key.
+   Of several processes that call `create` on one empty directory at most
+   one gets the store, none removes the database of the one that got it,
+   and the directory then opens and reads what that one wrote. A process
+   that opens `store.db` itself, without the directory lock, neither reads
+   nor writes it while another process holds the store, and an `open`
+   while such a process holds the database is refused before it asks its
+   custody.
    Harm if broken: two writers corrupt the metadata database, or a reader
-   keeps a snapshot alive that preserves a shredded key. An `open` that
+   keeps a snapshot alive that preserves a shredded key. A creator that
+   removes the database of another leaves that one with a store that is
+   gone. An `open` that
    asks the custody first puts the store key into a process that gets no
    store, and waits on a custody that can prompt or block for a store that
    it then refuses.
@@ -79,17 +101,22 @@ link come from it. A change elsewhere in the workspace does not need them.
 | 1 | `no_failed_or_refused_move_leaves_a_half_store` |
 | 1 | `no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order` |
 | 2 | `at_most_one_process_holds_the_store_at_a_time` |
+| 2 | `at_most_one_creator_gets_an_empty_store_directory` |
+| 2 | `a_process_that_goes_around_the_directory_lock_is_refused_at_the_database` |
 
 Check 1 is the first test, over random sequences of at most 12 operations,
 its two scaled cases, which have a fixed shape each, and two tests of the
 moves that fail or are refused: one over random sequences of at most 12
 operations that hold those moves, and one that makes each of them in a
-fixed order. Check 2 is one test over random races. `docs/verify/check-covered.sh` reads this table and the
-table under Covered code.
+fixed order. Check 2 is three tests: one over random races of processes
+that open a store, one over random races of processes that create one in
+an empty directory, and one of two fixed cases around the directory lock.
+`docs/verify/check-covered.sh` reads this table and the table under
+Covered code.
 
 ## Tool
 
-The three random tests are `proptest` property tests over the real store, not
+The four random tests are `proptest` property tests over the real store, not
 a model.
 A verifier that runs on the code is the faithful tool here: the properties
 are about bytes on disk, SQLCipher's locking and the OS file lock, none of
@@ -113,11 +140,12 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `EncryptedStore::delete_all` (the root step before every other step, and its steps on a handle that a delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-delete-all-returns-before-its-root-step`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
 | 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens) | `formal-secure-delete-off`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode` |
 | 1 | `crates/halvo-capture/src/custody/file_root.rs` | the root files of both systems: `FileRoots::wrap` and `FileRoots::unwrap` (the `aead_seal` and `aead_open` calls under the root), and `FileRoots::make_root` (the random fill of a new root), which `FileRoots::create_root` calls | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 1 | `crates/halvo-capture/src/store/durable.rs` | `Dir::create_new`, which `OsFs::create_new` calls (the mode of a new file), `Dir::create_dir` (the mode of `segments` and of a shard) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
-| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`) together with the calls of `DirLock::take` in `EncryptedStore::create_with` and `EncryptedStore::open_with`, `Db::refuse_a_live_holder` (its own `locking_mode = EXCLUSIVE` pragma), `verify_key`, `code_answer` and `Db::refuse_a_live_holder` (the mapping of `DatabaseBusy` to `Locked`), `EncryptedStore::open_with` (the call of `Db::refuse_a_live_holder` and the place of its answer, before the custody) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked`, `formal-held-store-asks-its-custody` |
+| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), alone, and together with the calls of `DirLock::take` in `EncryptedStore::create_with` and `EncryptedStore::open_with` and with the pragma of `Db::refuse_a_live_holder`; `verify_key`, `code_answer` and `Db::refuse_a_live_holder` (the mapping of `DatabaseBusy` to `Locked`); `EncryptedStore::open_with` (the call of `Db::refuse_a_live_holder` and the place of its answer, before the custody) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked`, `formal-held-store-asks-its-custody` |
+| 2 | `crates/halvo-capture/src/store/lock.rs` | `DirLock::take` (the `try_lock` on the store directory, on Windows on `writer.lock`) | `formal-directory-lock-never-taken` |
 
 A change to any function in the table, or to the schema of `segment_keys`,
 touches verified code. A change to the text that a row's substitution
@@ -134,15 +162,16 @@ a random sequence of these operations, checking the invariants after each:
 |---|---|
 | `Write { len, expiry }` | `write_segment_with_expiry` with `expires_at` in the past, at the write's own second (the `expires_at <= now` boundary), or one retention window ahead; the ciphertext file is copied aside, and the harness records the wrapped key that the segment's key row holds when the write returns |
 | `ShredExpired` | `crypto_shred_expired`; the report must count exactly the live segments past their bound |
-| `ShredAll` | `crypto_shred_all`; the report of the first call must count every live segment plus the store key, and a later call on the same handle must return `Ok` with a report that counts nothing |
-| `Reopen` | drop the store, on macOS set `store.db` to mode 0644 unless delete-all ran, as another process could while no store holds the file, and `EncryptedStore::open`; must succeed unless delete-all ran, then must be `Sealed` |
+| `ShredAll` | `crypto_shred_all`, under the fault that an `ArmFault` before it armed, if one is armed. Whatever it returns, the harness then reads the root, the handle and the disk as the paragraph under the table of faults says. With no fault the first call must return `Ok` with a report that counts every live segment plus the store key, and a later call on the same handle must return `Ok` with a report that counts nothing |
+| `Reopen` | drop the store, on macOS set `store.db` to mode 0644 unless delete-all ran, as another process could while no store holds the file, and `EncryptedStore::open`; must succeed unless delete-all ran. After a delete-all it must answer `Sealed`, or `DatabaseMissing` when the delete-all returned an error and left `store.key`: every step was tried, so the database is gone, and `open` reads that before it asks its custody |
 | `ReopenUnderAnotherRoot` | drop the store, flip one bit of the root's 32 bytes under the same root id, and `open`, which must answer `Custody(WrapAuthFailed)`; put the bytes back, and `open` must succeed. Nothing after delete-all |
-| `Recreate` | after delete-all, drop the sealed store and `create` under a fresh root; otherwise `create` must refuse with `Locked` or `AlreadyExists` |
+| `Recreate` | after a delete-all that finished, or after one that returned an error, left no `store.key` and whose handle a `Reopen` dropped: drop the store and `create` under a fresh root, which must succeed. Otherwise `create` must refuse with `Locked` or `AlreadyExists` |
 
 The second random test (`no_failed_or_refused_move_leaves_a_half_store`)
 replays sequences that also hold the moves of the next table, with the same
 checks after each. `no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order`
-makes each of them at least once in one list of 24 moves, and fails when a
+makes each of them at least once in one list of 71 moves (60 on Windows,
+where the two faults that set a mode do not exist), and fails when a
 move of the list does not apply to the state that the moves before it left.
 
 | Op | What it does to the real store |
@@ -150,8 +179,8 @@ move of the list does not apply to the state that the moves before it left.
 | `CreateThatFailsAfterItsDatabase` | after a delete-all that finished: `create` under a fresh root with the failpoint `db_open` armed, which fails `Db::open` once after it made `store.db`. The create must return that error, no root with the id of the create may exist, and the directory must hold nothing but `writer.lock` |
 | `CreateUnderTheRootOfThisStore` | on a live store: `create` in a second temp directory under the root id of the live store. It must answer `Custody(RootExists)` and leave nothing but `writer.lock` in that directory. Then the harness drops the live store, and `open` must succeed |
 | `CreateWhoseRootStepFails` | in any state, five times: `create` in a second temp directory with a stand-in custody under the newest root id, whose `create_root` makes no root and answers `RootLocked`, `RootDenied`, `RootCorrupt`, `Crypto` or `Os` with the code of a file that exists, one answer for each create. Each create must return `Custody` with that answer, must leave nothing but `writer.lock` in its directory, and must not call `destroy_root`, which the stand-in counts and does not pass on |
-| `ShredAllThatStopsAfterItsRootStep` | on a live store: `crypto_shred_all` with the failpoint `key_file_destroy` armed, which fails `KeyFile::destroy` once. The call must return that error. From then on the root must be destroyed and every segment must read as `Sealed`; the directory may hold the files of a store; `Recreate` must be refused and `Reopen` must answer `Custody(RootMissing)`. The next `ShredAll` on the same handle must return `Ok` with a report that counts nothing, and after it the directory must hold nothing but `writer.lock` |
-| `DestroyTheRootAgain` | after a delete-all, finished or stopped: `destroy_root` of the dev-fallback custody on the root that delete-all destroyed; it must return `Ok` |
+| `ArmFault(fault)` | arms one fault for the next `ShredAll`, which puts it in the way right before its call and takes it out right after. A fault whose state is not there (the table of faults) arms nothing, and the fixed order fails on such a move |
+| `DestroyTheRootAgain` | after a delete-all, finished or stopped, unless its root step failed: `destroy_root` of the dev-fallback custody on the root that delete-all destroyed; it must return `Ok` |
 | `Append { index_row_fails }` | on a live store with a live segment: `append_event` for the newest live segment. With `index_row_fails` the harness renames the table `events_fts` away for the call and back after it, so that the second of the two inserts fails; the append must return an error |
 
 After every operation on a live store, the three tests that replay
@@ -160,12 +189,41 @@ store's connection. Each count must equal the appends that returned `Ok`
 for the segments that are live: a failed append leaves no row, and a shred
 removes the rows of its segment.
 
-The two failpoints are the store's own (`store::failpoint`, compiled
+The faults of `ArmFault`, one for each `ShredAll`. The last cell says what
+the harness then requires of the call; what it does not name must be gone
+from the disk.
+
+| Fault | How the harness makes it | Needs | What the delete-all must do |
+|---|---|---|---|
+| `DamagedPage` | it drains the log into `store.db`, drops the store, overwrites 512 bytes of the root page of `events` and opens the store again | a live store | return `Ok`: the delete reads and writes no page of the database |
+| `QueryOnly` | `PRAGMA query_only = ON` on the connection of the store | a live store | return `Ok` |
+| `KeyAndRootReadOnly` | mode 0400 on `store.key` and on the root file; macOS alone | both files on disk | return `Ok`, with both files removed |
+| `RootStep` | it opens the store again under a custody whose `destroy_root` answers `RootDenied` once and which names no roots directory | a live store | return `DeleteIncomplete` whose report names the root of the store as the one that stays; `store.key`, the database and the segments are gone |
+| `KeyFileStep` | the failpoint `key_file_destroy`, which fails `KeyFile::destroy` once | `store.key` on disk | return `DeleteIncomplete`; `store.key` stays |
+| `DatabaseStep` | the failpoint `database_destroy`, which fails `Db::destroy_through` once | a database file on disk | return `DeleteIncomplete`; the database files stay |
+| `BlockedShard` | mode 0500 on the first shard that holds a segment file, and 0700 again after the call; macOS alone | a segment file on disk | return `DeleteIncomplete`; the files of that shard stay, and the report counts them |
+
+After a `ShredAll`, whatever it returned, the harness requires in this
+order: that a failpoint which it armed was reached; unless the fault is
+`RootStep`, that the root is destroyed, by the classifier named below, and
+that the key file of another label does not unwrap; that a write on the
+handle answers `Sealed`; then, for `Ok`, that no fault left anything and
+that the counts hold; and for `DeleteIncomplete`, that the report says of
+the root, the key file, the database and the count of segment files what
+a look at the disk finds, that the disk holds what the fault leaves and
+nothing else, and under `RootStep` that the report names the root of the
+store as the one that stays. From an error until a later `ShredAll`
+returns `Ok`, the harness requires after every operation that the disk
+still holds exactly that. The `ShredAll` after an error runs with no fault
+unless a new `ArmFault` stands before it, and must return `Ok`.
+
+The three failpoints of check 1 (`db_open`, `key_file_destroy`,
+`database_destroy`) are the store's own (`store::failpoint`, compiled
 under `cfg(test)`), armed by the harness for one shot each on its own
-thread. After each of the
-two moves the harness requires that the failpoint was reached, so a create
-that opens no database, or a delete-all that never comes to its key file,
-fails the move.
+thread. After each move that arms one the harness requires that the
+failpoint was reached, so a create that opens no database, or a
+delete-all that never comes to its key file or to its database, fails
+the move.
 
 At every create the harness reads `store.key` and requires that the wrapped
 store key does not open under an all-zero key with the root id as
@@ -179,10 +237,16 @@ bytes and stands nowhere beside its sealed form, the unwrap fails under
 other bytes, and it fails with `RootMissing` once delete-all has destroyed
 the root.
 
+At every create the harness also wraps a second key under the root of the
+store with the label `derived`, writes it through `KeyFile::at` into a key
+file in a directory beside the store, and requires that it unwraps. After
+a delete-all whose root step did not fail, that unwrap must fail with
+`RootMissing` as well.
+
 `Reopen`, and `Recreate` after delete-all, call `open` or `create` right
 after they drop the store, so both need the drop to have released the file
-lock. `WriterLock`'s `Drop` unlocks `writer.lock` before its descriptor
-closes. On macOS and Linux the lock belongs to the open file, and a child
+lock. `DirLock`'s `Drop` unlocks the directory (on Windows `writer.lock`)
+before its descriptor closes. On macOS and Linux the lock belongs to the open file, and a child
 process shares that file from its spawn until its exec, so a lock that only
 the close released would stay held for that time. Check 2 spawns its
 contenders from the same test process. Before the unlock, check 1 failed
@@ -233,8 +297,9 @@ After delete-all the check asks the classifier that `--verify-deletion`
 uses, `store::verify::root_state`, with the wrapped store key retained from
 the create: the root counts as destroyed only when the unwrap fails with
 `RootMissing`. An unwrap that succeeds, or that fails with any other error,
-fails the case. Then the store directory must hold nothing but
-`writer.lock`, and every segment must read as `Sealed`.
+fails the case. After a delete-all that returned `Ok` the store directory
+must hold nothing but `writer.lock`, which only Windows has, and after
+either return every segment must read as `Sealed`.
 
 The two scaled cases run the same harness on a fixed input, without the
 random operations:
@@ -278,6 +343,48 @@ fails if, over all its cases, no refusal falls inside the enter-to-exit
 interval of another contender, or if no refused open lies whole inside such
 an interval.
 
+The creators' race (`at_most_one_creator_gets_an_empty_store_directory`)
+makes an empty store directory and spawns the test binary two to five
+times as creators (`create_a_store_for_parent`), each with a fresh root id
+under the one roots directory of the case. Each creator calls
+`EncryptedStore::create` once. In three cases of four the first creator
+waits at a seam of the store (`SEAM_BEFORE_THE_DATABASE_STEP`, in
+`create_with` after the lock, the probe for a holder and the look for
+`store.key`, and before the removal of the database files) until every
+other creator has answered. The others start together at one mark, with
+no stagger, and in the fourth case all creators start so. In three cases
+of four the parent unlinks every lock path that the platform still has,
+the name `writer.lock`, every 200 microseconds: on macOS no such path
+exists. A creator that gets the store writes a segment and holds the
+store until every creator has answered, then counts its open files that
+have lost their name (macOS: it reads `/dev/fd`) and closes. A case fails
+if more than one creator got the store; if a creator was answered anything
+but `Locked` or `AlreadyExists` (for Windows see the platform note); if
+the first creator did not come to its seam; if no creator got the store;
+if the one that got it held a file without a name at its close; if the
+directory does not open afterwards or does not read back the segment that
+the winner wrote; if the roots directory holds another root file than the
+one of that store; or if the store directory holds a name that is no file
+of a store, `create.pending` among them. The run fails if, over all its
+cases, no creator was refused while the first stood at its seam. On a pass
+it writes one line to standard error:
+`check 2 creators in <cases> cases: created=<n> locked=<n> already_exists=<n> access_denied=<n> other_under_the_unlink=<n> {<answers>} refused_while_the_first_stood_before_its_database_step=<n> cases_with_no_creator=<n>`.
+
+The cases around the directory lock
+(`a_process_that_goes_around_the_directory_lock_is_refused_at_the_database`)
+are fixed and draw nothing. A second process
+(`go_around_the_directory_lock_for_parent`) unwraps the store key through
+the custody and opens `store.db` with SQLite itself, taking no directory
+lock. In the first case the test holds the store, and the second process
+tries one read and one write: both must be refused, and the holder must
+still write afterwards. In the second case the second process holds the
+database (`locking_mode = EXCLUSIVE`, one read, `BEGIN EXCLUSIVE`), and
+the test calls `open_with`: it must answer a refusal that `writer_refusal`
+names, without a call of its custody; once the second process has left,
+`open` must succeed and write. On a pass the test writes one line to
+standard error:
+`check 2 around the directory lock: read=<answer> write=<answer> open_while_another_held_the_database=<answer> asked_its_custody=<bool>`.
+
 ## How each platform refuses a second writer
 
 The contender takes an error of `open` as a refusal only when
@@ -285,8 +392,8 @@ The contender takes an error of `open` as a refusal only when
 
 | Platform | Refusal that the contender accepts | Where it comes from |
 |---|---|---|
-| macOS | `Locked` | `DirLock::take` (store/lock.rs) gets `WouldBlock` from the `flock` on a descriptor of the store directory itself, so no lock file exists to unlink. A process that holds the database without the directory lock gets `Locked` from `Db::refuse_a_live_holder`, which reads `SQLITE_BUSY` before `open` asks its custody |
-| Windows | `Locked`, or `Io(PermissionDenied)` | the same three paths, plus: unlinking `writer.lock` while the holder keeps it open leaves the name delete-pending, and Windows refuses every open of that path with access denied (os error 5) until the holder closes it |
+| macOS | `Locked` | `DirLock::take` (store/lock.rs) gets `WouldBlock` from the `flock` on a descriptor of the store directory itself, so no lock file exists to unlink, and every second opener is refused there. While a process holds the database without the directory lock, `open` answers `Locked` from `Db::refuse_a_live_holder`, which reads `SQLITE_BUSY` before `open` asks its custody; the cases around the directory lock make that state, and the open race does not |
+| Windows | `Locked`, or `Io(PermissionDenied)` | the same two paths, with the lock on the file `writer.lock`, which `DirLock` opens without delete sharing: an unlink of the held file is refused, so no name is left delete-pending as it was before store-3. The contender still takes `Io(PermissionDenied)` from any step of `open` as a refusal; the hosted Windows job at the head of the unit counted `access_denied=0` in its 30 cases |
 
 Any other error ends the contender at once, with the error in its message,
 and the case fails with "contender N exited with exit status: 101". So an
@@ -297,20 +404,36 @@ cannot write, if a contender never gets in before its deadline, or if one
 holds the store fewer times than planned.
 
 The order of an `open` (`EncryptedStore::open_with`): it takes the handle
-of the store directory, narrows the directory on that handle, takes
-`writer.lock`, reads `store.key` relative to the handle, refuses a
-`segments` or a `store.db` that is a link, probes for a holder, asks its
-custody, and opens the database file. Since the handle form of ruling
-ST-26 an `open` can also answer `Corrupt` for a link at the directory's
-own name, at `store.key` or at `store.db`, `KeyFileUnparseable` for a
-`store.key` and `DatabaseUnreadable` for a `store.db` that is no regular
-file, and `Io` when the directory does not open. None of them is a class
-of `writer_refusal`, so each ends a contender and fails the case, and no
-step of check 2 makes a link or such a name: the parent unlinks
-`writer.lock` alone, a name that the open of the handle and the reads
-relative to it never look up. On Windows the class `Io(PermissionDenied)`
-takes that error from every step of `open`, the new ones among them, and
+of the store directory, narrows the directory on that handle, takes the
+directory lock, destroys the root that a leftover `create.pending` names,
+reads `store.key` relative to the handle, refuses a `segments` that is a
+link and a `store.db` that is missing, empty or no regular file, probes
+for a holder, asks its custody, and opens the database file. Beside the
+refusals an `open` can answer `Obstructed` (a link or an entry of another
+kind at a store name, or a store directory that left its name),
+`KeyFileUnparseable`, `KeyFileOfAnotherLabel`, `OlderStore`,
+`DatabaseMissing`, `DatabaseUnreadable`, `Custody` and `Io`. None of them
+is a class of `writer_refusal`, so each ends a contender and fails the
+case, and no step of check 2 makes a link, a move or such a file. A code 5
+or 6 of SQLite at any step of an open is answered `Locked` (`code_answer`),
+after the custody too, and the contender takes it as a refusal and tries
+again. So an `open` that answers `Locked` while no process holds the
+store passes until the contender's deadline of 60 s and fails then with
+"never got the store"; the open race cannot tell a single such answer from
+a refusal at the edge of a hold. On Windows the class
+`Io(PermissionDenied)` takes that error from every step of `open`, and
 the line of a pass counts it under `access_denied`.
+
+A creator of the creators' race makes one attempt and writes down what
+`create` answered, and the parent judges it. On macOS the parent takes the
+store, `Locked` and `AlreadyExists`, and every case must end with one
+creator that got the store. On Windows it also takes
+`Io(PermissionDenied)`, and in a case that unlinks `writer.lock` any `Io`
+answer: while no creator holds the lock file yet, the parent's unlink has
+that file open for an instant, and a creator's own open of it can be
+refused by the system then. Such a case can end with no creator, which
+the parent accepts on Windows alone. The line of a pass counts both
+(`other_under_the_unlink` with the answers, and `cases_with_no_creator`).
 
 Two contenders can finish a case without meeting: they start 0 to 20 ms
 apart and hold the store 5 to 30 ms. A run in which no contender is ever
@@ -346,7 +469,8 @@ spawns no child, so nothing else shares its descriptor.
 | Ops per case | 1 to 12 (`MAX_OPS`) | every reachable state needs at most a write, a shred and a reopen or recreate; 12 leaves room for several of each |
 | Segments per case | at most 12 | one per write; bounded by the ops |
 | Cases with moves that fail | 32 (`FAILING_MOVE_CASES`), 1 to 12 ops each | the second random test; it interleaves the moves that fail or are refused with the others, and no row depends on a case that it draws |
-| The fixed order | 24 moves | each move that fails or is refused at least once, in the state that it needs; the rows of these moves are judged by it |
+| The fixed order | 71 moves on macOS, 60 on Windows | each move that fails or is refused at least once, in the state that it needs, and each fault of `ArmFault` once before a `ShredAll`; the rows of these moves are judged by it. The two faults that set a mode exist on macOS alone |
+| Faults | one for each `ShredAll` | one step of a delete-all fails, so the harness knows what may stay |
 | Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
 | Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | the size at which a key row that is deleted, not set to NULL, leaves keys in `store.db`: 3 of 900 after the one pass |
 | Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | with deleted key rows a key is left after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50 |
@@ -355,6 +479,9 @@ spawns no child, so nothing else shares its descriptor.
 | Acquisitions per contender | 1 to 3 | re-acquisition after a release, with the lock file possibly recreated |
 | Hold | 5 to 30 ms | long enough that a second admission falls inside the hold |
 | Child deadline | 60 s per contender process, for all of its acquisitions | a contender that never gets the store is a liveness failure |
+| Creators' cases | 12 (`CREATOR_CASES`) | each case spawns two to five processes and waits for each; the row of the directory lock fails in every case |
+| Creators | 2 to 5 (`MAX_CONTENDERS`) | two is the minimal race; five gives the one that got the store four that are refused |
+| Lock paths unlinked | every 200 microseconds, in three cases of four (`LOCK_PATHS_UNLINKED_EVERY`) | the cadence of the plan of this check; on macOS it removes nothing, because no lock path exists |
 
 `PROPTEST_CASES=<n>` sets either count of cases for one run. Check 2 asks
 for a refusal inside another contender's hold only when the run has at
@@ -389,17 +516,21 @@ systems, and the read of the modes on macOS.
 cargo test -p halvo-capture --lib formal_tests
 ```
 
-The six tests, the contender stub and two tests of what the harness takes
-as a destroyed root run; nine tests. On a 16-core Mac whose 1-minute load was 100 to 400 from other
-work, the command took 31 s in one run, and alone the random test of check 1
-took 19 s, the one-pass case 12 to 15 s, the oldest-first case 34 to 47 s and
-check 2 14 s. At a load near 10 the random test took 10 s and the one-pass
-case 11 s. Those times are of the four tests that the command ran before
-the moves that fail or are refused had theirs. With the nine tests of
-today the command took 77 to 82 s in three runs at a load of 180 to 480,
-and the two tests of those moves with the two tests of a destroyed root
-took 13 s alone at a load of 342. A single test: append `::` and the start of its
-name, for example `::a_shredded_segment` or `::at_most_one`.
+The eight tests, three stubs that a test starts as a child process
+(`contend_for_store_for_parent`, `create_a_store_for_parent`,
+`go_around_the_directory_lock_for_parent`) and three tests of what the
+harness reads (two of a destroyed root, and on macOS one of an open file
+without a name) run: fourteen tests on macOS, thirteen on Windows. On the
+Mac of the team the command took 65 s and 102 s in two runs of the sixth
+formal step, at a 1-minute load of 46 and of 80. Earlier counts, each of the tests that
+the command held then: on a 16-core Mac whose 1-minute load was 100 to 400
+from other work, four tests took 31 s in one run, and alone the random
+test of check 1 took 19 s, the one-pass case 12 to 15 s, the oldest-first
+case 34 to 47 s and the open race of check 2 14 s; at a load near 10 the
+random test took 10 s and the one-pass case 11 s; nine tests took 77 to
+82 s in three runs at a load of 180 to 480. A single test: append `::`
+and the start of its name, for example `::a_shredded_segment` or
+`::at_most_one_creator`.
 
 ## Reading a failure
 
@@ -432,12 +563,28 @@ the words of the code:
   "with other bytes under the id of its root, the store reopened" means that
   the unwrap does not depend on the root's bytes; the delete-all messages
   say that the root is alive, that its state is unknown with the error of
-  the unwrap, or name the file left behind. "reopen failed: another writer
+  the unwrap, or name the file left behind. "the key file of another label
+  under the root of the store still unwraps" means that a second key under
+  the same root outlives the delete. "a write on its handle answered ... in
+  place of Sealed" means that a delete-all returned and left its handle
+  open. "a delete-all with ... in its way returned Ok, and the step that
+  failed leaves ..." means that the call answered `Ok` over something that
+  it left. "reported ..., and a look at the disk finds ..." means that the
+  report of an error does not say what is on disk. "left ..., and only ...
+  could stay, so it skipped a step after the one that failed" means what
+  it says. "does not name the root of the store as the one that stays" is
+  the report of a failed root step. "a delete-all that stopped left ...,
+  and the store directory now holds ..." means that a later call changed
+  what a stopped delete-all had left. "after a delete-all that left ...,
+  the store reopened as ..." means that `open` answered a stopped store
+  otherwise than `DatabaseMissing` with its key file and `Sealed` without
+  it. "reopen failed: another writer
   holds the store", or a panic "create on a free directory: Locked", means
-  that a lock outlived the store that the op had just dropped: the file lock
-  if `WriterLock`'s `Drop` did not release it, or the database lock.
+  that a lock outlived the store that the op had just dropped: the lock on
+  the directory if `DirLock`'s `Drop` did not release it, or the database
+  lock.
 - **The moves that fail or are refused.** The fixed order prints "at move N
-  of 24" and the move in front of the message. "a create that failed left
+  of 71" and the move in front of the message. "a create that failed left
   ... in the store directory" or "left the root that it made" names what
   the create did not clean up. "a create under the root of another store
   returned ... in place of RootExists" means that a create took a root that
@@ -447,9 +594,9 @@ the words of the code:
   returned in place of the custody's answer; "... had made no root and
   called destroy_root N times" means that the clean-up of the create
   destroys a root that the call did not make; "... left ... in its
-  directory" names a file that it did not remove. "a
-  delete-all whose key file could not be removed returned ..." names what
-  the stopped call returned in place of the failpoint's error. After the
+  directory" names a file that it did not remove. "delete-all did not
+  reach the removal of its key file", or "of its database", means that a
+  failpoint which a fault armed was never reached. After the
   `ShredAll` that follows a stopped one, "a second delete-all did not
   finish with nothing left to shred" names what the second call returned,
   and "delete-all left ... in the store directory" means that it returned
@@ -478,10 +625,29 @@ the words of the code:
   the while. "no open began and was refused within one hold of another
   contender" means that the run could not read that order.
   "open failed with Io(NotFound), which is no refusal of a second writer"
-  had one known cause, the open of the lock file under an unlink, and the
-  store now tries that open again (see Sync). Since then the message means
-  that the directory of the store is gone, or that every try of that open
-  answered "no such file".
+  had one known cause until store-3, the open of the lock file under an
+  unlink (see Sync). On macOS no lock file is opened any more, and the
+  message means that the directory of the store is gone.
+  In the creators' race, "creators [..] each created a store in the one
+  directory" means that two processes both got `Ok` from `create`.
+  "creator N got the store and, at its close, held open files that had
+  lost their name" means that another creator removed the database under
+  the one that got the store. "after the creators the store of creator N
+  did not reopen", or "the segment that creator N wrote does not read
+  back", means that the store which `create` handed out is not the store
+  in the directory. "creator N was answered ..., which is no refusal of a
+  second creator" names an answer of `create` that is neither the store
+  nor a refusal; with a broken lock it is what a creator gets that ran
+  into the files of another. "no creator got the empty directory" means
+  that every creator was refused. "the roots directory holds ..." names a
+  root file that a refused creator left.
+  In the cases around the directory lock, "a process that opened store.db
+  itself, without the directory lock, was answered ... while another
+  process held the store" gives what the read and the write of that
+  process got: `got-in` means that the holder had no exclusive lock on
+  the database. "an open while another process held the database itself
+  answered ..., which is no refusal of a second writer" and "... had asked
+  its custody" are the two halves of the read of `open`.
 
 A step that cannot happen in the code marks a modeling error in the harness:
 for example an op the harness applies to a state the daemon can never reach.
@@ -494,7 +660,7 @@ Each check has been seen to fail on a broken store, and each break is a row
 of a `mutants.rows` file: `crates/halvo-capture/src/store/mutants.rows` for
 store code and `crates/halvo-capture/src/custody/mutants.rows` for custody
 code. The name of such a row starts with `formal-`, its verdict is `test`
-with one of the six tests of the table under The checks, and its state is
+with one of the eight tests of the table under The checks, and its state is
 `required`.
 
 ```sh
@@ -513,50 +679,57 @@ row cannot go stale unseen.
 | `formal-key-row-deleted` | `destroy_segment_keys` deletes the key row, where it must set the key to NULL in place | the one-pass scaled case | "the wrapped key of shredded segment ... is still in the store files", in a page of `store.db` |
 | `formal-key-row-deleted-oldest-first` | the same | the oldest-first scaled case | "after pass 17 of 50", then the same |
 | `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | the same, in a frame of `store.db-wal` |
-| `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames | the random test of check 1 | the same, in a frame of `store.db-wal` |
+| `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames; the checkpoint of an open (`Db::log_drained`) stays | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-secure-delete-off` | `Db::open_file` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
 | `formal-wrapped-key-in-a-side-file` | `write_segment_with_expiry` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
 | `formal-second-wrap-in-another-table` | `write_segment_with_expiry` wraps the segment key a second time and keeps that wrap in a table that no shred clears | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
 | `formal-reader-keyed-with-zeros` | the harness gives the page reader an all-zero key | the random test of check 1 | panic "page 1 does not decrypt to a SQLite header" |
 | `formal-raw-store-key-in-key-file` | `store.key` also holds the raw store key, as base64 | the random test of check 1 | "store.key of the fresh store holds the raw store key" |
-| `formal-delete-all-destroys-nothing` | `destroy_store_key` returns at once | the random test of check 1 | "after delete-all the root is alive: the retained wrapped store key still unwraps" |
+| `formal-delete-all-destroys-nothing` | `destroy_store_key` returns at once, so `delete_all` answers `DeleteIncomplete` with the report of a store that no step touched | the random test of check 1 | "after delete-all the root is alive: the retained wrapped store key still unwraps" |
+| `formal-delete-all-returns-before-its-root-step` | `delete_all` shreds every keyed segment (the key statement, the checkpoint and the sweep) before its root step and returns the error of that shred, which is the order that the store had before store-3 | the fixed order | "at move 30 of 71, ShredAll: ... after delete-all the root is alive: the retained wrapped store key still unwraps", under the fault `DamagedPage` |
 | `formal-custody-wrap-under-constant-key` | the root file store seals and opens the store key under an all-zero key, not under the root | the random test of check 1 | "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it" |
 | `formal-custody-root-is-all-zero` | a new root is never filled with random bytes | the random test of check 1 | the same |
-| `formal-single-writer` | `Db::open_file` neither sets `locking_mode = EXCLUSIVE` nor requires it, and `create` and `open` take no directory lock (either lock alone refuses a second process, so a row that removes one is not seen by check 2) | check 2 | "a contender found another contender inside the store", "held the store at the same time", or "contender N exited with exit status: 101", and on stderr "contender N: write failed with the store database failed with SQLite code 5" |
-| `formal-single-writer-both-locks` | the same, and the live-holder probe takes no `locking_mode = EXCLUSIVE` | check 2 | the same three, or "no contender was refused while another held the store" |
-| `formal-busy-not-mapped-to-locked` | `verify_key`, `code_answer` and the live-holder probe do not map `DatabaseBusy` and `DatabaseLocked` to `Locked`, and `create` and `open` take no directory lock | check 2 | "contender N exited with exit status: 101", and on stderr "contender N: open failed with Io(Other), which is no refusal of a second writer" |
-| `formal-held-store-asks-its-custody` | `open_with` runs `Db::refuse_a_live_holder` and drops its answer, so a held store whose lock file was unlinked is refused by `verify_key`, after the unwrap | check 2 | "contender N asked its custody in an open that was refused, and contender Some(M) held the store from before that open to after it" |
+| `formal-single-writer` | `Db::open_file` neither sets `locking_mode = EXCLUSIVE` nor requires it; the directory lock stays | the cases around the directory lock | "a process that opened store.db itself, without the directory lock, was answered \"read=got-in write=got-in\" while another process held the store" |
+| `formal-single-writer-both-locks` | the same, `create` and `open` take no directory lock, and the live-holder probe takes no `locking_mode = EXCLUSIVE` | the open race | "a contender found another contender inside the store", "held the store at the same time", "contender N exited with exit status: 101" with "contender N: write failed with the store database failed with SQLite code 5" on stderr, or "no contender was refused while another held the store" |
+| `formal-directory-lock-never-taken` | `DirLock::take` never calls `try_lock`, so no process is refused at the directory; the exclusive mode stays | the creators' race | "creator N got the store and, at its close, held open files that had lost their name: Some(2); another creator removed its database" in a case in which the first creator waits. After proptest shrank the case to two creators that start together: "creator N was answered Io(AlreadyExists), which is no refusal of a second creator", or the same with `Obstructed{name:Database,met:DatabaseOutsideTheDirectory}` |
+| `formal-busy-not-mapped-to-locked` | `verify_key`, `code_answer` and the live-holder probe do not map `DatabaseBusy` and `DatabaseLocked` to `Locked`; the directory lock stays | the cases around the directory lock | "an open while another process held the database itself answered Err(Io(Other)), which is no refusal of a second writer" |
+| `formal-held-store-asks-its-custody` | `open_with` runs `Db::refuse_a_live_holder` and drops its answer, so an open while another process holds the database is refused by `verify_key`, after the unwrap | the cases around the directory lock | "an open that was refused while another process held the database itself had asked its custody" |
 | `formal-store-files-take-the-umask` | `Dir::create_new` makes a new file with the mode of the umask, so `store.key` and each segment file take it; `open` still narrows `store.db` to 0600 on its own descriptor | the fixed order | before its first move: "store.key has mode 644 in the store directory, and a store makes it 600" |
-| `formal-store-directories-take-the-umask` | `Dir::create_dir` makes a directory with the mode of the umask, so `segments` and each shard take it | the fixed order | "at move 1 of 24, Write { len: 40, expiry: Past }: ... segments has mode 755 in the store directory, and a store makes it 700" |
-| `formal-store-db-keeps-a-wider-mode` | `open_database` reads the metadata of `store.db` on its descriptor and sets no mode, so a `store.db` that was 0644 before `open` stays so, and its log takes that mode | the fixed order | "at move 21 of 24, Reopen: ... store.db has mode 644 in the store directory, and a store makes it 600" |
-| `formal-failed-create-leaves-the-database` | `create` returns the error of `Db::open` and does not remove the database that the call made | the fixed order | "at move 15 of 24, CreateThatFailsAfterItsDatabase: ... a create that failed left store.db in the store directory" |
-| `formal-create-makes-its-root-first` | `create` makes its root with `create_root` before it opens the database, so a failure of `Db::open` leaves that root | the fixed order | "at move 15 of 24, CreateThatFailsAfterItsDatabase: ... a create that failed left the root that it made" |
-| `formal-create-takes-an-existing-root` | `create` skips its root step, `under_a_new_root`, so `write_key_file` wraps under a root that exists | the fixed order | "at move 6 of 24, CreateUnderTheRootOfThisStore: ... a create under the root of another store returned None in place of RootExists" |
-| `formal-refused-create-destroys-the-root` | `under_a_new_root` sends every error of the root step, `RootExists` among them, to `abandon_create`, which destroys the root | the fixed order | "at move 6 of 24, CreateUnderTheRootOfThisStore: ... after a create under its root was refused, the store did not reopen" |
-| `formal-create-spares-only-a-root-it-can-read` | `under_a_new_root` keeps the clean-up that removes the database alone for `RootExists`, and sends every other error of the root step to `abandon_create`, as `create` did before its root step stood alone | the fixed order | "at move 24 of 24, CreateWhoseRootStepFails: ... a create whose root step answered Custody(RootLocked(-25308)) had made no root and called destroy_root 1 times" |
-| `formal-failed-append-leaves-the-event-row` | `insert_event` releases its savepoint without the rollback | the fixed order | "at move 3 of 24, Append { index_row_fails: true }: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
-| `formal-shred-leaves-the-event-rows` | `delete_events_and_index` deletes the index rows and leaves the event rows | the fixed order | "at move 7 of 24, ShredExpired: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
-| `formal-second-delete-all-is-refused` | `crypto_shred_all` answers `Sealed` on a handle that delete-all sealed, and finishes nothing | the fixed order | "at move 12 of 24, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(Sealed)" |
-| `formal-second-delete-all-finishes-nothing` | `crypto_shred_all` returns `Ok` with an empty report on a handle that delete-all sealed, and removes nothing | the fixed order | "at move 12 of 24, ShredAll: ... delete-all left segments in the store directory" |
+| `formal-store-directories-take-the-umask` | `Dir::create_dir` makes a directory with the mode of the umask, so `segments` and each shard take it | the fixed order | "at move 1 of 71, Write { len: 40, expiry: Past }: ... segments has mode 755 in the store directory, and a store makes it 700" |
+| `formal-store-db-keeps-a-wider-mode` | `open_database` reads the metadata of `store.db` on its descriptor and sets no mode, so a `store.db` that was 0644 before `open` stays so, and its log takes that mode | the fixed order | "at move 22 of 71, Reopen: ... store.db has mode 644 in the store directory, and a store makes it 600" |
+| `formal-failed-create-leaves-the-database` | `create` returns the error of `Db::open` and removes neither the database that the call made nor its `create.pending` | the fixed order | "at move 16 of 71, CreateThatFailsAfterItsDatabase: ... a create that failed left create.pending in the store directory"; `store.db` is left as well, and the read names the first name of the listing |
+| `formal-create-makes-its-root-first` | `create` makes its root with `create_root` before it opens the database, so a failure of `Db::open` leaves that root | the fixed order | "at move 16 of 71, CreateThatFailsAfterItsDatabase: ... a create that failed left the root that it made" |
+| `formal-create-takes-an-existing-root` | `create` neither looks for a root file of its id before its database step nor runs its root step, `under_a_new_root`, so `write_key_file` wraps under a root that exists | the fixed order | "at move 6 of 71, CreateUnderTheRootOfThisStore: ... a create under the root of another store returned None in place of RootExists" |
+| `formal-refused-create-destroys-the-root` | `create` does not look for a root file of its id before its database step, and `under_a_new_root` sends every error of the root step, `RootExists` among them, to `abandon_create`, which destroys the root | the fixed order | "at move 6 of 71, CreateUnderTheRootOfThisStore: ... after a create under its root was refused, the store did not reopen" |
+| `formal-create-spares-only-a-root-it-can-read` | `under_a_new_root` keeps the clean-up that removes the database alone for `RootExists`, and sends every other error of the root step to `abandon_create`, as `create` did before its root step stood alone | the fixed order | "at move 25 of 71, CreateWhoseRootStepFails: ... a create whose root step answered Custody(RootLocked(-25308)) had made no root and called destroy_root 1 times" |
+| `formal-failed-append-leaves-the-event-row` | `insert_event` releases its savepoint without the rollback | the fixed order | "at move 3 of 71, Append { index_row_fails: true }: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
+| `formal-shred-leaves-the-event-rows` | `delete_events_and_index` deletes the index rows and leaves the event rows | the fixed order | "at move 7 of 71, ShredExpired: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
+| `formal-second-delete-all-is-refused` | `delete_all` answers `Sealed` on a handle that a delete-all sealed, and finishes nothing | the fixed order | "at move 13 of 71, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(Sealed)" |
+| `formal-second-delete-all-finishes-nothing` | `delete_all` runs no step on a handle that a delete-all sealed, and answers with the report of the call before | the fixed order | "at move 13 of 71, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(DeleteIncomplete(DeleteReport { ... key_file_gone: false ... }))" |
 
 The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
 `[Write { len: 0, expiry: Past }, ShredExpired]`.
 
-Eleven rows share their substitution with a `formal-` row of the same file
+Ten rows share their substitution with a `formal-` row of the same file
 that has another verdict: `shredded-key-survives`, `key-row-deleted`,
-`checkpoint-not-verified`, `raw-store-key-in-key-file`,
+`raw-store-key-in-key-file`,
 `delete-all-destroys-nothing`, `custody-wrap-under-constant-key`,
-`custody-root-is-all-zero`, `store-db-mode-not-narrowed`, and the three
-rows of the hardening tests on a
-create that destroys a root, `create-destroys-a-root-it-cannot-read`,
+`custody-root-is-all-zero`, `store-db-mode-not-narrowed`,
+`directory-lock-never-refuses` and `live-holder-busy-not-mapped-to-locked`;
+that of `key-row-deleted` stands under three names, once for each scaled
+case. A row has one verdict, and the covered table needs the formal check
+to fail, so each of these substitutions stands under more than one name.
+Four rows that shared a substitution with a formal row until the sixth
+formal step no longer do, because that step changed the formal row
+alone: `checkpoint-not-verified`, whose first statement lands in
+`Db::log_drained` since store-3 gave that function the same text, and the
+three rows of the hardening tests on a create that destroys a root,
+`create-destroys-a-root-it-cannot-read`,
 `create-destroys-a-root-file-it-cannot-read` and
-`create-destroys-the-root-of-a-create-at-the-same-instant`. A row has
-one verdict, and the covered table needs the formal check to fail, so each
-of these substitutions stands under more than one name: that of
-`key-row-deleted` under three, once for each scaled case, and that of the
-three rows on a create under four, with
-`formal-refused-create-destroys-the-root`.
+`create-destroys-the-root-of-a-create-at-the-same-instant`, whose
+substitution calls `abandon_create` as it was before store-3 and does not
+build. They are no rows of the formal checks.
 
 The formal row of the journal mode, until store-3 took it out of the rows file,
 turned two places, the pragma and the mode that `require_write_ahead_log`
@@ -572,9 +745,14 @@ key of a shredded segment in a record of `store.db-journal`. The rows
 with their pragma for the same reason.
 
 The rows of check 1 on the random test need a case with their pattern (see
-Bounds). The four rows of check 2 depend on timing: a case shows
-`formal-single-writer` or `formal-busy-not-mapped-to-locked` only when two
-contenders meet while the lock file is unlinked. On the Mac of the third
+Bounds). Of the five rows of check 2, one depends on timing:
+`formal-single-writer-both-locks` shows only in a case of the open race in
+which two contenders meet. The creators' race fails on its row in every
+case, and the cases around the directory lock draw nothing. The counts
+that follow were taken at the third and fourth formal steps, when
+`formal-single-writer` and `formal-busy-not-mapped-to-locked` were judged
+by the open race over a lock file that the parent unlinked; they are the
+reason for `RACE_CASES`. On the Mac of the third
 formal step, runs of these two rows were given up to 200 cases, so that each run ended
 at its first failing case, and the share of failing cases followed the load
 of the machine. `formal-single-writer`, with the contender as it was before
@@ -599,6 +777,19 @@ of 3 runs, and the check as it stood before that step passed it in 2 of 2.
 Two runs of the unmutated store counted 2,083 and 2,400 refused opens
 whole inside a hold, none after the custody.
 
+Since store-3 the open race no longer reaches the code that these three
+rows turn: on macOS the directory lock refuses every second opener
+first, and no unlink takes it away. At the sixth formal step the open race
+passed the substitution of `formal-held-store-asks-its-custody` at the
+head of the unit, and passed the exclusive mode alone and the mapping
+alone (one run each). The three rows are judged by the cases around the
+directory lock since then, and each fails there in every run.
+`formal-directory-lock-never-taken` passed the open race and the cases
+around the lock in the same step (one run each) and fails the creators'
+race: five runs of five at the sixth formal step, one of them with
+`PROPTEST_MAX_SHRINK_ITERS=0`, which printed the first text of its line in
+the table.
+
 `formal-secure-delete-off` is judged by the one-pass case, because the
 random test shows it only in a case with two due writes before one
 `ShredExpired`: with one, the store writes the row without its key over a
@@ -620,7 +811,7 @@ formal step it also took the mode out of `create_private_dir_all`, which
 since ruling ST-26 makes only the store directory: the fixed order passed
 a copy with that statement alone (one run), because the test gives
 `create` a directory that exists and `create` narrows it on its handle.
-`formal-store-db-keeps-a-wider-mode` needs no umask. It fails at move 21,
+`formal-store-db-keeps-a-wider-mode` needs no umask. It fails at move 22,
 the first `Reopen` of a live store, before which the harness sets
 `store.db` to 0644. Without that step check 1 passed the row's changed
 copy, the fixed order and both random tests (one run of the fifth formal
@@ -639,20 +830,26 @@ with two `ShredAll` and no `Recreate` between them; three runs with three
 seeds each ended at such a case, the shortest `[ShredAll, ShredAll]`. It
 passes `formal-second-delete-all-finishes-nothing` (three seeds, 48 cases
 each), because in its cases the first delete-all has left nothing to
-finish. A second call that returns `Ok` and removes nothing shows only
+finish. A second call that runs no step shows only
 after a delete-all that stopped, and the fixed order holds that pair at its
-moves 9 and 12.
+moves 10 and 13.
 
 The root step of a create has three rows. `formal-create-takes-an-existing-root`
 and `formal-refused-create-destroys-the-root` fail at move 6, where the
-custody answers `RootExists` for the root of the live store.
+custody answers `RootExists` for the root of the live store. Since store-3
+two places refuse a root that exists: `create` looks for the root file of
+its id before its database step, and `create_root` answers `RootExists`
+when it comes to that file. Either one alone keeps the root, so both rows
+turn the look together with the root step. With the look left in place,
+each of the two failed only at move 25, on the stand-in custody, with the
+text of the third row (one run each at the sixth formal step).
 `formal-create-spares-only-a-root-it-can-read` is the store as it stood
 before the root step became its own: it spares a root for which the custody
 answers `RootExists` and destroys one for which the custody answers
 anything else. The fixed order passed that copy while its last move was
 move 23 (one run of the third formal step on the changed copy), because
-`RootExists` was the only answer that it made the root step give. Move 24
-makes it give five others. The stand-in custody of move 24 counts the
+`RootExists` was the only answer that it made the root step give. The
+move after it, move 25 of today's list, makes it give five others. The stand-in custody of move 24 counts the
 calls of `destroy_root` and does not pass them on, so this changed copy
 destroys no root.
 
@@ -674,13 +871,15 @@ Three of them are rows now, with the checks of today:
 removed the statement, the row writes the key back to itself),
 `break-single-writer.patch` is `formal-single-writer` and
 `break-single-writer-both-locks.patch` is `formal-single-writer-both-locks`.
+A fourth, `break-single-writer-flock-only.patch`, is
+`formal-directory-lock-never-taken` since the sixth formal step.
 
 | Patch | What it breaks | Result |
 |---|---|---|
 | `break-crypto-shred.patch` | `destroy_segment_keys` no longer sets `wrapped_key` to NULL | check 1 FAILS: `[Write { len: 0, expiry: Past }, ShredExpired]`, "decrypts with a key remaining in the store" |
 | `break-single-writer.patch` | `Db::open` no longer sets `locking_mode = EXCLUSIVE` | check 2 FAILS: two contenders, `writer.lock` unlinked every 1 ms |
 | `break-single-writer-both-locks.patch` | the above plus `WriterLock::take` never locks | check 2 FAILS with the lock file left alone. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
-| `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
+| `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 as it stood then PASSED: it raced only `open` on a store that was made beforehand. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILED. Since the sixth formal step the creators' race of check 2 fails on this break (the row `formal-directory-lock-never-taken`) |
 | `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store". `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` and `db::tests::a_dropped_directory_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
 | `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | check 2 PASSES. Check 1 PASSES unless a drop and the next `open` or `create` both fall between a child's spawn and its exec: at `d7b245a`, which has no unlock, check 1 failed in 4 of 180 runs and check 2 in 0 of 180. `hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`, `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children` and `db::tests::a_dropped_directory_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
 | `mutation-unlock-at-once.patch` | `WriterLock::take` unlocks the file right after it locks it, so no store holds the file lock | both checks PASS. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
@@ -696,11 +895,15 @@ property failing. So is a panic "unknown race log event", which one run at
 the sync commit printed while shrinking: two contenders inside the store
 wrote the race log at the same moment.
 
-The `flock-only` row is the point of check 2: the file lock serializes
-`create` and `open`; the single-writer guarantee is SQLite's exclusive lock, which
-unlinking `writer.lock` cannot release. A change that removes the file lock
-alone does not fail the check, and is not a safety regression. It does fail
-a test of the lib suite.
+The `flock-only` row passed check 2 as it stood on that branch, which
+raced only `open` on a store that was made beforehand: SQLite's exclusive
+lock refused the second opener. For `create` the file lock was the only
+guard. At 685d846, with the lock file unlinked, two creators on one
+directory both returned `Ok` (the probe it15 of the adversarial review of
+that commit). Since store-3 the lock is on the directory, where no unlink
+reaches it, and since the sixth formal step the creators' race of check 2
+fails on a store that takes no directory lock. On that branch the patch
+did fail a test of the lib suite.
 `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
 fails for `break-single-writer-flock-only.patch` and for
 `break-single-writer-both-locks.patch`, because a second take beside a live
@@ -891,8 +1094,8 @@ What the code does since store-3, each sentence with the test that shows it.
   `a_create_killed_between_its_root_and_its_key_file_leaves_a_root_that_the_next_create_destroys`.
 - The kill table `a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind`
   ends a child before each counted file-system call of write, write then a
-  pass, shred, delete-all, create and open (210 calls on the Mac of the
-  team) and finds each end state true.
+  pass, shred, delete-all, create and open (216 calls in the last run of
+  the builder on the Mac of the team) and finds each end state true.
 - On macOS SQLite opens the database under the name
   `/.vol/<device>/<file number>/store.db` of the handle's directory, with
   the two numbers read from the handle at each open and kept nowhere, after
@@ -1023,13 +1226,29 @@ set, and the root's own volume name answers the root.
 - What the event rows of a shredded segment leave in the store files. The
   file scan looks for wrapped keys only; check 1 counts the event rows
   through SQL.
-- A delete-all that stops at another step than the removal of its key
-  file, or whose `destroy_root` fails. The store has one failpoint in
-  delete-all, `key_file_destroy`.
+- Faults of a delete-all that no move makes. A segment file that cannot
+  be removed on Windows: the fault of check 1 is a shard at mode 0500,
+  which macOS alone has, and the failpoint `segment_file_remove` stands in
+  the keyless sweep and not in the removal that delete-all makes
+  (`segment::remove_segments_through`). A root step that fails under a
+  custody that names its roots directory: the stand-in of the fault
+  `RootStep` names none, so the sweep of every other root file
+  (`file_root::destroy_every_root`) does not run in that move, and no move
+  puts a second root file under the roots directory of a store; the tests
+  `delete_all_destroys_every_root_file_under_its_roots_directory_and_names_one_that_stays`
+  and `a_roots_directory_at_0500_destroys_the_root_by_its_zeros_and_seals_the_handle`
+  of `store::hardening_tests` read both. Two steps that fail in one call.
+  A fault of the expiry path, the key statement and the checkpoint of
+  `destroy_segment_keys`, which delete-all no longer runs.
 - A delete-all that stopped and whose handle is gone. Check 1 states what
-  the store answers then: `open` gives `Custody(RootMissing)` and `create`
-  is refused, so no call of this store finishes that directory. The root is
-  destroyed, so nothing in it can be read.
+  the store answers then. With `store.key` left, `open` gives
+  `DatabaseMissing` and `create` is refused with `AlreadyExists`, so
+  neither finishes that directory. Without it `open` gives `Sealed`, and a
+  `create` clears what is left and makes a new store. The tail
+  `EncryptedStore::delete_store_dir`, which finishes such a directory, is
+  called by no move; tests of `store::hardening_tests` read it. The root
+  is destroyed, so nothing in the directory can be read, unless the root
+  step itself failed, and then the report of the error named the root.
 - Two creates under one root id at the same instant, in check 1. Since
   store-3 a root is written under a partial name of its own and published
   by a hard link, which never replaces an entry, so the second writer
@@ -1073,20 +1292,26 @@ set, and the root's own volume name answers the root.
 - Code that check 1 calls in every case and that no row fails through. A
   change there can fail the check, and no row shows it: in `expiry.rs`
   `segment_ids_with_keys`, `remove_keyless_files`, `shred_segments`,
-  `crypto_shred_expired`, and `crypto_shred_all` outside its branch for a
-  sealed handle; in `db.rs`
+  `crypto_shred_expired`, and `crypto_shred_all`, which counts what
+  `delete_all` reports; in `db.rs`
   `reserve_segment_key`, `commit_segment_key`, `KeyFile::read_in`, which
-  `KeyFile::read` calls, with `known_version`, `KeyFile::destroy`, `Db::destroy`, `Db::require_file`,
-  `Db::require_schema`, `Db::refuse_a_linked_file` where it answers that
-  `store.db` is no link, `Db::refuse_a_live_holder` where it answers that no
+  `KeyFile::read` calls, with `known_version`, `KeyFilePlace::publish`, `KeyFilePlace::destroy`,
+  `Db::destroy_through`, `write_pending`, `clear_pending`, `Db::require_file`,
+  `Db::require_schema`, `Db::refuse_a_live_holder` where it answers that no
   process holds the store, the read-backs `require_checkpoint_fullfsync`,
-  `require_cipher_log_level_none` and `require_pinned_cipher`, the mode of
-  `writer.lock` in `WriterLock::open_lock_file`, the flags of the database
+  `require_cipher_log_level_none` and `require_pinned_cipher`,
+  `Dir::open_lock_file` on Windows, the flags of the database
   opens (`DATABASE_OPEN`, `PROBE_OPEN`) with `database_open_error`, the
   setting in `Db::open_file` that keeps a log which was there before the
   call, and
-  `EncryptedStore::{open_with, seal, read_segment}` outside the one call
-  that the row of check 2 turns; in `durable.rs` `write_durably`,
+  `EncryptedStore::{open_with, read_segment}` outside the one call
+  that the row of check 2 turns, and the steps of a delete-all after its
+  root step, `EncryptedStore::root_step`, `EncryptedStore::remove_files_after`
+  and `remove_the_store_files`, where three changed copies of the sixth
+  formal step failed the fixed order and none is a row (a delete that
+  stops at its first failed step, at move 10; a report that names no
+  database that is left, at move 46; a handle left open after a failed
+  root step, at move 40); in `durable.rs` `write_durably`,
   `remove_durably`, `no_follow`, `create_private_dir_all`, and every
   function of a handle but the two of the covered table: `Dir::open`,
   `Dir::open_dir`, `Dir::open_file`, `Dir::entry`, `Dir::entries`,
@@ -1095,8 +1320,13 @@ set, and the root's own volume name answers the root.
   every function of `segment.rs`, the walk `sweep_segment_files`, the last
   look of `write_segment_file` at the name of its shard and
   `refuse_a_linked_segments_root` among them;
-  `DevFallbackCustody::destroy_root`, which
-  no row may mutate (see Break proofs).
+  `DevFallbackCustody::destroy_root`, with `file_root::destroy_root_at` and
+  `file_root::destroy_every_root`, which
+  no row may mutate (see Break proofs); and the wrap of a key under
+  another label than the store's (`FileRoots::wrap` and `FileRoots::unwrap`),
+  where a changed copy that seals every other label under an all-zero key
+  failed the fixed order at move 10 with "the key file of another label
+  under the root of the store still unwraps", and is no row.
 - What `open` answers for a store that is not whole. Check 1 opens stores
   that are whole, deleted, or stopped in a delete-all. It makes no store
   whose database is missing, empty or unreadable, whose key file or
@@ -1153,22 +1383,20 @@ set, and the root's own volume name answers the root.
   database by its name under the handle's name, at `create`, at `open` and
   for the probe for a holder, `open_connection` reads `store.db`,
   `store.db-wal`, `store.db-shm` and `store.db-journal` through the handle
-  without following a link and without a wait (a link answers `Corrupt`,
-  on Windows also a junction or another reparse point, and a name that is
-  no regular file `DatabaseUnreadable`), and then reads the handle's name
+  without following a link and without a wait (a link, on Windows also a
+  junction or another reparse point, and a name that is no regular file
+  answer `Obstructed`), and then reads the handle's name
   without following a link and goes on only when it still stands for the
   handle's own directory (device and inode); otherwise it answers
-  `Corrupt`. On Windows it holds `store.db` from that look until the
-  connection is open. These stay by name, under the name of the
-  handle, as ruling ST-26 has them: the open of `writer.lock`; the removal
-  of `store.key` (`KeyFile::destroy`), at delete-all and after a create
-  that fails after its root step; and the steps of delete-all, among them
-  the removal of the database files (`Db::destroy`) and of the `segments`
-  tree. SQLite's own open of `store.db` and of its log is by name as well,
-  so a move of the store directory between that last look and SQLite's
-  open is not refused. On macOS a handle keeps its directory when another
-  process moves that directory away, so the steps by name then act in
-  whatever directory stands at the name. On Windows a directory of the chain and `store.db`, from its
+  `Obstructed`. On Windows it holds `store.db` from that look until the
+  connection is open. Since store-3 none of the store's own calls stays
+  by name on macOS: the lock is taken on a descriptor of the directory,
+  and the removal of `store.key` and every step of delete-all act through
+  the handle (see "Delete-all, the create and the open after store-3").
+  SQLite's own open of `store.db` and of its log is by a name, on macOS
+  the volume name of the handle's directory; the first entry of this
+  list gives what a move of the store directory after the last look can
+  still do. On Windows a directory of the chain and `store.db`, from its
   checks until the connection is open, are held by a handle opened with the
   reparse-point flag and without delete sharing, so no other entry can take
   their names. The tests of `store::hardening_tests` whose names start with
@@ -1202,10 +1430,11 @@ set, and the root's own volume name answers the root.
   by its name (lines 65118 to 65121). At its close SQLite checkpoints and
   removes the log by name only while the name still leads to the file
   that it holds, read by the file number (lines 41951 to 41958); after a
-  move it does neither. The store's own calls act through the handle, but
-  for the three that stay by name above. What was moved away is
-  ciphertext whose key a shred or delete-all on the handle that was open
-  at the move destroys. The review's two runs W1 (pr-review-14) are the
+  move it does neither. The store's own calls act through the handle. What
+  was moved away is ciphertext whose key a shred destroys, and whose root
+  a delete-all destroys with every other root file under the roots
+  directory. The review's two runs W1 (pr-review-14), taken before
+  store-3, are the
   facts of the first three steps: with another directory put at the name after the last look, a
   `create` answered `Ok` and that directory, which had held an empty
   `store.db`, held a `store.db` of 4,096 bytes and a log; an `open`
@@ -1242,18 +1471,18 @@ set, and the root's own volume name answers the root.
   of those two stores as well, because `create` narrows the directory on
   its handle right after it makes it (one run of the fifth formal step),
   so nothing reads the mode that `create_private_dir_all` gives.
-  The store sets no mode on a `store.key`, a `writer.lock`, a `segments`,
+  The store sets no mode on a `store.key`, a `segments`,
   a shard, a segment file or a log that exists: each keeps a wider mode
   that it had, except an empty log, which SQLite sets to the mode of
   `store.db` when it opens it, at an `open` that it refuses among them.
   Of the entries that exist, check 1 reads `store.db` alone, which its
   `Reopen` widens.
-- Two calls that wait on a FIFO. The open of `writer.lock`, at `open` and
-  at `create`, and the open of `store.key` that zeroes it at delete-all
-  (`KeyFile::destroy`) are by name and carry no `O_NONBLOCK`, so a FIFO
-  that another process puts at either name makes the call wait for good.
-  Store-3 rebuilds both (ruling ST-26 point 1). The docs of `open`,
-  `create` and `crypto_shred_all` say the same.
+- A FIFO at a store name. No move of check 1 puts one there. Since
+  store-3 no call of the store opens one: the lock is on the directory,
+  and delete-all removes an entry at `store.key` that is no regular file
+  without opening it.
+  `store::hardening_tests::a_socket_a_directory_and_a_fifo_at_store_key_answer_obstructed_without_a_wait`
+  reads it.
 - A second name of a file (a hard link). Another process of the same user
   can give `store.db`, its log or a segment file a second name outside the
   store after any check; the store does not refuse a file by its count of
@@ -1299,16 +1528,23 @@ set, and the root's own volume name answers the root.
   flag. With either removed, the formal checks pass.
   `store::hardening_tests::every_modified_segment_file_is_rejected_with_no_plaintext`
   tests both (rows `header-not-authenticated` and `last-chunk-flag-dropped`).
-- `WriterLock::take`. A store that takes no file lock and keeps the
-  exclusive database lock passes check 2, as the `flock-only` patch under
-  Break proofs shows.
-  `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
-  fails on it.
+- One lock layer in the open race. On macOS the open race of check 2
+  passes a store that takes no directory lock, and passes a store without
+  the exclusive mode, because the other layer refuses every second opener
+  (one run of each at the sixth formal step). The creators' race reads the
+  first layer and the cases around the directory lock read the second.
+- The directory lock on Windows by a row. The rows run on macOS, so no
+  run shows the creators' race failing on a Windows store that takes no
+  lock on `writer.lock`; the unmutated race runs in the Windows job.
 - The `DatabaseLocked` half of the mapping in `verify_key`. With that half
   alone removed, check 2 passes: a second process gets `DatabaseBusy`.
-- `create` beside a store that another process holds. The contenders of
-  check 2 only `open`; check 1 tries `create` beside the live store of its
-  own process.
+- `create` beside a store that holds data. The creators of check 2 race
+  on an empty directory, where the one that got the store holds one
+  segment while the others are refused; check 1 tries `create` beside the
+  live store of its own process. No case starts a creator beside a store
+  of an earlier run that another process holds or has left.
+  `db::tests::create_refuses_a_directory_that_already_holds_a_store` reads
+  the second.
 - A refusal before the custody where no hold covers the open. Check 2 reads
   the order only for an open that began and returned inside one hold of
   another contender. An open that overlaps the start or the end of a hold
@@ -1318,17 +1554,19 @@ set, and the root's own volume name answers the root.
   `store::hardening_tests::a_held_store_answers_locked_before_its_custody_is_called`
   counts the custody calls of one open of a held store.
 - Two writers in different user accounts, or over a network filesystem.
-- The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
-  the lock. Check 1 fails when the lock outlives the store, and check 2
-  fails when a case leaves the lock file alone. Only check 1 notices a
-  missing unlock, and only when a drop and the next `open` or `create` both
-  fall between a child's spawn and its exec. Three tests named under the
+- The unlock call in `DirLock`'s `Drop`, as distinct from the release of
+  the lock when its descriptor closes. The patches under Break proofs
+  showed on the lock file that check 1 fails when the lock outlives the
+  store, and that only check 1 notices a missing unlock, and only when a
+  drop and the next `open` or `create` both
+  fall between a child's spawn and its exec; no run of them was taken on
+  the directory lock. Three tests named under the
   break proofs test the unlock itself, on Unix only: the two
   `hardening_tests`, and
   `db::tests::a_dropped_directory_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open`,
   which has no timing in it.
 - A forked child that runs destructors and drops its copy of the store:
-  `WriterLock`'s `Drop` then unlocks the lock file that its parent still
+  `DirLock`'s `Drop` then unlocks the lock that its parent still
   holds, and the tree has no fork without an exec.
 
 ## Sync
@@ -1344,7 +1582,7 @@ squash merge would change:
   holds prints MOVED and is not applied. A covered function that changes
   shape under its row fails that run: the substitution no longer applies.
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
-  runs `sh docs/verify/check-covered.sh`, and `12-test` runs the six tests.
+  runs `sh docs/verify/check-covered.sh`, and `12-test` runs the eight tests.
 
 On each push to main, `30-mutants.sh` also runs mutants in full, in an
 order that the commit id decides. It starts no row once its budget of
@@ -1489,3 +1727,52 @@ No sentence of property 1 rests on a name that the recording file system
 records, and no move that fails or is refused in check 1 reaches the two
 new steps of a segment write or a failing call of the sweep (see Not
 covered for what a failure there leaves).
+
+The sixth formal step read the 18 commits of the unit store-3: the root
+in a file under a roots directory on both systems, delete-all with the
+root first and every step tried, `create.pending` and a key file that is
+published create-only, the lock on the directory, the volume name for
+SQLite on macOS, and the look after an open. Outcome: updated, for both
+checks.
+
+Both checks passed at the head of the unit as they stood, and check 2
+alone passed 20 runs of 20. Five things had drifted.
+
+Check 1 read no error of a delete-all. Its `ShredAll` took `Ok` alone, and
+its one move with a fault read two fields of the report. It passed all of
+its tests on a copy of the store in the order that the store had before
+store-3, the shred of every segment before the root step (one run, nine
+tests). With the op `ArmFault` and the step as it is stated now, the
+fixed order fails that copy at move 30, under a damaged page, and the
+row `formal-delete-all-returns-before-its-root-step` keeps it.
+`formal-delete-all-destroys-nothing` had come to fail at an `expect` of
+the harness on the answer of the call, and fails at the read of the root
+again.
+
+Two rows of the root step of a create did not build: `abandon_create`
+takes the place of the key file since store-3, and their substitutions
+called it without. With the call repaired, they and
+`formal-create-takes-an-existing-root` failed only at the stand-in custody
+of move 25 and not at move 6 (see Break proofs); two of the three turn the
+look for a root file as well and fail at move 6 again.
+
+`formal-checkpoint-not-verified` passed the random test of check 1 (one
+run): its first statement landed in `Db::log_drained`, which store-3 gave
+the text of the checkpoint statement, and left the checkpoint of a shred
+as it is. The statement is tied to `Db::checkpoint_truncate`.
+
+Check 2 passed a store that drops the answer of
+`Db::refuse_a_live_holder`. On macOS the directory lock refuses every
+second opener before the probe, and nothing can take that lock away, so
+the open race reads neither the probe, nor `verify_key` behind a held
+store, nor the exclusive mode alone. The open race keeps one row,
+`formal-single-writer-both-locks`. The cases around the directory lock
+read the second layer and the place of the probe, with three rows.
+
+No case started two creators. The creators' race does, and the row
+`formal-directory-lock-never-taken`, the patch `flock-only` of the first
+runs, fails it while the open race and the cases around the lock pass.
+
+And sentences of this file named the lock file, `WriterLock`, answers of
+a link as `Corrupt`, steps of delete-all by name and a move of the fixed
+order that is gone; they are corrected.
