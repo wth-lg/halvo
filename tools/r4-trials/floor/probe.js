@@ -77,7 +77,7 @@
   ["css_border_radius", function () { return (CSS.supports('border-radius', '50%')); }],
   ["css_box_sizing", function () { return (CSS.supports('box-sizing', 'border-box')); }],
   ["css_outline_offset", function () { return (CSS.supports('outline-offset', '2px')); }],
-  ["css_rgb_alpha", function () { return (CSS.supports('color', 'rgba(0,0,0,0.4)')); }],
+  ["css_rgba_function", function () { return (CSS.supports('color', 'rgba(0,0,0,0.4)')); }],
   ["css_rem", function () { return (CSS.supports('font-size', '1.1rem')); }],
   ["css_pre_wrap", function () { return (CSS.supports('white-space', 'pre-wrap')); }],
   ["css_checked", function () { return (CSS.supports('selector(:checked)')); }],

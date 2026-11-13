@@ -11,12 +11,16 @@ import { fileURLToPath } from 'node:url';
 import { compareVersions, FLOOR, parseList } from './list.mjs';
 
 const member = (m) => `(?:\\?\\.|\\.)${m}\\b|\\[\\s*['"]${m}['"]\\s*\\]`;
-const call = (m) => `(?:\\?\\.|\\.)${m}\\s*\\(`;
-const fixed = (s, m) => `\\b${s}\\s*(?:\\?\\.|\\.)\\s*${m}\\b|\\b${s}\\s*(?:\\?\\.)?\\s*\\[\\s*['"]${m}['"]\\s*\\]|\\{[^{}]*\\b${m}\\b[^{}]*\\}\\s*=\\s*${s}\\b`;
+const call = (m) => `(?:\\?\\.|\\.)${m}\\s*\\(|\\[\\s*['"]${m}['"]\\s*\\]\\s*\\(`;
+const callWith = (m, open) => `(?:\\?\\.|\\.)${m}\\s*\\(\\s*${open}|\\[\\s*['"]${m}['"]\\s*\\]\\s*\\(\\s*${open}`;
+const taken = (s, m) => `\\{[^{}]{0,200}\\b${m}\\b[^{}]{0,200}\\}\\s*=\\s*${s}\\b`;
+const fixed = (s, m) => `\\b${s}\\s*(?:\\?\\.|\\.)\\s*${m}\\b|\\b${s}\\s*(?:\\?\\.)?\\s*\\[\\s*['"]${m}['"]\\s*\\]|${taken(s, m)}`;
 const css = (property, js) => `\\b${property}\\b|\\b${js}\\b`;
 const event = (e) => `['"]${e}['"]|\\bon${e}\\b`;
 const word = (w) => `\\b${w}\\b`;
 const any = (...parts) => parts.join('|');
+const DECORATION = `[^;}'"]{0,200}?(?:\\b(?:solid|double|dotted|dashed|wavy|currentColor|transparent)\\b|#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\\s*\\()`;
+const SPACES = '(?:collapse|preserve-breaks|preserve|wrap)\\b';
 const HELPERS = '(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\\b';
 
 /** The allow lines of the floor (rulings RD-27 (b), RD-30 (6)): each web API that a view file
@@ -73,7 +77,7 @@ export const ALLOW = [
   ['css_border_radius', 'css.properties.border-radius', "CSS.supports('border-radius', '50%')"],
   ['css_box_sizing', 'css.properties.box-sizing', "CSS.supports('box-sizing', 'border-box')"],
   ['css_outline_offset', 'css.properties.outline-offset', "CSS.supports('outline-offset', '2px')"],
-  ['css_rgb_alpha', 'css.types.color.rgb.alpha_parameter', "CSS.supports('color', 'rgba(0,0,0,0.4)')"],
+  ['css_rgba_function', 'css.types.color.rgb', "CSS.supports('color', 'rgba(0,0,0,0.4)')"],
   ['css_rem', 'css.types.length.rem', "CSS.supports('font-size', '1.1rem')"],
   ['css_pre_wrap', 'css.properties.white-space.pre-wrap', "CSS.supports('white-space', 'pre-wrap')"],
   ['css_checked', 'css.selectors.checked', "CSS.supports('selector(:checked)')"],
@@ -92,7 +96,7 @@ export const DENY = [
   ['aria_description', 'api.Element.ariaDescription', member('ariaDescription')],
   ['error_capture_stack_trace', 'javascript.builtins.Error.captureStackTrace', fixed('Error', 'captureStackTrace')],
   ['array_buffer_transfer', 'javascript.builtins.ArrayBuffer.transfer', any(call('transfer'), call('transferToFixedLength'))],
-  ['start_view_transition', 'api.Document.startViewTransition', member('startViewTransition')],
+  ['start_view_transition', 'api.Document.startViewTransition', any(member('startViewTransition'), taken('document', 'startViewTransition'))],
   ['get_html', 'api.Element.getHTML', member('getHTML')],
   ['aria_braille_label', 'api.Element.ariaBrailleLabel', member('ariaBrailleLabel')],
   ['aria_braille_role_description', 'api.Element.ariaBrailleRoleDescription', member('ariaBrailleRoleDescription')],
@@ -111,11 +115,11 @@ export const DENY = [
   ['uint8_array_base64', 'javascript.builtins.Uint8Array.toBase64', any(member('toBase64'), member('fromBase64'), member('setFromBase64'))],
   ['uint8_array_hex', 'javascript.builtins.Uint8Array.toHex', any(member('toHex'), member('fromHex'), member('setFromHex'))],
   ['dialog_request_close', 'api.HTMLDialogElement.requestClose', call('requestClose')],
-  ['focus_visible_option', 'api.HTMLElement.focus.options_focusVisible_parameter', `\\bfocusVisible\\s*:|['"]focusVisible['"]\\s*:`],
-  ['toggle_popover_options', 'api.HTMLElement.togglePopover.options_force_parameter', `(?:\\?\\.|\\.)togglePopover\\s*\\(\\s*\\{`],
+  ['focus_visible_option', 'api.HTMLElement.focus.options_focusVisible_parameter', word('focusVisible')],
+  ['toggle_popover_options', 'api.HTMLElement.togglePopover.options_force_parameter', callWith('togglePopover', '\\{')],
   ['iterator_helpers', 'javascript.builtins.Iterator.map', any(`\\bIterator\\s*(?:\\?\\.|\\.)\\s*(?:from|concat|prototype)\\b`, `\\b(?:new|extends)\\s+Iterator\\b`, `\\b(?:values|keys|entries)\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, `\\bmatchAll\\s*\\([^()]*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, call('toArray'))],
   ['json_raw', 'javascript.builtins.JSON.rawJSON', any(fixed('JSON', 'rawJSON'), fixed('JSON', 'isRawJSON'))],
-  ['show_popover_source', 'api.HTMLElement.showPopover.options_source_parameter', `(?:\\?\\.|\\.)showPopover\\s*\\(\\s*\\{`],
+  ['show_popover_source', 'api.HTMLElement.showPopover.options_source_parameter', callWith('showPopover', '\\{')],
   ['custom_element_registry', 'api.Element.customElementRegistry', member('customElementRegistry')],
   ['command_invokers', 'api.HTMLButtonElement.commandForElement', any(member('commandForElement'), word('commandfor'), word('CommandEvent'), word('oncommand'), `addEventListener\\s*\\(\\s*['"]command['"]`, `setAttribute\\s*\\(\\s*['"]command['"]`, `(?:\\?\\.|\\.)command\\s*=(?!=)`)],
   ['scrollend_event', 'api.Element.scrollend_event', event('scrollend')],
@@ -133,15 +137,46 @@ export const DENY = [
   ['css_starting_style', 'css.at-rules.starting-style', '@starting-style\\b'],
   ['css_transition_behavior', 'css.properties.transition-behavior', any(css('transition-behavior', 'transitionBehavior'), word('allow-discrete'))],
   ['css_light_dark', 'css.types.color.light-dark', `\\blight-dark\\s*\\(`],
-  ['css_text_wrap', 'css.properties.text-wrap', `\\btext-wrap\\b|\\btextWrap`],
+  ['css_text_wrap', 'css.properties.text-wrap', `\\btext-wrap\\b|\\btextWrap(?:Mode|Style)?\\b`],
   ['css_content_visibility', 'css.properties.content-visibility', css('content-visibility', 'contentVisibility')],
   ['css_field_sizing', 'css.properties.field-sizing', css('field-sizing', 'fieldSizing')],
   ['css_scrollbar_gutter', 'css.properties.scrollbar-gutter', css('scrollbar-gutter', 'scrollbarGutter')],
   ['css_scrollbar_width', 'css.properties.scrollbar-width', css('scrollbar-width', 'scrollbarWidth')],
   ['css_scrollbar_color', 'css.properties.scrollbar-color', css('scrollbar-color', 'scrollbarColor')],
-  ['css_text_box', 'css.properties.text-box', `\\btext-box\\b|\\btextBox`],
+  ['css_text_box', 'css.properties.text-box', `\\btext-box\\b|\\btextBox(?:Trim|Edge)?\\b`],
   ['css_contrast_color', 'css.types.color.contrast-color', `\\bcontrast-color\\s*\\(`],
   ['css_scope', 'css.at-rules.scope', '@scope\\b'],
+  ['css_backdrop_filter', 'css.properties.backdrop-filter', `(?<![\\w-])backdrop-filter\\b|\\bbackdropFilter\\b`],
+  ['css_counter_set', 'css.properties.counter-set', css('counter-set', 'counterSet')],
+  ['details_name', 'html.elements.details.name', any(`\\bdetails\\s*(?:\\?\\.|\\.)name\\s*=(?!=)`, `\\bdetails\\s*(?:\\?\\.|\\.)setAttribute\\s*\\(\\s*['"]name['"]`, `<details\\b[^>]{0,200}\\sname\\s*=`)],
+  ['css_white_space_collapse', 'css.properties.white-space-collapse', css('white-space-collapse', 'whiteSpaceCollapse')],
+  ['css_view_transition_name', 'css.properties.view-transition-name', css('view-transition-name', 'viewTransitionName')],
+  ['css_mask_border', 'css.properties.mask-border', `(?<![\\w-])mask-border\\b|\\bmaskBorder\\b`],
+  ['css_state_pseudo', 'css.selectors.state', `:state\\s*\\(`],
+  ['css_target_text', 'css.selectors.target-text', `::target-text\\b`],
+  ['element_internals_states', 'api.ElementInternals.states', any(`\\binternals\\s*(?:\\?\\.|\\.)states\\b`, `\\battachInternals\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)states\\b`, word('CustomStateSet'))],
+  ['url_parse', 'api.URL.parse_static', fixed('URL', 'parse')],
+  ['css_open_pseudo', 'css.selectors.open', `:open\\b`],
+  ['css_anchor_name', 'css.properties.anchor-name', css('anchor-name', 'anchorName')],
+  ['css_position_anchor', 'css.properties.position-anchor', css('position-anchor', 'positionAnchor')],
+  ['css_position_area', 'css.properties.position-area', css('position-area', 'positionArea')],
+  ['css_animation_timeline', 'css.properties.animation-timeline', css('animation-timeline', 'animationTimeline')],
+  ['css_linear_easing', 'css.types.easing-function.linear-function', `\\blinear\\s*\\(`],
+  ['input_switch', 'html.elements.input.switch', any(`setAttribute\\s*\\(\\s*['"]switch['"]`, `(?:\\?\\.|\\.)switch\\s*=(?!=)`, `<input\\b[^>]{0,200}\\sswitch\\b`)],
+  ['array_buffer_detached', 'javascript.builtins.ArrayBuffer.detached', member('detached')],
+  ['css_font_width', 'css.properties.font-width', css('font-width', 'fontWidth')],
+  ['css_text_decoration_style', 'css.properties.text-decoration.includes_color-and-style', any(`(?<![\\w-])text-decoration\\s*:${DECORATION}`, `\\btextDecoration\\s*=\\s*['"]${DECORATION}`)],
+  ['css_safe_alignment', 'css.properties.align-items.safe', `\\b(?:un)?safe\\s+(?:center|start|end|flex-start|flex-end|self-start|self-end|left|right|baseline)\\b`],
+  ['css_white_space_values', 'css.properties.white-space.collapse', any(`\\bwhite-space\\s*:\\s*${SPACES}`, `\\bwhiteSpace\\s*=\\s*['"]${SPACES}`)],
+];
+
+/** The comment lines above the deny lines: what the patterns do not hold. */
+export const LIMITS = [
+  '# The deny patterns read the text of a view file. They do not hold a global or a method held under another name (const O = Object; O.groupBy, const n = navigation),',
+  '# an iterator kept in a variable before a helper is called on it, an event name put together from parts, a comment between an object and its member, or a \\u escape inside a name.',
+  '# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached: the patterns refuse them, because a narrower pattern would let the denied feature pass.',
+  '# The check does not hold accent-color, relaxed CSS nesting or the relative colour form rgb(from ...), because the floor has a partial form of each that a pattern cannot tell apart,',
+  '# nor a text-decoration shorthand whose colour is a colour name.',
 ];
 
 /** The first Safari version, its date and the page of the data at `dotted`, or a problem: the
@@ -185,9 +220,14 @@ export function lines(data, rows = ROWS) {
     out.push(`# ${found.page}, Safari ${found.version} of ${found.date}`);
     out.push([kind, name, found.version, cell].join('\t'));
   };
-  out.push('# U0.3 wrote the allow lines below for every web API that a view file calls and that had no line (rulings RD-27 (b), RD-30 (6)), and the deny lines after them');
-  out.push(`# for the features that reached Safari after the floor and that a view could use; each read on 2026-11-12 from @mdn/browser-compat-data ${data.__meta.version} of ${data.__meta.timestamp.slice(0, 10)}.`);
+  out.push('# U0.3 wrote the allow lines below for each web API that the two views call and for the CSS features that they use, where the list had no line (rulings RD-27 (b), RD-30 (6)),');
+  out.push('# and the deny lines after them for the features that reached Safari after the floor and that a view could use.');
+  out.push(`# Each version and date below was read on 2026-11-12 from @mdn/browser-compat-data ${data.__meta.version} of ${data.__meta.timestamp.slice(0, 10)}, whose package states the licence CC0-1.0;`);
+  out.push('# no file of that package is in this repository: tools/r4-trials/floor/features.mjs makes these lines from it and checks them against it.');
+  out.push('# No page ran on macOS 14 itself: the cells of docs/r4/trials/floor.md ran on hosted macOS 15 and on hosted Windows, so for the macOS versions between the floor');
+  out.push('# and the oldest cell the rule of this list alone stands, and the deny patterns are a guard and no proof.');
   for (const row of rows.allow) emit('allow', row);
+  if (rows.deny.length > 0) out.push(...LIMITS);
   for (const row of rows.deny) emit('deny', row);
   return { out, problems };
 }

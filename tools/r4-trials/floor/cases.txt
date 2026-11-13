@@ -115,7 +115,6 @@ free	if (field.name === 'command') line.appendChild(text(field.value));
 free	if (event.metaKey) hint = 'command';
 free	button.setAttribute('data-act', 'request-close');
 free	box.className = 'r4a-request-closed';
-free	var focusVisible = false;
 free	if (row.transfer) line.appendChild(text(row.transfer));
 free	say(words['transfer']);
 free	p.appendChild(document.createTextNode('Step 1. transfer the file to the folder'));
@@ -124,3 +123,83 @@ free	var navigation = { back: back }; navigation.back();
 free	card.requestClose = function () { card.dialog.close(); };
 free	const parts = Object.values(item).map(String);
 free	'.hn-dialog{transition:opacity 0.2s;white-space:pre-wrap}',
+use	css_backdrop_filter	'.hn-dialog::backdrop{backdrop-filter:blur(4px)}',
+use	css_backdrop_filter	card.dialog.style.backdropFilter = 'blur(4px)';
+use	css_counter_set	'.hn-items{counter-set:item 0}',
+use	css_counter_set	list.style.counterSet = 'item 0';
+use	details_name	details.name = 'faq';
+use	details_name	details.setAttribute('name', 'faq');
+use	details_name	'<details name="faq"><summary>Q</summary></details>'
+use	css_white_space_collapse	'.hn-value{white-space-collapse:preserve}',
+use	css_white_space_collapse	value.style.whiteSpaceCollapse = 'preserve';
+use	css_view_transition_name	'.hn-item{view-transition-name:item}',
+use	css_view_transition_name	item.style.viewTransitionName = 'item';
+use	css_mask_border	'.r4a-icon{mask-border:url(a.svg) 30 fill}',
+use	css_mask_border	icon.style.maskBorder = 'url(a.svg) 30 fill';
+use	css_state_pseudo	'.r4a-row:state(open){padding:0}',
+use	css_state_pseudo	if (row.matches(':state(open)')) keep(row);
+use	css_target_text	'::target-text{background:yellow}',
+use	element_internals_states	this.internals.states.add('open');
+use	element_internals_states	const states = this.attachInternals().states;
+use	url_parse	const url = URL.parse(href);
+use	url_parse	const { parse } = URL;
+use	css_open_pseudo	'.hn-dialog:open{opacity:1}',
+use	css_anchor_name	'.hn-button{anchor-name:--act}',
+use	css_anchor_name	button.style.anchorName = '--act';
+use	css_position_anchor	'.hn-menu{position-anchor:--act}',
+use	css_position_anchor	menu.style.positionAnchor = '--act';
+use	css_position_area	'.hn-menu{position-area:bottom}',
+use	css_position_area	menu.style.positionArea = 'bottom';
+use	css_animation_timeline	'.hn-bar{animation-timeline:scroll()}',
+use	css_animation_timeline	bar.style.animationTimeline = 'scroll()';
+use	css_linear_easing	'.hn-dialog{transition:opacity 0.2s linear(0, 0.5 50%, 1)}',
+use	css_linear_easing	box.animate(frames, { duration: 200, easing: 'linear(0, 1)' });
+use	input_switch	input.setAttribute('switch', '');
+use	input_switch	input.switch = true;
+use	input_switch	'<input type="checkbox" switch>'
+use	array_buffer_detached	if (buffer.detached) return;
+use	array_buffer_detached	if (buffer['detached']) return;
+use	css_font_width	'.hn-title{font-width:condensed}',
+use	css_font_width	title.style.fontWidth = 'condensed';
+use	css_text_decoration_style	'.hn-link{text-decoration:underline wavy}',
+use	css_text_decoration_style	'.hn-link{text-decoration: underline #c00}',
+use	css_text_decoration_style	link.style.textDecoration = 'underline dotted';
+use	css_safe_alignment	'.hn-choice{align-items:safe center}',
+use	css_safe_alignment	box.style.justifyContent = 'unsafe end';
+use	css_white_space_values	'.hn-value{white-space:preserve}',
+use	css_white_space_values	value.style.whiteSpace = 'collapse';
+use	dialog_request_close	card.dialog['requestClose']();
+use	array_buffer_transfer	const moved = buf['transfer']();
+use	toggle_popover_options	pop['togglePopover']({ force: true });
+use	show_popover_source	menu['showPopover']({ source: button });
+use	start_view_transition	const { startViewTransition } = document;
+use	focus_visible_option	const opts = { focusVisible: true }; card.dialog.focus(opts);
+use	focus_visible_option	opts.focusVisible = true;
+free	'.hn-dialog::backdrop{-webkit-backdrop-filter:blur(4px)}',
+free	card.dialog.style.webkitBackdropFilter = 'blur(4px)';
+free	'.hn-items{counter-reset:item;counter-increment:item}',
+free	input.name = group;
+free	'<details open><summary>Q</summary></details>'
+free	'.hn-value{white-space:pre-wrap}',
+free	'.hn-value{white-space: nowrap}',
+free	'.hn-value{white-space:break-spaces}',
+free	'.r4a-icon{-webkit-mask-box-image:url(a.svg) 30}',
+free	'.hn-radio:checked{border-width:8px}',
+free	'.hn-item:target{outline:none}',
+free	this.internals = this.attachInternals();
+free	const url = new URL(href);
+free	if (URL.canParse(href)) go(href);
+free	'.hn-dialog[open]{opacity:1}',
+free	'.hn-menu{position:absolute;inset:0}',
+free	'.hn-bar{animation-duration:0.2s;animation-name:grow}',
+free	'.hn-dialog{transition:opacity 0.2s linear}',
+free	'.hn-card{background:linear-gradient(#fff, #eee)}',
+free	switch (event.key) { case 'Enter': act(); }
+free	if (node.isConnected) keep(node);
+free	'.hn-title{font-stretch:condensed}',
+free	'.hn-link{text-decoration:underline}',
+free	'.hn-link{-webkit-text-decoration:underline wavy}',
+free	'.hn-link{text-decoration-color:#c00}',
+free	'.hn-choice{align-items:center;justify-content:space-between}',
+free	const textWrapper = el('div', 'hn-text', '');
+free	const textBoxes = [];
