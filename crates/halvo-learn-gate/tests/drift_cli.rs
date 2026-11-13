@@ -107,6 +107,27 @@ fn drift_arm_prints_one_line_per_case() {
 }
 
 #[test]
+fn drift_arm_with_every_occurrence_restarted_expires_more_runs() {
+    let dir = scratch("drift-restart-all");
+    copy_case(&dir, "renamed-pay.jsonl");
+    let dir = dir.to_str().expect("a path");
+    let once = gate(&["drift", "--arm", "admit", "--cases", dir], &repo());
+    let every = gate(
+        &["drift", "--arm", "admit", "--cases", dir, "--restart-all"],
+        &repo(),
+    );
+    assert_eq!(
+        (once.status.code(), every.status.code()),
+        (Some(0), Some(0))
+    );
+    let (once, every) = (stdout(&once), stdout(&every));
+    assert!(once[0].ends_with(" expired_runs=6"), "{}", once[0]);
+    assert!(every[0].ends_with(" expired_runs=12"), "{}", every[0]);
+    let cut = |line: &str| line.rsplit_once(' ').expect("a key").0.to_owned();
+    assert_eq!(cut(&once[0]), cut(&every[0]));
+}
+
+#[test]
 fn drift_refuses_the_derived_store_with_store() {
     let out = gate(
         &[

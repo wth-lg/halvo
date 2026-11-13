@@ -133,7 +133,7 @@ fn page_locators(step: &ExecutableStep) -> Vec<Locator> {
 
 /// The served step with the locator `role` of the repaired control put first, moved there when the list holds
 /// it, and that control's description (L9.2, L10.3).
-fn recovered_step(served: &ExecutableStep, repaired: &Control) -> Result<Value, String> {
+pub(crate) fn recovered_step(served: &ExecutableStep, repaired: &Control) -> Result<Value, String> {
     let mut step =
         serde_json::to_value(served).map_err(|_| "a served step with no JSON".to_owned())?;
     let new = locator_json(&Locator::role_of(repaired));

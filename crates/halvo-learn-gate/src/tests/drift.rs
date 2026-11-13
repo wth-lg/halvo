@@ -76,7 +76,7 @@ fn drift_restart_all_changes_expired_runs_alone() {
                 Arm::Admit => {
                     assert!(once.expired_runs > 0, "{}: no run expired", case.name);
                     assert!(once.edit_rows > 0, "{}: no edit stored", case.name);
-                    assert!(every.expired_runs >= once.expired_runs, "{}", case.name);
+                    assert!(every.expired_runs > once.expired_runs, "{}", case.name);
                 }
                 Arm::None | Arm::Plain => assert_eq!((once.expired_runs, once.edit_rows), (0, 0)),
             }
