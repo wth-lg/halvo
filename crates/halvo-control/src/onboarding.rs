@@ -1208,7 +1208,35 @@ mod tests {
         assert!(!state.all_granted);
     }
 
-    const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"}]}"#;
+    const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false},{"permission":"screen_and_system_audio_recording","pane_name":"Screen & System Audio Recording","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture","why":"a third why text","grant":"granted","lost":false,"asked":true}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"},{"permission":"screen_and_system_audio_recording","action":"restart_capture","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture","text":"a third step text"}]}"#;
+
+    const REQUEST_OUTCOMES_JSON: &str = r#"["already_granted","requested"]"#;
+
+    #[test]
+    fn the_golden_json_holds_every_spelling_of_grant_action_and_request_outcome() {
+        for &grant in GrantState::ALL {
+            let text = format!("\"grant\":\"{}\"", grant.as_str());
+            assert!(
+                ONBOARDING_JSON.contains(&text),
+                "the golden JSON lacks {text}"
+            );
+        }
+        for &action in WalkbackAction::ALL {
+            let text = format!("\"action\":\"{}\"", action.as_str());
+            assert!(
+                ONBOARDING_JSON.contains(&text),
+                "the golden JSON lacks {text}"
+            );
+        }
+        assert_eq!(
+            serde_json::to_string(RequestOutcome::ALL).unwrap(),
+            REQUEST_OUTCOMES_JSON
+        );
+        assert_eq!(
+            serde_json::from_str::<Vec<RequestOutcome>>(REQUEST_OUTCOMES_JSON).unwrap(),
+            RequestOutcome::ALL
+        );
+    }
 
     #[test]
     fn the_onboarding_object_has_golden_json_and_reads_back() {
@@ -1243,6 +1271,13 @@ mod tests {
                     false,
                     false,
                 ),
+                row(
+                    Permission::ScreenAndSystemAudioRecording,
+                    "a third why text",
+                    GrantState::Granted,
+                    false,
+                    true,
+                ),
             ],
             lost_grants: vec![Permission::Accessibility],
             all_granted: false,
@@ -1256,6 +1291,11 @@ mod tests {
                     Permission::InputMonitoring,
                     WalkbackAction::RequestFromSystem,
                     "another step text",
+                ),
+                step(
+                    Permission::ScreenAndSystemAudioRecording,
+                    WalkbackAction::RestartCapture,
+                    "a third step text",
                 ),
             ],
         };
