@@ -1068,14 +1068,21 @@ it in the plan before weakening an assertion.
   `open_refuses_a_link_put_at_store_db_inside_the_custody_call_and_changes_nothing_beside_its_target`
   one put in place inside it. A move after the store's last look is the
   other process's own act. After that look SQLite's own steps by name act
-  in whatever directory stands at the name: its open of `store.db`; the
-  writes of a `create` into the database that it finds there; and the
-  removal of the log of a database with no pages at its first read. Its
-  close checks that `store.db` has not moved, and then neither
-  checkpoints nor removes the log. The store's own calls act through the
-  handle, and what was moved away is ciphertext whose key a shred or
-  delete-all destroys. The review's two runs W1 (pr-review-14) are the
-  facts: with another directory put at the name after the last look, a
+  in whatever directory stands at the name, among them: its open of
+  `store.db`; the writes of a `create` into the database that it finds
+  there; and the removal of the log of a database with no pages at its
+  first read. Two more are read in the pinned source and shown by no run:
+  the log is opened by its name with the create flag at the first read,
+  with no second walk of the name (sqlcipher.c lines 69570 to 69572), and
+  a file named `store.db-journal` of a database with no pages is removed
+  by its name (lines 65118 to 65121). At its close SQLite checkpoints and
+  removes the log by name only while the name still leads to the file
+  that it holds, read by the file number (lines 41951 to 41958); after a
+  move it does neither. The store's own calls act through the handle, but
+  for the three that stay by name above. What was moved away is
+  ciphertext whose key a shred or delete-all on the handle that was open
+  at the move destroys. The review's two runs W1 (pr-review-14) are the
+  facts of the first three steps: with another directory put at the name after the last look, a
   `create` answered `Ok` and that directory, which had held an empty
   `store.db`, held a `store.db` of 4,096 bytes and a log; an `open`
   answered `OlderStore`, and that directory lost its `store.db-wal` of 21
