@@ -559,3 +559,46 @@ describe("overrode on the answer of applyEvent (ruling P7-80, part 8; contract 3
     expect(seen).toEqual(Array(3).fill({ kind: "none", overrode: false }));
   });
 });
+
+describe("the line cancel-overrides-order (ruling P7-80, part 8; contracts 1.4 and 3.4, by the Revision of 2026-11-13)", () => {
+  const LINE = '{"event":"cancel-overrides-order"}';
+
+  test("on an account the skeleton writes one line after the step for each event of M1 and for no other event", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [ACTIVE, CANCEL, at("evt_older", 4, "active"), ACTIVE_AGAIN, FAILED_AFTER, CANCEL, at("evt_cancel_newer", 8, "cancelled")], lines);
+    expect(lines).toEqual([LINE, LINE]);
+    done(w);
+  });
+
+  test("on an account the skeleton writes one line after the step for a cancel of M2, which also makes the cut", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [ACTIVE_AGAIN, CANCEL], lines);
+    expect({ lines, cut: await metered(w) }).toEqual({ lines: [LINE], cut: [{ cut_kind: "cancel", cut_at: START + 5 * MINUTE, carry: 0, written_off: 0 }] });
+    done(w);
+  });
+
+  test("on the kept events of a pending checkout the skeleton writes one line for each case, and complete writes none", async () => {
+    const w = await pending();
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [ACTIVE_AGAIN, CANCEL, FAILED_AFTER, at("evt_older", 4, "active")], lines);
+    const kept = [...lines];
+    await deliver(w, [COMPLETED], lines);
+    expect({ kept, all: lines }).toEqual({ kept: [LINE, LINE], all: [LINE, LINE] });
+    done(w);
+  });
+
+  test("an event of another subscription and a repeated event id write no line", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [CANCEL, ACTIVE_AGAIN], lines);
+    await deliver(w, [ACTIVE_AGAIN, at("evt_other_subscription", 9, "active", { subscriptionId: "sub_2" })], lines);
+    expect(lines).toEqual([LINE]);
+    done(w);
+  });
+});
