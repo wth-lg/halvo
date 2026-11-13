@@ -1,42 +1,41 @@
 # Driver trial (R3, unit U0.6)
 
-The three candidates of the verdict line of `docs/r3/trials/model-cells.md`, in that line's order
-(A13.5's table), ran the cells of contracts.md A13.6 through `tools/r3-trials/drive/run.sh`: for
-`bill` and `order` and seeds 1 to 3 a compile run, three replays and a recovery run on
-`changed_page_2`, for `reply` one write run per seed; the child `r3-model` under the 8 GiB cap of
-halvo-cap at the level `medium` of `docs/r3/model-settings.toml`, Chrome headless through the cdp
-library of `tools/r3-trials/web`, the fixture reset before each run. On `hosted-win` (windows-2025)
-the browser is `C:/Program Files/Google/Chrome/Application/chrome.exe` and the cells ran in the run
-of the `hosted` line; on `mac` (M3 Max, 64 GB) each cell was one call of the timed-run helper, whose
-start, end and 1-minute load each `timed` line gives, and each run has a `load` line. More: README.md.
+The candidates of the verdict line of `docs/r3/trials/model-cells.md`, in its order, ran the cells of
+contracts.md A13.6 through `tools/r3-trials/drive/run.sh`: for `bill` and `order` and seeds 1 to 3 a
+compile run, three replays and a recovery run on `changed_page_2`, for `reply` one write run per seed;
+the child `r3-model` under the 8 GiB cap of halvo-cap at the level `medium`, Chrome headless through the
+cdp library of `tools/r3-trials/web`, the fixture reset before each run. On `hosted-win` (windows-2025,
+`C:/Program Files/Google/Chrome/Application/chrome.exe`) the cells ran in the run of the `hosted` line;
+on `mac` (M3 Max, 64 GB) each cell was one call of the timed-run helper (`timed` lines) and each run has
+a `load` line. The harness of commit c882c15 printed every line of the block. More: README.md.
 
-The block is round 2, at commit c882c15. Round 1, at 2f4b8bf, gave the same counts but on one line:
-`mac` ministral_3_3b `order` seed 3 had `effects_without_confirm=1`, because that harness let the
-request of a click leave before it found the extracts of A9.4 missing, so an order reached the
-fixture; c882c15 fails such a request and ends the compile with `provenance`, and round 2 gives 0.
-The cell `mac` ministral_3_3b `bill` seed 2 took two calls at the same head. The helper ended the
-first at its hold of 5,400 s (exit 124) while the compile still asked the model at that hour's load,
-and it printed no line; the second ended by itself after 381 s, and its lines are the cell's. Both
-calls stand as that cell's two `timed` lines, the first with start 2026-11-13T11:18:36Z.
+The verdict line is provisional (ruling CP-173). A control with a scripted child in place of the model
+(`control.sh`, `src/bin/r3-standin.rs`) read at d3472bf, on `mac` and on `hosted-win` (run 43470567927):
+the right walk passes `bill` (compile, three replays, recovery) and fails every replay of `order`,
+because the saved items reach the snapshot as three list items with empty names; so the replay and
+recovery results of the `order` cells are void, and their compile results stand. After the mend at
+4d1020c (a stored target keeps its place among lines of one role and name) the control passes `order`
+too on `mac`. No compile of a model reached the end of its task: on `mac`, of the 18
+compiles of each round, 11 ended by the repeated reply, 6 by the provenance rule at a click on the
+sign-in button before any handback, 1 by the provenance rule at the effect step. The 18 compiles of
+`hosted-win` in each run kept no trace, so how they ended is not known.
 
-The `mac` runs were taken at 1-minute loads far above a quiet machine's: their `wall_s` figures are
-taken under load and used for nothing. The verdict rests on the counts alone. A reply body may
-differ by machine under greedy sampling: ministral_3_3b writes two counted bodies for seed 3 on
-`hosted-win` and one on `mac`, where its first body repeats the reference that the message holds,
-which the rule does not count; that one body decides `writer=none`.
+The block is round 2. Round 1, by its cell files 24 cells at decb7e2 and 3 at 2f4b8bf, gave the same
+counts but on one line (`mac` ministral_3_3b `order` seed 3, `effects_without_confirm=1`): that harness
+let a click's request leave before it found the extracts of A9.4 missing, which c882c15 fails. The cell
+`mac` ministral_3_3b `bill` seed 2 took two calls: the helper ended the first at its hold of 5,400 s,
+whose file holds one load line and no line of the cell; the second ended by itself after 381 s, and its
+lines are the cell's; both calls stand as its two `timed` lines.
 
-No `limits` line stands. A13.6 gives those lines for the verdict's driver and writer alone, and the
-block's verdict names neither; A1.3 names the limits for path B and `writer=none` in its own words.
-
-Choices left open, as built: a field of the grammar that an action does not take is never read; a
-refused action is not carried out and the next request says why; a compile asks the model at most
-32 times and ends as a miss when the model repeats a reply on the same page; a click or a press is
-the confirmation that the harness allows once the extracts of its row are kept; the two counts of a
-`drive` line are the sums over its five runs.
-
-What the lines cannot show. Three seeds on pages that the team wrote are a small sample of easy
-pages. A replay or a recovery after a compile that missed runs the playbook that the compile left,
-so its miss says nothing of a playbook that would have passed.
+The `mac` runs were taken at loads far above a quiet machine's. The importer copies their `wall_s` into
+its rows with the rest, and no `limits` line rests on them: A13.6 gives those lines for the
+driver and the writer of the verdict alone, it names neither, and A1.3 names the limits for path B and
+`writer=none` in its own words. A reply body may differ by machine: ministral_3_3b's seed 3 body
+repeats its message's reference on `mac` and not on `hosted-win`. The body rule was tightened after the
+block was printed, which can only lower a count; it lowers none of this Mac's saved bodies, and the
+bodies of `hosted-win` were not kept. Only `tools/r3-trials/drive/rebuild.py` on the raw files, which
+the repository does not hold, tells a typed value from a run's; on them it gives this block line for
+line. Three seeds on pages that the team wrote are a small sample of easy pages.
 
 ```text
 hosted machine=hosted-win run=43414074422 sha=d4210af44b35695cf2d5bff4d3c0bebaf726a16c

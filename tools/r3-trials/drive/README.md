@@ -18,6 +18,9 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | `src/body.rs` | The reply rule and the rule that counts a body |
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
 | `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`) |
+| `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
+| `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines |
+| `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
 | `prompts/` | The boundary text and the three goal texts of A9.5 |
 
 ## How to run
@@ -69,13 +72,15 @@ the messages of the reply rule of A1 and asks the model for one body each with t
 - The order of the candidates is the order of the verdict line of
   `docs/r3/trials/model-cells.md`, which is the order of A13.5's table (that file's own
   choice); by file size `ministral_3_3b` would come before `granite_4_2_3b`.
-- A reply of the model that is no action, or an action that carries a field that it does not
-  take (a `fill` with a `key` or a `name`, which A12.4 forbids), or that names no line of the
-  snapshot, is refused and not carried out; the step list in the next request says why, and
-  the compile goes on. The harness also refuses a `fill`, a `select` or a `press` on a line
+- A reply of the model that is no action, an action that lacks a field that it needs, or one
+  that names no line of the snapshot, is refused and not carried out; the step list in the next
+  request says why, and the compile goes on. A field that an action does not take is never read
+  and refuses nothing. The harness also refuses a `fill`, a `select` or a `press` on a line
   that the snapshot marks `credential`, and counts it in `typed_credential`.
 - A compile asks the model at most 32 times, and it ends as a miss when the model gives the
-  same reply to the same page a second time, because a greedy model then repeats itself.
+  same reply to the same page a second time. The request differs at each call, because the
+  step list grows, so the rule ends a model that cycles among the same actions; it ended 11 of
+  the 18 compiles of each round on `mac`, and ministral_3_3b's traces cycle among three lines.
 - A field of the grammar that an action does not take is never read. The grammar of
   `tools/r3-trials/model/grammars/action.gbnf` lets every action carry all five fields, and
   the models fill them all (`{"action":"fill","ref":"e3","slot":"email","key":"Enter","name":"email"}`
@@ -96,6 +101,11 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   needs no model.
 - A run that starts the model starts its child at the start of the run, so `wall_s` holds the
   load; the replays start none.
+- A target that the compile picked among more than one line of the same role, name and frame
+  keeps its place among them, and a replay finds it again by that place (the saved items of the
+  order page are three list items with empty names); a place that no longer exists is a miss
+  with the cause `place_gone`. A3's form has no key for the place, so the step's JSON does not
+  hold it, and a playbook file read alone loses it.
 - A locator is `role` with the role and the name of the snapshot line, or `text` with the
   text for a text line, the one extract target that the snapshot gives; a playbook of
   `bill` thus holds the amount's own text as the locator of its extract step, and the test
@@ -116,11 +126,26 @@ does not take, are in the builder's evidence and in no line of the result file. 
 model request on `mac` took from 10 s to 650 s at 1-minute loads of about 100 to 240, so the
 `wall_s` of a `mac` run says nothing of the trial's speed.
 
-What the models did, from the traces of the runs: minicpm5_2b gave `handback` on the sign-in
-page and then a `select` of the slot `payee` on a heading, which the page did not take, until
-it repeated itself; granite_4_2_3b filled the `Email` box from a slot that the task does not
+What the models did, from the traces of the runs: on `bill` minicpm5_2b gave `handback` on the
+sign-in page and then a `select` of the slot `payee` on a heading, which the page did not take,
+until it repeated itself, and on `order` it gave the same `select` twice on the sign-in page
+and never handed back; granite_4_2_3b filled the `Email` box from a slot that the task does not
 have and then clicked `Sign in`, which ends the compile with `provenance`; ministral_3_3b went
 furthest. Its reply bodies held no marker and no address on `hosted-win`, but on `mac` one
 body of seed 3 repeated the page marker of its message, in both rounds; granite_4_2_3b repeated
 the page marker of the first message in one body of each seed, and MiniCPM5's bodies are its
 thinking, which quotes the sender's address.
+
+## The control
+
+`sh tools/r3-trials/drive/control.sh --mode M --task bill|order --browser PATH --port N` runs one
+cell of seed 1 with the stand-in child `r3-standin` in place of the model, with run.sh's own
+argument list but for `--model standin_<mode>`, `--weights control/<mode>.txt` and `--child`.
+The modes: `right` walks the task as a right driver would; `effect_early` clicks the effect
+button before it keeps the extracts; `option_then_right` names an option line in its first
+select, then goes on as `right`; `sign_in_click` (bill) clicks the sign-in button before any
+handback; `option_line` (bill) names an option line in every select. The script reads the
+lines against `control/expected.txt` and prints `control mode=.. machine=.. task=.. result=..`.
+At d3472bf the right walk passed `bill` and failed every replay of `order` on `mac` and on
+`hosted-win`, which showed that no driver could have passed `order`; the mend of 4d1020c, the
+stored place, makes it pass.
