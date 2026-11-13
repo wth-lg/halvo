@@ -215,7 +215,7 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "choices",
                 ],
                 Some("label") => &["label", "value", "from", "from_text"],
-                Some("name") => &["name", "label", "candidates", "typed", "full"],
+                Some("name") => &["name", "label", "candidates", "typed", "full", "too_long"],
                 Some("n") => &["n", "value", "from"],
                 Some("choice") => &["choice", "text", "safe"],
                 Some("key") if keys.get(2).map(String::as_str) == Some("fields") => {
@@ -486,6 +486,7 @@ fn the_states_hold_the_counts_of_i9_4() {
 #[test]
 fn every_item_says_its_coming_and_going_with_its_agents_name() {
     let full = words::text("param_typed.full", &[]).unwrap();
+    let too_long = words::text("param_typed.too_long", &[]).unwrap();
     let mut items = 0;
     for state in State::ALL {
         let snap = snapshot(state.name());
@@ -512,6 +513,12 @@ fn every_item_says_its_coming_and_going_with_its_agents_name() {
                     ""
                 };
                 assert_eq!(p["full"], want, "{}", state.name());
+                let want = if p["typed"] == "yes" {
+                    too_long.as_str()
+                } else {
+                    ""
+                };
+                assert_eq!(p["too_long"], want, "{}", state.name());
             }
             items += 1;
         }

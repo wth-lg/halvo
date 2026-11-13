@@ -783,6 +783,9 @@ fn an_item_says_its_coming_and_going_with_the_agents_name_and_a_typed_line_its_e
     let json = serde_json::to_value(setup).unwrap();
     assert_eq!(json["params"][1]["full"], full.as_str());
     assert_eq!(json["params"][0]["full"], "");
+    let too_long = words::text("param_typed.too_long", &[]).unwrap();
+    assert_eq!(json["params"][1]["too_long"], too_long.as_str());
+    assert_eq!(json["params"][0]["too_long"], "");
 }
 
 /// The text of a key of the table with the count.

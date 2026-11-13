@@ -425,6 +425,11 @@ pub fn compose_setup(
             } else {
                 String::new()
             },
+            too_long: if typed {
+                say("param_typed.too_long")?
+            } else {
+                String::new()
+            },
         });
     }
     let line = if not_taken {

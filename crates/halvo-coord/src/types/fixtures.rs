@@ -841,6 +841,11 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
         } else {
             String::new()
         },
+        too_long: if candidate.is_none() {
+            t("param_typed.too_long")
+        } else {
+            String::new()
+        },
     }
 }
 

@@ -355,7 +355,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "param_typed.full",
-        "This answer cannot be any longer, so what you typed last was left out.",
+        "Your answer is full, so the last thing you added was left out. Shorten it to add more.",
+    ),
+    (
+        "param_typed.too_long",
+        "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
     ),
 ];
 

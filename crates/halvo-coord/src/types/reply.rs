@@ -679,6 +679,10 @@ pub struct ParamEntry {
     /// card shows below the typed line after an input was refused (I3.5); empty for every other
     /// parameter.
     pub full: String,
+    /// `too_long`: for a parameter with `typed` `yes` the sentence of `param_typed.too_long`,
+    /// which the card shows below the typed line after an input was refused below the bound
+    /// (I3.5); empty for every other parameter.
+    pub too_long: String,
 }
 
 /// A candidate of a parameter (I3.5).

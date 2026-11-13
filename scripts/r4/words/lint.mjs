@@ -66,6 +66,7 @@ const FIXTURE_KEYS = [
   'snapshot.items.*.say_new',
   'snapshot.items.*.say_gone',
   'snapshot.items.*.params.*.full',
+  'snapshot.items.*.params.*.too_long',
 ];
 const CONTROL_TEXT = 'snapshot.rows.*.controls.*.text';
 
@@ -1217,6 +1218,7 @@ function selfTest(dir, repo) {
     ['snapshot.items.*.say_new', 'needs_ready'],
     ['snapshot.items.*.say_gone', 'needs_stuck'],
     ['snapshot.items.*.params.*.full', 'setup_three'],
+    ['snapshot.items.*.params.*.too_long', 'setup_three'],
   ]) {
     const place = spec.replaceAll('*', '1');
     expect(
