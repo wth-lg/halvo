@@ -3,16 +3,18 @@ mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Refusal, Table};
 use halvo_coord::items::drive::{
-    answer, answer_handback, due, flush, issue, lapse, on_screen, store, tick, Held, Ledger,
+    answer, answer_bind, answer_handback, due, flush, issue, lapse, on_screen, raise_bind, store,
+    tick, BindState, Held, Ledger,
 };
 use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Clock, Owner, PortError, Rng, Runs};
 use halvo_coord::types::{
-    Agent, AgentId, Answer, Answered, BindResult, Body, Category, Cause, Choice, Class, ConfirmAsk,
-    Decision, DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk,
-    HandbackReason, HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin,
-    Presenter, Raised, Reply, RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
+    Agent, AgentId, Answer, Answered, BindAsk, BindResult, Body, Category, Cause, Choice, Class,
+    ConfirmAsk, Decision, DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow,
+    HandbackAsk, HandbackReason, HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name,
+    Origin, Presenter, Raised, Reply, RunId, RunSpec, What, Workflow, WorkflowState,
+    WorkflowTrigger,
 };
 use std::cell::{Cell, RefCell};
 use support::{agent_id, ask, ask_of, asked, field, run_id, workflow_id};
@@ -1264,4 +1266,94 @@ fn an_item_shows_no_line_for_a_later_items_release() {
     .unwrap();
     assert!(t.newest_allows(&run_id(1), &support::effect_id(1)));
     assert!(changed_lines(&page(&a)).is_empty());
+}
+
+/// The end of the local day `TODAY` in the zone of `ports()`.
+const MIDNIGHT: u64 = NOW + 12 * 3_600_000;
+
+/// For each start from 8 ms before local midnight to 3 ms after it: fresh ports, `before` at
+/// `NOW`, then the clock at the start, moving on 1 ms at each read of `now`, and `make`. Every
+/// row that the owner stored carries the local day of its `at` (I7.1), and rows of both days
+/// were stored.
+fn across_midnight<S>(before: &dyn Fn(&Ports<Config>) -> S, make: &dyn Fn(&Ports<Config>, S)) {
+    let mut days = Vec::new();
+    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+        let p = ports();
+        assert_eq!(p.day(MIDNIGHT - 1), Ok(TODAY));
+        assert_eq!(p.day(MIDNIGHT), Ok(TODAY + 1));
+        let state = before(&p);
+        p.set_now(start);
+        p.step_reads(1);
+        make(&p, state);
+        let events = p.events.borrow();
+        assert!(!events.is_empty(), "no row from {start}");
+        for e in events.iter() {
+            let at = u64::try_from(e.at / 1_000_000).unwrap();
+            assert_eq!(p.day(at), Ok(e.day), "{:?} from {start}", e.what);
+            days.push(e.day);
+        }
+    }
+    assert!(days.contains(&TODAY) && days.contains(&(TODAY + 1)));
+}
+
+#[test]
+fn a_row_of_store_carries_the_day_of_its_at_across_midnight() {
+    across_midnight(&|_| ledger(), &|p, mut l| {
+        store(p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]).unwrap();
+    });
+}
+
+#[test]
+fn the_rows_of_a_confirmation_answer_carry_the_day_of_their_at_across_midnight() {
+    across_midnight(
+        &|p| {
+            let (mut l, mut t) = (ledger(), Table::new());
+            let held = armed(p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+            (l, t, held)
+        },
+        &|p, (mut l, mut t, mut held)| {
+            let answered = ConfirmAnswer::Allow;
+            answer(
+                p,
+                &mut l,
+                &mut t,
+                &mut held,
+                answered,
+                Presenter::Page,
+                &LIMITS,
+            )
+            .unwrap();
+            assert_eq!(released(p).len(), ask(PAGE).effects().len());
+        },
+    );
+}
+
+#[test]
+fn a_handback_answer_row_carries_the_day_of_its_at_across_midnight() {
+    across_midnight(&|_| ledger(), &|p, mut l| {
+        let ask = handback(HandbackReason::SignIn, None);
+        let item = support::item_id(1);
+        answer_handback(p, &mut l, &LIMITS, &item, &ask, Choice::Done).unwrap();
+    });
+}
+
+#[test]
+fn a_second_step_answer_row_carries_the_day_of_its_at_across_midnight() {
+    let bind = BindAsk {
+        run: run_id(1),
+        agent: agent_id(1),
+        origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+    };
+    across_midnight(
+        &|p| {
+            let mut l = ledger();
+            let held = raise_bind(p, &mut l, &Table::new(), &LIMITS, &bind).unwrap();
+            (l, held)
+        },
+        &|p, (mut l, mut held)| {
+            let t = Table::new();
+            answer_bind(p, &mut l, &t, &LIMITS, &mut held, Choice::Allow).unwrap();
+            assert_eq!(held.state(), &BindState::Closed);
+        },
+    );
 }

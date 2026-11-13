@@ -7,7 +7,7 @@ use super::{compose_bind, compose_confirm, confirm_step, handback_kind, handback
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
-use crate::ports::{Clock, Owner, PortError, Rng, Runs};
+use crate::ports::{Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
@@ -123,8 +123,7 @@ impl Ledger {
         &self.waiting
     }
 
-    fn number(&self, whats: Vec<What>, now: u64, today: u32) -> Vec<Event> {
-        let at = i64::try_from(now).map_or(i64::MAX, |n| n.saturating_mul(1_000_000));
+    fn number(&self, whats: Vec<What>, stamp: Stamp) -> Vec<Event> {
         let first = self.last.saturating_add(self.waiting.len() as u32);
         (0..)
             .zip(whats)
@@ -132,8 +131,8 @@ impl Ledger {
                 workflow: self.workflow.clone(),
                 agent: self.agent.clone(),
                 seq: NonZeroU32::MIN.saturating_add(first.saturating_add(i)),
-                day: today,
-                at,
+                day: stamp.day(),
+                at: stamp.at(),
                 what,
             })
             .collect()
@@ -232,43 +231,41 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
     Ok(())
 }
 
-/// Stores the events after the waiting ones, at the clock's time; an event that gets no
-/// acknowledgement waits and goes again with the next write or `flush`.
+/// Stores the events after the waiting ones, at the instant and on the day of one read of the
+/// clock; an event that gets no acknowledgement waits and goes again with the next write or
+/// `flush`.
 pub fn store<P: Owner + Clock>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
 ) -> Result<(), PortError> {
-    let (now, today) = (ports.now()?, ports.today()?);
-    store_at(ports, ledger, limits, whats, (now, today))
+    let stamp = Stamp::read(ports)?;
+    store_at(ports, ledger, limits, whats, stamp)
 }
 
-/// Stores the events after the waiting ones at the time and on the day `at`, read before the
-/// move that makes them, so that no failure of the clock after the move can lose them; an event
+/// Stores the events after the waiting ones at the instant and on the day of `at`, read before
+/// the move that makes them, so that no failure of the clock after the move can lose them; an event
 /// that gets no acknowledgement waits and goes again with the next write or `flush`.
 fn store_at<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
-    at: (u64, u32),
+    at: Stamp,
 ) -> Result<(), PortError> {
     let whats: Vec<What> = whats
         .into_iter()
         .filter(|w| closed_item(w).is_none_or(|item| ledger.closing(item).is_none()))
         .collect();
-    let events = ledger.number(whats, at.0, at.1);
+    let events = ledger.number(whats, at);
     ledger.waiting.extend(events);
     flush(ports, ledger, limits)
 }
 
-/// The clock's time and day, or the cause of its failure.
-fn clock_at<P: Clock>(ports: &P) -> Result<(u64, u32), Cause> {
-    match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => Ok((now, today)),
-        (Err(e), _) | (_, Err(e)) => Err(cause_of(&e)),
-    }
+/// One read of the clock, or the cause of its failure.
+fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
+    Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
@@ -278,11 +275,10 @@ fn store_once<P: Owner>(
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
-    now: u64,
-    today: u32,
+    stamp: Stamp,
 ) -> Result<(), PortError> {
     flush(ports, ledger, limits)?;
-    let mut events = ledger.number(whats.clone(), now, today);
+    let mut events = ledger.number(whats.clone(), stamp);
     let mut resynced = false;
     loop {
         match ports.log(&events) {
@@ -293,7 +289,7 @@ fn store_once<P: Owner>(
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
-                events = ledger.number(whats.clone(), now, today);
+                events = ledger.number(whats.clone(), stamp);
                 resynced = true;
             }
             Err(e) => return Err(e),
@@ -311,8 +307,7 @@ fn store_answer<P: Owner>(
     ledger: &mut Ledger,
     limits: &Limits,
     row: What,
-    now: u64,
-    today: u32,
+    stamp: Stamp,
 ) -> Result<Option<What>, PortError> {
     flush(ports, ledger, limits)?;
     let item = closed_item(&row).cloned();
@@ -324,7 +319,7 @@ fn store_answer<P: Owner>(
     if let Some(what) = earlier(ledger) {
         return Ok(Some(what));
     }
-    let mut events = ledger.number(vec![row.clone()], now, today);
+    let mut events = ledger.number(vec![row.clone()], stamp);
     let mut resynced = false;
     loop {
         match ports.log(&events) {
@@ -338,7 +333,7 @@ fn store_answer<P: Owner>(
                 if let Some(what) = earlier(ledger) {
                     return Ok(Some(what));
                 }
-                events = ledger.number(vec![row.clone()], now, today);
+                events = ledger.number(vec![row.clone()], stamp);
                 resynced = true;
             }
             Err(e) => return Err(e),
@@ -519,10 +514,7 @@ pub fn answer<P: Owner + Runs + Clock>(
         Some(&held.confirmation),
         ConfirmMove::Answer { answer, from },
     )?;
-    let (now, today) = match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => (now, today),
-        (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
-    };
+    let stamp = clock_at(ports)?;
     held.confirmation = answered.clone();
     let item = held.item.clone();
     let mut recorded: Option<Confirmation> = None;
@@ -537,7 +529,7 @@ pub fn answer<P: Owner + Runs + Clock>(
                 answer: Answered::Confirm(entry.clone()),
             })
             .collect();
-        store_once(ports, ledger, limits, rows, now, today)?;
+        store_once(ports, ledger, limits, rows, stamp)?;
         recorded = Some(next);
         Ok(())
     });
@@ -802,16 +794,13 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         RunItemKind::Check => Answered::Check(CheckAnswer::parse(choice.name())?),
         RunItemKind::Confirm => return Err(Cause::Malformed),
     };
-    let (now, today) = match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => (now, today),
-        (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
-    };
+    let stamp = clock_at(ports)?;
     let row = What::ItemAnswered {
         item: item.clone(),
         answer: answer.clone(),
     };
     let earlier =
-        store_answer(ports, ledger, limits, row.clone(), now, today).map_err(|e| cause_of(&e))?;
+        store_answer(ports, ledger, limits, row.clone(), stamp).map_err(|e| cause_of(&e))?;
     let (result, decided) = match earlier {
         None => (result, false),
         Some(What::ItemAnswered { answer: stored, .. }) if stored == answer => (result, false),
@@ -823,7 +812,7 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
                 }),
             ..
         }) => {
-            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            store_once(ports, ledger, limits, vec![row], stamp).map_err(|e| cause_of(&e))?;
             (result, false)
         }
         Some(What::ItemAnswered { answer: stored, .. }) => {
@@ -967,7 +956,7 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
         BindState::Recorded(stored) if stored == result => {}
         BindState::Recorded(BindResult::Decline) => return Err(Cause::State),
         _ => {
-            let (now, today) = clock_at(ports)?;
+            let stamp = clock_at(ports)?;
             let row = What::ItemAnswered {
                 item: held.item.clone(),
                 answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
@@ -975,7 +964,7 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            if let Err(e) = store_once(ports, ledger, limits, vec![row], now, today) {
+            if let Err(e) = store_once(ports, ledger, limits, vec![row], stamp) {
                 held.state = BindState::Open;
                 return Err(cause_of(&e));
             }
@@ -1097,13 +1086,7 @@ fn same_agent<C>(setup: &Setup, facts: &Facts<C>, ledger: &Ledger) -> Result<(),
 /// acknowledgement with the choice `choose` and holds no value (I7.1, rulings IG-30, IG-35,
 /// RD-23 (b)), at the time `at` that the clock gave before the move; a row that gets no
 /// acknowledgement waits in the ledger and goes with the next write.
-fn closed_row<P: Owner>(
-    ports: &P,
-    ledger: &mut Ledger,
-    limits: &Limits,
-    setup: &Setup,
-    at: (u64, u32),
-) {
+fn closed_row<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits, setup: &Setup, at: Stamp) {
     let row = What::ItemAnswered {
         item: setup.item().clone(),
         answer: Answered::Setup(SetupAnswer::Choose),
@@ -1145,7 +1128,7 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
     limits: &Limits,
     setup: &mut Setup,
     facts: &Facts<C>,
-    at: (u64, u32),
+    at: Stamp,
 ) -> Result<SetupDone, Cause> {
     let SetupState::Owed(body) = setup.state().clone() else {
         return Ok(SetupDone::Open);
