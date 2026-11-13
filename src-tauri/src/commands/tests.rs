@@ -217,3 +217,45 @@ fn the_ledger_line_of_the_unit_states_the_bytes_of_the_replies_in_flight() {
         )]
     );
 }
+
+/// A connector that records the timeout of each connect and answers at once.
+#[derive(Debug, Clone, Default)]
+struct Timeouts(Arc<Mutex<Vec<Duration>>>);
+
+impl Connector for Timeouts {
+    type Transport = NoTransport;
+
+    fn endpoint(&self) -> String {
+        "timeouts".to_string()
+    }
+
+    fn connect(&self, timeout: Duration) -> Result<NoTransport, ClientError> {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(timeout);
+        Err(ClientError::Unreachable {
+            endpoint: "timeouts".to_string(),
+        })
+    }
+}
+
+#[test]
+fn the_client_gets_only_what_is_left_of_the_deadline_after_the_wait() {
+    const AGED: Duration = Duration::from_millis(600);
+    let timeouts = Timeouts::default();
+    let gated = Gated::new(timeouts.clone());
+    let made = gated.places().make();
+    let aged_until = Instant::now() + AGED;
+    while Instant::now() < aged_until {
+        std::thread::park_timeout(aged_until.saturating_duration_since(Instant::now()));
+    }
+    let _ = gated.status(made, false);
+    let seen = timeouts.0.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    assert_eq!(seen.len(), 1);
+    assert!(
+        seen[0] <= Duration::from_millis(2_000) - AGED,
+        "the connect got {:?} of a 2 s deadline whose call was made {AGED:?} earlier",
+        seen[0]
+    );
+}
