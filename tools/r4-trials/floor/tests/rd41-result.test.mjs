@@ -69,6 +69,12 @@ export const cases = [
     assert.ok(problems(text).includes('the file holds no cell of hosted-mac'));
     assert.equal(problems(file([guest, mac, win], ['verdict floor=guest oldest_run=14.0 missing=0'])), '');
   }],
+  ['a_comment_line_that_says_where_the_cells_came_from_stands', () => {
+    const note = '# The cell of hosted-mac is from run 1, the cell of hosted-win from run 2.';
+    assert.equal(problems([...readings, mac, win, note, verdict].join('\n') + '\n'), '');
+    assert.equal(problems([note, ...readings, mac, win, verdict].join('\n') + '\n'), '');
+    assert.ok(problems([...readings, mac, win, verdict, note].join('\n') + '\n').includes('the file does not end in one verdict line'));
+  }],
   ['d5_a_result_file_that_cannot_be_read_is_refused', () => {
     refused(result(['check', '--file', missingPath()]));
   }],
