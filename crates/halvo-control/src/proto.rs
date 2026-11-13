@@ -268,13 +268,16 @@ impl<'de> Deserialize<'de> for Unique {
 
 /// The most bytes that one call of [`decode_request`] holds live at once for a frame of at most
 /// [`crate::wire::REQUEST_MAX_BYTES`]: 128 for each byte. The call parses the whole frame into
-/// a tree before it reads the shape; the worst shape that the test of wire.rs measures, objects
-/// of the empty key nested side by side, holds 471,098.
+/// a tree before it reads the shape; the worst frame that the test of wire.rs measures, a pause
+/// with one field too many that holds objects of the empty key nested 101 deep, 8 side by side,
+/// holds 518,676.
 pub const REQUEST_DECODE_PEAK_BYTES: usize = 524_288;
 
 /// The most bytes that one call of [`decode_reply`] holds live at once for a frame of at most
-/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The worst shape that the test of
-/// wire.rs measures, objects of the empty key nested side by side, holds 33,009,946.
+/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The call keeps one tree of the body.
+/// The worst frame that the test of wire.rs measures, an error reply with one field that the
+/// build does not know that holds objects of the empty key nested 100 deep, 522 side by side,
+/// holds 33,047,177.
 pub const REPLY_DECODE_PEAK_BYTES: usize = 33_554_432;
 
 /// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to

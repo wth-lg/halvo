@@ -47,10 +47,13 @@ after a lapse capture reads `no_indicator`, and the lapse writes nothing to the 
 file.
 
 One decode of a request frame of at most 4,096 bytes holds at most 524,288 bytes live at
-once (`REQUEST_DECODE_PEAK_BYTES`), and the worst shape that the crate's test measures,
-objects of the empty key nested side by side, holds 471,098. One decode of a reply frame of
-at most 262,144 bytes holds at most 33,554,432 bytes live at once (`REPLY_DECODE_PEAK_BYTES`),
-and the same shape holds 33,009,946.
+once (`REQUEST_DECODE_PEAK_BYTES`). The worst frame that the crate's test measures, a pause
+with one field too many that holds objects of the empty key nested 101 deep, 8 side by side,
+holds 518,676. One decode of a reply frame of at most 262,144 bytes holds at most 33,554,432
+bytes live at once (`REPLY_DECODE_PEAK_BYTES`). The worst, an error reply with one field that
+the build does not know that holds such objects nested 100 deep, 522 side by side, holds
+33,047,177. The test's frames carry their tree in a body that the decoder reads, and it sweeps
+the depth and the width of that tree on both sides.
 
 ## What never crosses the channel
 
