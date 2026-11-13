@@ -74,7 +74,7 @@ pub fn build_event(
 
 pub(crate) struct Packet {
     pub(crate) kind: Modality,
-    pub(crate) app: String,
+    pub(crate) app: Option<String>,
     pub(crate) byte_len: u64,
     pub(crate) tick: u32,
 }
@@ -328,7 +328,7 @@ pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutco
     sink.emit(build_event(
         sink,
         packet.kind,
-        packet.app,
+        packet.app.unwrap_or_default(),
         placement,
         wall_clock,
     ))
@@ -571,6 +571,12 @@ impl Drop for Lifecycle {
             let _ = self.shutdown();
         }
     }
+}
+
+/// The app of the shared cell, `None` when the cell holds none or cannot be
+/// read.
+pub(crate) fn app_of(cell: &Mutex<Option<String>>) -> Option<String> {
+    cell.lock().ok().and_then(|app| app.clone())
 }
 
 pub(crate) fn thread_ended() -> SourceState {
@@ -897,7 +903,7 @@ pub(crate) mod tests {
     fn pointer(app: &str) -> Packet {
         Packet {
             kind: Modality::Pointer,
-            app: app.to_string(),
+            app: Some(app.to_string()),
             byte_len: 12,
             tick: now_tick(),
         }
@@ -914,7 +920,7 @@ pub(crate) mod tests {
     fn keystroke(app: &str) -> Packet {
         Packet {
             kind: Modality::Keystroke,
-            app: app.to_string(),
+            app: Some(app.to_string()),
             byte_len: 2,
             tick: now_tick(),
         }
@@ -1351,7 +1357,7 @@ pub(crate) mod tests {
         let before = std::time::SystemTime::now();
         let packet = Packet {
             kind: Modality::Keystroke,
-            app: String::new(),
+            app: None,
             byte_len: 2,
             tick: now_tick().wrapping_sub(250),
         };

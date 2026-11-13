@@ -18,7 +18,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
 };
 
-pub(crate) fn title_packet(title: &str, exe_path: String, tick: u32) -> Option<Packet> {
+pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> Option<Packet> {
     if title.trim().is_empty() {
         return None;
     }
@@ -108,7 +108,7 @@ unsafe extern "system" fn title_proc(
         return;
     }
     let title = read_window_title(hwnd);
-    let app = foreground_app_for(hwnd).unwrap_or_default();
+    let app = foreground_app_for(hwnd);
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow().as_ref() {
             if let Some(packet) = title_packet(&title, app, time) {
@@ -170,18 +170,18 @@ mod tests {
 
     #[test]
     fn a_non_empty_title_maps_to_a_window_title_packet() {
-        let packet = title_packet("Inbox - Mail", "C:\\mail.exe".to_string(), 3)
+        let packet = title_packet("Inbox - Mail", Some("C:\\mail.exe".to_string()), 3)
             .expect("a non-empty title produces a packet");
         assert_eq!(packet.kind, Modality::WindowTitle);
-        assert_eq!(packet.app, "C:\\mail.exe");
+        assert_eq!(packet.app.as_deref(), Some("C:\\mail.exe"));
         assert_eq!(packet.byte_len, 12);
         assert_eq!(packet.tick, 3);
     }
 
     #[test]
     fn an_empty_or_whitespace_title_produces_no_packet() {
-        assert!(title_packet("", "a.exe".to_string(), 3).is_none());
-        assert!(title_packet("   ", "a.exe".to_string(), 3).is_none());
+        assert!(title_packet("", Some("a.exe".to_string()), 3).is_none());
+        assert!(title_packet("   ", Some("a.exe".to_string()), 3).is_none());
     }
 
     fn no_hook(

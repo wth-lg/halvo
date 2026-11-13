@@ -140,7 +140,7 @@ const SCREEN_START_FAILED: &str = "the screen capture could not start";
 pub(crate) fn frame_packet(
     width: u32,
     height: u32,
-    foreground_app: String,
+    foreground_app: Option<String>,
     tick: u32,
 ) -> Option<Packet> {
     if width == 0 || height == 0 {
@@ -195,12 +195,7 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             return Ok(());
         }
         let (width, height) = (frame.width(), frame.height());
-        let app = self
-            .last_app
-            .lock()
-            .ok()
-            .and_then(|g| g.clone())
-            .unwrap_or_default();
+        let app = super::app_of(&self.last_app);
         if let Some(packet) = frame_packet(width, height, app, super::now_tick()) {
             self.producer.push(packet);
         }
@@ -557,10 +552,10 @@ mod tests {
 
     #[test]
     fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
-        let packet = frame_packet(1920, 1080, "C:\\browser.exe".to_string(), 1)
+        let packet = frame_packet(1920, 1080, Some("C:\\browser.exe".to_string()), 1)
             .expect("a sized frame produces a packet");
         assert_eq!(packet.kind, Modality::ScreenFrame);
-        assert_eq!(packet.app, "C:\\browser.exe");
+        assert_eq!(packet.app.as_deref(), Some("C:\\browser.exe"));
         assert_eq!(packet.byte_len, 1920 * 1080 * 4);
     }
 
@@ -970,7 +965,7 @@ mod tests {
         let producer = handoff.producer();
         source.handoff = Some(handoff);
         let stopped = source.shutdown();
-        producer.push(frame_packet(1920, 1080, String::new(), 1).expect("a frame"));
+        producer.push(frame_packet(1920, 1080, None, 1).expect("a frame"));
         let arrived = writer.recv_timeout(Duration::from_millis(500)).is_ok();
         assert_eq!(stopped, Ok(()));
         assert!(
@@ -1034,7 +1029,7 @@ mod tests {
 
     #[test]
     fn a_zero_area_frame_is_not_recorded() {
-        assert!(frame_packet(0, 1080, String::new(), 1).is_none());
-        assert!(frame_packet(1920, 0, String::new(), 1).is_none());
+        assert!(frame_packet(0, 1080, None, 1).is_none());
+        assert!(frame_packet(1920, 0, None, 1).is_none());
     }
 }

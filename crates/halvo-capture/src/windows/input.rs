@@ -74,7 +74,7 @@ impl PointerSample {
 
 pub(crate) fn keystroke_packet(
     key: KeyStroke,
-    foreground_app: String,
+    foreground_app: Option<String>,
     tick: u32,
 ) -> Option<Packet> {
     if key.released {
@@ -88,7 +88,11 @@ pub(crate) fn keystroke_packet(
     })
 }
 
-pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String, tick: u32) -> Packet {
+pub(crate) fn pointer_packet(
+    sample: PointerSample,
+    foreground_app: Option<String>,
+    tick: u32,
+) -> Packet {
     Packet {
         kind: Modality::Pointer,
         app: foreground_app,
@@ -306,15 +310,6 @@ impl RawInputSource {
 }
 
 #[cfg(target_os = "windows")]
-fn attributed_app(last_app: &Mutex<Option<String>>) -> String {
-    last_app
-        .lock()
-        .ok()
-        .and_then(|g| g.clone())
-        .unwrap_or_default()
-}
-
-#[cfg(target_os = "windows")]
 fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     #[repr(C, align(8))]
     struct Aligned([u8; core::mem::size_of::<RAWINPUT>()]);
@@ -370,7 +365,7 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
         let Some(state) = borrow.as_ref() else {
             return;
         };
-        let app = attributed_app(&state.last_app);
+        let app = super::app_of(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
                 if let Some(packet) = keystroke_packet(key, app, tick) {
@@ -598,9 +593,9 @@ mod tests {
             vkey: 0x41,
             released: false,
         };
-        let packet = keystroke_packet(key, "C:\\editor.exe".to_string(), 7).unwrap();
+        let packet = keystroke_packet(key, Some("C:\\editor.exe".to_string()), 7).unwrap();
         assert_eq!(packet.kind, Modality::Keystroke);
-        assert_eq!(packet.app, "C:\\editor.exe");
+        assert_eq!(packet.app.as_deref(), Some("C:\\editor.exe"));
         assert_eq!(packet.byte_len, 2);
         assert_eq!(packet.tick, 7);
     }
@@ -611,14 +606,18 @@ mod tests {
             vkey: 0x41,
             released: true,
         };
-        assert!(keystroke_packet(key, String::new(), 7).is_none());
+        assert!(keystroke_packet(key, None, 7).is_none());
     }
 
     #[test]
     fn a_pointer_sample_maps_to_a_pointer_packet_and_only_a_flagless_one_is_motion() {
-        let packet = pointer_packet(PointerSample::default(), "C:\\game.exe".to_string(), 9);
+        let packet = pointer_packet(
+            PointerSample::default(),
+            Some("C:\\game.exe".to_string()),
+            9,
+        );
         assert_eq!(packet.kind, Modality::Pointer);
-        assert_eq!(packet.app, "C:\\game.exe");
+        assert_eq!(packet.app.as_deref(), Some("C:\\game.exe"));
         assert_eq!(packet.byte_len, 12);
         assert_eq!(packet.tick, 9);
         assert!(PointerSample::default().is_motion_only());

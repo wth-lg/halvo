@@ -36,7 +36,7 @@ pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVEN
     unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
 }
 
-pub(crate) fn foreground_packet(exe_path: String, tick: u32) -> Packet {
+pub(crate) fn foreground_packet(exe_path: Option<String>, tick: u32) -> Packet {
     Packet {
         kind: Modality::ForegroundApp,
         app: exe_path,
@@ -71,26 +71,46 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
 #[cfg(target_os = "windows")]
 fn process_path(pid: u32) -> Option<String> {
     use windows::core::PWSTR;
-    // SAFETY: `buf` and `len` are live locals that the call writes, `len` is
-    // the length of `buf`, and the process handle that OpenProcess returns is
-    // closed once, after the query.
+    // SAFETY: OpenProcess takes plain values; the handle that it returns is
+    // closed once, after the queries.
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+    let path = image_path_with(|buf, len| {
+        // SAFETY: `buf` and `len` are live, `len` holds the length of `buf`,
+        // and `handle` is open for the call.
+        unsafe {
+            QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), len)
+        }
+    });
+    // SAFETY: `handle` is the handle that OpenProcess returned above.
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-        let mut buf = [0u16; MAX_PATH as usize];
-        let mut len = buf.len() as u32;
-        let ok = QueryFullProcessImageNameW(
-            handle,
-            PROCESS_NAME_WIN32,
-            PWSTR(buf.as_mut_ptr()),
-            &mut len,
-        );
         let _ = CloseHandle(handle);
-        if ok.is_ok() {
-            Some(String::from_utf16_lossy(&buf[..len as usize]))
-        } else {
-            None
+    }
+    path
+}
+
+/// The longest path that the system writes, in UTF-16 units.
+const LONGEST_PATH_UNITS: usize = 32_768;
+
+/// The path that `query` writes, read first into a buffer of MAX_PATH units
+/// and again into one of [`LONGEST_PATH_UNITS`] when the first is too small.
+#[cfg(target_os = "windows")]
+pub(crate) fn image_path_with(
+    mut query: impl FnMut(&mut [u16], &mut u32) -> windows::core::Result<()>,
+) -> Option<String> {
+    use windows::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    for units in [MAX_PATH as usize, LONGEST_PATH_UNITS] {
+        let mut buf = vec![0u16; units];
+        let mut len = units as u32;
+        match query(&mut buf, &mut len) {
+            Ok(()) => {
+                let len = (len as usize).min(units);
+                return Some(capped_app(String::from_utf16_lossy(&buf[..len])));
+            }
+            Err(error) if error.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => continue,
+            Err(_) => return None,
         }
     }
+    None
 }
 
 /// The app in front as one read gives it: the process that a foreground
@@ -124,24 +144,19 @@ impl FrontTracker {
         hwnd: W,
         resolve: impl Fn(W) -> Option<FrontApp>,
     ) -> Change {
-        let Some(front) = resolve(hwnd) else {
-            return Change {
-                emit: None,
-                read_title: false,
-            };
-        };
-        let Some(path) = front.path else {
-            return Change {
-                emit: None,
-                read_title: false,
-            };
-        };
+        let front = resolve(hwnd);
         if let Ok(mut last) = cell.lock() {
-            *last = Some(path.clone());
+            *last = front.as_ref().and_then(|front| front.path.clone());
         }
+        let Some(front) = front else {
+            return Change {
+                emit: None,
+                read_title: false,
+            };
+        };
         self.last_pid = Some(front.pid);
         Change {
-            emit: Some(Some(path)),
+            emit: Some(front.path),
             read_title: true,
         }
     }
@@ -150,8 +165,10 @@ impl FrontTracker {
 /// The process that a frame-host window hosts: the first of its child
 /// windows' processes that is not the frame host's own.
 pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
-    let _ = (frame_pid, child_pids);
-    None
+    child_pids
+        .iter()
+        .copied()
+        .find(|&pid| pid != 0 && pid != frame_pid)
 }
 
 /// Whether `path` names the frame host of packaged apps.
@@ -161,7 +178,16 @@ pub(crate) fn is_frame_host(path: &str) -> bool {
 }
 
 /// The executable path as an event carries it.
-pub(crate) fn capped_app(path: String) -> String {
+pub(crate) fn capped_app(mut path: String) -> String {
+    let cap = crate::floor::text::TEXT_MAX_BYTES;
+    if path.len() <= cap {
+        return path;
+    }
+    let mut start = path.len() - cap;
+    while !path.is_char_boundary(start) {
+        start += 1;
+    }
+    path.drain(..start);
     path
 }
 
@@ -234,7 +260,7 @@ unsafe extern "system" fn foreground_proc(
             let change = state
                 .tracker
                 .on_window(&state.last_app, hwnd, resolve_front);
-            if let Some(Some(app)) = change.emit {
+            if let Some(app) = change.emit {
                 state.producer.push(foreground_packet(app, time));
             }
         }
@@ -252,12 +278,12 @@ pub(crate) fn resolve_front(hwnd: HWND) -> Option<FrontApp> {
     if pid == 0 {
         return None;
     }
-    let path = foreground_app_for(hwnd).map(capped_app);
+    let path = process_path(pid);
     if path.as_deref().is_some_and(is_frame_host) {
         if let Some(hosted) = hosted_pid(pid, &child_pids(hwnd)) {
             return Some(FrontApp {
                 pid: hosted,
-                path: process_path(hosted).map(capped_app),
+                path: process_path(hosted),
             });
         }
     }
@@ -328,6 +354,11 @@ fn run_foreground_hook(
     ready: PumpReady,
     signal: &super::StopSignal,
 ) {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let front = resolve_front(unsafe { GetForegroundWindow() });
+    if let Ok(mut last) = state.last_app.lock() {
+        *last = front.and_then(|front| front.path);
+    }
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let hook = installer(EVENT_SYSTEM_FOREGROUND, Some(foreground_proc));
     if hook.is_invalid() {
@@ -352,9 +383,9 @@ mod tests {
 
     #[test]
     fn a_foreground_change_maps_to_a_foreground_app_packet() {
-        let packet = foreground_packet("C:\\Windows\\explorer.exe".to_string(), 5);
+        let packet = foreground_packet(Some("C:\\Windows\\explorer.exe".to_string()), 5);
         assert_eq!(packet.kind, Modality::ForegroundApp);
-        assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
+        assert_eq!(packet.app.as_deref(), Some("C:\\Windows\\explorer.exe"));
         assert_eq!(packet.tick, 5);
     }
 
@@ -429,6 +460,36 @@ mod tests {
         assert!(kept.ends_with("\\tool.exe"));
         assert!(path.ends_with(&kept));
         assert!(kept.len() >= crate::floor::text::TEXT_MAX_BYTES - 1);
+    }
+
+    #[test]
+    fn a_path_longer_than_max_path_is_read_again_with_the_largest_buffer() {
+        use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_INSUFFICIENT_BUFFER};
+        let long: Vec<u16> = "C:\\"
+            .encode_utf16()
+            .chain(std::iter::repeat_n(u16::from(b'a'), 400))
+            .chain("\\tool.exe".encode_utf16())
+            .collect();
+        let mut sizes = Vec::new();
+        let path = image_path_with(|buf, len| {
+            sizes.push(buf.len());
+            if buf.len() < long.len() {
+                return Err(windows::core::Error::from_hresult(
+                    ERROR_INSUFFICIENT_BUFFER.to_hresult(),
+                ));
+            }
+            buf[..long.len()].copy_from_slice(&long);
+            *len = long.len() as u32;
+            Ok(())
+        });
+        assert_eq!(sizes, vec![MAX_PATH as usize, LONGEST_PATH_UNITS]);
+        assert_eq!(path.map(|p| p.len()), Some(long.len()));
+        let refused = image_path_with(|_, _| {
+            Err(windows::core::Error::from_hresult(
+                ERROR_ACCESS_DENIED.to_hresult(),
+            ))
+        });
+        assert_eq!(refused, None);
     }
 
     #[test]

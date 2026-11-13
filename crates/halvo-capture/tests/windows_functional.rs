@@ -2849,6 +2849,115 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x3_attribution_before_the_first_foreground_change() {
+    with_deadline("x3", Duration::from_secs(120), || {
+        env_report("x3");
+        source_built_by_test("x3", "keyboard");
+        let mut child = spawn_child("hold", 9);
+        let child_pid = child.id();
+        let waited = Instant::now();
+        while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        std::thread::sleep(Duration::from_secs(2));
+        let child_foreground_at_start = foreground_pid() == child_pid;
+        let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
+
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let last_app = foreground.last_app();
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let settle = events.drain_for(Duration::from_secs(1));
+        let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
+        press_keys(5);
+        let before = events.drain_for(Duration::from_millis(700));
+        let still_child_foreground = foreground_pid() == child_pid;
+
+        let mut between = Vec::new();
+        let waited = Instant::now();
+        while !between
+            .iter()
+            .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
+            && waited.elapsed() < Duration::from_secs(15)
+        {
+            between.extend(events.drain_for(Duration::from_millis(100)));
+        }
+        press_keys(5);
+        let after = events.drain_for(Duration::from_millis(700));
+        let exit = child.wait();
+        let _ = foreground.shutdown();
+        let _ = keyboard.shutdown();
+        child.print_output();
+
+        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+        let empty_app = |events: &[CaptureStreamEvent]| {
+            events
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
+                .count()
+        };
+        let child_app = |events: &[CaptureStreamEvent]| {
+            events
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke && is_child_app(&e.foreground_app))
+                .count()
+        };
+        say(
+            "x3",
+            format!(
+                "foreground_start={} keyboard_start={} \
+                 child_window_foreground_when_sources_started={child_foreground_at_start} \
+                 current_foreground_app_reader_names_child={reader_sees_child} \
+                 foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
+                 child_window_foreground_while_typing={still_child_foreground}",
+                show(&foreground_start),
+                show(&keyboard_start),
+                count(&settle, Modality::ForegroundApp),
+                cell_before_typing.is_none(),
+            ),
+        );
+        say(
+            "x3",
+            format!(
+                "keystrokes_before_first_foreground_change={} attributed_to_child={} \
+                 foreground_events_seen_after={} keystrokes_after_first_change={} \
+                 with_empty_app_after={} attributed_to_child_after={} child_exit_ok={}",
+                keys(&before),
+                child_app(&before),
+                count(&between, Modality::ForegroundApp),
+                keys(&after),
+                empty_app(&after),
+                child_app(&after),
+                exit.success(),
+            ),
+        );
+        assert!(foreground_start.is_ok() && keyboard_start.is_ok());
+        assert!(
+            child_foreground_at_start && still_child_foreground,
+            "INCONCLUSIVE: the child window was not the foreground window while the keys were typed"
+        );
+        assert!(
+            keys(&before) >= 1,
+            "INCONCLUSIVE: no keystroke event to attribute"
+        );
+        let evidence: String = format!(
+            "TF x3 keystrokes_before_first_foreground_change_with_empty_app={} \
+            attributed_to_child={}",
+            empty_app(&before),
+            child_app(&before)
+        );
+        println!("{evidence}");
+        assert!(
+            keys(&before) == 5 && child_app(&before) == 5 && empty_app(&before) == 0,
+            "{evidence}"
+        );
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -3129,116 +3238,6 @@ mod known_defect {
                 "RR-windows-08",
                 fixed >= 1,
                 format!("TF fixed-title title_events_for_the_fixed_title={fixed}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x3_attribution_before_the_first_foreground_change() {
-        with_deadline("x3", Duration::from_secs(120), || {
-            env_report("x3");
-            source_built_by_test("x3", "keyboard");
-            let mut child = spawn_child("hold", 9);
-            let child_pid = child.id();
-            let waited = Instant::now();
-            while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            std::thread::sleep(Duration::from_secs(2));
-            let child_foreground_at_start = foreground_pid() == child_pid;
-            let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
-
-            let (sink, events) = capture(4096);
-            let mut foreground = ForegroundAppSource::new();
-            let last_app = foreground.last_app();
-            let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
-            let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
-            let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
-            let settle = events.drain_for(Duration::from_secs(1));
-            let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
-            press_keys(5);
-            let before = events.drain_for(Duration::from_millis(700));
-            let still_child_foreground = foreground_pid() == child_pid;
-
-            let mut between = Vec::new();
-            let waited = Instant::now();
-            while !between
-                .iter()
-                .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
-                && waited.elapsed() < Duration::from_secs(15)
-            {
-                between.extend(events.drain_for(Duration::from_millis(100)));
-            }
-            press_keys(5);
-            let after = events.drain_for(Duration::from_millis(700));
-            let exit = child.wait();
-            let _ = foreground.shutdown();
-            let _ = keyboard.shutdown();
-            child.print_output();
-
-            let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
-            let empty_app = |events: &[CaptureStreamEvent]| {
-                events
-                    .iter()
-                    .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
-                    .count()
-            };
-            let child_app = |events: &[CaptureStreamEvent]| {
-                events
-                    .iter()
-                    .filter(|e| {
-                        e.modality == Modality::Keystroke && is_child_app(&e.foreground_app)
-                    })
-                    .count()
-            };
-            say(
-                "x3",
-                format!(
-                    "foreground_start={} keyboard_start={} \
-                     child_window_foreground_when_sources_started={child_foreground_at_start} \
-                     current_foreground_app_reader_names_child={reader_sees_child} \
-                     foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
-                     child_window_foreground_while_typing={still_child_foreground}",
-                    show(&foreground_start),
-                    show(&keyboard_start),
-                    count(&settle, Modality::ForegroundApp),
-                    cell_before_typing.is_none(),
-                ),
-            );
-            say(
-                "x3",
-                format!(
-                    "keystrokes_before_first_foreground_change={} attributed_to_child={} \
-                     foreground_events_seen_after={} keystrokes_after_first_change={} \
-                     with_empty_app_after={} attributed_to_child_after={} child_exit_ok={}",
-                    keys(&before),
-                    child_app(&before),
-                    count(&between, Modality::ForegroundApp),
-                    keys(&after),
-                    empty_app(&after),
-                    child_app(&after),
-                    exit.success(),
-                ),
-            );
-            assert!(foreground_start.is_ok() && keyboard_start.is_ok());
-            assert!(
-                child_foreground_at_start && still_child_foreground,
-                "INCONCLUSIVE: the child window was not the foreground window while the keys were typed"
-            );
-            assert!(
-                keys(&before) >= 1,
-                "INCONCLUSIVE: no keystroke event to attribute"
-            );
-            defect!(
-                "RR-windows-10",
-                child_app(&before) == keys(&before),
-                format!(
-                    "TF x3 keystrokes_before_first_foreground_change_with_empty_app={} \
-                     attributed_to_child={}",
-                    empty_app(&before),
-                    child_app(&before)
-                )
             );
         });
     }
