@@ -121,14 +121,14 @@ EOF
         if (start && (c == "\"" || c == q)) {
           tok = i; i = past(line, i + 1, c)
           if (!i) { quote = c; return }
-          start = 0; after = 1; continue
+          after = 1; continue
         }
         if (c == ":" && (after || nx ~ /[ \t]/)) { keycol = tok; start = 1; continue }
-        if (start && c == "-" && nx ~ /[ \t]/) { keycol = i; continue }
+        if (start && c == "-" && nx ~ /[ \t]/) continue
         if (start && (c == "[" || c == "{")) { depth++; continue }
         if (depth && (c == "]" || c == "}")) { depth--; continue }
         if (depth && c == ",") { start = 1; continue }
-        if (start && (c == "|" || c == ">")) { block = keycol; return }
+        if (start && (c == "|" || c == ">")) block = keycol
         if (start && (c == "&" || c == "!")) { while (i < n && substr(line, i + 1, 1) !~ /[ \t]/) i++; continue }
         if (start) { start = 0; tok = i }
         after = 0
@@ -353,7 +353,7 @@ EOF
   check timeout-in-a-step-name-after-a-run-block FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree job-in-a-quoted-name "8s/\$/\\${nl}    name: \"macos\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30\\${nl}    \"/;11,15d"
   check job-in-a-quoted-name FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos)'
-  tree quotes-that-close-or-do-not-open "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"\\${nl}    permissions: {}\\${nl}    env:\\${nl}      A: -\"x\\${nl}      B: it's, \"y # c: 'z\\${nl}      C: a[b, \"y\\${nl}      E: a], \"z\\${nl}      \"D\": a:\"b/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
+  tree quotes-that-close-or-do-not-open "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"\\${nl}    permissions: {}\\${nl}    # a: \"x\\${nl}    env:\\${nl}      A: -\"x\\${nl}      B: it's, \"y # c: 'z\\${nl}      C: a[b, \"y\\${nl}      E: a], \"z\\${nl}      \"D\": a:\"b/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
   check quotes-that-close-or-do-not-open PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree quoted-names-over-two-lines-before-the-timeout "7s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;12s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
   check quoted-names-over-two-lines-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
