@@ -69,11 +69,11 @@ fn hosted_fixture() -> std::path::PathBuf {
 }
 
 fn source_for(bound: Duration) -> InputSource {
-    let _ = bound;
-    InputSource::new(
+    InputSource::with_hold_bound(
         ForegroundReader::nothing_in_front(),
         InputCounters::new(),
         HoldPlan::Never,
+        bound,
     )
 }
 

@@ -185,6 +185,7 @@ pub(crate) fn emit_metadata_only(
     modality: Modality,
     foreground: Option<Foreground>,
     placement: Unpersisted,
+    wall_clock: SystemTime,
 ) -> Result<EmitOutcome, SinkError> {
     let foreground_app = foreground
         .map(|front| front.identity.text().to_owned())
@@ -192,7 +193,7 @@ pub(crate) fn emit_metadata_only(
     let (segment_ref, segment_key_id) = placement.placement();
     sink.emit(CaptureStreamEvent::new_raw(
         CapturedAt {
-            wall_clock: SystemTime::now(),
+            wall_clock,
             sequence: sink.next_sequence(),
         },
         modality,
@@ -323,6 +324,7 @@ impl Poller {
                     Unpersisted {
                         byte_len: title.bytes(),
                     },
+                    SystemTime::now(),
                 );
             }
             Ok(None) if self.retries_left > 0 => {
@@ -368,6 +370,7 @@ impl Poller {
                 Modality::ForegroundApp,
                 Some(front.clone()),
                 Unpersisted::EMPTY,
+                SystemTime::now(),
             );
             self.title = TitleState::Asked;
             self.retries_left = self.retry_ticks;
@@ -772,9 +775,17 @@ mod tests {
             Modality::WindowTitle,
             app("com.apple.Terminal", 7),
             Unpersisted { byte_len: 7 },
+            SystemTime::now(),
         )
         .unwrap();
-        emit_metadata_only(&handle, Modality::Pointer, None, Unpersisted::EMPTY).unwrap();
+        emit_metadata_only(
+            &handle,
+            Modality::Pointer,
+            None,
+            Unpersisted::EMPTY,
+            SystemTime::now(),
+        )
+        .unwrap();
         assert_eq!(
             events(handle, &writer),
             [
@@ -785,11 +796,37 @@ mod tests {
     }
 
     #[test]
+    fn an_emit_carries_the_instant_that_it_is_given() {
+        let (handle, writer) = sink::channel(2);
+        let instant = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        emit_metadata_only(
+            &handle,
+            Modality::Keystroke,
+            None,
+            Unpersisted::EMPTY,
+            instant,
+        )
+        .unwrap();
+        drop(handle);
+        let stamps: Vec<SystemTime> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.captured_at.wall_clock)
+            .collect();
+        assert_eq!(stamps, [instant]);
+    }
+
+    #[test]
     fn two_emits_carry_increasing_sequences_and_wall_clocks_between_the_calls() {
         let (handle, writer) = sink::channel(2);
         let before = SystemTime::now();
         for modality in [Modality::ForegroundApp, Modality::WindowTitle] {
-            emit_metadata_only(&handle, modality, None, Unpersisted::EMPTY).unwrap();
+            emit_metadata_only(
+                &handle,
+                modality,
+                None,
+                Unpersisted::EMPTY,
+                SystemTime::now(),
+            )
+            .unwrap();
         }
         let after = SystemTime::now();
         drop(handle);

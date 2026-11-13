@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchRetained};
@@ -83,6 +83,7 @@ fn on_sample(ivars: &ScreenIvars, _sample: &CMSampleBuffer, ty: SCStreamOutputTy
         Modality::ScreenFrame,
         ivars.foreground.get(),
         Unpersisted::EMPTY,
+        SystemTime::now(),
     );
 }
 
