@@ -901,3 +901,164 @@ fn the_command_prints_the_run_of_its_seed_and_exits_by_the_result() {
     );
     assert!(err.is_empty());
 }
+
+fn lowest(_: &mut SplitMix64, _: NonZeroU64) -> u64 {
+    0
+}
+
+fn highest(_: &mut SplitMix64, bound: NonZeroU64) -> u64 {
+    bound.get() - 1
+}
+
+fn one_case(case: &'static str, draw: DrawRule, machine: Machine) -> Outcome {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), machine);
+    sim.draw = draw;
+    sim.start(case);
+    match case {
+        "near_cap" => sim.near_cap(),
+        "fan_out" => sim.fan_out(),
+        "cap_lowered" => sim.cap_lowered(),
+        _ => sim.second_device(),
+    }
+    sim.outcome.cases.push((case, sim.counts));
+    sim.outcome
+}
+
+fn first_cap_of_each_account(outcome: &Outcome) -> Vec<Option<u64>> {
+    let mut caps = Vec::new();
+    let mut last = 0;
+    for step in &outcome.steps {
+        if step.account != last {
+            caps.push(step.cap_minor);
+            last = step.account;
+        }
+    }
+    caps
+}
+
+fn written(tier: WireTier, length: usize, limit: u32) -> u64 {
+    Body {
+        tier,
+        effort: Effort::Medium,
+        max_output_tokens: limit,
+        messages: vec![Message {
+            role: Role::User,
+            content: "x".repeat(length),
+        }],
+    }
+    .to_bytes()
+    .expect("a body")
+    .len() as u64
+}
+
+#[test]
+fn the_caps_of_t75_are_100_and_200_minor_units_and_fan_out_draws_10_to_100() {
+    let outcome = simulate(1);
+    assert!(steps_of(&outcome, "near_cap")
+        .iter()
+        .all(|step| step.cap_minor == Some(100)));
+    assert!(steps_of(&outcome, "second_device")
+        .iter()
+        .all(|step| step.cap_minor == Some(200)));
+    let low = one_case("fan_out", lowest, step::step);
+    let high = one_case("fan_out", highest, step::step);
+    assert_eq!(first_cap_of_each_account(&low), vec![Some(10); 30]);
+    assert_eq!(first_cap_of_each_account(&high), vec![Some(100); 30]);
+}
+
+#[test]
+fn a_request_draws_its_message_from_1_to_8192_bytes_and_its_limit_from_1_to_256() {
+    for (draw, tier, wire, length, limit) in [
+        (
+            lowest as DrawRule,
+            Tier::LowCostHosted,
+            WireTier::LowCostHosted,
+            1,
+            1,
+        ),
+        (
+            highest as DrawRule,
+            Tier::Frontier,
+            WireTier::Frontier,
+            8_192,
+            256,
+        ),
+    ] {
+        let outcome = one_case("near_cap", draw, step::step);
+        let request = outcome.steps[0]
+            .request
+            .expect("the first move is a reserve");
+        assert_eq!(
+            (request.tier, request.body_bytes, request.max_output_tokens),
+            (tier, written(wire, length, limit), u64::from(limit))
+        );
+    }
+}
+
+#[test]
+fn a_cost_draws_its_tokens_at_or_under_the_bytes_and_the_limit_and_reaches_both() {
+    for (draw, top) in [(lowest as DrawRule, false), (highest as DrawRule, true)] {
+        let outcome = one_case("near_cap", draw, step::step);
+        let mut requests = BTreeMap::new();
+        let mut settles = 0;
+        for step in &outcome.steps {
+            match (step.mv, step.request) {
+                (Move::Reserve { .. }, Some(request)) => {
+                    requests.insert(step.hold, request);
+                }
+                (Move::Settle { cost }, _) => {
+                    let request = requests[&step.hold];
+                    let most = Prices::release().cost(
+                        request.tier,
+                        request.body_bytes,
+                        request.max_output_tokens,
+                    );
+                    assert_eq!(cost, if top { most } else { 0 }, "hold {}", step.hold);
+                    settles += 1;
+                }
+                _ => {}
+            }
+        }
+        assert!(settles > 0);
+    }
+}
+
+fn settle_to_9999_then_10000(
+    account: &Account,
+    hold: &Hold,
+    mv: Move,
+) -> Result<(Account, Hold), SpendCause> {
+    match mv {
+        Move::Settle { .. } => {
+            let to = if account.spent < 9_999 { 9_999 } else { 10_000 };
+            let cost = to - account.spent.min(to);
+            step::step(account, hold, Move::Settle { cost })
+        }
+        _ => step::step(account, hold, mv),
+    }
+}
+
+#[test]
+fn cap_lowered_lowers_the_cap_at_10000_micro_units_and_not_at_9999() {
+    let outcome = one_case("cap_lowered", highest, settle_to_9999_then_10000);
+    let first: Vec<&Step> = outcome
+        .steps
+        .iter()
+        .take_while(|step| step.cap_minor == Some(2000))
+        .collect();
+    assert_eq!(
+        answers(&first),
+        [
+            "reserve ok",
+            "dispatch ok",
+            "settle ok",
+            "reserve ok",
+            "dispatch ok",
+            "settle ok",
+            "reserve ok",
+            "dispatch ok"
+        ]
+    );
+    assert_eq!((first[2].spent, first[5].spent), (9_999, 10_000));
+    assert_eq!(outcome.steps[first.len()].cap_minor, Some(1));
+}

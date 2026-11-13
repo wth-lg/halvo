@@ -238,6 +238,7 @@ pub fn simulate_with(seed: u64, prices: &Prices, default_cap: Option<u64>) -> Ou
 
 type Machine = fn(&Account, &Hold, Move) -> Result<(Account, Hold), SpendCause>;
 type FitRule = fn(&Room, Micro, &[Micro]) -> Fit;
+type DrawRule = fn(&mut SplitMix64, NonZeroU64) -> u64;
 
 fn run(mut sim: Sim<'_>) -> Outcome {
     for case in CASES {
@@ -398,6 +399,7 @@ struct Sim<'a> {
     prices: &'a Prices,
     machine: Machine,
     fit: FitRule,
+    draw: DrawRule,
     draws: SplitMix64,
     default_cap: Option<u64>,
     outcome: Outcome,
@@ -414,6 +416,7 @@ impl<'a> Sim<'a> {
             prices,
             machine,
             fit: fits,
+            draw: SplitMix64::below,
             draws: SplitMix64::new(seed),
             default_cap,
             outcome: Outcome {
@@ -448,7 +451,7 @@ impl<'a> Sim<'a> {
 
     fn below(&mut self, bound: u64) -> u64 {
         match NonZeroU64::new(bound) {
-            Some(bound) => self.draws.below(bound),
+            Some(bound) => (self.draw)(&mut self.draws, bound),
             None => 0,
         }
     }
