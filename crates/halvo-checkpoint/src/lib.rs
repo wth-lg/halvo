@@ -6,6 +6,7 @@
 
 mod at;
 mod digest;
+mod identity;
 mod lock;
 mod name;
 mod remove;
@@ -13,6 +14,7 @@ mod run;
 mod walk;
 
 pub use digest::Sha256;
+pub use identity::{same_file, FileId};
 pub use lock::{Held, LockError, Locks, Mark, Marked};
 pub use name::{checkpoint_name, name_units, names_fit, own_name, removing_name, NAME_MAX};
 pub use remove::{remove, Expect, Left, Removal, Row, Undecided};

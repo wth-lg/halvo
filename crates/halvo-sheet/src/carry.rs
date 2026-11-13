@@ -98,6 +98,8 @@ mod windows {
     use std::os::windows::io::AsRawHandle;
     use std::path::Path;
 
+    use halvo_checkpoint::{same_file, FileId};
+
     use crate::parts::FILE_MAX;
 
     type Handle = *mut c_void;
@@ -110,7 +112,6 @@ mod windows {
             info: *mut c_void,
             size: u32,
         ) -> i32;
-        fn GetFileInformationByHandle(file: Handle, info: *mut [u32; 13]) -> i32;
         fn LocalFree(memory: *mut c_void) -> *mut c_void;
     }
 
@@ -152,20 +153,10 @@ mod windows {
     const UNPROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x2000_0000;
     const SE_DACL_PROTECTED: u16 = 0x1000;
 
-    /// The volume serial number and the file index of the file that `file` has open.
-    fn identity(file: &File) -> io::Result<(u32, u32, u32)> {
-        let mut info = [0u32; 13];
-        // SAFETY: the handle is open for the whole call, and `info` has the 52 bytes of
-        // BY_HANDLE_FILE_INFORMATION, thirteen 32-bit fields.
-        let done = unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut info) };
-        if done == 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok((info[7], info[11], info[12]))
-    }
-
+    /// Whether the handles `a` and `b` are open on one file, by the one compare of identity
+    /// of the crate halvo-checkpoint.
     fn same(a: &File, b: &File) -> io::Result<()> {
-        if identity(a)? == identity(b)? {
+        if same_file(&FileId::of(a)?, &FileId::of(b)?) {
             Ok(())
         } else {
             Err(io::Error::from(io::ErrorKind::NotFound))

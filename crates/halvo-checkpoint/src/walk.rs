@@ -1,8 +1,10 @@
 use std::ffi::OsStr;
 use std::fmt;
-use std::fs::{self, File, Metadata, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Component, Path, PathBuf};
+
+use crate::identity::{same_file, FileId};
 
 /// Why the walk of a path refused it, or what the system answered on the way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -147,7 +149,7 @@ pub fn regular(full: &Path) -> Result<(), Walk> {
 /// [`Walk::NotFile`] when another file took its place between the look and the open.
 pub fn open_regular(full: &Path) -> Result<File, Walk> {
     regular(full)?;
-    let named = fs::symlink_metadata(full)?;
+    let named = FileId::at(full)?;
     let file = no_follow(full).map_err(|error| {
         if is_loop(&error) {
             Walk::Link
@@ -159,22 +161,22 @@ pub fn open_regular(full: &Path) -> Result<File, Walk> {
     if seen.file_type().is_symlink() {
         return Err(Walk::Link);
     }
-    if !seen.is_file() || !same_file(&named, &seen) {
+    if !seen.is_file() || !same_file(&named, &FileId::of(&file)?) {
         return Err(Walk::NotFile);
     }
     Ok(file)
 }
 
 /// Whether the entry at `full`, read without following a link, is a regular file and the file
-/// that `file` has open: on macOS the same device and inode, on Windows the same length,
-/// creation time and time of the last write.
+/// that `file` has open, compared by [`same_file`].
 pub fn same_entry(file: &File, full: &Path) -> bool {
-    match (file.metadata(), fs::symlink_metadata(full)) {
-        (Ok(opened), Ok(named)) => {
-            !named.file_type().is_symlink() && named.is_file() && same_file(&opened, &named)
+    let regular = fs::symlink_metadata(full)
+        .is_ok_and(|named| !named.file_type().is_symlink() && named.is_file());
+    regular
+        && match (FileId::of(file), FileId::at(full)) {
+            (Ok(opened), Ok(named)) => same_file(&opened, &named),
+            _ => false,
         }
-        _ => false,
-    }
 }
 
 pub(crate) fn no_follow(path: &Path) -> io::Result<File> {
@@ -201,26 +203,6 @@ pub(crate) fn is_loop(error: &io::Error) -> bool {
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn is_loop(_: &io::Error) -> bool {
     false
-}
-
-#[cfg(unix)]
-pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    (a.dev(), a.ino(), a.len(), a.mtime(), a.mtime_nsec())
-        == (b.dev(), b.ino(), b.len(), b.mtime(), b.mtime_nsec())
-}
-
-#[cfg(windows)]
-pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    a.len() == b.len()
-        && a.creation_time() == b.creation_time()
-        && a.last_write_time() == b.last_write_time()
-}
-
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    a.len() == b.len()
 }
 
 #[cfg(windows)]

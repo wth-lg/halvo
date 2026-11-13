@@ -1,11 +1,12 @@
 use std::ffi::OsStr;
-use std::fs::{self, File, Metadata};
+use std::fs::{File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::at::Dir;
-use crate::walk::{is_loop, same_file, Root, Walk};
+use crate::identity::{same_file, unchanged, FileId};
+use crate::walk::{is_loop, Root, Walk};
 use crate::{checkpoint_name, digest, removing_name, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
@@ -175,23 +176,12 @@ fn opened_dir(row: &Row<'_>, dir: &Path) -> Result<Dir, Removal> {
         _ if is_loop(&error) => Removal::Left(Left::Link),
         _ => Removal::Left(Left::Unreadable),
     })?;
-    let opened = at.meta().map_err(|_| Removal::Left(Left::Unreadable))?;
-    let named = fs::metadata(dir).map_err(|_| Removal::Left(Left::Link))?;
-    if !same_dir(&opened, &named) {
+    let opened = at.id().map_err(|_| Removal::Left(Left::Unreadable))?;
+    let named = FileId::at(dir).map_err(|_| Removal::Left(Left::Link))?;
+    if !same_file(&opened, &named) {
         return Err(Removal::Left(Left::Link));
     }
     Ok(at)
-}
-
-#[cfg(unix)]
-fn same_dir(a: &Metadata, b: &Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    (a.dev(), a.ino()) == (b.dev(), b.ino())
-}
-
-#[cfg(not(unix))]
-fn same_dir(a: &Metadata, b: &Metadata) -> bool {
-    a.is_dir() && b.is_dir()
 }
 
 fn walked(walk: Walk) -> Removal {
@@ -211,15 +201,15 @@ fn checked(
     name: &OsStr,
     workbook: &OsStr,
     expect: Expect,
-) -> Result<(File, Metadata, (Sha256, u64)), Removal> {
-    let (file, seen) = opened(at, name)?;
+) -> Result<(File, FileId, (Sha256, u64)), Removal> {
+    let (file, seen, id) = opened(at, name)?;
     if !own_entry(at, name)? {
         return Err(Removal::Left(Left::Name));
     }
     let (sha256, bytes) = match expect {
         Expect::Made { sha256, bytes } => (sha256, bytes),
         Expect::Planned => {
-            let (book, _) = opened(at, workbook).map_err(|_| Removal::Left(Left::Changed))?;
+            let (book, _, _) = opened(at, workbook).map_err(|_| Removal::Left(Left::Changed))?;
             let (sha256, bytes) =
                 digest::read(&book, FILE_MAX).map_err(|_| Removal::Left(Left::Changed))?;
             if bytes > FILE_MAX {
@@ -239,21 +229,16 @@ fn checked(
     if count != bytes || held != sha256 {
         return Err(Removal::Left(Left::Changed));
     }
-    let (_, now) = opened(at, name).map_err(|_| Removal::Left(Left::Changed))?;
-    if !same_file(&seen, &now) {
+    let (_, now, now_id) = opened(at, name).map_err(|_| Removal::Left(Left::Changed))?;
+    if !same_file(&id, &now_id) || !unchanged(&seen, &now) {
         return Err(Removal::Left(Left::Changed));
     }
-    Ok((file, seen, (sha256, bytes)))
+    Ok((file, id, (sha256, bytes)))
 }
 
 static ASIDE: AtomicU64 = AtomicU64::new(0);
 
-fn aside(
-    at: &Dir,
-    name: &OsStr,
-    seen: &Metadata,
-    held: (Sha256, u64),
-) -> Result<Removal, Undecided> {
+fn aside(at: &Dir, name: &OsStr, seen: &FileId, held: (Sha256, u64)) -> Result<Removal, Undecided> {
     let count = ASIDE.fetch_add(1, Ordering::Relaxed) & 0xffff_ffff;
     let own = (u64::from(std::process::id()) << 32) | count;
     let moved = removing_name(name, own);
@@ -262,7 +247,7 @@ fn aside(
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Removal::Absent),
         Err(error) => return Err(Undecided::Remove(error.kind())),
     }
-    let still = opened(at, &moved).is_ok_and(|(file, now)| {
+    let still = opened(at, &moved).is_ok_and(|(file, _, now)| {
         same_file(seen, &now) && digest::read(&file, FILE_MAX).is_ok_and(|read| read == held)
     });
     if !still {
@@ -288,7 +273,7 @@ fn put_back(at: &Dir, moved: &OsStr, name: &OsStr) {
     }
 }
 
-fn opened(at: &Dir, name: &OsStr) -> Result<(File, Metadata), Removal> {
+fn opened(at: &Dir, name: &OsStr) -> Result<(File, Metadata, FileId), Removal> {
     let (file, seen) = at
         .open(name)
         .map_err(|error| match (error.kind(), at.look(name)) {
@@ -304,7 +289,8 @@ fn opened(at: &Dir, name: &OsStr) -> Result<(File, Metadata), Removal> {
     if !seen.is_file() {
         return Err(Removal::Left(Left::NotFile));
     }
-    Ok((file, seen))
+    let id = FileId::of(&file).map_err(|_| Removal::Left(Left::Unreadable))?;
+    Ok((file, seen, id))
 }
 
 fn own_entry(at: &Dir, name: &OsStr) -> Result<bool, Removal> {
@@ -315,6 +301,7 @@ fn own_entry(at: &Dir, name: &OsStr) -> Result<bool, Removal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     fn scratch(name: &str) -> PathBuf {
         let exe = std::env::current_exe().expect("the test binary");
@@ -339,7 +326,7 @@ mod tests {
         let name = OsStr::new("values.halvo-checkpoint-x.xlsx");
         fs::write(dir.join(name), bytes).expect("the checked copy");
         let at = Dir::walk(&dir, &[]).expect("the directory");
-        let (file, seen) = opened(&at, name).expect("opened");
+        let (file, _, seen) = opened(&at, name).expect("opened");
         drop(file);
         fs::write(dir.join("person.xlsx"), bytes).expect("a file of the same bytes");
         fs::rename(dir.join("person.xlsx"), dir.join(name)).expect("swap it in");
@@ -372,7 +359,7 @@ mod tests {
         let at = Dir::walk(&folder, &[OsStr::new("sub")]).expect("the directory");
         fs::rename(folder.join("sub"), folder.join("sub-real")).expect("move the directory");
         std::os::unix::fs::symlink(&outside, folder.join("sub")).expect("the link");
-        let (file, seen) = opened(&at, name).expect("opened");
+        let (file, _, seen) = opened(&at, name).expect("opened");
         drop(file);
         let held = (Sha256::of(bytes), bytes.len() as u64);
         assert_eq!(aside(&at, name, &seen, held), Ok(Removal::Removed));

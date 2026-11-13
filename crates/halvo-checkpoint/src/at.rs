@@ -52,6 +52,8 @@ mod macos {
     use std::os::unix::fs::OpenOptionsExt;
     use std::path::Path;
 
+    use crate::identity::FileId;
+
     const O_RDONLY: i32 = 0;
     const O_NONBLOCK: i32 = 0x0004;
     const O_NOFOLLOW: i32 = 0x0100;
@@ -142,9 +144,9 @@ mod macos {
             self.at(name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         }
 
-        /// The directory's own metadata.
-        pub(crate) fn meta(&self) -> io::Result<Metadata> {
-            self.0.metadata()
+        /// The identity of the directory that the descriptor has open.
+        pub(crate) fn id(&self) -> io::Result<FileId> {
+            FileId::of(&self.0)
         }
 
         /// Renames the entry `from` to `to` in this directory, and fails with
@@ -233,12 +235,12 @@ mod by_path {
     use std::io;
     use std::path::{Path, PathBuf};
 
+    use crate::identity::FileId;
+
     pub(crate) struct Dir {
         path: PathBuf,
         #[cfg(windows)]
         _pins: Vec<File>,
-        #[cfg(windows)]
-        meta: Metadata,
     }
 
     #[cfg(windows)]
@@ -298,11 +300,9 @@ mod by_path {
         #[cfg(windows)]
         pub(super) fn folder(folder: &Path) -> io::Result<Dir> {
             let pin = system::pin(folder)?;
-            let meta = pin.metadata()?;
             Ok(Dir {
                 path: folder.to_path_buf(),
                 _pins: vec![pin],
-                meta,
             })
         }
 
@@ -317,7 +317,6 @@ mod by_path {
         pub(super) fn child(mut self, name: &OsStr) -> io::Result<Dir> {
             let path = self.path.join(name);
             let pin = system::pin(&path)?;
-            self.meta = pin.metadata()?;
             self._pins.push(pin);
             self.path = path;
             Ok(self)
@@ -337,14 +336,18 @@ mod by_path {
             crate::walk::no_follow(&self.path.join(name))
         }
 
+        /// The identity of the last directory of the way, read through the handle that pins it.
         #[cfg(windows)]
-        pub(crate) fn meta(&self) -> io::Result<Metadata> {
-            Ok(self.meta.clone())
+        pub(crate) fn id(&self) -> io::Result<FileId> {
+            match self._pins.last() {
+                Some(pin) => FileId::of(pin),
+                None => Err(io::Error::from(io::ErrorKind::NotFound)),
+            }
         }
 
         #[cfg(not(windows))]
-        pub(crate) fn meta(&self) -> io::Result<Metadata> {
-            fs::metadata(&self.path)
+        pub(crate) fn id(&self) -> io::Result<FileId> {
+            FileId::at(&self.path)
         }
 
         #[cfg(windows)]

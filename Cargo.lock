@@ -1505,6 +1505,7 @@ name = "halvo-checkpoint"
 version = "0.0.0"
 dependencies = [
  "sha2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

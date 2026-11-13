@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::identity::{same_file, FileId};
 use crate::Sha256;
 
 /// Why a call could not take the lock of a workbook's directory. It then touched no file
@@ -35,13 +36,14 @@ impl From<io::Error> for LockError {
 /// inode numbers, on Windows its final path), so that every spelling of one directory takes one
 /// lock and the name holds no value of the user; the file is empty. The system releases a lock
 /// when the holder's file closes, also when the process that held it is killed. Each call
-/// checks again that `agents/` and `agents/locks/` are directories and no links, and on macOS
-/// that `agents/locks/` is still the directory that [`Locks::open`] opened.
+/// checks again that `agents/` and `agents/locks/` are directories and no links, and that
+/// `agents/locks/` is still the directory that [`Locks::open`] opened, compared by
+/// [`crate::same_file`].
 #[derive(Clone)]
 pub struct Locks {
     dir: PathBuf,
     wait: Duration,
-    opened: Identity,
+    opened: FileId,
 }
 
 impl fmt::Debug for Locks {
@@ -200,7 +202,7 @@ impl Locks {
     }
 
     fn places(&self) -> Result<(), LockError> {
-        if places(&self.dir)? == self.opened {
+        if same_file(&places(&self.dir)?, &self.opened) {
             Ok(())
         } else {
             Err(LockError::Link)
@@ -219,14 +221,14 @@ impl Locks {
         if opened.file_type().is_symlink() || named.file_type().is_symlink() || !opened.is_file() {
             return Err(LockError::Link);
         }
-        if !same_file(&opened, &named) {
+        if !same_file(&FileId::of(&file)?, &FileId::at(&path)?) {
             return Err(LockError::Link);
         }
         Ok(file)
     }
 }
 
-fn places(dir: &Path) -> Result<Identity, LockError> {
+fn places(dir: &Path) -> Result<FileId, LockError> {
     let agents = dir.parent().unwrap_or(dir);
     for part in [agents, dir] {
         let meta = fs::symlink_metadata(part)?;
@@ -237,7 +239,7 @@ fn places(dir: &Path) -> Result<Identity, LockError> {
             return Err(LockError::Io(io::ErrorKind::NotADirectory));
         }
     }
-    identity(dir)
+    Ok(FileId::at(dir)?)
 }
 
 fn mark_name(dir: &Path, name: &OsStr) -> Result<String, LockError> {
@@ -248,31 +250,13 @@ fn mark_name(dir: &Path, name: &OsStr) -> Result<String, LockError> {
 }
 
 #[cfg(unix)]
-type Identity = (u64, u64);
-
-#[cfg(unix)]
-fn identity(dir: &Path) -> Result<Identity, LockError> {
-    use std::os::unix::fs::MetadataExt;
-    let meta = fs::symlink_metadata(dir)?;
-    Ok((meta.dev(), meta.ino()))
-}
-
-#[cfg(not(unix))]
-type Identity = PathBuf;
-
-#[cfg(not(unix))]
-fn identity(dir: &Path) -> Result<Identity, LockError> {
-    Ok(fs::canonicalize(dir)?)
-}
-
-#[cfg(unix)]
 fn key(dir: &Path) -> Result<Vec<u8>, LockError> {
-    use std::os::unix::fs::MetadataExt;
-    let meta = fs::metadata(dir)?;
-    if !meta.is_dir() {
+    let opened = File::open(dir)?;
+    if !opened.metadata()?.is_dir() {
         return Err(LockError::Io(io::ErrorKind::NotADirectory));
     }
-    Ok(format!("unix {} {}", meta.dev(), meta.ino()).into_bytes())
+    let (device, inode) = FileId::of(&opened)?.numbers();
+    Ok(format!("unix {device} {inode}").into_bytes())
 }
 
 #[cfg(windows)]
@@ -305,15 +289,4 @@ fn open(path: &Path, create: bool) -> io::Result<File> {
         options.custom_flags(0x0020_0000);
     }
     options.open(path)
-}
-
-#[cfg(unix)]
-fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    (a.dev(), a.ino()) == (b.dev(), b.ino())
-}
-
-#[cfg(not(unix))]
-fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
-    a.is_file() && b.is_file()
 }
