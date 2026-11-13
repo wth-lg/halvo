@@ -181,7 +181,7 @@ pnpm_lock_integrity() {
     echo no-file
     return 1
   fi
-  LC_ALL=C tr '\000' '\001' <"$1" | LC_ALL=C awk -v want="$2" -v q="'" '
+  LC_ALL=C tr '\000' '\001' <"$1" 2>/dev/null | LC_ALL=C awk -v want="$2" -v q="'" '
     function refuse(why) { answer = why " " NR; exit }
     function starts(s, head) { return substr(s, 1, length(head)) == head }
     function framed(s, head, tail) { return length(s) > length(head) + length(tail) && starts(s, head) && substr(s, length(s) - length(tail) + 1) == tail }
@@ -1030,6 +1030,21 @@ EOF
   run_ensure_backend ok
   [ "$(count "--offline --omit=optional --no-update-notifier $repo_dir/backend/.tools/downloads/pnpm-12.15.0.tgz $repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install the two files of 12.15.0"
   [ "$(count "curl https://registry.npmjs.org/@pnpm/exe.$case_platform/-/exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package of 12.15.0 was not downloaded"
+  verdict "$name"
+
+  name='a write error of tr, as when the reader of the lock stops at the end of its first document, prints no line'
+  new_backend_case backend-lock-reader-stops-early
+  cat >"$case_dir/stubs/tr" <<'EOF'
+#!/bin/sh
+if [ "$1" = '\000' ]; then
+  echo "tr: stdout: Broken pipe" >&2
+fi
+exec /usr/bin/tr "$@"
+EOF
+  chmod +x "$case_dir/stubs/tr"
+  run_ensure_backend ok
+  [ "$(count 'Broken pipe' "$case_dir/output")" = 0 ] || problems="$problems; the write error of tr reached the output"
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm once"
   verdict "$name"
 
   name='a host for which this script names no platform package of pnpm stops the step before any download'
