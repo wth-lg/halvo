@@ -9,6 +9,9 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+mod stamp_phases;
+use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
+
 use halvo_capture::event::{CaptureStreamEvent, Modality};
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureSource, SourceContext};
@@ -54,6 +57,11 @@ extern "system" {
     ) -> i32;
     fn GetModuleFileNameW(module: *mut core::ffi::c_void, name: *mut u16, size: u32) -> u32;
     fn GetStdHandle(which: u32) -> *mut core::ffi::c_void;
+    fn GetSystemTimeAdjustment(
+        adjustment: *mut u32,
+        increment: *mut u32,
+        disabled: *mut i32,
+    ) -> i32;
     fn WriteFile(
         file: *mut core::ffi::c_void,
         buffer: *const u8,
@@ -1821,6 +1829,19 @@ fn unix_millis(time: SystemTime) -> u128 {
         .unwrap_or(0)
 }
 
+/// The tick period in ms and where it came from: the interval between the
+/// system's clock interrupts, or the fallback where the system gives none.
+fn tick_period() -> (u128, &'static str) {
+    let (mut adjustment, mut increment, mut disabled) = (0u32, 0u32, 0i32);
+    // SAFETY: the three pointers are live locals of the types that the call
+    // writes.
+    let read = unsafe { GetSystemTimeAdjustment(&mut adjustment, &mut increment, &mut disabled) };
+    match period_ms(increment) {
+        Some(period) if read != 0 => (period, "system"),
+        _ => (TICK_PERIOD_FALLBACK_MS, "fallback"),
+    }
+}
+
 fn integrity_is_medium() -> bool {
     Command::new(r"C:\Windows\System32\whoami.exe")
         .arg("/groups")
@@ -2133,10 +2154,62 @@ fn x8_raw_input_across_the_integrity_boundary() {
             .split(',')
             .filter_map(|stamp| stamp.parse().ok())
             .collect();
-        let within =
-            |from: u128, to: u128| stamps.iter().filter(|t| (from..=to).contains(*t)).count();
+        let (period, period_from) = tick_period();
+        let phases: Vec<Phase> = stamps
+            .iter()
+            .map(|stamp| {
+                phase_of(
+                    *stamp,
+                    elevated_from,
+                    elevated_to,
+                    medium_from,
+                    medium_to,
+                    period,
+                )
+            })
+            .collect();
+        let count = |phase: Phase| phases.iter().filter(|p| **p == phase).count();
+        let indistinct = phase_of(
+            medium_from,
+            elevated_from,
+            elevated_to,
+            medium_from,
+            medium_to,
+            period,
+        ) == Phase::Indistinct;
+        let from_medium = |t: u128| t as i128 - medium_from as i128;
+        let medium_distances: Vec<i128> = stamps
+            .iter()
+            .zip(&phases)
+            .filter(|(_, phase)| **phase == Phase::Medium)
+            .map(|(stamp, _)| from_medium(*stamp))
+            .collect();
         let source_started_before_typing = listener_started.is_some_and(|t| t < elevated_from);
-        let between_the_phases = within(elevated_from, medium_from.saturating_sub(1));
+        let between_the_phases = phases.iter().filter(|phase| phase.fails()).count();
+        let distances: Vec<String> = stamps
+            .iter()
+            .map(|stamp| from_medium(*stamp).to_string())
+            .collect();
+        say(
+            "x8",
+            format!(
+                "tick_period_ms={period} tick_period_from={period_from} \
+                 elevated_to_from_elevated_from={} medium_from_from_elevated_from={} \
+                 medium_to_from_elevated_from={} stamps_from_medium_from=[{}] \
+                 phases_indistinct={indistinct} \
+                 least_medium_stamp_from_medium_from={} \
+                 medium_stamps_before_medium_from={}",
+                elevated_to.saturating_sub(elevated_from),
+                medium_from.saturating_sub(elevated_from),
+                medium_to.saturating_sub(elevated_from),
+                distances.join(","),
+                medium_distances
+                    .iter()
+                    .min()
+                    .map_or("none".to_string(), i128::to_string),
+                medium_distances.iter().filter(|d| **d < 0).count(),
+            ),
+        );
         say(
             "x8",
             format!(
@@ -2155,9 +2228,9 @@ fn x8_raw_input_across_the_integrity_boundary() {
                  still_foreground_after_typing={still_handed_over} \
                  keys_typed_into_medium_integrity_window=5 keystroke_events_in_listener={} \
                  listener_keystroke_events_total={}",
-                within(elevated_from, elevated_to),
+                count(Phase::Elevated),
                 listener_window.is_ok(),
-                within(medium_from, medium_to),
+                count(Phase::Medium),
                 stamps.len(),
             ),
         );
@@ -2174,7 +2247,11 @@ fn x8_raw_input_across_the_integrity_boundary() {
             "INCONCLUSIVE: the listener's keyboard source did not start before the keys were typed"
         );
         assert!(
-            within(medium_from, medium_to) >= 1,
+            !indistinct,
+            "INCONCLUSIVE: the phases lay two tick periods apart or closer, so no stamp tells them apart"
+        );
+        assert!(
+            count(Phase::Medium) >= 1,
             "INCONCLUSIVE: the listener saw no keys even for a window of its own integrity"
         );
         assert_eq!(
