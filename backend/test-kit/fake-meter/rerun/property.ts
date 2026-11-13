@@ -363,5 +363,19 @@ export function searchCases(): SearchCase[] {
   for (const afterSeconds of [2 * HOUR, 5]) {
     cases.push({ scenario: scenario(exact, reactivated(afterSeconds)), faultsOfEarlierCalls: [], faults: fewFaults });
   }
+  cases.push({
+    scenario: scenario(
+      { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
+      oneIntervalOnAnAccountThatStays,
+    ),
+    faultsOfEarlierCalls: [{ kind: "response-lost" }],
+    faults: [
+      { kind: "none" },
+      { kind: "refused" },
+      { kind: "request-lost" },
+      { kind: "response-lost" },
+      ...crashes([HALF_A_WINDOW, TWO_OF_THESE_PASS_A_WINDOW]),
+    ],
+  });
   return cases;
 }
