@@ -198,16 +198,18 @@ tlc() {
   awk '
     { sub(/\r$/, "") }
     /^[0-9]+ states generated, [0-9]+ distinct states found, 0 states left on queue\.$/ { distinct = $4 }
+    /^[0-9]+ states generated, [0-9]+ distinct states found, [0-9]+ states left on queue\.$/ { found = $4 }
     /^Error: Invariant [A-Za-z0-9_]+ is violated/ { if (first == "") first = $3; if (!($3 in seen)) { seen[$3] = 1; n++ } }
     $0 == "Model checking completed. No error has been found." { complete++ }
-    END { printf "%d %d %d %s\n", distinct + 0, n + 0, complete + 0, (first == "" ? "-" : first) }
+    END { printf "%d %d %d %s %d\n", distinct + 0, n + 0, complete + 0, (first == "" ? "-" : first), found + 0 }
   ' "$run/out.raw" >"$run/facts.txt" || status=99
   cp "$run/out.raw" "$art/$1.txt" || status=99
   distinct=0
   violated=0
   complete=0
   first=-
-  read -r distinct violated complete first <"$run/facts.txt" || status=99
+  found=0
+  read -r distinct violated complete first found <"$run/facts.txt" || status=99
 }
 
 holds() {
@@ -345,7 +347,7 @@ one_control() {
   tlc "control-$k" "$tmp/control-$k.cfg" "$model"
   ended=$(date +%s)
   printf 'formal control name=%s invariant=%s reported=%s status=%s states=%s seconds=%s\n' \
-    "$k" "$invariant" "$first" "$status" "$distinct" "$((ended - started))"
+    "$k" "$invariant" "$first" "$status" "$found" "$((ended - started))"
   [ "$status" -ne 0 ] && [ "$violated" -eq 1 ] && [ "$first" = "$invariant" ]
 }
 
