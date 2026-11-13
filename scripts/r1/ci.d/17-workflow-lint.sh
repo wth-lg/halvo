@@ -1,11 +1,16 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). The on block holds the event schedule with the one cron line '17 3 * * 0', and the Rust cache step of each job holds under its with: exactly one prefix-key line and one save-if line, each byte for byte the line of cache-1, so that on the event schedule the step looks for no saved cache of pushes and pull requests and saves none, and on every other event its key and its saving are what they were (a ruled change of those lines changes this pin in the same commit).
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the pinned cron line below it and no other line under it and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are plain words at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. The pinned lines are the variables pin_cron, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
 nl='
 '
+pin_cron="    - cron: '17 3 * * 0'"
+pin_uses="      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
+pin_with="        with:"
+pin_prefix="          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
+pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -170,54 +175,267 @@ EOF
       ;;
   esac
 
-  pin_cron="    - cron: '17 3 * * 0'"
-  pin_prefix="          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
-  pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}"
-  pins=$(PIN_FILE=$file PIN_CRON=$pin_cron PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save awk -v q="'" '
-    function key(name) { return "^[[:space:]]*(-[[:space:]]+)?[\"" q "]?" name "[\"" q "]?[[:space:]]*:" }
-    function indent(line) { match(line, /^ */); return RLENGTH }
-    function said(job, what, n, list, at, par, pin) {
-      if (n == 0) return file ", job " job ": the Rust cache step has no " what " line; write under its with: the line " pin
-      if (n > 1) return file ", job " job ": the Rust cache step has " n " " what " lines (lines " list "), and one is allowed; write under its with: the line " pin
-      if (par != "        with:") return file ", job " job ": the " what " line of the Rust cache step, at line " at ", is not under its with:; write under its with: the line " pin
-      if (o[at] != pin) return file ", job " job ": the " what " line of the Rust cache step reads, at line " at ": " o[at] "; write under its with: the line " pin
+  pins=$(PIN_CRON=$pin_cron PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save awk -v q="'" '
+    function decode(s,    out, h, n, k) {
+      out = ""
+      while (match(s, /\\(x[0-9A-Fa-f][0-9A-Fa-f]|u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|U[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])/)) {
+        h = substr(s, RSTART + 2, RLENGTH - 2)
+        n = 0
+        for (k = 1; k <= length(h); k++) n = n * 16 + index("0123456789abcdef", tolower(substr(h, k, 1))) - 1
+        out = out substr(s, 1, RSTART - 1) ((n >= 32 && n < 127) ? sprintf("%c", n) : "?")
+        s = substr(s, RSTART + RLENGTH)
+      }
+      return tolower(out s)
+    }
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    function shown(s) { return q s q }
+    function word(c) { return c == "" ? "the line" q "s end" : c == " " ? "a blank" : "the sign " c }
+    function differ(found, want,    k, a, b) {
+      for (k = 1; k <= length(found) || k <= length(want); k++) {
+        a = substr(found, k, 1)
+        b = substr(want, k, 1)
+        if (a != b) return "it differs from the line to write first at column " k ", which holds " word(a) " where the line to write holds " word(b)
+      }
       return ""
+    }
+    function held(v) { return "; the pin holds this line in the variable " v " at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change" }
+    function add(n, text) {
+      nf++
+      at[nf] = n
+      tx[nf] = file (n ? " line " n : "") ": " text
+    }
+    function bad() {
+      jbad[jid] = 1
+      quiet = 1
+      cstate = 0
+    }
+    function endjob() {
+      if (job != "" && !jbad[jid]) {
+        if (!stepsseen) add(jline, "the job " job " has no line " shown("    steps:") "; this lint reads the steps of a job under that line alone, as the job" q "s last own key; write it")
+        else if (!nc[jid] && !e17[jid]) add(jline, "the job " job " holds no Rust cache step; this lint reads it as the four lines " shown(PIN_USES) ", " shown(PIN_WITH) ", " shown(PIN_PREFIX) " and " shown(PIN_SAVE) ", one after another in the steps; write them; the pin holds these lines in the variables pin_uses, pin_with, pin_prefix and pin_save at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change")
+        else if (nc[jid] > 1) add(cl[jid, 2], "the job " job " holds a second Rust cache step, beside the one at line " cl[jid, 1] "; this lint reads one Rust cache step in a job; take one out")
+      }
+      job = ""
+      quiet = 0
+      cstate = 0
+    }
+    function endon() {
+      if (sec == "on" && !onbad && !sched && !schedother) add(onstart, "the block on: holds no line " shown("  schedule:") "; this lint reads the schedule as that line alone and under it the line " shown(PIN_CRON) "; write both lines under " shown("on:") held("pin_cron"))
+    }
+    function checkname() {
+      if (low !~ /rust-cache/ || firstofstep || quiet) return
+      add(NR, shown(line) " names the action rust-cache; this lint reads the action" q "s name on the first line of a job" q "s Rust cache step alone, the line " shown(PIN_USES) "; take the name out of this line" held("pin_uses"))
+      if (job != "") e17[jid] = 1
+    }
+    function col1() {
+      endjob()
+      endon()
+      sec = ""
+      quiet = 0
+      if (line == "on:") {
+        ons++
+        if (ons > 1) add(NR, "a second line " shown("on:") "; this lint reads one block on:, the one at line " onstart "; write the events of this block under that one")
+        else { sec = "on"; onstart = NR; onfirst = 1 }
+        return
+      }
+      if (low ~ ("^[\"" q "]?on[\"" q "]? *:")) {
+        add(NR, shown(line) " holds the key on in another form; this lint reads the key on as the line " shown("on:") " alone in column 1, with no quotes, capital letters, escapes, blank before the colon, value or comment; write " shown("on:"))
+        onother = 1
+        return
+      }
+      if (line == "jobs:") { sec = "jobs"; jfirstall = 1; return }
+      if (low ~ ("^[\"" q "]?jobs[\"" q "]? *:")) {
+        add(NR, shown(line) " holds the key jobs in another form; this lint reads the jobs under the line " shown("jobs:") " alone in column 1; write " shown("jobs:"))
+        sec = "jobsbad"
+        quiet = 1
+      }
+    }
+    function onl() {
+      if (onbad || blank) return
+      if (comment) {
+        if (low ~ /schedule|cron/) {
+          add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it the one line " shown(PIN_CRON) "; take this line out" held("pin_cron"))
+          schedother = 1
+        }
+        return
+      }
+      if (onfirst) {
+        onfirst = 0
+        if (i != 2) {
+          add(NR, shown(line) " is the first line under " shown("on:") " and stands at " i " blanks; this lint reads the events of on: at two blanks; write each event at two blanks")
+          onbad = 1
+          quiet = 1
+          return
+        }
+      }
+      if (aftercron) {
+        aftercron = 0
+        if (i > 2) {
+          add(NR, shown(line) " stands under the schedule below its cron line; this lint reads the cron line and nothing else under " shown("  schedule:") "; take it out" held("pin_cron"))
+          return
+        }
+      }
+      if (line == "  schedule:") {
+        sched++
+        if (sched > 1) add(NR, "a second line " shown("  schedule:") "; this lint reads one, the one at line " schedat "; take this one out")
+        else { schedat = NR; wantcron = NR + 1 }
+        return
+      }
+      if (low ~ /schedule|cron/) {
+        add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it the one line " shown(PIN_CRON) "; write it so or take this line out" held("pin_cron"))
+        schedother = 1
+      }
+    }
+    function jobl() {
+      if (blank || comment) return
+      if (jfirstall) {
+        jfirstall = 0
+        if (i != 2) {
+          add(NR, shown(line) " is the first line under " shown("jobs:") " and stands at " i " blanks; this lint reads a job" q "s key at two blanks, the line " shown("  macos:") " or " shown("  windows:") "; write the jobs so")
+          sec = "jobsbad"
+          quiet = 1
+          return
+        }
+      }
+      if (i == 2) {
+        endjob()
+        jid++
+        if (line == "  macos:" || line == "  windows:") {
+          job = substr(line, 3, length(line) - 3)
+          jline = NR
+          jfirst = 1
+          insteps = 0
+          stepsseen = 0
+          return
+        }
+        job = ""
+        quiet = 1
+        if (line ~ /^  [A-Za-z0-9_-]+:$/) return
+        add(NR, shown(line) " stands at two blanks under " shown("jobs:") ", where this lint reads a job" q "s key; it reads that key as the line " shown("  macos:") " or " shown("  windows:") " alone, with no comment, no quotes and no blank before the colon; write one of those lines")
+        return
+      }
+      if (job == "" || jbad[jid]) return
+      if (i == 1 || i == 3 || i == 5 || (jfirst && i != 4)) {
+        if (jfirst) add(NR, shown(line) " is the first line of the job " job " and stands at " i " blanks; this lint reads a job" q "s own keys at four blanks; write them at four blanks")
+        else add(NR, shown(line) " stands at " i " blanks in the job " job "; this lint reads a job" q "s own keys at four blanks and its steps at six; write the line at one of those")
+        bad()
+        return
+      }
+      jfirst = 0
+      if (i == 4) {
+        if (insteps) {
+          add(NR, shown(line) " stands at four blanks after " shown("    steps:") " in the job " job "; this lint reads " shown("    steps:") " as the job" q "s last own key and each step at six blanks, a dash and a blank; write the steps so and the job" q "s other keys above " shown("    steps:"))
+          bad()
+          return
+        }
+        if (line !~ /^    [A-Za-z0-9_-]+:( |$)/) {
+          add(NR, shown(line) " stands at four blanks in the job " job ", where this lint reads an own key of the job; it reads such a key as a plain word of letters, digits, - and _, a colon, and then the line" q "s end or a blank and the value; write the key so")
+          bad()
+          return
+        }
+        if (line ~ /^    steps:/) {
+          if (line != "    steps:") {
+            add(NR, shown(line) " is the steps key of the job " job " with something behind its colon; this lint reads the steps as the line " shown("    steps:") " alone and below it each step at six blanks, a dash and a blank; write them so")
+            bad()
+            return
+          }
+          insteps = 1
+          stepsfirst = 1
+          stepsseen = 1
+          return
+        }
+        v = line
+        sub(/^    [A-Za-z0-9_-]+: */, "", v)
+        if (v ~ /^[|>]/) {
+          add(NR, shown(line) " is an own key of the job " job " whose value begins a block scalar; this lint reads no block scalar on a job" q "s own key; write the value on its line")
+          bad()
+        }
+        return
+      }
+      if (!insteps) return
+      if (stepsfirst && i != 6) {
+        add(NR, shown(line) " is the first line in the steps of the job " job " and stands at " i " blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so")
+        bad()
+        return
+      }
+      stepsfirst = 0
+      if (i != 6) return
+      if (line ~ /^      - *$/) {
+        add(NR, shown(line) " is a dash alone in the steps of the job " job "; this lint reads a step as beginning at six blanks, a dash, a blank and the step" q "s first key; write that key on the dash" q "s line")
+        bad()
+        return
+      }
+      if (line !~ /^      - /) {
+        add(NR, shown(line) " stands at six blanks in the steps of the job " job " and is no step" q "s first line; this lint reads a line at six blanks there as the first line of a step, with a dash and a blank; write it so")
+        bad()
+        return
+      }
+      firstofstep = 1
+      if (low !~ /rust-cache/) return
+      nc[jid]++
+      cl[jid, nc[jid]] = NR
+      if (line == PIN_USES) {
+        cstate = 1
+        cstart = NR
+      } else add(NR, shown(line) " stands where this lint reads line 1 of the Rust cache step of the job " job ", " shown(PIN_USES) "; " differ(line, PIN_USES) "; write " shown(PIN_USES) held("pin_uses"))
     }
     BEGIN {
       file = ".github/workflows/ci.yml"
-      cache_re = "uses[\"" q "]?[[:space:]]*:[[:space:]]*[\"" q "]?swatinem/rust-cache@"
-      while ((getline l < ENVIRON["PIN_FILE"]) > 0) o[++lines] = l
+      want[1] = ENVIRON["PIN_USES"]; var[1] = "pin_uses"
+      want[2] = ENVIRON["PIN_WITH"]; var[2] = "pin_with"
+      want[3] = ENVIRON["PIN_PREFIX"]; var[3] = "pin_prefix"
+      want[4] = ENVIRON["PIN_SAVE"]; var[4] = "pin_save"
+      PIN_CRON = ENVIRON["PIN_CRON"]
+      PIN_USES = want[1]; PIN_WITH = want[2]; PIN_PREFIX = want[3]; PIN_SAVE = want[4]
     }
-    /^[^[:space:]#]/ {
-      in_on = (o[NR] == "on:"); in_jobs = ($0 ~ /^jobs:/); in_sched = 0; job = ""; step = 0
-      if (in_on) ons++
-      next
-    }
-    in_on && /^  [^[:space:]#]/ { in_sched = ($0 ~ key("schedule")); if (in_sched) { sched++; sched_at = NR }; next }
-    in_on && $0 ~ key("cron") { crons++; cron_list = cron_list (cron_list == "" ? "" : ", ") NR ": " o[NR] }
-    in_on && in_sched && /[^[:space:]]/ && $0 !~ /^[[:space:]]*#/ { kids++; if (o[NR] == ENVIRON["PIN_CRON"]) good_cron++ }
-    in_jobs && /^  [^[:space:]#]/ { job = (o[NR] == "  macos:") ? "macos" : (o[NR] == "  windows:") ? "windows" : "other"; step = 0; next }
-    in_jobs && job != "" && /^      - / { step++; par = "" }
-    in_jobs && job != "" && /[^[:space:]]/ && $0 !~ /^[[:space:]]*#/ && indent($0) <= 4 { step = 0 }
-    in_jobs && step && /^        [^[:space:]#]/ { par = o[NR] }
-    in_jobs && step && tolower($0) ~ cache_re { cache[job SUBSEP step] = 1 }
-    in_jobs && step && $0 ~ key("prefix-key") { s = job SUBSEP step; pk[s]++; pk_list[s] = pk_list[s] (pk[s] > 1 ? ", " : "") NR; pk_at[s] = NR; pk_par[s] = par }
-    in_jobs && step && $0 ~ key("save-if") { s = job SUBSEP step; si[s]++; si_list[s] = si_list[s] (si[s] > 1 ? ", " : "") NR; si_at[s] = NR; si_par[s] = par }
-    END {
-      if (ons != 1 || sched != 1 || o[sched_at] != "  schedule:" || kids != 1 || good_cron != 1 || crons != 1)
-        print file ", on: the block on: must hold the line \"  schedule:\" and under it the one line " ENVIRON["PIN_CRON"] ", and the file holds " (ons + 0) " on: lines, " (sched + 0) " schedule keys and the cron lines: " (crons ? cron_list : "none") "; write that line"
-      split("macos windows", names, " ")
-      for (j = 1; j <= 2; j++) {
-        name = names[j]; n = 0
-        for (s in cache) { split(s, part, SUBSEP); if (part[1] == name) { n++; at = s } }
-        if (n != 1) {
-          print file ", job " name ": " n " steps use Swatinem/rust-cache, and one must, holding under its with: the lines " ENVIRON["PIN_PREFIX"] " and " ENVIRON["PIN_SAVE"]
-          continue
+    {
+      line = $0
+      low = decode(line)
+      i = indent(line)
+      blank = (line ~ /^ *$/)
+      comment = (line ~ /^ *#/)
+      firstofstep = 0
+      if (cstate == 1) {
+        k = NR - cstart + 1
+        if (line == want[k]) {
+          if (k == 4) cstate = 2
+          next
         }
-        m = said(name, "prefix-key", pk[at] + 0, pk_list[at], pk_at[at], pk_par[at], ENVIRON["PIN_PREFIX"]); if (m != "") print m
-        m = said(name, "save-if", si[at] + 0, si_list[at], si_at[at], si_par[at], ENVIRON["PIN_SAVE"]); if (m != "") print m
+        add(NR, shown(line) " stands where this lint reads line " k " of the Rust cache step of the job " job ", " shown(want[k]) "; " differ(line, want[k]) "; write " shown(want[k]) held(var[k]))
+        cstate = 0
+        if (blank || comment || line !~ /^[^ ]/ && i != 2 && line !~ /^      - /) { checkname(); next }
+      } else if (cstate == 2 && !blank && !comment) {
+        cstate = 0
+        if (line !~ /^[^ ]/ && i != 2 && line !~ /^      - /) {
+          add(NR, shown(line) " follows the four lines of the Rust cache step of the job " job "; this lint reads that step as those four lines alone, so the next line begins a step, is a job" q "s key or stands in column 1; take it out or begin a step there")
+          checkname()
+          next
+        }
       }
-    }' "$decoded") || fail "awk could not read ci.yml for the pin of the Rust cache step"
+      if (NR == wantcron) {
+        wantcron = 0
+        if (line == PIN_CRON) { aftercron = 1; next }
+        add(NR, shown(line) " stands under " shown("  schedule:") ", where this lint reads the cron line; " differ(line, PIN_CRON) "; write " shown(PIN_CRON) held("pin_cron"))
+        if (blank || comment || line !~ /^[^ ]/) { checkname(); next }
+      }
+      if (!blank && !comment && line ~ /^[^ ]/) col1()
+      else if (sec == "on") onl()
+      else if (sec == "jobs") jobl()
+      checkname()
+    }
+    END {
+      if (cstate == 1) add(cstart, "the Rust cache step of the job " job " ends with the file before its line " (NR - cstart + 2) "; write after its last line the line " shown(want[NR - cstart + 2]) held(var[NR - cstart + 2]))
+      if (wantcron) add(wantcron - 1, "the file ends where this lint reads the cron line under " shown("  schedule:") "; write " shown(PIN_CRON) held("pin_cron"))
+      endjob()
+      endon()
+      if (!ons && !onother) add(0, "no line of the file is " shown("on:") " alone in column 1; this lint reads the events under that line, with the line " shown("  schedule:") " and under it the line " shown(PIN_CRON) "; write them" held("pin_cron"))
+      for (a = 2; a <= nf; a++)
+        for (b = a; b > 1 && at[b - 1] > at[b]; b--) {
+          t = at[b]; at[b] = at[b - 1]; at[b - 1] = t
+          t = tx[b]; tx[b] = tx[b - 1]; tx[b - 1] = t
+        }
+      for (a = 1; a <= nf; a++) print tx[a]
+    }' "$file") || fail "awk could not read ci.yml for the pin of the schedule and the Rust cache step"
   while IFS= read -r pin; do
     [ -z "$pin" ] || finding "$pin"
   done <<EOF
@@ -302,34 +520,11 @@ gate_bound() {
   [ "$1" = ci_job_timeout_min ] && printf '%s\n' "$STUB_BOUND"
 }
 EOF
-  cat >"$work/ci.yml" <<'EOF'
-name: ci
-on:
-  push:
-  schedule:
-    - cron: '17 3 * * 0'
-permissions:
-  contents: read
-jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-  windows:
-    runs-on: windows-2025
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-EOF
+  checkout='      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
+  printf '%s\n' 'name: ci' 'on:' '  push:' '  schedule:' "$pin_cron" 'permissions:' '  contents: read' 'jobs:' \
+    '  macos:' '    runs-on: macos-15' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
+    '  windows:' '    runs-on: windows-2025' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
+    >"$work/ci.yml"
   rejected=0
   wrong=
   STUB_BOUND=30
@@ -567,40 +762,89 @@ EOF
   check question-mark-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree signs-inside-a-plain-value "10s/\$/\\${nl}    name: a \\&\\& b * c!/"
   check signs-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  pin_cron="    - cron: '17 3 * * 0'"
-  pin_prefix="          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
-  pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}"
   base_save="          save-if: \${{ github.ref == 'refs/heads/main' }}"
   lines r1-v11-macos-save-if-of-the-base 17 "$base_save"
-  check r1-v11-macos-save-if-of-the-base FAIL ".github/workflows/ci.yml, job macos: the save-if line of the Rust cache step reads, at line 17: $base_save; write under its with: the line $pin_save"
+  check r1-v11-macos-save-if-of-the-base FAIL ".github/workflows/ci.yml line 17: '$base_save' stands where this lint reads line 4 of the Rust cache step of the job macos, '$pin_save'; it differs from the line to write first at column 56, which holds the sign } where the line to write holds the sign &"
   lines r2-v12-windows-save-if-of-the-base 26 "$base_save"
-  check r2-v12-windows-save-if-of-the-base FAIL ".github/workflows/ci.yml, job windows: the save-if line of the Rust cache step reads, at line 26: $base_save; write under its with: the line $pin_save"
+  check r2-v12-windows-save-if-of-the-base FAIL ".github/workflows/ci.yml line 26: '$base_save' stands where this lint reads line 4 of the Rust cache step of the job windows, '$pin_save'; it differs from the line to write first at column 56, which holds the sign } where the line to write holds the sign &"
   lines r3-v06-macos-prefix-key-line-gone 16 -
-  check r3-v06-macos-prefix-key-line-gone FAIL ".github/workflows/ci.yml, job macos: the Rust cache step has no prefix-key line; write under its with: the line $pin_prefix"
+  check r3-v06-macos-prefix-key-line-gone FAIL ".github/workflows/ci.yml line 16: '$pin_save' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 11, which holds the sign s where the line to write holds the sign p"
   lines r4-v07-windows-prefix-key-line-gone 25 -
-  check r4-v07-windows-prefix-key-line-gone FAIL ".github/workflows/ci.yml, job windows: the Rust cache step has no prefix-key line; write under its with: the line $pin_prefix"
+  check r4-v07-windows-prefix-key-line-gone FAIL ".github/workflows/ci.yml line 25: '$pin_save' stands where this lint reads line 3 of the Rust cache step of the job windows, '$pin_prefix'; it differs from the line to write first at column 11, which holds the sign s where the line to write holds the sign p"
   lines r5-macos-both-lines-of-the-base 17 "$base_save" 16 -
-  check r5-macos-both-lines-of-the-base FAIL ".github/workflows/ci.yml, job macos: the Rust cache step has no prefix-key line; write under its with: the line $pin_prefix"
+  check r5-macos-both-lines-of-the-base FAIL ".github/workflows/ci.yml line 16: '$base_save' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 11, which holds the sign s where the line to write holds the sign p"
   lines v01-no-schedule-trigger 5 - 4 -
-  check v01-no-schedule-trigger FAIL ".github/workflows/ci.yml, on: the block on: must hold the line \"  schedule:\" and under it the one line $pin_cron, and the file holds 1 on: lines, 0 schedule keys and the cron lines: none; write that line"
+  check v01-no-schedule-trigger FAIL ".github/workflows/ci.yml line 2: the block on: holds no line '  schedule:'; this lint reads the schedule as that line alone and under it the line '$pin_cron'"
   lines v02-cron-daily 5 "    - cron: '17 3 * * *'"
-  check v02-cron-daily FAIL "1 schedule keys and the cron lines: 5:     - cron: '17 3 * * *'; write that line"
+  check v02-cron-daily FAIL ".github/workflows/ci.yml line 5: '    - cron: '17 3 * * *'' stands under '  schedule:', where this lint reads the cron line; it differs from the line to write first at column 23, which holds the sign * where the line to write holds the sign 0"
   lines v08-macos-cold-prefix-is-v0-rust 16 "          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust' || 'v0-rust' }}"
-  check v08-macos-cold-prefix-is-v0-rust FAIL "job macos: the prefix-key line of the Rust cache step reads, at line 16: "
+  check v08-macos-cold-prefix-is-v0-rust FAIL "' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 70, which holds the sign ' where the line to write holds the sign -"
   lines v09-windows-prefix-inverted 25 "          prefix-key: \${{ github.event_name != 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
-  check v09-windows-prefix-inverted FAIL "job windows: the prefix-key line of the Rust cache step reads, at line 25: "
+  check v09-windows-prefix-inverted FAIL "' stands where this lint reads line 3 of the Rust cache step of the job windows, '$pin_prefix'; it differs from the line to write first at column 45, which holds the sign ! where the line to write holds the sign ="
   lines v10-macos-cold-prefix-empty 16 "          prefix-key: \${{ github.event_name == 'schedule' && '' || 'v0-rust' }}"
-  check v10-macos-cold-prefix-empty FAIL "job macos: the prefix-key line of the Rust cache step reads, at line 16: "
+  check v10-macos-cold-prefix-empty FAIL "' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 63, which holds the sign ' where the line to write holds the sign v"
   lines v13-windows-save-if-or 26 "          save-if: \${{ github.ref == 'refs/heads/main' || github.event_name != 'schedule' }}"
-  check v13-windows-save-if-or FAIL "job windows: the save-if line of the Rust cache step reads, at line 26: "
+  check v13-windows-save-if-or FAIL "' stands where this lint reads line 4 of the Rust cache step of the job windows, '$pin_save'; it differs from the line to write first at column 56, which holds the sign | where the line to write holds the sign &"
   lines v14-macos-save-if-master 17 "          save-if: \${{ github.ref == 'refs/heads/master' && github.event_name != 'schedule' }}"
-  check v14-macos-save-if-master FAIL "job macos: the save-if line of the Rust cache step reads, at line 17: "
+  check v14-macos-save-if-master FAIL "' stands where this lint reads line 4 of the Rust cache step of the job macos, '$pin_save'; it differs from the line to write first at column 52, which holds the sign s where the line to write holds the sign i"
   lines v15-windows-save-if-true 26 "          save-if: true"
-  check v15-windows-save-if-true FAIL "job windows: the save-if line of the Rust cache step reads, at line 26:           save-if: true; write under its with: the line $pin_save"
+  check v15-windows-save-if-true FAIL "' stands where this lint reads line 4 of the Rust cache step of the job windows, '$pin_save'; it differs from the line to write first at column 20, which holds the sign t where the line to write holds the sign \$"
   lines v18-macos-cold-prefix-v0-rus 16 "          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rus' || 'v0-rust' }}"
-  check v18-macos-cold-prefix-v0-rus FAIL "job macos: the prefix-key line of the Rust cache step reads, at line 16: "
+  check v18-macos-cold-prefix-v0-rus FAIL "' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 69, which holds the sign ' where the line to write holds the sign t"
   lines pinned-lines-inside-a-quoted-scalar 17 "$base_save" 16 "          key: \"weekly${nl}$pin_prefix${nl}$pin_save${nl}          \""
-  check pinned-lines-inside-a-quoted-scalar FAIL ".github/workflows/ci.yml, job macos: the Rust cache step has 2 save-if lines (lines 18, 20), and one is allowed"
+  check pinned-lines-inside-a-quoted-scalar FAIL "' stands where this lint reads line 3 of the Rust cache step of the job macos, '$pin_prefix'; it differs from the line to write first at column 11, which holds the sign k where the line to write holds the sign p"
+  lines g13-macos-decoy-in-job-name-real-step-indentless 17 "        save-if: true" 16 - 15 "      with:" 14 "    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3" 13 "    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1" 9 "  macos:${nl}    name: |${nl}$pin_uses${nl}$pin_with${nl}$pin_prefix${nl}$pin_save"
+  check g13-macos-decoy-in-job-name-real-step-indentless FAIL ".github/workflows/ci.yml line 10: '    name: |' is an own key of the job macos whose value begins a block scalar; this lint reads no block scalar on a job's own key; write the value on its line"
+  lines x02-windows-decoy-in-job-name-real-step-indentless 26 "        save-if: true" 25 - 24 "      with:" 23 "    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3" 22 "    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1" 18 "  windows:${nl}    name: |${nl}$pin_uses${nl}$pin_with${nl}$pin_prefix${nl}$pin_save"
+  check x02-windows-decoy-in-job-name-real-step-indentless FAIL ".github/workflows/ci.yml line 19: '    name: |' is an own key of the job windows whose value begins a block scalar; this lint reads no block scalar on a job's own key; write the value on its line"
+  lines x04-macos-decoy-in-job-name-steps-in-flow 17 - 16 - 15 - 14 - 13 - 12 "    steps: [{uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0, with: {save-if: true}}]" 9 "  macos:${nl}    name: |${nl}$pin_uses${nl}$pin_with${nl}$pin_prefix${nl}$pin_save"
+  check x04-macos-decoy-in-job-name-steps-in-flow FAIL ".github/workflows/ci.yml line 10: '    name: |' is an own key of the job macos whose value begins a block scalar; this lint reads no block scalar on a job's own key; write the value on its line"
+  lines x05-macos-decoy-and-real-step-both-normal 9 "  macos:${nl}    name: |${nl}$pin_uses${nl}$pin_with${nl}$pin_prefix${nl}$pin_save"
+  check x05-macos-decoy-and-real-step-both-normal FAIL ".github/workflows/ci.yml line 10: '    name: |' is an own key of the job macos whose value begins a block scalar; this lint reads no block scalar on a job's own key; write the value on its line"
+  lines e14-macos-steps-indentless 17 "${pin_save#  }" 16 "${pin_prefix#  }" 15 "${pin_with#  }" 14 "${pin_uses#  }" 13 "${checkout#  }"
+  check e14-macos-steps-indentless FAIL ".github/workflows/ci.yml line 13: '    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' stands at four blanks after '    steps:' in the job macos; this lint reads '    steps:' as the job's last own key and each step at six blanks, a dash and a blank; write the steps so and the job's other keys above '    steps:'"
+  lines x06-macos-only-the-real-step-indentless-save-true 17 "        save-if: true" 16 "${pin_prefix#  }" 15 "${pin_with#  }" 14 "${pin_uses#  }" 13 "${checkout#  }"
+  check x06-macos-only-the-real-step-indentless-save-true FAIL ".github/workflows/ci.yml line 13: '    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' stands at four blanks after '    steps:' in the job macos; this lint reads '    steps:' as the job's last own key and each step at six blanks, a dash and a blank; write the steps so and the job's other keys above '    steps:'"
+  lines h19-windows-steps-at-four-blanks 26 "${pin_save#  }" 25 "${pin_prefix#  }" 24 "${pin_with#  }" 23 "${pin_uses#  }" 22 "${checkout#  }"
+  check h19-windows-steps-at-four-blanks FAIL ".github/workflows/ci.yml line 22: '    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' stands at four blanks after '    steps:' in the job windows; this lint reads '    steps:' as the job's last own key and each step at six blanks, a dash and a blank; write the steps so and the job's other keys above '    steps:'"
+  lines steps-in-a-flow-list-with-no-decoy 17 - 16 - 15 - 14 - 13 - 12 "    steps: [{uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0}]"
+  check steps-in-a-flow-list-with-no-decoy FAIL ".github/workflows/ci.yml line 12: '    steps: [{uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0}]' is the steps key of the job macos with something behind its colon; this lint reads the steps as the line '    steps:' alone and below it each step at six blanks, a dash and a blank; write them so"
+  lines h16-comment-on-the-macos-job-key 9 "  macos: # the macOS job"
+  check h16-comment-on-the-macos-job-key FAIL ".github/workflows/ci.yml line 9: '  macos: # the macOS job' stands at two blanks under 'jobs:', where this lint reads a job's key; it reads that key as the line '  macos:' or '  windows:' alone, with no comment, no quotes and no blank before the colon; write one of those lines"
+  lines h17-quoted-on-key 2 '"on":'
+  check h17-quoted-on-key FAIL ".github/workflows/ci.yml line 2: '\"on\":' holds the key on in another form; this lint reads the key on as the line 'on:' alone in column 1, with no quotes, capital letters, escapes, blank before the colon, value or comment; write 'on:'"
+  lines h18-escape-x0a-in-a-run-block-above-the-cache-step 13 "$checkout${nl}      - run: |${nl}          printf 'done\\x0a'"
+  check h18-escape-x0a-in-a-run-block-above-the-cache-step PASS "jobs: 2, uses keys: 4, findings: 0"
+  lines h22-trailing-blank-after-with 15 "$pin_with "
+  check h22-trailing-blank-after-with FAIL ".github/workflows/ci.yml line 15: '        with: ' stands where this lint reads line 2 of the Rust cache step of the job macos, '        with:'; it differs from the line to write first at column 14, which holds a blank where the line to write holds the line's end; write '        with:'; the pin holds this line in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines pr-x03-timezone-under-the-cron-item 5 "$pin_cron${nl}      timezone: Asia/Tokyo"
+  check pr-x03-timezone-under-the-cron-item FAIL ".github/workflows/ci.yml line 6: '      timezone: Asia/Tokyo' stands under the schedule below its cron line; this lint reads the cron line and nothing else under '  schedule:'; take it out; the pin holds this line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines pr-x01-second-cache-step-with-defaults-in-macos 17 "$pin_save${nl}$pin_uses"
+  check pr-x01-second-cache-step-with-defaults-in-macos FAIL ".github/workflows/ci.yml line 18: the job macos holds a second Rust cache step, beside the one at line 14; this lint reads one Rust cache step in a job; take one out"
+  lines pr-x02-f03-pinned-lines-under-env-and-a-with-of-its-own 17 "$pin_save${nl}        with:${nl}          cache-on-failure: true" 15 "        env:"
+  check pr-x02-f03-pinned-lines-under-env-and-a-with-of-its-own FAIL ".github/workflows/ci.yml line 15: '        env:' stands where this lint reads line 2 of the Rust cache step of the job macos, '        with:'; it differs from the line to write first at column 9, which holds the sign e where the line to write holds the sign w; write '        with:'; the pin holds this line in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines g10-macos-second-step-subpath 17 "$pin_save${nl}      - uses: Swatinem/rust-cache/sub@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
+  check g10-macos-second-step-subpath FAIL ".github/workflows/ci.yml line 18: '      - uses: Swatinem/rust-cache/sub@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; it differs from the line to write first at column 34, which holds the sign / where the line to write holds the sign @; write '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines x03-macos-second-step-trailing-slash 17 "$pin_save${nl}      - uses: Swatinem/rust-cache/@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
+  check x03-macos-second-step-trailing-slash FAIL ".github/workflows/ci.yml line 18: '      - uses: Swatinem/rust-cache/@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; it differs from the line to write first at column 34, which holds the sign / where the line to write holds the sign @; write '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines x07-macos-step-named-with-a-path 14 "      - uses: Swatinem/rust-cache/sub@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
+  check x07-macos-step-named-with-a-path FAIL ".github/workflows/ci.yml line 14: '      - uses: Swatinem/rust-cache/sub@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; it differs from the line to write first at column 34, which holds the sign / where the line to write holds the sign @; write '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines g03-windows-second-step-other-case 26 "$pin_save${nl}      - uses: SWATINEM/RUST-CACHE@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
+  check g03-windows-second-step-other-case FAIL ".github/workflows/ci.yml line 27: '      - uses: SWATINEM/RUST-CACHE@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job windows, '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; it differs from the line to write first at column 16, which holds the sign W where the line to write holds the sign w; write '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines e18-comment-names-the-action-in-another-step 13 "$checkout${nl}        # Swatinem/rust-cache comes next"
+  check e18-comment-names-the-action-in-another-step FAIL ".github/workflows/ci.yml line 14: '        # Swatinem/rust-cache comes next' names the action rust-cache; this lint reads the action's name on the first line of a job's Rust cache step alone, the line '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; take the name out of this line; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines e07-macos-save-if-trailing-blank 17 "$pin_save "
+  check e07-macos-save-if-trailing-blank FAIL ".github/workflows/ci.yml line 17: '          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }} ' stands where this lint reads line 4 of the Rust cache step of the job macos, '          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}'; it differs from the line to write first at column 93, which holds a blank where the line to write holds the line's end; write '          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}'; the pin holds this line in the variable pin_save at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines f05-macos-quoted-job-key 9 '  "macos":'
+  check f05-macos-quoted-job-key FAIL ".github/workflows/ci.yml line 9: '  \"macos\":' stands at two blanks under 'jobs:', where this lint reads a job's key; it reads that key as the line '  macos:' or '  windows:' alone, with no comment, no quotes and no blank before the colon; write one of those lines"
+  lines i07-macos-input-cache-on-failure 17 "$pin_save${nl}          cache-on-failure: true"
+  check i07-macos-input-cache-on-failure FAIL ".github/workflows/ci.yml line 18: '          cache-on-failure: true' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there"
+  lines c01-macos-step-if-not-pull-request 17 "$pin_save${nl}        if: github.event_name != 'pull_request'"
+  check c01-macos-step-if-not-pull-request FAIL ".github/workflows/ci.yml line 18: '        if: github.event_name != 'pull_request'' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there"
+  lines c07-other-commit-of-the-action 14 "      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3"
+  check c07-other-commit-of-the-action FAIL ".github/workflows/ci.yml line 14: '      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; it differs from the line to write first at column 35, which holds the sign 0 where the line to write holds the sign d; write '      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}    timeout-minutes: 30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"
+  check j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block FAIL ".github/workflows/ci.yml line 10: '   name: |' is the first line of the job macos and stands at 3 blanks; this lint reads a job's own keys at four blanks; write them at four blanks"
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
