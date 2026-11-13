@@ -1072,34 +1072,48 @@ fn to_the_form() -> Vec<Bound> {
     ]
 }
 
-/// CP-159 part 2, CP-166 E1: for each class whose `admit` reads an origin, a request to an origin that no binding
-/// holds gets no card and no request; the new origin of the facts is the runner's, none at this head, so no maker can
-/// let it pass.
+/// CP-159 part 2, CP-166 E1: a request of `class` to an origin that no binding holds gets no card and no request;
+/// the new origin of the facts is the runner's, none at this head, so no maker can let it pass.
+fn no_card_for_an_origin_that_no_binding_holds(class: ActionClass) {
+    let bound = to_the_form()
+        .into_iter()
+        .find(|b| b.class() == class)
+        .expect("a bound object of the class");
+    let released = Arc::new(AtomicU32::new(0));
+    let fake = Fake {
+        fixed: Some(bound),
+        released: Arc::clone(&released),
+        ..Fake::default()
+    };
+    let record = run_path(
+        Category::UtilityBillPayment,
+        (vec![page_origin()], Vec::new()),
+        Box::new(fake),
+        Plan::plain(),
+    );
+    assert_eq!(released.load(Ordering::SeqCst), 0, "{class:?}: no request");
+    assert!(record.confirms().is_empty(), "{class:?}: no card");
+    assert!(record.states().is_empty(), "{class:?}: no propose row");
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Provenance))),
+        "{class:?}"
+    );
+}
+
 #[test]
-fn a_request_to_an_origin_that_no_binding_holds_gets_no_card_for_each_class() {
-    for bound in to_the_form() {
-        let class = bound.class();
-        let released = Arc::new(AtomicU32::new(0));
-        let fake = Fake {
-            fixed: Some(bound),
-            released: Arc::clone(&released),
-            ..Fake::default()
-        };
-        let record = run_path(
-            Category::UtilityBillPayment,
-            (vec![page_origin()], Vec::new()),
-            Box::new(fake),
-            Plan::plain(),
-        );
-        assert_eq!(released.load(Ordering::SeqCst), 0, "{class:?}: no request");
-        assert!(record.confirms().is_empty(), "{class:?}: no card");
-        assert!(record.states().is_empty(), "{class:?}: no propose row");
-        assert_eq!(
-            stopped(&record),
-            Some((LogEvent::Stopped, Some(Cause::Provenance))),
-            "{class:?}"
-        );
-    }
+fn a_payment_to_an_origin_that_no_binding_holds_gets_no_card() {
+    no_card_for_an_origin_that_no_binding_holds(ActionClass::Payment);
+}
+
+#[test]
+fn a_purchase_to_an_origin_that_no_binding_holds_gets_no_card() {
+    no_card_for_an_origin_that_no_binding_holds(ActionClass::Purchase);
+}
+
+#[test]
+fn a_submit_to_an_origin_that_no_binding_holds_gets_no_card() {
+    no_card_for_an_origin_that_no_binding_holds(ActionClass::Submit);
 }
 
 /// CP-166 E6: on one card for two effects the person rejects the first and allows the second. The rejected effect's
