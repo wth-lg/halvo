@@ -111,7 +111,10 @@ fn read_frontmost() -> Option<Frontmost> {
 }
 
 type FrontReader = Box<dyn FnMut() -> Option<Frontmost> + Send>;
-type TitleReader = Box<dyn FnMut(libc::pid_t) -> Option<String> + Send>;
+type TitleReader = Box<
+    dyn FnMut(libc::pid_t) -> Result<Option<window_title::TitleLength>, window_title::TitleError>
+        + Send,
+>;
 
 struct Poller {
     writer: ForegroundWriter,
@@ -145,13 +148,13 @@ impl Poller {
             Unpersisted::EMPTY,
         );
 
-        if let Some(title) = (self.read_title)(front.pid) {
+        if let Ok(Some(title)) = (self.read_title)(front.pid) {
             let _ = emit_metadata_only(
                 sink,
                 Modality::WindowTitle,
                 front.bundle_id.clone(),
                 Unpersisted {
-                    byte_len: title.len() as u64,
+                    byte_len: title.bytes(),
                 },
             );
         }
@@ -330,7 +333,7 @@ mod tests {
                 app("com.example.b", 20),
                 app("com.example.a", 10),
             ],
-            Box::new(|_: libc::pid_t| None),
+            Box::new(|_: libc::pid_t| Ok(None)),
         );
         let app_event = |id: &str| (Modality::ForegroundApp, id.to_string(), 0);
         assert_eq!(
@@ -348,7 +351,7 @@ mod tests {
     fn an_unchanged_app_for_five_readings_gives_one_event() {
         let (events, reader) = poll(
             (0..5).map(|_| app("com.example.a", 10)).collect(),
-            Box::new(|_: libc::pid_t| None),
+            Box::new(|_: libc::pid_t| Ok(None)),
         );
         assert_eq!(
             events,
@@ -374,7 +377,7 @@ mod tests {
                 })
             }
         });
-        let read_title: TitleReader = Box::new(|_pid| None);
+        let read_title: TitleReader = Box::new(|_pid| Ok(None));
         let mut source = ForegroundSource::with_readers(
             Duration::from_millis(1),
             fg_writer,
@@ -422,7 +425,7 @@ mod tests {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .push(pid);
-                Some("Untitled 1".to_string())
+                Ok(Some(window_title::TitleLength::for_test(10)))
             }),
         );
         assert_eq!(
