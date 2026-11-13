@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: The ignored store test peak_rss_stays_bounded_for_a_512_mib_segment runs in a release build and passes as exactly one test.
+# lane: alone
 set -u
 name=25-store-peak-rss
 test_name=store::hardening_tests::peak_rss_stays_bounded_for_a_512_mib_segment
