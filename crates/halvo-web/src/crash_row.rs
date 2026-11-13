@@ -335,15 +335,22 @@ pub fn crash_place(kind: &str) -> Option<PathBuf> {
 }
 
 /// Whether uploads are on in the Crashpad database at `place`, read from its `settings.dat`
-/// (Crashpad's `Settings`: a magic number `CPds`, in either byte order, a version, then the
-/// options, whose first bit is uploads enabled). `None` when the file is absent or not of that form. Reads the file, changes
-/// nothing.
+/// (Crashpad's `Settings`). It reads bytes 0 to 3, the magic number `'CPds'`, and bytes 8 to 11,
+/// the options, whose first bit is uploads enabled, in the byte order that the magic shows: the
+/// bytes `sdPC` are the magic written little-endian, the bytes `CPds` big-endian (CP-186 S5).
+/// Bytes 4 to 7, the version, are not read. `None` when the file is absent or not of that form.
+/// Reads the file, changes nothing.
 pub fn send_setting(place: &Path) -> Option<bool> {
     let bytes = std::fs::read(place.join("settings.dat")).ok()?;
-    if bytes.len() < 12 || (&bytes[0..4] != b"CPds" && &bytes[0..4] != b"sdPC") {
+    if bytes.len() < 12 {
         return None;
     }
-    let options = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+    let raw = [bytes[8], bytes[9], bytes[10], bytes[11]];
+    let options = match &bytes[0..4] {
+        b"sdPC" => u32::from_le_bytes(raw),
+        b"CPds" => u32::from_be_bytes(raw),
+        _ => return None,
+    };
     Some(options & 1 == 1)
 }
 
@@ -1091,13 +1098,22 @@ mod tests {
         let dir = crate::child::scratch("send-setting");
         std::fs::write(dir.join("settings.dat"), b"sdPC\x01\0\0\0\x01\0\0\0").unwrap();
         assert_eq!(send_setting(&dir), Some(true));
+        std::fs::write(dir.join("settings.dat"), b"sdPC\x01\0\0\0\0\0\0\0").unwrap();
+        assert_eq!(send_setting(&dir), Some(false));
+        // CP-186 S5, the review's case crash/06: the magic's bytes in big-endian order, the
+        // options in that order too.
         let mut data = b"CPds".to_vec();
-        data.extend(1u32.to_le_bytes());
-        data.extend(1u32.to_le_bytes());
+        data.extend(1u32.to_be_bytes());
+        data.extend(1u32.to_be_bytes());
         std::fs::write(dir.join("settings.dat"), &data).unwrap();
         assert_eq!(send_setting(&dir), Some(true));
-        data[8] = 0;
+        data[11] = 0;
         std::fs::write(dir.join("settings.dat"), &data).unwrap();
+        assert_eq!(send_setting(&dir), Some(false));
+        let mut le_options = b"CPds".to_vec();
+        le_options.extend(1u32.to_be_bytes());
+        le_options.extend(1u32.to_le_bytes());
+        std::fs::write(dir.join("settings.dat"), &le_options).unwrap();
         assert_eq!(send_setting(&dir), Some(false));
         std::fs::write(dir.join("settings.dat"), b"other").unwrap();
         assert_eq!(send_setting(&dir), None);
