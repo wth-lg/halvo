@@ -279,10 +279,6 @@ tree_report() {
     ':status failed') tree_msg='git cannot read the tracked files before the first script' ;;
     *':status failed') tree_msg="git cannot read the tracked files after $1" ;;
     *)
-      case $tree_named in
-        *" ${2#???} "*) return ;;
-      esac
-      tree_named="$tree_named${2#???} "
       if [ -z "$1" ]; then
         tree_msg="a tracked file differs from HEAD before the first script: ${2#???}"
       else
@@ -294,7 +290,6 @@ tree_report() {
 }
 
 tree_check() {
-  tree_named=' '
   tree_state "$tmp/tree.after"
   while IFS= read -r tree_line; do
     grep -qxF -e "$tree_line" "$tmp/tree.before" || tree_report "$1" "$tree_line"
@@ -309,7 +304,6 @@ tree_check() {
 }
 
 tree_start() {
-  tree_named=' '
   tree_state "$tmp/tree.before"
   while IFS= read -r tree_line; do
     tree_report '' "$tree_line"
@@ -718,6 +712,8 @@ own_judge() {
   before=
   empty_left=
   [ -z "$case_empty" ] || empty_left=$(ls -A "$case_tmpdir")
+  once_count=0
+  [ -z "$case_once" ] || once_count=$(printf '%s\n' "$got_out" | grep -cxF -e "$case_once")
   if [ -n "$case_signal" ]; then
     [ ! -s "$fixture/before" ] || read -r before <"$fixture/before"
     printf 'case run-ci-d/%s processes by recorded id: %s before the signal, %s after\n' "$case_name" "${before:-none}" "$left"
@@ -737,6 +733,10 @@ own_judge() {
     got=$tmpdirs_got
   elif [ -n "$empty_left" ]; then
     got=temporary-directory-left
+  elif [ -n "$case_made" ] && [ ! -e "$fixture/$case_made" ]; then
+    got=no-$case_made
+  elif [ -n "$case_once" ] && [ "$once_count" -ne 1 ]; then
+    got=$once_count-times-$case_once
   else
     got=$want
     if [ -n "$case_first" ]; then
@@ -778,6 +778,8 @@ case_reset() {
   case_gone=
   case_empty=
   case_procs=
+  case_made=
+  case_once=
 }
 
 # shellcheck disable=SC2016
@@ -934,6 +936,8 @@ own_self_test() {
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && printf 'x\n' >>"$fixture/tracked.txt"
   case_absent='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
   own_case tracked-file-differs-before-the-first-script 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" checkout -q -- tracked.txt; printf "PASS 10-a\n"' && printf 'x\n' >>"$fixture/tracked.txt"
+  own_case script-restores-a-file-that-differed-before 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -965,9 +969,10 @@ own_self_test() {
   case_first='scripts/B/ci.d/10-x.sh'
   case_then='scripts/a/ci.d/20-y.sh'
   own_case list-in-byte-order 0 'scripts/a/ci.d/20-y.sh' --list macos
-  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
-  case_first="PASS 10-a${nl}seconds 10-a "
+  new_repo && add_script r1 10-a.sh "$good" 'printf "line of 10-a\n"; printf "PASS 10-a\n"'
+  case_first="line of 10-a${nl}PASS 10-a${nl}seconds 10-a "
   case_then='PASS 10-a'
+  case_once='line of 10-a'
   own_case seconds-line-after-the-output-of-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
@@ -991,9 +996,11 @@ own_self_test() {
     own_case tmpdir-that-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
   fi
   chmod 755 "$tmp/read-only"
-  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
+  term_child='( trap ": >\"\$CI_D_REPO/child-got-term\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $term_child; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
     add_script r1 20-b.sh "$good" "$pass_b"
   case_gone=1
+  case_made=child-got-term
   case_limit=5
   case_max_s=15
   case_first='FAIL 10-a (time limit 5 s)'
@@ -1088,9 +1095,10 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s KILL \"\$PPID\"; sleep 1; $passes" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case driver-job-of-a-self-test-killed 1 'FAIL self-test:10-a (it ended without an exit status)' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; $leaves; trap 'printf \"ended by TERM\\n\"; exit 143' TERM; sleep 30 & wait \"\$!\"; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $leaves; $term_child; trap 'printf \"ended by TERM\\n\"; exit 143' TERM; sleep 30 & wait \"\$!\"; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_jobs=2
   case_gone=1
+  case_made=child-got-term
   case_limit=2
   case_first="ended by TERM${nl}seconds 10-a "
   case_then='FAIL self-test:10-a (time limit 2 s)'
