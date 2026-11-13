@@ -633,7 +633,7 @@ mod tests {
             .unwrap();
         let handle = relay.handle();
         relay.stop();
-        crate::cdp::tests::options_with(PathBuf::from("/nonexistent/chrome"), profile, handle)
+        crate::cdp::tests::options_with(crate::cdp::tests::nowhere("chrome"), profile, handle)
     }
 
     fn cause(f: Option<crate::cdp::StartFailure>) -> Option<(&'static str, String)> {

@@ -1589,6 +1589,14 @@ pub(crate) mod tests {
         }
     }
 
+    /// An absolute path on this system to a program that does not exist.
+    pub(crate) fn nowhere(name: &str) -> PathBuf {
+        crate::start::system_dir()
+            .unwrap()
+            .join("halvo-web-nonexistent")
+            .join(name)
+    }
+
     pub(crate) fn options_with(
         browser: PathBuf,
         profile: PathBuf,
@@ -1653,7 +1661,7 @@ pub(crate) mod tests {
         let profile = dir.join("p");
         std::fs::create_dir_all(&profile).unwrap();
         let used = Executor::start(&options_with(
-            PathBuf::from("/nonexistent/chrome"),
+            crate::cdp::tests::nowhere("chrome"),
             profile,
             relay.handle(),
         ))
@@ -1803,7 +1811,7 @@ pub(crate) mod tests {
     async fn a_start_with_no_guard_fails_and_leaves_no_browser() {
         let since_us = own_start_us();
         let none = crate::guard::GuardProgram {
-            program: PathBuf::from("/nonexistent/guard"),
+            program: crate::cdp::tests::nowhere("guard"),
             prefix: Vec::new(),
         };
         let (started, profile, dir, _relay) =

@@ -120,6 +120,20 @@ fn draw(state: &mut u64) -> u64 {
     (*state >> 33) % 3_001
 }
 
+/// Whether two paths name one program: on Windows with `\\?\` taken off, `/` and `\` taken as one
+/// and the letter case ignored, as the system compares them there.
+fn same_path(a: &Path, b: &Path) -> bool {
+    if cfg!(windows) {
+        let norm = |p: &Path| {
+            let t = p.to_string_lossy().replace('/', "\\").to_lowercase();
+            t.strip_prefix("\\\\?\\").map(str::to_string).unwrap_or(t)
+        };
+        norm(a) == norm(b)
+    } else {
+        a == b
+    }
+}
+
 /// The processes that the run of `profile` left: those that name its profile as a whole path and
 /// run a program inside the browser's bundle or install directory (`checks::Mark`), and its guard,
 /// this program run with the guard's flag and the profile's temporary directory.
@@ -132,7 +146,7 @@ fn left_of(mark: &halvo_web::checks::Mark, temp: &str, me: &Path) -> (Vec<procs:
         .collect();
     let guards = table
         .iter()
-        .filter(|p| p.exe.as_deref() == Some(me))
+        .filter(|p| p.exe.as_deref().is_some_and(|e| same_path(e, me)))
         .filter(|p| {
             halvo_web::checks::command_args(p.pid).is_some_and(|a| {
                 a.iter().any(|x| x == halvo_web::guard::GUARD_FLAG)

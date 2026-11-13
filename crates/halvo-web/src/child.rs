@@ -66,6 +66,71 @@ pub fn read_report(out: &Path) -> Report {
     r
 }
 
+/// The names of the environment that this process was started with: on macOS the block that the
+/// start passed, read from `KERN_PROCARGS2`, so that a variable that a framework of the system sets
+/// in the process later (`__CF_USER_TEXT_ENCODING`) is not taken for one that the start passed;
+/// elsewhere the process's environment.
+pub fn initial_env() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut mib = [
+            libc::CTL_KERN,
+            libc::KERN_PROCARGS2,
+            std::process::id() as i32,
+        ];
+        let mut size: libc::size_t = 0;
+        // SAFETY: a null buffer asks for the size of this process's arguments area.
+        let asked = unsafe {
+            libc::sysctl(
+                mib.as_mut_ptr(),
+                3,
+                std::ptr::null_mut(),
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        let mut buf = vec![0u8; size];
+        // SAFETY: the buffer holds `size` bytes, which the call is told.
+        let read = asked == 0
+            && unsafe {
+                libc::sysctl(
+                    mib.as_mut_ptr(),
+                    3,
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    &mut size,
+                    std::ptr::null_mut(),
+                    0,
+                )
+            } == 0;
+        if !read || size < 4 {
+            return vec!["unread".into()];
+        }
+        buf.truncate(size);
+        let argc = i32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]).max(0) as usize;
+        let rest = &buf[4..];
+        let mut at = rest.iter().position(|b| *b == 0).unwrap_or(rest.len());
+        while at < rest.len() && rest[at] == 0 {
+            at += 1;
+        }
+        rest[at..]
+            .split(|b| *b == 0)
+            .skip(argc)
+            .take_while(|e| !e.is_empty())
+            .map(|e| {
+                let e = String::from_utf8_lossy(e);
+                e.split('=').next().unwrap_or("").to_string()
+            })
+            .collect()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::env::vars_os()
+            .map(|(k, _)| k.to_string_lossy().into_owned())
+            .collect()
+    }
+}
+
 #[cfg(unix)]
 fn is_null(fd: i32) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -121,12 +186,9 @@ fn entry() {
     }
     let out = std::env::args().skip_while(|a| a != "--").nth(1);
     let mut text = String::new();
-    for (k, v) in std::env::vars_os() {
-        text.push_str(&format!(
-            "env {}={}\n",
-            k.to_string_lossy(),
-            v.to_string_lossy()
-        ));
+    for k in initial_env() {
+        let v = std::env::var_os(&k).unwrap_or_default();
+        text.push_str(&format!("env {}={}\n", k, v.to_string_lossy()));
     }
     let dir = std::env::current_dir()
         .map(|d| d.to_string_lossy().into_owned())

@@ -220,22 +220,33 @@ fn created_us(h: windows_sys::Win32::Foundation::HANDLE) -> Option<u64> {
 }
 
 #[cfg(windows)]
-fn started_of_pid(pid: u32) -> u64 {
+fn started_and_path_of(pid: u32) -> (u64, Option<PathBuf>) {
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+    use windows_sys::Win32::System::Threading::{
+        QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
     let Some(h) = open(pid, PROCESS_QUERY_LIMITED_INFORMATION) else {
-        return 0;
+        return (0, None);
     };
     let t = created_us(h);
+    let mut buf = vec![0u16; 32_768];
+    let mut len = buf.len() as u32;
+    // SAFETY: the buffer holds `len` wide characters, which the call is told; it writes the
+    // length of the path into `len`.
+    let ok =
+        unsafe { QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len) };
+    let path = (ok != 0).then(|| PathBuf::from(String::from_utf16_lossy(&buf[..len as usize])));
+    // SAFETY: the handle is owned here and closed once.
     unsafe { CloseHandle(h) };
-    t.unwrap_or(0)
+    (t.unwrap_or(0), path)
 }
 
 /// Every process of the system that it can read, with its parent pid, its creation time and its
 /// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
 /// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
-/// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
-/// systems get an error.
+/// snapshot, `GetProcessTimes` and the full path of `QueryFullProcessImageNameW`, where a process
+/// that cannot be opened has creation time 0 and its program's file name alone. Other systems get
+/// an error.
 #[cfg(windows)]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -257,14 +268,17 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
             .iter()
             .position(|c| *c == 0)
             .unwrap_or(entry.szExeFile.len());
+        let (started_us, path) = started_and_path_of(entry.th32ProcessID);
         out.push(Proc {
             pid: entry.th32ProcessID,
             ppid: entry.th32ParentProcessID,
-            started_us: started_of_pid(entry.th32ProcessID),
+            started_us,
             pgid: 0,
-            exe: Some(PathBuf::from(String::from_utf16_lossy(
-                &entry.szExeFile[..len],
-            ))),
+            exe: path.or_else(|| {
+                Some(PathBuf::from(String::from_utf16_lossy(
+                    &entry.szExeFile[..len],
+                )))
+            }),
         });
         ok = unsafe { Process32NextW(snap, &mut entry) };
     }
@@ -566,6 +580,19 @@ mod tests {
         }
         let _ = child.wait();
         assert!(wait_for(|| !tree.iter().any(running)), "{tree:?}");
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn table_gives_the_full_path_of_this_process_s_program() {
+        let me = table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .unwrap();
+        let want = std::env::current_exe().unwrap();
+        let norm = |p: &Path| p.to_string_lossy().to_lowercase();
+        assert_eq!(me.exe.as_deref().map(norm), Some(norm(&want)));
     }
 
     #[cfg(windows)]

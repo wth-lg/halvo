@@ -709,9 +709,7 @@ mod tests {
         };
         let out = args.iter().skip_while(|a| *a != "--").nth(1).cloned();
         let mut text = format!("args {}\n", args[at + 1..].join(" "));
-        let mut names: Vec<String> = std::env::vars_os()
-            .map(|(k, _)| k.to_string_lossy().into_owned())
-            .collect();
+        let mut names = crate::child::initial_env();
         names.sort();
         text.push_str(&format!("env {}\n", names.join(" ")));
         #[cfg(target_os = "macos")]
