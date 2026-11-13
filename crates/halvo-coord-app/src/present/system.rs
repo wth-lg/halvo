@@ -77,14 +77,15 @@ mod macos {
         let (tx, rx) = mpsc::channel();
         let title = card.title().to_owned();
         let text = card.text();
-        let [reject, allow] = controls(card).map(str::to_owned);
+        let titles = controls(card).map(str::to_owned);
         let queued = app.run_on_main_thread(move || {
             let Some(mtm) = MainThreadMarker::new() else {
                 return;
             };
             let alert = NSAlert::new(mtm);
-            alert.addButtonWithTitle(&NSString::from_str(&reject));
-            alert.addButtonWithTitle(&NSString::from_str(&allow));
+            for title in &titles {
+                alert.addButtonWithTitle(&NSString::from_str(title));
+            }
             alert.setMessageText(&NSString::from_str(&title));
             alert.setInformativeText(&NSString::from_str(&text));
             let _ = tx.send(Step::Shown);
