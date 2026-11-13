@@ -530,9 +530,11 @@ mod tests {
     }
 
     #[test]
-    fn the_count_sees_allocations_of_every_thread() {
+    fn the_count_sees_allocations_of_every_thread_but_the_first() {
         let start = first_thread();
-        if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
+        if !in_a_child_alone(
+            "probe::tests::the_count_sees_allocations_of_every_thread_but_the_first",
+        ) {
             return;
         }
         let apart = apart_from_the_harness(start);
