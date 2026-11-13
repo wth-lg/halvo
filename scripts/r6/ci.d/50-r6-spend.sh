@@ -30,7 +30,7 @@ enter_repo() {
 }
 
 tree_state() {
-  git -c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --untracked-files=all --ignored=matching &&
+  git -c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching &&
     git ls-files -v
 }
 
@@ -192,6 +192,7 @@ reset_stubs() {
   STUB_FRESH=$work/committed.jsonl
   STUB_COMMITTED=$work/committed.jsonl
   STUB_CHANGE=
+  STUB_CHANGED=$work/one-answer.jsonl
   STUB_REPO=$work/repo
   cp "$work/clean-status.txt" "$work/tree/status" || exit 2
   cp "$work/clean-flags.txt" "$work/tree/flags" || exit 2
@@ -204,7 +205,7 @@ check() {
     CI_D_ARTIFACTS=$work/artifacts/$1
     STUB_TREE=$work/tree
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_TEST_OUT STUB_TEST_EXIT STUB_SIM_OUT STUB_SIM_EXIT
-    export STUB_FRESH STUB_COMMITTED STUB_CHANGE
+    export STUB_FRESH STUB_COMMITTED STUB_CHANGE STUB_CHANGED
     sh "$self" 2>&1
   )
   code=$?
@@ -233,7 +234,12 @@ write_stubs() {
 case $* in
   'test --locked -p halvo-route -p halvo-route-gate')
     cat "$STUB_TEST_OUT"
-    [ "$STUB_CHANGE" != tests ] || printf '1 .M N... 100644 100644 100644 0 0 docs/r6/gateway/sequences.jsonl\n' >>"$STUB_TREE/status"
+    case $STUB_CHANGE in
+      tests) printf '1 .M N... 100644 100644 100644 0 0 docs/r6/gateway/sequences.jsonl\n' >>"$STUB_TREE/status" ;;
+      flags) printf 'h docs/r6/gateway/sequences.jsonl\n' >>"$STUB_TREE/flags" ;;
+      head) printf '# branch.oid fedcba9876543210fedcba9876543210fedcba98\n! target/\n' >"$STUB_TREE/status" ;;
+      blob) cp "$STUB_CHANGED" "$STUB_COMMITTED" ;;
+    esac
     exit "$STUB_TEST_EXIT"
     ;;
   'run -q --locked -p halvo-route-gate --bin route-gate -- spend-sim --seed 1 --export '*)
@@ -250,7 +256,7 @@ EOF
   cat >"$work/bin/git" <<'EOF'
 #!/bin/sh
 case $* in
-  '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --untracked-files=all --ignored=matching')
+  '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching')
     cat "$STUB_TREE/status"
     ;;
   'ls-files -v')
@@ -317,6 +323,8 @@ self_test() {
   [ -s "$work/committed.jsonl" ] || exit 2
   variant '1s/"answer":"ok"/"answer":"state"/' "$work/committed.jsonl" "$work/one-answer.jsonl"
   committed_lines=$(grep -c '' "$work/committed.jsonl") || exit 2
+  awk 'NR == 1 { first = $0; next } NR == 2 { print; print first; next } { print }' "$work/committed.jsonl" >"$work/swapped.jsonl" || exit 2
+  cmp -s "$work/swapped.jsonl" "$work/committed.jsonl" && exit 2
   write_stubs
   write_fixtures
   rejected=0
@@ -384,6 +392,14 @@ tests required=3 ok=3' "PASS $name"
   variant '6s/ stopped_mid_run=0$/ stopped_mid_run=0 extra=1/' "$work/sim-good.txt" "$work/sim-extra.txt"
   STUB_SIM_OUT=$work/sim-extra.txt
   check a-line-with-another-key FAIL "FAIL $name (sim)"
+  variant '7s/cases=6/cases=5/' "$work/sim-good.txt" "$work/sim-five.txt"
+  STUB_SIM_OUT=$work/sim-five.txt
+  check summary-of-five-cases-with-exit-0 FAIL "FAIL $name (sim)"
+  STUB_SIM_OUT=$work/sim-fail.txt
+  check summary-fail-with-exit-0 FAIL "FAIL $name (sim)"
+  variant '7s/ overruns=0 / overruns=2 /' "$work/sim-good.txt" "$work/sim-total.txt"
+  STUB_SIM_OUT=$work/sim-total.txt
+  check summary-overruns-with-exit-0 FAIL "FAIL $name (sim)"
   variant '7s/admit_sum=ok/admit_sum=miss/' "$work/sim-good.txt" "$work/sim-miss.txt"
   STUB_SIM_OUT=$work/sim-miss.txt
   check admit-sum-miss FAIL "FAIL $name (sim)"
@@ -398,6 +414,8 @@ tests required=3 ok=3' "PASS $name"
   check fresh-export-differs FAIL "sequences lines=$committed_lines same=no" "FAIL $name (sequences)"
   STUB_COMMITTED=$work/none.jsonl
   check not-committed FAIL 'sequences lines=0 same=no' "FAIL $name (sequences)"
+  STUB_FRESH=$work/swapped.jsonl
+  check two-moves-in-another-order FAIL "sequences lines=$committed_lines same=no" "FAIL $name (sequences)"
   STUB_FRESH=$work/none.jsonl
   check not-exported FAIL "sequences lines=$committed_lines same=no" "FAIL $name (sequences)"
 
@@ -405,6 +423,16 @@ tests required=3 ok=3' "PASS $name"
   check tests-change-the-tree FAIL "FAIL $name (tests)"
   STUB_CHANGE=sim
   check sim-changes-the-tree FAIL "FAIL $name (sim)"
+  STUB_CHANGE=flags
+  check tests-set-an-index-flag FAIL "FAIL $name (tests)"
+  STUB_CHANGE='head'
+  check tests-move-head FAIL "FAIL $name (tests)"
+  cp "$work/committed.jsonl" "$work/blob.jsonl" || exit 2
+  STUB_COMMITTED=$work/blob.jsonl
+  STUB_CHANGE=blob
+  check committed-file-read-before-the-tests PASS "sequences lines=$committed_lines same=yes" "PASS $name"
+  printf '2 R. N... 100644 100644 100644 0 0 R100 docs/r6/new.jsonl\tdocs/r6/gateway/sequences.jsonl\n' >>"$work/tree/status"
+  check renamed-before FAIL "FAIL $name (tests)"
   printf '1 .M N... 100644 100644 100644 0 0 %s\n' "$sequences" >>"$work/tree/status"
   check changed-before FAIL "FAIL $name (tests)"
   printf 'h %s\n' "$sequences" >>"$work/tree/flags"
