@@ -1,10 +1,14 @@
 mod card;
 mod outcome;
+#[cfg(any(test, feature = "scripted"))]
+mod scripted;
 #[cfg(test)]
 mod tests;
 
 pub use card::Card;
 pub use outcome::{decide, Outcome};
+#[cfg(feature = "scripted")]
+pub use scripted::Scripted;
 
 use crate::hub::{Native, Present};
 use halvo_coord::items::ConfirmAnswer;

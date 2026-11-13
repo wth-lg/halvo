@@ -17,6 +17,8 @@ pub use attention::Attention;
 pub use bell::Bell;
 pub use handler::{handler, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
+#[cfg(feature = "scripted")]
+pub use present::Scripted;
 pub use present::{decide, Card, Dialog, DialogPresenter, Outcome, Read};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;

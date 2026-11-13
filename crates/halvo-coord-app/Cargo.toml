@@ -13,3 +13,6 @@ tauri = { version = "=2.12.5", default-features = false }
 
 [dev-dependencies]
 tauri = { version = "=2.12.5", default-features = false, features = ["test"] }
+
+[features]
+scripted = []

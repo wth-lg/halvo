@@ -4,6 +4,7 @@ use halvo_coord::types::{Class, Field, FieldFrom, ItemId};
 
 mod card;
 mod outcome;
+mod scripted;
 mod serve;
 
 pub const ALLOW: ConfirmAnswer = ConfirmAnswer::Allow;
