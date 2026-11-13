@@ -2746,4 +2746,66 @@ mod tests {
         assert_eq!(grants, ["granted", "granted", "granted"]);
         assert_eq!(status.fields().permissions[0].grant, GrantState::Granted);
     }
+
+    const THREAT_MODEL: &str = include_str!("../SECURITY.md");
+
+    fn listed(request: &Request) -> &'static str {
+        match request {
+            Request::Status { .. } => "status",
+            Request::Inventory => "inventory",
+            Request::Pause => "pause",
+            Request::Resume => "resume",
+            Request::Stop => "stop",
+            Request::DeleteAll { .. } => "delete_all",
+            Request::SetStorageCap { .. } => "set_storage_cap",
+            Request::RequestPermission { .. } => "request_permission",
+            Request::PermissionAsked { .. } => "permission_asked",
+            Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
+        }
+    }
+
+    fn table_rows() -> Vec<&'static str> {
+        THREAT_MODEL
+            .lines()
+            .filter_map(|line| line.strip_prefix("| `"))
+            .filter_map(|rest| rest.split_once("` |"))
+            .map(|(op, _)| op)
+            .collect()
+    }
+
+    #[test]
+    fn threat_model_lists_every_request() {
+        let rows = table_rows();
+        for request in every_request() {
+            let op = listed(&request);
+            assert_eq!(op, request.op());
+            assert_eq!(
+                rows.iter().filter(|row| **row == op).count(),
+                1,
+                "crates/halvo-control/SECURITY.md has no row, or two, for {op}"
+            );
+        }
+        for row in &rows {
+            assert!(
+                V1_OPS.contains(row) || RESERVED_OPS.contains(row),
+                "{row} is not a request of protocol v1"
+            );
+        }
+    }
+
+    #[test]
+    fn the_threat_model_names_the_same_user_boundary_and_the_file_a_later_run_adds() {
+        for sentence in [
+            "Until builds are signed, any process of the same user can read whatever a reply or a section carries and can send every request, a later run's included.",
+            "crates/halvo-control/src/r2/SECURITY.md",
+        ] {
+            assert!(THREAT_MODEL.contains(sentence), "{sentence}");
+        }
+        assert!(THREAT_MODEL.ends_with('\n'));
+        let last = THREAT_MODEL
+            .lines()
+            .rfind(|line| line.starts_with("## "))
+            .unwrap();
+        assert_eq!(last, "## Rows of a later run");
+    }
 }
