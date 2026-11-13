@@ -45,6 +45,10 @@ required_gap() {
         if (bad == "") bad = "the line " FNR " of " list " is not <package> <test target> <test name>"
         next
       }
+      if ($1 != "halvo-schema-core" && $1 != "halvo-schema") {
+        if (bad == "") bad = "the line " FNR " of " list " names the package " $1 ", which is neither halvo-schema-core nor halvo-schema"
+        next
+      }
       if (($1, $2, $3) in listed && bad == "") bad = "the line " FNR " of " list " stands twice: " $1 " " $2 " " $3
       listed[$1, $2, $3] = 1
       if ($1 == pkg) { n++; target[n] = $2; test[n] = $3 }
@@ -662,6 +666,13 @@ $later_line
 $lock_line
 "
   check list-line-twice FAIL "FAIL $name (the line 4 of $required stands twice: $lock_line)"
+  repo=$work/third-package
+  make_repo "$repo" golden "$core_line
+$lock_line
+halvo-schemx tests/locked_files.rs never_checked_anywhere
+$later_line
+"
+  check list-line-of-a-third-package FAIL "FAIL $name (the line 3 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
   repo=$work/no-list
   make_repo "$repo" golden none
   check list-missing FAIL "FAIL $name ($required is missing)"
