@@ -8,8 +8,10 @@ use halvo_seam::conformance::{self, Subject};
 use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
-    decode_client, Cause, ClientMessage, OpenCursor, Refusal, ServerError, ServerMessage, ZERO,
+    decode_client, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
+    ServerMessage, ZERO,
 };
+use halvo_seam::record::CaptureRecord;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fault {
@@ -17,11 +19,15 @@ enum Fault {
     StoreChangedAtZeroNamesAnotherId,
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
+    OpenWhileOpenGetsBadPosition,
+    OpenWhileOpenMovesTheCursor,
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
+    PhantomRecordAtTheWatermarkAfterAShred,
     ExpiryMovesFromReadToRead,
     ExpiryMovesFromConnectionToConnection,
     ExpiryMovesFromCursorToCursor,
+    ExpiryMovesOnTheSecondCursorOfSetA,
     FilteredStopRepeats,
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
@@ -38,6 +44,7 @@ struct Fixture {
     serving: Option<JoinHandle<FixtureTransport>>,
     replace: Option<Replace>,
     connections: i64,
+    set_a: bool,
 }
 
 impl Fixture {
@@ -51,6 +58,7 @@ impl Fixture {
             serving: None,
             replace: None,
             connections: 0,
+            set_a: false,
         }
     }
 
@@ -96,6 +104,7 @@ impl Subject for Fixture {
             n += 1;
         };
         self.files = Vec::new();
+        self.set_a = batch_files == conformance::SET_A;
         for (i, text) in batch_files.iter().enumerate() {
             let path = dir.join(format!("day-{:03}.jsonl", i + 1));
             fs::write(&path, text).map_err(|e| format!("write failed: {e}"))?;
@@ -112,6 +121,7 @@ impl Subject for Fixture {
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
         let fault = self.fault;
         let shredded = self.first_live > 1;
+        let set_a = self.set_a;
         self.connections += 1;
         let connection = self.connections;
         self.serving = Some(std::thread::spawn(move || {
@@ -123,6 +133,7 @@ impl Subject for Fixture {
                     let mut wrong = Wrong {
                         fault,
                         shredded,
+                        set_a,
                         connection,
                         reads: 0,
                         opens: 0,
@@ -156,6 +167,7 @@ impl Subject for Fixture {
     fn replace_live(&mut self) -> Result<(), String> {
         self.replace.as_ref().ok_or("no store is loaded")?.replace();
         self.files = Vec::new();
+        self.set_a = false;
         self.first_live = 1;
         Ok(())
     }
@@ -174,6 +186,7 @@ fn error(cause: Cause) -> ServerMessage {
 struct Wrong {
     fault: Fault,
     shredded: bool,
+    set_a: bool,
     connection: i64,
     reads: i64,
     opens: i64,
@@ -207,8 +220,32 @@ impl Wrong {
             ExpiryMovesFromReadToRead => self.reads,
             ExpiryMovesFromConnectionToConnection => self.connection,
             ExpiryMovesFromCursorToCursor => self.opens,
+            ExpiryMovesOnTheSecondCursorOfSetA if self.set_a && self.opens == 2 => 1,
             _ => 0,
         };
+        let w = t.watermark();
+        let at_w = self.last.as_ref().is_some_and(|o| o.position() == w);
+        if self.fault == PhantomRecordAtTheWatermarkAfterAShred
+            && self.shredded
+            && at_w
+            && b.records.is_empty()
+        {
+            let line = conformance::SET_A[0].split_inclusive('\n').next().unwrap();
+            let record = CaptureRecord::read_line(line.as_bytes()).unwrap();
+            b.expiry = vec![Expiry {
+                seg: w.seg,
+                at: Instant(record.at().0 + 1_209_600_000_000_000),
+            }];
+            b.records = vec![Entry {
+                pos: Position { seg: w.seg, idx: 0 },
+                record,
+            }];
+            b.watermark = Position {
+                seg: w.seg + 1,
+                idx: 0,
+            };
+            b.next = b.watermark;
+        }
         for x in &mut b.expiry {
             x.at = Instant(x.at.0.saturating_add(shift * 1_000_000_000));
         }
@@ -278,6 +315,18 @@ fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> Serv
             if *e.cause() == Cause::BadRequest =>
         {
             t.handle(&ClientMessage::Close);
+            ServerMessage::Error(e)
+        }
+        (OpenWhileOpenGetsBadPosition, ServerMessage::Error(e))
+            if *e.cause() == Cause::BadRequest =>
+        {
+            error(Cause::BadPosition)
+        }
+        (OpenWhileOpenMovesTheCursor, ServerMessage::Error(e))
+            if *e.cause() == Cause::BadRequest =>
+        {
+            t.handle(&ClientMessage::Close);
+            t.handle(&ClientMessage::OpenCursor(open.clone()));
             ServerMessage::Error(e)
         }
         (_, reply) => reply,
@@ -356,6 +405,8 @@ fn conformance_check_open_while_open() {
         &[
             (OpenWhileOpenServes, [None, None, check, None]),
             (OpenWhileOpenClosesTheCursor, [None, None, check, None]),
+            (OpenWhileOpenGetsBadPosition, [None, None, check, None]),
+            (OpenWhileOpenMovesTheCursor, [None, None, check, None]),
         ],
     );
 }
@@ -368,6 +419,10 @@ fn conformance_check_open_at_the_watermark_after_a_shred() {
         &[
             (WatermarkRefusedAfterAShred, [None, check, None, None]),
             (RisenWatermarkRefusedAfterAShred, [None, check, None, None]),
+            (
+                PhantomRecordAtTheWatermarkAfterAShred,
+                [None, check, None, None],
+            ),
         ],
     );
 }
@@ -384,6 +439,10 @@ fn conformance_check_one_expiry_instant() {
                 [check, check, None, None],
             ),
             (ExpiryMovesFromCursorToCursor, [check, check, check, check]),
+            (
+                ExpiryMovesOnTheSecondCursorOfSetA,
+                [check, check, check, check],
+            ),
         ],
     );
 }
