@@ -5158,6 +5158,42 @@ fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_en
     }
 }
 
+/// RD-52 (e): a Stop that comes while the run of a workflow that a tick saw gone is `stopping`
+/// answers `unknown_agent`, stores nothing and sends no second cancel, and the run ends at the
+/// grace tick with no `run_ended` stored.
+#[test]
+fn rd52e_a_stop_while_the_run_of_a_gone_workflow_is_stopping_is_unknown_agent() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    let m = mark(&c);
+    c.tick();
+    assert_eq!(cancels_of(&c, m, &run), 1, "the tick stops the run");
+    assert_eq!(c.live(), 1, "stopping");
+    let stored = events(&c).len();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Err(Cause::UnknownAgent));
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+    assert_eq!(cancels_of(&c, m, &run), 0, "no second cancel");
+    c.ports()
+        .ports
+        .set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 1, "the grace tick ends the run");
+    assert_eq!(c.live(), 0);
+    assert!(
+        !events(&c)
+            .iter()
+            .any(|w| matches!(w, What::RunEnded { run: r, .. } if *r == run)),
+        "no run_ended"
+    );
+}
+
 /// A confirm request of agent `n`'s run with `count` effects of the class `send`.
 fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
     let RunEvent::Confirm(one) = ask_confirm(run, n) else {
