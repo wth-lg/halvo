@@ -247,28 +247,38 @@ mod tests {
         (after.0 - before.0, after.1 - before.1)
     }
 
-    struct Apart(());
+    mod token {
+        use std::sync::atomic::Ordering;
 
-    const ON_THE_FIRST_THREAD: &str =
-        "the test runs on the process's first thread, whose calls the windows leave out";
-    const NO_FIRST_THREAD: &str = "no thread made a call of the allocator before the test began";
+        use super::{this_thread, FIRST_THREAD};
 
-    fn apart(first: usize, me: usize, first_calls: u64) -> Result<Apart, &'static str> {
-        if first_calls == 0 {
-            return Err(NO_FIRST_THREAD);
+        pub(super) struct Apart(());
+
+        pub(super) const ON_THE_FIRST_THREAD: &str =
+            "the test runs on the process's first thread, whose calls the windows leave out";
+        pub(super) const NO_FIRST_THREAD: &str =
+            "no thread made a call of the allocator before the test began";
+
+        pub(super) fn refusal(first: usize, me: usize, first_calls: u64) -> Option<&'static str> {
+            if first_calls == 0 {
+                return Some(NO_FIRST_THREAD);
+            }
+            if me == first {
+                return Some(ON_THE_FIRST_THREAD);
+            }
+            None
         }
-        if me == first {
-            return Err(ON_THE_FIRST_THREAD);
+
+        pub(super) fn apart_from_the_harness(start: (u64, u64)) -> Apart {
+            if let Some(why) = refusal(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0)
+            {
+                panic!("{why}");
+            }
+            Apart(())
         }
-        Ok(Apart(()))
     }
 
-    fn apart_from_the_harness(start: (u64, u64)) -> Apart {
-        match apart(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0) {
-            Ok(apart) => apart,
-            Err(why) => panic!("{why}"),
-        }
-    }
+    use token::{apart_from_the_harness, refusal, Apart, NO_FIRST_THREAD, ON_THE_FIRST_THREAD};
 
     struct Window {
         first: (u64, u64),
@@ -605,10 +615,26 @@ mod tests {
 
     #[test]
     fn a_window_leaves_out_only_a_first_thread_that_is_not_the_test() {
-        assert!(apart(7, 8, 1).is_ok());
-        assert_eq!(apart(7, 7, 1).err(), Some(ON_THE_FIRST_THREAD));
-        assert_eq!(apart(7, 8, 0).err(), Some(NO_FIRST_THREAD));
-        assert_eq!(apart(0, 8, 0).err(), Some(NO_FIRST_THREAD));
+        assert_eq!(refusal(7, 8, 1), None);
+        assert_eq!(refusal(7, 7, 1), Some(ON_THE_FIRST_THREAD));
+        assert_eq!(refusal(7, 8, 0), Some(NO_FIRST_THREAD));
+        assert_eq!(refusal(0, 8, 0), Some(NO_FIRST_THREAD));
+    }
+
+    #[test]
+    fn a_test_on_the_first_thread_is_refused_at_the_call() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::a_test_on_the_first_thread_is_refused_at_the_call") {
+            return;
+        }
+        FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
+        let refused = std::panic::catch_unwind(|| apart_from_the_harness(start))
+            .err()
+            .expect("the guard refuses");
+        assert_eq!(
+            refused.downcast_ref::<String>().map(String::as_str),
+            Some(ON_THE_FIRST_THREAD)
+        );
     }
 
     #[test]
