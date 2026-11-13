@@ -113,6 +113,25 @@ impl ForegroundWriter {
     }
 }
 
+#[cfg(test)]
+impl ForegroundWriter {
+    pub(crate) fn set_for_test(&self, front: Option<Foreground>) {
+        self.set(front);
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests_support {
+    use super::{AppIdentity, Foreground};
+
+    pub(crate) fn front(bundle_id: &str, pid: libc::pid_t) -> Foreground {
+        Foreground {
+            identity: AppIdentity::of(Some(bundle_id), None),
+            pid,
+        }
+    }
+}
+
 impl Drop for ForegroundWriter {
     fn drop(&mut self) {
         self.set(None);

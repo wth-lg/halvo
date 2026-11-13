@@ -1329,6 +1329,54 @@ mod tests {
     }
 
     #[test]
+    fn a_recorded_key_and_pointer_carry_the_app_in_front() {
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = foreground_state();
+        fg_writer.set_for_test(Some(crate::macos::foreground::tests_support::front(
+            "com.example.editor",
+            41,
+        )));
+        let ctx = tap_context(handle, reader, InputCounters::new(), &tap_settings());
+        dispatch_tap_event(&ctx, CGEventType::KeyDown, SecureInputState::Inactive);
+        dispatch_tap_event(&ctx, CGEventType::MouseMoved, SecureInputState::Inactive);
+        drop(ctx);
+        let apps: Vec<String> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.foreground_app)
+            .collect();
+        assert_eq!(apps, ["com.example.editor", "com.example.editor"]);
+    }
+
+    #[test]
+    fn each_type_of_the_table_has_its_class() {
+        use TapClass::{
+            ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,
+        };
+        let classes: Vec<(u32, TapClass)> = TAP_EVENTS
+            .iter()
+            .map(|&(etype, class)| (etype as u32, class))
+            .collect();
+        assert_eq!(
+            classes,
+            [
+                (10, K),
+                (11, O),
+                (12, O),
+                (1, D),
+                (2, D),
+                (3, D),
+                (4, D),
+                (25, D),
+                (26, D),
+                (5, C),
+                (6, C),
+                (7, C),
+                (27, C),
+                (22, C)
+            ]
+        );
+    }
+
+    #[test]
     fn a_failed_thread_start_carries_fixed_text() {
         assert_eq!(
             spawn_failure(std::io::Error::other("the words of the system")),

@@ -1,9 +1,8 @@
 //! Screen capture via ScreenCaptureKit.
 
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use block2::RcBlock;
@@ -20,9 +19,13 @@ use objc2_screen_capture_kit::{
 
 use crate::event::Modality;
 use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted};
+use crate::macos::source_failure;
 use crate::secure_input::SecureInputError;
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+    StopCause,
+};
 
 /// A cap on the screen stream's frame rate. No value of this type allows more
 /// than [`FrameRateCap::MAX_PER_SECOND`] frames a second.
@@ -165,6 +168,45 @@ fn stream_configuration(
     config
 }
 
+/// The longest that [`ScreenSource`]'s `shutdown` waits for the stream's stop
+/// completion; it stays inside [`SCREEN_STOP_DEADLINE`].
+pub const SCREEN_STOP_WAIT: Duration = Duration::from_secs(5);
+
+/// The deadline of the screen source's `shutdown`.
+pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_secs(6);
+
+const SCREEN_START_WAIT: Duration = Duration::from_secs(5);
+
+const SHAREABLE_CONTENT_WAIT: Duration = Duration::from_secs(10);
+
+/// The stop of a running stream: the reply carries `None` when the stop
+/// completed without error, or the code of the error it reported.
+trait StopStream {
+    fn ask_stop(&self, reply: Sender<Option<i64>>);
+}
+
+impl StopStream for Retained<SCStream> {
+    fn ask_stop(&self, reply: Sender<Option<i64>>) {
+        let handler = RcBlock::new(move |err: *mut NSError| {
+            // SAFETY: a non-null `err` is a live NSError that the completion
+            // hands the handler for the length of the call; `code` is a
+            // property getter that takes no argument.
+            let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
+            let _ = reply.send(code);
+        });
+        // SAFETY: the stream is live, and the handler has the completion
+        // signature `void (^)(NSError *)`; it only reads the error's code and
+        // sends it on a channel.
+        unsafe { self.stopCaptureWithCompletionHandler(Some(&handler)) };
+    }
+}
+
+type Opened = (
+    Box<dyn StopStream>,
+    Retained<ScreenOutput>,
+    DispatchRetained<DispatchQueue>,
+);
+
 /// The screen capture source. Created, started and stopped on one thread: the
 /// type is not `Send`.
 ///
@@ -180,9 +222,11 @@ fn stream_configuration(
 pub struct ScreenSource {
     cap: FrameRateCap,
     foreground: ForegroundReader,
-    stream: Option<Retained<SCStream>>,
+    stream: Option<Box<dyn StopStream>>,
     output: Option<Retained<ScreenOutput>>,
     queue: Option<DispatchRetained<DispatchQueue>>,
+    failure: Option<CaptureError>,
+    stopped: bool,
     _not_send: PhantomData<*const ()>,
 }
 
@@ -194,147 +238,251 @@ impl ScreenSource {
             stream: None,
             output: None,
             queue: None,
+            failure: None,
+            stopped: false,
             _not_send: PhantomData,
+        }
+    }
+
+    fn begin_with(
+        &mut self,
+        sink: SinkHandle,
+        open: impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError>,
+    ) -> Result<Started, CaptureError> {
+        if self.stream.is_some() {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        match open(sink, self.foreground.clone(), self.cap) {
+            Ok((stream, output, queue)) => {
+                self.stream = Some(stream);
+                self.output = Some(output);
+                self.queue = Some(queue);
+                self.failure = None;
+                self.stopped = false;
+                Ok(Started::Running)
+            }
+            Err(error) => {
+                self.failure = Some(error.clone());
+                Err(error)
+            }
         }
     }
 }
 
-fn fetch_shareable_content() -> Option<Retained<SCShareableContent>> {
-    let (tx, rx): (Sender<Option<Retained<SCShareableContent>>>, _) = channel();
-    let handler = RcBlock::new(
-        move |content: *mut SCShareableContent, _err: *mut NSError| {
-            let retained = if content.is_null() {
-                None
-            } else {
-                // SAFETY: `content` is not null, and ScreenCaptureKit hands the
-                // handler a +0 reference to a live SCShareableContent; retaining
-                // it takes ownership.
-                unsafe { Retained::retain(content) }
-            };
-            let _ = tx.send(retained);
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+}
+
+fn screen_access_denied() -> bool {
+    // SAFETY: a parameterless predicate of the system with no side effect.
+    !unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+fn content_refusal(denied: bool, answer: Result<i64, RecvTimeoutError>) -> CaptureError {
+    match (denied, answer) {
+        (true, _) => CaptureError::PermissionDenied(Modality::ScreenFrame),
+        (false, Ok(code)) => CaptureError::Os {
+            stage: "shareable_content",
+            domain: "ScreenCaptureKit",
+            code,
         },
-    );
+        (false, Err(_)) => CaptureError::Timeout {
+            stage: "shareable_content",
+            ms: SHAREABLE_CONTENT_WAIT.as_millis() as u64,
+        },
+    }
+}
+
+fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureError> {
+    let (tx, rx): (Sender<Result<Retained<SCShareableContent>, i64>>, _) = channel();
+    let handler = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
+        let answer = if content.is_null() && err.is_null() {
+            Err(0)
+        } else if content.is_null() {
+            // SAFETY: `err` is not null: a live NSError that the completion
+            // hands the handler for the length of the call; `code` is a
+            // property getter that takes no argument.
+            Err(unsafe { (*err).code() } as i64)
+        } else {
+            // SAFETY: `content` is not null, and ScreenCaptureKit hands the
+            // handler a +0 reference to a live SCShareableContent; retaining
+            // it takes ownership.
+            unsafe { Retained::retain(content) }.ok_or(0)
+        };
+        let _ = tx.send(answer);
+    });
     // SAFETY: the handler has the completion signature
     // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it on
-    // a queue of its own, possibly after the 10 s wait below gave up. It holds
+    // a queue of its own, possibly after the wait below gave up. It holds
     // nothing but `tx`; a send to a receiver that is gone returns an error,
     // which the handler ignores, and the retained content drops with it. The
     // content it sends crosses to the waiting thread, although neither objc2
     // nor SCShareableContent.h marks the class as safe to share between threads.
     unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
-    rx.recv_timeout(Duration::from_secs(10)).ok().flatten()
+    match rx.recv_timeout(SHAREABLE_CONTENT_WAIT) {
+        Ok(Ok(content)) => Ok(content),
+        Ok(Err(code)) => Err(content_refusal(screen_access_denied(), Ok(code))),
+        Err(waited) => Err(content_refusal(screen_access_denied(), Err(waited))),
+    }
+}
+
+fn open_stream(
+    sink: SinkHandle,
+    foreground: ForegroundReader,
+    cap: FrameRateCap,
+) -> Result<Opened, CaptureError> {
+    let content = fetch_shareable_content()?;
+
+    // SAFETY: `content` is a live, retained SCShareableContent, and
+    // `displays` is a property getter that takes no argument.
+    let displays = unsafe { content.displays() };
+    let display = displays
+        .iter()
+        .next()
+        .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
+
+    let filter = filter_excluding_self(&content, &display);
+
+    // SAFETY: `display` is a live, retained SCDisplay, and `width` and
+    // `height` are property getters that take no argument.
+    let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
+    let config = stream_configuration(width, height, cap);
+
+    let output = ScreenOutput::new(sink, foreground);
+    // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
+    // `config` live past the call, and the delegate may be nil.
+    let stream = unsafe {
+        SCStream::initWithFilter_configuration_delegate(SCStream::alloc(), &filter, &config, None)
+    };
+    let queue = DispatchQueue::new("com.halvo.capture.screen", None);
+    let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
+    // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
+    // dispatch queue `queue` are live for the call. SCStream.h says that the
+    // start and the stop completions each carry an error that tells whether
+    // the start or the stop failed. This source releases `output` and `queue`
+    // only when the stream cannot run: after this call fails, after the start
+    // completion reports an error, or after the stop completion reports none.
+    // A start or a stop whose completion does not arrive in time, or a stop
+    // that reports an error, keeps both for the life of the process, and the
+    // output gives back its sink handle first. A second start answers
+    // AlreadyStarted, and dropping a started source stops it first.
+    unsafe {
+        stream
+            .addStreamOutput_type_sampleHandlerQueue_error(
+                proto,
+                SCStreamOutputType::Screen,
+                Some(&queue),
+            )
+            .map_err(|e| CaptureError::Os {
+                stage: "add_stream_output",
+                domain: "ScreenCaptureKit",
+                code: e.code() as i64,
+            })?;
+    }
+
+    let (stx, srx) = channel();
+    let handler = RcBlock::new(move |err: *mut NSError| {
+        // SAFETY: a non-null `err` is a live NSError that the completion hands
+        // the handler for the length of the call; `code` is a property getter
+        // that takes no argument.
+        let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
+        let _ = stx.send(code);
+    });
+    // SAFETY: `stream` is live, and the handler has the completion signature
+    // `void (^)(NSError *)`; it only reads the error's code and sends it on a
+    // channel.
+    unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
+    match srx.recv_timeout(SCREEN_START_WAIT) {
+        Ok(None) => Ok((Box::new(stream), output, queue)),
+        Ok(Some(code)) => Err(CaptureError::Os {
+            stage: "start_capture",
+            domain: "ScreenCaptureKit",
+            code,
+        }),
+        Err(_) => {
+            stream.ask_stop(channel().0);
+            keep_for_the_life_of_the_process(Some(output), Some(queue));
+            Err(CaptureError::Timeout {
+                stage: "start_capture",
+                ms: SCREEN_START_WAIT.as_millis() as u64,
+            })
+        }
+    }
 }
 
 impl CaptureSource for ScreenSource {
-    fn modality(&self) -> Modality {
-        Modality::ScreenFrame
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        self.begin_with(ctx.sink().clone(), open_stream)
     }
 
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let content = fetch_shareable_content()
-            .ok_or(CaptureError::PermissionDenied(Modality::ScreenFrame))?;
-
-        // SAFETY: `content` is a live, retained SCShareableContent, and
-        // `displays` is a property getter that takes no argument.
-        let displays = unsafe { content.displays() };
-        let display = displays
-            .iter()
-            .next()
-            .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
-
-        let filter = filter_excluding_self(&content, &display);
-
-        // SAFETY: `display` is a live, retained SCDisplay, and `width` and
-        // `height` are property getters that take no argument.
-        let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
-        let config = stream_configuration(width, height, self.cap);
-
-        let output = ScreenOutput::new(sink, self.foreground.clone());
-        // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
-        // `config` live past the call, and the delegate may be nil.
-        let stream = unsafe {
-            SCStream::initWithFilter_configuration_delegate(
-                SCStream::alloc(),
-                &filter,
-                &config,
-                None,
-            )
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        let Some(stream) = self.stream.as_ref() else {
+            return Ok(());
         };
-        let queue = DispatchQueue::new("com.halvo.capture.screen", None);
-        let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
-        // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
-        // dispatch queue `queue` are live for the call. SCStream.h says that the
-        // start and the stop completions each carry an error that tells whether
-        // the start or the stop failed. This source releases `output` and
-        // `queue` only when the stream cannot run: after this call fails, after
-        // the start completion reports an error, or after the stop completion
-        // reports none. A start or a stop whose completion does not arrive within
-        // 5 s, or a stop that reports an error, keeps both for the life of the
-        // process, and the output gives back its sink handle first. Not held
-        // here: a second `start` without `stop`, or dropping a started source,
-        // releases them while the stream may run (RR-macos-sources-07).
-        unsafe {
-            stream
-                .addStreamOutput_type_sampleHandlerQueue_error(
-                    proto,
-                    SCStreamOutputType::Screen,
-                    Some(&queue),
-                )
-                .map_err(|e| CaptureError::Start(format!("addStreamOutput failed: {e:?}")))?;
+        let (tx, rx) = channel();
+        stream.ask_stop(tx);
+        let completion = rx.recv_timeout(SCREEN_STOP_WAIT);
+        if stopped_without_error(completion) {
+            self.stream = None;
+            self.stopped = true;
+            release(self.output.take(), self.queue.take());
+            return Ok(());
         }
-
-        let started = Arc::new(AtomicBool::new(false));
-        let (stx, srx) = channel();
-        let handler = {
-            let started = started.clone();
-            RcBlock::new(move |err: *mut NSError| {
-                started.store(err.is_null(), Ordering::Relaxed);
-                let _ = stx.send(());
-            })
-        };
-        // SAFETY: `stream` is live, and the handler has the completion signature
-        // `void (^)(NSError *)`; it only stores a flag and sends on a channel.
-        unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
-        let completed = srx.recv_timeout(Duration::from_secs(5)).is_ok();
-        if !started.load(Ordering::Relaxed) {
-            if !completed {
-                keep_for_the_life_of_the_process(Some(output), Some(queue));
-            }
-            return Err(CaptureError::Start("startCapture reported an error".into()));
-        }
-
-        self.stream = Some(stream);
-        self.output = Some(output);
-        self.queue = Some(queue);
-        Ok(())
+        keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
+        Err(match completion {
+            Ok(code) => CaptureError::Os {
+                stage: "stop_capture",
+                domain: "ScreenCaptureKit",
+                code: code.unwrap_or(0),
+            },
+            Err(_) => CaptureError::Timeout {
+                stage: "stop_capture",
+                ms: SCREEN_STOP_WAIT.as_millis() as u64,
+            },
+        })
     }
 
-    fn stop(&mut self) {
-        let stopped = match self.stream.take() {
-            None => true,
-            Some(stream) => {
-                let (tx, rx) = channel();
-                let handler = RcBlock::new(move |err: *mut NSError| {
-                    let _ = tx.send(err.is_null());
-                });
-                // SAFETY: `stream` is live, and the handler has the completion
-                // signature `void (^)(NSError *)`; it only sends on a channel
-                // whether the error is nil.
-                unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
-                stopped_without_error(rx.recv_timeout(Duration::from_secs(5)))
-            }
+    fn health(&self) -> SourceHealth {
+        let state = match (&self.stream, &self.failure) {
+            (Some(_), _) => SourceState::Running,
+            (None, Some(error)) => source_failure(error.clone()),
+            (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
+            (None, None) => SourceState::NotReported,
         };
-        if stopped {
-            self.output = None;
-            self.queue = None;
-        } else {
-            keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
+        SourceHealth {
+            state,
+            counters: SourceCounters::default(),
         }
     }
 }
 
-fn stopped_without_error(completion: Result<bool, RecvTimeoutError>) -> bool {
-    completion == Ok(true)
+impl Drop for ScreenSource {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
+    }
+}
+
+fn stopped_without_error(completion: Result<Option<i64>, RecvTimeoutError>) -> bool {
+    completion == Ok(None)
+}
+
+fn give_back_the_sink(output: &ScreenOutput) {
+    drop(
+        output
+            .ivars()
+            .sink
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take(),
+    );
+}
+
+fn release(output: Option<Retained<ScreenOutput>>, queue: Option<DispatchRetained<DispatchQueue>>) {
+    if let Some(output) = &output {
+        give_back_the_sink(output);
+    }
+    drop((output, queue));
 }
 
 fn keep_for_the_life_of_the_process(
@@ -363,7 +511,10 @@ mod tests {
     use core_foundation::base::{CFGetRetainCount, CFRelease};
     use objc2::rc::{Allocated, Weak};
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
+    use std::cell::{Cell, RefCell};
     use std::ffi::c_void;
+    use std::rc::Rc;
+    use std::time::Instant;
 
     #[test]
     fn self_exclusion_is_enforced_in_the_filter() {
@@ -401,7 +552,7 @@ mod tests {
             (1, 2),
             "minimum frame interval"
         );
-        assert_eq!(depth, STREAM_QUEUE_DEPTH);
+        assert_eq!(depth, 8);
         assert!(!audio, "the stream captures system audio");
         assert!(!microphone, "the stream captures the microphone");
         assert_eq!(size, (640, 480));
@@ -612,8 +763,8 @@ mod tests {
 
     #[test]
     fn only_a_stop_completion_without_error_releases_the_output() {
-        assert!(stopped_without_error(Ok(true)));
-        assert!(!stopped_without_error(Ok(false)));
+        assert!(stopped_without_error(Ok(None)));
+        assert!(!stopped_without_error(Ok(Some(-3808))));
         assert!(!stopped_without_error(Err(RecvTimeoutError::Timeout)));
         assert!(!stopped_without_error(Err(RecvTimeoutError::Disconnected)));
     }
@@ -641,11 +792,218 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_carries_the_app_in_front() {
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = foreground_state();
+        let front = crate::macos::foreground::tests_support::front("com.example.editor", 41);
+        fg_writer.set_for_test(Some(front));
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            foreground: reader,
+        };
+        let frame = Frame::new(16, 16);
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        drop(ivars);
+        let apps: Vec<String> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.foreground_app)
+            .collect();
+        assert_eq!(apps, ["com.example.editor"]);
+    }
+
+    #[test]
     fn the_frame_handler_keeps_no_reference_to_the_sample() {
         let (ivars, _writer) = screen_ivars();
         let frame = Frame::new(16, 16);
         let before = frame.retain_count();
         on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
         assert_eq!(frame.retain_count(), before);
+    }
+    type Answers = Rc<RefCell<std::collections::VecDeque<Option<Option<i64>>>>>;
+
+    struct ScriptedStream {
+        answers: Answers,
+        asks: Rc<Cell<u32>>,
+        held: RefCell<Vec<Sender<Option<i64>>>>,
+    }
+
+    impl StopStream for ScriptedStream {
+        fn ask_stop(&self, reply: Sender<Option<i64>>) {
+            self.asks.set(self.asks.get() + 1);
+            match self.answers.borrow_mut().pop_front().flatten() {
+                Some(answer) => {
+                    let _ = reply.send(answer);
+                }
+                None => self.held.borrow_mut().push(reply),
+            }
+        }
+    }
+
+    fn scripted(
+        answers: &[Option<Option<i64>>],
+        asks: &Rc<Cell<u32>>,
+    ) -> impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError>
+    {
+        let answers: Answers = Rc::new(RefCell::new(answers.iter().copied().collect()));
+        let asks = asks.clone();
+        move |sink, foreground, _cap| {
+            Ok((
+                Box::new(ScriptedStream {
+                    answers,
+                    asks,
+                    held: RefCell::new(Vec::new()),
+                }),
+                ScreenOutput::new(sink, foreground),
+                DispatchQueue::new("scripted", None),
+            ))
+        }
+    }
+
+    fn started(
+        answers: &[Option<Option<i64>>],
+    ) -> (
+        ScreenSource,
+        SinkHandle,
+        SinkWriter,
+        Rc<Cell<u32>>,
+        Weak<ScreenOutput>,
+    ) {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        let asks = Rc::new(Cell::new(0));
+        let first = source.begin_with(handle.clone(), scripted(answers, &asks));
+        assert_eq!(first, Ok(Started::Running));
+        let weak = Weak::from_retained(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+        );
+        (source, handle, writer, asks, weak)
+    }
+
+    fn sink_closed(handle: SinkHandle, writer: &SinkWriter) -> bool {
+        drop(handle);
+        writer
+            .recv_timeout(Duration::from_secs(1))
+            .map(|r| r.event().modality)
+            == Err(RecvTimeoutError::Disconnected)
+    }
+
+    #[test]
+    fn a_second_begin_is_refused_and_a_clean_shutdown_releases_the_output_and_the_sink() {
+        let (mut source, handle, writer, asks, weak) = started(&[Some(None)]);
+        let second = source.begin(SourceContext::new(handle.clone()));
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert!(
+            shut == Ok(()) && took < SCREEN_STOP_DEADLINE,
+            "{shut:?} after {took:?}"
+        );
+        assert_eq!(asks.get(), 1);
+        assert!(weak.load().is_none(), "a clean stop kept the output");
+        assert_eq!(
+            source.health().state,
+            SourceState::Stopped(StopCause::Request)
+        );
+        assert!(
+            sink_closed(handle, &writer),
+            "a handle of the sink is still held"
+        );
+    }
+
+    #[test]
+    fn a_stop_whose_wait_gives_up_answers_timeout_inside_six_seconds_and_leaves_no_output_or_queue()
+    {
+        let (mut source, handle, writer, asks, weak) = started(&[None, Some(None)]);
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        assert_eq!(
+            shut,
+            Err(CaptureError::Timeout {
+                stage: "stop_capture",
+                ms: 5000
+            })
+        );
+        assert!(took < SCREEN_STOP_DEADLINE, "the shutdown took {took:?}");
+        assert!(source.output.is_none() && source.queue.is_none());
+        assert!(weak.load().is_some(), "the kept output was released");
+        assert_eq!(
+            source.begin(SourceContext::new(handle.clone())),
+            Err(CaptureError::AlreadyStarted)
+        );
+        assert!(
+            sink_closed(handle, &writer),
+            "the kept output still holds the sink"
+        );
+        drop(source);
+        assert_eq!(
+            asks.get(),
+            2,
+            "the drop did not ask the stream to stop again"
+        );
+    }
+
+    #[test]
+    fn a_stop_that_reports_an_error_keeps_the_output_and_answers_its_code() {
+        let (mut source, handle, writer, _asks, weak) = started(&[Some(Some(-3808)), Some(None)]);
+        let shut = source.shutdown();
+        assert_eq!(
+            shut,
+            Err(CaptureError::Os {
+                stage: "stop_capture",
+                domain: "ScreenCaptureKit",
+                code: -3808
+            })
+        );
+        assert!(
+            weak.load().is_some(),
+            "the output of a failed stop was released"
+        );
+        assert!(
+            sink_closed(handle, &writer),
+            "the kept output still holds the sink"
+        );
+    }
+
+    #[test]
+    fn a_dropped_started_source_asks_the_stream_to_stop_and_releases_the_output() {
+        let (source, handle, writer, asks, weak) = started(&[Some(None)]);
+        drop(source);
+        assert_eq!(asks.get(), 1);
+        assert!(weak.load().is_none());
+        assert!(sink_closed(handle, &writer));
+    }
+
+    #[test]
+    fn the_stop_wait_is_inside_the_deadline() {
+        assert_eq!(SCREEN_STOP_WAIT, Duration::from_secs(5));
+        assert!(SCREEN_STOP_WAIT < SCREEN_STOP_DEADLINE);
+    }
+
+    #[test]
+    fn only_a_denial_of_the_system_is_a_permission_error_at_the_content_read() {
+        assert_eq!(
+            content_refusal(true, Err(RecvTimeoutError::Timeout)),
+            CaptureError::PermissionDenied(Modality::ScreenFrame)
+        );
+        assert_eq!(
+            content_refusal(false, Ok(-3801)),
+            CaptureError::Os {
+                stage: "shareable_content",
+                domain: "ScreenCaptureKit",
+                code: -3801
+            }
+        );
+        assert_eq!(
+            content_refusal(false, Err(RecvTimeoutError::Timeout)),
+            CaptureError::Timeout {
+                stage: "shareable_content",
+                ms: 10_000
+            }
+        );
     }
 }
