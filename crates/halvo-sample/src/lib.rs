@@ -5,6 +5,7 @@
 
 pub mod body;
 pub mod build;
+pub mod check;
 pub mod form;
 pub mod labels;
 pub mod layers;

@@ -91,6 +91,21 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             };
             halvo_sample::build::build(&a).map(done)
         }
+        "check-labels" => {
+            let (f, rest) = parse(args, &["--rule"], &[])?;
+            let rule = match f.get("--rule") {
+                None => None,
+                Some(r) => Some(
+                    halvo_sample::check::Rule::parse(r)
+                        .ok_or_else(|| Refusal::new("usage", "--rule"))?,
+                ),
+            };
+            let [dir] = rest.as_slice() else {
+                return Err(Refusal::new("usage", "one DIR"));
+            };
+            let c = halvo_sample::check::check_labels(&PathBuf::from(dir), rule)?;
+            Ok((c.lines, c.pass))
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }
