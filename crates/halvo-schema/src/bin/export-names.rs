@@ -3,20 +3,35 @@ use std::fs::OpenOptions;
 use std::io::{ErrorKind, Write};
 use std::process::ExitCode;
 
-pub(crate) const LISTS: &[&[&str]] = &[
+pub(crate) const LOCKED: &[&[&str]] = &[
     halvo_schema::category::NAMES,
-    halvo_schema::coordinator::NAMES,
-    halvo_schema::executable::NAMES,
     halvo_schema::ids::NAMES,
     halvo_schema::kinds::NAMES,
-    halvo_schema::learning::NAMES,
     halvo_schema::record::NAMES,
     halvo_schema::request::NAMES,
     halvo_schema::site::NAMES,
 ];
 
+pub(crate) const LATER: &[&[&str]] = &[
+    halvo_schema::coordinator::NAMES,
+    halvo_schema::executable::NAMES,
+    halvo_schema::learning::NAMES,
+];
+
 pub(crate) fn names_file() -> String {
-    let mut names: Vec<&str> = LISTS.iter().flat_map(|list| list.iter().copied()).collect();
+    let kinds: Vec<&str> = halvo_schema::kinds::registry()
+        .flat_map(|kind| [kind.name, kind.family])
+        .collect();
+    names_with(LATER, &kinds)
+}
+
+pub(crate) fn names_with(later: &[&[&str]], kinds: &[&str]) -> String {
+    let mut names: Vec<&str> = LOCKED
+        .iter()
+        .chain(later)
+        .flat_map(|list| list.iter().copied())
+        .chain(kinds.iter().copied())
+        .collect();
     names.sort_unstable();
     names.dedup();
     names.iter().map(|name| format!("{name}\n")).collect()
