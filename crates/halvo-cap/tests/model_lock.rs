@@ -20,6 +20,10 @@ fn child() {
     };
     let mut out = std::io::stdout();
     let code = match role.as_str() {
+        "hold-account" | "try-account" if !on_a_hosted_runner() => {
+            writeln!(out, "refused: the role runs on a hosted runner alone").unwrap();
+            5
+        }
         "path" => match model_lock_path() {
             Ok(path) => {
                 writeln!(out, "path {}", path.display()).unwrap();
@@ -115,7 +119,7 @@ fn first_line(command: &mut Command) -> (Option<i32>, String) {
     let line = text
         .lines()
         .find(|l| {
-            ["path ", "error ", "taken", "held-refused"]
+            ["path ", "error ", "taken", "held-refused", "refused: "]
                 .iter()
                 .any(|start| l.starts_with(start))
         })
@@ -260,9 +264,172 @@ fn the_lock_path_is_the_path_below_the_accounts_own_directory() {
     }
 }
 
+fn hosted_values(actions: Option<&str>, environment: Option<&str>) -> bool {
+    actions == Some("true") && environment == Some("github-hosted")
+}
+
 fn on_a_hosted_runner() -> bool {
-    std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true")
-        && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted")
+    hosted_values(
+        std::env::var("GITHUB_ACTIONS").ok().as_deref(),
+        std::env::var("RUNNER_ENVIRONMENT").ok().as_deref(),
+    )
+}
+
+#[test]
+fn the_hosted_gate_holds_both_hosted_values_and_nothing_else() {
+    assert!(hosted_values(Some("true"), Some("github-hosted")));
+    assert!(!hosted_values(Some("true"), None));
+    assert!(!hosted_values(Some("true"), Some("self-hosted")));
+    assert!(!hosted_values(None, None));
+}
+
+#[test]
+fn the_library_half_of_lock_rs_reads_no_variable_asks_for_the_effective_user_and_has_four_public_items(
+) {
+    let lines: Vec<&str> = include_str!("../src/lock.rs")
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .collect();
+    let end = lines
+        .windows(2)
+        .position(|w| {
+            w[0] == "#[cfg(all(test, any(target_os = \"macos\", windows)))]"
+                && w[1] == "mod tests {"
+        })
+        .expect("the test module of lock.rs");
+    let code_of = |lines: &[&'static str]| -> Vec<&'static str> {
+        lines
+            .iter()
+            .copied()
+            .filter(|l| {
+                let t = l.trim_start();
+                !t.starts_with("///") && !t.starts_with("//!")
+            })
+            .collect()
+    };
+    let code = code_of(&lines[..end]);
+    for word in [
+        "std::env",
+        "env::var",
+        "var_os",
+        "getenv",
+        "GetEnvironmentVariable",
+        "ExpandEnvironmentStrings",
+        "home_dir",
+        "NSHomeDirectory",
+        "SHGetFolderPath",
+    ] {
+        assert!(
+            !code.iter().any(|l| l.contains(word)),
+            "a code line of the library half of lock.rs names {word}"
+        );
+    }
+    let joined = code.join("\n");
+    assert_eq!(
+        joined.matches("libc::geteuid()").count(),
+        1,
+        "libc::geteuid() must stand once in the library half of lock.rs"
+    );
+    for word in ["libc::getuid", "getlogin", "getpwnam"] {
+        assert!(
+            !joined.contains(word),
+            "the library half of lock.rs names {word}"
+        );
+    }
+    for (signature, body) in [
+        (
+            "pub fn take_model_lock() -> Result<ModelLock, LockError> {",
+            "take_lock_from(account_dir())",
+        ),
+        (
+            "pub fn model_lock_path() -> Result<PathBuf, LockError> {",
+            "lock_path_from(account_dir())",
+        ),
+    ] {
+        let bodies: Vec<&str> = code
+            .windows(2)
+            .filter(|w| w[0] == signature)
+            .map(|w| w[1].trim())
+            .collect();
+        assert!(
+            bodies.contains(&body)
+                && bodies
+                    .iter()
+                    .all(|b| *b == body || *b == "Err(LockError::Unsupported)"),
+            "{signature} is not {body}: {bodies:?}"
+        );
+    }
+    let mut public: Vec<&str> = code
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| l.starts_with("pub"))
+        .collect();
+    public.sort_unstable();
+    public.dedup();
+    assert_eq!(
+        public,
+        [
+            "pub enum LockError {",
+            "pub fn make_inheritable(&self) -> Result<(), LockError> {",
+            "pub fn model_lock_path() -> Result<PathBuf, LockError> {",
+            "pub fn path(&self) -> &Path {",
+            "pub fn take_model_lock() -> Result<ModelLock, LockError> {",
+            "pub struct ModelLock {",
+        ],
+        "the public items of the library half of lock.rs"
+    );
+    let lib: Vec<&str> = include_str!("../src/lib.rs")
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .collect();
+    let of_lock: Vec<&str> = code_of(&lib)
+        .into_iter()
+        .map(str::trim)
+        .filter(|l| l.contains("lock::") || l.contains("mod lock"))
+        .collect();
+    assert_eq!(
+        of_lock,
+        [
+            "mod lock;",
+            "pub use lock::{model_lock_path, take_model_lock, LockError, ModelLock};",
+        ],
+        "what lib.rs makes of the module lock"
+    );
+}
+
+#[test]
+fn a_child_whose_account_variable_names_a_directory_with_a_lock_file_prints_the_parents_lock_path()
+{
+    let parent = model_lock_path().ok();
+    let dir = fresh_dir("lock-file-there");
+    let layouts: [PathBuf; 2] = [
+        ["Library", "Caches", "halvo", "model.lock"]
+            .iter()
+            .collect(),
+        ["halvo", "model.lock"].iter().collect(),
+    ];
+    for layout in layouts {
+        let file = dir.join(layout);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, "").unwrap();
+    }
+    let mut sets: Vec<Vec<&str>> = ACCOUNT_VARIABLES.iter().map(|v| vec![*v]).collect();
+    sets.push(ACCOUNT_VARIABLES.to_vec());
+    for set in sets {
+        let mut command = child_command("path");
+        for name in &set {
+            command.env(name, &dir);
+        }
+        let got = printed_path(&mut command);
+        assert!(
+            got.is_some(),
+            "with {set:?}: the child printed no lock path"
+        );
+        assert!(
+            got == parent,
+            "with {set:?} naming a directory that holds a lock file, the child's lock path is not the parent's"
+        );
+    }
 }
 
 #[test]
@@ -271,6 +438,32 @@ fn two_loaders_with_other_account_variables_meet_at_the_accounts_lock() {
         say("model-lock end-to-end: not run, because this is no hosted runner and the test takes the account's model lock");
         return;
     }
+    let mut refusals = 0;
+    for role in ["hold-account", "try-account"] {
+        let mut command = child_command(role);
+        command
+            .env_remove("GITHUB_ACTIONS")
+            .env_remove("RUNNER_ENVIRONMENT");
+        let (code, line) = first_line(&mut command);
+        if code == Some(5) && line == "refused: the role runs on a hosted runner alone" {
+            refusals += 1;
+        }
+    }
+    let (after_refusals, _) = first_line(&mut child_command("try-account"));
+    say(&format!(
+        "model-lock end-to-end: the two roles without the hosted values refused with exit 5: {}; a gated take after them: {}",
+        refusals == 2,
+        after_refusals == Some(0)
+    ));
+    assert_eq!(
+        refusals, 2,
+        "a role without the hosted values did not refuse"
+    );
+    assert_eq!(
+        after_refusals,
+        Some(0),
+        "a gated take after the refused roles did not take the lock"
+    );
     let parent = model_lock_path().ok();
     let first = fresh_dir("hold-first");
     let second = fresh_dir("try-second");
