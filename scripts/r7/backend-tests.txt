@@ -23,7 +23,7 @@ test/contract/vars-env.node.test.ts	2
 test/contract/wire.node.test.ts	15
 test/contract/wrangler.node.test.ts	3
 test/ledger/alarm-arming.node.test.ts	6
-test/ledger/alarm-rejection.test.ts	2
+test/ledger/alarm-rejection.test.ts	7
 test/ledger/cap-route.node.test.ts	3
 test/ledger/driver-record.node.test.ts	2
 test/ledger/ends-once.node.test.ts	3
