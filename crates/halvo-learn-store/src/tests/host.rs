@@ -28,8 +28,47 @@ pub fn run(n: u32) -> String {
     id('5', n)
 }
 
+/// The agent store's side of the test host: the store in memory, and a switch that makes its rows read as a
+/// store fault, an `agent_config` row that its parser refuses.
+pub struct AgentSide {
+    pub store: MemoryStore,
+    pub fault: bool,
+}
+
+impl RowRead for AgentSide {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        if self.fault && kind == "agent_config" {
+            visit("{}");
+        }
+        self.store.for_each(kind, visit);
+    }
+}
+
+impl Host for AgentSide {
+    fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
+        self.store.commit(records)
+    }
+
+    fn set_state(
+        &mut self,
+        workflow: &WorkflowId,
+        state: halvo_schema::executable::names::AgentState,
+        agent: Option<&halvo_schema::AgentId>,
+    ) -> Result<(), ErrorName> {
+        self.store.set_state(workflow, state, agent)
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        self
+    }
+
+    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+        self.store.workflow(id)
+    }
+}
+
 pub struct TestHost {
-    pub agent: MemoryStore,
+    pub agent: AgentSide,
     learn: Vec<(&'static str, String)>,
     pub day: u32,
     pub commits: Cell<u32>,
@@ -39,7 +78,10 @@ pub struct TestHost {
 impl TestHost {
     pub fn new() -> TestHost {
         TestHost {
-            agent: MemoryStore::new(),
+            agent: AgentSide {
+                store: MemoryStore::new(),
+                fault: false,
+            },
             learn: Vec::new(),
             day: DAY,
             commits: Cell::new(0),
@@ -48,7 +90,7 @@ impl TestHost {
     }
 
     pub fn put_workflow(&mut self, workflow: Workflow) {
-        self.agent.put_workflow(workflow);
+        self.agent.store.put_workflow(workflow);
     }
 
     pub fn learn_rows(&self, kind: &str) -> Vec<String> {

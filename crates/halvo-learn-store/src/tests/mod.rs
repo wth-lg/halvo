@@ -5,4 +5,5 @@ mod finish;
 mod host;
 mod pass;
 mod propose;
+mod rules;
 mod serve;
