@@ -14,7 +14,7 @@ use std::process::ExitCode;
 use drive::{Ctx, End, Prompts, Stop};
 use lines::{Cell, Kind, Run};
 
-const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR";
+const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR [--compile-variant NAME]";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
@@ -29,6 +29,9 @@ struct Args {
     port: u16,
     machine: String,
     run_dir: PathBuf,
+    /// A variant of the fixture for the compile run alone, which only the control passes (ruling
+    /// CP-179, the Addition on H9 (c)); a cell of the trial passes none.
+    compile_variant: Option<String>,
 }
 
 fn parse(argv: &[String]) -> Result<Args, String> {
@@ -65,7 +68,10 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             }
             "--machine" if action::is_name(&value.replace('-', "_")) => a.machine = value.clone(),
             "--run-dir" => a.run_dir = PathBuf::from(value),
-            "--model" | "--task" | "--seed" | "--machine" => {
+            "--compile-variant" if action::is_name(value) => {
+                a.compile_variant = Some(value.clone())
+            }
+            "--model" | "--task" | "--seed" | "--machine" | "--compile-variant" => {
                 return Err(format!("{flag} takes no {value}"))
             }
             other => return Err(format!("unknown argument {other}")),
@@ -348,6 +354,7 @@ fn main() -> ExitCode {
             },
             prompts: Prompts { boundary, goal },
             recoveries,
+            compile_variants: args.compile_variant.clone().into_iter().collect(),
             stop,
             trace: std::sync::Mutex::new(trace),
             began: std::time::Instant::now(),
@@ -407,6 +414,15 @@ mod tests {
         let mut twice = argv(&[]);
         twice.extend(["--seed".to_string(), "1".to_string()]);
         assert!(parse(&twice).is_err());
+        assert_eq!(parse(&argv(&[])).unwrap().compile_variant, None);
+        assert_eq!(
+            parse(&argv(&[("--compile-variant", "slow_charge")]))
+                .unwrap()
+                .compile_variant
+                .as_deref(),
+            Some("slow_charge")
+        );
+        assert!(parse(&argv(&[("--compile-variant", "Slow charge")])).is_err());
         let short: Vec<String> = argv(&[]).into_iter().take(20).collect();
         assert!(parse(&short).is_err());
     }

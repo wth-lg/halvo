@@ -65,6 +65,8 @@ pub struct Ctx {
     pub model: model::Spec,
     pub prompts: Prompts,
     pub recoveries: u32,
+    /// The fixture's variants of the compile run: none in a cell of the trial.
+    pub compile_variants: Vec<String>,
     pub stop: Stop,
     pub trace: std::sync::Mutex<std::fs::File>,
     pub began: Instant,
@@ -820,7 +822,8 @@ fn kept_names(kept: &HashMap<String, String>) -> Vec<String> {
 /// The compile run: the model drives from snapshots, the harness signs in at each handback and
 /// allows each confirmation; it gives the run and the playbook that it left.
 pub async fn compile(ctx: &Ctx) -> Result<(Run, Vec<Step>), End> {
-    reset(ctx, &[])?;
+    let variants: Vec<&str> = ctx.compile_variants.iter().map(String::as_str).collect();
+    reset(ctx, &variants)?;
     let began = Instant::now();
     let mut tally = Tally::new();
     let mut child = Some(start_child(ctx, &mut tally).await?);

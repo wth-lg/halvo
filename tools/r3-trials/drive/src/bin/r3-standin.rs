@@ -1,7 +1,9 @@
 //! The stand-in child of the driver trial's control (ruling CP-173 E1): no model. It loads nothing,
 //! takes no lock and opens no file but the one that `--weights` names, whose one line is its mode
-//! (`right`, `effect_early`, `option_then_right`, `sign_in_click`, `option_line` or
-//! `extract_then_click`). It prints
+//! (`right`, `effect_early`, `option_then_right`, `sign_in_click`, `option_line`,
+//! `extract_then_click`, `option_twice_then_right`, `extract_to_cap` or `effect_twice`; the last walks
+//! as `right` does, and on the control's slow page it clicks the effect button again while the form
+//! still stands). It prints
 //! `ready standin`, then answers each request line of A12.2 with one reply line whose text is one
 //! action of the grammar `action` and whose two token counts are 0, and it ends at the end of its
 //! input. It picks a line of the snapshot by its role and name, never by a fixed reference.
@@ -19,6 +21,9 @@ enum Mode {
     SignInClick,
     OptionLine,
     ExtractThenClick,
+    OptionTwiceThenRight,
+    ExtractToCap,
+    EffectTwice,
 }
 
 impl Mode {
@@ -30,6 +35,9 @@ impl Mode {
             "sign_in_click" => Mode::SignInClick,
             "option_line" => Mode::OptionLine,
             "extract_then_click" => Mode::ExtractThenClick,
+            "option_twice_then_right" => Mode::OptionTwiceThenRight,
+            "extract_to_cap" => Mode::ExtractToCap,
+            "effect_twice" => Mode::EffectTwice,
             _ => return None,
         })
     }
@@ -119,11 +127,14 @@ impl Ask<'_> {
         })
     }
 
-    fn refused_select(&self) -> bool {
-        self.history().iter().any(|h| {
-            h.split_once(". ")
-                .is_some_and(|(_, a)| a.starts_with("select ") && a.contains("(refused"))
-        })
+    fn refused_selects(&self) -> usize {
+        self.history()
+            .iter()
+            .filter(|h| {
+                h.split_once(". ")
+                    .is_some_and(|(_, a)| a.starts_with("select ") && a.contains("(refused"))
+            })
+            .count()
     }
 
     fn clicked(&self) -> bool {
@@ -229,6 +240,11 @@ fn next(mode: Mode, ask: &Ask) -> String {
             return click(l);
         }
     }
+    if mode == Mode::ExtractToCap {
+        if let Some(l) = ask.after_text("Amount due") {
+            return action("extract", Some(&l.reference), None, Some("amount_due"));
+        }
+    }
     let kept = ask.kept();
     let order = ask.find("text", "Total").is_some();
     let needed: &[&str] = if order {
@@ -253,7 +269,8 @@ fn next(mode: Mode, ask: &Ask) -> String {
         if !ask.selected() {
             let on_option = match mode {
                 Mode::OptionLine => true,
-                Mode::OptionThenRight => !ask.refused_select(),
+                Mode::OptionThenRight => ask.refused_selects() == 0,
+                Mode::OptionTwiceThenRight => ask.refused_selects() < 2,
                 _ => false,
             };
             let target = if on_option {
@@ -400,6 +417,32 @@ mod tests {
         let bill = "e4 text \"Amount due\"\ne5 text \"1.00\"";
         assert!(ask("Step 3 of the saved steps found no control on this page: extract text \"1.00\". Give the action that does this step on this page.", bill)
             .contains("\"name\":\"amount_due\""));
+    }
+
+    #[test]
+    fn the_modes_of_ruling_cp_179_give_their_replies() {
+        let of = |mode: Mode, prompt: &str, snapshot: &str| {
+            next(
+                mode,
+                &Ask {
+                    prompt,
+                    lines: snapshot.lines().filter_map(parse_line).collect(),
+                },
+            )
+        };
+        let pay = "e9 combobox \"Payment method\"\ne10 option \"a\"\ne12 button \"Pay now\"";
+        let once = "Kept: amount_due\nDone so far:\n1. select e10 slot instrument (refused: x)\n";
+        let twice = "Kept: amount_due\nDone so far:\n1. select e10 slot instrument (refused: x)\n2. select e10 slot instrument (refused: x)\n";
+        assert!(of(Mode::OptionTwiceThenRight, once, pay).contains("\"select\",\"ref\":\"e10\""));
+        assert!(of(Mode::OptionTwiceThenRight, twice, pay).contains("\"select\",\"ref\":\"e9\""));
+        assert!(of(Mode::OptionThenRight, once, pay).contains("\"select\",\"ref\":\"e9\""));
+        let bill = "e4 text \"Amount due\"\ne5 text \"1.00\"\ne6 link \"Pay bill\"";
+        assert!(
+            of(Mode::ExtractToCap, "Kept: amount_due\nDone so far:\n", bill)
+                .contains("\"extract\",\"ref\":\"e5\"")
+        );
+        let chose = "Kept: amount_due\nDone so far:\n4. select e9 slot instrument (done)\n5. click e12 (done; a request was sent)\n";
+        assert!(of(Mode::EffectTwice, chose, pay).contains("\"click\",\"ref\":\"e12\""));
     }
 
     #[test]

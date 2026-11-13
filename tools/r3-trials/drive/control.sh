@@ -9,8 +9,11 @@ usage: sh tools/r3-trials/drive/control.sh --mode MODE --task bill|order --brows
 The control of the driver trial (ruling CP-173 E1): one cell of seed 1 in which the
 stand-in child r3-standin of this crate takes the place of the model. It loads nothing
 and takes no model lock; its mode is the one line of control/<mode>.txt: right,
-effect_early, option_then_right, or, on bill alone, sign_in_click, option_line and
-extract_then_click.
+effect_early, option_then_right, or, on bill alone, sign_in_click, option_line,
+extract_then_click, option_twice_then_right, extract_to_cap and effect_twice. For
+effect_twice the compile run has the fixture's variant slow_charge, whose answer to the
+effect button's post comes after the harness's settle (ruling CP-179, its Addition on
+H9 (c)).
 
 It refuses a browser and a port as run.sh does, builds the crate with cargo build
 --release --locked, and calls r3-drive with the argument list of run.sh, in which three
@@ -68,9 +71,13 @@ while [ $# -gt 0 ]; do
 done
 case $mode in
   right | effect_early | option_then_right) ;;
-  sign_in_click | option_line | extract_then_click) [ "$task" = bill ] || refuse usage "--mode $mode runs on bill alone" ;;
-  *) refuse usage "--mode takes right, effect_early, option_then_right, sign_in_click, option_line or extract_then_click" ;;
+  sign_in_click | option_line | extract_then_click | option_twice_then_right | extract_to_cap | effect_twice)
+    [ "$task" = bill ] || refuse usage "--mode $mode runs on bill alone"
+    ;;
+  *) refuse usage "--mode takes right, effect_early, option_then_right, sign_in_click, option_line, extract_then_click, option_twice_then_right, extract_to_cap or effect_twice" ;;
 esac
+set --
+[ "$mode" = effect_twice ] && set -- --compile-variant slow_charge
 case $task in
   bill | order) ;;
   *) refuse usage "--task takes bill or order" ;;
@@ -131,7 +138,7 @@ trap stop INT TERM
 
 "$drive" --repo "$root" --model "$model" --weights "tools/r3-trials/drive/control/$mode.txt" --child "$child" \
   --settings docs/r3/model-settings.toml --task "$task" --seed 1 \
-  --browser "$browser" --port "$port" --machine "$machine" --run-dir "$dir" >"$dir/lines.txt" &
+  --browser "$browser" --port "$port" --machine "$machine" --run-dir "$dir" "$@" >"$dir/lines.txt" &
 pid=$!
 wait "$pid"
 status=$?
