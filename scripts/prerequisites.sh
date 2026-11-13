@@ -296,11 +296,23 @@ pnpm_lock_integrity() {
   '
 }
 
+sha512_checked() {
+  sum=$(sha512_of "$1") || sum=
+  if [ -z "$sum" ]; then
+    echo "prerequisites: error: the sha512 of $1 came out empty; check that shasum or sha512sum can read it, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
+}
+
 hex_of_base64() {
   printf '%s' "$1" | base64 -d | od -A n -v -t x1 | tr -d ' \n'
 }
 
 download_once() {
+  if [ -e "$2" ] && [ ! -f "$2" ]; then
+    echo "prerequisites: error: $2 is not a regular file; move it away, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
   if [ -f "$2" ]; then
     return
   fi
@@ -354,25 +366,34 @@ ensure_pnpm() {
       return 1
     fi
     integrity=${answer#value }
-    downloads=$(pwd -P)/backend/.tools/downloads
+    tools=$(pwd -P)/backend/.tools
+    downloads=$tools/downloads
     archive=$downloads/pnpm-$pinned.tgz
     platform_archive=$downloads/pnpm-exe.$platform-$pinned.tgz
     mkdir -p backend/.tools/downloads || return
     download_once "https://registry.npmjs.org/pnpm/-/pnpm-$pinned.tgz" "$archive" || return
-    sum=$(sha512_of "$archive") || return
+    sha512_checked "$archive" || return
     if [ "$sum" != "$pinned_sum" ]; then
       echo "prerequisites: error: $archive has the sha512 $sum, not the one that backend/package.json pins for pnpm $pinned; move it away, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
     download_once "https://registry.npmjs.org/@pnpm/exe.$platform/-/exe.$platform-$pinned.tgz" "$platform_archive" || return
-    sum=$(sha512_of "$platform_archive") || return
+    sha512_checked "$platform_archive" || return
     if [ "$sum" != "$(hex_of_base64 "$integrity")" ]; then
       echo "prerequisites: error: $platform_archive has the sha512 $sum, not the one that backend/pnpm-lock.yaml holds for $package; move it away, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
-    echo "prerequisites: installing pnpm $pinned for the user into $prefix with npm offline, from $archive and $platform_archive, whose sha512 values are the pinned ones"
-    if ! npm install --global --prefix "$prefix" --offline --omit=optional --no-update-notifier "$archive" "$platform_archive"; then
-      echo "prerequisites: error: npm could not install pnpm $pinned from $archive; read npm's lines above, then run sh scripts/prerequisites.sh again" >&2
+    if ! npm_cache=$(mktemp -d "$tools/npm-cache.XXXXXX"); then
+      echo "prerequisites: error: no new directory for npm's cache could be made under $tools; check that it is writable, then run sh scripts/prerequisites.sh again" >&2
+      return 1
+    fi
+    echo "prerequisites: installing pnpm $pinned for the user into $prefix with npm offline and the new empty cache $npm_cache, from $archive and $platform_archive, whose sha512 values are the pinned ones"
+    if ! (
+      trap 'rm -rf "$npm_cache"' EXIT
+      trap 'exit 1' HUP INT TERM
+      npm install --global --prefix "$prefix" --cache "$npm_cache" --offline --omit=optional --no-update-notifier "$archive" "$platform_archive"
+    ); then
+      echo "prerequisites: error: npm could not install pnpm $pinned from $archive and $platform_archive; read npm's lines above, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
     found=$(pnpm --version 2>/dev/null) || found=
@@ -681,9 +702,27 @@ esac
 EOF
     cat >"$case_dir/stubs/npm" <<EOF
 #!/bin/sh
-echo "npm \$*" >>'$case_dir/calls'
+line=npm
+while [ "\$#" -gt 0 ]; do
+  if [ "\$1" = --cache ]; then
+    echo "\$2 \$(ls -A "\$2" 2>/dev/null | wc -l | tr -d ' ') \$([ -d "\$2" ] && echo directory)" >>'$case_dir/cache'
+    line="\$line --cache <cache>"
+    shift 2
+    continue
+  fi
+  line="\$line \$1"
+  shift
+done
+echo "\$line" >>'$case_dir/calls'
 mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/pnpm' '$case_dir/home/.local/bin/pnpm'
 EOF
+    mv "$case_dir/stubs/curl" "$case_dir/curl-stub"
+    cat >"$case_dir/stubs/curl" <<EOF
+#!/bin/sh
+echo "\$*" >>'$case_dir/curl-args'
+exec '$case_dir/curl-stub' "\$@"
+EOF
+    chmod +x "$case_dir/stubs/curl"
     cat >"$case_dir/stubs/node" <<EOF
 #!/bin/sh
 echo "node \$* in \$(pwd -P)" >>'$case_dir/calls'
@@ -694,7 +733,7 @@ EOF
     repo_dir=$(cd "$case_dir/repo" && pwd -P)
     archive_path=$repo_dir/backend/.tools/downloads/pnpm-12.14.0.tgz
     platform_archive_path=$repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.14.0.tgz
-    npm_line="npm install --global --prefix $case_dir/home/.local --offline --omit=optional --no-update-notifier $archive_path $platform_archive_path"
+    npm_line="npm install --global --prefix $case_dir/home/.local --cache <cache> --offline --omit=optional --no-update-notifier $archive_path $platform_archive_path"
     platform_url=https://registry.npmjs.org/@pnpm/exe.$case_platform/-/exe.$case_platform-12.14.0.tgz
   }
 
@@ -776,6 +815,55 @@ EOF
   [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched after the failed npm"
   [ "$(count 'after npm installed pnpm' "$case_dir/output")" = 0 ] || problems="$problems; the step went on after npm failed"
   [ "$(count 'then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after npm failed"
+  [ "$(count "npm could not install pnpm 12.14.0 from $archive_path and $platform_archive_path; read npm's lines above" "$case_dir/output")" = 1 ] || problems="$problems; the line after the failed npm did not name both files"
+  [ "$(find "$repo_dir/backend/.tools" -name 'npm-cache.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the cache of npm was left after npm failed"
+  verdict "$name"
+
+  name='npm gets a cache directory that the step made new and empty under backend/.tools, and the step removes it'
+  new_backend_case backend-npm-cache
+  run_ensure_backend ok
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not get the cache flag once"
+  cache_seen=$(cat "$case_dir/cache" 2>/dev/null) || cache_seen=none
+  case "$cache_seen" in
+    "$repo_dir/backend/.tools/npm-cache."*" 0 directory") ;;
+    *) problems="$problems; npm's cache was not a new empty directory under backend/.tools: $cache_seen" ;;
+  esac
+  [ "$(find "$repo_dir/backend/.tools" -name 'npm-cache.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the cache of npm was left after the install"
+  [ -f "$archive_path" ] && [ -f "$platform_archive_path" ] || problems="$problems; a downloaded file was removed with the cache"
+  verdict "$name"
+
+  name='a directory under the kept name of the platform package is refused with a line that says so'
+  new_backend_case backend-platform-kept-directory
+  mkdir -p "$platform_archive_path"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: $platform_archive_path is not a regular file; move it away, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line said that the kept name is no regular file"
+  verdict "$name"
+
+  name='a sum that comes out empty is refused with a line that says so, and no line prints an empty value'
+  new_backend_case backend-empty-sum
+  printf '#!/bin/sh\nexit 0\n' >"$case_dir/stubs/sha512sum"
+  chmod +x "$case_dir/stubs/sha512sum"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: the sha512 of $archive_path came out empty; check that shasum or sha512sum can read it, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line said that the sum came out empty"
+  [ "$(count 'has the sha512 ,' "$case_dir/output")" = 0 ] || problems="$problems; a line printed an empty sum"
+  verdict "$name"
+
+  name='each download runs curl with -f to a .part name, then moves it, and the pnpm archive comes from its pinned address'
+  new_backend_case backend-download-form
+  run_ensure_backend ok
+  first_call=$(sed -n 1p "$case_dir/curl-args" 2>/dev/null) || first_call=none
+  case "$first_call" in
+    -*f*" "*) ;;
+    *) problems="$problems; curl did not get -f: $first_call" ;;
+  esac
+  case "$first_call" in
+    *" -o $archive_path.part "*) ;;
+    *) problems="$problems; the download did not go to the .part name: $first_call" ;;
+  esac
+  [ -f "$archive_path" ] && [ ! -e "$archive_path.part" ] || problems="$problems; the .part file was not moved to the kept name"
+  [ "${first_call##* }" = https://registry.npmjs.org/pnpm/-/pnpm-12.14.0.tgz ] || problems="$problems; the pnpm archive did not come from its pinned address: ${first_call##* }"
   verdict "$name"
 
   name='an archive of other bytes than the pinned sha512 is refused: npm installs nothing, and one line says what to do'
