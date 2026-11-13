@@ -82,8 +82,25 @@
     return element;
   };
 
+  function wordsOf(e) {
+    var w = Halvo.words;
+    if (!e) return "";
+    if (typeof e === "object" && "error" in e) return Halvo.errorWords(e);
+    if (typeof e === "string" && Object.keys(w).some(function (k) { return w[k] === e; })) return e;
+    if (e instanceof Error) return w.ERROR_BROKEN;
+    return w.ERROR_OTHER;
+  }
+
+  /** The action channel: an error stays until the next action clears it or the person dismisses it. It shows only the page's own words. */
   Halvo.showError = function (e) {
-    document.getElementById("error").textContent = e ? String(e) : "";
+    var text = wordsOf(e);
+    document.getElementById("error").textContent = text;
+    document.getElementById("dismiss-error").classList.toggle("hidden", text === "");
+  };
+
+  /** The poll's channel: the line that the last read of the status sets or clears. */
+  Halvo.showConnection = function (text) {
+    document.getElementById("connection").textContent = text || "";
   };
 
   Halvo.formatBytes = function (n) {
@@ -100,6 +117,11 @@
 
   function start() {
     var main = document.getElementById("views");
+    var dismiss = document.getElementById("dismiss-error");
+    dismiss.textContent = Halvo.words.DISMISS;
+    dismiss.onclick = function () {
+      Halvo.showError("");
+    };
     entries
       .slice()
       .sort(function (a, b) {
@@ -121,7 +143,7 @@
       .then(function (version) {
         document.getElementById("version").textContent = version;
       })
-      .catch(Halvo.showError);
+      .catch(function () {});
   }
 
   document.addEventListener("visibilitychange", function () {

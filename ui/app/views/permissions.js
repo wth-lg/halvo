@@ -1,6 +1,9 @@
 (function () {
   "use strict";
+  var w = Halvo.words;
   var onboarding = Halvo.feed("onboarding");
+  var SOURCE_OF = { input_monitoring: ["input"], accessibility: ["foreground"], screen_and_system_audio_recording: ["screen"] };
+  var sources = [];
   var section;
   var banner;
   var list;
@@ -32,7 +35,17 @@
           return p.pane_name;
         })
         .join(", ");
-      banner.textContent = "macOS removed Halvo's access to: " + names + ". Capture of those signals has stopped until you turn it back on below.";
+      var lost = o.permissions.filter(function (p) {
+        return p.lost;
+      });
+      var stillRunning = lost.some(function (p) {
+        return (SOURCE_OF[p.permission] || []).some(function (name) {
+          return sources.some(function (src) {
+            return src.name === name && (src.state === "running" || src.state === "impaired");
+          });
+        });
+      });
+      banner.textContent = (stillRunning ? w.LOST_RUNNING : w.LOST_STOPPED).replace("{names}", names);
       banner.classList.remove("hidden");
     } else {
       banner.classList.add("hidden");
@@ -93,6 +106,9 @@
       ]);
       el.append(banner, list, walkback);
       onboarding.on(render);
+      Halvo.feed("status").on(function (s) {
+        sources = s.sources || [];
+      });
       onboarding.source(refresh);
       refresh();
       setInterval(refresh, 3000);

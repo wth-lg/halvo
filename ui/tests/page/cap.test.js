@@ -37,9 +37,9 @@ test("an edited cap field keeps its value across status polls until Save", async
 for (const [value, message] of [
   ["", "Enter the cap in GB."],
   ["abc", "Enter the cap in GB."],
-  ["0", "The cap must be at least 1 GB."],
-  ["0.5", "The cap must be at least 1 GB."],
-  ["1025", "The cap can be at most 1024 GB."],
+  ["0", "The cap must be from 1 GB to 1024 GB."],
+  ["0.5", "The cap must be from 1 GB to 1024 GB."],
+  ["1025", "The cap must be from 1 GB to 1024 GB."],
 ]) {
   test(`Save with the field "${value}" sends nothing and says why next to the field`, async () => {
     const page = await capPage();

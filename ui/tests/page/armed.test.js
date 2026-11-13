@@ -31,13 +31,13 @@ test("a reply for each view that arrives while Delete everything is armed draws 
   inventory = fixture("inventory-two-rows-one-day");
   await page.clock.fire(3000);
   await page.clock.fire(15000);
-  assert.equal(page.text("state"), "capturing");
+  assert.equal(page.text("state"), "Halvo is capturing");
   assert.equal(page.visible("permissions-section"), false);
   assert.equal(rows(page), 0);
-  assert.equal(page.text("total"), "370 B");
+  assert.equal(page.text("total"), "1.0 MB");
   assert.equal(page.byId("cap-gb").value, "25");
   await page.click("cancel-delete");
-  assert.equal(page.text("state"), "paused");
+  assert.equal(page.text("state"), "Halvo is paused");
   assert.equal(page.visible("permissions-section"), true);
   assert.equal(rows(page), 2);
   assert.equal(page.text("total"), "1.0 KB");
@@ -100,7 +100,7 @@ test("P24: of two replies for one view that arrive while armed, the newest is dr
   status = { ...fixture("capture_status-running"), store_bytes: 1024 };
   await page.clock.fire(3000);
   await page.click("cancel-delete");
-  assert.equal(page.text("state"), "capturing");
+  assert.equal(page.text("state"), "Halvo is capturing");
   assert.equal(page.text("total"), "1.0 KB");
 });
 

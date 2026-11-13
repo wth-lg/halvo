@@ -98,12 +98,13 @@ test("Cancel disarms and a later confirmation sends nothing", async () => {
 
 function togglePage() {
   let state = "running";
+  const view = () => (state === "paused" ? fixture("capture_status-paused") : fixture("capture_status-running"));
   return openPage({
     replies: {
-      capture_status: () => ({ ...fixture("capture_status-running"), state }),
+      capture_status: view,
       set_capture_state: ({ capture }) => {
         state = capture;
-        return { ...fixture("capture_status-running"), state };
+        return { ...view(), reached: true };
       },
     },
   });
@@ -117,7 +118,7 @@ test("two clicks on Pause 100 ms apart send one request and capture stays paused
   await page.clock.advance(100);
   await page.click("toggle");
   assert.deepEqual(sentStates(page), ["paused"]);
-  assert.equal(page.text("state"), "paused");
+  assert.equal(page.text("state"), "Halvo is paused");
 });
 
 test("a click on the toggle with a click count of 2 sends nothing", async () => {
