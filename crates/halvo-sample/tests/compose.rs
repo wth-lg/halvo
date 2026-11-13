@@ -1210,3 +1210,25 @@ fn a_native_twice_task_takes_the_other_service_of_its_app_out_of_its_stream() {
     let o = compose(&dir, &rates(20, 24).write(), &sites, "room");
     assert_eq!(o.code, 0, "{}", o.stderr);
 }
+
+#[test]
+fn ranges_takes_no_other_flag_and_no_other_argument() {
+    let dir = scratch("ranges-alone");
+    write(&dir.join("rates.toml"), &rates(20, 4).write());
+    let rates_file = s(&dir.join("rates.toml"));
+    let out = s(&dir.join("o"));
+    for args in [
+        vec!["compose", "--ranges", "--out", out.as_str()],
+        vec!["compose", "--ranges", "--rates", rates_file.as_str()],
+        vec!["compose", "--rates", rates_file.as_str(), "--ranges"],
+    ] {
+        let o = run(&args);
+        refused(&o, "usage");
+        assert_eq!(o.stderr, "REFUSED usage: --ranges\n");
+    }
+    assert!(!dir.join("o").exists());
+    let o = run(&["compose", "--ranges"]);
+    assert_eq!(o.code, 0);
+    assert_eq!(o.stdout.lines().count(), 15);
+    assert!(o.stderr.is_empty());
+}
