@@ -92,7 +92,9 @@ pub trait Core: Send + Sync {
     /// bound by `Waits` while it is shown. Until the first `tick` has returned (ruling RD-74
     /// point 3), `agents_snapshot` answers the stand-in state, `seq` 0 with empty lists and the
     /// note `note.no_service`, without taking the coordinator's lock, and `agents_next` waits
-    /// for that return within its wait and under the hide rule, and else answers the stand-in.
+    /// for that return within its wait and under the hide rule, and else answers the stand-in;
+    /// every other command is handed to the coordinator, which has no board yet and answers as
+    /// it does with no service.
     fn call(&self, command: &str, args: Option<&Value>) -> Reply;
 
     /// The hook of the window `main` shown: from now on `agents_next` waits again.
@@ -108,7 +110,9 @@ pub trait Core: Send + Sync {
 
     /// The hook of the app's start and of each pass of the status poller: one tick of the
     /// coordinator (I5.9), whose first tick recovers the life (I5.8). After its first return it
-    /// rings the bell, so that a waiting `agents_next` answers the first state.
+    /// rings the bell, so that a waiting `agents_next` answers the first state. A tick made on
+    /// the coordinator itself is not the hub's first tick, so the app ticks through this hook
+    /// alone. A first tick that panics in a port leaves the stand-in until a tick returns.
     fn tick(&self);
 
     /// The hook before the capture run's quit function sends its pause (I5.7, I5.9, ruling
@@ -116,8 +120,10 @@ pub trait Core: Send + Sync {
     /// coordinator is held open, until no run is live, at most until `cancel_grace_s` after the
     /// stop of each live run, counted from its stop for a run that was stopped before the quit,
     /// and at most `budget`, the time that the system gives the quit at a logout or a shutdown;
-    /// then the second step. The grace counts from the end of the first step and the budget
-    /// from the hook's start. The hook waits in real time for a span that it computes once; a
+    /// then the second step. The grace counts from the stop that the first step reads on the
+    /// clock once it holds the coordinator's lock, and for a run stopped before the quit from
+    /// its own stop, so that the wait for the lock is no part of it and the first step's own
+    /// work after that read is; the budget counts from the hook's start. The hook waits in real time for a span that it computes once; a
     /// second call during the wait returns at the same end. A panic of a port unwinds through
     /// it with runs alive, and the next life's reap is then the kill (RD-34 (e)).
     fn quit(&self, budget: Option<Duration>);
@@ -182,8 +188,6 @@ type Cfg<P> = <P as Owner>::Config;
 
 pub(crate) const LOOK: Duration = Duration::from_millis(100);
 
-/// The stand-in state of I8.1 (ruling RD-74 3.1): `seq` 0, the `seq` of no state, empty lists
-/// and the note `note.no_service`, which the page reads while no coordinator can serve it.
 pub(crate) fn stand_in() -> Snapshot {
     Snapshot {
         seq: 0,
@@ -215,7 +219,9 @@ where
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
     /// goes to `tray` at each change of the state, also when the count is the same, and whose
     /// native confirmations go to `present`, with the waits of `limits`. The tray's sink and
-    /// every port of `P` are called with the coordinator's lock held: none calls back into the
+    /// every port of `P` are called with the coordinator's lock held, but for the one read of
+    /// the clock that the quit hook makes after its first step, with no lock held: none calls
+    /// back into the
     /// hub, the `Core` or the coordinator, and none waits for a thread that can wait for that
     /// lock (a sink that waits for the main thread while the main thread calls a hook stops the
     /// app for good).
@@ -250,7 +256,8 @@ where
         })
     }
 
-    /// The coordinator.
+    /// The coordinator. A tick made on it is not the hub's first tick: a hub that is never
+    /// ticked through `Core::tick` answers the stand-in for good.
     pub fn coordinator(&self) -> &Coordinator<Wired<P>> {
         &self.coord
     }
