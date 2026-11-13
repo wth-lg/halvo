@@ -395,12 +395,23 @@ impl Handler for Twice {
     }
 }
 
+/// The host of the stop tests: the op `twice` goes to a `Twice` with the given stop and panic, and the op `twice_ok`
+/// to one that neither stops nor panics.
 fn twice_host(clock: &TestClock, stop: StopAt, panic: bool) -> Host {
-    Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
-        "test",
-        Takes::Coordinator(&["twice"]),
-        Box::new(Twice { stop, panic }),
-    )
+    Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }))
+        .handler(
+            "test",
+            Takes::Coordinator(&["twice"]),
+            Box::new(Twice { stop, panic }),
+        )
+        .handler(
+            "test",
+            Takes::Coordinator(&["twice_ok"]),
+            Box::new(Twice {
+                stop: StopAt::Nowhere,
+                panic: false,
+            }),
+        )
 }
 
 fn open_twice(
@@ -465,6 +476,17 @@ fn after_twice(scratch: &Scratch, clock: &TestClock) -> (usize, bool, bool) {
 const STOP_DIR: &str = "HALVO_DERIVED_STOP_DIR";
 const STOP_WORKFLOW: &str = "HALVO_DERIVED_STOP_WORKFLOW";
 const STOP_AT: &str = "HALVO_DERIVED_STOP_AT";
+const STOP_TOKEN: &str = "HALVO_DERIVED_STOP_TOKEN";
+/// The file in the parent's scratch directory that holds the token of the stop test. The child branch runs only where
+/// the token in the child's environment equals the one that the parent wrote into this file, so that the variables set
+/// from outside cannot turn a run of the binary into the child: a run with a token that the parent did not write runs
+/// the test as a parent, which skips the test's last step.
+const STOP_TOKEN_FILE: &str = "stop-test-token";
+/// How long the test waits for a child that sends the one request.
+const STOP_CHILD_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
+/// How long the test waits for the child that runs the whole test as a parent: longer than the three children that such
+/// a run starts and waits for one after another.
+const STOP_PARENT_RUN_BOUND: std::time::Duration = std::time::Duration::from_secs(480);
 const STOP_TEST: &str =
     "a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call";
 
@@ -475,12 +497,13 @@ const STOP_TEST: &str =
 struct Child(std::process::Child);
 
 impl Child {
-    fn start(dir: &std::path::Path, workflow: &str, stop: StopAt) -> Child {
+    fn start(dir: &std::path::Path, workflow: &str, stop: StopAt, token: &str) -> Child {
         let child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([STOP_TEST, "--exact", "--test-threads=1"])
             .env(STOP_DIR, dir)
             .env(STOP_WORKFLOW, workflow)
             .env(STOP_AT, stop.word())
+            .env(STOP_TOKEN, token)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -489,10 +512,10 @@ impl Child {
         Child(child)
     }
 
-    /// The exit code of the child, waited for at most 120 seconds.
-    fn code(mut self) -> Option<i32> {
+    /// The exit code of the child, waited for at most `bound`.
+    fn code(mut self, bound: std::time::Duration) -> Option<i32> {
         let start = std::time::Instant::now();
-        while start.elapsed() < std::time::Duration::from_secs(120) {
+        while start.elapsed() < bound {
             if let Some(status) = self.0.try_wait().unwrap() {
                 return status.code();
             }
@@ -517,8 +540,15 @@ impl Drop for Child {
 /// both, and a child that stops before the first store stores nothing.
 #[test]
 fn a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call() {
+    let outside = std::env::var_os(STOP_DIR);
+    let token_holds = |dir: &std::ffi::OsStr| {
+        std::env::var_os(STOP_TOKEN).is_some_and(|token| {
+            std::fs::read(std::path::Path::new(dir).join(STOP_TOKEN_FILE))
+                .is_ok_and(|written| written.as_slice() == token.as_encoded_bytes())
+        })
+    };
     if let (Some(dir), Some(workflow), Some(at)) = (
-        std::env::var_os(STOP_DIR),
+        outside.clone().filter(|dir| token_holds(dir)),
         std::env::var_os(STOP_WORKFLOW),
         std::env::var_os(STOP_AT),
     ) {
@@ -531,13 +561,48 @@ fn a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call() 
         ));
         std::process::exit(if answer.is_ok() { 0 } else { 3 });
     }
+    assert!(
+        STOP_PARENT_RUN_BOUND > STOP_CHILD_BOUND * 3,
+        "the bound of the child that runs as a parent exceeds the bounds of its three children"
+    );
+    let token = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
     let mut seen = Vec::new();
     for stop in [StopAt::AfterCommit, StopAt::Nowhere, StopAt::BeforeCommit] {
         let scratch = Scratch::new("stop-inside");
+        std::fs::write(scratch.path().join(STOP_TOKEN_FILE), &token).unwrap();
         let clock = TestClock::at_day(DAY);
         let workflow = approved(&scratch, &clock);
-        let code = Child::start(scratch.path(), &workflow, stop).code();
+        let code = Child::start(scratch.path(), &workflow, stop, &token).code(STOP_CHILD_BOUND);
         seen.push((stop, code, after_twice(&scratch, &clock)));
+    }
+    if outside.is_none() {
+        let scratch = Scratch::new("stop-outside");
+        std::fs::write(scratch.path().join(STOP_TOKEN_FILE), &token).unwrap();
+        let clock = TestClock::at_day(DAY);
+        let workflow = approved(&scratch, &clock);
+        assert_eq!(
+            Child::start(
+                scratch.path(),
+                &workflow,
+                StopAt::AfterCommit,
+                "a token that the parent did not write"
+            )
+            .code(STOP_PARENT_RUN_BOUND),
+            Some(0),
+            "a run with the three variables set from outside and no matching token runs the test as a parent and passes"
+        );
+        assert_eq!(
+            after_twice(&scratch, &clock),
+            (0, false, false),
+            "the store of that run, which no child reached"
+        );
     }
     assert_eq!(
         seen,
@@ -552,17 +617,39 @@ fn a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call() 
 
 /// A panic of a handler behind its typed commit (reports/verifier-35.md line 102): the request unwinds, the commit
 /// made before the panic stays stored, the workflow is neither active nor given an agent, and the next request of the
-/// same store is answered.
+/// same store is answered; and a request right after a panic that commits and makes the state call is stored, so the
+/// next open holds both rows and the workflow active with its agent.
 #[test]
 fn a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered() {
-    let scratch = Scratch::new("handler-panic");
+    let panic_of = |store: &mut Store, workflow: &str| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            store.handle(&raw_request("coordinator_write", &twice_body(workflow)))
+        }))
+        .is_err()
+    };
+    let committing = Scratch::new("handler-panic-commit");
     let clock = TestClock::at_day(DAY);
+    let workflow = approved(&committing, &clock);
+    let mut store = open_twice(committing.path(), &clock, StopAt::Nowhere, true);
+    assert!(panic_of(&mut store, &workflow), "the handler panics");
+    let body = format!(r#"{{"op":"twice_ok","workflow":"{workflow}"}}"#);
+    assert!(
+        store
+            .handle(&raw_request("coordinator_write", &body))
+            .is_ok(),
+        "a request that commits and makes the state call, right after the panic, on the same store"
+    );
+    drop(store);
+    assert_eq!(
+        after_twice(&committing, &clock),
+        (2, true, true),
+        "(rows of test_note, active, with an agent): the commit before the panic and the commit of the request after \
+         it, with its state call"
+    );
+    let scratch = Scratch::new("handler-panic");
     let workflow = approved(&scratch, &clock);
     let mut store = open_twice(scratch.path(), &clock, StopAt::Nowhere, true);
-    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        store.handle(&raw_request("coordinator_write", &twice_body(&workflow)))
-    }));
-    assert!(unwound.is_err(), "the handler panics");
+    assert!(panic_of(&mut store, &workflow), "the handler panics");
     assert_eq!(
         store
             .handle(&raw_request("coordinator_write", r#"{"op":"none"}"#))
