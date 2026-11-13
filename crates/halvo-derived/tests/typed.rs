@@ -1648,3 +1648,119 @@ fn a_stored_row_that_a_later_typed_reader_refuses_keeps_its_workflow_and_its_day
         0
     );
 }
+
+/// A test-only kept kind of the family `test` whose rows count the requests that read it before they wrote it.
+static SEQ: KindEntry = KindEntry {
+    name: "test_seq",
+    class: RetentionClass::Kept,
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("seq", FieldType::Count),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","seq":0}"#,
+};
+
+/// C25.5 and the agent-setup run's ruling CP-132 (d): two requests of one family never interleave at the test host.
+/// The store takes every call that writes by `&mut Store`, `Store::handle` among them, so a host holds the store
+/// itself, which holds the writer lock of every family, from a request's first read to its last commit: the test
+/// host holds it in a `RefCell`, and the handler, which reads the count of its rows, tries between that read and its
+/// commit to have the host handle a second request of its family. That attempt finds the store held, no write of a
+/// second request falls between the read and the commit of the first, and each request writes the next count once.
+#[test]
+fn two_requests_of_one_family_never_interleave_at_the_test_host() {
+    let handle: fn(&mut Store, &RawRequest) -> Result<Box<RawValue>, Error> = Store::handle;
+    let _: fn(
+        &mut Store,
+        &halvo_schema_core::ids::StoreId,
+        &[halvo_schema_core::record::Episode],
+        halvo_schema_core::ids::Position,
+        &mut dyn halvo_derived::IdSource,
+    ) -> Result<halvo_derived::CommitOutcome, Error> = Store::commit_batch;
+    let _: fn(&mut Store, &halvo_schema_core::request::InterfaceDecision) -> Result<(), Error> =
+        Store::decide;
+    let _: fn(&mut Store, &[Ordinal]) -> Result<u64, halvo_derived::Fault> = Store::purge;
+    let _: fn(&mut Store, Ordinal) -> Result<u64, halvo_derived::Fault> = Store::purge_below;
+    let _: fn(&mut Store) -> Result<u64, halvo_derived::Fault> = Store::expire;
+    let scratch = Scratch::new("one-request-at-a-time");
+    let clock = TestClock::at_day(DAY);
+    let (w1, _) = two_workflows(&scratch, &clock);
+    let workflow = WorkflowId::parse(&w1).unwrap();
+    let slot: Rc<RefCell<Option<Store>>> = Rc::new(RefCell::new(None));
+    let events: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let handler = {
+        let slot = Rc::downgrade(&slot);
+        let events = Rc::clone(&events);
+        Box::new(FnHandler(
+            move |request: &RawRequest, cx: &mut HandlerCx<'_>| {
+                let label = request.body().get().trim_matches('"').to_owned();
+                let mut next = 0;
+                cx.rows()
+                    .for_each_under("test_seq", &workflow, &mut |_| next += 1);
+                events.borrow_mut().push(format!("read {label} {next}"));
+                let slot = slot.upgrade().unwrap();
+                let attempt = slot.try_borrow_mut();
+                match attempt {
+                    Ok(mut store) => {
+                        let inner = raw_request("runner", r#""inner""#);
+                        let answer = store.as_mut().map(|s| s.handle(&inner).is_ok());
+                        events
+                            .borrow_mut()
+                            .push(format!("a second request ran: {answer:?}"));
+                    }
+                    Err(_) => events.borrow_mut().push(format!("held during {label}")),
+                }
+                let committed = cx.commit(&[TypedRecord {
+                    kind: "test_seq",
+                    json: format!(
+                        r#"{{"v":1,"workflow":"{}","seq":{next}}}"#,
+                        workflow.as_str()
+                    ),
+                }]);
+                events
+                    .borrow_mut()
+                    .push(format!("commit {label} {}", committed.is_ok()));
+                Ok(reply("null"))
+            },
+        ))
+    };
+    let reports = Rc::clone(&events);
+    let host = base(&clock, Grouping { min: 1 })
+        .handler("test", Takes::Runner, handler)
+        .on_report(Box::new(move |_| {
+            reports.borrow_mut().push("report".to_owned())
+        }));
+    *slot.borrow_mut() = Some(open_entries(&scratch, host, &[&SEQ]).unwrap());
+    events.borrow_mut().clear();
+    {
+        let mut held = slot.borrow_mut();
+        let store = held.as_mut().unwrap();
+        for label in ["a", "b"] {
+            handle(store, &raw_request("runner", &format!(r#""{label}""#))).unwrap();
+        }
+    }
+    drop(slot.borrow_mut().take());
+    assert_eq!(
+        *events.borrow(),
+        [
+            "read a 0",
+            "held during a",
+            "report",
+            "commit a true",
+            "read b 1",
+            "held during b",
+            "report",
+            "commit b true",
+        ]
+    );
+    assert_eq!(
+        kind_rows(&scratch, "test_seq"),
+        [
+            format!(r#"{{"v":1,"workflow":"{w1}","seq":0}}"#),
+            format!(r#"{{"v":1,"workflow":"{w1}","seq":1}}"#),
+        ]
+    );
+}
