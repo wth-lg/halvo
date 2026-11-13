@@ -8,6 +8,7 @@ import { cellLine, machineOf, missLine, parseProbe, systemOf } from '../cell.mjs
 import { POLICY } from '../headless.mjs';
 import { LIST, parseList, probeSource, ROOT } from '../list.mjs';
 import { parseCell } from '../result.mjs';
+import { hostedEnv, standInPath } from './stand-in-cargo.mjs';
 
 const HERE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAC_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
@@ -26,7 +27,7 @@ function probeLine(features, agent, aria) {
 }
 
 function env(extra) {
-  const copy = { ...process.env, ...extra };
+  const copy = { ...process.env, PATH: standInPath().PATH, ...extra };
   for (const key of ['CI', 'R4_GUEST']) if (!(key in extra)) delete copy[key];
   return copy;
 }
@@ -88,14 +89,14 @@ export const cases = [
     }
   }],
   ['run_sh_refuses_an_argument_before_it_builds', () => {
-    const r = spawnSync('sh', [path.join(HERE, 'run.sh'), '--arm'], { encoding: 'utf8', env: env({ CI: 'true' }), cwd: ROOT });
+    const r = spawnSync('sh', [path.join(HERE, 'run.sh'), '--arm'], { encoding: 'utf8', env: hostedEnv('true', standInPath()), cwd: ROOT });
     assert.equal(r.status, 2);
     assert.equal(r.stdout, '');
     assert.match(r.stderr, /^REFUSED usage: [^\n]*\n$/);
   }],
   ['cell_mjs_refuses_usage_and_not_hosted', () => {
     const cellPath = path.join(HERE, 'cell.mjs');
-    const usage = spawnSync(process.execPath, [cellPath], { encoding: 'utf8', env: env({ CI: 'true' }) });
+    const usage = spawnSync(process.execPath, [cellPath], { encoding: 'utf8', env: hostedEnv('true', standInPath()) });
     assert.equal(usage.status, 2);
     assert.equal(usage.stdout, '');
     assert.match(usage.stderr, /^REFUSED usage: [^\n]*\n$/);

@@ -98,8 +98,10 @@ function readSystem(platform) {
   return systemOf(platform, text);
 }
 
-/** Makes the cell with the app at `bin` and returns `{ code, line }`. */
+/** Makes the cell with the app at `bin` and returns `{ code, line }`; throws `Refused` with
+ * `not_hosted` before it starts anything where neither CI nor R4_GUEST is set in `env`. */
 export async function cell(bin, env = process.env, platform = process.platform) {
+  checkHosted(env);
   const machine = machineOf(env, platform);
   const fail = (step) => ({ code: 1, line: `fail trial=floor machine=${machine} step=${step}` });
   const system = readSystem(platform);
