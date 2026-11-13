@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,35 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: U4.9 scratch only, the round's tests of CP-172 again
+        if: always()
+        continue-on-error: true
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          cargo test -p halvo-agent-client --locked --no-run > ../u49-build.txt 2>&1; echo "u49: build exited $?"
+          bin() { grep -E "Executable $1" ../u49-build.txt | sed -E 's/.*\((.*)\).*/\1/' | tr '\\' '/' | head -n 1; }
+          lib=$(bin 'unittests src.lib.rs'); handles=$(bin 'tests.handles.rs')
+          again() {
+            "$1" --list > ../u49-list.txt 2>/dev/null
+            if ! grep -q -F "$2: test" ../u49-list.txt; then echo "u49-loop: $2: not in this build"; return; fi
+            pass=0
+            i=0
+            while [ "$i" -lt "$3" ]; do
+              if "$1" --exact "$2" -q > ../u49-last.txt 2>&1; then pass=$((pass + 1)); else grep -E 'panicked at|^the ' ../u49-last.txt | head -n 2; fi
+              i=$((i + 1))
+            done
+            echo "u49-loop: $2: $pass of $3 passed"
+          }
+          again "$lib" supervisor::tests::a_run_with_no_finish_is_never_over_and_one_with_a_finish_is_over_at_link_end_and_after_it 200
+          again "$handles" a_runner_that_stores_its_finish_sends_done_and_exits_ends_as_before_within_a_second_and_a_half 200
+          again "$handles" a_runner_that_outlives_its_stored_finish_after_closing_its_output_while_a_helper_holds_its_link_is_ended_within_twice_link_end 40
+          again "$handles" a_runner_that_outlives_its_stored_finish_with_its_output_open_is_ended_within_twice_link_end 40
+          again "$handles" a_run_with_no_stored_finish_is_not_ended_by_the_clock_and_ends_at_the_librarys_kill 40
+          exit 0
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -115,7 +111,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -133,28 +129,35 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: U4.9 scratch only, the round's tests of CP-172 again
+        if: always()
+        continue-on-error: true
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          cargo test -p halvo-agent-client --locked --no-run > ../u49-build.txt 2>&1; echo "u49: build exited $?"
+          bin() { grep -E "Executable $1" ../u49-build.txt | sed -E 's/.*\((.*)\).*/\1/' | tr '\\' '/' | head -n 1; }
+          lib=$(bin 'unittests src.lib.rs'); handles=$(bin 'tests.handles.rs')
+          again() {
+            "$1" --list > ../u49-list.txt 2>/dev/null
+            if ! grep -q -F "$2: test" ../u49-list.txt; then echo "u49-loop: $2: not in this build"; return; fi
+            pass=0
+            i=0
+            while [ "$i" -lt "$3" ]; do
+              if "$1" --exact "$2" -q > ../u49-last.txt 2>&1; then pass=$((pass + 1)); else grep -E 'panicked at|^the ' ../u49-last.txt | head -n 2; fi
+              i=$((i + 1))
+            done
+            echo "u49-loop: $2: $pass of $3 passed"
+          }
+          again "$lib" supervisor::tests::a_run_with_no_finish_is_never_over_and_one_with_a_finish_is_over_at_link_end_and_after_it 200
+          again "$handles" a_runner_that_stores_its_finish_sends_done_and_exits_ends_as_before_within_a_second_and_a_half 200
+          again "$handles" a_runner_that_outlives_its_stored_finish_after_closing_its_output_while_a_helper_holds_its_link_is_ended_within_twice_link_end 40
+          again "$handles" a_runner_that_outlives_its_stored_finish_with_its_output_open_is_ended_within_twice_link_end 40
+          again "$handles" a_run_with_no_stored_finish_is_not_ended_by_the_clock_and_ends_at_the_librarys_kill 40
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
