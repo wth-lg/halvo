@@ -211,3 +211,18 @@ fn an_allow_from_a_show_that_was_never_on_screen_reaches_the_item_as_reject() {
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.clone()), (0, vec![REJECT]));
 }
+
+#[test]
+fn the_mark_on_screen_is_one_per_show_so_a_second_show_never_on_screen_hands_on_reject() {
+    let (fake, seen) = Fake::new(&[Err(Cause::Early), Ok(())]);
+    let shows = Shows::new(&[(true, ALLOW), (false, ALLOW)]);
+    serve(&fake, &*reads_pay(), &shows);
+    assert_eq!(shows.count(), 2);
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.on_screen, 1, "one report: the first show alone was on screen");
+    assert_eq!(
+        seen.answers,
+        [ALLOW, REJECT],
+        "the second show was never on screen, so its allow is handed on as reject"
+    );
+}
