@@ -269,6 +269,20 @@ object_type! {
     }
 }
 
+object_type! {
+    /// The instant at which an agent was set up, kind `agent_start`: ids, the day and the instant, one row for an
+    /// agent, which the handler of `create_agent` stores once.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentStart {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub day: u32 = "day" => from_json,
+        pub at: Instant = "at" => json::instant,
+    }
+    rules(_s) { Ok(()) }
+}
+
 pub(in crate::executable) fn part_of(
     type_name: &'static str,
     part: NonZeroU32,

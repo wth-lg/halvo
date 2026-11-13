@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::executable::{
     self, AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply,
-    AgentSession,
+    AgentSession, AgentStart,
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
 };
 
-const OWN: [&str; 7] = [
+const OWN: [&str; 8] = [
     "agent_playbook",
     "agent_bindings",
     "agent_effect",
@@ -17,9 +17,10 @@ const OWN: [&str; 7] = [
     "agent_session",
     "agent_checkpoint",
     "agent_reply",
+    "agent_start",
 ];
 
-const CLASSES: [(&str, RetentionClass); 7] = [
+const CLASSES: [(&str, RetentionClass); 8] = [
     ("agent_playbook", RetentionClass::Kept),
     ("agent_bindings", RetentionClass::Kept),
     ("agent_effect", RetentionClass::Bounded { days: 93 }),
@@ -27,6 +28,7 @@ const CLASSES: [(&str, RetentionClass); 7] = [
     ("agent_session", RetentionClass::Bounded { days: 35 }),
     ("agent_checkpoint", RetentionClass::Bounded { days: 93 }),
     ("agent_reply", RetentionClass::Kept),
+    ("agent_start", RetentionClass::Kept),
 ];
 
 const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
@@ -48,6 +50,7 @@ fn strict(name: &str, text: &str) -> Result<String, String> {
         "agent_session" => AgentSession::parse(b).and_then(|v| v.to_json()),
         "agent_checkpoint" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
         "agent_reply" => AgentReply::parse(b).and_then(|v| v.to_json()),
+        "agent_start" => AgentStart::parse(b).and_then(|v| v.to_json()),
         _ => panic!("the kind {name} has no strict reader"),
     };
     read.map_err(|e| e.to_string())
@@ -180,6 +183,12 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             "state: string_form",
         ),
         ("agent_reply", r#""seq":1"#, r#""seq":true"#, "seq: boolean"),
+        (
+            "agent_start",
+            r#""at":1794339000000000010"#,
+            r#""at":"2026-11-13T00:00:00Z""#,
+            "at: string_form",
+        ),
     ];
     for (name, from, to, rule) in cases {
         let kind = entry(name);

@@ -29,7 +29,7 @@ pub use names::{
 };
 pub use record::{
     AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply, AgentRun,
-    AgentSession,
+    AgentSession, AgentStart,
 };
 pub use step::{ExecutableStep, Playbook};
 pub use text::{
@@ -51,6 +51,7 @@ pub const NAMES: &[&str] = &[
     "agent_session",
     "agent_checkpoint",
     "agent_reply",
+    "agent_start",
     "agent",
     "v",
     "workflow",
@@ -261,6 +262,7 @@ pub const NAMES: &[&str] = &[
     "begun",
     "lost",
     "withheld",
+    "start",
     "folder",
     "copy",
     "sha256",

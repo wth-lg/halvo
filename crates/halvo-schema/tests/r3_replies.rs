@@ -1,5 +1,6 @@
+use halvo_schema::executable::body::{LoadReply, RunnerReply};
 use halvo_schema::executable::names::{Cause, LogEvent, ReplyState};
-use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentReply};
+use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentReply, AgentStart};
 use halvo_schema::executable::text::ProviderId;
 use halvo_schema::executable::{self, Refusal, RefusalCause};
 use halvo_schema::kinds::{
@@ -404,6 +405,138 @@ fn the_names_of_agent_reply_stand_in_names_and_in_the_names_file() {
         "lost",
         "withheld",
     ] {
+        assert!(executable::NAMES.contains(&name), "{name}");
+        assert!(lines.contains(&name), "{name}");
+    }
+}
+
+const START_EXAMPLE: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","day":20768,"at":1794339000000000010}"#;
+
+#[test]
+fn agent_start_is_a_kept_kind_of_origin_own_with_its_day_and_its_instant_and_no_other_key() {
+    use FieldType::*;
+    let entry = kind("agent_start");
+    assert_eq!(entry.class, RetentionClass::Kept);
+    assert_eq!(entry.origin, Origin::Own);
+    assert_eq!(entry.family, "agent");
+    assert_eq!(entry.workflow_key, Some("workflow"));
+    assert_eq!(
+        entry.fields,
+        [
+            ("v", Version),
+            ("workflow", Id),
+            ("agent", Id),
+            ("day", Day),
+            ("at", Instant),
+        ]
+    );
+    assert_eq!(entry.example, START_EXAMPLE);
+    assert_eq!(check_entries(&[entry]), Vec::<String>::new());
+    assert_eq!(check_record(entry, entry.example), Ok(()));
+    let read = AgentStart::parse(entry.example.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.day, 20768);
+    assert_eq!(read.to_json().unwrap(), entry.example);
+    for key in ["run", "seq", "rev", "mode", "note"] {
+        let text = swap(
+            START_EXAMPLE,
+            r#""day":20768"#,
+            &format!(r#""{key}":1,"day":20768"#),
+        );
+        expect(
+            AgentStart::parse(text.as_bytes()),
+            "AgentStart",
+            "unknown_key",
+            "-",
+        );
+    }
+    let dropped = swap(START_EXAMPLE, r#","at":1794339000000000010"#, "");
+    expect(
+        AgentStart::parse(dropped.as_bytes()),
+        "AgentStart",
+        "missing_key",
+        "at",
+    );
+    expect(
+        AgentStart::parse(swap(START_EXAMPLE, "1794339000000000010", "\"now\"").as_bytes()),
+        "Instant",
+        "not_a_count",
+        "at",
+    );
+}
+
+#[test]
+fn the_entry_of_agent_start_under_origin_capture_is_still_refused_for_its_instant() {
+    let own = kind("agent_start");
+    let capture = KindEntry {
+        origin: Origin::Capture,
+        ..*own
+    };
+    assert_eq!(
+        check_entries(&[&capture]),
+        [
+            "kind \"agent_start\": a bounded or kept kind of origin capture with the key at of the type Instant"
+        ]
+    );
+    let config = kind("agent_config");
+    assert!(!config.fields.iter().any(|(_, t)| *t == FieldType::Instant));
+}
+
+const LOAD_CONFIG: &str = r#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#;
+
+fn load_reply(start: &str) -> String {
+    format!(
+        r#"{{"config":{LOAD_CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":{start}}}"#
+    )
+}
+
+#[test]
+fn the_reply_of_load_holds_the_agent_s_start_row_or_null_under_the_key_start() {
+    let row =
+        format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","day":20768,"at":1794339000000000010}}"#);
+    for start in ["null", row.as_str()] {
+        let text = load_reply(start);
+        let read = LoadReply::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(read.start.is_some(), start != "null");
+        assert_eq!(read.to_json().unwrap(), text);
+        let RunnerReply::Load(through) = RunnerReply::parse(text.as_bytes()).unwrap() else {
+            panic!("not a load reply")
+        };
+        assert_eq!(through, read);
+    }
+    let without =
+        format!(r#"{{"config":{LOAD_CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+    expect(
+        LoadReply::parse(without.as_bytes()),
+        "LoadReply",
+        "missing_key",
+        "start",
+    );
+    let other_agent = swap(&row, A, "40000000000000000000000000000002");
+    let other_workflow = swap(&row, W, "30000000000000000000000000000002");
+    for other in [other_agent, other_workflow] {
+        expect(
+            LoadReply::parse(load_reply(&other).as_bytes()),
+            "LoadReply",
+            "start_of_another_agent",
+            "start",
+        );
+    }
+    expect(
+        LoadReply::parse(load_reply(r#"{"v":1,"day":20768}"#).as_bytes()),
+        "AgentStart",
+        "missing_key",
+        "workflow",
+    );
+}
+
+#[test]
+fn the_names_of_agent_start_stand_in_names_and_in_the_names_file() {
+    let file = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/names.txt"),
+    )
+    .unwrap();
+    let lines: Vec<&str> = file.lines().collect();
+    for name in ["agent_start", "start", "day", "at"] {
         assert!(executable::NAMES.contains(&name), "{name}");
         assert!(lines.contains(&name), "{name}");
     }

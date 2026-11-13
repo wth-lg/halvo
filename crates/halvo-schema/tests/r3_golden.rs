@@ -20,7 +20,7 @@ use halvo_schema::executable::frame::{
 };
 use halvo_schema::executable::names::*;
 use halvo_schema::executable::record::{
-    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, Slot,
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Slot,
 };
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
@@ -891,6 +891,13 @@ fn runner_replies() -> Vec<RunnerReply> {
                 rev: n(1),
                 parts: n(1),
             }],
+            start: Some(AgentStart {
+                v: V1,
+                workflow: configs()[0].workflow.clone(),
+                agent: configs()[0].agent.clone(),
+                day: 20768,
+                at: Instant(1_794_339_000_000_000_010),
+            }),
         }),
         RunnerReply::Steps(StepsReply {
             steps: steps()[..2].to_vec(),
@@ -1245,7 +1252,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 9);
+    assert_eq!(executable::KINDS.len(), 10);
 }
 
 #[test]

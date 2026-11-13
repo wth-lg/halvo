@@ -16,6 +16,7 @@ agent_playbook
 agent_reply
 agent_run
 agent_session
+agent_start
 allow
 allow_once
 analysis

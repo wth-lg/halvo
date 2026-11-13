@@ -14,7 +14,7 @@ use super::names::{
 };
 use super::record::{
     checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
-    AgentLog, AgentRun, Slot, SESSION_PARTS_MAX,
+    AgentLog, AgentRun, AgentStart, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{Digest, Null, OwnValue, RunId, SessionData, WebOrigin};
@@ -408,17 +408,26 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load`: one session entry per origin.
+    /// The reply of `load`: one session entry per origin, and the agent's one start row or null when none stands.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadReply {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
         pub playbook: Option<LoadedPlaybook> = "playbook" => opt(LoadedPlaybook::from_raw),
         pub bindings: Option<LoadedBindings> = "bindings" => opt(LoadedBindings::from_raw),
         pub sessions: Vec<LoadedSession> = "sessions" => list(LoadedSession::from_raw),
+        pub start: Option<AgentStart> = "start" => opt(AgentStart::from_raw),
     }
     rules(r) {
         let origins: Vec<&WebOrigin> = r.sessions.iter().map(|s| &s.origin).collect();
-        each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))
+        each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))?;
+        if r
+            .start
+            .as_ref()
+            .is_some_and(|s| (&s.workflow, &s.agent) != (&r.config.workflow, &r.config.agent))
+        {
+            return Err(Refusal::malformed("LoadReply", "start_of_another_agent").at("start"));
+        }
+        Ok(())
     }
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }

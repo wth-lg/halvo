@@ -121,6 +121,7 @@ fn load(host: &dyn Host, b: &Load) -> Result<RunnerReply, ErrorName> {
         playbook,
         bindings,
         sessions,
+        start: None,
     }))
 }
 

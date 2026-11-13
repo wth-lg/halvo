@@ -6,7 +6,8 @@ pub const ERROR_NAMES: &[&str] = &["binding", "playbook", "config", "class", "le
 /// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture
 /// `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and `agent_bindings`,
 /// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
-/// bounded at 93 days, and `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`.
+/// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
+/// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent.
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -211,5 +212,20 @@ pub const KINDS: &[KindEntry] = &[
             ("state", FieldType::Name),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000003,"message":"msg-utility-0001","draft":"draft-utility-0001","effect":null,"state":"drafted"}"#,
+    },
+    KindEntry {
+        name: "agent_start",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","day":20768,"at":1794339000000000010}"#,
     },
 ];

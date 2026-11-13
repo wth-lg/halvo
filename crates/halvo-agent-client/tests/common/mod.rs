@@ -342,7 +342,9 @@ fn end_move(states: &mut Vec<EffectState>) {
 const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#;
 
 fn load_reply(bindings: &str) -> String {
-    format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":{bindings},"sessions":[]}}"#)
+    format!(
+        r#"{{"config":{CONFIG},"playbook":null,"bindings":{bindings},"sessions":[],"start":null}}"#
+    )
 }
 
 pub fn kill_pid(pid: u32) {
