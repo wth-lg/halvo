@@ -186,3 +186,46 @@ fn export_proposals_writes_nothing_when_the_file_exists_or_an_argument_breaks_it
         assert!(!fresh.exists());
     }
 }
+
+/// DS-4, H5 (m): `export_proposals` reads through the interface read alone, so it writes no id of a support row
+/// whose summary is past its bound, though no expiry has removed it.
+#[test]
+fn export_proposals_writes_no_id_of_a_support_row_past_its_bound() {
+    let a = Scratch::new("export-past-bound");
+    let clock = TestClock::at_day(DAY);
+    let fixed = Rc::new(RefCell::new(vec![proposal(
+        SeedCategory::ShopOrder,
+        "s1.test",
+        &[1, 2],
+    )]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&a, host).unwrap();
+    let episodes: Vec<_> = [(1, DAY - 92), (2, DAY)]
+        .iter()
+        .map(|(n, day)| {
+            let mut e = episode(*n, *day, domain("s1.test"));
+            e.category = SeedCategory::ShopOrder;
+            e
+        })
+        .collect();
+    store
+        .commit_batch(&store_id(1), &episodes, position(1, 0), &mut Seq(1))
+        .unwrap();
+    clock.set_day(DAY + 1);
+    let role = InterfaceRole::claim();
+    let out = a.path().join("proposals.jsonl");
+    let streams = [Stream {
+        id: "gen-dev-s01",
+        handle: store.read_handle(&role),
+    }];
+    assert_eq!(
+        export_proposals(&out, &manifest(), &build(), &streams).unwrap(),
+        1
+    );
+    let text = std::fs::read_to_string(&out).unwrap();
+    assert!(
+        !text.contains(summary_id(1).as_str()),
+        "summary 1 is past its bound"
+    );
+    assert!(text.contains(summary_id(2).as_str()));
+}

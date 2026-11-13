@@ -203,3 +203,45 @@ fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_op
         "after a second open of the same files"
     );
 }
+
+/// DS-4: the reads' condition at the level of the statement, for the rows that no call of the store can make: a
+/// bounded row with no day is not handed out, and a kept row and a window row with no day are.
+#[test]
+fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    for (body, class, day, gone, expires) in [
+        ("bounded without a day", 1, None, None, None),
+        ("bounded inside", 1, Some(TODAY), Some(TODAY + 1), None),
+        ("bounded gone today", 1, Some(TODAY - 9), Some(TODAY), None),
+        ("kept", 2, None, None, None),
+        ("window inside", 0, None, None, Some(NOW.now + 1)),
+        ("window at now", 0, None, None, Some(NOW.now)),
+    ] {
+        conn.execute(
+            "INSERT INTO rows (kind, family, class, day, gone, expires, body) VALUES ('k', 'test', ?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![class, day, gone, expires, body],
+        )
+        .unwrap();
+    }
+    let read: Vec<String> = conn
+        .prepare(sql::ROWS_READ.text())
+        .unwrap()
+        .query_map(crate::db::reading!(NOW, ":kind" => "k"), |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(read, ["bounded inside", "kept", "window inside"]);
+    assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 3);
+    let left: Vec<String> = conn
+        .prepare("SELECT body FROM rows ORDER BY body")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        left, read,
+        "the expiry leaves exactly what the read handed out"
+    );
+}

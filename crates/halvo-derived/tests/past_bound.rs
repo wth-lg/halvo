@@ -802,3 +802,73 @@ fn every_read_of_one_call_reads_by_one_reading_of_the_host_s_clock() {
         "the step's summary read and row read agree on one day"
     );
 }
+
+/// The summary ids of the evidence page that the interface read gives after `after`, and its `next`.
+fn evidence_ids(fx: &Fixture, after: Option<u64>) -> (Vec<String>, bool) {
+    match fx
+        .store
+        .interface_read(&InterfaceRead::evidence(
+            &InterfaceRole::claim(),
+            RequestId::from_random([6; 16]),
+            fx.workflow.clone(),
+            after.map(summary_id),
+        ))
+        .unwrap()
+    {
+        ReplyResult::Evidence(page) => (
+            page.evidence
+                .iter()
+                .map(|e| e.summary.as_str().to_owned())
+                .collect(),
+            page.next.is_some(),
+        ),
+        other => panic!("no evidence page: {other:?}"),
+    }
+}
+
+/// The ids of the workflow's support set that the interface read gives.
+fn summary_ids(fx: &Fixture) -> Vec<String> {
+    match fx
+        .store
+        .interface_read(&InterfaceRead::workflows(
+            &InterfaceRole::claim(),
+            RequestId::from_random([7; 16]),
+            None,
+        ))
+        .unwrap()
+    {
+        ReplyResult::Workflows(page) => page.workflows[0]
+            .summaries
+            .iter()
+            .map(|s| s.as_str().to_owned())
+            .collect(),
+        other => panic!("no workflows page: {other:?}"),
+    }
+}
+
+/// H5 (h): the parts of the interface read: `summaries` leaves out the id of a support row whose summary is past
+/// its bound, a page asked with `after` after a deadline passed holds no item past its bound, and when no evidence
+/// row is left the page is empty with a null `next`.
+#[test]
+fn the_interface_read_leaves_rows_past_their_bound_out_of_summaries_and_evidence_pages() {
+    let fx = Fixture::new("reads-interface-parts", Bound::Unchanged);
+    let id = |n: u64| summary_id(n).as_str().to_owned();
+    let mut seen = Vec::new();
+    for (at, after) in [
+        (i64::from(DAY) * DAY_NS + NOON, None),
+        (i64::from(DAY + 1) * DAY_NS + NOON, Some(1)),
+        (i64::from(DAY + 43) * DAY_NS, None),
+    ] {
+        fx.set(at);
+        seen.push((summary_ids(&fx), evidence_ids(&fx, after)));
+    }
+    assert_eq!(
+        seen,
+        vec![
+            (vec![id(1), id(2), id(3)], (vec![id(1), id(2), id(3)], false)),
+            (vec![id(2), id(3)], (vec![id(3)], false)),
+            (vec![id(2)], (Vec::new(), false)),
+        ],
+        "(support ids, (evidence page, a next)) on DAY, on DAY + 1 after summary 1, and on DAY + 43"
+    );
+}

@@ -563,3 +563,46 @@ fn a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built(
         "the control: the same proposal inside the bound is stored"
     );
 }
+
+/// DS-4, H5 (l): the summary read takes its lower side from the stored day of going: a summary whose day of going
+/// was brought forward, as an earlier and shorter bound leaves it, is not visited on that day with no expiry run.
+#[test]
+fn the_summary_read_leaves_out_a_summary_whose_stored_day_of_going_has_come() {
+    let scratch = Scratch::new("summary-gone");
+    let clock = TestClock::at_day(DAY);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        Host::new(
+            Box::new(clock.clone()),
+            Box::new(Recorder(Rc::clone(&seen))),
+        )
+    };
+    let mut store = open_host(&scratch, host()).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY - 50, None), episode(2, DAY - 50, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    drop(store);
+    common::raw(&scratch)
+        .execute(
+            "UPDATE rows SET gone = ?1 WHERE kind = 'summary' AND summary = ?2",
+            (DAY + 5, summary_id(1).as_str()),
+        )
+        .unwrap();
+    let mut store = open_host(&scratch, host()).unwrap();
+    clock.set_day(DAY + 5);
+    seen.borrow_mut().clear();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        *seen.borrow(),
+        vec![(DAY - 50, summary_id(2).as_str().to_owned())],
+        "the proposer's summary read on the day of going of summary 1, with no expiry run"
+    );
+}

@@ -467,3 +467,35 @@ fn the_evidence_read_leaves_out_a_window_row_from_its_expiry_instant() {
          expiry removes, evidence handed out after it)"
     );
 }
+
+/// DS-4, H5 (h): the hint is that of the evidence row with the latest end among the rows that the read hands out: it
+/// falls to the next evidence row when the latest passes its expiry, and it is null when none is left in its window.
+#[test]
+fn the_hint_falls_to_the_next_evidence_row_inside_its_window_and_is_null_when_none_is_left() {
+    let scratch = Scratch::new("hint-past-expiry");
+    let clock = TestClock::at_day(DAY);
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }));
+    let mut store = open_host(&scratch, host).unwrap();
+    let first = clock.now() + 5_000;
+    let second = clock.now() + 9_000;
+    let mut late = episode(2, DAY, token("northwind-power"));
+    late.end = Instant(late.end.0 + 10_000);
+    late.expires = Instant(first);
+    let mut early = episode(1, DAY, token("northwind-power"));
+    early.expires = Instant(second);
+    store
+        .commit_batch(&store_id(1), &[early, late], position(1, 0), &mut Seq(1))
+        .unwrap();
+    let mut seen = Vec::new();
+    for at in [clock.now(), first, second] {
+        clock.set(at);
+        let item = page(workflows(&store, None)).0.remove(0);
+        seen.push((item.hint.is_some(), item.summaries.len()));
+    }
+    drop(store);
+    assert_eq!(
+        seen,
+        vec![(true, 2), (true, 2), (false, 2)],
+        "(a hint, support ids) before the first expiry, at it, and at the second"
+    );
+}
