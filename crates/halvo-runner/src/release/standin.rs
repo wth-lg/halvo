@@ -44,13 +44,26 @@ fn between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str> {
 /// A request that left on its own connection, and the one success status of its kind.
 struct Sent(TcpStream, u16);
 
+/// The one success status of the payment's `POST /charge`.
+const PAY_MADE: u16 = 200;
+
+/// The one success status of the delete's `DELETE`.
+const DELETE_MADE: u16 = 204;
+
+/// What the stand-in reads of the status of an answer, or of no answer, to a request whose one success status is
+/// `success`: made for that status alone, so that no other success, no redirect and no refusal reads as made
+/// (CP-159 G4, CP-166 E5).
+fn replied(success: u16, status: Option<u16>) -> Replied {
+    match status {
+        Some(status) if status == success => Replied::Made,
+        Some(_) => Replied::Answered,
+        None => Replied::NoReply,
+    }
+}
+
 impl Left for Sent {
     fn reply(self: Box<Self>) -> Replied {
-        match answer_of(self.0, REPLY_WAIT) {
-            Some(answer) if answer.status == self.1 => Replied::Made,
-            Some(_) => Replied::Answered,
-            None => Replied::NoReply,
-        }
+        replied(self.1, answer_of(self.0, REPLY_WAIT).map(|a| a.status))
     }
 }
 
@@ -93,7 +106,7 @@ impl Paused for Delete {
             &[("Authorization", &auth)],
             b"",
         );
-        Box::new(Sent(send_bytes(self.port, &bytes), 204))
+        Box::new(Sent(send_bytes(self.port, &bytes), DELETE_MADE))
     }
 
     fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
@@ -164,7 +177,7 @@ impl Paused for Pay {
             &[("Content-Type", "application/x-www-form-urlencoded")],
             form.as_bytes(),
         );
-        Box::new(Sent(send_bytes(self.port, &bytes), 200))
+        Box::new(Sent(send_bytes(self.port, &bytes), PAY_MADE))
     }
 
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
@@ -356,4 +369,30 @@ fn a_rebind_then_a_reject_stores_no_approval_in_the_rejected_row() {
 #[test]
 fn an_approved_effect_that_a_later_load_refuses_stores_no_approval() {
     an_approved_effect_that_a_later_load_refuses_holds_no_approval(&mut Standin);
+}
+
+/// CP-166 E5: the stand-in reads as made 200 for its payment and 204 for its delete, each for its own request
+/// alone; 201, 202, every status from 300 to 399 and every other status are no made request, and no answer is none.
+#[test]
+fn the_stand_in_reads_its_own_success_status_alone_as_made() {
+    for (success, other) in [(PAY_MADE, DELETE_MADE), (DELETE_MADE, PAY_MADE)] {
+        for status in 100..=599u16 {
+            let expected = if status == success {
+                Replied::Made
+            } else {
+                Replied::Answered
+            };
+            assert_eq!(
+                replied(success, Some(status)),
+                expected,
+                "status {status} for {success}"
+            );
+        }
+        assert_eq!(
+            replied(success, Some(other)),
+            Replied::Answered,
+            "the other request's success"
+        );
+        assert_eq!(replied(success, None), Replied::NoReply);
+    }
 }
