@@ -11,6 +11,7 @@ pub mod proto;
 pub mod service;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
+pub mod texts;
 pub mod wire;
 
 pub const POLL_MS: u64 = 3_000;

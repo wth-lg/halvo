@@ -9,7 +9,7 @@ pub enum Permission {
     InputMonitoring,
 }
 
-pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
+pub use crate::texts::SCREEN_ACTIVITY_NOT_RECORDED;
 
 impl Permission {
     pub const R1_MACOS: [Permission; 3] = [
