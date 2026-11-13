@@ -77,6 +77,235 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
     println!("\nstore={}", kind.as_str());
 }
 
+#[cfg(target_os = "macos")]
+mod keychain_items {
+    use super::*;
+    use security_framework::item::{ItemClass, ItemSearchOptions};
+    use security_framework::os::macos::keychain::SecKeychain;
+
+    pub(crate) fn add(account: &Name, bytes: &[u8]) {
+        SecKeychain::default()
+            .expect("the default keychain")
+            .add_generic_password(SERVICE, account.as_str(), bytes)
+            .expect("an item is added");
+    }
+
+    pub(crate) fn count(account: &Name) -> usize {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account.as_str())
+            .load_attributes(true)
+            .limit(security_framework::item::Limit::All);
+        match options.search() {
+            Ok(found) => found.len(),
+            Err(error) if error.code() == -25300 => 0,
+            Err(error) => panic!("the search failed with {}", error.code()),
+        }
+    }
+
+    #[cfg(not(feature = "keychain"))]
+    pub(crate) fn remove(account: &Name) {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account.as_str());
+        options.delete().expect("the item is deleted");
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn file_store(label: &str) -> Store {
+    Store::in_directory(
+        Directory::new(dir(label)).expect("an absolute directory"),
+        name(label),
+    )
+}
+
+#[cfg(all(target_os = "macos", debug_assertions, not(feature = "keychain")))]
+mod beside_the_keychain {
+    use super::*;
+    use halvo_secrets::Locked;
+
+    #[test]
+    fn a_keychain_item_read_by_a_build_without_the_feature_answers_locked() {
+        on_a_hosted_runner();
+        let label = "beside";
+        let store = store(label);
+        assert_eq!(store.kind(), StoreKind::File);
+        assert!(matches!(store.read(), Read::NotStored));
+        keychain_items::add(&name(label), b"kept by a build with the feature");
+        let read = store.read();
+        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        assert_eq!(
+            store.write(&secret(b"a new sign-in")),
+            Write::Locked(Locked::OtherStore)
+        );
+        let file = file_store(label);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(file.write(&secret(b"in the file")), Write::Stored);
+        let both = store.read();
+        assert!(matches!(both, Read::Locked(Locked::OtherStore)), "{both:?}");
+        assert_eq!(found(file.read()), b"in the file");
+        assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(found(file.read()), b"in the file");
+        assert_eq!(file.delete(), Delete::Deleted);
+        keychain_items::remove(&name(label));
+        assert!(matches!(store.read(), Read::NotStored));
+        println!("\na keychain item read by a build without the feature answers {read:?}, and {both:?} beside a file");
+    }
+
+    #[test]
+    fn the_store_of_a_build_without_the_keychain_is_the_file_store() {
+        on_a_hosted_runner();
+        let label = "file-kind";
+        let place = dir(label);
+        let store = store(label);
+        assert_eq!(store.kind(), StoreKind::File);
+        assert_eq!(store.write(&secret(b"secret")), Write::Stored);
+        assert_eq!(
+            std::fs::read(place.join(name(label).as_str())).expect("the file"),
+            b"secret"
+        );
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store.read()), b"secret");
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert_eq!(std::fs::read_dir(&place).expect("the directory").count(), 0);
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions, feature = "keychain"))]
+mod moves {
+    use super::*;
+    use halvo_secrets::{Fault, Locked, MoveFault};
+    use std::os::unix::fs::PermissionsExt;
+
+    const EARLIER: &[u8] = b"kept by an unsigned build";
+
+    fn set_mode(place: &Path, mode: u32) {
+        std::fs::set_permissions(place, std::fs::Permissions::from_mode(mode))
+            .expect("the mode of the store directory");
+    }
+
+    #[test]
+    fn a_delete_beside_a_file_that_cannot_be_read_answers_a_fault_and_keeps_the_file() {
+        on_a_hosted_runner();
+        let label = "unreadable";
+        let store = store(label);
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        keychain_items::add(&name(label), EARLIER);
+        let place = dir(label);
+        set_mode(&place, 0o000);
+        let delete = store.delete();
+        set_mode(&place, 0o700);
+        assert_eq!(delete, Delete::Fault(Fault { code: 13 }));
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(found(store.read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(store.delete(), Delete::Deleted);
+        println!(
+            "\na delete beside a file that cannot be read answered {delete:?} and kept the file"
+        );
+    }
+
+    fn failing(label: &str, fault: MoveFault) -> Store {
+        Store::with_move_fault(
+            Directory::new(dir(label)).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            name(label),
+            fault,
+        )
+    }
+
+    #[test]
+    fn a_file_of_an_earlier_build_moves_once_into_the_keychain_and_reads_found_after() {
+        on_a_hosted_runner();
+        let label = "move";
+        let store = store(label);
+        let file = file_store(label);
+        assert_eq!(store.kind(), StoreKind::Keychain);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store.read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(found(store.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert!(matches!(store.read(), Read::NotStored));
+        println!("\na file of an earlier build moved once into the keychain and reads Found after");
+    }
+
+    #[test]
+    fn a_failed_add_leaves_the_file_and_answers_locked() {
+        on_a_hosted_runner();
+        let label = "failed-add";
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        let read = failing(label, MoveFault::Add).read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Move { code: -61 })),
+            "{read:?}"
+        );
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store(label).read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(store(label).delete(), Delete::Deleted);
+        println!("\na failed add left the file and answered {read:?}");
+    }
+
+    #[test]
+    fn a_read_back_that_differs_leaves_the_file_and_answers_locked() {
+        on_a_hosted_runner();
+        let label = "read-back";
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        let read = failing(label, MoveFault::ReadBack).read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Move { code: -1 })),
+            "{read:?}"
+        );
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(found(store(label).read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(store(label).delete(), Delete::Deleted);
+        println!("\na read back that differs left the file and answered {read:?}; the next read of equal bytes finished the move");
+    }
+
+    #[test]
+    fn with_both_places_full_the_read_answers_locked_never_not_stored() {
+        on_a_hosted_runner();
+        let label = "both";
+        let store = store(label);
+        let file = file_store(label);
+        let signed = b"0123456789abcdef".repeat(4);
+        let mut earlier = signed.clone();
+        earlier[63] ^= 1;
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        assert_eq!(store.write(&secret(&signed)), Write::Stored);
+        assert_eq!(file.write(&secret(&earlier)), Write::Stored);
+        for _ in 0..2 {
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        }
+        assert_eq!(found(file.read()), earlier);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+        assert_eq!(file.delete(), Delete::Deleted);
+        assert_eq!(found(store.read()), signed);
+        assert_eq!(store.delete(), Delete::Deleted);
+        println!("\nwith both places full of two credentials of 64 bytes that differ in one byte, the read answered Locked(OtherStore) twice, and so did a delete");
+    }
+}
+
 #[cfg(windows)]
 mod dpapi {
     use super::*;

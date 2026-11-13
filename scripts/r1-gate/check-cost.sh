@@ -23,7 +23,7 @@ zero_bound_verdict() {
 }
 
 bounds_of_the_unit() {
-  for pair in rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=60 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2; do
+  for pair in rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=90 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2; do
     bound_is "${pair%%=*}" "${pair#*=}" || return 1
   done
 }
@@ -72,6 +72,8 @@ live_cpu_above() {
   timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 2
   child_report_defect || return 2
   cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 2
+  live_load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ print $2 }')
+  printf 'share=%s%% of one core for the loop, 1-minute load=%s\n' "$cpu" "${live_load:-unread}"
   predicate_cost_within_bound "$cpu" 0 600 "$live_floor" 2000000000 && return 1
   return 0
 }
@@ -80,6 +82,11 @@ exit_status_gives() {
   child_status=$1
   child_dir=$gate_scratch
   child_report_defect
+}
+
+share_and_load_printed() {
+  share_out=$(live_cpu_above sleep 1)
+  printf '%s\n' "$share_out" | grep -q -E '^share=[0-9]+\.[0-9]+% of one core for the loop, 1-minute load=[0-9]+\.[0-9]+$'
 }
 
 under_a_german_locale() {
@@ -93,16 +100,19 @@ deadline_run() {
   deadline_status=$?
   deadline_to=$(date +%s)
   deadline_took=$((deadline_to - deadline_from))
+  printf 'the child took %ss against a deadline of %ss: %s\n' "$deadline_took" "$1" "${gate_defect:-ended in time}"
   return "$deadline_status"
 }
 
 deadline_ends_the_child() {
-  deadline_run 2 "$1" "$2" && return 1
-  [ "$gate_defect" = "the child ran past its deadline of 2s and was ended" ] || return 1
-  [ "$deadline_took" -ge 2 ] || return 1
-  [ "$deadline_took" -le "$3" ] || return 1
+  deadline_run 2 "$1" "$2" && { printf 'the child ended by itself after %ss and was not ended at its deadline of 2s\n' "$deadline_took"; return 1; }
+  [ "$gate_defect" = "the child ran past its deadline of 2s and was ended" ] || { printf 'after %ss the gate said: %s\n' "$deadline_took" "${gate_defect:-nothing}"; return 1; }
+  [ "$deadline_took" -ge 2 ] || { printf 'the child was ended after %ss, before its deadline of 2s\n' "$deadline_took"; return 1; }
+  [ "$deadline_took" -le "$3" ] || { printf 'the child was ended after %ss, past the margin of %ss\n' "$deadline_took" "$3"; return 1; }
   left=$(pgrep -f "load-standin $1 $2")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left %ss after the start\n' "$deadline_took"
+  return 1
 }
 
 signal_ends_the_child() {
@@ -125,17 +135,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep $2" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill "-$1" "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "load-standin sleep $2")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 watched_child_ends() {
@@ -154,17 +166,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep 36.25" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill -TERM "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "load-standin sleep 36.25")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 helper_ends_with_the_check() {
@@ -189,17 +203,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep 39.25" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill -TERM "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "sleep 38.25")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'the helper is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 live_cpu_within() {
@@ -301,6 +317,7 @@ cases() {
   t live-busy-loop-reads-above-50 PASS live_cpu_above burn 2
   t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
   t german-locale-of-the-caller PASS under_a_german_locale
+  t live-loop-share-is-printed PASS share_and_load_printed
   t comm-is-bin-sh FAIL child_of_script
   t child-past-deadline FAIL deadline_run 2 sleep 30.25
   t child-in-time PASS deadline_run 5 sleep 1

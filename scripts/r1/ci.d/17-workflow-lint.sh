@@ -1,8 +1,9 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint accepts it, every action is pinned to a 40-hex commit, the permissions at the top level grant contents: read and nothing else, the jobs are macos and windows, and the timeout of each job is the bound ci_job_timeout_min.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, and the timeout of each job is the bound ci_job_timeout_min.
 set -u
 name=17-workflow-lint
+pinned_version=1.7.12
 nl='
 '
 
@@ -33,6 +34,8 @@ measure() {
   version=$(actionlint -version) || fail "actionlint -version failed"
   version=$(printf '%s\n' "$version" | sed 1q)
   printf 'actionlint version: %s\n' "$version"
+  [ "$version" = "$pinned_version" ] ||
+    fail "actionlint $version runs here, and the pinned version is $pinned_version: the runner image changed the tool, so read its release notes, then move the pin in scripts/r1/ci.d/17-workflow-lint.sh"
   findings=0
   first=
 
@@ -43,8 +46,13 @@ measure() {
   actionlint "$file" || finding "actionlint reports a finding in ci.yml"
 
   uses_key="(^|[[:space:]{,-])[\"']?uses[\"']?[[:space:]]*:"
-  uses=$(grep -o -E "$uses_key" "$file" | wc -l | tr -d ' ')
-  pinned=$(grep -o -E "${uses_key}[[:space:]]*[\"']?[^ \"',}]+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$file" | wc -l | tr -d ' ')
+  decoded=$CI_D_ARTIFACTS/ci.decoded.yml
+  perl -pe 's/\\x([0-9A-Fa-f]{2})/chr(hex($1))/ge; s/\\u([0-9A-Fa-f]{4})/chr(hex($1))/ge; s/\\U([0-9A-Fa-f]{8})/chr(hex($1))/ge' "$file" >"$decoded" ||
+    fail "perl could not decode the escape sequences of ci.yml"
+  uses=$(grep -o -E "$uses_key" "$decoded" | wc -l | tr -d ' ')
+  pinned=$(grep -o -E "${uses_key}[[:space:]]*[\"']?[^ \"',}]+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$decoded" | wc -l | tr -d ' ')
+  explicit=$(grep -c -E '^[[:space:]]*(-[[:space:]]+)?[?]([[:space:]]|$)' "$decoded")
+  [ "$explicit" -eq 0 ] || finding "ci.yml writes $explicit keys in the explicit form of YAML (?), which this lint does not read; write each key in the plain form key: value"
   [ "$uses" -gt 0 ] || finding "ci.yml holds no uses line"
   [ "$uses" -eq "$pinned" ] ||
     finding "$((uses - pinned)) of $uses uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
@@ -58,6 +66,18 @@ measure() {
   read -r tops grants other <<EOF
 $permissions
 EOF
+  job_grants=$(awk -v q="'" '
+    BEGIN { key = "^[[:space:]]+[\"" q "]?permissions[\"" q "]?[[:space:]]*:" }
+    in_block && match($0, /^[[:space:]]*/) && RLENGTH <= depth && /[^[:space:]]/ { in_block = 0 }
+    in_block && /^[[:space:]]+[^[:space:]#]/ { line = $0; sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]*(#.*)?$/, "", line); if (line != "contents: read") bad = 1; next }
+    $0 ~ key {
+      match($0, /^[[:space:]]*/); depth = RLENGTH
+      rest = $0; sub(key, "", rest); sub(/[[:space:]]*(#.*)?$/, "", rest); sub(/^[[:space:]]*/, "", rest)
+      if (rest == "") in_block = 1
+      else if (rest != "{}" && rest != "{ contents: read }" && rest != "{contents: read}") bad = 1
+    }
+    END { print bad + 0 }' "$decoded")
+  [ "$job_grants" -eq 0 ] || finding "a job of ci.yml sets permissions that grant more than contents: read"
   if [ "$tops" -ne 1 ]; then
     finding "ci.yml must set permissions once at the top level, and it does so $tops times"
   elif [ "$other" -ne 0 ] || [ "$grants" -ne 1 ]; then
@@ -146,7 +166,7 @@ self_test() {
     exit 1
   fi
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/artifacts" "$work/no-tools" "$work/tools"
+  mkdir -p "$work/artifacts" "$work/no-tools" "$work/tools" "$work/old-tools"
   shell=$(command -v sh) || exit 2
   STUB_REAL=$(command -v actionlint) || exit 2
   STUB_TOOLS=$work/tools
@@ -250,6 +270,27 @@ EOF
   check permissions-contents-write FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
   tree permissions-read-and-more "4s/\$/\\${nl}  actions: write/"
   check permissions-read-and-more FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
+  tree uses-key-with-an-escape '10s/.*/      - "u\\x73es": actions\/checkout@v7/'
+  check uses-key-with-an-escape FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
+  tree uses-key-with-a-unicode-escape '10s/.*/      - "\\u0075ses": actions\/checkout@v7/'
+  check uses-key-with-a-unicode-escape FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
+  tree job-permissions-write-all "7s/\$/\\${nl}    permissions: write-all/"
+  check job-permissions-write-all FAIL 'a job of ci.yml sets permissions that grant more than contents: read'
+  tree job-permissions-contents-write "7s/\$/\\${nl}    permissions:\\${nl}      contents: write/"
+  check job-permissions-contents-write FAIL 'a job of ci.yml sets permissions that grant more than contents: read'
+  tree job-permissions-contents-read "7s/\$/\\${nl}    permissions:\\${nl}      contents: read/"
+  check job-permissions-contents-read PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree job-permissions-empty "7s/\$/\\${nl}    permissions: {}/"
+  check job-permissions-empty PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree explicit-uses-key "10s/.*/      - ? uses\\${nl}        : actions\/checkout@v4/"
+  check explicit-uses-key FAIL 'keys in the explicit form of YAML'
+  tree explicit-job-permissions "7s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
+  check explicit-job-permissions FAIL 'keys in the explicit form of YAML'
+  tree another-actionlint-version ''
+  printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
+  chmod +x "$work/old-tools/actionlint"
+  path=$work/old-tools:$PATH
+  check another-actionlint-version FAIL 'actionlint 1.6.0 runs here, and the pinned version is 1.7.12'
   tree actionlint-missing ''
   path=$work/no-tools
   check actionlint-missing SKIP 'SKIP 17-workflow-lint (actionlint is not installed)'

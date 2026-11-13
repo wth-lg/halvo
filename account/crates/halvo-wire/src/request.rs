@@ -203,6 +203,24 @@ impl Call {
 ///     request.path = "/v1/done";
 /// }
 /// ```
+///
+/// ```compile_fail,E0616
+/// fn change(request: &mut halvo_wire::request::Request) {
+///     request.method = "PATCH";
+/// }
+/// ```
+///
+/// ```compile_fail,E0616
+/// fn change(request: &mut halvo_wire::request::Request) {
+///     request.headers = vec![("x-other", String::new())];
+/// }
+/// ```
+///
+/// ```compile_fail,E0616
+/// fn change(request: &mut halvo_wire::request::Request) {
+///     request.body = Some(b"{}".to_vec());
+/// }
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,

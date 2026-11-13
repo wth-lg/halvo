@@ -15,6 +15,22 @@ export const CLAUSES = {
   integrity: "the three records can be joined and the run ran as planned",
 };
 
+export const CLAUSES_OF_THE_DISPATCH_MARK = {
+  "voided-at-expiry":
+    "a hold that passes its expiry without the dispatch mark ends voided and is charged nothing, a hold with the mark never ends voided, and every hold whose request reached the upstream carries the mark",
+};
+
+const endedAtItsExpiry = (row) => row.ended_at !== null && row.ended_at >= row.expires_at;
+const answeredAtOrAfterItsExpiry = (request, row) => request.headersAt !== null && request.headersAt >= row.expires_at;
+const answeredStopped = (request) => {
+  try {
+    return JSON.parse(request.body).result === "stopped";
+  } catch {
+    return false;
+  }
+};
+const endedByTime = (row, ledger) => row.state === "expired" || (ledger.voidsUnmarkedAtExpiry === true && row.state === "voided" && endedAtItsExpiry(row));
+
 function readMock(events) {
   const byId = new Map();
   for (const event of events) {
@@ -90,10 +106,20 @@ export function judge({
       case chatStatus.upstreamFailed:
         if (!row) bad("integrity", request.id, `answered ${request.status} with a receipt, but no row is stored`);
         break;
-      default:
-        if (!diedInKill) {
+      default: {
+        const stoppedAtTheExpiry =
+          request.status === 409 &&
+          ledger.voidsUnmarkedAtExpiry === true &&
+          answeredStopped(request) &&
+          row?.state === "voided" &&
+          row.dispatched === 0 &&
+          endedAtItsExpiry(row) &&
+          answeredAtOrAfterItsExpiry(request, row) &&
+          !mock.has(request.id);
+        if (!diedInKill && !stoppedAtTheExpiry) {
           bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
         }
+      }
     }
     for (const attempt of request.lost) {
       if (gatewayFailed(attempt)) {
@@ -116,6 +142,7 @@ export function judge({
   let settled = 0;
   let expired = 0;
   let voided = 0;
+  let voidedAtExpiry = 0;
   let lateSettles = 0;
   let endedByAlarm = 0;
   const servedNeverSettled = { holds: 0, charged: 0, usageWorth: 0 };
@@ -126,6 +153,9 @@ export function judge({
     if (request && row.amount !== request.hold) {
       const clause = row.state === "expired" ? "others-full-hold" : "integrity";
       bad(clause, row.request_id, `the hold is ${row.amount}, the upper bound for this request is ${request.hold}`);
+    }
+    if (ledger.voidsUnmarkedAtExpiry === true && upstream && row.dispatched !== 1) {
+      bad("voided-at-expiry", row.request_id, "the upstream was called for this request, and its hold carries no dispatch mark");
     }
     const chargeFromMock = upstream?.finalUsage
       ? expectedCostOf(price, upstream.finalUsage.inputTokens, upstream.finalUsage.outputTokens)
@@ -145,9 +175,17 @@ export function judge({
         }
         break;
       case "voided":
-        voided++;
-        if (row.ended_at >= row.expires_at) {
-          bad("no-open-after-expiry", row.request_id, `voided ${row.ended_at - row.expires_at} ms after its expiry`);
+        if (endedByTime(row, ledger)) {
+          voidedAtExpiry++;
+          worstExpiryLagMs = Math.max(worstExpiryLagMs, row.ended_at - row.expires_at);
+        } else {
+          voided++;
+          if (row.ended_at >= row.expires_at) {
+            bad("no-open-after-expiry", row.request_id, `voided ${row.ended_at - row.expires_at} ms after its expiry`);
+          }
+        }
+        if (ledger.voidsUnmarkedAtExpiry === true && row.dispatched !== 0) {
+          bad("voided-at-expiry", row.request_id, "voided with the dispatch mark: it may have had an upstream call");
         }
         if (row.cost !== null || row.overrun !== 0) bad("voided-clean", row.request_id, "a voided hold carries a charge");
         if (upstream) bad("voided-clean", row.request_id, "voided, but the mock's log has the request");
@@ -156,6 +194,9 @@ export function judge({
         expired++;
         if (row.ended_at < row.expires_at) {
           bad("others-full-hold", row.request_id, `expired ${row.expires_at - row.ended_at} ms before its expiry time`);
+        }
+        if (ledger.voidsUnmarkedAtExpiry === true && row.dispatched !== 1) {
+          bad("voided-at-expiry", row.request_id, `expired at its amount of ${row.amount} without the dispatch mark: it had no upstream call`);
         }
         if (row.ended_by === ledger.alarmMark) endedByAlarm++;
         if (chargeFromMock !== null && row.late_at === null) {
@@ -201,7 +242,7 @@ export function judge({
   for (const row of rows.values()) {
     events.push({ seq: row.created_seq, rankWithinStep: OWN_WORK_OF_THE_STEP, kind: "reserve", row });
     if (row.ended_seq !== null) {
-      events.push({ seq: row.ended_seq, rankWithinStep: row.state === "expired" ? EXPIRY_OF_DUE_HOLDS : OWN_WORK_OF_THE_STEP, kind: row.state, row });
+      events.push({ seq: row.ended_seq, rankWithinStep: endedByTime(row, ledger) ? EXPIRY_OF_DUE_HOLDS : OWN_WORK_OF_THE_STEP, kind: row.state, row });
     }
     if (row.late_seq !== null) events.push({ seq: row.late_seq, rankWithinStep: OWN_WORK_OF_THE_STEP, kind: "late", row });
   }
@@ -297,7 +338,7 @@ export function judge({
     streamAtKill = streamAtKill && kill.inFlight > 0;
     if (cell.kind === "quiet") {
       for (const row of openAtKill) {
-        if (row.state !== "expired" || row.ended_by !== ledger.alarmMark || row.ended_at >= firstLedgerReadAt) {
+        if (!endedByTime(row, ledger) || row.ended_by !== ledger.alarmMark || row.ended_at >= firstLedgerReadAt) {
           bad("no-open-after-expiry", row.request_id, `not ended by the alarm before the first request after the restart (${row.state}, ended by ${row.ended_by})`);
         }
       }
@@ -345,6 +386,7 @@ export function judge({
       settled,
       expired,
       voided,
+      voidedAtExpiry,
       refused: answers(chatStatus.refused),
       worstOver: Number.isFinite(worstOver) ? worstOver : null,
       overruns,
@@ -357,10 +399,11 @@ export function judge({
       latestStreamEndPastExpiryMs,
       cutByGateway,
       overdueAtRestart: overdue.length,
-      overdueByAlarm: overdue.filter((row) => row.state === "expired" && row.ended_by === ledger.alarmMark).length,
+      overdueByAlarm: overdue.filter((row) => endedByTime(row, ledger) && row.ended_by === ledger.alarmMark).length,
       overdueEndedAfterReadyMs: overdue.length > 0 ? Math.max(...overdue.map((row) => (row.ended_at ?? final.now) - restartReadyAt)) : null,
       settledBeforeKill: kill ? final.holds.filter((row) => row.state === "settled" && row.ended_at <= kill.at).length : 0,
       admittedAfterRestart: kill ? final.holds.filter((row) => row.created_at > kill.at).length : 0,
+      crossed: cell.kind === "rollover" ? crossed : null,
       streamAtKill,
       settleMs: [...sent.values()].filter((request) => request.trailer?.settled).map((request) => request.trailer.settle_ms),
       databaseSize: final.databaseSize,
