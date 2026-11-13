@@ -476,6 +476,25 @@ mod tests {
     }
 
     #[test]
+    fn a_child_that_fails_on_purpose() {
+        if std::env::var_os(CHILD).is_some() {
+            assert_eq!(std::hint::black_box((1, 2)), (1, 3));
+        }
+    }
+
+    #[test]
+    fn a_failed_child_says_what_it_saw() {
+        let failed = std::panic::catch_unwind(|| {
+            in_a_child_alone("probe::tests::a_child_that_fails_on_purpose")
+        })
+        .expect_err("the child fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("left: (1, 2)"), "{text}");
+        assert!(text.contains("right: (1, 3)"), "{text}");
+        assert!(text.contains("test result: FAILED. 0 passed; 1 failed"), "{text}");
+    }
+
+    #[test]
     fn a_window_leaves_out_only_a_first_thread_that_is_not_the_test() {
         assert!(apart(7, 8, 1).is_ok());
         assert_eq!(apart(7, 7, 1).err(), Some(ON_THE_FIRST_THREAD));
