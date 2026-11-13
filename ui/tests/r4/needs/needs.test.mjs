@@ -88,14 +88,20 @@ function lint() {
 }
 
 function itemsTrueToWords(tests, dir) {
-  const patterns = Object.values(words()).map(
+  const table = words();
+  const patterns = Object.values(table).map(
     (w) => new RegExp('^' + w.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{[a-z]+\}/g, '.+') + '$', 'u'),
   );
   const sentence = (text) => patterns.some((p) => p.test(text));
   const faults = [];
   for (const state of tests) {
     for (const item of stateFile(dir, state).snapshot.items) {
-      const texts = [item.title, item.say_new, item.say_gone, ...item.fields.flatMap((f) => [f.label, f.from_text]), ...item.choices.map((c) => c.text)];
+      const texts = [item.title, ...item.fields.flatMap((f) => [f.label, f.from_text]), ...item.choices.map((c) => c.text)];
+      const row = stateFile(dir, state).snapshot.rows.find((r) => r.agent === item.agent);
+      const name = row ? row.name : null;
+      if (name === null) faults.push(state + '.' + item.item.slice(-2) + '.no_row_names_its_agent');
+      if (item.say_new !== table['say.item.new'].replace('{name}', name)) faults.push(state + '.' + item.item.slice(-2) + '.say_new');
+      if (item.say_gone !== table['say.item.gone'].replace('{name}', name)) faults.push(state + '.' + item.item.slice(-2) + '.say_gone');
       for (const p of item.params) if (p.typed === 'yes') texts.push(p.full);
       if (item.text !== '') texts.push(item.text);
       texts.forEach((t, i) => {
@@ -943,6 +949,7 @@ async function region(origin, dir) {
         everywhere: document.querySelectorAll('[role="status"]').length,
         live: r ? r.getAttribute('aria-live') : null,
         top: section.querySelector('ul').getBoundingClientRect().top,
+        place: Boolean(r) && r.nextElementSibling === section.querySelector('ul') && Boolean(document.getElementById('view-needs').compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING),
         kept: Boolean(r && r.r4needsMark),
         says: r ? [...r.childNodes].map((n) => n.textContent) : [],
         focus: a ? (a.getAttribute('data-act') || a.getAttribute('role') || a.tagName) + ':' + (a.getAttribute('data-param') || '-').slice(0, 1) : '-',
@@ -958,6 +965,7 @@ async function region(origin, dir) {
     try {
       const at = await facts(h);
       if (at.count !== 1 || at.live !== 'polite' || at.says.length !== 0) faults.push(tag + ':before=' + JSON.stringify(at));
+      if (!at.place) faults.push(tag + ':region_not_between_the_heading_and_the_list');
       await mark(h);
       if (focusOn) await h.page.locator(focusOn).focus();
       const ids = second.map((i) => i.item).join(',');
@@ -983,7 +991,7 @@ async function region(origin, dir) {
   await step('goes_while_the_focus_is_elsewhere', [stuck, ready], sel('done', stuck.item), [stuck], ['Ready went.'], 'done:b');
   await step('arrives_while_the_focus_is_on_the_page', [stuck], null, [stuck, ready], ['Ready came.'], null);
   await step('goes_while_the_focus_is_in_it', [stuck, ready], sel('start', ready.item), [stuck], [], null);
-  await step('arrives_while_a_confirmation_holds_the_focus', [confirm], null, [confirm, ready], ['Ready came.'], 'alertdialog:-');
+  await step('arrives_while_a_confirmation_holds_the_focus(pinned_as_built,where_a_sentence_is_said_while_a_confirmation_is_open_waits_for_a_ruling)', [confirm], null, [confirm, ready], ['Ready came.'], 'alertdialog:-');
   await step('a_confirmation_arrives_and_holds_the_focus', [stuck], sel('done', stuck.item), [stuck, confirm], [], 'alertdialog:-');
   await step('one_goes_and_one_arrives', [stuck], null, [ready], ['Stuck went.', 'Ready came.'], null);
   await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Ready came.'], null);
@@ -1001,6 +1009,39 @@ async function region(origin, dir) {
     faults.push('the_first_reply_says_nothing_and_a_show_keeps_the_region:throws');
   } finally {
     await h.close();
+  }
+  writeState(dir, 'test_region_hidden', [stuck]);
+  const hid = 'an_item_that_comes_while_the_view_is_hidden_is_said_at_the_show';
+  const k = await open({ origin, state: 'test_region_hidden', views: [VIEW] });
+  try {
+    await mark(k);
+    await k.page.evaluate(() => Halvo.views.window('hidden'));
+    k.state = { snapshot: snap(2, [stuck, ready]), card: null };
+    await k.page.evaluate(() => Halvo.views.window('shown'));
+    await k.page.waitForFunction((id) => document.querySelector('[data-param="' + id + '"]') !== null, ready.item, { timeout: 5000 });
+    await settled(k);
+    await frames(k);
+    const got = await facts(k);
+    if (got.count !== 1 || !got.kept || JSON.stringify(got.says) !== JSON.stringify(['Ready came.'])) faults.push(hid + ':says=' + (got.says.join('|') || '-') + ':count=' + got.count);
+  } catch {
+    faults.push(hid + ':throws');
+  } finally {
+    await k.close();
+  }
+  const keeps = 'the_region_keeps_every_sentence(pinned_as_built,how_long_the_region_keeps_a_sentence_waits_for_a_ruling)';
+  const changes = [[stuck], [stuck, ready], [stuck], [stuck, ready], []];
+  const many = await open({ origin, replies: changes.map((items, i) => ({ state: snap(i + 1, items) })), views: [VIEW] });
+  try {
+    await many.page.waitForFunction(() => document.querySelectorAll('#views [data-act]').length === 0, null, { timeout: 5000 });
+    await settled(many);
+    await frames(many);
+    const got = await facts(many);
+    const want = ['Ready came.', 'Ready went.', 'Ready came.', 'Stuck went.', 'Ready went.'];
+    if (JSON.stringify(got.says) !== JSON.stringify(want)) faults.push(keeps + ':after_4_changes_paragraphs=' + got.says.length + ':want=' + want.length);
+  } catch {
+    faults.push(keeps + ':throws');
+  } finally {
+    await many.close();
   }
   return faults;
 }
@@ -1163,6 +1204,93 @@ async function bound(origin, dir) {
   } finally {
     await m.close();
   }
+  const one = async (t, fn) => {
+    const k = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+    try {
+      await fn(k, k.page.locator(line));
+    } catch (err) {
+      faults.push(t + ':throws');
+    } finally {
+      await k.close();
+    }
+  };
+  const big = 'y'.repeat(2000);
+  const digits = Array.from({ length: 1024 }, (_, i) => String(i % 10)).join('');
+  const second = 'a_second_refusal_after_a_removal_shows_the_sentence_again';
+  await one(second, async (k, l) => {
+    await l.fill(xs(1000));
+    await k.page.keyboard.insertText('y'.repeat(30));
+    shows(second + '_first', await typedFacts(k, p.name), true);
+    await k.page.keyboard.press('Backspace');
+    shows(second + '_after_the_removal', await typedFacts(k, p.name), false);
+    await k.page.keyboard.insertText('y'.repeat(30));
+    const f = await typedFacts(k, p.name);
+    if (f.value !== xs(999)) faults.push(second + ':line_holds=' + Buffer.byteLength(f.value));
+    shows(second + '_second', f, true);
+  });
+  const short = 'a_short_line_after_a_refused_paste(pinned_as_built,the_rule_for_a_refused_input_far_below_the_bound_waits_for_a_ruling)';
+  await one(short, async (k, l) => {
+    await l.fill(xs(10));
+    await k.page.keyboard.insertText(big);
+    shows(short + '_paste', await typedFacts(k, p.name), true);
+    await k.page.keyboard.type('a');
+    let f = await typedFacts(k, p.name);
+    if (f.value !== xs(10)) faults.push(short + ':letter_after_the_paste_taken');
+    shows(short + '_letter', f, true);
+    await k.page.keyboard.press('Backspace');
+    f = await typedFacts(k, p.name);
+    if (f.value !== xs(9)) faults.push(short + ':backspace_not_taken');
+    shows(short + '_backspace', f, false);
+    await k.page.keyboard.type('a');
+    f = await typedFacts(k, p.name);
+    if (f.value !== xs(9) + 'a') faults.push(short + ':letter_after_the_backspace_not_taken');
+  });
+  const inside = 'a_removal_inside_a_full_line_is_taken';
+  await one(inside, async (k, l) => {
+    await l.fill(digits);
+    await l.evaluate((x) => x.setSelectionRange(700, 700));
+    await k.page.keyboard.press('Backspace');
+    const afterBack = digits.slice(0, 699) + digits.slice(700);
+    let f = await typedFacts(k, p.name);
+    if (f.value !== afterBack) faults.push(inside + ':backspace=' + f.value.length);
+    await k.page.keyboard.press('Delete');
+    const afterDelete = afterBack.slice(0, 699) + afterBack.slice(700);
+    f = await typedFacts(k, p.name);
+    if (f.value !== afterDelete) faults.push(inside + ':delete=' + f.value.length);
+    await k.page.keyboard.type('z');
+    f = await typedFacts(k, p.name);
+    if (f.value !== afterDelete.slice(0, 699) + 'z' + afterDelete.slice(699)) faults.push(inside + ':letter=' + f.value.length);
+    shows(inside, f, false);
+  });
+  const script = 'an_input_with_no_beforeinput_over_a_selection_at_the_bound';
+  await one(script, async (k, l) => {
+    await l.fill(digits);
+    await k.page.keyboard.type('z');
+    await l.evaluate((x) => x.setSelectionRange(600, 610));
+    await l.evaluate((x) => {
+      x.value = x.value.slice(0, 600) + 'z' + x.value.slice(610);
+      x.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const f = await typedFacts(k, p.name);
+    if (f.value !== digits) faults.push(script + ':line_changed');
+    if (JSON.stringify(f.caret) !== '[600,610]') faults.push(script + ':selection=' + f.caret.join('-'));
+    shows(script, f, true);
+  });
+  const ime = 'a_composition_across_the_bound(pinned_as_built,the_rule_for_a_composition_across_the_bound_waits_for_a_ruling)';
+  await one(ime, async (k, l) => {
+    if (engineOf(k) !== 'chromium') {
+      console.log('bound composition: not run on ' + engineOf(k) + ', which takes no composition through the browser\'s protocol in this harness');
+      return;
+    }
+    await l.fill(xs(1018));
+    const cdp = await k.page.context().newCDPSession(k.page);
+    const steps = [cp(0x304b), cp(0x304b, 0x306a), cp(0x304b, 0x306a, 0x304c), cp(0x304b, 0x306a, 0x304c, 0x308f)];
+    for (const s of steps) await cdp.send('Input.imeSetComposition', { text: s, selectionStart: s.length, selectionEnd: s.length });
+    await cdp.send('Input.insertText', { text: steps[3] });
+    const f = await typedFacts(k, p.name);
+    if (f.value !== xs(1018) + steps[1]) faults.push(ime + ':line_ends_in=' + [...f.value.slice(-3)].map((c) => c.codePointAt(0).toString(16)).join('.'));
+    shows(ime, f, true);
+  });
   return faults;
 }
 
