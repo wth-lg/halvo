@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,107 +14,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 90
@@ -140,21 +41,564 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-app-links-no-store 21-tree-bans 30-app-page-test 32-app-check-page 36-app-guard-tests
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-app-links-no-store 21-tree-bans 30-app-page-test 32-app-check-page 36-app-guard-tests
+      - name: app-2 measurement of ruling AP-9 (scratch only)
+        if: always()
+        timeout-minutes: 45
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          m="$RUNNER_TEMP/ap9"
+          mkdir -p "$m"
+          cat > "$RUNNER_TEMP/measure.py" <<'PYEOF'
+          """The measurement of ruling AP-9 point 7 for app-2, run by a scratch workflow step on a hosted
+          runner. Never shipped.
+
+          usage:
+            python measure.py plan <dir>            writes <dir>/plan.json, <dir>/steps.tsv, <dir>/init.js,
+                                                    <dir>/hosts.txt and prints the runner's address
+            python measure.py listen <dir> <label>  serves every listener until <dir>/stop exists, then writes
+                                                    <dir>/counts-<label>.json
+            python measure.py judge <dir> <job>     prints the table and exits 1 on a count that differs
+                                                    from the expected one
+          """
+          import json
+          import os
+          import socket
+          import struct
+          import sys
+          import threading
+          import time
+
+          BASE = 47000
+          FORMS = ("ip", "host", "dns")
+          HOSTS_DOMAIN = "halvo-hosts.test"
+          DNS_DOMAIN = "halvo-measure.test"
+          REFUSED_FORM = "http://xn--zz.com/p?q#f"
+          REFUSED_HOST = "xn--zz.com"
+          DNS_PORT = 53 if os.name == "nt" else 5354
+
+          STEPS = [
+              ("s01", "navigation refused with a query", "location.href = U('/nav?d=x');"),
+              ("s02", "navigation to a form the reader refuses", None),
+              ("s03", "link clicked by script", "var a = document.createElement('a'); a.href = U('/link?d=x'); document.body.appendChild(a); a.click();"),
+              ("s04", "link with a target", "var a = document.createElement('a'); a.href = U('/target?d=x'); a.target = '_blank'; document.body.appendChild(a); a.click();"),
+              ("s05", "window.open", "window.open(U('/open?d=x'));"),
+              ("s06", "preconnect hint", "var l = document.createElement('link'); l.rel = 'preconnect'; l.href = U('/'); document.head.appendChild(l);"),
+              ("s07", "dns-prefetch hint", "var l = document.createElement('link'); l.rel = 'dns-prefetch'; l.href = U('/'); document.head.appendChild(l);"),
+              ("s08", "frame", "var f = document.createElement('iframe'); f.src = U('/frame?d=x'); document.body.appendChild(f);"),
+              ("s09", "form post with a body", "var f = document.createElement('form'); f.method = 'post'; f.action = U('/form'); var i = document.createElement('input'); i.name = 'd'; i.value = 'x'; f.appendChild(i); document.body.appendChild(f); f.submit();"),
+              ("s10", "download from another host", "var a = document.createElement('a'); a.href = U('/download?d=x'); a.download = 'halvo-measure.bin'; document.body.appendChild(a); a.click();"),
+              ("s11", "image", "var m = new Image(); m.src = U('/img?d=x'); document.body.appendChild(m);"),
+              ("s12", "fetch", "fetch(U('/fetch?d=x'), {method: 'POST', body: 'x', mode: 'no-cors'}).catch(function () {});"),
+              ("s13", "sendBeacon", "try { navigator.sendBeacon(U('/beacon'), 'd=x'); } catch (e) {}"),
+              ("s14", "WebSocket", "try { new WebSocket(U('/ws?d=x').replace('http:', 'ws:')); } catch (e) {}"),
+              ("s15", "worker's fetch", "try { new Worker(URL.createObjectURL(new Blob([\"fetch('\" + U('/worker?d=x') + \"', {mode: 'no-cors'}).catch(function () {});\"], {type: 'text/javascript'}))); } catch (e) {}"),
+              ("s16", "peer connection", "try { var p = new RTCPeerConnection({iceServers: [{urls: 'stun:' + H + ':' + P}]}); p.createDataChannel('d'); p.createOffer().then(function (o) { return p.setLocalDescription(o); }).catch(function () {}); window.__halvoPeer = p; } catch (e) {}"),
+              ("s17", "navigation by an initialization script before the page's first script", None),
+          ]
+
+
+          def runner_address():
+              probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+              try:
+                  probe.connect(("192.0.2.1", 9))
+                  return probe.getsockname()[0]
+              finally:
+                  probe.close()
+
+
+          def port_of(step, form):
+              return BASE + int(step[1:]) * 10 + FORMS.index(form)
+
+
+          def host_of(step, form, ip):
+              if form == "ip":
+                  return ip
+              if form == "host":
+                  return f"{step}.{HOSTS_DOMAIN}"
+              return f"{step}.{DNS_DOMAIN}"
+
+
+          def plan(directory):
+              ip = os.environ.get("HALVO_MEASURE_TEST_IP") or runner_address()
+              assert not ip.startswith("127.") or os.environ.get("HALVO_MEASURE_TEST_IP"), ip
+              targets = []
+              lines = []
+              for step, label, script in STEPS:
+                  if step == "s02":
+                      targets.append({"step": step, "form": "host", "host": REFUSED_HOST, "port": 80})
+                      lines.append(f"{step}-host\tlocation.href = {json.dumps(REFUSED_FORM)};")
+                      continue
+                  for form in (("ip",) if step == "s17" else FORMS):
+                      host = host_of(step, form, ip)
+                      port = port_of(step, form)
+                      targets.append({"step": step, "form": form, "host": host, "port": port})
+                      if step == "s17":
+                          continue
+                      prefix = f"var H = {json.dumps(host)}, P = {port}; var U = function (p) {{ return 'http://' + H + ':' + P + p; }}; "
+                      lines.append(f"{step}-{form}\t(function () {{ {prefix}{script} }})();")
+              init_js = (
+                  "(function () { if (/localhost$/.test(location.hostname)) { "
+                  f"location.href = 'http://{ip}:{port_of('s17', 'ip')}/init?d=x'; }} }})();"
+              )
+              hosts = [f"{ip} {REFUSED_HOST}"] + [
+                  f"{ip} {host_of(step, 'host', ip)}" for step, _, _ in STEPS if step != "s02"
+              ]
+              os.makedirs(directory, exist_ok=True)
+              with open(os.path.join(directory, "plan.json"), "w", encoding="utf-8") as f:
+                  json.dump({"ip": ip, "targets": targets, "dns_port": DNS_PORT}, f, indent=1)
+              with open(os.path.join(directory, "steps.tsv"), "w", encoding="utf-8", newline="\n") as f:
+                  f.write("\n".join(lines) + "\n")
+              with open(os.path.join(directory, "init.js"), "w", encoding="utf-8", newline="\n") as f:
+                  f.write(init_js)
+              with open(os.path.join(directory, "hosts.txt"), "w", encoding="utf-8", newline="\n") as f:
+                  f.write("\n".join(hosts) + "\n")
+              print(ip)
+
+
+          class Counts:
+              def __init__(self):
+                  self.lock = threading.Lock()
+                  self.data = {}
+                  self.seen = []
+
+              def add(self, key, field, note=None):
+                  with self.lock:
+                      entry = self.data.setdefault(key, {"connections": 0, "requests": 0, "lookups": 0, "packets": 0})
+                      entry[field] += 1
+                      if note:
+                          self.seen.append(f"{key} {field} {note}")
+
+
+          def serve_tcp(sock, key, counts):
+              while True:
+                  try:
+                      conn, _ = sock.accept()
+                  except OSError:
+                      return
+                  counts.add(key, "connections")
+                  threading.Thread(target=answer_tcp, args=(conn, key, counts), daemon=True).start()
+
+
+          def answer_tcp(conn, key, counts):
+              conn.settimeout(3)
+              try:
+                  data = conn.recv(4096)
+                  if data.split(b" ")[0] in (b"GET", b"POST", b"HEAD", b"OPTIONS", b"PUT"):
+                      first = data.split(b"\r\n")[0][:100].decode("ascii", "replace")
+                      counts.add(key, "requests", first)
+                      if b"/download" in data.split(b"\r\n")[0]:
+                          head = b"HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-disposition: attachment; filename=halvo-measure.bin\r\ncontent-length: 2\r\n\r\nok"
+                      else:
+                          head = b"HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: 2\r\n\r\nok"
+                      conn.sendall(head)
+              except OSError:
+                  pass
+              finally:
+                  conn.close()
+
+
+          def serve_udp(sock, key, counts):
+              while True:
+                  try:
+                      sock.recvfrom(4096)
+                  except OSError:
+                      return
+                  counts.add(key, "packets")
+
+
+          def dns_name(data):
+              labels = []
+              i = 12
+              while i < len(data) and data[i] != 0:
+                  n = data[i]
+                  labels.append(data[i + 1:i + 1 + n].decode("ascii", "replace"))
+                  i += n + 1
+              return ".".join(labels), i + 1
+
+
+          def serve_dns(sock, ip, targets, counts):
+              by_name = {t["host"].lower(): t for t in targets if t["form"] == "dns"}
+              while True:
+                  try:
+                      data, peer = sock.recvfrom(4096)
+                  except OSError:
+                      return
+                  if len(data) < 17:
+                      continue
+                  name, end = dns_name(data)
+                  qtype = struct.unpack(">H", data[end:end + 2])[0] if end + 2 <= len(data) else 0
+                  target = by_name.get(name.lower().rstrip("."))
+                  key = f"{target['step']}-dns" if target else "other-dns"
+                  counts.add(key, "lookups", f"{name} type {qtype}")
+                  question = data[12:end + 4]
+                  if target and qtype == 1:
+                      answer = b"\xc0\x0c" + struct.pack(">HHIH", 1, 1, 5, 4) + socket.inet_aton(ip)
+                      reply = data[:2] + b"\x81\x80" + struct.pack(">HHHH", 1, 1, 0, 0) + question + answer
+                  else:
+                      reply = data[:2] + b"\x81\x80" + struct.pack(">HHHH", 1, 0, 0, 0) + question
+                  try:
+                      sock.sendto(reply, peer)
+                  except OSError:
+                      pass
+
+
+          def listen(directory, label):
+              with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+                  planned = json.load(f)
+              ip = planned["ip"]
+              counts = Counts()
+              sockets = []
+              failures = []
+              for t in planned["targets"]:
+                  key = f"{t['step']}-{t['form']}"
+                  try:
+                      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                      try:
+                          s.bind((ip, t["port"]))
+                      except PermissionError:
+                          s.bind(("0.0.0.0", t["port"]))
+                      s.listen(64)
+                      sockets.append(s)
+                      threading.Thread(target=serve_tcp, args=(s, key, counts), daemon=True).start()
+                      if t["step"] == "s16":
+                          u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                          u.bind((ip, t["port"]))
+                          sockets.append(u)
+                          threading.Thread(target=serve_udp, args=(u, key, counts), daemon=True).start()
+                  except OSError as e:
+                      failures.append(f"{key} port {t['port']}: {e}")
+              try:
+                  d = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                  d.bind(("127.0.0.1", planned["dns_port"]))
+                  sockets.append(d)
+                  threading.Thread(target=serve_dns, args=(d, ip, planned["targets"], counts), daemon=True).start()
+              except OSError as e:
+                  failures.append(f"resolver port {planned['dns_port']}: {e}")
+              with open(os.path.join(directory, f"ready-{label}"), "w", encoding="utf-8") as f:
+                  f.write("\n".join(failures) + "\n")
+              stop = os.path.join(directory, f"stop-{label}")
+              deadline = time.time() + 1800
+              while not os.path.exists(stop) and time.time() < deadline:
+                  time.sleep(0.2)
+              time.sleep(1)
+              with counts.lock:
+                  result = {"counts": counts.data, "seen": counts.seen, "listen_failures": failures}
+              with open(os.path.join(directory, f"counts-{label}.json"), "w", encoding="utf-8") as f:
+                  json.dump(result, f, indent=1)
+              for s in sockets:
+                  s.close()
+
+
+          COPIES = ("head", "guard-off", "engine-alone", "no-layer", "late")
+
+
+          def probe(directory):
+              with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+                  planned = json.load(f)
+              by_key = {f"{t['step']}-{t['form']}": t for t in planned["targets"]}
+              for key in ("s01-ip", "s01-host", "s01-dns", "s16-ip"):
+                  t = by_key[key]
+                  try:
+                      if key == "s16-ip":
+                          u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                          u.sendto(b"probe", (t["host"], t["port"]))
+                          u.close()
+                          print(f"measure probe {key}: sent one datagram")
+                          continue
+                      address = socket.getaddrinfo(t["host"], t["port"], socket.AF_INET, socket.SOCK_STREAM)[0][4]
+                      c = socket.create_connection(address, timeout=3)
+                      c.sendall(b"GET /probe HTTP/1.1\r\nhost: probe\r\n\r\n")
+                      c.recv(100)
+                      c.close()
+                      print(f"measure probe {key}: connected to {address[0] == planned['ip']} the runner address")
+                  except OSError as e:
+                      print(f"measure probe {key}: {e}")
+
+
+          def judge_head(directory, label):
+              with open(os.path.join(directory, f"counts-{label}.json"), encoding="utf-8") as f:
+                  data = json.load(f)
+              above = {k: v for k, v in data["counts"].items() if k != "other-dns" and sum(v.values()) > 0}
+              origins = {}
+              done = False
+              with open(os.path.join(directory, f"{label}.err"), encoding="utf-8", errors="replace") as f:
+                  for line in f:
+                      parts = line.split()
+                      if len(parts) >= 3 and parts[0] == "halvo-measure":
+                          origins[parts[1]] = parts[2].split("=", 1)[1]
+                      if line.startswith("halvo-measure done"):
+                          done = True
+              away = sorted(k for k, v in origins.items() if v != "true")
+              ok = done and not above and not away and len(origins) > 0
+              print(f"measure loop {label}: steps read {len(origins)}, done {done}, above 0 {sorted(above) or 'none'}, window away {away or 'none'}: {'ok' if ok else 'FAIL'}")
+              return 0 if ok else 1
+
+
+          def judge(directory, job):
+              with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+                  planned = json.load(f)
+              keys = [f"{t['step']}-{t['form']}" for t in planned["targets"]]
+              results = {}
+              for copy in COPIES:
+                  merged = {}
+                  origins = {}
+                  for launch in ("steps", "init"):
+                      path = os.path.join(directory, f"counts-{copy}-{launch}.json")
+                      if os.path.exists(path):
+                          with open(path, encoding="utf-8") as f:
+                              data = json.load(f)
+                          for key, entry in data["counts"].items():
+                              merged[key] = entry
+                          print(f"measure listeners {copy}-{launch}: failures {data['listen_failures'] or 'none'}")
+                          for line in data["seen"]:
+                              print(f"measure seen {copy}-{launch}: {line}")
+                      out = os.path.join(directory, f"{copy}-{launch}.out")
+                      if launch == "init" and os.path.exists(out):
+                          with open(out, encoding="utf-8", errors="replace") as f:
+                              origins["s17-ip"] = "true" if "guard=installed" in f.read() else "false"
+                      err = os.path.join(directory, f"{copy}-{launch}.err")
+                      if os.path.exists(err):
+                          with open(err, encoding="utf-8", errors="replace") as f:
+                              for line in f:
+                                  parts = line.split()
+                                  if len(parts) >= 3 and parts[0] == "halvo-measure":
+                                      origins[parts[1]] = parts[2].split("=", 1)[1]
+                  results[copy] = (merged, origins)
+              unexpected = []
+              print("measure table: step form copy connections requests lookups packets window")
+              zero = {"connections": 0, "requests": 0, "lookups": 0, "packets": 0}
+              for key in keys:
+                  control = results["no-layer"][0].get(key, zero)
+                  control_sum = sum(control.values())
+                  for copy in COPIES:
+                      entry = results[copy][0].get(key, zero)
+                      window = results[copy][1].get(key, "not-read")
+                      total = sum(entry.values())
+                      verdict = ""
+                      if copy in ("head", "engine-alone"):
+                          if total > 0:
+                              verdict = "UNEXPECTED above 0"
+                          elif window != "true":
+                              verdict = f"UNEXPECTED window {window}"
+                          elif control_sum == 0:
+                              verdict = "not measured (control 0)"
+                          else:
+                              verdict = "ok 0 beside its control"
+                      elif copy == "no-layer":
+                          verdict = "control above 0" if total > 0 else "control 0"
+                      print(f"measure row: {key.replace('-', ' ')} {copy} {entry['connections']} {entry['requests']} {entry['lookups']} {entry['packets']} {window} {verdict}")
+                      if verdict.startswith("UNEXPECTED"):
+                          unexpected.append(f"{key} {copy}: {verdict}")
+              refused_left = results["guard-off"][1].get("s02-host")
+              print(f"measure guard-off s02 window at the app origin: {refused_left}")
+              if job == "windows" and refused_left != "false":
+                  unexpected.append(f"guard-off s02: the refused form did not leave the app (window {refused_left})")
+              late = sum(results["late"][0].get("s17-ip", zero).values())
+              print(f"measure late s17 at its listeners: {late}")
+              if late == 0:
+                  unexpected.append("late s17: the first-script navigation did not reach its listeners")
+              other = results["head"][0].get("other-dns", zero)["lookups"]
+              print(f"measure head lookups of other names at the resolver: {other}")
+              for line in unexpected:
+                  print(f"measure UNEXPECTED {line}")
+              print(f"measure verdict {job}: {'FAIL' if unexpected else 'PASS'} ({len(unexpected)} unexpected)")
+              return 1 if unexpected else 0
+
+
+          if __name__ == "__main__":
+              command = sys.argv[1]
+              if command == "plan":
+                  plan(sys.argv[2])
+              elif command == "listen":
+                  listen(sys.argv[2], sys.argv[3])
+              elif command == "probe":
+                  probe(sys.argv[2])
+              elif command == "judge-head":
+                  sys.exit(judge_head(sys.argv[2], sys.argv[3]))
+              elif command == "judge":
+                  sys.exit(judge(sys.argv[2], sys.argv[3]))
+              else:
+                  sys.exit(64)
+          PYEOF
+          cat > "$RUNNER_TEMP/copies.py" <<'PYEOF'
+          """Makes one copy of app-2 for the measurement of ruling AP-9 point 7, in the checkout of a hosted
+          job. Never shipped; the step restores the files with git checkout after each copy.
+
+          usage: python copies.py <copy>   copy: head, guard-off, engine-alone, no-layer, late
+          Every copy gets the probe: the check mode runs the steps of HALVO_MEASURE_STEPS after its line,
+          and the window main gets the initialization script of HALVO_MEASURE_INIT.
+          """
+          import json
+          import re
+          import sys
+
+          copy = sys.argv[1]
+          assert copy in ("head", "guard-off", "engine-alone", "no-layer", "late"), copy
+
+
+          def sub(path, old, new):
+              text = open(path, encoding="utf-8").read()
+              assert text.count(old) == 1, (path, old, text.count(old))
+              open(path, "w", encoding="utf-8", newline="\n").write(text.replace(old, new))
+
+
+          PROBE = '''if let Ok(path) = std::env::var("HALVO_MEASURE_STEPS") {
+                          let wait = std::env::var("HALVO_MEASURE_WAIT_MS")
+                              .ok()
+                              .and_then(|v| v.parse().ok())
+                              .unwrap_or(1500u64);
+                          let text = std::fs::read_to_string(&path).unwrap_or_default();
+                          for row in text.lines() {
+                              let Some((id, script)) = row.split_once('\\t') else {
+                                  continue;
+                              };
+                              let Some(window) = app.get_webview_window("main") else {
+                                  eprintln!("halvo-measure {id} at-app-origin=no-window");
+                                  continue;
+                              };
+                              let _ = window.eval(script);
+                              std::thread::sleep(Duration::from_millis(wait));
+                              let at = match window.url() {
+                                  Ok(url) if crate::app::is_app_url(&url) => "true",
+                                  Ok(_) => "false",
+                                  Err(_) => "unreadable",
+                              };
+                              eprintln!("halvo-measure {id} at-app-origin={at}");
+                              if at != "true" {
+                                  let before = app.try_state::<PageLoads>().map(|l| l.count()).unwrap_or(0);
+                                  let _ = window.navigate(crate::app::app_url());
+                                  let deadline = Instant::now() + Duration::from_secs(15);
+                                  while Instant::now() < deadline
+                                      && app.try_state::<PageLoads>().map(|l| l.count()).unwrap_or(0) <= before
+                                  {
+                                      std::thread::sleep(Duration::from_millis(100));
+                                  }
+                                  std::thread::sleep(Duration::from_millis(300));
+                              }
+                          }
+                          eprintln!("halvo-measure done");
+                      }
+                      app.exit(Exit::PageLoaded.code());'''
+
+          sub("src-tauri/src/check_page.rs", "            app.exit(Exit::PageLoaded.code());", PROBE)
+          sub(
+              "src-tauri/src/app.rs",
+              "        .on_download(|_, _| false)\n",
+              "        .on_download(|_, _| false)\n"
+              "        .initialization_script(std::env::var(\"HALVO_MEASURE_INIT\").unwrap_or_default())\n",
+          )
+
+          ENGINE_OFF = '''pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Sender<GuardAnswer>) {
+              if std::env::var_os("HALVO_MEASURE_NEVER_SET").is_none() {
+                  let _ = answer.send(Ok(GuardInstalled(())));
+                  return;
+              }
+          '''
+
+
+          def engine_out():
+              text = open("src-tauri/src/engine.rs", encoding="utf-8").read()
+              head = re.search(r"pub fn guard<R: Runtime>\([^{]*\{\n", text)
+              assert head, "the guard's head"
+              text = text[: head.start()] + ENGINE_OFF + text[head.end():]
+              open("src-tauri/src/engine.rs", "w", encoding="utf-8", newline="\n").write(text)
+              sub("src-tauri/src/app.rs", "    let builder = builder.additional_browser_args(ENGINE_ARGS);\n", "    let builder = builder;\n")
+
+
+          def page_layers_out():
+              path = "src-tauri/tauri.conf.json"
+              conf = json.load(open(path, encoding="utf-8"))
+              assert "csp" in conf["app"]["security"]
+              conf["app"]["security"]["csp"] = None
+              open(path, "w", encoding="utf-8", newline="\n").write(json.dumps(conf, indent=2) + "\n")
+              sub("src-tauri/src/app.rs", "        .on_navigation(|url| may_navigate(url.as_str()))\n", "")
+
+
+          if copy == "guard-off":
+              engine_out()
+          elif copy == "engine-alone":
+              page_layers_out()
+          elif copy == "no-layer":
+              engine_out()
+              page_layers_out()
+          elif copy == "late":
+              sub(
+                  "src-tauri/src/app.rs",
+                  "                    Ok(site) => (parts.guard)(&window, site, sender),\n",
+                  "                    Ok(site) => {\n"
+                  "                        let _ = window.navigate(app_url());\n"
+                  "                        let later = window.clone();\n"
+                  "                        let guard = parts.guard;\n"
+                  "                        std::thread::spawn(move || {\n"
+                  "                            std::thread::sleep(Duration::from_secs(4));\n"
+                  "                            let window = later.clone();\n"
+                  "                            let _ = later.run_on_main_thread(move || guard(&window, site, sender));\n"
+                  "                        });\n"
+                  "                    }\n",
+              )
+          print(f"copy {copy} made")
+          PYEOF
+          exe=target/debug/halvo
+          [ -f "$exe.exe" ] && exe=$exe.exe
+          native() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s\n' "$1"; fi; }
+          launch() {
+            label=$1; shift
+            "$py" "$RUNNER_TEMP/measure.py" listen "$m" "$label" &
+            lp=$!
+            for i in $(seq 1 100); do [ -f "$m/ready-$label" ] && break; sleep 0.2; done
+            d=$(mktemp -d "$RUNNER_TEMP/ap9-data-XXXXXX")
+            env "$@" "$exe" --check-page --data-dir "$(native "$d")" --within-s "$within" > "$m/$label.out" 2> "$m/$label.err"
+            code=$?
+            sleep 2
+            : > "$m/stop-$label"
+            wait "$lp"
+            echo "measure launch $label: exit $code, line: $(head -n 1 "$m/$label.out")"
+            grep -v '^halvo-measure s' "$m/$label.err" | head -n 5 | sed "s/^/measure launch $label stderr: /"
+          }
+          job=$(printf '%s' "$RUNNER_OS" | tr 'A-Z' 'a-z')
+          "$py" "$RUNNER_TEMP/measure.py" plan "$m" > "$m/ip.txt"
+          echo "measure address planned: $(wc -l < "$m/steps.tsv") step lines, $(wc -l < "$m/hosts.txt") hosts lines"
+          if [ "$RUNNER_OS" = macOS ]; then
+            sudo sh -c "cat '$m/hosts.txt' >> /etc/hosts"
+            sudo mkdir -p /etc/resolver
+            printf 'nameserver 127.0.0.1\nport 5354\n' | sudo tee /etc/resolver/halvo-measure.test > /dev/null
+            sudo dscacheutil -flushcache
+            sudo killall -HUP mDNSResponder
+          else
+            cat "$m/hosts.txt" >> /c/Windows/System32/drivers/etc/hosts
+            powershell -NoProfile -Command "Add-DnsClientNrptRule -Namespace '.halvo-measure.test' -NameServers '127.0.0.1'; Clear-DnsClientCache; (Get-DnsClientNrptRule | Measure-Object).Count" | sed 's/^/measure nrpt rules: /'
+            netsh advfirewall set allprofiles state off > /dev/null && echo "measure firewall off"
+          fi
+          sleep 2
+          "$py" "$RUNNER_TEMP/measure.py" listen "$m" probe &
+          lp=$!
+          for i in $(seq 1 100); do [ -f "$m/ready-probe" ] && break; sleep 0.2; done
+          "$py" "$RUNNER_TEMP/measure.py" probe "$m"
+          : > "$m/stop-probe"
+          wait "$lp"
+          "$py" -c "import json,sys; d=json.load(open(sys.argv[1])); print('measure probe counts:', json.dumps(d['counts'], sort_keys=True), 'failures:', d['listen_failures'])" "$m/counts-probe.json"
+          for copy in head guard-off engine-alone no-layer late; do
+            "$py" "$RUNNER_TEMP/copies.py" "$copy"
+            cargo build -p halvo --locked > "$m/build-$copy.txt" 2>&1
+            echo "measure build $copy: exit $?"
+            within=420
+            launch "$copy-steps" "HALVO_MEASURE_STEPS=$(native "$m/steps.tsv")" HALVO_MEASURE_WAIT_MS=1500
+            within=25
+            launch "$copy-init" "HALVO_MEASURE_INIT=$(cat "$m/init.js")"
+            git checkout -- src-tauri
+          done
+          echo "measure tree clean after the copies: $([ -z "$(git status --porcelain)" ] && echo true || echo false)"
+          "$py" "$RUNNER_TEMP/measure.py" judge "$m" "$job"
+          verdict=$?
+          cargo build -p halvo --locked > /dev/null 2>&1
+          exit $verdict
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
