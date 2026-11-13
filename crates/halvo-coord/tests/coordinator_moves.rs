@@ -5194,6 +5194,46 @@ fn rd52e_a_stop_while_the_run_of_a_gone_workflow_is_stopping_is_unknown_agent() 
     );
 }
 
+/// I8.1's row of `agents_answer` (ruling RD-52 (a)): the choice `start` of a `ready` item
+/// answers as a start does, `budget` at `starts_per_day` and `queue_full` with a full queue, and
+/// both are in the row of the command table.
+#[test]
+fn rd52a_the_start_of_a_ready_item_answers_budget_and_queue_full_as_its_row_says() {
+    use halvo_coord::types::commands::LIST;
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let row = LIST.iter().find(|c| c.name == "agents_answer").unwrap();
+    for (limits, cause) in [
+        (
+            Limits {
+                starts_per_day: 0,
+                ..Limits::PRODUCT
+            },
+            Cause::Budget,
+        ),
+        (
+            Limits {
+                max_live_runs: 1,
+                queue_max: 0,
+                ..Limits::PRODUCT
+            },
+            Cause::QueueFull,
+        ),
+    ] {
+        let c = coordinator(&[MANUAL, slotted], limits);
+        let (ready, kind) = open_item(&c);
+        assert_eq!(kind, ItemKind::Ready);
+        if cause == Cause::QueueFull {
+            start(&c, 0);
+        }
+        assert_eq!(c.answer(&ready, Choice::Start, None), Err(cause));
+        assert!(row.errors.contains(&cause), "{cause:?} in the row");
+        assert!(row.errors.contains(&Cause::Hold), "hold in the row");
+    }
+}
+
 /// A confirm request of agent `n`'s run with `count` effects of the class `send`.
 fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
     let RunEvent::Confirm(one) = ask_confirm(run, n) else {

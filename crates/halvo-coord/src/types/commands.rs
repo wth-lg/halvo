@@ -172,7 +172,10 @@ pub const LIST: [Command; 7] = [
             Cause::Stale,
             Cause::Presenter,
             Cause::Early,
+            Cause::Hold,
             Cause::State,
+            Cause::Budget,
+            Cause::QueueFull,
             Cause::UnknownItem,
             Cause::NoService,
             Cause::Busy,
@@ -195,6 +198,7 @@ pub const LIST: [Command; 7] = [
             Cause::State,
             Cause::UnknownItem,
             Cause::Malformed,
+            Cause::NoService,
         ],
     },
     Command {
