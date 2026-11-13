@@ -527,8 +527,8 @@ without `--relay`), 10 runs per cell, 20 kills per driver form. `mac` (Chrome 15
 c296a1c, on an untimed helper lane from 2026-11-12T20:47:33Z to 21:36:43Z, so its `median_ms` is no
 timed measure. Run 43313951706 at 2f01929 (code as e72f083: c296a1c and Windows code) gave every
 hosted line but hosted-mac's `org_` cells: hosted-mac Chrome 157.0.8103.39 and Edge 156.0.4314.58,
-hosted-win Chrome 156.0.8078.80 and Edge 156.0.4314.58. Those four come from runs 43333071145 (Edge
-`org_proxy`) and 43339621990 (the other three), at code 037b242.
+hosted-win Chrome 156.0.8078.80 and Edge 156.0.4314.58. Those four come from run 43347520562 at code
+037b242, the build and these cells alone.
 
 Choices that the text leaves, with reasons in the README: the probe's origin
 `http://halvo-start-probe.invalid/`; `FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512,
@@ -540,28 +540,27 @@ browser's tree is gone. The README names the flags that the product does not car
 hosted-mac, run 43313951706's `sudo defaults write` to `/Library/Managed Preferences` exits 0,
 prints nothing and leaves no file (run 43333071145), so its cells measured no policy; later runs
 install the bundle id's property list there (root:wheel, 644) and end cfprefsd. The reader's rule,
-fixed before run 43339621990: a headless start with no debugging channel prints the policy page to a
+fixed before run 43347520562: a headless start with no debugging channel prints the policy page to a
 PDF; the page counts when its text holds "policy name" in any case; a cell runs only when the text
-holds the policy's name, also across line breaks, and one more `Platform` source than a read before
-the write, else `notrun cause=policy_not_seen`; the words next to the name print from a closed list
-(false, direct, Platform, Machine, Mandatory, OK, other). The page shows that the browser took the
-policy, not its value: the value comes from the file (`defaults read`; owner and mode on the cell
-line). In run 43339621990 Chrome's page showed both; `org_debugging` gave 9 of 9 runs ok until my
-harness's 300 s call limit, whose leftover fixture held the port against both `org_proxy` calls;
-Edge's kept page shows the policy, but the runner's PDFKit split its name: `policy_not_seen`.
+holds the policy's name, whole, across line breaks or in word pieces up to 12 lines apart, and one
+more `Platform` source than a read before the write, else `notrun` with its cause; the words next to
+the name print from a closed list (false, direct, Platform, Machine, Mandatory, OK, other). The page
+shows that the browser took the policy, not its value: the value comes from the file (`defaults
+read`; owner and mode on the cell line). In run 43347520562 each page showed its policy and each
+cell is `ok=10 of=10`, each call within a 420 s limit and on a port of its own (runs 43333071145 and
+43339621990 lost cells to my harness: the README).
 
 CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`, and on
 macOS the browser's policy page shows a policy to the person's own account: a person without
 administrator rights can see that one is set. (2) Windows' exclusive bind holds: `relay_port_free`
 20 of 20 on hosted-win. (3) UDP beyond loopback: 0 in the 120 hosted pipe `check` lines, 1 in
 `mac`'s `relay_foreign` reads; QUIC against name lookups stays open. (4) Edge: every deciding pipe
-cell of Edge is ok; of hosted-mac's `org_` cells, `org_proxy` is ok and `org_debugging` notrun.
+cell of Edge is ok.
 
 ```text
 hosted machine=hosted-mac run=43313951706 sha=5027af3a1b0f5f44e342bc743171b98efd10cd5a
 hosted machine=hosted-win run=43313951706 sha=5027af3a1b0f5f44e342bc743171b98efd10cd5a
-hosted machine=hosted-mac run=43333071145 sha=bf15ac87c078847c5bf9d03294302c6503d3c514 steps=edge:org_proxy
-hosted machine=hosted-mac run=43339621990 sha=40e0bfa1f1064fcd7cd8cb951eba10fb3f01ffc4 steps=chrome:org_debugging,chrome:org_proxy,edge:org_debugging
+hosted machine=hosted-mac run=43347520562 sha=7450a84520828b0eba1471de15d3aeeb46dfc38c steps=org_debugging,org_proxy
 check machine=mac browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=mac browser=chrome major=153 step=pipe_inherit ok=10 of=10 median_ms=11 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=9 of=10 port_flag=0 tcp_listen=0 udp_wide=1 active_port_file=0 executor_listener=0 pipe_holder=0
@@ -988,10 +987,10 @@ cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=413 relay=pipe_relay
 cell candidate=cdp machine=hosted-win browser=edge major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay
 cell candidate=cdp machine=hosted-win browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay
-cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay plist_mode=-rw-r--r--
-notrun candidate=cdp machine=hosted-mac browser=chrome step=org_debugging cause=call_time_limit runs_ok=9 runs_done=9 plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=3 control_platform=2
-notrun candidate=cdp machine=hosted-mac browser=chrome step=org_proxy cause=port_taken runs_ok=0 runs_done=0 plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=3 control_platform=2
-notrun candidate=cdp machine=hosted-mac browser=edge step=org_debugging cause=policy_not_seen plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=no page_platform=1 control_platform=0
+cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=3 control_platform=2
+cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=3 control_platform=2
+cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=1 control_platform=0
+cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=1 control_platform=0
 same_site pref=yes rule=yes start_writes_setting=yes
-verdict executor=cdp version=0.9.1 form=pipe product=open relay=yes library=protocol_types
+verdict executor=cdp version=0.9.1 form=pipe product=yes relay=yes library=protocol_types
 ```

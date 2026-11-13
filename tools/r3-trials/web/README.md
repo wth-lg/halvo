@@ -479,23 +479,27 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   policy back: a headless start with no debugging channel (the policy that closes the pipe would
   stop any other read) prints `chrome://policy/`, else `edge://policy/`, to a PDF, and PDFKit reads
   its text. The page counts when the text holds "policy name" in any case; the cell runs only when
-  the text holds the policy's name, also across line breaks, and one more `Platform` source than a
-  read of the page before the write, else the workflow prints `notrun cause=policy_not_seen`. The
-  words of the name's line and the five lines after it are printed as words of a closed list (false,
-  direct, Platform, Machine, Mandatory, OK, other). Chrome's printed page has the columns Policy
-  name and Source alone, so the value comes from the file (`defaults read`, printed with the file's
-  owner and mode). Ok when the start fails with the plain message of its rule (`NO_CHANNEL_MESSAGE`
-  after the first reply's deadline, or `NO_ROUTE_MESSAGE` when the probe found no refusal) and the
-  fixture counted no request. On this Mac the cell is a `notrun` line with `cause=no_policy_place`:
-  Chrome on macOS takes a policy from the system's managed preferences, which this unit does not
-  write here. On hosted-mac the four cells come from scratch runs 43333071145 and 43339621990. In
-  the second, Chrome's page showed both policies; `org_debugging` ended 9 runs of 9 ok (each waits
-  the 30 s first-reply deadline) when the workflow's own 300 s limit of the call stopped it, and the
-  stopped call's fixture kept port 18190, so both `org_proxy` calls were refused (`port_taken`).
-  Edge's page, kept as the run's artifact, lists `RemoteDebuggingAllowed` `false` `Platform`
-  `Mandatory` with the name over two lines; this Mac's PDFKit reads the name from that file, the
-  runner's (macOS 15.8) did not, so that cell is `policy_not_seen`. Edge's `org_proxy` is `ok=10
-  of=10` from the first run. A call of ten `org_debugging` runs needs more than 310 s.
+  the text holds the policy's name, whole, across line breaks or in word pieces up to 12 lines
+  apart, and one more `Platform` source than a read of the page before the write, else the workflow
+  prints `notrun cause=policy_not_seen`. The words of the name's line and the five lines after it
+  are printed as words of a closed list (false, direct, Platform, Machine, Mandatory, OK, other).
+  Chrome's printed page has the columns Policy name and Source alone, so the value comes from the
+  file (`defaults read`, printed with the file's owner and mode). Ok when the start fails with the
+  plain message of its rule (`NO_CHANNEL_MESSAGE` after the first reply's deadline, or
+  `NO_ROUTE_MESSAGE` when the probe found no refusal) and the fixture counted no request. On this
+  Mac the cell is a `notrun` line with `cause=no_policy_place`: Chrome on macOS takes a policy from
+  the system's managed preferences, which this unit does not write here. On hosted-mac the four
+  cells come from scratch run 43347520562, all `ok=10 of=10`. The runs before it lost cells to the
+  harness: in 43339621990 the workflow's own 300 s limit stopped Chrome's `org_debugging` at 9 of 9
+  ok runs (ten runs of the 30 s first-reply deadline take about 303 s), the stopped call's fixture
+  kept port 18190 for both `org_proxy` calls, and the runner's PDFKit put the pieces of Edge's
+  policy name on lines that do not follow each other. The ninth run gives each call 420 s in a
+  process group of its own, ended as a whole by its recorded id at the limit with a `call_stopped`
+  line of the runs ok before the stop; gives each cell a port of its own and ends a holder of it
+  only when the harness recorded that process, else moves the cell and says so; and reads the name
+  also in the text squashed to letters and digits and in word pieces. The one process that the
+  harness ends without a recorded id is cfprefsd (`sudo killall cfprefsd`): ending it is how the
+  preferences daemon reads the new file.
 - Flags of the third round that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain`
   (the product's browser keeps its cookies with the system's key store, A8.3), the six rows'
   `--isolate-origins=` (it names the payment site, CP-93 (5)), the port control's
