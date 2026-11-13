@@ -582,15 +582,16 @@ class World {
       account.cancelled = true;
       account.cancelSinceReactivation = true;
       const endedAt = this.meter.endSubscription(account.id, this.now);
-      const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: endedAt * 1000, endedAt: endedAt * 1000 });
+      const first = Math.max(endedAt * 1000, account.lastProviderTime + 1000);
+      const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: first, endedAt: endedAt * 1000 });
       if (form === "stated" || lagSeconds <= 0) {
         await account.entries.webhookEvent(stated);
       } else {
-        const later = (endedAt + lagSeconds) * 1000;
-        account.unstatedCutAt = Math.max(account.unstatedCutAt, endedAt + lagSeconds);
+        const later = first + lagSeconds * 1000;
+        account.unstatedCutAt = Math.max(account.unstatedCutAt, later / 1000);
         this.count(`cancel.${form}`);
         await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", providerTime: later }));
-        account.queuedCancel = form === "unstated-then-stated" ? stated : this.subscriptionEvent(account, { state: "cancelled", providerTime: endedAt * 1000 });
+        account.queuedCancel = form === "unstated-then-stated" ? stated : this.subscriptionEvent(account, { state: "cancelled", providerTime: first });
       }
       if (previous === null) account.ended = "cancel";
     } else {
@@ -631,6 +632,7 @@ class World {
     account.cancelSinceReactivation = false;
     account.writeOff = null;
     account.unstatedCutAt = 0;
+    account.eventsHeldWhenEndCompleted = null;
     this.count("reactivate");
     const providerTime = Math.max(this.now * 1000, account.lastProviderTime + 1000);
     await account.entries.webhookEvent(
