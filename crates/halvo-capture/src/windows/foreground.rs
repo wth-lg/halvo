@@ -463,6 +463,39 @@ mod tests {
     }
 
     #[test]
+    fn two_events_for_one_app_give_one_foreground_record_and_two_title_reads() {
+        let cell = Mutex::new(None);
+        let mut tracker = FrontTracker::default();
+        let changes: Vec<Change> = (0..2)
+            .map(|_| tracker.on_window(&cell, 0, |_| app(10, "C:\\apps\\editor.exe")))
+            .collect();
+        let records = changes.iter().filter(|c| c.emit.is_some()).count();
+        let reads = changes.iter().filter(|c| c.read_title).count();
+        assert_eq!((records, reads), (1, 2));
+    }
+
+    #[test]
+    fn two_hosted_apps_under_one_frame_host_give_two_foreground_records() {
+        let cell = Mutex::new(None);
+        let mut tracker = FrontTracker::default();
+        let hosted = |pid: u32| {
+            app(
+                pid,
+                if pid == 21 {
+                    "C:\\Program Files\\WindowsApps\\Calculator.exe"
+                } else {
+                    "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe"
+                },
+            )
+        };
+        let first = tracker.on_window(&cell, 21, hosted);
+        let second = tracker.on_window(&cell, 22, hosted);
+        let again = tracker.on_window(&cell, 22, hosted);
+        assert!(first.emit.is_some() && second.emit.is_some());
+        assert_eq!(again.emit, None);
+    }
+
+    #[test]
     fn a_path_longer_than_max_path_is_read_again_with_the_largest_buffer() {
         use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_INSUFFICIENT_BUFFER};
         let long: Vec<u16> = "C:\\"
