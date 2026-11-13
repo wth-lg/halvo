@@ -18,6 +18,8 @@ nl='
 root=${CI_D_SCRIPTS:-scripts}
 st_jobs_set=${CI_D_SELF_TEST_JOBS+set}
 st_jobs=${CI_D_SELF_TEST_JOBS-}
+ck_jobs_set=${CI_D_CHECK_JOBS+set}
+ck_jobs=${CI_D_CHECK_JOBS-}
 st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
 st_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; if (defined \$f) { open(my \$h, '>', \$f) or exit 127; print \$h \"\$\$\\n\"; close(\$h) or exit 127; } \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
 mode=run
@@ -314,7 +316,11 @@ tree_report() {
       fi
       ;;
   esac
-  record FAIL "FAIL run-ci-d ($tree_msg)"
+  if [ -n "$tree_to" ]; then
+    printf '%s\n' "FAIL run-ci-d ($tree_msg)" >>"$tree_to"
+  else
+    record FAIL "FAIL run-ci-d ($tree_msg)"
+  fi
 }
 
 tree_check() {
@@ -339,19 +345,24 @@ tree_start() {
 }
 
 note() {
-  if [ "$mode" = self-test ]; then
-    eval "st_kind_$st_n=note st_state_$st_n=done st_line_$st_n=\$1"
-    st_n=$((st_n + 1))
-  else
-    record FAIL "$1"
-  fi
+  eval "st_kind_$st_n=note st_state_$st_n=done st_line_$st_n=\$1"
+  st_n=$((st_n + 1))
+}
+
+st_drop() {
+  eval "st_kind_$1=note st_state_$1=done st_line_$1=\$2"
+}
+
+st_add() {
+  eval "st_kind_$st_n=script st_file_$st_n=\$1 st_name_$st_n=\$2 st_lane_$st_n=\$3 st_state_$st_n=waiting"
+  st_n=$((st_n + 1))
 }
 
 st_track() {
   st_now=$(date +%s)
-  eval "st_kind_$st_n=\$1 st_pid_$st_n=\$2 st_dir_$st_n=\$3 st_name_$st_n=\$4 st_since_$st_n=\$st_now st_state_$st_n=running"
-  st_running="$st_running$st_n "
-  st_n=$((st_n + 1))
+  eval "st_pid_$1=\$2 st_dir_$1=\$3 st_since_$1=\$st_now st_state_$1=running"
+  st_running="$st_running$1 "
+  st_beside="$st_beside$1 "
   st_naps=0
 }
 
@@ -368,78 +379,127 @@ st_own() {
     own_self_test
     : >"$st_d/done"
   ) </dev/null >"$st_d/out" 2>"$st_d/err" &
-  st_track own "$!" "$st_d" run-ci-d
+  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d"
+  st_n=$((st_n + 1))
+  st_track "$((st_n - 1))" "$!" "$st_d"
+}
+
+st_start() {
+  eval "st_q_file=\$st_file_$1 st_q_name=\$st_name_$1"
+  st_q_tag=$st_q_name
+  st_q_arg=
+  if [ "$mode" = self-test ]; then
+    st_q_tag=self-test:$st_q_name
+    st_q_arg=--self-test
+  fi
+  st_q_artifacts=$repo/target/ci-artifacts/$st_q_name
+  mkdir -p "$st_q_artifacts" || {
+    st_drop "$1" "FAIL $st_q_name (its artifacts directory cannot be made)"
+    return 1
+  }
+  st_d=$tmp/$mode.$st_q_name
+  mkdir -p "$st_d/tmp" || {
+    st_drop "$1" "FAIL $st_q_tag (its temporary directory cannot be made)"
+    return 1
+  }
+  (
+    CI_D_REPO=$repo
+    CI_D_JOB=$job
+    CI_D_ARTIFACTS=$st_q_artifacts
+    TMPDIR=$st_d/tmp
+    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
+    st_t0=$(date +%s)
+    {
+      RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &
+      wait "$!"
+      printf '%s\n' "$?" >"$st_d/status"
+    } | cat >"$st_d/out"
+    st_t1=$(date +%s)
+    st_c=none
+    [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
+    printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
+    : >"$st_d/done"
+  ) </dev/null >/dev/null 2>&1 &
+  st_track "$1" "$!" "$st_d"
 }
 
 st_queue() {
   st_q_file=$script_file
   st_q_name=$script_name
-  st_q_solo=
-  if [ "$mode" = self-test ]; then
-    st_q_tag=self-test:$st_q_name
-    st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
-    case $st_alone in
-      *" $st_q_name "*) st_q_solo=alone ;;
-    esac
-    if [ -n "$st_q_solo" ]; then
-      st_wait_below 1
-    else
-      st_wait_below "$st_jobs"
-    fi
+  st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
+  case $st_alone in
+    *" $st_q_name "*) st_q_solo=alone ;;
+  esac
+  if [ -n "$st_q_solo" ]; then
+    st_wait_below 1
   else
-    st_q_tag=$st_q_name
+    st_wait_below "$st_jobs"
   fi
-  st_q_artifacts=$repo/target/ci-artifacts/$st_q_name
-  mkdir -p "$st_q_artifacts" || {
-    note "FAIL $st_q_name (its artifacts directory cannot be made)"
-    return
-  }
-  st_d=$tmp/$mode.$st_q_name
-  mkdir -p "$st_d/tmp" || {
-    note "FAIL $st_q_tag (its temporary directory cannot be made)"
-    return
-  }
-  if [ "$mode" = self-test ]; then
-    (
-      CI_D_REPO=$repo
-      CI_D_JOB=$job
-      CI_D_ARTIFACTS=$st_q_artifacts
-      TMPDIR=$st_d/tmp
-      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
-      st_t0=$(date +%s)
-      {
-        RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
-        wait "$!"
-        printf '%s\n' "$?" >"$st_d/status"
-      } | cat >"$st_d/out"
-      st_t1=$(date +%s)
-      st_c=none
-      [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
-      printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
-      : >"$st_d/done"
-    ) </dev/null >/dev/null 2>&1 &
-  else
-    (
-      CI_D_REPO=$repo
-      CI_D_JOB=$job
-      CI_D_ARTIFACTS=$st_q_artifacts
-      TMPDIR=$st_d/tmp
-      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
-      st_t0=$(date +%s)
-      {
-        RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" </dev/null &
-        wait "$!"
-        printf '%s\n' "$?" >"$st_d/status"
-      } | tee "$st_d/out"
-      st_t1=$(date +%s)
-      st_c=none
-      [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
-      printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
-      : >"$st_d/done"
-    ) </dev/null &
-  fi
-  st_track script "$!" "$st_d" "$st_q_name"
+  st_add "$st_q_file" "$st_q_name" "$script_lane"
+  st_start "$((st_n - 1))" || return
   [ -z "$st_q_solo" ] || st_wait_below 1
+}
+
+st_pending() {
+  if [ "$1" = cargo ]; then st_pending_i=$st_cargo_next; else st_pending_i=$st_free_next; fi
+  while [ "$st_pending_i" -lt "$st_n" ]; do
+    eval "st_pk=\$st_kind_$st_pending_i:\$st_state_$st_pending_i:\${st_lane_$st_pending_i-}"
+    [ "$st_pk" != "script:waiting:$1" ] || break
+    st_pending_i=$((st_pending_i + 1))
+  done
+  if [ "$1" = cargo ]; then st_cargo_next=$((st_pending_i + 1)); else st_free_next=$((st_pending_i + 1)); fi
+  [ "$st_pending_i" -lt "$st_n" ]
+}
+
+st_lanes() {
+  st_busy=
+  st_free=0
+  st_cargo_next=0
+  st_free_next=0
+  while :; do
+    st_poll
+    while [ -z "$st_busy" ] && st_pending cargo; do
+      ! st_start "$st_pending_i" || st_busy=yes
+    done
+    while [ "$st_free" -lt "$ck_jobs" ] && st_pending free; do
+      ! st_start "$st_pending_i" || st_free=$((st_free + 1))
+    done
+    st_flush
+    [ "$st_running" != ' ' ] || return 0
+    st_nap
+  done
+}
+
+st_finish() {
+  eval "st_f_d=\$st_dir_$1 st_f_name=\$st_name_$1 st_f_lane=\$st_lane_$1"
+  if [ "$st_f_lane" = free ]; then
+    st_free=$((st_free - 1))
+  else
+    st_busy=
+  fi
+  : >"$tmp/after.$1"
+  st_f_pid=
+  [ ! -s "$st_f_d/pid" ] || read -r st_f_pid <"$st_f_d/pid"
+  [ -z "$st_f_pid" ] || st_end_group "$st_f_pid" 0
+  st_clear "$st_f_d/tmp" || printf 'FAIL %s (its TMPDIR cannot be removed)\n' "$st_f_name" >>"$tmp/after.$1"
+  st_f_who=
+  st_f_count=0
+  st_f_j=0
+  while [ "$st_f_j" -lt "$st_n" ]; do
+    case $st_beside in
+      *" $st_f_j "*)
+        eval "st_f_other=\$st_name_$st_f_j"
+        st_f_who="$st_f_who${st_f_who:+, }$st_f_other"
+        st_f_count=$((st_f_count + 1))
+        ;;
+    esac
+    st_f_j=$((st_f_j + 1))
+  done
+  [ "$st_f_count" -le 1 ] || st_f_who="one of $st_f_who"
+  tree_to=$tmp/after.$1
+  tree_check "$st_f_who"
+  tree_to=
+  st_beside="${st_beside%%" $1 "*} ${st_beside#*" $1 "}"
 }
 
 # shellcheck disable=SC2329
@@ -522,6 +582,7 @@ st_poll() {
   st_now=$(date +%s)
   st_left=' '
   st_count=0
+  st_ended=
   for st_i in $st_running; do
     eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i st_t=\$st_since_$st_i"
     if [ -e "$st_d/done" ]; then
@@ -540,23 +601,27 @@ st_poll() {
     else
       st_left="$st_left$st_i "
       st_count=$((st_count + 1))
+      continue
     fi
+    st_ended="$st_ended $st_i"
   done
   st_running=$st_left
+  [ "$mode" != self-test ] || return 0
+  for st_i in $st_ended; do
+    st_finish "$st_i"
+  done
 }
 
 st_print() {
   eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 script_name=\$st_name_$1"
   st_tag=$script_name
-  if [ "$mode" = self-test ]; then
-    st_tag=self-test:$script_name
-    [ ! -e "$st_d/out" ] || cat "$st_d/out"
-    st_e=0
-    [ ! -e "$st_d/err" ] || st_e=$(wc -c <"$st_d/err")
-    st_e=${st_e##* }
-    [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
-    eval "st_errsize_$1=\$st_e"
-  fi
+  [ "$mode" != self-test ] || st_tag=self-test:$script_name
+  [ ! -e "$st_d/out" ] || cat "$st_d/out"
+  st_e=0
+  [ ! -e "$st_d/err" ] || st_e=$(wc -c <"$st_d/err")
+  st_e=${st_e##* }
+  [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
+  eval "st_errsize_$1=\$st_e"
   if [ "$st_k" = own ]; then
     st_vs=
     st_vl=
@@ -583,10 +648,11 @@ st_print() {
     lost:* | *:none) record FAIL "FAIL $st_tag (it ended without an exit status)" ;;
     *) judge ;;
   esac
-  [ "$mode" = self-test ] || {
-    st_leave "$1" 0
-    tree_check "$script_name"
-  }
+  if [ "$mode" != self-test ] && [ -e "$tmp/after.$1" ]; then
+    while IFS= read -r st_line; do
+      record FAIL "$st_line"
+    done <"$tmp/after.$1"
+  fi
 }
 
 st_clear() {
@@ -602,7 +668,7 @@ st_flush() {
     if [ "$st_k" = note ]; then
       eval "st_l=\$st_line_$st_next"
       record FAIL "$st_l"
-    elif [ "$st_x" = running ]; then
+    elif [ "$st_x" = running ] || [ "$st_x" = waiting ]; then
       return 0
     else
       st_print "$st_next"
@@ -616,16 +682,20 @@ st_wait_below() {
     st_poll
     st_flush
     [ "$st_count" -ge "$1" ] || return 0
-    if [ "$st_naps" -lt 10 ]; then
-      sleep 0.1 &
-    else
-      sleep 0.5 &
-    fi
-    st_sleep=$!
-    wait "$st_sleep"
-    st_sleep=
-    st_naps=$((st_naps + 1))
+    st_nap
   done
+}
+
+st_nap() {
+  if [ "$st_naps" -lt 10 ]; then
+    sleep 0.1 &
+  else
+    sleep 0.5 &
+  fi
+  st_sleep=$!
+  wait "$st_sleep"
+  st_sleep=
+  st_naps=$((st_naps + 1))
 }
 
 whole_number() {
@@ -678,11 +748,12 @@ own_run() {
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
-    unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S
+    unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S CI_D_CHECK_JOBS
     [ -z "$case_ci" ] || { CI=$case_ci; export CI; }
     [ -z "$case_scripts" ] || { CI_D_SCRIPTS=$case_scripts; export CI_D_SCRIPTS; }
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
     [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
+    [ -z "$case_check_jobs" ] || { CI_D_CHECK_JOBS=$case_check_jobs; export CI_D_CHECK_JOBS; }
     [ -z "$case_limit" ] || { CI_D_SCRIPT_LIMIT_S=$case_limit; export CI_D_SCRIPT_LIMIT_S; }
     [ -z "$case_path" ] || { PATH=$case_path:$PATH; export PATH; }
     procs_env=NUMBER_OF_PROCESSORS=$case_procs
@@ -802,6 +873,7 @@ case_reset() {
   case_locale=
   case_tmpdir=
   case_jobs=
+  case_check_jobs=
   case_limit=
   case_first=
   case_then=
@@ -1253,6 +1325,67 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\""
   case_jobs=2
   own_case step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  free="$good$nl# lane: free"
+  check_passes='printf "PASS %s\n" "$me"'
+  check_alone='{ printf "FAIL %s (it ran alone)\n" "$me"; exit 1; }'
+  cargo_before='before=0; for f in "$CI_D_REPO"/cargo-start.*; do [ -e "$f" ] || continue; o=${f##*/cargo-start.}; [ -e "$CI_D_REPO/cargo-end.$o" ] || { printf "FAIL %s (it started beside %s)\n" "$me" "$o"; exit 1; }; before=$((before + 1)); done; : >"$CI_D_REPO/cargo-start.$me"'
+  cargo_after='sleep 2; after=0; for f in "$CI_D_REPO"/cargo-start.*; do after=$((after + 1)); done; [ "$after" -eq "$((before + 1))" ] || { printf "FAIL %s (another check of the cargo lane started beside it)\n" "$me"; exit 1; }; : >"$CI_D_REPO/cargo-end.$me"'
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $check_passes"
+  own_case checks-of-two-lanes-run-at-the-same-time 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; $cargo_before; w seen; $cargo_after; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; $cargo_before; $cargo_after; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; w cargo-start.10-a && [ ! -e \"\$CI_D_REPO/cargo-end.10-a\" ] || $check_alone; : >\"\$CI_D_REPO/seen\"; $check_passes"
+  own_case checks-without-a-lane-one-at-a-time-beside-the-free-lane 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good$nl$seven$nl# lane: free" "$prelude_any; $cargo_before; $cargo_after; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; $cargo_before; $cargo_after; $check_passes"
+  own_case lane-line-at-line-11-is-no-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo &&
+    add_script r1 10-a.sh "$free" "$prelude_any; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/a1\"; w b1 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; : >\"\$CI_D_REPO/a2\"; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; w a1 || exit 1; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/b1\"; w a2 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; $check_passes"
+  case_first="line 1 of 10-a${nl}line 2 of 10-a${nl}PASS 10-a${nl}note of 10-a${nl}seconds 10-a "
+  case_then="line 1 of 20-b${nl}line 2 of 20-b${nl}PASS 20-b${nl}note of 20-b${nl}seconds 20-b "
+  own_case outputs-of-free-checks-kept-apart-in-name-order 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; w end.20-b || $check_alone; printf \"line of %s\\n\" \"\$me\"; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; printf \"line of %s\\n\" \"\$me\"; : >\"\$CI_D_REPO/end.\$me\"; $check_passes"
+  case_first="line of 10-a${nl}PASS 10-a${nl}seconds 10-a "
+  case_then="line of 20-b${nl}PASS 20-b${nl}seconds 20-b "
+  own_case output-in-name-order-when-a-later-check-ends-first 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; sleep 1; $check_passes" &&
+    add_script r1 20-x.sh '# rule: A fixture rule.' "$prelude_any; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; $check_passes"
+  case_first="PASS 10-a${nl}FAIL 20-x (its first 10 lines hold no single '# jobs:' line)${nl}PASS 30-c"
+  case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
+  own_case refusal-keeps-its-place-in-the-recap-of-the-step-ci.d 1 "FAIL 20-x (its first 10 lines hold no single '# jobs:' line)" macos
+  two_others="$running; [ \"\$others\" -le 1 ] || { printf \"FAIL %s (two others ran beside it)\\n\" \"\$me\"; exit 1; }"
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; meet || $check_alone; sleep 1; $two_others; $ends; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; $starts; sleep 1; $two_others; $ends; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; $starts; sleep 1; $two_others; $ends; $check_passes"
+  case_check_jobs=2
+  own_case free-lane-runs-ci-d-check-jobs-at-a-time 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; $check_passes"
+  case_check_jobs=x
+  own_case check-jobs-not-a-number 1 'FAIL run-ci-d (CI_D_CHECK_JOBS=x is not a whole number from 1 to 999999999)' macos
+  case_check_jobs=0
+  own_case check-jobs-zero 1 'FAIL run-ci-d (CI_D_CHECK_JOBS=0 is not a whole number from 1 to 999999999)' macos
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; meet || $check_alone; $check_passes" && add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $check_passes"
+  case_path=$tmp/no-getconf
+  case_procs=2
+  own_case default-check-jobs-from-number-of-processors 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$free" "$prelude_any; $alone; $ends; $check_passes" && add_script r1 20-b.sh "$free" "$prelude_any; $alone; $ends; $check_passes"
+  case_path=$tmp/no-getconf
+  case_procs=none
+  own_case default-check-jobs-of-one-without-number-of-processors 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w changed; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; : >\"\$CI_D_REPO/changed\"; $check_passes"
+  own_case tracked-file-changed-beside-another-check-names-both 1 'FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)' macos
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; $check_passes"
+  case_limit=2
+  case_max_s=20
+  case_first='PASS 10-a'
+  case_then='FAIL 20-b (time limit 2 s)'
+  own_case free-check-past-its-limit-beside-the-cargo-lane 1 'FAIL 20-b (time limit 2 s)' macos
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
   case_locale=en_US.UTF-8
   own_case environment-of-a-self-test 0 'ci.d windows self-test: 1 passed, 0 failed' windows --self-test 10-a
@@ -1301,6 +1434,21 @@ own_self_test() {
         own_case "script-that-sends-$signal-to-itself-in-the-step-ci.d-ends-as-in-the-foreground" 1 "$foreground" macos 10-a
         ;;
     esac
+    new_repo && add_script r1 10-a.sh "$free" "$prelude_any; meet || $check_alone; kill -s $signal \"\$\$\"; sleep 1; printf 'line after the kill\\n'; $check_passes" &&
+      add_script r1 20-b.sh "$good" "$prelude_any; meet || $check_alone; $check_passes"
+    case $foreground:$after in
+      'PASS 10-a:yes')
+        case_first='line after the kill'
+        case_then='PASS 10-a'
+        own_case "free-check-that-sends-$signal-to-itself-runs-on-as-in-the-foreground" 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+        ;;
+      'FAIL 10-a (exit '*'):no')
+        case_absent='line after the kill'
+        case_first="$foreground"
+        case_then='PASS 20-b'
+        own_case "free-check-that-sends-$signal-to-itself-ends-as-in-the-foreground" 1 "$foreground" macos
+        ;;
+    esac
   done
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_path=$tmp/no-perl
@@ -1316,6 +1464,17 @@ own_self_test() {
     case_signal_min=2
     case_absent='PASS 20-b'
     own_case "step-ci.d-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every script that it started is ended)" macos
+  done
+  for signal in INT:130 TERM:143 HUP:129; do
+    new_repo && add_script r1 10-a.sh "$good" "sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.10-a\"; wait; printf 'PASS 10-a\\n'" &&
+      add_script r1 20-b.sh "$free" "sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; printf 'PASS 20-b\\n'" &&
+      add_script r1 30-c.sh "$good" 'printf "PASS 30-c\n"'
+    case_signal=${signal%:*}
+    case_wait='started.10-a started.20-b'
+    case_max_s=30
+    case_signal_min=4
+    case_absent='PASS 30-c'
+    own_case "step-ci.d-with-a-free-check-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every script that it started is ended)" macos
   done
   for signal in INT:130 TERM:143 HUP:129; do
     new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes" &&
@@ -1359,19 +1518,41 @@ st_l=
 st_word=
 st_nm=
 st_sleep=
+st_beside=' '
+st_line=
+st_q_file=
+st_q_name=
+st_pk=
+st_f_d=
+st_f_name=
+st_f_lane=
+st_f_other=
+tree_to=
 cr=$(printf '\r')
 tab=$(printf '\t')
+processors() {
+  procs_n=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || procs_n=
+  whole_number "$procs_n" || procs_n=${NUMBER_OF_PROCESSORS:-1}
+  whole_number "$procs_n" || procs_n=1
+}
 if [ "$mode" = self-test ]; then
   if [ -z "$st_jobs_set" ]; then
-    st_jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || st_jobs=
-    whole_number "$st_jobs" || st_jobs=${NUMBER_OF_PROCESSORS:-1}
-    whole_number "$st_jobs" || st_jobs=1
+    processors
+    st_jobs=$procs_n
   else
     whole_number "$st_jobs" || {
       printf 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=%s is not a whole number from 1 to 999999999)\n' "$st_jobs"
       exit 1
     }
   fi
+elif [ -z "$ck_jobs_set" ]; then
+  processors
+  ck_jobs=$procs_n
+else
+  whole_number "$ck_jobs" || {
+    printf 'FAIL run-ci-d (CI_D_CHECK_JOBS=%s is not a whole number from 1 to 999999999)\n' "$ck_jobs"
+    exit 1
+  }
 fi
 whole_number "$st_limit" || {
   printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
@@ -1426,8 +1607,11 @@ for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
   fi
   ran="$ran$script_name "
   selected=$((selected + 1))
-  st_queue
-  [ "$mode" = self-test ] || st_wait_below 1
+  if [ "$mode" = self-test ]; then
+    st_queue
+  else
+    st_add "$script_file" "$script_name" "$script_lane"
+  fi
 done
 
 if [ "$mode" = self-test ]; then
@@ -1453,23 +1637,25 @@ if [ "$mode" = self-test ]; then
     [ "$st_k" != script ] || st_leave "$st_i" 50
     st_i=$((st_i + 1))
   done
-  st_i=0
-  while [ "$st_i" -lt "$st_n" ]; do
-    eval "st_k=\$st_kind_$st_i"
-    if [ "$st_k" != note ]; then
-      eval "st_d=\$st_dir_$st_i st_e=\${st_errsize_$st_i:-0} st_nm=\$st_name_$st_i"
-      st_now_e=0
-      [ ! -e "$st_d/err" ] || st_now_e=$(wc -c <"$st_d/err")
-      st_now_e=${st_now_e##* }
-      if [ "$st_now_e" -gt "$st_e" ]; then
-        printf 'standard error of %s after it was printed:\n' "$st_nm" >&2
-        tail -c +"$((st_e + 1))" "$st_d/err" >&2
-      fi
-    fi
-    st_i=$((st_i + 1))
-  done
-  tree_check 'the step ci.d self-test'
+else
+  st_lanes
 fi
+st_i=0
+while [ "$st_i" -lt "$st_n" ]; do
+  eval "st_k=\$st_kind_$st_i"
+  if [ "$st_k" != note ]; then
+    eval "st_d=\$st_dir_$st_i st_e=\${st_errsize_$st_i:-0} st_nm=\$st_name_$st_i"
+    st_now_e=0
+    [ ! -e "$st_d/err" ] || st_now_e=$(wc -c <"$st_d/err")
+    st_now_e=${st_now_e##* }
+    if [ "$st_now_e" -gt "$st_e" ]; then
+      printf 'standard error of %s after it was printed:\n' "$st_nm" >&2
+      tail -c +"$((st_e + 1))" "$st_d/err" >&2
+    fi
+  fi
+  st_i=$((st_i + 1))
+done
+[ "$mode" != self-test ] || tree_check 'the step ci.d self-test'
 
 for name in $wanted; do
   case $ran in
