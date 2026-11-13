@@ -23,8 +23,8 @@ const REWRITE_DAYS: u32 = 30;
 /// the occurrence days of L6.1 and the day of the host's clock, and returns the new row, with `rev` + 1 and `day`
 /// today, where its mark, `period` or `last` differs from the newest row's or the newest row is 30 or more days
 /// old. A summary is an occurrence when its category and its whole site value, the source included, equal the
-/// row's, or, where both have no site, its app equals the row's. It returns `learn_routine` rows alone, and
-/// nothing when a `learn_routine` or `learn_run` row cannot be read or the clock gives day 0.
+/// row's, or, where both have no site, its category and its app equal the row's. It returns `learn_routine` rows
+/// alone, and nothing when a `learn_routine` or `learn_run` row cannot be read or the clock gives day 0.
 pub struct LearnStep<C> {
     clock: C,
 }
