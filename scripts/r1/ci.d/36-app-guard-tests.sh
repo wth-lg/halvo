@@ -91,7 +91,12 @@ tests_decide() {
       *) broke "rule 1: $test of tests/page_guard.rs is not in the list of this check, so add it to guard_tests" ;;
     esac
   done
-  printf 'tests of page_guard.rs passed by name: %s of 5\n' "$passed"
+  listed=$(printf '%s\n' "$guard_tests" | grep -c .)
+  distinct=$(printf '%s\n' "$guard_tests" | grep . | sort -u | grep -c -v ':')
+  if [ "$listed" != 5 ] || [ "$distinct" != 5 ]; then
+    broke "rule 1: the list guard_tests of this check holds $listed names, $distinct of them distinct and with no path, and it must hold the five guard tests of the file, each once, at its top level"
+  fi
+  printf 'tests of page_guard.rs passed by name: %s of %s\n' "$passed" "$listed"
 }
 
 tree_decide() {
@@ -291,6 +296,13 @@ add_line() {
   ' "$1"
 }
 
+check_tests_with_list() {
+  kept=$guard_tests
+  guard_tests=$(printf '%s\n' "$kept" | grep -v -x -F -e "$5")
+  check_tests "$1" "$2" "$3" "$4" "$keep"
+  guard_tests=$kept
+}
+
 check_tests_adding() {
   passing_test_out >"$work/$1.base.out" || self_fail "the fixture cannot be written"
   passing_test_err >"$work/$1.base.err" || self_fail "the fixture cannot be written"
@@ -453,6 +465,7 @@ self_test() {
   check_tests cargo-colour-on-standard-error PASS 0 "$keep" "s/^\\( *\\)\\([A-Z][a-z]*\\) /\\1${esc}[1m${esc}[92m\\2${esc}[0m /"
   check_tests a-run-that-ends-before-its-result-line "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 11, the result line gives none" 0 '/^test launch::tests::each_exit_has_its_code /d; /^test result:/d' "$keep"
   check_tests_adding one-more-ok-line-than-the-run-counts "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 13, the result line gives 12" 0 out "$keep" '^test tray::' 'test launch::tests::a_line_that_no_test_of_the_run_printed ... ok' 18
+  check_tests_with_list a-list-of-four-guard-tests "FAIL rule 1: the list guard_tests of this check holds 4 names" 0 '/^test a_call_whose_origin_header_is_no_address_is_refused /d; s/^running 12 tests$/running 11 tests/; s/^test result: ok\. 12 passed;/test result: ok. 11 passed;/' 'a_call_whose_origin_header_is_no_address_is_refused'
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
   check_tree tree-passes PASS 0 "$keep"
