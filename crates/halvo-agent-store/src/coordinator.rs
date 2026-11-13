@@ -52,6 +52,9 @@ pub fn coordinator(
         CoordinatorCall::StartRun(b) => start_run(&*host, &b),
         CoordinatorCall::EndRun(b) => end::end_run(host, now, &b),
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
+        CoordinatorCall::ListCheckpoints(_) | CoordinatorCall::MarkCheckpoint(_) => {
+            Err(ErrorName::Malformed)
+        }
     }
 }
 
