@@ -1638,13 +1638,64 @@ mod tests {
             let mut harness = after_one_failed_eviction();
             harness.ask(Command::OpenPause);
             harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
-            harness.passes(2);
-            let later = harness.reports();
-            let evicts = evict_calls(&harness);
-            println!("ADV2 f1b one deadline later: evict_to calls = {evicts}, reports = {later:?}");
+            harness.pass();
+            let before = harness.reports();
+            assert_eq!(
+                evict_calls(&harness),
+                1,
+                "the deadline's expiry was not alone in its pass"
+            );
             assert!(
-                !(later.contains(&Report::MaintenanceHealthy) && evicts == 1),
-                "MaintenanceHealthy was reported with evict_to called {evicts} time(s), and that one call failed"
+                !before.contains(&Report::MaintenanceHealthy),
+                "MaintenanceHealthy was reported while the failed eviction was never called again: {before:?}"
+            );
+            harness.pass();
+            assert_eq!(evict_calls(&harness), 2);
+            assert_eq!(
+                harness.reports(),
+                [Report::MaintenanceHealthy],
+                "the eviction that succeeded was not reported healthy"
+            );
+        }
+
+        #[test]
+        fn healthy_waits_for_a_good_eviction_after_two_eviction_faults_in_a_row() {
+            let store = ModelStore::new();
+            store.script_evict(vec![
+                Err(MaintFault::Io(io::ErrorKind::Other)),
+                Err(MaintFault::Io(io::ErrorKind::Other)),
+            ]);
+            let mut harness = Harness::over(store, open_floor(), 64);
+            resumed(&mut harness);
+            harness.emit(foreground(&AT_NOON, Duration::ZERO));
+            settled(&mut harness);
+            harness.passes(2);
+            assert_eq!(evict_calls(&harness), 1);
+            harness.ask(Command::OpenPause);
+            harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+            harness.passes(2);
+            assert_eq!(
+                evict_calls(&harness),
+                2,
+                "the failed eviction was not called again"
+            );
+            harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+            harness.pass();
+            let before = harness.reports();
+            assert!(
+                !before.contains(&Report::MaintenanceHealthy),
+                "MaintenanceHealthy came after a good expiry while no eviction had succeeded: {before:?}"
+            );
+            harness.pass();
+            assert_eq!(evict_calls(&harness), 3);
+            let after = harness.reports();
+            assert_eq!(
+                after
+                    .iter()
+                    .filter(|report| **report == Report::MaintenanceHealthy)
+                    .count(),
+                1,
+                "the eviction that succeeded was not reported healthy once: {after:?}"
             );
         }
 
