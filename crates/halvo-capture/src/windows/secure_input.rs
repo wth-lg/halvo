@@ -69,7 +69,7 @@ pub const KEY_HOLD: Duration = Duration::from_millis(120);
 
 /// How long after a key or a click that moves the focus the detector reads
 /// the focused element again when no focus event has come.
-pub const LATCH_SETTLE: Duration = Duration::from_millis(120);
+pub const LATCH_SETTLE: Duration = Duration::from_millis(100);
 
 /// The most marks that the gate keeps.
 const MARKS_KEPT: usize = 256;
@@ -79,8 +79,14 @@ const MARKS_KEPT: usize = 256;
 /// order, and any other latch may reach the gate after later keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
+    /// A read of the focused field that a focus event gave.
     Field(FieldState),
-    Latch { ordered: bool },
+    /// A read that the detector made itself: at its start, or once the
+    /// settle time after a latch has passed.
+    Read(FieldState),
+    Latch {
+        ordered: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -143,15 +149,28 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
     let opening = marks.iter().filter(opens).max_by_key(|entry| entry.seq);
     let (mut state, from) = match opening.map(|entry| (entry.seq, entry.mark)) {
         None => (FieldState::Unknown, key.seen),
-        Some((_, Mark::Field(state))) => (state, key.seen),
+        Some((_, Mark::Field(state) | Mark::Read(state))) => (state, key.seen),
         Some((latch, Mark::Latch { .. })) => {
-            let next = marks.iter().find(|entry| entry.seq > latch);
-            match next.map(|entry| (entry.seq, entry.mark)) {
-                None => return Judgment::Wait,
-                Some((_, Mark::Latch { .. })) => {
-                    return Judgment::Decided(SecureInputReading::Unknown)
+            let mut seen: Option<FieldState> = None;
+            let mut decided = None;
+            for entry in marks.iter().filter(|entry| entry.seq > latch) {
+                match entry.mark {
+                    Mark::Latch { .. } => {
+                        return Judgment::Decided(SecureInputReading::Unknown);
+                    }
+                    Mark::Field(state) => {
+                        seen = Some(seen.map_or(state, |held| most_restrictive(held, state)));
+                    }
+                    Mark::Read(state) => {
+                        let held = seen.map_or(state, |held| most_restrictive(held, state));
+                        decided = Some((held, key.seen.max(entry.seq + 1)));
+                        break;
+                    }
                 }
-                Some((seq, Mark::Field(state))) => (state, key.seen.max(seq + 1)),
+            }
+            match decided {
+                Some(decided) => decided,
+                None => return Judgment::Wait,
             }
         }
     };
@@ -160,7 +179,7 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
             Mark::Latch { ordered: true } => break,
             Mark::Latch { ordered: false } if !not_after_key(entry.tick) => break,
             Mark::Latch { ordered: false } => {}
-            Mark::Field(later) => state = most_restrictive(state, later),
+            Mark::Field(later) | Mark::Read(later) => state = most_restrictive(state, later),
         }
     }
     match state {
@@ -227,8 +246,12 @@ impl Shared {
     }
 
     fn field(&self, state: FieldState) {
+        self.lock().push(Mark::Field(state));
+    }
+
+    fn read(&self, state: FieldState) {
         let mut marks = self.lock();
-        marks.push(Mark::Field(state));
+        marks.push(Mark::Read(state));
         marks.settle_due = None;
     }
 
@@ -313,7 +336,7 @@ impl PasswordGate {
             .iter()
             .rev()
             .find_map(|entry| match entry.mark {
-                Mark::Field(state) => Some(state),
+                Mark::Field(state) | Mark::Read(state) => Some(state),
                 Mark::Latch { .. } => None,
             })
             .unwrap_or(FieldState::Unknown)
@@ -322,6 +345,11 @@ impl PasswordGate {
     #[cfg(test)]
     fn field(&self, state: FieldState) {
         self.shared.field(state);
+    }
+
+    #[cfg(test)]
+    fn read(&self, state: FieldState) {
+        self.shared.read(state);
     }
 }
 
@@ -867,7 +895,7 @@ mod detector {
                 WINEVENT_OUTOFCONTEXT,
             )
         };
-        shared.field(reader.focused());
+        shared.read(reader.focused());
         let _ = ready.send(Ok(()));
         let mut msg = MSG::default();
         loop {
@@ -890,7 +918,7 @@ mod detector {
                 let state = reader.focused();
                 let mut marks = shared.lock();
                 if marks.settle_due == due {
-                    marks.push(super::Mark::Field(state));
+                    marks.push(super::Mark::Read(state));
                     marks.settle_due = None;
                 }
                 continue;
@@ -1070,6 +1098,8 @@ mod tests {
         let typed = gate.hold(2_010, false);
         assert_eq!(reading(&gate, &typed, 2_200), None);
         gate.field(FieldState::Password);
+        assert_eq!(reading(&gate, &typed, 2_200), None);
+        gate.read(FieldState::Password);
         assert_eq!(reading(&gate, &tab, 2_200), Some(Ok(())));
         assert_eq!(reading(&gate, &typed, 2_200), Some(Err(Withheld::Active)));
     }
@@ -1112,8 +1142,29 @@ mod tests {
         let key = gate.hold(1_000, false);
         gate.click(990);
         assert_eq!(reading(&gate, &key, 1_200), None);
-        gate.field(FieldState::Password);
+        gate.read(FieldState::Password);
         assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Active)));
+    }
+
+    #[test]
+    fn a_focus_event_after_a_latch_does_not_decide_before_the_detector_read_again() {
+        let gate = PasswordGate::new();
+        gate.field(FieldState::Clear);
+        gate.latch(1_000);
+        let key = gate.hold(1_010, false);
+        gate.field(FieldState::Clear);
+        assert_eq!(reading(&gate, &key, 1_200), None);
+        gate.read(FieldState::Password);
+        assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Active)));
+        gate.latch(1_300);
+        let next = gate.hold(1_310, false);
+        gate.field(FieldState::Password);
+        gate.read(FieldState::Clear);
+        assert_eq!(reading(&gate, &next, 1_500), Some(Err(Withheld::Active)));
+        gate.latch(1_600);
+        let clear = gate.hold(1_610, false);
+        gate.read(FieldState::Clear);
+        assert_eq!(reading(&gate, &clear, 1_800), Some(Ok(())));
     }
 
     #[test]
