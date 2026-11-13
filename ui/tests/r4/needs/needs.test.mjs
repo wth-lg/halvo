@@ -942,6 +942,7 @@ async function region(origin, dir) {
         count: all.length,
         everywhere: document.querySelectorAll('[role="status"]').length,
         live: r ? r.getAttribute('aria-live') : null,
+        top: section.querySelector('ul').getBoundingClientRect().top,
         kept: Boolean(r && r.r4needsMark),
         says: r ? [...r.childNodes].map((n) => n.textContent) : [],
         focus: a ? (a.getAttribute('data-act') || a.getAttribute('role') || a.tagName) + ':' + (a.getAttribute('data-param') || '-').slice(0, 1) : '-',
@@ -969,6 +970,7 @@ async function region(origin, dir) {
       await frames(h);
       const got = await facts(h);
       if (got.count !== 1 || got.everywhere !== 1 || got.live !== 'polite' || !got.kept) faults.push(tag + ':region=' + JSON.stringify(got));
+      if (got.top !== at.top) faults.push(tag + ':cards_moved=' + (got.top - at.top));
       if (JSON.stringify(got.says) !== JSON.stringify(wanted)) faults.push(tag + ':says=' + (got.says.join('|') || '-'));
       if (wantFocus && got.focus !== wantFocus) faults.push(tag + ':focus=' + got.focus);
     } catch (err) {
