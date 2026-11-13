@@ -14,7 +14,7 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::custody::file_root::{self, scrub_and_remove, RootsLeft};
+use crate::custody::file_root::{self, RootsLeft};
 use crate::custody::{
     custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, KeyCustody, KeyLabel, RootId,
     StoreKey, WrappedKey,
@@ -253,15 +253,14 @@ impl KeyFilePlace {
     pub(crate) fn publish(&self, key_file: &KeyFile) -> StoreResult<()> {
         let json = serde_json::to_vec_pretty(key_file)
             .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
-        let (_, cleared) = scrub_and_remove(&self.dir, &self.temp);
-        cleared.map_err(io_error)?;
+        zero_and_remove(&self.dir, &self.temp).map_err(io_error)?;
         let published = self.write_and_link(&json);
         let discarded = match published {
             Ok(()) => match self.dir.remove_file(&self.temp) {
                 Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
                 other => other,
             },
-            Err(_) => scrub_and_remove(&self.dir, &self.temp).1,
+            Err(_) => zero_and_remove(&self.dir, &self.temp),
         };
         published?;
         discarded.map_err(io_error)?;
@@ -287,7 +286,7 @@ impl KeyFilePlace {
     /// entry that it is, never opened, and counted as not followed. Its
     /// temporary file goes the same way.
     pub(crate) fn destroy(&self) -> Removal {
-        let _ = scrub_and_remove(&self.dir, &self.temp);
+        let _ = zero_and_remove(&self.dir, &self.temp);
         if failpoint::hit("key_file_destroy").is_err() {
             return Removal {
                 gone: false,
@@ -298,7 +297,7 @@ impl KeyFilePlace {
             Ok(entry) if entry.kind != EntryKind::File => 1,
             _ => 0,
         };
-        let _ = scrub_and_remove(&self.dir, &self.name);
+        let _ = zero_and_remove(&self.dir, &self.name);
         let _ = self.dir.sync();
         let gone = matches!(self.dir.entry(&self.name), Err(e) if e.kind() == ErrorKind::NotFound);
         Removal { gone, not_followed }
@@ -307,6 +306,28 @@ impl KeyFilePlace {
 
 fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
+}
+
+/// Zeroes the entry `name` of `dir` when it is a regular file and removes it
+/// whatever the zero-fill did; a link or an entry of another kind is removed
+/// as the entry that it is and never opened. Answers the removal's result.
+fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+    if let Ok(entry) = dir.entry(name) {
+        if entry.kind == EntryKind::File {
+            let _ = zero_fill(dir, name);
+        }
+    }
+    match dir.remove_entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        other => other,
+    }
+}
+
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+    let mut file = dir.open_file_for_write(name)?;
+    let len = file.metadata()?.len() as usize;
+    file.write_all(&vec![0u8; len])?;
+    file.sync_all()
 }
 
 fn refused_at(name: StoreName, e: std::io::Error) -> StoreError {
@@ -507,11 +528,6 @@ pub(crate) mod name_seams {
 /// store looked through its handle once more: what the look finds wins, and
 /// only when it finds nothing does the code decide, by [`code_answer`].
 fn after_a_code(store_dir: &Dir, e: &rusqlite::Error) -> StoreError {
-    if let rusqlite::Error::SqliteFailure(failure, _) = e {
-        if failure.extended_code == rusqlite::ffi::SQLITE_CANTOPEN_SYMLINK {
-            return obstructed(StoreName::Database, Met::Link);
-        }
-    }
     let code = match e {
         rusqlite::Error::SqliteFailure(failure, _) => Some(failure.extended_code),
         _ => None,
