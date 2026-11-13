@@ -150,10 +150,10 @@ self_test() {
   mv "$scratch/scanner-missing/scripts/check-home-paths.sh" "$scratch/scanner-aside.sh" || exit 2
   expect FAIL scanner-missing
 
-  fixture list-missing
-  add_commit list-missing 'more plain text' 'second'
-  mv "$scratch/list-missing/scripts/home-path-allow.txt" "$scratch/list-aside.txt" || exit 2
-  expect FAIL list-missing
+  fixture list-malformed-in-the-commit
+  printf 'x\tnot a path\treason\n' >>"$scratch/list-malformed-in-the-commit/scripts/home-path-allow.txt"
+  add_commit list-malformed-in-the-commit 'more plain text' 'second'
+  expect FAIL list-malformed-in-the-commit
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
