@@ -288,6 +288,48 @@ body_fixtures() {
   body_case manifest-byte 'files that differ: 1, missing: 0, extra: 0, the first manifest.toml'
 }
 
+# The stand-in for the binary: a few lines of sh, written at test time, that copy the body fixture to the
+# directory after --out.
+stand_in() {
+  # shellcheck disable=SC2016 # the text is the stand-in's own code, expanded when the stand-in runs
+  printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do' '  case $1 in --out) out=$2; shift ;; esac' '  shift' 'done' \
+    "mkdir -p \"\$out\" && cp -R '$work/body/.' \"\$out\"" >"$work/stand-in" || self_fail "the stand-in cannot be written"
+  chmod +x "$work/stand-in" || self_fail "the stand-in cannot be made runnable"
+  mkdir -p "$work/scripts" || self_fail "the scripts of the stand-in cannot be made"
+  printf '{}\n' >"$work/scripts/one.jsonl" || self_fail "the scripts of the stand-in cannot be written"
+}
+
+# Calls r2_body_ensure on the tier gen-dev, with the build directory set for that call alone.
+ensure_call() {
+  (
+    CARGO_TARGET_DIR=$1
+    export CARGO_TARGET_DIR
+    r2_body_ensure "$work" gen-dev "$work/stand-in" "$work/scripts" "$work/committed.toml" "$work/ensure.log"
+  ) 2>&1
+}
+
+ensure_case() {
+  target=$work/target-$1
+  mkdir -p "$target/r2" || self_fail "the build directory of $1 cannot be made"
+  cp -R "$work/body" "$target/r2/gen-dev" || self_fail "the body of $1 cannot be placed"
+  case $1 in
+    stale) printf 'four\n' >"$target/r2/gen-dev/streams/gen-dev-s001/day-001.jsonl" ;;
+    *) : ;;
+  esac
+  out=$(ensure_call "$target")
+  case $out in
+    'body gen-dev reused') got=reused ;;
+    'body gen-dev built '*' s') got=built ;;
+    *) got=other ;;
+  esac
+  state=$(r2_body_check "$target/r2/gen-dev" "$work/committed.toml") || state=unread
+  if [ "$got $state" != "$2 same" ]; then
+    wrong="$wrong ensure-$1"
+  elif [ "$got" = built ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_fail "mktemp failed"
   passing_results >"$work/passing.txt" || self_fail "the fixture cannot be written"
@@ -326,6 +368,9 @@ self_test() {
   check dev-files-count-alone-for-a-short-day FAIL 's|^gen-dev-files same$|gen-dev-files differ 0 3 0 streams/gen-dev-s001/day-1.jsonl|' '' \
     "FAIL $name (gen-dev-files: files that differ: 0, missing: 3, extra: 0)"
   body_fixtures
+  stand_in
+  ensure_case whole reused
+  ensure_case stale built
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
