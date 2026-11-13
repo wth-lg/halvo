@@ -545,9 +545,11 @@ impl Harness {
             self.create_store();
             return Ok(());
         }
+        let refused_root = RootId::fresh();
+        self.roots.insert(0, refused_root);
         let result = EncryptedStore::create(
             &self.dir,
-            Box::new(DevFallbackCustody::new(RootId::fresh())),
+            Box::new(DevFallbackCustody::new(refused_root)),
             DEFAULT_RETENTION,
         );
         prop_assert!(

@@ -1594,9 +1594,10 @@ mod tests {
     fn create_refuses_a_directory_that_already_holds_a_store() {
         let dir = tempfile::tempdir().unwrap();
         drop(make_store(dir.path()));
+        let second_root = RootGuard::fresh();
         let again = EncryptedStore::create(
             dir.path(),
-            Box::new(DevFallbackCustody::new(RootId::fresh())),
+            Box::new(DevFallbackCustody::new(second_root.id())),
             DEFAULT_RETENTION,
         );
         assert!(matches!(again, Err(StoreError::AlreadyExists(_))));
