@@ -10,6 +10,7 @@ mod agent;
 mod convert;
 mod coordinator;
 mod facts;
+mod finish;
 mod handlers;
 mod host;
 mod ids;

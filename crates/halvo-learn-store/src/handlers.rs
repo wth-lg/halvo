@@ -12,6 +12,9 @@ use crate::facts::RunFacts;
 use crate::host::LearnHost;
 use crate::ids::Ids;
 
+/// The class rule that admission compares with: `class_of` of halvo-policy (AG-A4.3).
+pub(crate) type ClassRule = fn(SeedCategory, &ExecutableStep) -> ActionClass;
+
 /// Why the handlers refused a request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refused {
@@ -66,7 +69,7 @@ impl CoordinatorAnswer {
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
-    pub(crate) class_rule: fn(SeedCategory, &ExecutableStep) -> ActionClass,
+    pub(crate) class_rule: ClassRule,
 }
 
 impl Default for LearnHandlers {
@@ -95,6 +98,8 @@ impl LearnHandlers {
             Ok(RunnerCall::Load(b)) => self.load(host, body, &b),
             Ok(RunnerCall::LoadSteps(b)) => self.load_steps(host, body, &b),
             Ok(RunnerCall::PutPlaybook(b)) => self.put_playbook(host, body, &b),
+            Ok(RunnerCall::Log(b)) => self.log(host, body, &b),
+            Ok(RunnerCall::Finish(b)) => self.finish(host, body, &b),
             _ => Ok(agent::runner(host, body)?),
         }
     }

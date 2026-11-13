@@ -67,6 +67,7 @@ pub(crate) fn newest_run<'a>(runs: &'a [LearnRun], run: &str) -> Option<&'a Lear
 }
 
 /// Every row of the family's kind `learn_edit`, by edit, each edit's rows in the order of `rev`.
+#[derive(Clone)]
 pub(crate) struct Edits {
     by_id: BTreeMap<EditId, Vec<LearnEdit>>,
 }

@@ -239,6 +239,7 @@ pub fn with_locators(mut step: Value, desc: &str, locators: Vec<Value>) -> Value
 pub struct World {
     pub host: TestHost,
     pub handlers: LearnHandlers,
+    pub loaded: u32,
 }
 
 impl World {
@@ -324,13 +325,14 @@ impl World {
             panic!("a load reply");
         };
         let number = load.playbook.expect("a stored playbook").number.get();
+        self.loaded = number;
         self.load_steps(r, number, 1)
     }
 
     pub fn learn(&mut self, r: u32, n: u32, desc: &str, locators: Vec<Value>) {
         let served = self.replay(r);
         let proposed = with_locators(served[n as usize - 1].clone(), desc, locators);
-        let reply = self.put(r, 1, vec![proposed]);
+        let reply = self.put(r, self.loaded, vec![proposed]);
         assert!(reply.is_ok(), "the replay's put_playbook: {reply:?}");
         self.log(r, &[(1, "recovered", n, None), (2, "step_ok", n, None)]);
         let reply = self.finish(r, "replay", "completed");
@@ -356,6 +358,7 @@ pub fn world() -> World {
     let mut w = World {
         host: TestHost::new(),
         handlers: LearnHandlers::new(),
+        loaded: 0,
     };
     w.host
         .put_workflow(workflow(&wf(1), "utility_bill_payment", "approved", None));

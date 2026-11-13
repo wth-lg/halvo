@@ -14,7 +14,7 @@ use halvo_schema::ErrorName;
 use crate::agent;
 use crate::convert;
 use crate::facts::{Candidate, RunFacts};
-use crate::handlers::{LearnHandlers, Refused};
+use crate::handlers::{ClassRule, LearnHandlers, Refused};
 use crate::host::LearnHost;
 use crate::moves::withdrawals;
 use crate::rows::{self, Edits};
@@ -42,13 +42,16 @@ fn same_but_target(proposed: &ExecutableStep, served: &ExecutableStep) -> bool {
     &copy == served
 }
 
+/// The answer of `admit` for each step of a body that differs from its served step.
+pub(crate) type Answers = Vec<(NonZeroU32, Result<(), AdmitCause>)>;
+
 struct Facts<'a> {
+    mode: RunMode,
     facts: &'a RunFacts,
     edits: &'a Edits,
     current: bool,
     compiled: &'a [ExecutableStep],
-    class_rule:
-        fn(halvo_schema::SeedCategory, &ExecutableStep) -> halvo_schema::executable::ActionClass,
+    class_rule: ClassRule,
 }
 
 impl Facts<'_> {
@@ -98,7 +101,7 @@ impl Facts<'_> {
         };
         let barred = self.edits.barred(&self.facts.agent, number, n);
         let facts = AdmitFacts {
-            mode: RunMode::Replay,
+            mode: self.mode,
             has_base: self.current && served.is_some() && compiled.is_some(),
             same_but_target: same_but_target(proposed, reference),
             kind_web: proposed_target.is_some() && web(reference).is_some(),
@@ -162,7 +165,7 @@ impl LearnHandlers {
         &mut self,
         host: &mut dyn LearnHost,
         b: &PutPlaybook,
-    ) -> Result<Vec<(NonZeroU32, Result<(), AdmitCause>)>, ErrorName> {
+    ) -> Result<Answers, ErrorName> {
         let changed: Vec<&ExecutableStep> = b
             .steps
             .iter()
@@ -179,6 +182,8 @@ impl LearnHandlers {
                 .map(|s| (s.n, Err(AdmitCause::Base)))
                 .collect());
         };
+        let runs = rows::runs(host.rows())?;
+        let mode = convert::run_mode(rows::newest_run(&runs, b.run.as_str()).map(|r| r.mode));
         let newest = agent::newest(host, &b.agent, &b.run)?;
         let current = newest.is_some() && facts.loaded == newest && newest == Some(b.number);
         let compiled = match current {
@@ -187,6 +192,7 @@ impl LearnHandlers {
         };
         let edits = Edits::read(host.rows())?;
         let reader = Facts {
+            mode,
             facts,
             edits: &edits,
             current,
