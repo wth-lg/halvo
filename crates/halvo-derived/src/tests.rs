@@ -154,11 +154,17 @@ impl IdSource for Counting {
     }
 }
 
-/// A data directory of its own under the temporary directory, one per call.
+/// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
+/// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
+/// `<target>/<profile>/deps/<binary>`.
 fn data_dir(name: &str) -> PathBuf {
     static COUNT: AtomicUsize = AtomicUsize::new(0);
     let n = COUNT.fetch_add(1, Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!("derived-unit-{name}-{}-{n}", std::process::id()));
+    let exe = std::env::current_exe().unwrap();
+    let target = exe.ancestors().nth(3).unwrap();
+    let path = target
+        .join("tmp")
+        .join(format!("derived-unit-{name}-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&path).unwrap();
     path
 }
