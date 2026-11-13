@@ -411,6 +411,75 @@ mod tests {
         }
     }
 
+    fn request_frame(request: &Request) -> Vec<u8> {
+        let mut frame = Vec::new();
+        crate::wire::write_frame(
+            &mut frame,
+            &encode_request(request),
+            crate::wire::REQUEST_MAX_BYTES,
+        )
+        .unwrap();
+        frame
+    }
+
+    #[test]
+    fn a_silent_scripted_daemon_answers_nothing_whatever_arrives_and_still_records_a_request() {
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_silent(true);
+        assert_eq!(daemon.serve(b"not one request frame"), None);
+        assert_eq!(daemon.serve(&request_frame(&Request::Pause)), None);
+        assert_eq!(daemon.requests(), [Request::Pause]);
+        assert_eq!(
+            daemon.status().fields().capture,
+            crate::proto::Capture::Paused,
+            "the handler acted although its reply never came"
+        );
+        daemon.set_raw_reply(vec![0, 0, 0, 1, b'x']);
+        assert_eq!(daemon.serve(&request_frame(&Request::Stop)), None);
+        assert_eq!(daemon.requests(), [Request::Pause, Request::Stop]);
+    }
+
+    #[test]
+    fn while_a_mutation_is_in_flight_the_other_form_is_unsupported_a_served_mutation_busy_and_a_read_answered(
+    ) {
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_mutation_in_flight(true);
+        let answer = |daemon: &mut ScriptedDaemon, request: &Request| {
+            let frame = daemon.serve(&request_frame(request)).unwrap();
+            let body =
+                crate::wire::read_one_frame(&mut &frame[..], crate::wire::REPLY_MAX_BYTES).unwrap();
+            crate::proto::decode_reply(&body).unwrap()
+        };
+        let asked = Request::PermissionAsked {
+            permission: Permission::Accessibility,
+        };
+        assert_eq!(
+            answer(&mut daemon, &asked).code(),
+            Some(ErrorCode::UnsupportedOp)
+        );
+        let requested = Request::RequestPermission {
+            permission: Permission::Accessibility,
+        };
+        assert_eq!(
+            answer(&mut daemon, &requested).code(),
+            Some(ErrorCode::Busy)
+        );
+        assert_eq!(
+            answer(&mut daemon, &Request::Pause).code(),
+            Some(ErrorCode::Busy)
+        );
+        assert!(matches!(
+            answer(&mut daemon, &Request::Status { indicator: false }),
+            Reply::Status(_)
+        ));
+        daemon.set_form(PermissionForm::B);
+        assert_eq!(
+            answer(&mut daemon, &requested).code(),
+            Some(ErrorCode::UnsupportedOp)
+        );
+        assert_eq!(answer(&mut daemon, &asked).code(), Some(ErrorCode::Busy));
+    }
+
     #[derive(Debug, Clone, PartialEq)]
     enum Event {
         Timeout(Duration),
