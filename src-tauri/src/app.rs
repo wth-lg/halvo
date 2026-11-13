@@ -26,6 +26,7 @@ pub struct Parts<R: Runtime> {
     pub open_pane: fn(Permission) -> Result<(), String>,
     pub tray: fn(&AppHandle<R>) -> tauri::Result<()>,
     pub window_visible: bool,
+    #[cfg(windows)]
     pub webview_data_dir: Option<PathBuf>,
 }
 
@@ -65,7 +66,12 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 open_pane: parts.open_pane,
             });
             app.manage(PageLoads::default());
-            main_window(app.handle(), parts.window_visible, parts.webview_data_dir)?;
+            main_window(
+                app.handle(),
+                parts.window_visible,
+                #[cfg(windows)]
+                parts.webview_data_dir,
+            )?;
             (parts.tray)(app.handle())?;
             Ok(())
         })
@@ -102,7 +108,7 @@ pub fn is_app_url(url: &Url) -> bool {
 fn main_window<R: Runtime>(
     app: &AppHandle<R>,
     visible: bool,
-    data_dir: Option<PathBuf>,
+    #[cfg(windows)] data_dir: Option<PathBuf>,
 ) -> tauri::Result<()> {
     let config = app
         .config()
@@ -112,12 +118,14 @@ fn main_window<R: Runtime>(
         .find(|window| window.label == "main")
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
-    let mut builder = WebviewWindowBuilder::from_config(app, &config)?
+    let builder = WebviewWindowBuilder::from_config(app, &config)?
         .on_navigation(is_app_url)
         .visible(visible);
-    if let Some(dir) = data_dir {
-        builder = builder.data_directory(dir);
-    }
+    #[cfg(windows)]
+    let builder = match data_dir {
+        Some(dir) => builder.data_directory(dir),
+        None => builder,
+    };
     builder.build()?;
     Ok(())
 }

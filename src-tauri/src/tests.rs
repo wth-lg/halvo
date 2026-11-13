@@ -157,6 +157,8 @@ fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
 
 pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRuntime> {
     app::Parts {
+        #[cfg(windows)]
+        webview_data_dir: Some(config_dir.join("webview")),
         config_dir: Some(config_dir),
         store: Box::new(FakeStore::two_rows_on_one_day()),
         store_backend: crate::unwired_store::DESCRIPTION,
@@ -164,7 +166,6 @@ pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRunt
         open_pane: no_pane,
         tray: no_tray,
         window_visible: false,
-        webview_data_dir: None,
     }
 }
 
@@ -396,9 +397,12 @@ fn only_the_window_main_of_the_app_origin_reaches_a_command() {
         test.app.handle(),
         "other",
         WebviewUrl::App("index.html".into()),
-    )
-    .build()
-    .expect("a second window builds on the mock runtime");
+    );
+    #[cfg(windows)]
+    let other = other.data_directory(scratch_dir("scope-other").join("webview"));
+    let other = other
+        .build()
+        .expect("a second window builds on the mock runtime");
     for module in names::MODULES {
         for command in module.commands {
             let reply = invoke(&other, APP_URL, command, serde_json::json!({}));

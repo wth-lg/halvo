@@ -42,6 +42,7 @@ fn run() {
         open_pane,
         tray: tray::install,
         window_visible: true,
+        #[cfg(windows)]
         webview_data_dir: None,
     };
     app::build(tauri::Builder::default(), parts)

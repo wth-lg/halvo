@@ -59,6 +59,7 @@ pub fn run(config_dir: PathBuf, within: Duration) -> i32 {
         open_pane: crate::open_pane,
         tray: no_tray,
         window_visible: false,
+        #[cfg(windows)]
         webview_data_dir: Some(config_dir.join("webview")),
     };
     let built = app::build(tauri::Builder::default(), parts).build(app::context());
