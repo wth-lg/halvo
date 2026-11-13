@@ -101,9 +101,9 @@ own limit (900 s for a cargo test, 300 s for a gate case) as its bound. A
 step whose own exit status says that a signal ended it (129, 130, 137 or 143)
 is never read as an answer: with a signal of the runner's own within 2 s the
 run ends as a stop, and without one it ends with exit 2 and the line
-FAIL step:<step> (ended by signal S; the runner got no signal). A runner that
-was started with a signal ignored, as a shell does for INT in a background job,
-cannot trap that signal.
+  FAIL step:<step> (ended by signal S; the runner got no signal)
+A runner that was started with a signal ignored, as a shell does for INT in a
+background job, cannot trap that signal.
 
 Exit status: 0 when no line is FAIL (and, with --strict, nothing is open),
 1 otherwise, 2 when a step that the runner needs failed (git, the copy of
@@ -1240,6 +1240,12 @@ stop_cases_by_main() {
   t stop-by-term-to-the-runner-during-the-copy-of-head PASS main_stopped_by main-p2-other TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --list
   t stop-by-term-to-the-runner-during-the-read-of-the-rows PASS main_stopped_by main-p3-other TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --list
   t stop-by-term-to-the-group-during-the-print-of-the-list PASS main_stopped_by main-p4-other TERM group 143 "STOPPED mutation (signal TERM; $no_row" --list
+  main_fixture main-step-first
+  stub_hold main-step-first awk '*malformed*'
+  t stop-by-term-to-a-step-and-then-to-the-runner-ends-as-a-stop PASS main_stopped_by main-step-first TERM step-first 143 "STOPPED mutation (signal TERM; $no_row" --list
+  main_fixture main-help
+  stub_hold main-help cat '*'
+  t stop-by-term-to-the-runner-during-the-help PASS main_stopped_by main-help TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --help
   t stop-by-term-to-the-group-during-the-tail-prints-no-false-fail PASS main_stopped_by main-p9-other TERM group 143 'STOPPED mutation:applies (signal TERM; no test was running)' --apply-only --strict
   main_fixture main-p8
   stub_cargo main-p8 2
@@ -1358,7 +1364,7 @@ when=''
 [ ! -f "$here/$tool.when" ] || read -r when < "$here/$tool.when"
 if [ -n "$when" ] && [ ! -e "$here/held" ]; then
   case "$*" in
-    $when) : > "$here/held"; : > "$here/marker"; sleep 1; mv "$here/marker" "$here/marker.released" ;;
+    $when) printf '%s\n' "$$" > "$here/held"; : > "$here/marker"; sleep 1; mv "$here/marker" "$here/marker.released" ;;
   esac
 fi
 exec "$real" "$@"
@@ -1424,6 +1430,7 @@ main_stopped_by() {
   main_stop_calls=$(wc -l < "$main_launch_fx/bin/calls" | tr -d ' ')
   case $main_stop_whom in
     group) kill -s "$main_stop_signal" -- "-$main_launch_pid" ;;
+    step-first) read -r main_stop_step < "$main_launch_fx/bin/held"; kill -s "$main_stop_signal" "$main_stop_step"; sleep 0.5; kill -s "$main_stop_signal" "$main_launch_pid" ;;
     *) kill -s "$main_stop_signal" "$main_launch_pid" ;;
   esac
   main_ended || return 1
