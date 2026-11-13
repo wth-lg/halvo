@@ -33,13 +33,17 @@ export type Fault =
 
 const NO_FAULT: Fault = { kind: "none" };
 
+export type CancelForm = "stated" | "unstated-then-stated" | "unstated-reversed";
+
 export type Command =
   | { readonly kind: "advance"; readonly seconds: number }
   | { readonly kind: "advance-to-period-end"; readonly account: number; readonly secondsBeforePeriodEnd: number }
   | { readonly kind: "reserve"; readonly account: number; readonly amountMicro: number; readonly dispatch: boolean }
   | { readonly kind: "settle"; readonly account: number; readonly holdsBackFromNewest: number; readonly percentOfHold: number }
   | { readonly kind: "crash"; readonly account: number; readonly downSeconds: number }
-  | { readonly kind: "cancel"; readonly account: number; readonly unstatedFirstSeconds: number }
+  | { readonly kind: "cancel"; readonly account: number; readonly form: CancelForm; readonly lagSeconds: number }
+  | { readonly kind: "late-cancel-event"; readonly account: number }
+  | { readonly kind: "reactivate"; readonly account: number }
   | { readonly kind: "delete"; readonly account: number };
 
 export type Scenario = {
@@ -101,6 +105,14 @@ type Account = {
   eventsHeldWhenEndCompleted: number | null;
   unexplainedReads: number;
   refused: Map<string, { amountMinor: number; timestamp: number }>;
+  queuedCancel: ProviderEvent | null;
+  unstatedCutAt: number;
+  lastProviderTime: number;
+  reactivations: number;
+  cancelSinceReactivation: boolean;
+  writeOff: { amount: number; sealed: Set<number>; laterSeals: Set<number> } | null;
+  writtenOffAtReactivation: number | null;
+  lastSeen: { carry: number; writtenOff: number | null } | null;
 };
 
 function blocker(): Blocker {
@@ -250,9 +262,23 @@ class World {
       eventsHeldWhenEndCompleted: null,
       unexplainedReads: 0,
       refused: new Map(),
+      queuedCancel: null,
+      unstatedCutAt: 0,
+      lastProviderTime: 0,
+      reactivations: 0,
+      cancelSinceReactivation: false,
+      writeOff: null,
+      writtenOffAtReactivation: null,
+      lastSeen: null,
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
+    const deleteAll = test.host.deleteAll;
+    test.host.deleteAll = async () => {
+      this.readRemainder(account);
+      this.count("remainder.read-before-the-delete");
+      await deleteAll();
+    };
     const seeded = await account.entries.testSeed({
       accountId: id,
       hash: account.hash,
@@ -267,6 +293,7 @@ class World {
 
   private subscriptionEvent(account: Account, over: Partial<Extract<ProviderEvent, { kind: "subscription" }>>): ProviderEvent {
     account.events += 1;
+    account.lastProviderTime = Math.max(account.lastProviderTime, over.providerTime ?? this.now * 1000);
     return {
       kind: "subscription",
       eventId: `evt_${account.index + 1}_${account.events}`,
@@ -473,10 +500,16 @@ class World {
         this.count("crash.idle");
         return;
       case "cancel":
-        await this.end(account, "cancel", command.unstatedFirstSeconds);
+        await this.end(account, "cancel", command.form, command.lagSeconds);
+        return;
+      case "late-cancel-event":
+        await this.lateCancel(account);
+        return;
+      case "reactivate":
+        await this.reactivate(account);
         return;
       case "delete":
-        await this.end(account, "delete", 0);
+        await this.end(account, "delete", "stated", 0);
         return;
     }
   }
@@ -542,17 +575,23 @@ class World {
     if (account.ended !== null || account.deleting) this.count("settle.after-cancel-or-delete");
   }
 
-  private async end(account: Account, kind: "cancel" | "delete", unstatedFirstSeconds: number): Promise<void> {
+  private async end(account: Account, kind: "cancel" | "delete", form: CancelForm, lagSeconds: number): Promise<void> {
     const previous = account.ended;
     const openHolds = account.holds.some((h) => h.open && this.now < h.expiresAt);
     if (kind === "cancel") {
       account.cancelled = true;
+      account.cancelSinceReactivation = true;
       const endedAt = this.meter.endSubscription(account.id, this.now);
-      if (unstatedFirstSeconds > 0) {
-        this.count("cancel.unstated-event-first");
-        await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", providerTime: (this.now + unstatedFirstSeconds) * 1000 }));
+      const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: endedAt * 1000, endedAt: endedAt * 1000 });
+      if (form === "stated" || lagSeconds <= 0) {
+        await account.entries.webhookEvent(stated);
+      } else {
+        const later = (endedAt + lagSeconds) * 1000;
+        account.unstatedCutAt = Math.max(account.unstatedCutAt, endedAt + lagSeconds);
+        this.count(`cancel.${form}`);
+        await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", providerTime: later }));
+        account.queuedCancel = form === "unstated-then-stated" ? stated : this.subscriptionEvent(account, { state: "cancelled", providerTime: endedAt * 1000 });
       }
-      await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", endedAt: endedAt * 1000 }));
       if (previous === null) account.ended = "cancel";
     } else {
       account.ended = "delete";
@@ -565,6 +604,70 @@ class World {
     }
     this.count(previous === null ? kind : `${kind}.after-cancel`);
     if (previous === null && openHolds) this.count(`${kind}.with-open-hold`);
+  }
+
+  private async lateCancel(account: Account): Promise<void> {
+    const event = account.queuedCancel;
+    if (event === null) return;
+    account.queuedCancel = null;
+    const sealed = account.test.host.step((sql) =>
+      ownTables(sql).length === 0 ? 0 : sql.exec("SELECT start FROM metering_interval WHERE sealed_at IS NOT NULL AND end_at > ?", Number(event.kind === "subscription" ? event.providerTime : 0)).length,
+    );
+    this.count(sealed > 0 ? "cancel.late-event-after-the-seal" : "cancel.late-event-before-the-seal");
+    await account.entries.webhookEvent(event);
+  }
+
+  private async reactivate(account: Account): Promise<void> {
+    if (account.ended !== "cancel" || account.destroyStarted || account.deleting) return;
+    const period = Math.floor((this.now - account.subscribedAt) / BILLING_PERIOD);
+    const start = account.subscribedAt + period * BILLING_PERIOD;
+    this.readRemainder(account);
+    account.writtenOffAtReactivation = account.lastSeen?.writtenOff ?? null;
+    this.meter.resumeSubscription(account.id);
+    account.periodsAnnounced = period + 1;
+    account.reactivations += 1;
+    account.cancelled = false;
+    account.ended = null;
+    account.cancelSinceReactivation = false;
+    account.writeOff = null;
+    account.unstatedCutAt = 0;
+    this.count("reactivate");
+    const providerTime = Math.max(this.now * 1000, account.lastProviderTime + 1000);
+    await account.entries.webhookEvent(
+      this.subscriptionEvent(account, { state: "active", providerTime, period: { start: start * 1000, end: (start + BILLING_PERIOD) * 1000 } }),
+    );
+  }
+
+  private readRemainder(account: Account): void {
+    const read = account.test.host.step((sql) => {
+      if (ownTables(sql).length === 0) return null;
+      const row = sql.exec("SELECT carry, written_off FROM metering_account")[0];
+      if (row === undefined) return null;
+      return { carry: Number(row.carry), writtenOff: row.written_off === null ? null : Number(row.written_off), sealed: sql.exec("SELECT start, reported FROM metering_interval WHERE sealed_at IS NOT NULL") };
+    });
+    if (read === null) return;
+    account.lastSeen = { carry: read.carry, writtenOff: read.writtenOff };
+    if (!account.cancelSinceReactivation && !account.destroyStarted) return;
+    this.count("remainder.read");
+    if (read.writtenOff === null) {
+      if (account.writeOff !== null) this.fail("the amount written off changed", `${account.id}: from ${account.writeOff.amount} to null`);
+      return;
+    }
+    if (account.writeOff === null) {
+      if (read.writtenOff === account.writtenOffAtReactivation) return;
+      account.writeOff = { amount: read.writtenOff, sealed: new Set(read.sealed.map((r) => Number(r.start))), laterSeals: new Set() };
+      this.count("remainder.write-off-seen");
+    } else if (read.writtenOff !== account.writeOff.amount) {
+      this.fail("the amount written off changed", `${account.id}: from ${account.writeOff.amount} to ${read.writtenOff}`);
+    }
+    if (read.carry !== 0) this.fail("a carry after the write-off", `${account.id}: carry ${read.carry}, written off ${read.writtenOff}`);
+    for (const row of read.sealed) {
+      const start = Number(row.start);
+      if (account.writeOff.sealed.has(start) || account.writeOff.laterSeals.has(start)) continue;
+      account.writeOff.laterSeals.add(start);
+      this.count("interval.sealed-after-the-write-off");
+      if (Number(row.reported) > 0) this.fail("an interval with usage sealed after the write-off", `${account.id} interval ${start}: reported ${row.reported}`);
+    }
   }
 
   private async destroy(account: Account): Promise<void> {
@@ -669,6 +772,7 @@ class World {
         );
       }
       if (account.unexplainedReads > 0) this.fail("a read the sync cannot explain", account.id);
+      if (account.cancelSinceReactivation || account.destroyStarted) this.readRemainder(account);
       if (account.ended !== null && account.eventsHeldWhenEndCompleted === null && account.inFlight === null && this.objectEnded(account)) {
         account.eventsHeldWhenEndCompleted = this.meter.recordedEvents(account.id).length;
       }
@@ -727,20 +831,26 @@ class World {
       const writtenOff = view?.meteringAccount?.written_off ?? null;
       const closedPeriods = this.meter.periods(account.id, this.now).filter((period) => period.end <= this.now);
       const lastPeriod = closedPeriods.at(-1)?.index;
+      const reactivated = account.reactivations > 0;
+      let unsentAll = 0;
       for (const period of closedPeriods) {
         const reported = account.reported.get(period.index) ?? 0;
-        const providerMinor = this.meter.exactTotal(account.id, period.start, period.end);
+        const stampedAfterTheEnd =
+          period.index === lastPeriod && account.unstatedCutAt > period.end ? this.meter.exactTotal(account.id, period.end, account.unstatedCutAt) : 0;
+        if (stampedAfterTheEnd > 0) this.count("event.stamped-after-the-subscription-end");
+        const providerMinor = this.meter.exactTotal(account.id, period.start, period.end) + stampedAfterTheEnd;
         const provider = providerMinor * RULE_MICRO_PER_MINOR;
         let unsent = 0;
         for (const [identifier, sent] of account.refused) {
           const atTheMeter = events.some((e) => e.identifier === identifier);
           if (!atTheMeter && sent.timestamp >= period.start && sent.timestamp < period.end) unsent += sent.amountMinor * RULE_MICRO_PER_MINOR;
         }
+        unsentAll += unsent;
         const carryOut = reported + carryIn - provider - unsent;
         this.rows.push({ account: account.id, period: period.index, reported, carryIn, provider, carryOut, invoicedMinor: this.meter.invoicedTotal(account.id, period) });
         if (carryIn > 0) this.count("period.starts-with-a-remainder");
         if (period.index > 0 && reported > 0) this.count("period.later-with-usage");
-        if (carryOut < 0 || carryOut >= RULE_MICRO_PER_MINOR) {
+        if (!reactivated && (carryOut < 0 || carryOut >= RULE_MICRO_PER_MINOR)) {
           this.fail(
             "the equation with a remainder under one minor unit",
             `${account.id} period ${period.index}: reported ${reported} + carried in ${carryIn} - provider ${provider} - closed as not billable ${unsent} = ${carryOut}`,
@@ -757,14 +867,25 @@ class World {
           }
           if (ledgerReported !== reported) this.fail("the ledger's reported total", `${account.id} period ${period.index}: ledger ${ledgerReported}, driver ${reported}`);
           const stored = account.ended === "cancel" && period.index === lastPeriod ? writtenOff : storedCarry;
-          if (stored !== carryOut) this.fail("the stored remainder", `${account.id} period ${period.index}: stored ${stored}, measured ${carryOut}`);
+          if (!reactivated && stored !== carryOut) this.fail("the stored remainder", `${account.id} period ${period.index}: stored ${stored}, measured ${carryOut}`);
         }
         carryIn = carryOut;
         insidePeriods += providerMinor;
       }
       const everything = this.meter.exactTotal(account.id, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
       if (everything !== insidePeriods) this.fail("an event outside every billing period", `${account.id}: ${everything - insidePeriods} minor units`);
-      if (account.ended === "cancel" && view !== null && writtenOff !== carryIn) {
+      if (reactivated) {
+        this.count("account.reactivated");
+        const seen = view === null ? account.lastSeen : { carry: Number(view.meteringAccount?.carry ?? 0), writtenOff: writtenOff === null ? null : Number(writtenOff) };
+        const kept = (seen?.carry ?? 0) + (seen?.writtenOff ?? 0);
+        const balance = account.reportedTotal - everything * RULE_MICRO_PER_MINOR - unsentAll - kept;
+        if (balance !== 0 || (seen?.carry ?? 0) < 0 || (seen?.carry ?? 0) >= RULE_MICRO_PER_MINOR) {
+          this.fail(
+            "the equation of a reactivated account",
+            `${account.id}: reported ${account.reportedTotal} - provider ${everything * RULE_MICRO_PER_MINOR} - closed as not billable ${unsentAll} - carry ${seen?.carry} - written off ${seen?.writtenOff} = ${balance}`,
+          );
+        }
+      } else if (account.ended === "cancel" && view !== null && writtenOff !== carryIn) {
         this.fail("the remainder written off at cancel", `${account.id}: recorded ${writtenOff}, measured ${carryIn}`);
       }
       if (account.ended !== null) {

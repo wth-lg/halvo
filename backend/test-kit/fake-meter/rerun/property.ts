@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { DOCUMENTED, type FakeMeterConfig } from "../fake-meter.ts";
 import {
   BILLING_PERIOD,
+  type CancelForm,
   type Command,
   DAY,
   type Fault,
@@ -79,7 +80,17 @@ const command: fc.Arbitrary<Command> = fc.oneof(
     arbitrary: fc.record({ kind: fc.constant("advance-to-period-end" as const), account, secondsBeforePeriodEnd: lastSecondsOfABillingPeriod }),
   },
   { weight: 3, arbitrary: fc.record({ kind: fc.constant("crash" as const), account, downSeconds }) },
-  { weight: 1, arbitrary: fc.record({ kind: fc.constant("cancel" as const), account, unstatedFirstSeconds: fc.constantFrom(0, 0, 1, 30, HOLD_LIFE) }) },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      kind: fc.constant("cancel" as const),
+      account,
+      form: fc.constantFrom<CancelForm>("stated", "stated", "unstated-then-stated", "unstated-reversed"),
+      lagSeconds: fc.constantFrom(1, 30, HOLD_LIFE, HOUR),
+    }),
+  },
+  { weight: 2, arbitrary: fc.record({ kind: fc.constant("late-cancel-event" as const), account }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant("reactivate" as const), account }) },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant("delete" as const), account }) },
 );
 
@@ -180,7 +191,7 @@ const SEARCH_FAULTS_BY_KIND: { readonly [Kind in SearchedFaultKind]: readonly Fa
 };
 export const SEARCH_FAULTS: readonly Fault[] = Object.values(SEARCH_FAULTS_BY_KIND).flat();
 
-export type SearchCase = { readonly scenario: Scenario; readonly faultsOfEarlierCalls: readonly Fault[] };
+export type SearchCase = { readonly scenario: Scenario; readonly faultsOfEarlierCalls: readonly Fault[]; readonly faults?: readonly Fault[] };
 
 export type SearchSummary = {
   readonly settings: number;
@@ -202,7 +213,7 @@ export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> 
     }
     const noCallLeftToFault = report.callsWhileFaultsOn <= searchCase.faultsOfEarlierCalls.length + faults.length;
     if (faults.length === SEARCH_DEPTH || noCallLeftToFault) return true;
-    for (const next of SEARCH_FAULTS) {
+    for (const next of searchCase.faults ?? SEARCH_FAULTS) {
       if (!(await visit([...faults, next], next.kind === "none" ? report : null))) return false;
     }
     return true;
@@ -245,7 +256,7 @@ export function searchCases(): SearchCase[] {
     { kind: "advance", seconds: 250 },
     { kind: "reserve", account: 0, amountMicro: 9_000, dispatch: true },
     { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
-    { kind: "cancel", account: 0, unstatedFirstSeconds: 0 },
+    { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 },
     { kind: "advance", seconds: 600 },
     { kind: "settle", account: 0, holdsBackFromNewest: 1, percentOfHold: 100 },
   ];
@@ -268,5 +279,84 @@ export function searchCases(): SearchCase[] {
     ),
     faultsOfEarlierCalls: [],
   });
+  const crashes = (downtimes: readonly number[]): Fault[] =>
+    downtimes.flatMap((d): Fault[] => [
+      { kind: "crash-before-call", downSeconds: d },
+      { kind: "crash-after-call", downSeconds: d },
+    ]);
+  const IN_THE_MARGIN = [JUST_INSIDE_THE_SYNC_WINDOW, JUST_OUTSIDE_THE_SYNC_WINDOW, DAY - 120, DAY - 75];
+  const marginFaults: Fault[] = [
+    { kind: "none" },
+    { kind: "refused" },
+    { kind: "request-lost" },
+    { kind: "response-lost" },
+    { kind: "late-delivery" },
+    ...crashes(IN_THE_MARGIN),
+  ];
+  for (const readLagSeconds of [0, 23 * HOUR]) {
+    cases.push({
+      scenario: scenario(
+        { uniquenessWindowSeconds: DAY, readLagSeconds, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
+        oneIntervalOnAnAccountThatStays,
+      ),
+      faultsOfEarlierCalls: [],
+      faults: marginFaults,
+    });
+  }
+  const rangeFaults: Fault[] = [
+    { kind: "none" },
+    { kind: "request-lost" },
+    { kind: "response-lost" },
+    { kind: "late-delivery" },
+    ...crashes([JUST_OUTSIDE_THE_SYNC_WINDOW, PAST_THE_FAKES_WINDOW]),
+  ];
+  const wideAndLagging = { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: DAY };
+  const twoIntervals = (first: number, second: number): Command[] => [
+    { kind: "reserve", account: 0, amountMicro: first, dispatch: true },
+    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+    hourPasses,
+    { kind: "reserve", account: 0, amountMicro: second, dispatch: true },
+    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+    hourPasses,
+  ];
+  const recordedThenRefusedToTheLimit: Fault[] = [{ kind: "response-lost" }, { kind: "refused" }, { kind: "none" }, { kind: "refused" }, { kind: "refused" }];
+  const refusedToTheLimit: Fault[] = [{ kind: "refused" }, { kind: "refused" }, { kind: "refused" }];
+  cases.push({ scenario: scenario(wideAndLagging, twoIntervals(ONE_MINOR_UNIT_AND_A_REMAINDER, 3 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: recordedThenRefusedToTheLimit, faults: rangeFaults });
+  cases.push({ scenario: scenario(wideAndLagging, twoIntervals(2 * RULE_MICRO_PER_MINOR, 2 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: refusedToTheLimit, faults: rangeFaults });
+  const fewFaults: Fault[] = [{ kind: "none" }, { kind: "request-lost" }, { kind: "response-lost" }, { kind: "crash-after-call", downSeconds: 0 }];
+  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 1 };
+  const twoHoursPass: Command = { kind: "advance", seconds: 2 * HOUR };
+  const lateCancel = (form: CancelForm, lateAfterSeconds: number): Command[] => [
+    ...usageWithARemainder,
+    { kind: "cancel", account: 0, form, lagSeconds: HOLD_LIFE },
+    { kind: "advance", seconds: lateAfterSeconds },
+    { kind: "late-cancel-event", account: 0 },
+    twoHoursPass,
+  ];
+  for (const lateAfterSeconds of [2 * HOUR, 10]) {
+    for (const form of ["unstated-then-stated", "unstated-reversed"] as const) {
+      cases.push({ scenario: scenario(exact, lateCancel(form, lateAfterSeconds)), faultsOfEarlierCalls: [], faults: fewFaults });
+    }
+  }
+  const stated: Command = { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 };
+  cases.push({
+    scenario: scenario(exact, [...usageWithARemainder, stated, { kind: "advance", seconds: 5 }, { kind: "reserve", account: 0, amountMicro: RULE_MICRO_PER_MINOR, dispatch: true }, twoHoursPass]),
+    faultsOfEarlierCalls: [],
+    faults: fewFaults,
+  });
+  cases.push({ scenario: scenario(exact, [...usageWithARemainder, stated, twoHoursPass, { kind: "delete", account: 0 }, hourPasses]), faultsOfEarlierCalls: [], faults: fewFaults });
+  const reactivated = (afterSeconds: number): Command[] => [
+    ...usageWithARemainder,
+    stated,
+    { kind: "advance", seconds: afterSeconds },
+    { kind: "reactivate", account: 0 },
+    ...usageWithARemainder,
+    twoHoursPass,
+    ...sameAmount,
+    twoHoursPass,
+  ];
+  for (const afterSeconds of [2 * HOUR, 5]) {
+    cases.push({ scenario: scenario(exact, reactivated(afterSeconds)), faultsOfEarlierCalls: [], faults: fewFaults });
+  }
   return cases;
 }

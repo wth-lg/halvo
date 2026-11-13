@@ -94,6 +94,12 @@ export class FakeMeter {
     return subscription.end;
   }
 
+  resumeSubscription(account: string): void {
+    const subscription = this.subscriptions.get(account);
+    if (subscription === undefined) throw new Error(`${account} is not subscribed`);
+    subscription.end = null;
+  }
+
   send(event: MeterEvent, now: UnixSeconds): SendResult {
     if (!this.subscriptions.has(event.account)) return this.refuse("unknown_account");
     if (!(Number.isSafeInteger(event.amountMinor) && event.amountMinor >= 1)) {

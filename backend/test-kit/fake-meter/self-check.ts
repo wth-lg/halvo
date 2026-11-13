@@ -41,6 +41,13 @@ export function selfCheck(): { name: string; ok: boolean }[] {
     checks.push({ name, ok: body() });
   };
 
+  check("a subscription made active again after its end goes on with the periods of its start", () => {
+    const fake = meter();
+    fake.endSubscription("a", T0 + 10 * DAY);
+    fake.resumeSubscription("a");
+    const periods = fake.periods("a", T0 + 40 * DAY);
+    return periods.length === 2 && periods[0]?.end === T0 + 30 * DAY && periods[1]?.end === T0 + 60 * DAY;
+  });
   check("a duplicate one second inside the 24-hour window is not added (r1#84)", () => {
     const fake = meter();
     fake.send(event("x", 5, T0), T0);
