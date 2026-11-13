@@ -176,7 +176,71 @@ impl Drop for DeviceClaim {
     }
 }
 
-fn register_class(device: RawDevice, hinstance: HINSTANCE) -> Result<(), CaptureError> {
+#[derive(Clone, Copy)]
+struct StartCalls {
+    module: fn() -> windows::core::Result<HINSTANCE>,
+    register_class: fn(&WNDCLASSW) -> u16,
+    create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
+    register_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+}
+
+const SYSTEM_CALLS: StartCalls = StartCalls {
+    module: module_of_the_process,
+    register_class: register_window_class,
+    create_window: create_message_window,
+    register_device: register_raw_input_device,
+};
+
+fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    // SAFETY: GetModuleHandleW with no name reads the handle of this process's
+    // executable and takes no pointer.
+    unsafe { GetModuleHandleW(None) }.map(Into::into)
+}
+
+fn register_window_class(class: &WNDCLASSW) -> u16 {
+    // SAFETY: `class` is a live WNDCLASSW whose name is a static wide string
+    // and whose procedure has the WNDPROC signature.
+    unsafe { RegisterClassW(class) }
+}
+
+fn create_message_window(device: RawDevice, hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+    // SAFETY: the class name is a static wide string of a registered class,
+    // and HWND_MESSAGE makes a message-only window with no other pointer.
+    unsafe {
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            device.class_name(),
+            device.class_name(),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            Some(hinstance),
+            None,
+        )
+    }
+}
+
+fn register_raw_input_device(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+    // SAFETY: the slice holds one initialized RAWINPUTDEVICE, and the size
+    // argument is the size of that struct.
+    unsafe {
+        RegisterRawInputDevices(
+            core::slice::from_ref(device),
+            core::mem::size_of::<RAWINPUTDEVICE>() as u32,
+        )
+    }
+}
+
+fn register_class(
+    device: RawDevice,
+    hinstance: HINSTANCE,
+    register: fn(&WNDCLASSW) -> u16,
+) -> Result<(), CaptureError> {
     let mut registered = CLASSES_REGISTERED
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
@@ -189,9 +253,7 @@ fn register_class(device: RawDevice, hinstance: HINSTANCE) -> Result<(), Capture
         lpszClassName: device.class_name(),
         ..Default::default()
     };
-    // SAFETY: `class` names a static wide string and a window procedure with
-    // the WNDPROC signature.
-    if unsafe { RegisterClassW(&class) } == 0 {
+    if register(&class) == 0 {
         return Err(super::last_os_error("RegisterClassW"));
     }
     registered[device.index()] = true;
@@ -205,6 +267,7 @@ pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
+    calls: StartCalls,
 }
 
 impl RawInputSource {
@@ -224,6 +287,15 @@ impl RawInputSource {
             device,
             last_app,
             life: Lifecycle::default(),
+            calls: SYSTEM_CALLS,
+        }
+    }
+
+    #[cfg(test)]
+    fn with_calls(device: RawDevice, calls: StartCalls) -> Self {
+        Self {
+            calls,
+            ..Self::new(device, Arc::new(Mutex::new(None)))
         }
     }
 
@@ -387,6 +459,7 @@ impl CaptureSource for RawInputSource {
         let claim = DeviceClaim::take(self.device)?;
         let device = self.device;
         let last_app = Arc::clone(&self.last_app);
+        let calls = self.calls;
         self.life
             .begin(&ctx, "halvo-rawinput-forward", move |producer| {
                 let state = InputState {
@@ -396,7 +469,7 @@ impl CaptureSource for RawInputSource {
                 };
                 let name = format!("halvo-rawinput-{device:?}");
                 super::spawn_pump(name, move |ready, signal| {
-                    run_raw_input(state, claim, ready, &signal)
+                    run_raw_input(state, claim, calls, ready, &signal)
                 })
             })
     }
@@ -465,44 +538,23 @@ impl Drop for WindowGuard {
 fn run_raw_input(
     state: InputState,
     claim: DeviceClaim,
+    calls: StartCalls,
     ready: PumpReady,
     signal: &super::StopSignal,
 ) {
-    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-
     let device = state.device;
-    // SAFETY: GetModuleHandleW with no name reads the handle of this process's
-    // executable and takes no pointer.
-    let hinstance: HINSTANCE = match unsafe { GetModuleHandleW(None) } {
-        Ok(h) => h.into(),
+    let hinstance: HINSTANCE = match (calls.module)() {
+        Ok(h) => h,
         Err(error) => {
             ready.report(Err(super::os_error("GetModuleHandleW", &error)));
             return;
         }
     };
-    if let Err(error) = register_class(device, hinstance) {
+    if let Err(error) = register_class(device, hinstance, calls.register_class) {
         ready.report(Err(error));
         return;
     }
-    // SAFETY: the class name is a static wide string of a registered class,
-    // and HWND_MESSAGE makes a message-only window with no other pointer.
-    let created = unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE(0),
-            device.class_name(),
-            device.class_name(),
-            WINDOW_STYLE(0),
-            0,
-            0,
-            0,
-            0,
-            Some(HWND_MESSAGE),
-            None,
-            Some(hinstance),
-            None,
-        )
-    };
-    let hwnd = match created {
+    let hwnd = match (calls.create_window)(device, hinstance) {
         Ok(h) => h,
         Err(error) => {
             ready.report(Err(super::os_error("CreateWindowExW", &error)));
@@ -520,10 +572,7 @@ fn run_raw_input(
         dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
-    // SAFETY: the slice holds one initialized RAWINPUTDEVICE whose target is
-    // the window above, and the size argument is the size of that struct.
-    let registered =
-        unsafe { RegisterRawInputDevices(&[dev], core::mem::size_of::<RAWINPUTDEVICE>() as u32) };
+    let registered = (calls.register_device)(&dev);
     if let Err(error) = registered {
         ready.report(Err(super::os_error("RegisterRawInputDevices", &error)));
         return;
@@ -750,5 +799,148 @@ mod tests {
         assert_eq!(while_first_runs, Err(CaptureError::AlreadyStarted));
         assert_eq!(first_stopped, Ok(()));
         assert!(after_first_stopped.is_ok(), "{after_first_stopped:?}");
+    }
+
+    use windows::Win32::Foundation::{
+        ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, ERROR_MOD_NOT_FOUND, ERROR_NOT_ENOUGH_MEMORY,
+        WIN32_ERROR,
+    };
+
+    fn refusal(code: WIN32_ERROR) -> windows::core::Error {
+        windows::core::Error::from_hresult(code.to_hresult())
+    }
+
+    fn refused_at(stage: &'static str, code: WIN32_ERROR) -> CaptureError {
+        CaptureError::Os {
+            stage,
+            domain: "HRESULT",
+            code: i64::from(code.to_hresult().0),
+        }
+    }
+
+    fn no_module() -> windows::core::Result<HINSTANCE> {
+        Err(refusal(ERROR_MOD_NOT_FOUND))
+    }
+
+    fn class_refused(_class: &WNDCLASSW) -> u16 {
+        // SAFETY: SetLastError writes a plain value into this thread's last
+        // error.
+        unsafe { windows::Win32::Foundation::SetLastError(ERROR_ACCESS_DENIED) };
+        0
+    }
+
+    fn window_refused(_device: RawDevice, _hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+        Err(refusal(ERROR_NOT_ENOUGH_MEMORY))
+    }
+
+    static LAST_WINDOW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn recorded_window(device: RawDevice, hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+        let hwnd = create_message_window(device, hinstance)?;
+        LAST_WINDOW.store(hwnd.0 as usize, std::sync::atomic::Ordering::SeqCst);
+        Ok(hwnd)
+    }
+
+    fn registration_refused(_device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        Err(refusal(ERROR_INVALID_PARAMETER))
+    }
+
+    fn start_with(calls: StartCalls) -> Result<crate::source::Started, CaptureError> {
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = RawInputSource::with_calls(RawDevice::Keyboard, calls);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        started
+    }
+
+    fn a_later_start_is_taken() -> bool {
+        start_with(SYSTEM_CALLS).is_ok()
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_module_handle_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let started = start_with(StartCalls {
+            module: no_module,
+            ..SYSTEM_CALLS
+        });
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("GetModuleHandleW", ERROR_MOD_NOT_FOUND))
+        );
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_class_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let index = RawDevice::Keyboard.index();
+        let before = CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index];
+        CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index] = false;
+        let started = start_with(StartCalls {
+            register_class: class_refused,
+            ..SYSTEM_CALLS
+        });
+        let marked_after = CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index];
+        CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index] = before;
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("RegisterClassW", ERROR_ACCESS_DENIED))
+        );
+        assert!(!marked_after, "a refused class was marked as registered");
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_window_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let started = start_with(StartCalls {
+            create_window: window_refused,
+            ..SYSTEM_CALLS
+        });
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("CreateWindowExW", ERROR_NOT_ENOUGH_MEMORY))
+        );
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_registration_is_refused_reports_the_step_and_code() {
+        use windows::Win32::UI::WindowsAndMessaging::IsWindow;
+        let _serial = crate::windows::tests::serial();
+        LAST_WINDOW.store(0, std::sync::atomic::Ordering::SeqCst);
+        let started = start_with(StartCalls {
+            create_window: recorded_window,
+            register_device: registration_refused,
+            ..SYSTEM_CALLS
+        });
+        let window = LAST_WINDOW.load(std::sync::atomic::Ordering::SeqCst);
+        // SAFETY: IsWindow reads a handle value and answers false for one
+        // that names no window; it reads no memory of ours.
+        let window_left =
+            unsafe { IsWindow(Some(HWND(window as *mut core::ffi::c_void))) }.as_bool();
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at(
+                "RegisterRawInputDevices",
+                ERROR_INVALID_PARAMETER
+            ))
+        );
+        assert_ne!(window, 0, "INCONCLUSIVE: the window was not made");
+        assert!(!window_left, "the failed start left its window");
+        assert!(later, "a start after the refused one was not taken");
     }
 }
