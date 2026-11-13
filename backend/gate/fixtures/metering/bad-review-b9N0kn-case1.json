@@ -14,6 +14,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search, setting 21, faults [{\"kind\":\"refused\"}]: the equation with a remainder under one minor unit"
+    "first failure: the fault-sequence search, setting 21, faults [",
+    "one event for each acknowledged interval"
   ]
 }
