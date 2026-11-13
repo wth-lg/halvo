@@ -170,6 +170,16 @@ impl Runner {
     /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
     /// lets nothing through, and `commit` is stored only after its reply. A request with no reply leaves its effect
     /// `releasing`, and the run ends `effect_unknown`.
+    ///
+    /// A `reject_once` ends its effect `rejected`, and that effect alone, whatever a later load gives, on the first
+    /// card, on the card of a batch of case (iv) and on a later card for one effect; its paused request is failed and
+    /// never let through. The other effects of the call that are `approved` or `cleared` go to their `begin` in their
+    /// order, each after its own load (A5.1 case (i), CP-174 Part 1). When no effect of the call is open, one or more
+    /// of them was ended by a `reject_once` and nothing else ended the run, the run makes no further step and ends
+    /// `declined` with the cause `declined`, also when an effect of the run is `committed`; an end that the path of
+    /// another effect gives after the reject is the run's end. After a reject this outcome says that one effect or
+    /// more of the run was ended by a `reject_once`, the person's or the one that a lapse of its card sent, and says
+    /// nothing of the other effects, which the effect rows show; such a run is never `completed` (A6.5).
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
         let loaded = self.load()?;
         let mut open = VecDeque::new();
@@ -271,7 +281,12 @@ impl Runner {
     /// ended and the run ends `refused` with `origin` (A9.2); then `admit` is asked with that load's origins, and its
     /// refusal ends the run `failed` with `provenance` (CP-159 G1). A `cleared` effect whose values
     /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the
-    /// step proposes effects again (A5.2, CP-157 E4).
+    /// step proposes effects again (A5.2, CP-157 E4). A `reject_once` on a later card for the effect, after a
+    /// `rebind` or for a `cleared` effect proposed again as `held`, ends that effect alone: it gives back
+    /// `Through::Rejected`, so that the loop goes on with the queue and reads the reject from that answer and never
+    /// from the state `rejected`, which the runner's own `end` leaves too (CP-174 Part 1). The arm for a `cleared`
+    /// effect proposed again as `held` is not reached at this head, because the `propose` there takes the decision of
+    /// the load, the class and the checkpoint that the read above it gave `run` (Addition 1 of CP-174).
     fn let_through(&mut self, mut one: Open, renewed: &mut u32) -> Result<Through, Stop> {
         loop {
             let again = self.load()?;
@@ -375,8 +390,14 @@ impl Runner {
     }
 
     /// Asks the person about the `held` effects of `asked`, each with the bound object of its last row, in one
-    /// confirmation request (A6.3), and moves each by its answer: `approve` for `allow_once`, `reject` for
-    /// `reject_once`. The wait is no time of the run's `wall_s`.
+    /// confirmation request (A6.3), and moves each by its answer; the wait is no time of the run's `wall_s`. The card
+    /// gives one answer for every effect of its request, the decision carries it as one entry for each effect, and
+    /// the runner reads each entry for its effect alone. When the decision has come, each effect's approval is found
+    /// first, else `not_the_decision` before any row; then the `rejected` row of each `reject_once` is stored, in the
+    /// request's order; then a held `cancel` is read, at once, at this place, and it ends the run `declined` with no
+    /// further load and no `approved` row; only then is the `approved` row of each `allow_once` stored, in the
+    /// request's order (A5.1 case (i), A6.2, CP-174 Part 2). An effect whose `allow_once` was not applied stays
+    /// `held` until the handler of the run's end ends it (A7.5). The effects that a `reject_once` ended come back.
     fn confirm(&mut self, asked: &[(usize, &Bound)]) -> Result<Vec<usize>, Stop> {
         let request = ConfirmRequest {
             v: V1,
