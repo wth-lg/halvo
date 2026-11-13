@@ -245,7 +245,9 @@ every byte that reach it. The trial watches the browser's process by its number 
 A run is ok when no byte arrived. Before the 20 kills, one control run lets the POST through first;
 the listener must see it, or the cell is `notrun ... cause=control`. Then the trial closes a
 browser that is still alive over its debugging address, or, where it has none, ends its root
-process by its recorded creation time. No row walks the tree of such a browser, so no row stops a
+process by its recorded creation time, and then ends what the run left with the routine of every
+other way out (`checks::end_runs_own`, below; the killed driver runs no end of its own). The run
+line prints `left_before` and `left_after`, and a run with `left_after` above 0 is a miss. No row walks the tree of such a browser, so no row stops a
 browser on Windows through the snapshot of parents that can take a reused process number. Each
 run removes the profile and the temporary directory that its driver made.
 
@@ -392,7 +394,7 @@ the crate and `clippy.toml` needs no line for it.
   left (`checks::end_runs_own`, CP-126 E1): the stop after a cell's run (before the guard's wait,
   and again after the stop's own wait), a failed start, an executor dropped without its stop (a
   failed cell, and INT and TERM, which reach the program because run.sh ends by exec and drop the
-  row that runs), and a start that a signal cut off. A process is the run's own (`checks::Mark`)
+  row that runs), a start that a signal cut off, and a kill row's run after its watch. A process is the run's own (`checks::Mark`)
   when it began at or after the run's start less 1 s, its program lies inside the browser's app
   bundle on macOS or its install directory on Windows (`StartOptions.program`, the browser itself
   under the egress wrap), and one of its arguments names the run's profile as a whole path
@@ -401,7 +403,8 @@ the crate and `clippy.toml` needs no line for it.
   kill and leaves a number that another process took alone; the routine stops on a pass that finds
   none (only a process that names the profile can make another one that names it), or after 100
   passes. Each run line prints `left_before` (the first pass) and `left_after` (the last), and a run
-  with `left_after` above 0 is no ok run. The egress check's shell, its runner and its `log stream`
+  with `left_after` above 0 is no ok run. When its first pass finds any, the routine prints
+  `left_found n=<count> programs=<file names of their programs>` on standard error. The egress check's shell, its runner and its `log stream`
   run other programs and are left alone, as is a browser that names another profile. On `mac` one
   failed run of `start_probe` at 3268a2d3 left a browser process with the profile, the pipe flag and
   no parent for four hours, which the end of the first process did not reach (037b242c).
@@ -485,7 +488,8 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
 - `relay_port_free` (with `--rows driver`): the driver, with the relay in its process and the
   browser on its pipe, is killed with the system's hard kill while a POST is paused; the trial then
   reads every 2 ms whether a new socket can bind the relay's port (with `SO_REUSEADDR`) and whether
-  any process of the browser's tree still runs; ok when the browser's tree was gone first.
+  any process of the browser's tree still runs; ok when the browser's tree was gone first and the
+  end of the run's own processes after the watch left none (`left_after=0`).
 - `org_debugging` and `org_proxy` (`--rows org`): the caller sets the organisation's setting before
   the call and takes it away after it: the scratch workflow writes `RemoteDebuggingAllowed` off or
   `ProxyMode` `direct` under `HKLM\SOFTWARE\Policies` on Windows, and on the hosted Mac installs the
