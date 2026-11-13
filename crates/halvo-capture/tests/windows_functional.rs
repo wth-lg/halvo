@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 mod stall;
+use stall::FieldWindow;
 mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 
@@ -19,7 +20,7 @@ use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
-use halvo_capture::windows::input::RawInputSource;
+use halvo_capture::windows::input::{seam, RawInputSource};
 use halvo_capture::windows::screen::ScreenSource;
 use halvo_capture::windows::window_title::WindowTitleSource;
 
@@ -966,107 +967,6 @@ enum Field {
     Password,
 }
 
-enum FieldCommand {
-    Focus(Field),
-    Reveal,
-    TextLen(Field),
-    Wander(Duration),
-}
-
-enum FieldAnswer {
-    Focused(bool),
-    Revealed(bool),
-    TextLen(i32),
-    PasswordIntervals(Vec<(u128, u128)>),
-}
-
-struct FieldWindow {
-    commands: mpsc::Sender<FieldCommand>,
-    answers: mpsc::Receiver<FieldAnswer>,
-    thread: Option<std::thread::JoinHandle<()>>,
-    foreground: bool,
-    method: &'static str,
-}
-
-impl FieldWindow {
-    fn open(test: &str, first: Field) -> FieldWindow {
-        let (commands, take) = mpsc::channel::<FieldCommand>();
-        let (give, answers) = mpsc::channel::<FieldAnswer>();
-        let (opened, opening) = mpsc::channel();
-        let thread = std::thread::Builder::new()
-            .name("tf-field-window".to_string())
-            .spawn(move || serve_fields(first, &take, &give, &opened))
-            .expect("spawn the field window thread");
-        let (foreground, method) = opening
-            .recv_timeout(Duration::from_secs(20))
-            .expect("INCONCLUSIVE: the field window did not open");
-        say(
-            test,
-            format!("field_window_foreground={foreground} method={method} first_focus={first:?}"),
-        );
-        FieldWindow {
-            commands,
-            answers,
-            thread: Some(thread),
-            foreground,
-            method,
-        }
-    }
-
-    fn ask(&self, command: FieldCommand, limit: Duration) -> FieldAnswer {
-        self.commands
-            .send(command)
-            .expect("the field window thread");
-        self.answers
-            .recv_timeout(limit)
-            .expect("INCONCLUSIVE: the field window did not answer")
-    }
-
-    fn focus(&self, field: Field) -> bool {
-        match self.ask(FieldCommand::Focus(field), Duration::from_secs(5)) {
-            FieldAnswer::Focused(focused) => focused,
-            _ => false,
-        }
-    }
-
-    fn reveal(&self) -> bool {
-        match self.ask(FieldCommand::Reveal, Duration::from_secs(5)) {
-            FieldAnswer::Revealed(revealed) => revealed,
-            _ => false,
-        }
-    }
-
-    fn text_len(&self, field: Field) -> i32 {
-        match self.ask(FieldCommand::TextLen(field), Duration::from_secs(5)) {
-            FieldAnswer::TextLen(len) => len,
-            _ => -1,
-        }
-    }
-
-    fn start_wander(&self, span: Duration) {
-        self.commands
-            .send(FieldCommand::Wander(span))
-            .expect("the field window thread");
-    }
-
-    fn wander_intervals(&self, span: Duration) -> Vec<(u128, u128)> {
-        match self.answers.recv_timeout(span + Duration::from_secs(5)) {
-            Ok(FieldAnswer::PasswordIntervals(intervals)) => intervals,
-            _ => panic!("INCONCLUSIVE: the field window did not report its focus moves"),
-        }
-    }
-}
-
-impl Drop for FieldWindow {
-    fn drop(&mut self) {
-        let (closed, _) = mpsc::channel();
-        self.commands = closed;
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
-
 fn focus_on(hwnd: HWND) -> bool {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
     // SAFETY: SetFocus and GetFocus take and return handle values of this
@@ -1074,108 +974,6 @@ fn focus_on(hwnd: HWND) -> bool {
     unsafe {
         let _ = SetFocus(Some(hwnd));
         GetFocus() == hwnd
-    }
-}
-
-fn pump_dialog(hwnd: HWND) {
-    use windows::Win32::UI::WindowsAndMessaging::IsDialogMessageW;
-    let mut msg = MSG::default();
-    // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same value
-    // goes to IsDialogMessageW, TranslateMessage and DispatchMessageW.
-    unsafe {
-        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
-            if IsDialogMessageW(hwnd, &msg).as_bool() {
-                continue;
-            }
-            let _ = TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-    }
-}
-
-type Wander = (Instant, Duration, Instant, u64, Vec<(u128, u128)>);
-
-fn serve_fields(
-    first: Field,
-    take: &mpsc::Receiver<FieldCommand>,
-    give: &mpsc::Sender<FieldAnswer>,
-    opened: &mpsc::Sender<(bool, &'static str)>,
-) {
-    use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ES_PASSWORD, WS_TABSTOP};
-    const EM_SETPASSWORDCHAR: u32 = 0x00CC;
-    let window = TestWindow::create(&normal_window(
-        "HalvoVerifyFields",
-        "halvo-verify-fields",
-        120,
-        120,
-    ))
-    .expect("the field window");
-    let plain = window
-        .child_control("EDIT", WS_TABSTOP, 10)
-        .expect("the plain edit");
-    let password = window
-        .child_control("EDIT", WS_TABSTOP | WINDOW_STYLE(ES_PASSWORD as u32), 44)
-        .expect("the password edit");
-    let hwnd_of = |field| match field {
-        Field::Plain => plain,
-        Field::Password => password,
-    };
-    pump_thread(Duration::from_millis(300));
-    let (foreground, method) = window.activate();
-    focus_on(hwnd_of(first));
-    pump_thread(Duration::from_millis(300));
-    let _ = opened.send((foreground, method));
-    let mut wander: Option<Wander> = None;
-    loop {
-        pump_dialog(window.hwnd);
-        if let Some((began, span, next, seed, intervals)) = wander.as_mut() {
-            if began.elapsed() >= *span {
-                if let Some(open) = intervals.last_mut().filter(|(_, end)| *end == 0) {
-                    open.1 = unix_millis(SystemTime::now());
-                }
-                focus_on(plain);
-                let done = std::mem::take(intervals);
-                wander = None;
-                let _ = give.send(FieldAnswer::PasswordIntervals(done));
-            } else if Instant::now() >= *next {
-                *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-                let to_password = !intervals.last().is_some_and(|(_, end)| *end == 0);
-                let now = unix_millis(SystemTime::now());
-                if to_password {
-                    focus_on(password);
-                    intervals.push((now, 0));
-                } else {
-                    focus_on(plain);
-                    if let Some(open) = intervals.last_mut() {
-                        open.1 = now;
-                    }
-                }
-                *next = Instant::now() + Duration::from_millis(150 + (*seed >> 33) % 450);
-            }
-        }
-        match take.recv_timeout(Duration::from_millis(5)) {
-            Ok(FieldCommand::Focus(field)) => {
-                let focused = focus_on(hwnd_of(field));
-                pump_thread(Duration::from_millis(50));
-                let _ = give.send(FieldAnswer::Focused(focused));
-            }
-            Ok(FieldCommand::Reveal) => {
-                // SAFETY: SendMessageW passes a plain value to this thread's
-                // edit control.
-                unsafe {
-                    let _ = SendMessageW(password, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
-                }
-                let _ = give.send(FieldAnswer::Revealed(true));
-            }
-            Ok(FieldCommand::TextLen(field)) => {
-                let _ = give.send(FieldAnswer::TextLen(title_len(hwnd_of(field))));
-            }
-            Ok(FieldCommand::Wander(span)) => {
-                wander = Some((Instant::now(), span, Instant::now(), 7, Vec::new()));
-            }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => break,
-        }
     }
 }
 
@@ -3116,6 +2914,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
+        let _ = seam::take();
         let held = last_app.lock().expect("the last-app cell");
         let accepted = press_keys(5);
         std::thread::sleep(Duration::from_millis(300));
@@ -3148,15 +2947,22 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             Ok((stopped, lost, late)) => (format!("{stopped:?}"), *lost, *late),
             Err(e) => (format!("no answer ({e:?})"), 0, 0),
         };
+        let decided = seam::take();
+        let not_recorded = decided
+            .iter()
+            .filter(|key| key.verdict != seam::Verdict::Recorded)
+            .count() as u64;
         say(
             "queued-at-stop",
             format!(
                 "keyboard_start={} presses=5 sendinput_key_events_accepted={accepted} \
                  keystrokes_before_the_release={before_release} \
-                 stop={stopped} keystrokes_delivered={delivered} lost={lost} late={late} \
-                 neither_delivered_nor_counted={}",
+                 stop={stopped} keystrokes_delivered={delivered} lost={lost} late_value={late} \
+                 keys_decided_by_the_gate={} keys_withheld_or_undecided_at_the_stop={not_recorded} \
+                 neither_delivered_nor_decided={}",
                 show(&start),
-                5i64 - delivered as i64 - lost as i64 - late as i64,
+                decided.len(),
+                5i64 - delivered as i64 - lost as i64 - not_recorded as i64,
             ),
         );
         drop(sink);
@@ -3174,10 +2980,10 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             "the stop did not answer Ok: {outcome:?}"
         );
         assert_eq!(
-            delivered + lost + late,
+            delivered + lost + not_recorded,
             5,
-            "key presses queued before the stop were neither delivered nor counted: \
-             delivered {delivered}, lost {lost}, late {late}"
+            "key presses queued before the stop were neither delivered nor decided: \
+             delivered {delivered}, lost {lost}, withheld or undecided {not_recorded}"
         );
     });
 }
@@ -3193,6 +2999,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
+        let _ = seam::take();
         let held = last_app.lock().expect("the last-app cell");
         let accepted_before = press_keys(1);
         std::thread::sleep(Duration::from_millis(300));
@@ -3218,13 +3025,15 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
             &events.drain_for(Duration::from_secs(1)),
             Modality::Keystroke,
         ) as u64;
+        let decided = seam::take().len() as u64;
         say(
             "after-timeout",
             format!(
                 "keyboard_start={} presses_before_the_stop=1 presses_after_the_answer=5 \
                  sendinput_key_events_accepted_before={accepted_before} \
                  sendinput_key_events_accepted_after={accepted_after} stop={stopped:?} \
-                 keystrokes_delivered={delivered} lost={lost} late={late}",
+                 keystrokes_delivered={delivered} lost={lost} late_value={late} \
+                 keys_that_the_pump_read={decided}",
                 show(&start),
             ),
         );
@@ -3240,9 +3049,8 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
             "INCONCLUSIVE: the held pump's stop did not answer Timeout: {stopped:?}"
         );
         assert_eq!(
-            delivered + lost + late,
-            1,
-            "the pump read input posted after the Timeout answer: delivered {delivered}, lost {lost}, late {late}"
+            decided, 1,
+            "the pump read input posted after the Timeout answer: it decided {decided} keys, delivered {delivered}, lost {lost}"
         );
     });
 }
@@ -4021,14 +3829,8 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         type_letters_slowly(LETTERS);
         let d = keys(&events.drain_for(Duration::from_secs(1)));
 
-        let mut e = 0;
-        let mut accepted_e = 0;
-        for _ in 0..20 {
-            fields.focus(Field::Plain);
-            let _ = events.drain_for(Duration::from_millis(300));
-            accepted_e += tab_then_letter();
-            e += keys(&events.drain_for(Duration::from_millis(400)));
-        }
+        let (e, e_control_before, e_control_after) =
+            fields.phase_e("fixture-native", &events, &keyboard);
 
         drop(fields);
         let mut f = 0;
@@ -4078,7 +3880,12 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         );
         say(
             "fixture-native",
-            format!("phase=E rounds=20 sendinput_events_accepted={accepted_e} keystroke_events={e} tab_keys=20"),
+            format!(
+                "phase=E rounds={} counted_rounds={} letters_recorded={} tabs_recorded={} other_recorded={} \
+                 letters_landed_in_the_password_field={} control_before={e_control_before} \
+                 control_after={e_control_after}",
+                e.rounds, e.counted, e.letters_recorded, e.tabs_recorded, e.other_recorded, e.letters_landed,
+            ),
         );
         say(
             "fixture-native",
@@ -4106,8 +3913,20 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
             "phase D: a key of the revealed password field was recorded"
         );
         assert_eq!(
-            e, 20,
+            e.letters_recorded, 0,
             "phase E: a key typed right after Tab into the password field was recorded"
+        );
+        assert_eq!(
+            e.other_recorded, 0,
+            "phase E: a key of another class than Tab was recorded"
+        );
+        assert!(
+            e_control_before > 0 && e_control_after > 0,
+            "phase E: a control recorded no letter of the plain field"
+        );
+        assert_eq!(
+            e.counted, e.rounds,
+            "INCONCLUSIVE: phase E: not every round counted"
         );
         assert_eq!(
             f, 0,
@@ -4650,6 +4469,34 @@ macro_rules! defect {
 
 mod known_defect {
     use super::*;
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]
+    fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
+        with_deadline("stall-self-focus", Duration::from_secs(330), || {
+            let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
+            assert_eq!(late, 0, "the source's late value moved");
+            defect!(
+                "W3-5-A2",
+                recorded == 0,
+                format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move in two steps"]
+    fn stall_the_program_moves_the_focus_in_two_steps() {
+        with_deadline("stall-two-step", Duration::from_secs(200), || {
+            let (recorded, late) = stall::the_program_moves_the_focus_in_two_steps();
+            assert_eq!(late, 0, "the source's late value moved");
+            defect!(
+                "W3-5-A2",
+                recorded == 0,
+                format!("TF stall-two-step letters_recorded_that_landed_in_the_password_field={recorded}")
+            );
+        });
+    }
 
     use halvo_capture::windows::apps::wait_for_change;
 
