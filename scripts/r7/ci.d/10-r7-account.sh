@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/ and the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right and member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. In the windows job the self-test keeps a case by one rule: it ends before the source reader; or its input is spelled as only Windows spells it (the drive and cygpath spellings, a line ending, includes-inside, the hosted store of that job); or its names hold bytes that the tools of the windows runner read in their own way (a space behind a backslash, a leading hash sign, a colon, a line break); or it is one of the three controls that reach the reader (unchanged, dep-info-path-outside, tracked-file-under-the-target). Of the cases that reach the reader, the windows job must run 14 and leaves 23 to the macos job, which runs all of them, printing one line for each, and a whole run fails when a job did not run a case of its list. The windows job therefore no longer shows that the reader refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 95 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -18,10 +18,58 @@ samples.v1.json contract/samples/v1.json
 prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
-real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash'
+outside_licences='webpki-root-certs 1.0.11'
+windows_cases='no-repository unchanged hosted-windows hosted-line-inside-another hosted-windows-line-missing
+deny-other-version deny-absent vendored-byte-schema.v1.json recorded-sha256-schema.v1.json
+vendored-byte-routes.v1.json recorded-sha256-routes.v1.json vendored-byte-samples.v1.json
+recorded-sha256-samples.v1.json vendored-byte-prompt-budget.json
+recorded-sha256-prompt-budget.json record-without-a-file record-with-another-commit-line
+commit-of-41-digits commit-in-upper-case sum-of-65-digits sum-in-upper-case
+record-with-a-fifth-line fifth-line-without-newline config-source-replacement
+config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
+escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
+licence-exception git-allowed unknown-git-warns extra-line-without-newline ban-with-wrappers
+ban-name-with-other-characters ban-reason-with-a-quote ban-deleted ban-renamed
+deny-targets-fifth deny-targets-lack-one deny-targets-gone tracked-unchanged
+tracked-file-changed untracked-file-written no-deny-pin pin-with-other-characters
+banned-package-in-graph edit-that-changes-nothing crlf-without-carriage-returns job-read-once
+no-job-runs-every-case windows-job-runs-its-list-alone macos-job-misses-a-case
+windows-job-misses-a-case case-on-no-list verdict-names-a-case-not-run
+verdict-names-a-case-on-no-list verdict-names-a-left-out-count verdict-names-a-job-not-read
+verdict-of-right-values-has-no-word record-line-with-another-name record-line-with-another-path
+manifest-outside-account dep-info-path-outside dep-info-windows-separators
+dep-info-windows-drive dep-info-name-starting-with-a-hash tracked-file-under-the-target
+metadata-path-in-a-sibling-of-account dep-info-escaped-space
+dep-info-name-with-a-colon-and-a-newline target-in-another-spelling target-in-the-drive-spelling
+dep-info-name-with-a-newline includes-inside ban-with-a-third-key ban-reason-with-a-backslash
+ban-line-cut-after-its-reason macos-list-emptied windows-list-emptied
+whole-run-without-a-real-build windows-job-runs-a-macos-build macos-job-misses-a-left-out-case
+windows-job-misses-a-case-of-its-list windows-job-runs-a-left-out-case
+dep-info-name-with-a-tab dep-info-name-with-a-control-character
+end-verdict-reads-the-drivers-job end-verdict-reads-the-cases-that-ran
+end-verdict-reads-the-cases-on-no-list end-verdict-reads-the-left-out-count'
+macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails clippy-fails
+self-hosted-runner actions-not-true hosted-macos hosted-test-fails hosted-line-missing
+hosted-line-of-another-store hosted-file-line-missing hosted-other-job empty-registry
+respelled-lock-entry metadata-source-outside-crates-io metadata-name-with-sqlite-in-mixed-case
+metadata-name-with-sqlcipher metadata-without-a-package sqlite-in-lock sqlite-in-lock-mixed-case
+sqlcipher-in-lock git-source-in-lock-without-spaces git-source-in-manifest registry-in-manifest
+patch-in-workspace patch-as-dotted-key patch-in-quoted-header path-in-literal-string
+path-absolute multi-line-string member-outside-crates outside-licence-another
+outside-licence-unnamed outside-licence-exit outside-licence-one-less licence-outside-list
+dep-info-absent dep-info-absolute-path-outside dep-info-missing-file dep-info-missing-directory
+dep-info-head-elsewhere dep-info-unopenable member-without-dep-info dep-info-link-then-dot-dot
+dep-info-target-outside-out dep-info-file-beside-out dep-info-in-another-out-directory
+dep-info-out-directory-without-build dep-info-out-directory-not-named-out
+dep-info-out-directory-two-levels-deep dep-info-head-names-a-missing-file
+dep-info-in-a-sibling-of-account repository-through-a-link path-attribute-outside
+include-outside include-str-outside include-bytes-outside include-from-the-target-directory
+moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash
+target-through-a-link link-as-account-target dep-info-link-in-a-source-directory
+dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name
+dep-info-letter-and-colon-directory directory-name-with-a-tab'
+real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash directory-name-with-a-tab'
 real_builds_windows='includes-inside'
-windows_left_out='self-hosted-runner actions-not-true hosted-macos patch-in-workspace patch-as-dotted-key patch-in-quoted-header repository-through-a-link dep-info-absent dep-info-absolute-path-outside dep-info-missing-file dep-info-missing-directory dep-info-head-elsewhere dep-info-head-names-a-missing-file dep-info-unopenable member-without-dep-info dep-info-link-then-dot-dot dep-info-target-outside-out dep-info-file-beside-out dep-info-in-another-out-directory dep-info-out-directory-without-build dep-info-out-directory-not-named-out dep-info-out-directory-two-levels-deep dep-info-in-a-sibling-of-account'
-windows_must_run='unchanged dep-info-path-outside tracked-file-under-the-target crlf-line-ends dep-info-windows-separators dep-info-windows-drive target-in-the-drive-spelling target-in-another-spelling includes-inside hosted-windows dep-info-escaped-space dep-info-name-starting-with-a-hash dep-info-name-with-a-colon-and-a-newline dep-info-name-with-a-newline'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -116,6 +164,7 @@ admitted_deny_config() {
   cat <<'EOF'
 [graph]
 all-features = true
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
 
 [licenses]
 allow = [
@@ -213,7 +262,8 @@ check_fetched() {
 }
 
 json_pairs() {
-  awk '
+  sed 's/,/,\
+/g' | awk '
 function opened() {
   if (d == 1) where[d] = "root"
   else if (type[d - 1] == "o") where[d] = where[d - 1] "." key[d - 1]
@@ -244,9 +294,9 @@ function value(v, is_string,   k, w) {
     path_of[++paths] = v
   }
 }
-BEGIN {
-  while ((getline line) > 0) text = text line "\n"
-  n = length(text); i = 1; d = 0; in_string = 0
+BEGIN { d = 0; in_string = 0 }
+{
+  text = $0; n = length(text); i = 1
   while (i <= n) {
     c = substr(text, i, 1)
     if (in_string) {
@@ -357,8 +407,9 @@ clear_members() {
 
 dep_info_read() {
   awk '
-function add(k, i, v, unescape) {
+function add(k, i, v, unescape,  c) {
   if (unescape) gsub(/\\ /, " ", v)
+  for (c = 1; c <= 32; c++) if (index(v, ctrl[c])) { control++; break }
   n++; kind[n] = k; idx[n] = i; value[n] = v
 }
 function whole(p) { return substr(p, 1, 1) == "/" ? p : account "/" p }
@@ -366,7 +417,9 @@ function parent(p) { sub(/\/[^\/]*$/, "", p); return p == "" ? "/" : p }
 BEGIN {
   account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"]
   list = ENVIRON["DEP_INFO_LIST"]; members = ENVIRON["DEP_INFO_MEMBERS"]
-  n = 0; files = 0; unopenable = 0
+  n = 0; files = 0; unopenable = 0; control = 0
+  for (c = 1; c < 32; c++) ctrl[c] = sprintf("%c", c)
+  ctrl[32] = sprintf("%c", 127)
   while ((getline file < list) > 0) {
     files++
     status = (getline line < file)
@@ -387,6 +440,7 @@ BEGIN {
     add("member", part[1], part[2], 0)
   }
   close(members)
+  if (control) { print "control\t" control "\t-\t-"; exit }
   if (ENVIRON["DEP_INFO_CONVERT"] == "1") {
     for (i = 1; i <= n; i++) print value[i] > names
     close(names)
@@ -497,6 +551,7 @@ check_sources() {
   place=other
   while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
     case $kind in
+      control) fail 'a dep-info file of account/ names a file with a tab or another control character, which this check cannot read without doubt' ;;
       local) dep_info=$idx ;;
       unconverted) fail 'cygpath gave fewer paths than the dep-info files hold' ;;
       unopenable) unopenable=$idx ;;
@@ -567,6 +622,70 @@ check_sources() {
   [ -z "$member_missing" ] || fail 'a package of account/ has no dep-info file that this check read'
 }
 
+outside_names() {
+  awk '
+/"type":"diagnostic"/ && /"severity":"error"/ {
+  line = $0
+  at = index(line, "\"Krate\":{\"name\":\"")
+  if (at == 0) { print "unnamed"; next }
+  rest = substr(line, at + 17)
+  name = substr(rest, 1, index(rest, "\"") - 1)
+  rest = substr(rest, length(name) + 1)
+  if (name == "" || substr(rest, 1, 13) != "\",\"version\":\"") { print "unnamed"; next }
+  rest = substr(rest, 14)
+  version = substr(rest, 1, index(rest, "\"") - 1)
+  licence = "unknown"
+  at = index(line, "\"span\":\"")
+  if (at > 0) { rest = substr(line, at + 8); licence = substr(rest, 1, index(rest, "\"") - 1) }
+  print name " " version "\t" licence
+}' "$1"
+}
+
+check_outside_licences() {
+  grep -v '^targets = \[' "$work/deny.txt" >"$work/deny-all-targets.toml" || fail 'cannot write in the temp directory'
+  CARGO_TARGET_DIR=$target cargo deny --format json --color never --config "$work/deny-all-targets.toml" --offline --locked --manifest-path account/Cargo.toml check licenses >"$work/outside.out" 2>"$work/outside.json"
+  code=$?
+  case $code in
+    0 | 4) ;;
+    *) fail "cargo deny check licenses over every target exited $code" ;;
+  esac
+  outside_names "$work/outside.json" | sort -u >"$work/outside.found" || fail 'cannot read the output of cargo deny'
+  if grep -q '^unnamed$' "$work/outside.found"; then
+    fail 'cargo deny refused a licence that names no package'
+  fi
+  cut -f1 "$work/outside.found" >"$work/outside.names"
+  : >"$work/outside.listed"
+  if [ -n "$outside_licences" ]; then
+    printf '%s\n' "$outside_licences" | sort -u >"$work/outside.listed"
+  fi
+  outside=$(awk 'END { print NR }' "$work/outside.found")
+  named=$(awk -F '\t' '{ printf "%s%s %s", (NR > 1 ? "; " : ""), $1, $2 }' "$work/outside.found")
+  if [ "$outside" -eq 0 ]; then
+    printf 'licences outside the four targets: 0\n'
+  else
+    printf 'licences outside the four targets: %s (%s)\n' "$outside" "$named"
+  fi
+  cmp -s "$work/outside.names" "$work/outside.listed" || fail "the packages of account/Cargo.lock that no target of Halvo compiles and whose licence is outside the allow list differ from outside_licences of this script; read each and list it there"
+}
+
+check_tracked() {
+  command -v git >/dev/null 2>&1 || fail 'git is not on the PATH'
+  inside=$(git rev-parse --is-inside-work-tree 2>/dev/null) || inside=false
+  prefix=$(git rev-parse --show-prefix 2>/dev/null) || prefix=
+  if [ "$inside" != true ] || [ -n "$prefix" ]; then
+    printf 'tracked files not compared: the repository is no git work tree of its own\n'
+    return 0
+  fi
+  if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+    git diff --name-only HEAD -- >"$work/tracked.changed" 2>"$work/tracked.err" || fail 'git diff against HEAD failed'
+  else
+    git diff --name-only -- >"$work/tracked.changed" 2>"$work/tracked.err" || fail 'git diff against the index failed'
+  fi
+  changed=$(awk 'END { print NR }' "$work/tracked.changed")
+  [ "$changed" -eq 0 ] || fail "$changed tracked files differ from HEAD after cargo ran"
+  printf 'tracked files changed by the check: 0\n'
+}
+
 count_tests() {
   tests=0
   without_cr "$1" test-log.txt
@@ -628,6 +747,7 @@ measure() {
   CARGO_TARGET_DIR=$target cargo deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
   code=$?
   [ "$code" -eq 0 ] || fail "cargo deny check bans licenses sources exited $code"
+  check_outside_licences
   clear_members
   CARGO_TARGET_DIR=$target cargo build --manifest-path account/Cargo.toml --locked --offline
   code=$?
@@ -647,6 +767,7 @@ measure() {
   code=$?
   [ "$code" -eq 0 ] || fail "cargo clippy --all-targets --locked --offline exited $code"
   check_sources
+  check_tracked
   printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s dep-info=%s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool" "$dep_info"
   printf 'PASS %s\n' "$name"
 }
@@ -655,7 +776,7 @@ write_stub() {
   mkdir "$1" || return 1
   cat >"$1/cargo" <<'EOF' || return 1
 #!/bin/sh
-printf '%s\n' "$*" >>"$STUB_LOG"
+printf '%s\n' "$*" | sed 's|--config [^ ]*|--config CONFIG|' >>"$STUB_LOG"
 if [ "$1" = deny ] && [ "$2" = --version ]; then
   [ -z "${STUB_DENY_ABSENT:-}" ] || exit 101
   printf 'cargo-deny %s\n' "$STUB_DENY_VERSION"
@@ -670,7 +791,15 @@ case $1 in
     fi
     exec "$STUB_REAL_CARGO" "$@"
     ;;
-  deny) exit "${STUB_DENY_EXIT:-0}" ;;
+  deny)
+    case " $* " in
+      *' --format json '*)
+        [ -z "${STUB_DENY_OUTSIDE:-}" ] || cat "$STUB_DENY_OUTSIDE" >&2
+        exit "${STUB_OUTSIDE_EXIT:-0}"
+        ;;
+    esac
+    exit "${STUB_DENY_EXIT:-0}"
+    ;;
   clean)
     [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
     exit "${STUB_CLEAN_EXIT:-0}"
@@ -696,6 +825,7 @@ case $1 in
       if [ -z "${STUB_SKIP_SECRETS:-}" ]; then
         printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
       fi
+      printf '%s/debug/deps/halvo_account-0.d: crates/halvo-account/src/lib.rs\n\ncrates/halvo-account/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_account-0.d" || exit 98
       printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$t" >"$t/debug/deps/itoa-0.d" || exit 98
       [ -z "${STUB_UNREADABLE:-}" ] || chmod 000 "$t/debug/deps/halvo_wire-0.d" || exit 98
     fi
@@ -719,6 +849,7 @@ case $1 in
         exit "${STUB_HOSTED_EXIT:-0}"
         ;;
     esac
+    [ -z "${STUB_TEST_WRITES:-}" ] || printf 'x\n' >>"$STUB_TEST_WRITES"
     printf 'running 3 tests\ntest result: ok. %s passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n' "${STUB_TESTS:-3}"
     exit "${STUB_TEST_EXIT:-0}"
     ;;
@@ -730,8 +861,24 @@ EOF
   chmod +x "$1/cargo"
 }
 
+deny_json() {
+  printf '%s\n' "$outside_licences" "$@" | while IFS=' ' read -r crate version; do
+    [ -n "$crate" ] || continue
+    printf '{"fields":{"code":"rejected","graphs":[{"Krate":{"name":"%s","version":"%s"},"parents":[]}],"labels":[{"column":12,"line":26,"message":"","span":"LicenseRef-fixture"}],"message":"failed to satisfy license requirements","severity":"error"},"type":"diagnostic"}\n' "$crate" "$version"
+  done
+  printf '{"fields":{"licenses":{"errors":0,"helps":0,"notes":0,"warnings":0}},"type":"summary"}\n'
+}
+
+git_fixture() {
+  git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -A >/dev/null 2>&1
+}
+
 make_fixture() {
   fixture=$work/$1
+  if ! takes_case "$1"; then
+    left_out "$1"
+    return 1
+  fi
   mkdir "$fixture" "$fixture/account" || return 1
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
@@ -836,35 +983,125 @@ selected() {
   return 1
 }
 
+in_list() {
+  for listed in $2; do
+    [ "$listed" = "$1" ] && return 0
+  done
+  return 1
+}
+
+takes_case() {
+  in_list "$1" "$windows_cases" && return 0
+  [ "${2-$job}" != windows ]
+}
+
+all_taken() {
+  for listed_case in $2; do
+    takes_case "$listed_case" "$1" || return 1
+  done
+}
+
+none_taken() {
+  for listed_case in $2; do
+    takes_case "$listed_case" "$1" && return 1
+  done
+  return 0
+}
+
+left_out() {
+  selected "$1" || return 0
+  printf 'case %s/%s not run: the windows job leaves it to the macos job\n' "$name" "$1"
+  left=$((left + 1))
+}
+
+note_case() {
+  ran="$ran $1"
+  in_list "$1" "$windows_cases $macos_cases" || unlisted="$unlisted $1"
+}
+
+cases_missing() {
+  case $1 in
+    windows) required=$windows_cases ;;
+    macos) required="$windows_cases $macos_cases" ;;
+    *) required= ;;
+  esac
+  for required_case in $required; do
+    [ "$1" = windows ] && [ "$required_case" = link-out-of-account ] && continue
+    selected "$required_case" || continue
+    in_list "$required_case" "$2" || printf ' %s' "$required_case"
+  done
+}
+
+split_verdict() {
+  # $1 the job that the self-test read, $2 the driver's job, $3 the cases that ran, $4 the
+  # cases noted on no list, $5 the count of cases left out. Prints one word after a space for
+  # each fault and nothing for right values.
+  missing=$(cases_missing "$1" "$3") || {
+    printf ' cases-missing-failed'
+    return 1
+  }
+  for missing_case in $missing; do
+    printf ' not-run:%s' "$missing_case"
+  done
+  for unlisted_case in $4; do
+    printf ' on-no-list:%s' "$unlisted_case"
+  done
+  expected_left=0
+  if [ "$1" = windows ]; then
+    for listed_case in $macos_cases; do
+      selected "$listed_case" && expected_left=$((expected_left + 1))
+    done
+  fi
+  [ "$5" -eq "$expected_left" ] || printf ' left-out-count:%s-not-%s' "$5" "$expected_left"
+  [ "$1" = "$2" ] || printf ' job-not-read'
+}
+
+end_verdict() {
+  # The verdict of this run's split from the values that the run holds: the job read at the
+  # start, the driver's job, the cases that ran, the cases noted on no list and the count left
+  # out. Harness cases call it through end_verdict_of with values of their own.
+  split_verdict "$job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left"
+}
+
+end_verdict_of() {
+  # Calls end_verdict with the five values of a harness case in place of the run's own, in
+  # this shell, and puts the run's own back. The words land in verdict.
+  held_job=$job
+  held_driver=${CI_D_JOB:-}
+  held_ran=$ran
+  held_unlisted=$unlisted
+  held_left=$left
+  job=$1
+  CI_D_JOB=$2
+  ran=$3
+  unlisted=$4
+  left=$5
+  verdict=$(R7_ACCOUNT_CASES='' end_verdict)
+  code=$?
+  job=$held_job
+  CI_D_JOB=$held_driver
+  ran=$held_ran
+  unlisted=$held_unlisted
+  left=$held_left
+  return "$code"
+}
+
 runs_here() {
   selected "$1" || return 1
-  case " $windows_left_out " in
-    *" $1 "*)
-      if [ "$job" = windows ]; then
-        printf 'case %s/%s not run: the windows job leaves it to the macos job\n' "$name" "$1"
-        left_out=$((left_out + 1))
-        return 1
-      fi
-      ;;
-  esac
-  return 0
+  takes_case "$1" && return 0
+  left_out "$1"
+  return 1
 }
 
 split_holds() {
   case $1 in
-    macos) need=$windows_left_out ;;
-    windows) need=$windows_must_run ;;
+    macos | windows) ;;
     *) return 1 ;;
   esac
-  for needed in $need; do
-    case $2 in
-      *" $needed "*) ;;
-      *)
-        printf 'the %s job did not run %s\n' "$1" "$needed"
-        return 1
-        ;;
-    esac
-  done
+  missing=$(cases_missing "$1" "$2") || return 1
+  [ -z "$missing" ] && return 0
+  printf 'the %s job did not run%s\n' "$1" "$missing"
+  return 1
 }
 
 job_real_builds() {
@@ -884,14 +1121,14 @@ real_build() {
   case " $real_builds " in
     *" $1 "*) return 0 ;;
   esac
-  selected "$1" && printf 'case %s/%s not run: the %s job runs no real build of it\n' "$name" "$1" "$job"
+  left_out "$1"
   return 1
 }
 
 run_case() {
   case=$1
   runs_here "$case" || return 0
-  ran=$ran$case' '
+  note_case "$case"
   want=$2
   mode=$3
   shift 3
@@ -906,7 +1143,7 @@ run_case() {
   case " $* " in
     *' STAND_IN_CYGPATH=1 '*) command -v cygpath >/dev/null 2>&1 || path=$work/stand-in:$path ;;
   esac
-  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" STAND_IN_DRIVE="$work" "$@" sh "$self" 2>&1 </dev/null)
+  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_DENY_OUTSIDE="$outside_default" STUB_LOG="$fixture/cargo-calls.txt" STAND_IN_DRIVE="$work" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -920,7 +1157,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-2}$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-3}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
@@ -943,6 +1180,11 @@ stub_case() {
 
 harness_case() {
   selected "$1" || return 0
+  if ! takes_case "$1"; then
+    left_out "$1"
+    return 0
+  fi
+  note_case "$1"
   printf 'case %s/%s want=refused got=%s\n' "$name" "$1" "$2"
   if [ "$2" = refused ]; then
     rejected=$((rejected + 1))
@@ -957,8 +1199,10 @@ self_test() {
     *) fail 'CI_D_JOB names neither macos nor windows' ;;
   esac
   job=$CI_D_JOB
-  ran=' '
-  left_out=0
+  split=' split-not-checked'
+  ran=
+  left=0
+  unlisted=
   enter_repository
   real_runs=0
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account-self-test.XXXXXX") || fail 'mktemp -d failed'
@@ -976,6 +1220,7 @@ self_test() {
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+deny --format json --color never --config CONFIG --offline --locked --manifest-path account/Cargo.toml check licenses
 clean --offline$members --manifest-path account/Cargo.toml
 build --manifest-path account/Cargo.toml --locked --offline
 test --manifest-path account/Cargo.toml --locked --offline"
@@ -993,6 +1238,9 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_ban='account/deny.toml holds a ban that this script does not admit'
   cause_path="account/'s metadata holds a path outside account/"
   cause_name="account/'s metadata holds a package whose name contains sqlite or sqlcipher"
+  cause_outside='the packages of account/Cargo.lock that no target of Halvo compiles and whose licence is outside the allow list differ from outside_licences of this script; read each and list it there'
+  outside_default=$work/outside-default.json
+  deny_json >"$outside_default" || fail 'cannot write in the temp directory'
   cause_source='a source of account/ reads a file outside account/'
   cause_no_dep_info='cargo wrote no dep-info file of a package of account/'
   stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
@@ -1002,6 +1250,8 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_link='a source of account/ reads a file through a symbolic link'
   cause_member='a package of account/ has no dep-info file that this check read'
   cause_tracked='a tracked file lies under the build target directory target/account'
+  cause_control='a dep-info file of account/ names a file with a tab or another control character, which this check cannot read without doubt'
+  escape=$(printf '\033')
   inside_source='include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 #[path = "../inner/module.rs"]
 pub mod inner;
@@ -1010,6 +1260,7 @@ pub const TEXT: &str = include_str!("../inner/text.txt");'
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+deny --format json --color never --config CONFIG --offline --locked --manifest-path account/Cargo.toml check licenses
 clean --offline -p probe --manifest-path account/Cargo.toml
 build --manifest-path account/Cargo.toml --locked --offline
 test --manifest-path account/Cargo.toml --locked --offline
@@ -1102,27 +1353,31 @@ $calls_after"
     printf '[lib]\npath = "../account/sources/lib.rs"\n' >>"$fixture/outside-crate/Cargo.toml" && mkdir "$fixture/account/sources" && : >"$fixture/account/sources/lib.rs" &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
     relock && run_case manifest-outside-account "FAIL $name ($cause_path)" stub
-  make_fixture target-through-a-link && ln -s account "$fixture/link-to-account" 2>/dev/null
-  if [ -L "$fixture/link-to-account" ]; then
-    edit crates/halvo-wire/Cargo.toml awk '{ print } END { print ""; print "[[test]]"; print "name = \"through_a_link\""; print "path = \"../../../link-to-account/crates/halvo-wire/tests/request.rs\"" }' &&
-      relock && run_case target-through-a-link "FAIL $name ($cause_path)" stub
-  else
-    printf 'case %s/target-through-a-link not run: this system made no symbolic link\n' "$name"
+  if runs_here target-through-a-link; then
+    make_fixture target-through-a-link && ln -s account "$fixture/link-to-account" 2>/dev/null
+    if [ -L "$fixture/link-to-account" ]; then
+      edit crates/halvo-wire/Cargo.toml awk '{ print } END { print ""; print "[[test]]"; print "name = \"through_a_link\""; print "path = \"../../../link-to-account/crates/halvo-wire/tests/request.rs\"" }' &&
+        relock && run_case target-through-a-link "FAIL $name ($cause_path)" stub
+    else
+      printf 'case %s/target-through-a-link not run: this system made no symbolic link\n' "$name"
+    fi
   fi
   make_fixture respelled-lock-entry && write_crate "$fixture/account/crates/sqlite-shim" sqlite-shim && relock &&
     edit Cargo.lock sed "s/^name = \"sqlite-shim\"\$/name = 'sqlite-shim'/" &&
     run_case respelled-lock-entry "FAIL $name ($cause_name)" stub
 
-  make_fixture metadata-base
-  base=$work/metadata-base.json
-  (cd "$fixture" && "$real_cargo" metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml >"$base" 2>/dev/null)
-  sed 's|"source":"registry+https://github.com/rust-lang/crates.io-index"|"source":"git+https://example.invalid/x.git#0"|' <"$base" >"$work/source.json"
-  sed 's|"name":"itoa"|"name":"LibSQLite3-ffi"|' <"$base" >"$work/sqlite.json"
-  sed 's|"name":"itoa"|"name":"SQLCipher-sys"|' <"$base" >"$work/sqlcipher.json"
-  printf '{"packages":[],"workspace_members":[],"resolve":null,"version":1}\n' >"$work/empty.json"
-  for crafted in source sqlite sqlcipher; do
-    cmp -s "$base" "$work/$crafted.json" && wrong="$wrong metadata-$crafted"
-  done
+  if takes_case metadata-source-outside-crates-io; then
+    make_fixture metadata-base
+    base=$work/metadata-base.json
+    (cd "$fixture" && "$real_cargo" metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml >"$base" 2>/dev/null)
+    sed 's|"source":"registry+https://github.com/rust-lang/crates.io-index"|"source":"git+https://example.invalid/x.git#0"|' <"$base" >"$work/source.json"
+    sed 's|"name":"itoa","version":|"name":"LibSQLite3-ffi","version":|' <"$base" >"$work/sqlite.json"
+    sed 's|"name":"itoa","version":|"name":"SQLCipher-sys","version":|' <"$base" >"$work/sqlcipher.json"
+    printf '{"packages":[],"workspace_members":[],"resolve":null,"version":1}\n' >"$work/empty.json"
+    for crafted in source sqlite sqlcipher; do
+      cmp -s "$base" "$work/$crafted.json" && wrong="$wrong metadata-$crafted"
+    done
+  fi
   run_case metadata-source-outside-crates-io "FAIL $name (account/'s metadata holds a package from a source outside crates.io)" stub STUB_METADATA="$work/source.json"
   run_case metadata-name-with-sqlite-in-mixed-case "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlite.json"
   run_case metadata-name-with-sqlcipher "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlcipher.json"
@@ -1158,24 +1413,20 @@ $calls_after"
       printf 'case %s/dep-info-link-then-dot-dot not run: this system made no symbolic link\n' "$name"
     fi
   fi
-  make_fixture link-as-account-target && mkdir "$fixture/elsewhere" && ln -s ../elsewhere "$fixture/account/target" 2>/dev/null
-  if [ -L "$fixture/account/target" ]; then
-    run_case link-as-account-target "FAIL $name (account/ holds a symbolic link)" stub
-  else
-    printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
+  if runs_here link-as-account-target; then
+    make_fixture link-as-account-target && mkdir "$fixture/elsewhere" && ln -s ../elsewhere "$fixture/account/target" 2>/dev/null
+    if [ -L "$fixture/account/target" ]; then
+      run_case link-as-account-target "FAIL $name (account/ holds a symbolic link)" stub
+    else
+      printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
+    fi
   fi
-  if [ "$job" = macos ]; then
-    stub_case dep-info-link-in-a-source-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=src
-    stub_case dep-info-link-in-an-out-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=out
-    make_fixture dep-info-backslash-in-a-directory-name && mkdir "$fixture/account/crates/halvo-wire/src/a\\b" &&
-      run_case dep-info-backslash-in-a-directory-name "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/a\b/../../../../../outside/code.rs'
-    make_fixture dep-info-letter-and-colon-directory && mkdir -p "$fixture/account/c:x/src" &&
-      run_case dep-info-letter-and-colon-directory "FAIL $name ($cause_source)" stub STUB_DEP='c:x/src/../../../outside/code.rs'
-  else
-    for case_name in dep-info-link-in-a-source-directory dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name dep-info-letter-and-colon-directory; do
-      selected "$case_name" && printf 'case %s/%s not run: the %s job cannot hold its names or links\n' "$name" "$case_name" "$job"
-    done
-  fi
+  stub_case dep-info-link-in-a-source-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=src
+  stub_case dep-info-link-in-an-out-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=out
+  make_fixture dep-info-backslash-in-a-directory-name && mkdir "$fixture/account/crates/halvo-wire/src/a\\b" &&
+    run_case dep-info-backslash-in-a-directory-name "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/a\b/../../../../../outside/code.rs'
+  make_fixture dep-info-letter-and-colon-directory && mkdir -p "$fixture/account/c:x/src" &&
+    run_case dep-info-letter-and-colon-directory "FAIL $name ($cause_source)" stub STUB_DEP='c:x/src/../../../outside/code.rs'
   stub_case dep-info-target-outside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/deps/code.rs
   stub_case dep-info-file-beside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/halvo-wire-0/other.rs
   stub_case dep-info-in-another-out-directory "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/fake-0/out/code.rs
@@ -1219,6 +1470,8 @@ $calls_after"
   make_fixture target-in-the-drive-spelling && mkdir -p "$fixture/target/account" && drive_target=$(windows_name "$fixture/target/account") &&
     run_case target-in-the-drive-spelling "PASS $name" stub STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
+  stub_case dep-info-name-with-a-tab "FAIL $name ($cause_control)" stub STUB_DEP="crates/halvo-wire/src/a${tab}b/../../../../outside/code.rs"
+  stub_case dep-info-name-with-a-control-character "FAIL $name ($cause_control)" stub STUB_DEP="crates/halvo-wire/src/a${escape}b/../../../../outside/code.rs"
   job_real_builds "$job" || wrong="$wrong real-builds-of-the-$job-job"
   want_packages=1
   real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
@@ -1243,6 +1496,8 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
       printf 'include!("../../../../outside/code.rs");\n' >>"$fixture/account/crates/probe/src/lib.rs"
       run_case moved-tree-with-an-outside-include "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
     fi
+  elif ! takes_case moved-tree-with-an-outside-include; then
+    left_out moved-tree-with-an-outside-include
   fi
   want_dep_info=1
   if real_build source-put-right && make_probe_fixture source-put-right 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' && build_probe &&
@@ -1256,6 +1511,11 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
     edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "#m"]|' && relock; then
     run_case member-named-with-a-hash "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   fi
+  want_packages=1
+  real_build directory-name-with-a-tab && make_probe_fixture directory-name-with-a-tab 'pub const TEXT: &str = include_str!("a\tb/../../../../../outside/text.txt");' &&
+    mkdir "$fixture/account/crates/probe/src/a${tab}b" && mkdir -p "$fixture/account/crates/probe/src/a/b" &&
+    cp "$fixture/outside/text.txt" "$fixture/account/outside${tab}text.txt" &&
+    run_case directory-name-with-a-tab "FAIL $name ($cause_control)" stub STUB_BUILD_REAL=1
   want_calls=$calls_before$nl$calls_after
   want_packages=
   want_dep_info=
@@ -1328,6 +1588,26 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     run_case ban-deleted "FAIL $name (account/deny.toml lacks the ban of sentry)" stub
   make_fixture ban-renamed && edit deny.toml sed 's/{ crate = "libsqlite3-sys"/{ crate = "libsqlite4-sys"/' &&
     run_case ban-renamed "FAIL $name (account/deny.toml lacks the ban of libsqlite3-sys)" stub
+  make_fixture deny-targets-fifth && edit deny.toml sed 's/"aarch64-pc-windows-msvc"\]$/"aarch64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]/' &&
+    run_case deny-targets-fifth "FAIL $name ($cause_admitted)" stub
+  make_fixture deny-targets-lack-one && edit deny.toml sed 's/, "aarch64-pc-windows-msvc"\]$/]/' &&
+    run_case deny-targets-lack-one "FAIL $name ($cause_admitted)" stub
+  make_fixture deny-targets-gone && edit deny.toml sed '/^targets = \[/d' &&
+    run_case deny-targets-gone "FAIL $name ($cause_admitted)" stub
+  deny_json 'another-crate 1.0.0' >"$work/outside-another.json"
+  stub_case outside-licence-another "FAIL $name ($cause_outside)" stub STUB_DENY_OUTSIDE="$work/outside-another.json" STUB_OUTSIDE_EXIT=4
+  printf '{"fields":{"code":"rejected","graphs":[],"severity":"error"},"type":"diagnostic"}\n' >"$work/outside-unnamed.json"
+  stub_case outside-licence-unnamed "FAIL $name (cargo deny refused a licence that names no package)" stub STUB_DENY_OUTSIDE="$work/outside-unnamed.json" STUB_OUTSIDE_EXIT=4
+  stub_case outside-licence-exit "FAIL $name (cargo deny check licenses over every target exited 2)" stub STUB_OUTSIDE_EXIT=2
+  if [ -n "$outside_licences" ]; then
+    : >"$work/outside-none.json"
+    stub_case outside-licence-one-less "FAIL $name ($cause_outside)" stub STUB_DENY_OUTSIDE="$work/outside-none.json"
+  fi
+  make_fixture tracked-unchanged && git_fixture && run_case tracked-unchanged "PASS $name" stub
+  make_fixture tracked-file-changed && git_fixture &&
+    run_case tracked-file-changed "FAIL $name (1 tracked files differ from HEAD after cargo ran)" stub STUB_TEST_WRITES=account/Cargo.toml
+  make_fixture untracked-file-written && git_fixture &&
+    run_case untracked-file-written "PASS $name" stub STUB_TEST_WRITES=account/new-file.txt
   make_fixture no-deny-pin && edit ../scripts/prerequisites.sh sed '/^cargo_deny_version=/d' &&
     run_case no-deny-pin "FAIL $name (scripts/prerequisites.sh pins no cargo-deny version)" stub
   make_fixture pin-with-other-characters && edit ../scripts/prerequisites.sh sed 's/^cargo_deny_version=.*/cargo_deny_version=0.20.2-x/' &&
@@ -1381,12 +1661,10 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   no_real_build whole 0 && got=refused
   harness_case whole-run-without-a-real-build "$got"
   got=accepted
+  saved_left=$left
   job_real_builds windows && real_build include-outside >/dev/null || got=refused
+  left=$saved_left
   harness_case windows-job-runs-a-macos-build "$got"
-  if [ "$run" = whole ] && ! split_holds "$job" "$ran"; then
-    wrong="$wrong split-of-the-$job-job"
-  fi
-  [ "$job" != windows ] || printf 'cases left to the macos job: %s\n' "$left_out"
   got=accepted
   split_holds macos ' ' >/dev/null || got=refused
   harness_case macos-job-misses-a-left-out-case "$got"
@@ -1394,16 +1672,128 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   split_holds windows ' ' >/dev/null || got=refused
   harness_case windows-job-misses-a-case-of-its-list "$got"
   saved_job=$job
-  saved_left_out=$left_out
+  saved_left=$left
   job=windows
   got=accepted
   runs_here dep-info-absent >/dev/null || got=refused
   job=$saved_job
-  left_out=$saved_left_out
+  left=$saved_left
   harness_case windows-job-runs-a-left-out-case "$got"
 
-  if [ -n "$wrong" ]; then
-    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+  saved_job=${CI_D_JOB:-}
+  CI_D_JOB=windows
+  if takes_case tests-fail; then first=yes; else first=no; fi
+  CI_D_JOB=macos
+  if takes_case tests-fail; then second=yes; else second=no; fi
+  CI_D_JOB=$saved_job
+  if [ "$first" = "$second" ]; then
+    harness_case job-read-once refused
+  else
+    harness_case job-read-once "followed CI_D_JOB after the start"
+  fi
+  if all_taken '' "$windows_cases $macos_cases"; then
+    harness_case no-job-runs-every-case refused
+  else
+    harness_case no-job-runs-every-case "left a case out with no job named"
+  fi
+  if all_taken windows "$windows_cases" && none_taken windows "$macos_cases"; then
+    harness_case windows-job-runs-its-list-alone refused
+  else
+    harness_case windows-job-runs-its-list-alone "ran another set"
+  fi
+  all_cases="$windows_cases $macos_cases"
+  without_one=$(for listed_case in $all_cases; do [ "$listed_case" = tests-fail ] || printf '%s ' "$listed_case"; done)
+  if missing_one=$(R7_ACCOUNT_CASES='' cases_missing macos "$without_one") &&
+    missing_none=$(R7_ACCOUNT_CASES='' cases_missing macos "$all_cases") &&
+    [ "$missing_one" = ' tests-fail' ] && [ -z "$missing_none" ]; then
+    harness_case macos-job-misses-a-case refused
+  else
+    harness_case macos-job-misses-a-case "missed no case"
+  fi
+  without_one=$(for listed_case in $windows_cases; do [ "$listed_case" = unchanged ] || printf '%s ' "$listed_case"; done)
+  without_link=$(for listed_case in $windows_cases; do [ "$listed_case" = link-out-of-account ] || printf '%s ' "$listed_case"; done)
+  if missing_one=$(R7_ACCOUNT_CASES='' cases_missing windows "$without_one") &&
+    missing_none=$(R7_ACCOUNT_CASES='' cases_missing windows "$windows_cases") &&
+    missing_link=$(R7_ACCOUNT_CASES='' cases_missing windows "$without_link") &&
+    [ "$missing_one" = ' unchanged' ] && [ -z "$missing_none" ] && [ -z "$missing_link" ]; then
+    harness_case windows-job-misses-a-case refused
+  else
+    harness_case windows-job-misses-a-case "missed no case"
+  fi
+  saved_unlisted=$unlisted
+  unlisted=
+  note_case case-of-no-list
+  noted=$unlisted
+  unlisted=$saved_unlisted
+  if [ "$noted" = ' case-of-no-list' ]; then
+    harness_case case-on-no-list refused
+  else
+    harness_case case-on-no-list "took a case of no list"
+  fi
+  macos_count=0
+  for listed_case in $macos_cases; do
+    macos_count=$((macos_count + 1))
+  done
+  without_one=$(for listed_case in $all_cases; do [ "$listed_case" = tests-fail ] || printf '%s ' "$listed_case"; done)
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$without_one" '' 0) &&
+    [ "$verdict" = ' not-run:tests-fail' ]; then
+    harness_case verdict-names-a-case-not-run refused
+  else
+    harness_case verdict-names-a-case-not-run "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$all_cases" ' case-of-no-list' 0) &&
+    [ "$verdict" = ' on-no-list:case-of-no-list' ]; then
+    harness_case verdict-names-a-case-on-no-list refused
+  else
+    harness_case verdict-names-a-case-on-no-list "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict windows windows "$windows_cases" '' $((macos_count - 1))) &&
+    [ "$verdict" = " left-out-count:$((macos_count - 1))-not-$macos_count" ]; then
+    harness_case verdict-names-a-left-out-count refused
+  else
+    harness_case verdict-names-a-left-out-count "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict windows macos "$windows_cases" '' "$macos_count") &&
+    [ "$verdict" = ' job-not-read' ]; then
+    harness_case verdict-names-a-job-not-read refused
+  else
+    harness_case verdict-names-a-job-not-read "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$all_cases" '' 0) &&
+    [ -z "$verdict" ] &&
+    verdict=$(R7_ACCOUNT_CASES='' split_verdict windows windows "$windows_cases" '' "$macos_count") &&
+    [ -z "$verdict" ]; then
+    harness_case verdict-of-right-values-has-no-word refused
+  else
+    harness_case verdict-of-right-values-has-no-word "gave '$verdict'"
+  fi
+  if end_verdict_of windows macos "$windows_cases" '' "$macos_count" && [ "$verdict" = ' job-not-read' ]; then
+    harness_case end-verdict-reads-the-drivers-job refused
+  else
+    harness_case end-verdict-reads-the-drivers-job "gave '$verdict'"
+  fi
+  if end_verdict_of macos macos "$without_one" '' 0 && [ "$verdict" = ' not-run:tests-fail' ]; then
+    harness_case end-verdict-reads-the-cases-that-ran refused
+  else
+    harness_case end-verdict-reads-the-cases-that-ran "gave '$verdict'"
+  fi
+  if end_verdict_of macos macos "$all_cases" ' case-of-no-list' 0 && [ "$verdict" = ' on-no-list:case-of-no-list' ]; then
+    harness_case end-verdict-reads-the-cases-on-no-list refused
+  else
+    harness_case end-verdict-reads-the-cases-on-no-list "gave '$verdict'"
+  fi
+  if end_verdict_of windows windows "$windows_cases" '' $((macos_count - 1)) &&
+    [ "$verdict" = " left-out-count:$((macos_count - 1))-not-$macos_count" ]; then
+    harness_case end-verdict-reads-the-left-out-count refused
+  else
+    harness_case end-verdict-reads-the-left-out-count "gave '$verdict'"
+  fi
+
+  split=$(end_verdict) ||
+    split="$split split-verdict-failed"
+  printf 'cases left to the macos job: %s\n' "$left"
+  if [ -n "$split$wrong" ]; then
+    printf 'FAIL self-test:%s (wrong verdict in:%s%s)\n' "$name" "$split" "$wrong"
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
