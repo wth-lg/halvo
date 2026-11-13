@@ -12,6 +12,7 @@ use halvo_coord::types::{
 };
 use halvo_coord_app::{handler, Agents, Hub, Native, Present};
 use std::num::NonZeroU32;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::ThreadId;
 use tauri::ipc::{CallbackFn, InvokeBody};
@@ -30,6 +31,8 @@ pub struct Shared {
     free: Condvar,
     ports: Ports<Config>,
     policy: Policy<Config>,
+    clock_fails_at_cancel: AtomicBool,
+    clock_failing: AtomicBool,
 }
 
 // SAFETY: `ports` and `policy` are read only inside `enter`, which lets one thread in at a time.
@@ -60,6 +63,11 @@ impl Shared {
         Turn(self)
     }
 
+    /// From the next `Runs::cancel` on, `Clock::now` and `Clock::today` fail with `no_service`.
+    pub fn fail_clock_at_cancel(&self) {
+        self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
+    }
+
     /// Runs `f` on the memory ports.
     pub fn with<T>(&self, f: impl FnOnce(&Ports<Config>) -> T) -> T {
         let _turn = self.enter();
@@ -87,8 +95,13 @@ fn config(n: usize) -> Config {
 /// The ports of a world of `agents` manual agents, each with one run that completed two days
 /// before the clock's day.
 pub fn world(agents: usize, limits: Limits) -> Shared {
+    world_ending(&vec![RunEnd::Completed; agents], limits)
+}
+
+/// The same with the end of each agent's one run given.
+pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
     let ports: Ports<Config> = Ports::with_limits(T0, DAY, limits);
-    for n in 0..agents {
+    for (n, end) in ends.iter().copied().enumerate() {
         let run = RunId::parse(&format!("{:032x}", 0x0100 + n)).unwrap();
         let event = |seq: u32, what: What| Event {
             workflow: flow(n),
@@ -111,7 +124,7 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
                 2,
                 What::RunEnded {
                     run: run.clone(),
-                    cause: RunEnd::Completed,
+                    cause: end,
                 },
             ),
         ]);
@@ -138,7 +151,7 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
             last: Some(PastRun {
                 run,
                 day: DAY - 2,
-                outcome: Outcome::Completed,
+                outcome: Outcome::parse(end.name()).unwrap_or(Outcome::Completed),
                 unknown: 0,
             }),
             unknown: Vec::new(),
@@ -149,6 +162,8 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
         free: Condvar::new(),
         ports,
         policy: Policy::new(&[]),
+        clock_fails_at_cancel: AtomicBool::new(false),
+        clock_failing: AtomicBool::new(false),
     }
 }
 
@@ -412,6 +427,9 @@ impl Runs for Shared {
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         let _turn = self.enter();
+        if self.clock_fails_at_cancel.load(Ordering::SeqCst) {
+            self.clock_failing.store(true, Ordering::SeqCst);
+        }
         self.ports.cancel(run)
     }
 
@@ -436,11 +454,17 @@ impl Analysis for Shared {
 impl Clock for Shared {
     fn now(&self) -> Result<u64, PortError> {
         let _turn = self.enter();
+        if self.clock_failing.load(Ordering::SeqCst) {
+            return Err(PortError::NoService);
+        }
         self.ports.now()
     }
 
     fn today(&self) -> Result<u32, PortError> {
         let _turn = self.enter();
+        if self.clock_failing.load(Ordering::SeqCst) {
+            return Err(PortError::NoService);
+        }
         self.ports.today()
     }
 }

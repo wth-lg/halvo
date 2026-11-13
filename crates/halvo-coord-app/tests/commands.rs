@@ -17,7 +17,7 @@ fn hub(agents: usize) -> std::sync::Arc<Hub<support::Shared>> {
         Counts::default().sink(),
         Dialogs::default().boxed(),
     );
-    hub.coordinator().tick();
+    Core::tick(&*hub);
     hub
 }
 
@@ -396,4 +396,181 @@ fn agents_snapshot_and_agents_next_are_never_refused_and_answer_the_whole_state(
             "{command} with a body that is no JSON"
         );
     }
+}
+
+#[test]
+fn the_card_is_the_coordinators_card_byte_for_byte() {
+    let hub = hub(2);
+    let (_app, main, _other) = app(hub.clone());
+    for n in 0..2 {
+        let card = hub.coordinator().card(&agent(n)).unwrap();
+        assert_eq!(
+            invoke(&main, "agents_card", json!({"agent": agent(n).to_string()})),
+            Ok(serde_json::to_string(&card).unwrap())
+        );
+    }
+}
+
+#[test]
+fn a_name_outside_the_list_answers_malformed_in_the_core() {
+    let hub = hub(1);
+    for name in ["agents_ping", "agents_delete", "", "AGENTS_SNAPSHOT"] {
+        assert_eq!(
+            Core::call(&*hub, name, Some(&json!({}))),
+            Reply::Error(Cause::Malformed),
+            "{name:?}"
+        );
+    }
+}
+
+#[test]
+fn every_name_of_the_list_with_arguments_that_fit_is_answered_other_than_malformed() {
+    let hub = hub(1);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let core = hub.clone();
+    std::thread::spawn(move || {
+        let mut out = Vec::new();
+        for command in LIST.iter() {
+            let choice = command
+                .args
+                .iter()
+                .find(|a| a.name == "choice")
+                .and_then(|a| a.values)
+                .and_then(|v| v.first().copied());
+            let mut map = serde_json::Map::new();
+            for arg in command.args {
+                if arg.when.is_some_and(|c| choice != Some(c.name())) {
+                    continue;
+                }
+                let value = match arg.kind {
+                    halvo_coord::types::ArgType::Count => json!(0),
+                    halvo_coord::types::ArgType::Id if arg.name == "agent" => {
+                        json!(agent(0).to_string())
+                    }
+                    halvo_coord::types::ArgType::Id => json!(format!("{:032x}", 0x77)),
+                    halvo_coord::types::ArgType::Text => json!("x"),
+                    halvo_coord::types::ArgType::Name => {
+                        json!(arg.values.and_then(|v| v.first().copied()).unwrap_or("x"))
+                    }
+                };
+                map.insert(arg.name.to_string(), value);
+            }
+            let args = Value::Object(map);
+            let reply = Core::call(&*core, command.name, Some(&args));
+            out.push((command.name, reply));
+        }
+        let _ = tx.send(out);
+    });
+    let out = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the calls answered inside 20 s");
+    assert_eq!(out.len(), LIST.len());
+    let malformed: Vec<&str> = out
+        .iter()
+        .filter(|(_, reply)| *reply == Reply::Error(Cause::Malformed))
+        .map(|(name, _)| *name)
+        .collect();
+    assert!(
+        malformed.is_empty(),
+        "a name of LIST with arguments that fit falls to malformed: {malformed:?}"
+    );
+}
+
+fn stand_in() -> String {
+    format!(
+        r#"{{"seq":0,"rows":[],"items":[],"note":{}}}"#,
+        serde_json::to_string(&halvo_coord::words::text("note.no_service", &[]).unwrap()).unwrap()
+    )
+}
+
+/// A mock app with the handler of `next` milliseconds of wait and the windows main and other,
+/// which manages no Agents.
+fn bare(
+    next: u64,
+) -> (
+    tauri::App<tauri::test::MockRuntime>,
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+) {
+    let app = tauri::test::mock_builder()
+        .invoke_handler(halvo_coord_app::handler_with(halvo_coord_app::Waits {
+            next: std::time::Duration::from_millis(next),
+            coalesce: std::time::Duration::from_millis(100),
+        }))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+        .build()
+        .unwrap();
+    (app, main, other)
+}
+
+#[test]
+fn the_seq_of_a_new_coordinator_is_at_least_1() {
+    let fresh = Hub::new(
+        world(1, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    assert!(fresh.coordinator().snapshot().seq >= 1);
+    Core::tick(&*fresh);
+    assert!(fresh.coordinator().snapshot().seq >= 1);
+}
+
+#[test]
+fn before_agents_is_managed_another_window_is_refused_and_main_gets_the_stand_in_or_a_cause() {
+    let (_app, main, other) = bare(1_000);
+    for command in LIST.iter().map(|c| c.name) {
+        assert_eq!(
+            invoke(&other, command, args_of(command)),
+            Err(json!(REFUSED)),
+            "{command} from the window other"
+        );
+    }
+    assert_eq!(invoke(&main, "agents_snapshot", json!({})), Ok(stand_in()));
+    let causes = [
+        ("agents_card", "no_service"),
+        ("agents_answer", "no_service"),
+        ("agents_setup_typed", "unknown_item"),
+        ("agents_present", "no_service"),
+        ("agents_control", "no_service"),
+    ];
+    for (command, cause) in causes {
+        assert_eq!(
+            invoke(&main, command, args_of(command)),
+            Ok(fixture(&format!("reply-error-{cause}"))),
+            "{command}"
+        );
+    }
+}
+
+#[test]
+fn before_agents_is_managed_a_next_is_held_and_answers_the_stand_in_at_its_wait() {
+    let (_app, main, _other) = bare(1_500);
+    let start = std::time::Instant::now();
+    let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 1})));
+    std::thread::sleep(std::time::Duration::from_millis(1_000));
+    assert!(!waiting.is_finished(), "no answer inside a second");
+    assert_eq!(waiting.join().unwrap(), Ok(stand_in()));
+    assert!(start.elapsed() >= std::time::Duration::from_millis(1_400));
+}
+
+#[test]
+fn a_held_next_is_handed_to_the_hub_once_the_app_manages_agents() {
+    let (app, main, _other) = bare(10_000);
+    let start = std::time::Instant::now();
+    let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 0})));
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let hub = hub(1);
+    tauri::Manager::manage(&app, halvo_coord_app::Agents(hub.clone()));
+    let reply = waiting.join().unwrap();
+    assert_eq!(
+        reply,
+        Ok(serde_json::to_string(&hub.coordinator().snapshot()).unwrap())
+    );
+    assert!(start.elapsed() < std::time::Duration::from_millis(5_000));
 }

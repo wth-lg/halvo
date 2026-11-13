@@ -64,3 +64,53 @@ fn the_tray_shows_the_count_as_i10_3_asks_on_each_system() {
     };
     assert_eq!(three.title.as_deref(), title);
 }
+
+#[test]
+fn an_agent_under_problem_does_not_count_for_the_tray() {
+    let counts = Counts::default();
+    let hub = Hub::new(
+        support::world_ending(
+            &[
+                halvo_coord::types::RunEnd::Completed,
+                halvo_coord::types::RunEnd::Failed,
+            ],
+            Limits::PRODUCT,
+        ),
+        Limits::PRODUCT,
+        counts.sink(),
+        Dialogs::default().boxed(),
+    );
+    hub.coordinator().ports().inner().with(|p| {
+        p.events.borrow_mut().push(halvo_coord::types::Event {
+            workflow: support::flow(1),
+            agent: agent(1),
+            seq: std::num::NonZeroU32::new(3).unwrap(),
+            day: DAY - 1,
+            at: 0,
+            what: halvo_coord::types::What::HoldSet {
+                cause: halvo_coord::types::HoldSetCause::Failures,
+            },
+        })
+    });
+    let c = hub.coordinator();
+    c.tick();
+    let status = |n: usize| {
+        c.snapshot()
+            .rows
+            .iter()
+            .find(|r| r.agent == agent(n))
+            .map(|r| r.status)
+    };
+    assert_eq!(status(1), Some(halvo_coord::types::Status::Problem));
+    assert_eq!(counts.all().last(), Some(&0));
+    c.control(&agent(0), Action::RunNow).unwrap();
+    let run = started(&hub).pop().unwrap();
+    c.on_run(&run, RunEvent::Hello).unwrap();
+    c.on_run(&run, ask(&run, 0, Class::Payment)).unwrap();
+    assert_eq!(status(0), Some(halvo_coord::types::Status::NeedsYou));
+    assert_eq!(
+        counts.all().last(),
+        Some(&1),
+        "one under needs_you, one under problem"
+    );
+}
