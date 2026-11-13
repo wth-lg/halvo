@@ -504,6 +504,9 @@ pub struct DeleteFields {
     pub root_id: Option<StoreId>,
     pub files_left: u64,
     pub database_left: bool,
+    /// The store names, the store directory's own among them, at which the delete met a link,
+    /// an entry of another kind, or a directory that was not its own (ruling ST-30 (2)(e)).
+    pub not_followed: u64,
     pub entries_removed: u64,
     pub entries_left: u64,
     pub unknown_entries: u64,
@@ -882,6 +885,9 @@ pub enum StoreErrorKind {
     NoSpace,
     CustodyLocked,
     RootDenied,
+    /// At one of the store's names stands something that is not the store's own entry, or the
+    /// store directory does not stand at its name (ruling ST-30 part (2)(a)).
+    Obstructed,
     RootMissing,
     RootCorrupt,
     WrapAuth,
@@ -898,6 +904,7 @@ one_spelling!(StoreErrorKind, "store error", [
     NoSpace => "no_space",
     CustodyLocked => "custody_locked",
     RootDenied => "root_denied",
+    Obstructed => "obstructed",
     RootMissing => "root_missing",
     RootCorrupt => "root_corrupt",
     WrapAuth => "wrap_auth",
@@ -919,7 +926,7 @@ impl StoreState {
             | StoreState::NoReleaseCustody => cause.is_none(),
             StoreState::Unavailable => matches!(
                 cause,
-                Some(Locked | Io | NoSpace | CustodyLocked | RootDenied)
+                Some(Locked | Io | NoSpace | CustodyLocked | RootDenied | Obstructed)
             ),
             StoreState::Sealed => matches!(
                 cause,
@@ -1810,6 +1817,7 @@ mod tests {
                 root_id: None,
                 files_left: 0,
                 database_left: false,
+                not_followed: 0,
                 entries_removed: 4,
                 entries_left: 0,
                 unknown_entries: 0,
@@ -1987,7 +1995,7 @@ mod tests {
             ),
             (
                 deleted(None),
-                r#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#,
+                r#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#,
             ),
             (
                 Reply::PermissionRequested(PermissionRequested {
@@ -2515,7 +2523,7 @@ mod tests {
             (NoReleaseCustody, &[]),
             (
                 Unavailable,
-                &[Locked, Io, NoSpace, CustodyLocked, RootDenied],
+                &[Locked, Io, NoSpace, CustodyLocked, RootDenied, Obstructed],
             ),
             (
                 Sealed,
@@ -2933,6 +2941,7 @@ mod tests {
                 "no_space",
                 "custody_locked",
                 "root_denied",
+                "obstructed",
                 "root_missing",
                 "root_corrupt",
                 "wrap_auth",
@@ -3183,6 +3192,7 @@ mod tests {
             root_id: None,
             files_left: 0,
             database_left: false,
+            not_followed: 0,
             entries_removed: 4,
             entries_left: 0,
             unknown_entries: 0,
@@ -3284,6 +3294,7 @@ mod tests {
                     Some(StoreErrorKind::NoSpace),
                     Some(StoreErrorKind::CustodyLocked),
                     Some(StoreErrorKind::RootDenied),
+                    Some(StoreErrorKind::Obstructed),
                 ],
                 StoreState::Sealed => &[
                     Some(StoreErrorKind::RootMissing),

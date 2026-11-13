@@ -239,6 +239,7 @@ pub fn sample_delete_report() -> DeleteReport {
         root_id: None,
         files_left: 0,
         database_left: false,
+        not_followed: 0,
         entries_removed: 4,
         entries_left: 0,
         unknown_entries: 0,

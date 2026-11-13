@@ -321,13 +321,14 @@ pub fn inventory_text(inventory: &InventoryReply) -> String {
 pub fn deleted_text(deleted: &Deleted) -> String {
     let r = deleted.report.fields();
     format!(
-        "deleted segments_shredded={} keys_destroyed={} root_destroyed={} root_id={} files_left={} database_left={} entries_removed={} entries_left={} unknown_entries={} intent={} store_id={}\n",
+        "deleted segments_shredded={} keys_destroyed={} root_destroyed={} root_id={} files_left={} database_left={} not_followed={} entries_removed={} entries_left={} unknown_entries={} intent={} store_id={}\n",
         or_unknown(r.segments_shredded),
         or_unknown(r.keys_destroyed),
         r.root_destroyed.as_str(),
         or_dash(r.root_id),
         r.files_left,
         yes_no(r.database_left),
+        r.not_followed,
         r.entries_removed,
         r.entries_left,
         r.unknown_entries,
@@ -517,6 +518,17 @@ mod tests {
 
     const NO_RECORD: &str =
         "last_stop_kind=-\nlast_stop_lost events=0 first=- last=- error=- final=yes\n";
+
+    /// gate-2's `deleted` fixture with the count `not_followed=0` of ruling ST-30 after
+    /// `database_left`, until gate-3 adds it to the file.
+    fn deleted_fixture(checked_out: &str) -> String {
+        let text = lf(checked_out);
+        if text.contains(" not_followed=") {
+            return text;
+        }
+        let at = text.find(" entries_removed=").unwrap();
+        format!("{} not_followed=0{}", &text[..at], &text[at..])
+    }
 
     fn status_fixture(checked_out: &str) -> String {
         let text = lf(checked_out);
@@ -799,7 +811,7 @@ mod tests {
             report: sample_delete_report(),
             store: Some(FRESH),
         };
-        assert_eq!(deleted_text(&deleted), lf(DELETED));
+        assert_eq!(deleted_text(&deleted), deleted_fixture(DELETED));
         assert_eq!(
             already_deleted_text(&AlreadyDeleted { current: FRESH }),
             lf(ALREADY_DELETED)
@@ -981,6 +993,7 @@ mod tests {
             root_id: None,
             files_left: 2,
             database_left: true,
+            not_followed: 0,
             entries_removed: 3,
             entries_left: 1,
             unknown_entries: 5,
@@ -998,7 +1011,7 @@ mod tests {
         );
         assert_eq!(
             printed.stdout,
-            "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
+            "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes not_followed=0 entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
         );
         assert_eq!(printed.status, 0);
     }
