@@ -8,6 +8,7 @@ pub mod build;
 pub mod check;
 pub mod compose;
 pub mod form;
+pub mod input_copy;
 pub mod labels;
 pub mod layers;
 pub mod manifest;

@@ -143,6 +143,19 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             };
             halvo_sample::compose::compose(&a).map(done)
         }
+        "input-copy" => {
+            let (f, rest) = parse(args, &["--input-set", "--layers"], &[])?;
+            let [tier, dir] = rest.as_slice() else {
+                return Err(Refusal::new("usage", "TIER DIR"));
+            };
+            let a = halvo_sample::input_copy::InputCopyArgs {
+                input_set: PathBuf::from(need(&f, "--input-set")?),
+                layers: f.get("--layers").map(PathBuf::from),
+                tier: PathBuf::from(tier),
+                out: PathBuf::from(dir),
+            };
+            halvo_sample::input_copy::input_copy(&a).map(done)
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }
