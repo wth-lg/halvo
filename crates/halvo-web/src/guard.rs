@@ -85,6 +85,34 @@ impl GuardAct {
     }
 }
 
+/// The program that runs the guard: `program` with `prefix` before `GUARD_FLAG` and its
+/// arguments. The product's is the executor's own binary with no prefix, whose `main` calls
+/// `run_if_guard` first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuardProgram {
+    pub program: std::path::PathBuf,
+    pub prefix: Vec<std::ffi::OsString>,
+}
+
+impl GuardProgram {
+    /// This process's own binary, with no prefix.
+    pub fn this_program() -> std::io::Result<GuardProgram> {
+        Ok(GuardProgram {
+            program: std::env::current_exe()?,
+            prefix: Vec::new(),
+        })
+    }
+}
+
+/// For a binary's `main`: when the first argument after the program is `GUARD_FLAG`, runs the
+/// guard and gives its exit status; otherwise `None`.
+pub fn run_if_guard(args: &[String]) -> Option<i32> {
+    match args.get(1) {
+        Some(flag) if flag == GUARD_FLAG => Some(guard_main(&args[2..])),
+        _ => None,
+    }
+}
+
 /// The guard's program: `argv` after `GUARD_FLAG`. It runs `guard_loop` with the system's table,
 /// the ask and the forced end of `procs`, and writes the act into the record file. Exit 2 for
 /// arguments that it cannot read.
@@ -572,7 +600,11 @@ mod tests {
             assert_eq!(code, 0);
             let late = forced(&ends, 30).expect("the late grandchild was ended");
             assert!((5_000..5_100).contains(&late), "forced at {late} ms");
-            assert_eq!(Some(late), forced(&ends, 20), "not in the pass of its parent");
+            assert_eq!(
+                Some(late),
+                forced(&ends, 20),
+                "not in the pass of its parent"
+            );
             assert!(at >= late + 1_000, "the port freed at {at} ms");
         }
     }

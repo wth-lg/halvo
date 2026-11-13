@@ -8,4 +8,5 @@ pub mod guard;
 pub mod peer;
 pub mod pipe;
 pub mod procs;
+pub mod relay;
 pub mod start;
