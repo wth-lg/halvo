@@ -147,12 +147,13 @@ inspect() {
   case $script_lane in
     '') script_lane=cargo ;;
     '# lane: free') script_lane=free ;;
+    '# lane: alone') script_lane=alone ;;
     *"$nl"*)
       refusal="its first 10 lines hold more than one '# lane:' line"
       return 1
       ;;
     *)
-      refusal="its '# lane:' line is not '# lane: free'; a check that names no lane runs in the cargo lane"
+      refusal="its '# lane:' line is neither '# lane: free' nor '# lane: alone'; a check that names no lane runs in the cargo lane"
       return 1
       ;;
   esac
@@ -447,21 +448,22 @@ st_queue() {
 }
 
 st_pending() {
-  if [ "$1" = cargo ]; then st_pending_i=$st_cargo_next; else st_pending_i=$st_free_next; fi
+  eval "st_pending_i=\$st_cursor_$1"
   while [ "$st_pending_i" -lt "$st_n" ]; do
     eval "st_pk=\$st_kind_$st_pending_i:\$st_state_$st_pending_i:\${st_lane_$st_pending_i-}"
     [ "$st_pk" != "script:waiting:$1" ] || break
     st_pending_i=$((st_pending_i + 1))
   done
-  if [ "$1" = cargo ]; then st_cargo_next=$((st_pending_i + 1)); else st_free_next=$((st_pending_i + 1)); fi
+  eval "st_cursor_$1=\$((st_pending_i + 1))"
   [ "$st_pending_i" -lt "$st_n" ]
 }
 
 st_lanes() {
   st_busy=
   st_free=0
-  st_cargo_next=0
-  st_free_next=0
+  for st_l in cargo free alone; do
+    eval "st_cursor_$st_l=0"
+  done
   while :; do
     st_poll
     while [ -z "$st_busy" ] && st_pending cargo; do
@@ -470,6 +472,11 @@ st_lanes() {
     while [ "$st_free" -lt "$ck_jobs" ] && st_pending free; do
       ! st_start "$st_pending_i" || st_free=$((st_free + 1))
     done
+    if [ "$st_running" = ' ' ]; then
+      while st_pending alone; do
+        ! st_start "$st_pending_i" || break
+      done
+    fi
     st_flush
     [ "$st_running" != ' ' ] || return 0
     st_nap
@@ -959,7 +966,7 @@ own_self_test() {
     chmod +x "$tmp/late-date/date"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
-  lane_refusal="its '# lane:' line is not '# lane: free'; a check that names no lane runs in the cargo lane"
+  lane_refusal="its '# lane:' line is neither '# lane: free' nor '# lane: alone'; a check that names no lane runs in the cargo lane"
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
   perl_line='FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)'
 
@@ -1443,6 +1450,52 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $check_passes"
   own_case checks-of-two-lanes-run-at-the-same-time 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  lone="$good$nl# lane: alone"
+  busy=': >"$CI_D_REPO/start.$me"; sleep 2; : >"$CI_D_REPO/end.$me"'
+  solo='for f in "$CI_D_REPO"/start.*; do [ -e "$f" ] || continue; o=${f##*/start.}; [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL %s (it started beside %s)\n" "$me" "$o"; exit 1; }; done; : >"$CI_D_REPO/start.$me"; sleep 2; for f in "$CI_D_REPO"/start.*; do o=${f##*/start.}; [ "$o" = "$me" ] || [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL %s (%s started beside it)\n" "$me" "$o"; exit 1; }; done; : >"$CI_D_REPO/end.$me"'
+  after_lanes='[ -e "$CI_D_REPO/end.20-b" ] && [ -e "$CI_D_REPO/end.30-c" ] || { printf "FAIL %s (it started before the lanes ended)\n" "$me"; exit 1; }'
+  new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; $after_lanes; $solo; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; $busy; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; $busy; $check_passes"
+  own_case alone-check-starts-after-both-lanes-have-ended 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; $solo; $check_passes" &&
+    add_script r1 20-b.sh "$lone" "$prelude_any; [ -e \"\$CI_D_REPO/end.10-a\" ] || { printf 'FAIL %s (it ran before 10-a)\\n' \"\$me\"; exit 1; }; $solo; $check_passes" &&
+    add_script r1 30-c.sh "$good" "$prelude_any; $busy; $check_passes"
+  own_case two-alone-checks-run-one-after-the-other-in-order 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes"
+  case_first="line of 10-a${nl}PASS 10-a${nl}seconds 10-a "
+  case_then="line of 20-b${nl}PASS 20-b${nl}seconds 20-b "
+  own_case output-of-an-alone-check-in-the-order-of-the-run 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; $busy; $check_passes" &&
+    add_script r1 20-b.sh "$lone" "$prelude_any; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; $busy; $check_passes"
+  case_absent='FAIL run-ci-d (one of 20-b, 30-c changed a tracked file: tracked.txt)'
+  own_case tracked-file-changed-by-an-alone-check-names-it-alone 1 'FAIL run-ci-d (20-b changed a tracked file: tracked.txt)' macos
+  new_repo && add_script r1 10-a.sh "$lone" "trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$lone" "printf 'PASS 20-b\\n'"
+  case_limit=3
+  case_max_s=40
+  case_witness=yes
+  case_first='FAIL 10-a (time limit 3 s)'
+  case_then='PASS 20-b'
+  own_case alone-check-past-its-limit-and-the-next-runs 1 'FAIL 10-a (time limit 3 s)' macos
+  new_repo && add_script r1 10-a.sh "$good" "printf 'line of 10-a\\n'; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$lone" "printf 'line of 20-b\\n'; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; printf 'PASS 20-b\\n'"
+  case_signal=INT
+  case_wait=started.20-b
+  case_max_s=30
+  case_signal_min=2
+  case_witness=yes
+  case_first='line of 10-a'
+  case_then='line of 20-b'
+  own_case interrupt-during-the-alone-part 130 'FAIL run-ci-d (the step was interrupted by INT; every script that it started is ended)' macos
+  new_repo && add_script r1 10-a.sh "$lone$cr" "$prelude_any; [ -e \"\$CI_D_REPO/end.20-b\" ] || { printf 'FAIL %s (it started before the lanes ended)\\n' \"\$me\"; exit 1; }; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; $busy; $check_passes"
+  own_case alone-line-with-a-carriage-return-names-the-alone-part 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$lone$nl# lane: free" "$pass_a"
+  own_case lane-lines-alone-and-free 1 "FAIL 10-a (its first 10 lines hold more than one '# lane:' line)" macos
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free$cr" "$prelude_any; meet || $check_alone; $check_passes"
   own_case lane-line-with-a-carriage-return-names-the-free-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
