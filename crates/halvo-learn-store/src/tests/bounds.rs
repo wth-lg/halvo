@@ -169,3 +169,17 @@ fn a_candidate_whose_step_on_the_base_at_finish_has_2048_bytes_is_stored_and_one
     assert_eq!(edits.len(), 1);
     assert!(served < 2048);
 }
+
+#[test]
+fn the_bytes_that_fits_counts_are_the_bytes_that_the_step_writer_writes() {
+    let mut w = active_world_with(steps_with(900));
+    for step in w.replay(2) {
+        let parsed = halvo_schema::executable::ExecutableStep::parse(step.to_string().as_bytes())
+            .expect("a step");
+        assert_eq!(
+            crate::serve::written(&parsed),
+            Some(parsed.to_json().expect("JSON").len())
+        );
+        assert_eq!(crate::serve::written(&parsed), Some(bytes(&step)));
+    }
+}

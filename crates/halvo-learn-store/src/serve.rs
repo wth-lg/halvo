@@ -3,6 +3,8 @@ use halvo_schema::executable::step::Target;
 use halvo_schema::executable::step::{Locator, STEP_JSON_MAX};
 use halvo_schema::executable::{ExecutableStep, OwnText, RunnerReply};
 use halvo_schema::learning::record::LearnEdit;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 
 use crate::agent;
 use crate::facts::{RunFacts, Served};
@@ -34,9 +36,38 @@ pub(crate) fn with_target(
     Some(out)
 }
 
+/// The keys of a step in the order in which its writer writes them, with their values, so that the bytes are
+/// counted without the bound that the writer itself holds.
+struct StepForm<'a>(&'a ExecutableStep);
+
+impl Serialize for StepForm<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let step = self.0;
+        let mut map = serializer.serialize_map(Some(10))?;
+        map.serialize_entry("v", &step.v)?;
+        map.serialize_entry("n", &step.n)?;
+        map.serialize_entry("kind", &step.kind)?;
+        map.serialize_entry("verb", &step.verb)?;
+        map.serialize_entry("target", &step.target)?;
+        map.serialize_entry("args", &step.args)?;
+        map.serialize_entry("pre", &step.pre)?;
+        map.serialize_entry("post", &step.post)?;
+        map.serialize_entry("effect", &step.effect)?;
+        map.serialize_entry("class", &step.class)?;
+        map.end()
+    }
+}
+
+/// The bytes of the step's compact JSON as its writer writes them, or none where a part of it breaks a rule.
+pub(crate) fn written(step: &ExecutableStep) -> Option<usize> {
+    serde_json::to_vec(&StepForm(step))
+        .ok()
+        .map(|json| json.len())
+}
+
 /// The compact JSON of the step has at most 2,048 bytes (AG-A3.4).
 pub(crate) fn fits(step: &ExecutableStep) -> bool {
-    serde_json::to_vec(step).is_ok_and(|json| json.len() <= STEP_JSON_MAX)
+    written(step).is_some_and(|len| len <= STEP_JSON_MAX)
 }
 
 fn lay(step: &ExecutableStep, edit: &LearnEdit) -> Option<ExecutableStep> {
