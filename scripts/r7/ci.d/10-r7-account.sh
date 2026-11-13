@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 89 and 71: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases check with values of their own. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 91 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases check with values of their own. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -44,7 +44,8 @@ dep-info-name-with-a-colon-and-a-newline target-in-another-spelling target-in-th
 dep-info-name-with-a-newline includes-inside ban-with-a-third-key ban-reason-with-a-backslash
 ban-line-cut-after-its-reason macos-list-emptied windows-list-emptied
 whole-run-without-a-real-build windows-job-runs-a-macos-build macos-job-misses-a-left-out-case
-windows-job-misses-a-case-of-its-list windows-job-runs-a-left-out-case'
+windows-job-misses-a-case-of-its-list windows-job-runs-a-left-out-case
+dep-info-name-with-a-tab dep-info-name-with-a-control-character'
 macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails clippy-fails
 self-hosted-runner actions-not-true hosted-macos hosted-test-fails hosted-line-missing
 hosted-line-of-another-store hosted-file-line-missing hosted-other-job empty-registry
@@ -64,8 +65,8 @@ include-outside include-str-outside include-bytes-outside include-from-the-targe
 moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash
 target-through-a-link link-as-account-target dep-info-link-in-a-source-directory
 dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name
-dep-info-letter-and-colon-directory'
-real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash'
+dep-info-letter-and-colon-directory directory-name-with-a-tab'
+real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash directory-name-with-a-tab'
 real_builds_windows='includes-inside'
 
 fail() {
@@ -404,8 +405,9 @@ clear_members() {
 
 dep_info_read() {
   awk '
-function add(k, i, v, unescape) {
+function add(k, i, v, unescape,  c) {
   if (unescape) gsub(/\\ /, " ", v)
+  for (c = 1; c <= 32; c++) if (index(v, ctrl[c])) { control++; break }
   n++; kind[n] = k; idx[n] = i; value[n] = v
 }
 function whole(p) { return substr(p, 1, 1) == "/" ? p : account "/" p }
@@ -413,7 +415,9 @@ function parent(p) { sub(/\/[^\/]*$/, "", p); return p == "" ? "/" : p }
 BEGIN {
   account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"]
   list = ENVIRON["DEP_INFO_LIST"]; members = ENVIRON["DEP_INFO_MEMBERS"]
-  n = 0; files = 0; unopenable = 0
+  n = 0; files = 0; unopenable = 0; control = 0
+  for (c = 1; c < 32; c++) ctrl[c] = sprintf("%c", c)
+  ctrl[32] = sprintf("%c", 127)
   while ((getline file < list) > 0) {
     files++
     status = (getline line < file)
@@ -434,6 +438,7 @@ BEGIN {
     add("member", part[1], part[2], 0)
   }
   close(members)
+  if (control) { print "control\t" control "\t-\t-"; exit }
   if (ENVIRON["DEP_INFO_CONVERT"] == "1") {
     for (i = 1; i <= n; i++) print value[i] > names
     close(names)
@@ -544,6 +549,7 @@ check_sources() {
   place=other
   while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
     case $kind in
+      control) fail 'a dep-info file of account/ names a file with a tab or another control character, which this check cannot read without doubt' ;;
       local) dep_info=$idx ;;
       unconverted) fail 'cygpath gave fewer paths than the dep-info files hold' ;;
       unopenable) unopenable=$idx ;;
@@ -1212,6 +1218,8 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_link='a source of account/ reads a file through a symbolic link'
   cause_member='a package of account/ has no dep-info file that this check read'
   cause_tracked='a tracked file lies under the build target directory target/account'
+  cause_control='a dep-info file of account/ names a file with a tab or another control character, which this check cannot read without doubt'
+  escape=$(printf '\033')
   inside_source='include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 #[path = "../inner/module.rs"]
 pub mod inner;
@@ -1430,6 +1438,8 @@ $calls_after"
   make_fixture target-in-the-drive-spelling && mkdir -p "$fixture/target/account" && drive_target=$(windows_name "$fixture/target/account") &&
     run_case target-in-the-drive-spelling "PASS $name" stub STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
+  stub_case dep-info-name-with-a-tab "FAIL $name ($cause_control)" stub STUB_DEP="crates/halvo-wire/src/a${tab}b/../../../../outside/code.rs"
+  stub_case dep-info-name-with-a-control-character "FAIL $name ($cause_control)" stub STUB_DEP="crates/halvo-wire/src/a${escape}b/../../../../outside/code.rs"
   job_real_builds "$job" || wrong="$wrong real-builds-of-the-$job-job"
   want_packages=1
   real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
@@ -1467,6 +1477,11 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
     edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "#m"]|' && relock; then
     run_case member-named-with-a-hash "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   fi
+  want_packages=1
+  real_build directory-name-with-a-tab && make_probe_fixture directory-name-with-a-tab 'pub const TEXT: &str = include_str!("a\tb/../../../../../outside/text.txt");' &&
+    mkdir "$fixture/account/crates/probe/src/a${tab}b" && mkdir -p "$fixture/account/crates/probe/src/a/b" &&
+    cp "$fixture/outside/text.txt" "$fixture/account/outside${tab}text.txt" &&
+    run_case directory-name-with-a-tab "FAIL $name ($cause_control)" stub STUB_BUILD_REAL=1
   want_calls=$calls_before$nl$calls_after
   want_packages=
   want_dep_info=
