@@ -104,6 +104,7 @@ struct File {
     read_fails: Option<Fails>,
     delete_fails: Option<Fails>,
     claim_fails: Option<Fails>,
+    settle_fails: Option<Fails>,
     log: RefCell<Vec<&'static str>>,
 }
 
@@ -114,8 +115,14 @@ impl File {
             read_fails: None,
             delete_fails: None,
             claim_fails: None,
+            settle_fails: None,
             log: RefCell::new(Vec::new()),
         }
+    }
+
+    fn failing_settle(mut self, fails: Fails) -> File {
+        self.settle_fails = Some(fails);
+        self
     }
 
     fn failing_claim(mut self, fails: Fails) -> File {
@@ -188,7 +195,11 @@ impl FileSide for File {
     }
 
     fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
-        Ok(())
+        match self.settle_fails {
+            Some(Fails::Locked(locked)) => Err(Ok(locked)),
+            Some(Fails::Fault(fault)) => Err(Err(fault)),
+            _ => Ok(()),
+        }
     }
 
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
@@ -1136,6 +1147,61 @@ fn a_file_left_under_its_private_name_answers_a_fault() {
     let read = store.read();
     assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
     assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+}
+
+fn assert_a_failed_settling_is_the_answer(fails: Fails) {
+    let (read_answer, write_answer, delete_answer) = match fails {
+        Fails::Locked(locked) => (
+            Read::Locked(locked),
+            Write::Locked(locked),
+            Delete::Locked(locked),
+        ),
+        Fails::Fault(fault) => (
+            Read::Fault(fault),
+            Write::Fault(fault),
+            Delete::Fault(fault),
+        ),
+        Fails::Absent | Fails::Stranded => unreachable!(),
+    };
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::empty().failing_settle(fails), Keys::empty());
+        let read = store.read();
+        assert_eq!(format!("{read:?}"), format!("{read_answer:?}"), "{keeps:?}");
+        assert_eq!(
+            store.write(&secret(b"a new sign-in")),
+            write_answer,
+            "{keeps:?}"
+        );
+        assert_eq!(store.delete(), delete_answer, "{keeps:?}");
+        assert_eq!(store.file.bytes(), None, "{keeps:?}");
+        assert!(store.keychain.keychain.items().is_empty(), "{keeps:?}");
+        assert!(
+            store.file.ops().is_empty(),
+            "{keeps:?}: {:?}",
+            store.file.ops()
+        );
+        assert!(
+            !store
+                .keychain
+                .keychain
+                .ops()
+                .iter()
+                .any(|op| *op == "add" || *op == "delete"),
+            "{keeps:?}"
+        );
+    }
+}
+
+#[test]
+fn a_settling_that_answers_locked_is_the_answer_of_read_write_and_delete() {
+    assert_a_failed_settling_is_the_answer(Fails::Locked(Locked::Mode));
+    assert_a_failed_settling_is_the_answer(Fails::Locked(refused(13)));
+}
+
+#[test]
+fn a_settling_that_answers_a_fault_is_the_answer_of_read_write_and_delete() {
+    assert_a_failed_settling_is_the_answer(Fails::Fault(Fault { code: 5 }));
+    assert_a_failed_settling_is_the_answer(Fails::Fault(Fault { code: -1 }));
 }
 
 #[cfg(target_os = "macos")]

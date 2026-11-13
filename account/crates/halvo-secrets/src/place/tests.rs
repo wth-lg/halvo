@@ -1357,6 +1357,11 @@ fn a_claimed_file_that_cannot_be_put_back_or_read_or_removed_answers_the_failure
     assert_eq!(store.settle_claimed(None), Err(Ok(Locked::Mode)));
     assert_eq!(claimed_paths(&store.fs).len(), 1);
 
+    let store = item(claimed(b"the moved secret").failing("read_item", EIO));
+    assert_eq!(store.settle_claimed(None), Err(Err(fault_of(EIO))));
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+
     let store = item(claimed(b"the moved secret").failing("remove", EIO));
     assert_eq!(
         store.settle_claimed(Some(b"the moved secret")),
