@@ -334,6 +334,9 @@ fn data_dir() -> PathBuf {
 /// A change of the slots that the load of a count gives.
 pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 
+/// The frames before whose reply the supervisor writes one `cancel`.
+pub(crate) type CancelBefore = Box<dyn FnMut(&FromRunner) -> bool + Send>;
+
 /// A change of the origins of the bindings that the load of a count gives.
 pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
 
@@ -347,8 +350,8 @@ pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
 /// holds give a configuration under which `decide` gives `run` for `delete` and `submit` (`unattended`, `allow`
 /// `delete` and `submit`, `untrusted` no); `slots_at` and `origins_at` change the slots and the origins of the
-/// bindings that the load of a count gives; the supervisor writes one `cancel` before its reply to the first frame for which `cancel_before` holds; `wall_s` is the
-/// `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
+/// bindings that the load of a count gives; the supervisor writes one `cancel` before its reply to the first frame
+/// for which `cancel_before` holds; `wall_s` is the `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
@@ -362,7 +365,7 @@ pub(crate) struct Plan {
     pub(crate) runs_at: Option<fn(usize) -> bool>,
     pub(crate) slots_at: Option<SlotsAt>,
     pub(crate) origins_at: Option<OriginsAt>,
-    pub(crate) cancel_before: Option<fn(&FromRunner) -> bool>,
+    pub(crate) cancel_before: Option<CancelBefore>,
     pub(crate) wall_s: Option<u32>,
     pub(crate) clock: Arc<AtomicU64>,
 }
@@ -527,7 +530,10 @@ fn supervise(
         };
         let begun = matches!(&frame, FromRunner::Store(s)
             if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Releasing));
-        let cancel_now = plan.cancel_before.is_some_and(|before| before(&frame));
+        let cancel_now = plan
+            .cancel_before
+            .as_mut()
+            .is_some_and(|before| before(&frame));
         if cancel_now {
             plan.cancel_before = None;
         }

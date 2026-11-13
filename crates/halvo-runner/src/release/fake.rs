@@ -580,7 +580,7 @@ fn a_cancel_held_before_the_batch_propose_is_read_before_it() {
     ];
     let plan = Plan {
         runs_at: Some(|load| load == 1),
-        cancel_before: Some(is_ended_row),
+        cancel_before: Some(Box::new(is_ended_row)),
         ..Plan::plain()
     };
     let (record, released) = run_many(reads, 0, plan);
@@ -600,7 +600,7 @@ fn a_cancel_held_before_the_renewed_propose_is_read_before_it() {
     ]];
     let plan = Plan {
         runs_at: Some(|_| true),
-        cancel_before: Some(is_ended_row),
+        cancel_before: Some(Box::new(is_ended_row)),
         ..Plan::plain()
     };
     let (record, released) = run_many(reads, 0, plan);
@@ -1149,7 +1149,7 @@ fn is_confirm(frame: &FromRunner) -> bool {
 fn a_cancel_before_a_reject_once_reply_is_read_before_the_answer_is_stored() {
     let plan = Plan {
         answer: Answer::RejectOnce,
-        cancel_before: Some(is_confirm),
+        cancel_before: Some(Box::new(is_confirm)),
         ..Plan::plain()
     };
     let (record, released) = run(vec![delete("a", Source::Extract)], plan);
@@ -1159,5 +1159,70 @@ fn a_cancel_before_a_reject_once_reply_is_read_before_the_answer_is_stored() {
         [EffectState::Held],
         "the answer is not stored; this rule waits for a ruling (A6.2, A5.1 (i))"
     );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// The frames of the `load` of the count `n`, counted from 1.
+fn the_load(n: usize) -> super::suite::CancelBefore {
+    let mut loads = 0;
+    Box::new(move |frame| {
+        let load = matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Load(_)));
+        if load {
+            loads += 1;
+        }
+        load && loads == n
+    })
+}
+
+/// CP-166 E2 (A6.2): a cancel that comes with the answer to the load before the first `propose` is read before it:
+/// no `propose` row and no card; the run ends `declined`.
+#[test]
+fn a_cancel_with_the_first_load_is_read_before_the_first_propose() {
+    let plan = Plan {
+        cancel_before: Some(the_load(1)),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert!(record.states().is_empty(), "no propose row");
+    assert!(record.confirms().is_empty(), "no card");
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-166 E2 (A6.5): a `wall_s` that the load before the first `propose` lowers to the run's time is read before
+/// it: no `held` row and no card; the run ends `limit` with `wall`.
+#[test]
+fn a_wall_s_of_the_first_load_is_read_before_the_first_propose() {
+    let plan = Plan {
+        wall_zero_from_load: Some(1),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert!(record.states().is_empty(), "no held row");
+    assert!(record.confirms().is_empty(), "no card");
+    assert_eq!(record.done(), Some(Outcome::Limit));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Wall)))
+    );
+}
+
+/// CP-166 E2 (A6.2): a cancel that comes with the load before the `begin` is read after that load: no `begin`
+/// row, and the run ends `declined` with no effect `releasing`.
+#[test]
+fn a_cancel_with_the_load_before_the_begin_is_read_before_the_begin() {
+    let plan = Plan {
+        cancel_before: Some(the_load(2)),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(
+        record.states(),
+        [EffectState::Held, EffectState::Approved],
+        "no begin row"
+    );
+    assert!(record.handbacks().is_empty(), "no effect is releasing");
     assert_eq!(record.done(), Some(Outcome::Declined));
 }
