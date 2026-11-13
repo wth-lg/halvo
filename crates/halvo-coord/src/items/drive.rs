@@ -11,10 +11,12 @@ use crate::ports::{Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
-    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, HandbackResult, Item,
-    ItemId, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Presenter,
-    Raised, RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
+    Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts, HandbackAsk,
+    HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse,
+    OwnItem, OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
+    SignInAnswer, What, WorkflowId,
 };
+use serde::Serialize;
 use std::num::NonZeroU32;
 
 const HISTORY_PAGE: usize = 64;
@@ -205,16 +207,182 @@ fn closes(rows: &[Event], item: &ItemId) -> bool {
     })
 }
 
-/// Sends the waiting events in order, at most `request_records` in one body, and takes each
-/// acknowledged body off the list. A refusal `seq` reads the owner's events once and sends
-/// again (I7.2); any other failure leaves the rest waiting.
+/// The compact text of a `coord_log` body of `events` for `workflow` and `agent` (I7.2): `op`
+/// first, then `workflow`, `agent` and `records`, each record with the eighteen keys of I7.1 in
+/// their order and null for a key that its event does not set, as halvo-schema's
+/// `CoordLog::to_json` writes it.
+pub fn log_text(workflow: &WorkflowId, agent: &AgentId, events: &[Event]) -> String {
+    let body = LogBody {
+        op: "coord_log",
+        workflow: workflow.as_str(),
+        agent: agent.as_str(),
+        records: events.iter().map(Record::of).collect(),
+    };
+    serde_json::to_string(&body).unwrap_or_default()
+}
+
+/// The bytes of `log_text` for the workflow and the agent of the first of `events`, which a body
+/// holds with every record (I7.2); 0 for none.
+pub fn log_bytes(events: &[Event]) -> usize {
+    events
+        .first()
+        .map_or(0, |e| log_text(&e.workflow, &e.agent, events).len())
+}
+
+/// A `coord_log` body, its keys in the order of I7.2.
+#[derive(Serialize)]
+struct LogBody<'a> {
+    op: &'static str,
+    workflow: &'a str,
+    agent: &'a str,
+    records: Vec<Record<'a>>,
+}
+
+/// A record of I7.1, its eighteen keys in their order, each set by the event or null.
+#[derive(Serialize, Default)]
+struct Record<'a> {
+    v: u8,
+    workflow: &'a str,
+    agent: &'a str,
+    seq: u32,
+    day: u32,
+    at: i64,
+    event: &'static str,
+    run: Option<&'a str>,
+    slot: Option<u32>,
+    item: Option<&'a str>,
+    kind: Option<&'static str>,
+    effect: Option<&'a str>,
+    approval: Option<&'a str>,
+    digest: Option<&'a str>,
+    answer: Option<&'static str>,
+    cause: Option<&'static str>,
+    trigger: Option<&'static str>,
+    origin: Option<&'a str>,
+}
+
+impl<'a> Record<'a> {
+    fn of(e: &'a Event) -> Record<'a> {
+        let base = Record {
+            v: 1,
+            workflow: e.workflow.as_str(),
+            agent: e.agent.as_str(),
+            seq: e.seq.get(),
+            day: e.day,
+            at: e.at,
+            ..Record::default()
+        };
+        match &e.what {
+            What::RunStarted { run, trigger, slot } => Record {
+                event: "run_started",
+                run: Some(run.as_str()),
+                slot: *slot,
+                trigger: Some(trigger.name()),
+                ..base
+            },
+            What::RunEnded { run, cause } => Record {
+                event: "run_ended",
+                run: Some(run.as_str()),
+                cause: Some(cause.name()),
+                ..base
+            },
+            What::ItemRaised { item, raised } => Record {
+                event: "item_raised",
+                item: Some(item.as_str()),
+                kind: Some(raised.kind().name()),
+                run: raised.run().map(RunId::as_str),
+                ..base
+            },
+            What::ItemAnswered {
+                item,
+                answer: Answered::Confirm(entry),
+            } => Record {
+                event: "item_answered",
+                ..Record::entry(item, entry, base)
+            },
+            What::ItemAnswered { item, answer } => Record {
+                event: "item_answered",
+                item: Some(item.as_str()),
+                kind: Some(answer.kind().name()),
+                answer: answer.choice().map(Choice::name),
+                origin: match answer {
+                    Answered::SignIn(SignInAnswer::Second(b)) => Some(b.origin.as_str()),
+                    Answered::LinkAccount(l) => Some(l.origin.as_str()),
+                    _ => None,
+                },
+                ..base
+            },
+            What::ItemLapsed { item, lapsed } => Record {
+                event: "item_lapsed",
+                item: Some(item.as_str()),
+                kind: Some(lapsed.kind().name()),
+                cause: Some(lapsed.cause().name()),
+                ..base
+            },
+            What::ItemReleased { item, entry } => Record {
+                event: "item_released",
+                ..Record::entry(item, entry, base)
+            },
+            What::HoldSet { cause } => Record {
+                event: "hold_set",
+                cause: Some(cause.name()),
+                ..base
+            },
+            What::HoldCleared { cause } => {
+                let (run, answer, cause) = match cause {
+                    Cleared::Person => (None, None, "person"),
+                    Cleared::Failures => (None, None, "failures"),
+                    Cleared::Check { run, answer } => {
+                        (Some(run.as_str()), Some(answer.name()), "check")
+                    }
+                };
+                Record {
+                    event: "hold_cleared",
+                    run,
+                    answer,
+                    cause: Some(cause),
+                    ..base
+                }
+            }
+            What::SlotSkipped { slot } => Record {
+                event: "slot_skipped",
+                slot: *slot,
+                ..base
+            },
+        }
+    }
+
+    fn entry(item: &'a ItemId, entry: &'a DecisionEntry, base: Record<'a>) -> Record<'a> {
+        Record {
+            item: Some(item.as_str()),
+            kind: Some(ItemKind::Confirm.name()),
+            effect: Some(entry.effect.as_str()),
+            approval: Some(entry.approval.as_str()),
+            digest: Some(entry.digest.as_str()),
+            answer: Some(entry.answer.name()),
+            ..base
+        }
+    }
+}
+
+/// How many of the first `events` one body takes: as many as `request_records` and
+/// `request_bytes` allow, and at least one (I7.2; ruling RD-37 (3)).
+fn body_len(events: &[Event], limits: &Limits) -> usize {
+    let records = events.len().min(limits.request_records.max(1) as usize);
+    let mut n = 1;
+    while n < records && log_bytes(&events[..=n]) <= limits.request_bytes as usize {
+        n += 1;
+    }
+    n
+}
+
+/// Sends the waiting events in order, in bodies of at most `request_records` records and
+/// `request_bytes` bytes, and takes each acknowledged body off the list. A refusal `seq` reads
+/// the owner's events once and sends again (I7.2); any other failure leaves the rest waiting.
 pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Result<(), PortError> {
     let mut resynced = false;
     while !ledger.waiting.is_empty() {
-        let n = ledger
-            .waiting
-            .len()
-            .min(limits.request_records.max(1) as usize);
+        let n = body_len(&ledger.waiting, limits);
         match ports.log(&ledger.waiting[..n]) {
             Ok(()) => {
                 ledger.last = ledger.waiting[n - 1].seq.get();

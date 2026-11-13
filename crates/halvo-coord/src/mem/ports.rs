@@ -1,3 +1,4 @@
+use crate::items::drive::log_bytes;
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
@@ -172,8 +173,9 @@ pub struct Tried {
 ///
 /// The owner keeps the refusals that the real one gives (I7.2, A-A7.2), each as
 /// `PortError::Refused` with the error name, and a refusal stores nothing, records no call and
-/// changes no state of the port. `log` refuses a body of more than `request_records` records
-/// with `malformed`, and then, record by record, a workflow that is not in `workflows` with
+/// changes no state of the port. `log` refuses a body of more than `request_records` records,
+/// or whose text (`items::drive::log_text`) has more than `request_bytes` bytes, with
+/// `malformed`, and then, record by record, a workflow that is not in `workflows` with
 /// `no_workflow`, an agent that is not the workflow's with `binding`, and a `seq` that is not
 /// the last stored `seq` of its agent plus 1, the records before it in the same body counted,
 /// with `seq`. An agent is the workflow's when the workflow of `workflows` names it, when an
@@ -497,7 +499,9 @@ impl<C> Ports<C> {
     }
 
     fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
-        if events.len() > self.limits.request_records as usize {
+        if events.len() > self.limits.request_records as usize
+            || log_bytes(events) > self.limits.request_bytes as usize
+        {
             return Some("malformed");
         }
         let stored = self.events.borrow();
