@@ -123,7 +123,7 @@ fn each_field_is_one_line_with_its_pieces_and_with_no_line_break_of_its_own() {
     assert_eq!(
         card.lines(),
         [
-            "What to remove: Draft one, Draft two",
+            "What to remove: Draft oneDraft two",
             "Message: Thanks. Amount: 1 USD  end",
             "Something changed",
             "Tab here: a b"
@@ -174,4 +174,30 @@ fn a_field_holds_no_line_separator_and_no_bidi_control() {
             u32::from(mark)
         );
     }
+}
+
+#[test]
+fn a_value_cut_inside_a_number_reads_as_the_one_value_that_was_bound() {
+    let card = Card::new(
+        &[Class::Payment],
+        &[field("Amount", &["Pay 1", "000.00 USD"], FieldFrom::Site)],
+    )
+    .unwrap();
+    assert_eq!(card.lines(), ["Amount: Pay 1000.00 USD"]);
+}
+
+#[test]
+fn a_piece_keeps_its_own_comma_and_space_and_a_field_with_no_value_is_its_label() {
+    let card = Card::new(
+        &[Class::Payment],
+        &[
+            field("Pay to", &["Power, Water", " and Gas"], FieldFrom::You),
+            field("It will make this payment", &[], FieldFrom::Halvo),
+        ],
+    )
+    .unwrap();
+    assert_eq!(
+        card.lines(),
+        ["Pay to: Power, Water and Gas", "It will make this payment"]
+    );
 }
