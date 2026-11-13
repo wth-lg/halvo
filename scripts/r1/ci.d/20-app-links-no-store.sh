@@ -130,7 +130,8 @@ EOF
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  printf 'PASS self-test:%s (%s failing fixture trees rejected, %s clean tree accepted, %s failing cargo run rejected)\n' "$name" "$trees_rejected" "$trees_accepted" "$runs_rejected"
+  printf 'trees: %s failing rejected, %s clean accepted; cargo runs: %s failing rejected\n' "$trees_rejected" "$trees_accepted" "$runs_rejected"
+  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$((trees_rejected + runs_rejected))"
 }
 
 case ${1:-} in
