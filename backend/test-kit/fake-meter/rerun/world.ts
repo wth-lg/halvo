@@ -72,6 +72,7 @@ export type Report = {
   readonly findings: readonly Finding[];
   readonly coverage: Readonly<Record<string, number>>;
   readonly periods: readonly PeriodRow[];
+  readonly facts: Readonly<Record<string, number>>;
 };
 
 class Stop extends Error {}
@@ -113,6 +114,7 @@ type Account = {
   writeOff: { amount: number; sealed: Set<number>; laterSeals: Set<number> } | null;
   writtenOffAtReactivation: number | null;
   lastSeen: { carry: number; writtenOff: number | null } | null;
+  cancelsAfterAReactivation: number;
 };
 
 function blocker(): Blocker {
@@ -142,6 +144,7 @@ export async function runScenario(scenario: Scenario, options: Options): Promise
     if (!(error instanceof Stop)) world.threw(error);
   } finally {
     console.log = original;
+    world.collectFacts();
     world.close();
   }
   return world.report();
@@ -193,8 +196,32 @@ class World {
     this.findings.push({ check: "an entry threw", detail: `${name}: ${message}` });
   }
 
+  private readonly facts: Record<string, number> = {};
+
+  collectFacts(): void {
+    const add = (key: string, by: number): void => {
+      this.facts[key] = (this.facts[key] ?? 0) + by;
+    };
+    for (const account of this.accounts) {
+      const events = this.meter.recordedEvents(account.id);
+      const atTheMeter = new Set(events.map((e) => e.identifier));
+      const rows = account.test.host.step((sql) =>
+        ownTables(sql).length === 0 ? [] : sql.exec("SELECT identifier, refusal FROM metering_interval WHERE outcome = ?", "not-billable"),
+      );
+      add("not-billable-held-by-the-meter", rows.filter((row) => atTheMeter.has(String(row.identifier))).length);
+      add("not-billable-at-the-send-limit", rows.filter((row) => row.refusal === "send_limit").length);
+      add("reactivations", account.reactivations);
+      add("cancels-after-a-reactivation", account.cancelsAfterAReactivation);
+      const periods = this.meter.periods(account.id, this.now);
+      const end = periods.at(-1)?.end;
+      const ended = periods.length > 0 && end !== undefined && account.ended !== null;
+      add("minor-units-stamped-after-the-end", ended ? this.meter.exactTotal(account.id, end, Number.POSITIVE_INFINITY) : 0);
+      add("accounts-deleted", account.ended === "delete" ? 1 : 0);
+    }
+  }
+
   report(): Report {
-    return { callsWhileFaultsOn: this.callsWhileFaultsOn, findings: this.findings, coverage: this.coverage, periods: this.rows };
+    return { callsWhileFaultsOn: this.callsWhileFaultsOn, findings: this.findings, coverage: this.coverage, periods: this.rows, facts: this.facts };
   }
 
   private count(key: string, by = 1): void {
@@ -270,6 +297,7 @@ class World {
       writeOff: null,
       writtenOffAtReactivation: null,
       lastSeen: null,
+      cancelsAfterAReactivation: 0,
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
@@ -581,6 +609,7 @@ class World {
     if (kind === "cancel") {
       account.cancelled = true;
       account.cancelSinceReactivation = true;
+      if (account.reactivations > 0) account.cancelsAfterAReactivation += 1;
       const endedAt = this.meter.endSubscription(account.id, this.now);
       const first = Math.max(endedAt * 1000, account.lastProviderTime + 1000);
       const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: first, endedAt: endedAt * 1000 });

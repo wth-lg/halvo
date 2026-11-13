@@ -145,9 +145,11 @@ async function rule() {
     passedOrderings += run.passed;
     for (const [key, value] of Object.entries(run.coverage)) coverage[key] = (coverage[key] ?? 0) + value;
     note(`seed ${seed}: ${run.passed} of ${run.planned} orderings passed every check, ${run.seconds.toFixed(1)} s`);
+    for (const each of run.failing) note(`  failing ordering: ${JSON.stringify({ seed, ...each })}`);
+    for (const [check, scenario] of Object.entries(run.shortest)) note(`  shortest failing ordering for ${check}: ${JSON.stringify(scenario)}`);
     if (run.failure !== null) {
-      failures.push(describeFailure(`seed ${seed} of the generated orderings, after ${run.passed} that passed`, run.failure));
-      note(`  smallest failing ordering: ${JSON.stringify(run.failure.scenario)}`);
+      const first = run.failing[0];
+      failures.push(describeFailure(`seed ${seed} of the generated orderings, ordering ${first?.index ?? "?"} (${run.failing.length} of ${run.planned} fail)`, run.failure));
     }
   }
   for (const index of settings) {
@@ -167,6 +169,7 @@ async function rule() {
       passedSequences += run.sequences;
     } else {
       passedSequences += run.sequences - 1;
+      note(`  failing setting: ${JSON.stringify({ setting: index, check: run.failure.check, detail: run.failure.detail, facts: run.failure.facts, faults: run.failure.scenario.faultsByProviderCall })}`);
       failures.push(
         describeFailure(`the fault-sequence search, setting ${index}, faults ${JSON.stringify(run.failure.scenario.faultsByProviderCall)}`, run.failure),
       );

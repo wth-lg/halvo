@@ -123,10 +123,14 @@ export function scenarios(): fc.Arbitrary<Scenario> {
   });
 }
 
+export type FailingOrdering = { readonly index: number; readonly check: string; readonly detail: string; readonly facts: Readonly<Record<string, number>> };
+
 export type RunSummary = {
   readonly seed: number;
   readonly planned: number;
   readonly passed: number;
+  readonly failing: readonly FailingOrdering[];
+  readonly shortest: Readonly<Record<string, Scenario>>;
   readonly failure: (Finding & { readonly scenario: Scenario | null }) | null;
   readonly coverage: Readonly<Record<string, number>>;
 };
@@ -135,38 +139,39 @@ const ruleOptions = { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck
 
 export async function propertyRun(params: { seed: number; orderings: number }): Promise<RunSummary> {
   const coverage: Record<string, number> = {};
-  let shrinking = false;
   let passed = 0;
+  let index = 0;
+  const failing: FailingOrdering[] = [];
+  const shortest: Record<string, Scenario> = {};
   const details = await fc.check(
     fc.asyncProperty(scenarios(), async (scenario) => {
       const report = await runScenario(scenario, ruleOptions);
-      if (!shrinking) {
-        for (const [key, value] of Object.entries(report.coverage)) coverage[key] = (coverage[key] ?? 0) + value;
-        const bump = (key: string): void => {
-          coverage[key] = (coverage[key] ?? 0) + 1;
-        };
-        bump("orderings");
-        if (report.periods.some((row) => row.provider > 0)) bump("orderings.with-usage-at-the-provider");
-        if (report.periods.every((row) => row.reported === 0)) bump("orderings.with-no-reported-usage");
-        if ((report.coverage["call.before-the-closing-phase"] ?? 0) > 0) bump("orderings.with-a-provider-call-before-the-closing-phase");
+      index += 1;
+      for (const [key, value] of Object.entries(report.coverage)) coverage[key] = (coverage[key] ?? 0) + value;
+      const bump = (key: string): void => {
+        coverage[key] = (coverage[key] ?? 0) + 1;
+      };
+      bump("orderings");
+      if (report.periods.some((row) => row.provider > 0)) bump("orderings.with-usage-at-the-provider");
+      if (report.periods.every((row) => row.reported === 0)) bump("orderings.with-no-reported-usage");
+      if ((report.coverage["call.before-the-closing-phase"] ?? 0) > 0) bump("orderings.with-a-provider-call-before-the-closing-phase");
+      const finding = report.findings[0];
+      if (finding === undefined) {
+        passed += 1;
+        return true;
       }
-      if (report.findings.length > 0) {
-        shrinking = true;
-        return false;
-      }
-      if (!shrinking) passed += 1;
+      failing.push({ index, check: finding.check, detail: finding.detail, facts: report.facts });
+      const known = shortest[finding.check];
+      if (known === undefined || scenario.commands.length < known.commands.length) shortest[finding.check] = scenario;
       return true;
     }),
     { seed: params.seed, numRuns: params.orderings },
   );
+  const first = failing[0];
   let failure: RunSummary["failure"] = null;
-  if (details.failed) {
-    const smallest = details.counterexample?.[0];
-    const finding = smallest === undefined ? undefined : (await runScenario(smallest, ruleOptions)).findings[0];
-    const error = details.errorInstance instanceof Error ? details.errorInstance.message.split("\n")[0] : "fast-check gave no counterexample";
-    failure = { check: finding?.check ?? "unknown", detail: finding?.detail ?? error ?? "", scenario: smallest ?? null };
-  }
-  return { seed: params.seed, planned: params.orderings, passed, failure, coverage };
+  if (first !== undefined) failure = { check: first.check, detail: first.detail, scenario: shortest[first.check] ?? null };
+  else if (details.failed) failure = { check: "the run threw", detail: details.errorInstance instanceof Error ? details.errorInstance.message.split("\n")[0] ?? "" : "", scenario: null };
+  return { seed: params.seed, planned: params.orderings, passed, failing, shortest, failure, coverage };
 }
 
 export const SEARCH_DEPTH = 4;
@@ -196,7 +201,7 @@ export type SearchCase = { readonly scenario: Scenario; readonly faultsOfEarlier
 export type SearchSummary = {
   readonly settings: number;
   readonly sequences: number;
-  readonly failure: (Finding & { readonly scenario: Scenario }) | null;
+  readonly failure: (Finding & { readonly scenario: Scenario; readonly facts: Readonly<Record<string, number>> }) | null;
 };
 
 export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> {
@@ -208,7 +213,7 @@ export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> 
     if (reportOfTheSameRun === null) sequences += 1;
     const finding = report.findings[0];
     if (finding !== undefined) {
-      failure = { ...finding, scenario };
+      failure = { ...finding, scenario, facts: report.facts };
       return false;
     }
     const noCallLeftToFault = report.callsWhileFaultsOn <= searchCase.faultsOfEarlierCalls.length + faults.length;
