@@ -241,6 +241,158 @@ export function dialogLines(form, locate) {
   });
 }
 
+export const OUTCOMES = ['failed_call', 'cancel_response', 'unknown_response', 'timeout'];
+
+export const OUTCOME_SOURCES = {
+  rfdMac: { crate: 'rfd', file: 'src/backend/macos/utils/user_alert.rs' },
+  rfdWin: { crate: 'rfd', file: 'src/backend/win_cid/message_dialog.rs' },
+  plugin: { crate: 'tauri-plugin-dialog', file: 'src/desktop.rs' },
+  card: { crate: null, file: 'src/card.rs' },
+  native: { crate: null, file: 'src/native.rs' },
+};
+
+function textLines(text) {
+  return text.split('\n').map((line) => line.replace(/\r$/, ''));
+}
+
+function at(text, re) {
+  const n = findLine(text, re);
+  return { n, line: textLines(text)[n - 1], match: re.exec(textLines(text)[n - 1]) };
+}
+
+function nextAfter(text, n, re, what) {
+  const lines = textLines(text);
+  for (let i = n; i < lines.length; i += 1) {
+    if (lines[i].trim() === '') continue;
+    const match = re.exec(lines[i]);
+    if (!match) throw new Error(`the line after ${what} is not ${re}`);
+    return { n: i + 1, match };
+  }
+  throw new Error(`no line after ${what}`);
+}
+
+function firstAfter(text, anchorRe, re) {
+  const start = findLine(text, anchorRe);
+  const lines = textLines(text);
+  for (let i = start; i < lines.length; i += 1) {
+    const match = re.exec(lines[i]);
+    if (match) return { n: i + 1, match };
+  }
+  throw new Error(`no line matches ${re} after ${anchorRe}`);
+}
+
+function word(answer) {
+  return answer === 'Allow' ? 'allow' : answer === 'Reject' ? 'reject' : 'unknown';
+}
+
+function pluginAnswer(src, variant) {
+  const card = src('card').text;
+  const slots = at(card, /^\s*\((REJECT|ALLOW), (REJECT|ALLOW)\)$/).match;
+  const allows = at(card, /^\s*MessageDialogResult::Custom\(label\) if label == (REJECT|ALLOW) => Answer::(Allow|Reject),$/);
+  const rest = nextAfter(card, allows.n, /^\s*_ => Answer::(Allow|Reject),$/, 'the custom arm of from_plugin').match[1];
+  const app = (label) => word(label === allows.match[1] ? allows.match[2] : rest);
+  const plugin = src('plugin');
+  if (variant === 'Cancel' || variant === 'Ok') {
+    const arm = new RegExp(`\\(\\s*rfd::MessageDialogResult::${variant},\\s*MessageDialogButtons::OkCancelCustom\\((\\w+), (\\w+)\\),\\s*\\) => rfd::MessageDialogResult::Custom\\((\\w+)\\),`, 'g');
+    const arms = [...plugin.text.matchAll(arm)];
+    if (arms.length > 1) throw new Error(`${arms.length} arms of the plugin map ${variant}`);
+    if (arms.length === 1) {
+      const [whole, first, second, picked] = arms[0];
+      const n = plugin.text.slice(0, arms[0].index + whole.indexOf('MessageDialogButtons')).split('\n').length;
+      const slot = picked === first ? slots[1] : picked === second ? slots[2] : null;
+      return { gives: slot === null ? 'unknown' : app(slot), label: plugin.label, n };
+    }
+  }
+  const through = at(plugin.text, /^\s*\(result, _\) => result,$/);
+  return { gives: ['Yes', 'No', 'Cancel', 'Ok'].includes(variant) ? app(null) : 'unknown', label: plugin.label, n: through.n };
+}
+
+function rfdVariant(text, re, what, nextLine) {
+  const found = at(text, re);
+  if (!nextLine) return found.match[1];
+  return nextAfter(text, found.n, /^\s*return MessageDialogResult::(\w+);$/, what).match[1];
+}
+
+function elseOf(text, re, what) {
+  const found = at(text, re);
+  const branch = nextAfter(text, found.n, /^\s*Answer::(Allow|Reject)$/, what);
+  nextAfter(text, branch.n, /^\s*\} else \{$/, `${what}, its first branch`);
+  const other = nextAfter(text, branch.n + 1, /^\s*Answer::(Allow|Reject)$/, `${what}, its else`);
+  return { found, first: branch.match[1], other: other.match[1] };
+}
+
+const DERIVE = {
+  plugin: {
+    macos(src) {
+      const rfd = src('rfdMac');
+      const timeout = at(rfd.text, /^\s*timeout: ([0-9][0-9_a-z.]*),$/);
+      const seconds = Number(timeout.match[1].replace(/_f64$/, '').replace(/_/g, ''));
+      return {
+        failed_call: pluginAnswer(src, rfdVariant(rfd.text, /^\s*if is_cancel != 0 \{$/, 'the failed call', true)),
+        cancel_response: pluginAnswer(src, rfdVariant(rfd.text, /^\s*if response == kCFUserNotificationCancelResponse \{$/, 'the cancel response', true)),
+        unknown_response: pluginAnswer(src, rfdVariant(rfd.text, /^\s*_ => MessageDialogResult::(\w+),$/, 'the unlisted response', false)),
+        timeout: { gives: seconds === 0 ? 'none' : 'unknown', label: rfd.label, n: timeout.n },
+      };
+    },
+    windows(src) {
+      const rfd = src('rfdWin');
+      const callback = at(rfd.text, /^\s*pfCallback: (\S+),$/);
+      const cancel = firstAfter(rfd.text, /^\s*match pn_button \{$/, /^\s*IDCANCEL => MessageDialogResult::(\w+),$/);
+      const unlisted = firstAfter(rfd.text, /^\s*MessageButtons::OkCancelCustom\(ok_text, cancel_text\) => match custom \{$/, /^\s*_ => MessageDialogResult::(\w+),$/);
+      return {
+        failed_call: pluginAnswer(src, rfdVariant(rfd.text, /^\s*if ret != 0 \{$/, 'the failed call', true)),
+        cancel_response: pluginAnswer(src, cancel.match[1]),
+        unknown_response: pluginAnswer(src, unlisted.match[1]),
+        timeout: { gives: callback.match[1] === 'None' ? 'none' : 'unknown', label: rfd.label, n: callback.n },
+      };
+    },
+  },
+  system: {
+    macos(src) {
+      const native = src('native');
+      const card = src('card');
+      const failed = at(native.text, /^\s*_ => Answer::(Allow|Reject),$/);
+      at(native.text, /^\s*let _ = tx\.send\(Some\(alert\.runModal\(\)\)\);$/);
+      const wait = at(native.text, /^\s*match \(queued, rx\.(\w+)\(/);
+      const alert = elseOf(card.text, /^\s*if response == (ALERT_FIRST|ALERT_SECOND) \{$/, 'from_alert');
+      const other = { gives: word(alert.other), label: card.label, n: alert.found.n };
+      return {
+        failed_call: { gives: word(failed.match[1]), label: native.label, n: failed.n },
+        cancel_response: other,
+        unknown_response: other,
+        timeout: { gives: wait.match[1] === 'recv' ? 'none' : 'unknown', label: native.label, n: wait.n },
+      };
+    },
+    windows(src) {
+      const native = src('native');
+      const card = src('card');
+      const flags = at(native.text, /^\s*dwFlags: (.+),$/);
+      const task = elseOf(card.text, /^\s*if (shown && )?button == (ALLOW_ID|REJECT_ID) \{$/, 'from_task_dialog');
+      const allowId = Number(at(card.text, /^pub const ALLOW_ID: i32 = ([0-9]+);$/).match[1]);
+      const other = word(task.other);
+      const line = { label: card.label, n: task.found.n };
+      return {
+        failed_call: { gives: task.found.match[1] ? other : 'unknown', ...line },
+        cancel_response: { gives: allowId !== 2 ? other : 'unknown', ...line },
+        unknown_response: { gives: other, ...line },
+        timeout: { gives: flags.match[1].includes('TDF_CALLBACK_TIMER') ? 'unknown' : 'none', label: native.label, n: flags.n },
+      };
+    },
+  },
+};
+
+export function outcomeLines(form, readSource) {
+  const out = [];
+  for (const system of ['macos', 'windows']) {
+    const derived = DERIVE[form][system]((key) => readSource(OUTCOME_SOURCES[key]));
+    for (const outcome of OUTCOMES) {
+      const d = derived[outcome];
+      out.push(`reading trial=dialog machine=mac form=${form} system=${system} outcome=${outcome} gives=${d.gives} file=${d.label} line=${d.n}`);
+    }
+  }
+  return out;
+}
+
 export function attrLines(read) {
   return ATTRS.map((a) => {
     const text = read(a.file);
@@ -317,14 +469,15 @@ function packageSource(name, npm, lock) {
 
 function dialogReading(form) {
   const meta = metadata(null);
-  return dialogLines(form, (s) => {
+  const readSource = (s) => {
     if (s.crate === null) {
       return { label: `tools/r4-trials/driver/${s.file}`, text: fs.readFileSync(path.join(here, s.file), 'utf8') };
     }
     const pkg = meta.packages.find((p) => p.name === s.crate);
     const dir = path.dirname(pkg.manifest_path);
     return { label: `${s.crate}-${pkg.version}/${s.file}`, text: fs.readFileSync(path.join(dir, s.file), 'utf8') };
-  });
+  };
+  return [...dialogLines(form, readSource), ...outcomeLines(form, readSource)];
 }
 
 function main(argv) {

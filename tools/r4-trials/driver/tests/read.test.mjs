@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
   addedOnTargets, addedPackages, attrLines, BANNED, BUILT_TARGETS, closure, entryLine, unbuiltEntries, countInputCalls, dialogLines, DIALOG_SOURCES, findLine,
-  licenceAllowed, npmTree, parseArgs, parsePatterns, readingLine, Refused,
+  licenceAllowed, npmTree, outcomeLines, parseArgs, parsePatterns, readingLine, Refused, sourceTexts,
 } from '../read.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -207,4 +208,135 @@ test('the Windows reading of the system form rests on a button table that puts t
   assert.match(native, /TASKDIALOG_BUTTON \{\s*nButtonID: card::REJECT_ID,\s*pszButtonText: PCWSTR\(reject\.as_ptr\(\)\),\s*\},\s*TASKDIALOG_BUTTON \{\s*nButtonID: card::ALLOW_ID,\s*pszButtonText: PCWSTR\(allow\.as_ptr\(\)\),/);
   assert.match(native, /let reject = HSTRING::from\(card::REJECT\);\s*let allow = HSTRING::from\(card::ALLOW\);/);
   assert.match(native, /dwFlags: TDF_ALLOW_DIALOG_CANCELLATION \| TDF_SIZE_TO_CONTENT,/);
+});
+
+function pinned(dir, file) {
+  const base = path.join(process.env.CARGO_HOME ?? path.join(os.homedir(), '.cargo'), 'registry', 'src');
+  for (const index of fs.existsSync(base) ? fs.readdirSync(base) : []) {
+    const p = path.join(base, index, dir, file);
+    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+  }
+  return null;
+}
+
+const OWN = { card: fs.readFileSync(path.join(crate, 'src', 'card.rs'), 'utf8'), native: fs.readFileSync(path.join(crate, 'src', 'native.rs'), 'utf8') };
+const PINNED = {
+  rfdMac: pinned('rfd-0.17.2', 'src/backend/macos/utils/user_alert.rs'),
+  rfdWin: pinned('rfd-0.17.2', 'src/backend/win_cid/message_dialog.rs'),
+  plugin: pinned('tauri-plugin-dialog-2.8.4', 'src/desktop.rs'),
+};
+const NOT_PINNED = Object.values(PINNED).some((t) => t === null) && 'the registry holds no rfd 0.17.2 or tauri-plugin-dialog 2.8.4 yet';
+
+function sources(texts) {
+  return ({ crate: c, file }) => {
+    if (c === null) return { label: `tools/r4-trials/driver/${file}`, text: file === 'src/card.rs' ? (texts.card ?? OWN.card) : (texts.native ?? OWN.native) };
+    const key = c === 'tauri-plugin-dialog' ? 'plugin' : file.includes('macos') ? 'rfdMac' : 'rfdWin';
+    return { label: `${c === 'rfd' ? 'rfd-0.17.2' : 'tauri-plugin-dialog-2.8.4'}/${file}`, text: texts[key] };
+  };
+}
+
+const SYN = {
+  rfdMac: ['            timeout: 0_f64,', '        if is_cancel != 0 {', '            return MessageDialogResult::Cancel;', '        }',
+    '        if response == kCFUserNotificationCancelResponse {', '            return MessageDialogResult::Cancel;', '        }',
+    '            _ => MessageDialogResult::Cancel,', ''].join('\n'),
+  rfdWin: ['            pfCallback: None,', '        if ret != 0 {', '            return MessageDialogResult::Cancel;', '        }',
+    '        match pn_button {', '            IDCANCEL => MessageDialogResult::Cancel,', '                MessageButtons::OkCancelCustom(ok_text, cancel_text) => match custom {',
+    '                    ID_CUSTOM_OK => MessageDialogResult::Custom(ok_text),', '                    _ => MessageDialogResult::Cancel,', ''].join('\n'),
+  plugin: ['                (', '                    rfd::MessageDialogResult::Ok,', '                    MessageDialogButtons::OkCancelCustom(ok, _cancel),',
+    '                ) => rfd::MessageDialogResult::Custom(ok),', '                (', '                    rfd::MessageDialogResult::Cancel,',
+    '                    MessageDialogButtons::OkCancelCustom(_ok, cancel),', '                ) => rfd::MessageDialogResult::Custom(cancel),',
+    '                (result, _) => result,', ''].join('\n'),
+};
+const gives = (lines) => lines.map((l) => /outcome=(\w+) gives=(\w+)/.exec(l).slice(1).join('=')).join(' ');
+const swap = (text, from, to) => {
+  assert.equal(text.split(from).length, 2, from);
+  return text.replace(from, to);
+};
+
+test('D1: the plugin on macOS finds the three mappings to the allowing label at the pinned versions', { skip: NOT_PINNED }, () => {
+  const lines = outcomeLines('plugin', sources(PINNED));
+  assert.deepEqual(lines, [
+    'reading trial=dialog machine=mac form=plugin system=macos outcome=failed_call gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=macos outcome=cancel_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=macos outcome=unknown_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=macos outcome=timeout gives=none file=rfd-0.17.2/src/backend/macos/utils/user_alert.rs line=60',
+    'reading trial=dialog machine=mac form=plugin system=windows outcome=failed_call gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=windows outcome=cancel_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=windows outcome=unknown_response gives=allow file=tauri-plugin-dialog-2.8.4/src/desktop.rs line=238',
+    'reading trial=dialog machine=mac form=plugin system=windows outcome=timeout gives=none file=rfd-0.17.2/src/backend/win_cid/message_dialog.rs line=153',
+  ]);
+  const rfd = PINNED.rfdMac.split('\n');
+  assert.match(rfd[107], /if is_cancel != 0 \{/);
+  assert.match(rfd[112], /return MessageDialogResult::Cancel;/);
+  assert.match(rfd[167], /_ => MessageDialogResult::Cancel,/);
+});
+
+test('D1: the sources give the same words in the short form that the other tests change', () => {
+  assert.equal(gives(outcomeLines('plugin', sources(SYN))),
+    'failed_call=allow cancel_response=allow unknown_response=allow timeout=none failed_call=allow cancel_response=allow unknown_response=allow timeout=none');
+});
+
+test('D1: a source in which a mapping differs gives the other word', () => {
+  const failedOk = { ...SYN, rfdMac: swap(SYN.rfdMac, 'if is_cancel != 0 {\n            return MessageDialogResult::Cancel;', 'if is_cancel != 0 {\n            return MessageDialogResult::Ok;') };
+  assert.match(gives(outcomeLines('plugin', sources(failedOk))), /^failed_call=reject cancel_response=allow unknown_response=allow timeout=none /);
+  const armFirst = { ...SYN, plugin: swap(SYN.plugin, 'OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel)', 'OkCancelCustom(ok, _cancel),\n                ) => rfd::MessageDialogResult::Custom(ok)') };
+  assert.match(gives(outcomeLines('plugin', sources(armFirst))), /^failed_call=reject cancel_response=reject unknown_response=reject timeout=none /);
+  const armOther = { ...SYN, plugin: swap(SYN.plugin, 'OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel)', 'OkCancelCustom(cancel, _ok),\n                ) => rfd::MessageDialogResult::Custom(cancel)') };
+  assert.match(gives(outcomeLines('plugin', sources(armOther))), /^failed_call=reject cancel_response=reject unknown_response=reject /);
+  const noArm = { ...SYN, plugin: swap(SYN.plugin, '                (\n                    rfd::MessageDialogResult::Cancel,\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel),\n', '') };
+  assert.match(gives(outcomeLines('plugin', sources(noArm))), /^failed_call=reject cancel_response=reject unknown_response=reject /);
+  const slots = { ...SYN, card: swap(OWN.card, '    (REJECT, ALLOW)\n', '    (ALLOW, REJECT)\n') };
+  assert.match(gives(outcomeLines('plugin', sources(slots))), /^failed_call=reject cancel_response=reject unknown_response=reject /);
+  const yes = { ...SYN, rfdMac: swap(SYN.rfdMac, '_ => MessageDialogResult::Cancel,', '_ => MessageDialogResult::Yes,') };
+  assert.match(gives(outcomeLines('plugin', sources(yes))), /^failed_call=allow cancel_response=allow unknown_response=reject /);
+  const weird = { ...SYN, rfdMac: swap(SYN.rfdMac, '_ => MessageDialogResult::Cancel,', '_ => MessageDialogResult::Other,') };
+  assert.match(gives(outcomeLines('plugin', sources(weird))), /unknown_response=unknown timeout=none failed_call/);
+  const timed = { ...SYN, rfdMac: swap(SYN.rfdMac, 'timeout: 0_f64,', 'timeout: 30_f64,') };
+  assert.match(gives(outcomeLines('plugin', sources(timed))), /^failed_call=allow cancel_response=allow unknown_response=allow timeout=unknown /);
+  const callback = { ...SYN, rfdWin: swap(SYN.rfdWin, 'pfCallback: None,', 'pfCallback: Some(timer),') };
+  assert.match(gives(outcomeLines('plugin', sources(callback))), /timeout=unknown$/);
+  const fromPlugin = { ...SYN, card: swap(OWN.card, '        _ => Answer::Reject,\n    }\n}\n\n/// The response', '        _ => Answer::Allow,\n    }\n}\n\n/// The response') };
+  assert.match(gives(outcomeLines('plugin', sources({ ...noArm, card: fromPlugin.card }))), /^failed_call=allow cancel_response=allow unknown_response=allow /);
+});
+
+test('D1: a locating pattern that matches no line, or two, refuses', () => {
+  assert.throws(() => outcomeLines('plugin', sources({ ...SYN, rfdMac: swap(SYN.rfdMac, '        if is_cancel != 0 {\n', '') })), /0 lines match/);
+  assert.throws(() => outcomeLines('plugin', sources({ ...SYN, rfdMac: `${SYN.rfdMac}        if is_cancel != 0 {\n` })), /2 lines match/);
+  assert.throws(() => outcomeLines('plugin', sources({ ...SYN, rfdWin: swap(SYN.rfdWin, '        match pn_button {\n', '') })), /0 lines match/);
+  assert.throws(() => outcomeLines('plugin', sources({ ...SYN, plugin: `${SYN.plugin}                (result, _) => result,\n`, rfdMac: swap(SYN.rfdMac, '_ => MessageDialogResult::Cancel,', '_ => MessageDialogResult::No,') })), /2 lines match/);
+  assert.throws(() => outcomeLines('system', sources({ native: swap(OWN.native, '        _ => Answer::Reject,\n', '') })), /0 lines match/);
+});
+
+test('D1: the system form rejects on every outcome by the app own mappings, and a changed mapping gives the other word', () => {
+  assert.deepEqual(outcomeLines('system', sources({})), [
+    'reading trial=dialog machine=mac form=system system=macos outcome=failed_call gives=reject file=tools/r4-trials/driver/src/native.rs line=80',
+    'reading trial=dialog machine=mac form=system system=macos outcome=cancel_response gives=reject file=tools/r4-trials/driver/src/card.rs line=95',
+    'reading trial=dialog machine=mac form=system system=macos outcome=unknown_response gives=reject file=tools/r4-trials/driver/src/card.rs line=95',
+    'reading trial=dialog machine=mac form=system system=macos outcome=timeout gives=none file=tools/r4-trials/driver/src/native.rs line=78',
+    'reading trial=dialog machine=mac form=system system=windows outcome=failed_call gives=reject file=tools/r4-trials/driver/src/card.rs line=104',
+    'reading trial=dialog machine=mac form=system system=windows outcome=cancel_response gives=reject file=tools/r4-trials/driver/src/card.rs line=104',
+    'reading trial=dialog machine=mac form=system system=windows outcome=unknown_response gives=reject file=tools/r4-trials/driver/src/card.rs line=104',
+    'reading trial=dialog machine=mac form=system system=windows outcome=timeout gives=none file=tools/r4-trials/driver/src/native.rs line=108',
+  ]);
+  const alertElse = swap(OWN.card, '        Answer::Allow\n    } else {\n        Answer::Reject\n    }\n}\n\n/// The result', '        Answer::Allow\n    } else {\n        Answer::Allow\n    }\n}\n\n/// The result');
+  assert.match(gives(outcomeLines('system', sources({ card: alertElse }))), /^failed_call=reject cancel_response=allow unknown_response=allow timeout=none /);
+  assert.match(gives(outcomeLines('system', sources({ native: swap(OWN.native, '        _ => Answer::Reject,', '        _ => Answer::Allow,') }))), /^failed_call=allow /);
+  assert.match(gives(outcomeLines('system', sources({ native: swap(OWN.native, 'match (queued, rx.recv()) {', 'match (queued, rx.recv_timeout(WAIT)) {') }))), /^failed_call=reject cancel_response=reject unknown_response=reject timeout=unknown /);
+  assert.match(gives(outcomeLines('system', sources({ card: swap(OWN.card, 'if shown && button == ALLOW_ID {', 'if button == ALLOW_ID {') }))), /failed_call=unknown cancel_response=reject unknown_response=reject timeout=none$/);
+  assert.match(gives(outcomeLines('system', sources({ card: swap(OWN.card, 'pub const ALLOW_ID: i32 = 100;', 'pub const ALLOW_ID: i32 = 2;') }))), /failed_call=reject cancel_response=unknown unknown_response=reject timeout=none$/);
+  assert.match(gives(outcomeLines('system', sources({ native: swap(OWN.native, 'dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,', 'dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_CALLBACK_TIMER,') }))), /timeout=unknown$/);
+});
+
+test('D4: a licence with an opening parenthesis that does not close is no licence', () => {
+  for (const bad of ['(MIT Apache-2.0', '(MIT GPL-3.0', '(MIT OR Apache-2.0', '(MIT OR Apache-2.0 Zlib']) {
+    assert.equal(licenceAllowed(bad), false, bad);
+  }
+  assert.equal(licenceAllowed('(MIT OR Apache-2.0)'), true);
+});
+
+test('D4: the Rust files of a source are read for input calls', () => {
+  const texts = sourceTexts(path.join(crate, 'src'));
+  assert.ok(texts.some((t) => t.includes('pub fn builder(')), 'lib.rs');
+  assert.ok(texts.some((t) => t.includes('TaskDialogIndirect(')), 'native.rs');
+  assert.equal(countInputCalls(patterns, sourceTexts(path.join(crate, 'src')), []), 0);
 });
