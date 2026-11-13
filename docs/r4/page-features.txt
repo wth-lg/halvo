@@ -1,4 +1,6 @@
+# The floor is macOS 14.0 on arm64, whose web view is that of Safari 17.0, the first Safari for macOS Sonoma: https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes (Safari 17, released 2023-09-18, read 2026-11-12); an allow line names a first Safari version at or under 17.0, a deny line one above it.
 # The features that a view file of this run may use (contracts.md I8.4, I11.4): comment lines, and lines of four cells separated by tabs.
+# U0.3 changed these lines of U3.1's block: flex_gap, whose expression now measures a flex gap; for_of, let_declaration and arrow_functions, taken out because they call Function, which the app's policy refuses; and dialog_cancel_event and dialog_close_event, which now test the dialog's own interface (rulings RD-16 (e), RD-41 D6).
 # U3.1 wrote these allow lines for ui/app/views/needs.js (ruling RD-16 (e)); each comment names the page of its feature and the date of the first Safari version that has it,
 # read on 2026-11-12 from the compatibility data that Mozilla publishes, @mdn/browser-compat-data 8.1.8 of 2026-11-02.
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement, Safari 15.4 of 2022-03-14
@@ -6,9 +8,9 @@ allow	dialog_element	15.4	typeof HTMLDialogElement === 'function'
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/showModal, Safari 15.4 of 2022-03-14
 allow	dialog_show_modal	15.4	typeof HTMLDialogElement.prototype.showModal === 'function'
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/cancel_event, Safari 15.4 of 2022-03-14
-allow	dialog_cancel_event	15.4	'oncancel' in document.createElement('dialog')
+allow	dialog_cancel_event	15.4	'oncancel' in HTMLDialogElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/close_event, Safari 15.4 of 2022-03-14
-allow	dialog_close_event	15.4	'onclose' in document.createElement('dialog')
+allow	dialog_close_event	15.4	'onclose' in HTMLDialogElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLElement/autofocus, Safari 15.4 of 2022-03-14
 allow	autofocus_property	15.4	'autofocus' in HTMLElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLElement/tabIndex, Safari 3.1 of 2008-03-18
@@ -20,7 +22,7 @@ allow	overflow_wrap_anywhere	15.4	CSS.supports('overflow-wrap', 'anywhere')
 # https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/appearance, Safari 15.4 of 2022-03-14
 allow	appearance_none	15.4	CSS.supports('appearance', 'none')
 # https://developer.mozilla.org/ (css.properties.gap.flex_context), Safari 14.1 of 2021-04-26
-allow	flex_gap	14.1	CSS.supports('gap', '8px')
+allow	flex_gap	14.1	(function () { var box = document.createElement('div'); box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.rowGap = '1px'; box.appendChild(document.createElement('div')); box.appendChild(document.createElement('div')); document.documentElement.appendChild(box); var gap = box.scrollHeight === 1; document.documentElement.removeChild(box); return gap; })()
 # https://developer.mozilla.org/docs/Web/API/Element/keydown_event, Safari 1.2 of 2004-02-02
 allow	keydown_event	1.2	'onkeydown' in window
 # https://developer.mozilla.org/docs/Web/API/Element/keyup_event, Safari 1.2 of 2004-02-02
@@ -43,17 +45,301 @@ allow	window_focus_event	5.1	'onfocus' in window
 allow	node_is_connected	10	'isConnected' in Node.prototype
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String/codePointAt, Safari 9 of 2015-09-30
 allow	string_code_point_at	9	'codePointAt' in String.prototype
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/for...of, Safari 7 of 2013-10-22
-allow	for_of	7	(function () { try { return Function('for (const c of [1]) { return c === 1; }')(); } catch (e) { return false; } })()
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/let, Safari 10 of 2016-09-20
-allow	let_declaration	10	(function () { try { return Function('let a = 1; return a === 1;')(); } catch (e) { return false; } })()
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Functions/Arrow_functions, Safari 10 of 2016-09-20
-allow	arrow_functions	10	(function () { try { return Function('return (() => 1)() === 1;')(); } catch (e) { return false; } })()
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map, Safari 8 of 2014-10-16
 allow	map_and_set	8	typeof Map === 'function' && typeof Set === 'function'
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise, Safari 8 of 2014-10-16
 allow	promise	8	typeof Promise === 'function'
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/from, Safari 9 of 2015-09-30
 allow	array_from	9	typeof Array.from === 'function'
+# The floor's web views have the segmenter: macOS 14.0 has Safari 17.0, and Safari has it since 14.1; Windows has the WebView2 runtime, which has it since Edge 87 of 2020-11-19. The floor trial's cells found it in the web view of macOS 15.8.2 and in WebView2 156.0.0.0 on Windows 10.0.26100.33674 (docs/r4/trials/floor.md). The needs view makes the segmenter at its first line of work, so in an engine below the floor, which lacks it, no card is shown at all (ruling RD-32 (f)).
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter, Safari 14.1 of 2021-04-26
 allow	intl_segmenter	14.1	typeof Intl.Segmenter === 'function' && typeof new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment === 'function'
+# U0.3 wrote the allow lines below for each web API that the two views call and that had no line, and for some of the CSS that they use: with the lines above,
+# 12 of the 47 CSS properties that the views' style strings set have an allow line, and 35 have none (rulings RD-27 (b), RD-30 (6));
+# and the deny lines after them for the features that reached Safari after the floor and that a view could use.
+# Each version and date below was read on 2026-11-12 from @mdn/browser-compat-data 8.1.8 of 2026-11-02, whose package states the licence CC0-1.0;
+# no file of that package is in this repository: tools/r4-trials/floor/features.mjs makes these lines from it and checks them against it.
+# No page ran on macOS 14 itself: the cells of docs/r4/trials/floor.md ran on hosted macOS 15 and on hosted Windows, so for the macOS versions between the floor
+# and the oldest cell the rule of this list alone stands, and the deny patterns are a guard and no proof.
+# https://developer.mozilla.org/docs/Web/API/Element/click_event, Safari 3 of 2007-10-26
+allow	click_event	3	'onclick' in window
+# https://developer.mozilla.org/docs/Web/API/Element/input_event, Safari 3.1 of 2008-03-18
+allow	input_event	3.1	'oninput' in window
+# https://developer.mozilla.org/docs/Web/API/Element/scrollTop, Safari 1 of 2003-06-23
+allow	scroll_top	1	'scrollTop' in Element.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLElement/focus, Safari 3 of 2007-10-26
+allow	focus_method	3	typeof HTMLElement.prototype.focus === 'function'
+# https://developer.mozilla.org/docs/Web/API/Node/contains, Safari 1.1 of 2003-10-24
+allow	node_contains	1.1	typeof Node.prototype.contains === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/remove, Safari 7 of 2013-10-22
+allow	element_remove	7	typeof Element.prototype.remove === 'function'
+# https://developer.mozilla.org/docs/Web/API/Document/createElement, Safari 1 of 2003-06-23
+allow	create_element	1	typeof document.createElement === 'function'
+# https://developer.mozilla.org/docs/Web/API/Document/createTextNode, Safari 1 of 2003-06-23
+allow	create_text_node	1	typeof document.createTextNode === 'function'
+# https://developer.mozilla.org/docs/Web/API/Node/appendChild, Safari 1.1 of 2003-10-24
+allow	append_child	1.1	typeof Node.prototype.appendChild === 'function'
+# https://developer.mozilla.org/docs/Web/API/Node/insertBefore, Safari 1.1 of 2003-10-24
+allow	insert_before	1.1	typeof Node.prototype.insertBefore === 'function'
+# https://developer.mozilla.org/docs/Web/API/Node/removeChild, Safari 1.1 of 2003-10-24
+allow	remove_child	1.1	typeof Node.prototype.removeChild === 'function'
+# https://developer.mozilla.org/docs/Web/API/Node/firstChild, Safari 1 of 2003-06-23
+allow	first_child	1	'firstChild' in Node.prototype
+# https://developer.mozilla.org/docs/Web/API/Node/nextSibling, Safari 1.1 of 2003-10-24
+allow	next_sibling	1.1	'nextSibling' in Node.prototype
+# https://developer.mozilla.org/docs/Web/API/Element/setAttribute, Safari 1 of 2003-06-23
+allow	set_attribute	1	typeof Element.prototype.setAttribute === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/getAttribute, Safari 1 of 2003-06-23
+allow	get_attribute	1	typeof Element.prototype.getAttribute === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/hasAttribute, Safari 1 of 2003-06-23
+allow	has_attribute	1	typeof Element.prototype.hasAttribute === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/querySelectorAll, Safari 3.1 of 2008-03-18
+allow	query_selector_all	3.1	typeof Element.prototype.querySelectorAll === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/classList, Safari 7 of 2013-10-22
+allow	class_list	7	'classList' in Element.prototype && typeof DOMTokenList.prototype.add === 'function'
+# https://developer.mozilla.org/docs/Web/API/Element/className, Safari 1 of 2003-06-23
+allow	class_name	1	'className' in Element.prototype
+# https://developer.mozilla.org/docs/Web/API/Element/tagName, Safari 1 of 2003-06-23
+allow	tag_name	1	'tagName' in Element.prototype
+# https://developer.mozilla.org/docs/Web/API/Document/activeElement, Safari 7 of 2013-10-22
+allow	active_element	7	'activeElement' in Document.prototype
+# https://developer.mozilla.org/docs/Web/API/EventTarget/addEventListener, Safari 1 of 2003-06-23
+allow	add_event_listener	1	typeof EventTarget.prototype.addEventListener === 'function'
+# https://developer.mozilla.org/docs/Web/API/Event/preventDefault, Safari 1 of 2003-06-23
+allow	prevent_default	1	typeof Event.prototype.preventDefault === 'function'
+# https://developer.mozilla.org/docs/Web/API/Event/target, Safari 1 of 2003-06-23
+allow	event_target	1	'target' in Event.prototype
+# https://developer.mozilla.org/docs/Web/API/Event/currentTarget, Safari 1 of 2003-06-23
+allow	event_current_target	1	'currentTarget' in Event.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/open, Safari 15.4 of 2022-03-14
+allow	dialog_open	15.4	'open' in HTMLDialogElement.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/close, Safari 15.4 of 2022-03-14
+allow	dialog_close	15.4	typeof HTMLDialogElement.prototype.close === 'function'
+# https://developer.mozilla.org/docs/Web/API/HTMLInputElement/checked, Safari 1 of 2003-06-23
+allow	input_checked	1	'checked' in HTMLInputElement.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLInputElement/value, Safari 1 of 2003-06-23
+allow	input_value	1	'value' in HTMLInputElement.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLStyleElement, Safari 1 of 2003-06-23
+allow	style_element	1	typeof HTMLStyleElement === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify, Safari 4 of 2009-06-08
+allow	json_stringify	4	typeof JSON.stringify === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray, Safari 5 of 2010-06-07
+allow	array_is_array	5	typeof Array.isArray === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce, Safari 4 of 2009-06-08
+allow	array_methods	4	['forEach', 'map', 'filter', 'some', 'every', 'reduce', 'indexOf', 'join', 'push'].every(function (m) { return typeof Array.prototype[m] === 'function'; })
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String/fromCharCode, Safari 1 of 2003-06-23
+allow	string_from_char_code	1	typeof String.fromCharCode === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String/trim, Safari 5 of 2010-06-07
+allow	string_trim	5	typeof String.prototype.trim === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise/resolve, Safari 8 of 2014-10-16
+allow	promise_methods	8	typeof Promise.resolve === 'function' && typeof Promise.prototype.then === 'function' && typeof Promise.prototype.catch === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map/values, Safari 8 of 2014-10-16
+allow	map_and_set_methods	8	['get', 'set', 'has', 'delete', 'keys', 'values', 'forEach'].every(function (m) { return typeof Map.prototype[m] === 'function'; }) && ['add', 'has', 'delete', 'forEach'].every(function (m) { return typeof Set.prototype[m] === 'function'; })
+# https://developer.mozilla.org/docs/Web/API/Event/type, Safari 1 of 2003-06-23
+allow	event_type	1	'type' in Event.prototype
+# https://developer.mozilla.org/docs/Web/API/Element/id, Safari 1 of 2003-06-23
+allow	element_id	1	'id' in Element.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLInputElement/type, Safari 1 of 2003-06-23
+allow	input_type	1	'type' in HTMLInputElement.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLInputElement/name, Safari 1 of 2003-06-23
+allow	input_name	1	'name' in HTMLInputElement.prototype
+# https://developer.mozilla.org/docs/Web/API/HTMLButtonElement/type, Safari 3 of 2007-10-26
+allow	button_type	3	'type' in HTMLButtonElement.prototype
+# https://developer.mozilla.org/docs/Web/API/NodeList/length, Safari 1 of 2003-06-23
+allow	node_list	1	'length' in NodeList.prototype && typeof NodeList.prototype.item === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String/String, Safari 1 of 2003-06-23
+allow	string_function	1	typeof String === 'function' && String(1) === '1'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean/Boolean, Safari 1 of 2003-06-23
+allow	boolean_function	1	typeof Boolean === 'function' && Boolean(1) === true
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Symbol/iterator, Safari 10 of 2016-09-20
+allow	symbol_iterator	10	typeof Symbol === 'function' && typeof Symbol.iterator === 'symbol' && typeof ''[Symbol.iterator] === 'function' && typeof new Map().values()[Symbol.iterator] === 'function'
+# https://developer.mozilla.org/ (css.properties.display.flex), Safari 9 of 2015-09-30
+allow	css_flex	9	CSS.supports('display', 'flex') && CSS.supports('flex-wrap', 'wrap') && CSS.supports('align-items', 'center')
+# https://developer.mozilla.org/ (css.properties.display.inline-block), Safari 1 of 2003-06-23
+allow	css_inline_block	1	CSS.supports('display', 'inline-block')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/border-radius, Safari 5 of 2010-06-07
+allow	css_border_radius	5	CSS.supports('border-radius', '50%')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/box-sizing, Safari 5.1 of 2011-07-20
+allow	css_box_sizing	5.1	CSS.supports('box-sizing', 'border-box')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/outline-offset, Safari 1.2 of 2004-02-02
+allow	css_outline_offset	1.2	CSS.supports('outline-offset', '2px')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Values/color_value/rgb, Safari 1 of 2003-06-23
+allow	css_rgba_function	1	CSS.supports('color', 'rgba(0,0,0,0.4)')
+# https://developer.mozilla.org/ (css.types.length.rem), Safari 5 of 2010-06-07
+allow	css_rem	5	CSS.supports('font-size', '1.1rem')
+# https://developer.mozilla.org/ (css.properties.white-space.pre-wrap), Safari 3 of 2007-10-26
+allow	css_pre_wrap	3	CSS.supports('white-space', 'pre-wrap')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/:checked, Safari 3.1 of 2008-03-18
+allow	css_checked	3.1	CSS.supports('selector(:checked)')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/:focus, Safari 1 of 2003-06-23
+allow	css_focus	1	CSS.supports('selector(:focus)')
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/Child_combinator, Safari 1 of 2003-06-23
+allow	css_child	1	CSS.supports('selector(a > b)')
+# The deny patterns read the text of a view file. They do not hold a global or a method held under another name (const O = Object; O.groupBy, const n = navigation),
+# an iterator kept in a variable before a helper is called on it, an event name put together from parts, a comment between an object and its member, or a \u escape inside a name.
+# A view may not give its own members the names .command =, .transfer(, .toArray( or .detached, nor call a variable textBox or a class text-box: the patterns refuse them,
+# because a narrower pattern would let the denied feature pass.
+# details_name follows a variable that a view sets to a call whose first argument is 'details', and a variable named details; it does not follow a details element
+# that is passed in, found by a query or made where no such call names it, nor tell such an element from another object that has a name.
+# The check does not hold accent-color, relaxed CSS nesting or the relative colour form rgb(from ...), because the floor has a partial form of each that a pattern cannot tell apart,
+# nor a text-decoration shorthand whose colour is a colour name.
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/groupBy, Safari 17.4 of 2024-03-05
+deny	object_group_by	17.4	\bObject\s*(?:\?\.|\.)\s*groupBy\b|\bObject\s*(?:\?\.)?\s*\[\s*['"]groupBy['"]\s*\]|\{[^{}]{0,200}\bgroupBy\b[^{}]{0,200}\}\s*=\s*Object\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map/groupBy, Safari 17.4 of 2024-03-05
+deny	map_group_by	17.4	\bMap\s*(?:\?\.|\.)\s*groupBy\b|\bMap\s*(?:\?\.)?\s*\[\s*['"]groupBy['"]\s*\]|\{[^{}]{0,200}\bgroupBy\b[^{}]{0,200}\}\s*=\s*Map\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers, Safari 17.4 of 2024-03-05
+deny	promise_with_resolvers	17.4	\bPromise\s*(?:\?\.|\.)\s*withResolvers\b|\bPromise\s*(?:\?\.)?\s*\[\s*['"]withResolvers['"]\s*\]|\{[^{}]{0,200}\bwithResolvers\b[^{}]{0,200}\}\s*=\s*Promise\b
+# https://developer.mozilla.org/docs/Web/API/AbortSignal/any_static, Safari 17.4 of 2024-03-05
+deny	abort_signal_any	17.4	\bAbortSignal\s*(?:\?\.|\.)\s*any\b|\bAbortSignal\s*(?:\?\.)?\s*\[\s*['"]any['"]\s*\]|\{[^{}]{0,200}\bany\b[^{}]{0,200}\}\s*=\s*AbortSignal\b
+# https://developer.mozilla.org/docs/Web/API/Element/checkVisibility, Safari 17.4 of 2024-03-05
+deny	check_visibility	17.4	(?:\?\.|\.)checkVisibility\b|\[\s*['"]checkVisibility['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaDescription, Safari 17.4 of 2024-03-05
+deny	aria_description	17.4	(?:\?\.|\.)ariaDescription\b|\[\s*['"]ariaDescription['"]\s*\]
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error/captureStackTrace, Safari 17.2 of 2023-12-11
+deny	error_capture_stack_trace	17.2	\bError\s*(?:\?\.|\.)\s*captureStackTrace\b|\bError\s*(?:\?\.)?\s*\[\s*['"]captureStackTrace['"]\s*\]|\{[^{}]{0,200}\bcaptureStackTrace\b[^{}]{0,200}\}\s*=\s*Error\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer/transfer, Safari 17.4 of 2024-03-05
+deny	array_buffer_transfer	17.4	(?:\?\.|\.)transfer\s*\(|\[\s*['"]transfer['"]\s*\]\s*\(|(?:\?\.|\.)transferToFixedLength\s*\(|\[\s*['"]transferToFixedLength['"]\s*\]\s*\(
+# https://developer.mozilla.org/docs/Web/API/Document/startViewTransition, Safari 18 of 2024-09-16
+deny	start_view_transition	18	(?:\?\.|\.)startViewTransition\b|\[\s*['"]startViewTransition['"]\s*\]|\{[^{}]{0,200}\bstartViewTransition\b[^{}]{0,200}\}\s*=\s*document\b
+# https://developer.mozilla.org/docs/Web/API/Element/getHTML, Safari 18 of 2024-09-16
+deny	get_html	18	(?:\?\.|\.)getHTML\b|\[\s*['"]getHTML['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaBrailleLabel, Safari 18 of 2024-09-16
+deny	aria_braille_label	18	(?:\?\.|\.)ariaBrailleLabel\b|\[\s*['"]ariaBrailleLabel['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaBrailleRoleDescription, Safari 18 of 2024-09-16
+deny	aria_braille_role_description	18	(?:\?\.|\.)ariaBrailleRoleDescription\b|\[\s*['"]ariaBrailleRoleDescription['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/HTMLElement/writingSuggestions, Safari 18 of 2024-09-16
+deny	writing_suggestions	18	\bwriting[sS]uggestions\b
+# https://developer.mozilla.org/docs/Web/API/PointerEvent/getCoalescedEvents, Safari 18.2 of 2024-12-11
+deny	pointer_coalesced_events	18.2	(?:\?\.|\.)getCoalescedEvents\b|\[\s*['"]getCoalescedEvents['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/PointerEvent/getPredictedEvents, Safari 18.2 of 2024-12-11
+deny	pointer_predicted_events	18.2	(?:\?\.|\.)getPredictedEvents\b|\[\s*['"]getPredictedEvents['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/PointerEvent/altitudeAngle, Safari 18.2 of 2024-12-11
+deny	pointer_altitude_angle	18.2	(?:\?\.|\.)altitudeAngle\b|\[\s*['"]altitudeAngle['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/PointerEvent/azimuthAngle, Safari 18.2 of 2024-12-11
+deny	pointer_azimuth_angle	18.2	(?:\?\.|\.)azimuthAngle\b|\[\s*['"]azimuthAngle['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/auxclick_event, Safari 18.2 of 2024-12-11
+deny	auxclick_event	18.2	['"]auxclick['"]|\bonauxclick\b
+# https://developer.mozilla.org/docs/Web/API/Window/pagereveal_event, Safari 18.2 of 2024-12-11
+deny	pagereveal_event	18.2	['"]pagereveal['"]|\bonpagereveal\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Float16Array, Safari 18.2 of 2024-12-11
+deny	float16_array	18.2	\bFloat16Array\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Math/f16round, Safari 18.2 of 2024-12-11
+deny	math_f16round	18.2	\bMath\s*(?:\?\.|\.)\s*f16round\b|\bMath\s*(?:\?\.)?\s*\[\s*['"]f16round['"]\s*\]|\{[^{}]{0,200}\bf16round\b[^{}]{0,200}\}\s*=\s*Math\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/DataView/getFloat16, Safari 18.2 of 2024-12-11
+deny	data_view_float16	18.2	(?:\?\.|\.)getFloat16\b|\[\s*['"]getFloat16['"]\s*\]|(?:\?\.|\.)setFloat16\b|\[\s*['"]setFloat16['"]\s*\]
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise/try, Safari 18.2 of 2024-12-11
+deny	promise_try	18.2	\bPromise\s*(?:\?\.|\.)\s*try\b|\bPromise\s*(?:\?\.)?\s*\[\s*['"]try['"]\s*\]|\{[^{}]{0,200}\btry\b[^{}]{0,200}\}\s*=\s*Promise\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/RegExp/escape, Safari 18.2 of 2024-12-11
+deny	regexp_escape	18.2	\bRegExp\s*(?:\?\.|\.)\s*escape\b|\bRegExp\s*(?:\?\.)?\s*\[\s*['"]escape['"]\s*\]|\{[^{}]{0,200}\bescape\b[^{}]{0,200}\}\s*=\s*RegExp\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/toBase64, Safari 18.2 of 2024-12-11
+deny	uint8_array_base64	18.2	(?:\?\.|\.)toBase64\b|\[\s*['"]toBase64['"]\s*\]|(?:\?\.|\.)fromBase64\b|\[\s*['"]fromBase64['"]\s*\]|(?:\?\.|\.)setFromBase64\b|\[\s*['"]setFromBase64['"]\s*\]
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/toHex, Safari 18.2 of 2024-12-11
+deny	uint8_array_hex	18.2	(?:\?\.|\.)toHex\b|\[\s*['"]toHex['"]\s*\]|(?:\?\.|\.)fromHex\b|\[\s*['"]fromHex['"]\s*\]|(?:\?\.|\.)setFromHex\b|\[\s*['"]setFromHex['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/requestClose, Safari 18.4 of 2025-03-31
+deny	dialog_request_close	18.4	(?:\?\.|\.)requestClose\s*\(|\[\s*['"]requestClose['"]\s*\]\s*\(
+# https://developer.mozilla.org/ (api.HTMLElement.focus.options_focusVisible_parameter), Safari 18.4 of 2025-03-31
+deny	focus_visible_option	18.4	\bfocusVisible\b
+# https://developer.mozilla.org/ (api.HTMLElement.togglePopover.options_force_parameter), Safari 18.4 of 2025-03-31
+deny	toggle_popover_options	18.4	(?:\?\.|\.)togglePopover\s*\(\s*\{|\[\s*['"]togglePopover['"]\s*\]\s*\(\s*\{
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Iterator/map, Safari 18.4 of 2025-03-31
+deny	iterator_helpers	18.4	\bIterator\s*(?:\?\.|\.)\s*(?:from|concat|prototype)\b|\b(?:new|extends)\s+Iterator\b|\b(?:values|keys|entries)\s*\(\s*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|\bmatchAll\s*\([^()]*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|(?:\?\.|\.)toArray\s*\(|\[\s*['"]toArray['"]\s*\]\s*\(
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/JSON/rawJSON, Safari 18.4 of 2025-03-31
+deny	json_raw	18.4	\bJSON\s*(?:\?\.|\.)\s*rawJSON\b|\bJSON\s*(?:\?\.)?\s*\[\s*['"]rawJSON['"]\s*\]|\{[^{}]{0,200}\brawJSON\b[^{}]{0,200}\}\s*=\s*JSON\b|\bJSON\s*(?:\?\.|\.)\s*isRawJSON\b|\bJSON\s*(?:\?\.)?\s*\[\s*['"]isRawJSON['"]\s*\]|\{[^{}]{0,200}\bisRawJSON\b[^{}]{0,200}\}\s*=\s*JSON\b
+# https://developer.mozilla.org/ (api.HTMLElement.showPopover.options_source_parameter), Safari 18.4 of 2025-03-31
+deny	show_popover_source	18.4	(?:\?\.|\.)showPopover\s*\(\s*\{|\[\s*['"]showPopover['"]\s*\]\s*\(\s*\{
+# https://developer.mozilla.org/docs/Web/API/Element/customElementRegistry, Safari 26 of 2025-09-15
+deny	custom_element_registry	26	(?:\?\.|\.)customElementRegistry\b|\[\s*['"]customElementRegistry['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/HTMLButtonElement/commandForElement, Safari 26.2 of 2025-12-12
+deny	command_invokers	26.2	(?:\?\.|\.)commandForElement\b|\[\s*['"]commandForElement['"]\s*\]|\bcommandfor\b|\bCommandEvent\b|\boncommand\b|addEventListener\s*\(\s*['"]command['"]|setAttribute\s*\(\s*['"]command['"]|(?:\?\.|\.)command\s*=(?!=)
+# https://developer.mozilla.org/docs/Web/API/Element/scrollend_event, Safari 26.2 of 2025-12-12
+deny	scrollend_event	26.2	['"]scrollend['"]|\bonscrollend\b
+# https://developer.mozilla.org/docs/Web/API/Document/caretPositionFromPoint, Safari 26.2 of 2025-12-12
+deny	caret_position_from_point	26.2	(?:\?\.|\.)caretPositionFromPoint\b|\[\s*['"]caretPositionFromPoint['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaColIndexText, Safari 26.2 of 2025-12-12
+deny	aria_col_index_text	26.2	(?:\?\.|\.)ariaColIndexText\b|\[\s*['"]ariaColIndexText['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaRowIndexText, Safari 26.2 of 2025-12-12
+deny	aria_row_index_text	26.2	(?:\?\.|\.)ariaRowIndexText\b|\[\s*['"]ariaRowIndexText['"]\s*\]
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map/getOrInsert, Safari 26.2 of 2025-12-12
+deny	map_get_or_insert	26.2	(?:\?\.|\.)getOrInsert\b|\[\s*['"]getOrInsert['"]\s*\]|(?:\?\.|\.)getOrInsertComputed\b|\[\s*['"]getOrInsertComputed['"]\s*\]
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Math/sumPrecise, Safari 26.2 of 2025-12-12
+deny	math_sum_precise	26.2	\bMath\s*(?:\?\.|\.)\s*sumPrecise\b|\bMath\s*(?:\?\.)?\s*\[\s*['"]sumPrecise['"]\s*\]|\{[^{}]{0,200}\bsumPrecise\b[^{}]{0,200}\}\s*=\s*Math\b
+# https://developer.mozilla.org/docs/Web/API/Window/navigation, Safari 26.2 of 2025-12-12
+deny	window_navigation	26.2	\bwindow\s*(?:\?\.|\.)\s*navigation\b|\bnavigation\s*(?:\?\.|\.)\s*(?:navigate|traverseTo|updateCurrentEntry|currentEntry|canGoBack|canGoForward|transition|activation)\b|\bon(?:navigate|currententrychange|navigatesuccess|navigateerror)\b|addEventListener\s*\(\s*['"](?:navigate|currententrychange|navigatesuccess|navigateerror)['"]
+# https://developer.mozilla.org/docs/Web/API/Element/currentCSSZoom, Safari 26.4 of 2026-03-24
+deny	current_css_zoom	26.4	(?:\?\.|\.)currentCSSZoom\b|\[\s*['"]currentCSSZoom['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Element/ariaNotify, Safari 27 of 2026-09-14
+deny	aria_notify	27	(?:\?\.|\.)ariaNotify\b|\[\s*['"]ariaNotify['"]\s*\]
+# https://developer.mozilla.org/docs/Web/API/Window/pageswap_event, Safari 18.2 of 2024-12-11
+deny	pageswap_event	18.2	['"]pageswap['"]|\bonpageswap\b
+# https://developer.mozilla.org/docs/Web/API/Highlight, Safari 17.2 of 2023-12-11
+deny	highlight_api	17.2	\bnew\s+Highlight\b|\bCSS\s*(?:\?\.|\.)\s*highlights\b|::highlight\s*\(
+# https://developer.mozilla.org/ (html.global_attributes.hidden.until-found), Safari 26.2 of 2025-12-12
+deny	hidden_until_found	26.2	until-found
+# https://developer.mozilla.org/docs/Web/CSS/Reference/At-rules/@starting-style, Safari 17.5 of 2024-05-13
+deny	css_starting_style	17.5	@starting-style\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/transition-behavior, Safari 17.4 of 2024-03-05
+deny	css_transition_behavior	17.4	\btransition-behavior\b|\btransitionBehavior\b|\ballow-discrete\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Values/color_value/light-dark, Safari 17.5 of 2024-05-13
+deny	css_light_dark	17.5	\blight-dark\s*\(
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/text-wrap, Safari 17.4 of 2024-03-05
+deny	css_text_wrap	17.4	\btext-wrap\b|\btextWrap(?:Mode|Style)?\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/content-visibility, Safari 18 of 2024-09-16
+deny	css_content_visibility	18	\bcontent-visibility\b|\bcontentVisibility\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/field-sizing, Safari 26.2 of 2025-12-12
+deny	css_field_sizing	26.2	\bfield-sizing\b|\bfieldSizing\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/scrollbar-gutter, Safari 18.2 of 2024-12-11
+deny	css_scrollbar_gutter	18.2	\bscrollbar-gutter\b|\bscrollbarGutter\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/scrollbar-width, Safari 18.2 of 2024-12-11
+deny	css_scrollbar_width	18.2	\bscrollbar-width\b|\bscrollbarWidth\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/scrollbar-color, Safari 26.2 of 2025-12-12
+deny	css_scrollbar_color	26.2	\bscrollbar-color\b|\bscrollbarColor\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/text-box, Safari 18.2 of 2024-12-11
+deny	css_text_box	18.2	\btext-box\b|\btextBox(?:Trim|Edge)?\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Values/color_value/contrast-color, Safari 26 of 2025-09-15
+deny	css_contrast_color	26	\bcontrast-color\s*\(
+# https://developer.mozilla.org/docs/Web/CSS/Reference/At-rules/@scope, Safari 17.4 of 2024-03-05
+deny	css_scope	17.4	@scope\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/backdrop-filter, Safari 18 of 2024-09-16
+deny	css_backdrop_filter	18	(?<![\w-])backdrop-filter\b|\bbackdropFilter\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/counter-set, Safari 17.2 of 2023-12-11
+deny	css_counter_set	17.2	\bcounter-set\b|\bcounterSet\b
+# https://developer.mozilla.org/ (html.elements.details.name), Safari 17.2 of 2023-12-11
+deny	details_name	17.2	\bdetails\s*(?:\?\.|\.)name\s*=(?!=)|\bdetails\s*(?:\?\.|\.)setAttribute\s*\(\s*['"]name['"]|<details\b[^>]{0,200}\sname\s*=|\b([A-Za-z_$][\w$]*)\s*=\s*[^;\n]{0,200}\(\s*['"]details['"][^;\n]{0,200}[;\n][\s\S]{0,4000}?\b\1\s*(?:\?\.|\.)(?:name\s*=(?!=)|setAttribute\s*\(\s*['"]name['"])
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/white-space-collapse, Safari 17.4 of 2024-03-05
+deny	css_white_space_collapse	17.4	\bwhite-space-collapse\b|\bwhiteSpaceCollapse\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/view-transition-name, Safari 18 of 2024-09-16
+deny	css_view_transition_name	18	\bview-transition-name\b|\bviewTransitionName\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/mask-border, Safari 17.2 of 2023-12-11
+deny	css_mask_border	17.2	(?<![\w-])mask-border\b|\bmaskBorder\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/:state, Safari 17.4 of 2024-03-05
+deny	css_state_pseudo	17.4	:state\s*\(
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/::target-text, Safari 18.2 of 2024-12-11
+deny	css_target_text	18.2	::target-text\b
+# https://developer.mozilla.org/docs/Web/API/ElementInternals/states, Safari 17.4 of 2024-03-05
+deny	element_internals_states	17.4	\binternals\s*(?:\?\.|\.)states\b|\battachInternals\s*\(\s*\)\s*(?:\?\.|\.)states\b|\bCustomStateSet\b
+# https://developer.mozilla.org/docs/Web/API/URL/parse_static, Safari 18 of 2024-09-16
+deny	url_parse	18	\bURL\s*(?:\?\.|\.)\s*parse\b|\bURL\s*(?:\?\.)?\s*\[\s*['"]parse['"]\s*\]|\{[^{}]{0,200}\bparse\b[^{}]{0,200}\}\s*=\s*URL\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Selectors/:open, Safari 26.5 of 2026-05-11
+deny	css_open_pseudo	26.5	:open\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/anchor-name, Safari 26 of 2025-09-15
+deny	css_anchor_name	26	\banchor-name\b|\banchorName\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/position-anchor, Safari 26 of 2025-09-15
+deny	css_position_anchor	26	\bposition-anchor\b|\bpositionAnchor\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/position-area, Safari 26 of 2025-09-15
+deny	css_position_area	26	\bposition-area\b|\bpositionArea\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/animation-timeline, Safari 26 of 2025-09-15
+deny	css_animation_timeline	26	\banimation-timeline\b|\banimationTimeline\b
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Values/easing-function/linear, Safari 17.2 of 2023-12-11
+deny	css_linear_easing	17.2	\blinear\s*\(
+# https://developer.mozilla.org/docs/Web/HTML/Reference/Elements/input/checkbox#switch, Safari 17.4 of 2024-03-05
+deny	input_switch	17.4	setAttribute\s*\(\s*['"]switch['"]|(?:\?\.|\.)switch\s*=(?!=)|<input\b[^>]{0,200}\sswitch\b
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer/detached, Safari 17.4 of 2024-03-05
+deny	array_buffer_detached	17.4	(?:\?\.|\.)detached\b|\[\s*['"]detached['"]\s*\]
+# https://developer.mozilla.org/docs/Web/CSS/Reference/Properties/font-width, Safari 18.4 of 2025-03-31
+deny	css_font_width	18.4	\bfont-width\b|\bfontWidth\b
+# https://developer.mozilla.org/ (css.properties.text-decoration.includes_color-and-style), Safari 26.2 of 2025-12-12
+deny	css_text_decoration_style	26.2	(?<![\w-])text-decoration\s*:[^;}'"]{0,200}?(?:\b(?:solid|double|dotted|dashed|wavy|currentColor|transparent)\b|#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\s*\()|\btextDecoration\s*=\s*['"][^;}'"]{0,200}?(?:\b(?:solid|double|dotted|dashed|wavy|currentColor|transparent)\b|#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\s*\()
+# https://developer.mozilla.org/ (css.properties.align-items.safe), Safari 17.6 of 2024-07-29
+deny	css_safe_alignment	17.6	\b(?:un)?safe\s+(?:center|start|end|flex-start|flex-end|self-start|self-end|left|right|baseline)\b
+# https://developer.mozilla.org/ (css.properties.white-space.collapse), Safari 18 of 2024-09-16
+deny	css_white_space_values	18	\bwhite-space\s*:\s*(?:collapse|preserve-breaks|preserve|wrap)\b|\bwhiteSpace\s*=\s*['"](?:collapse|preserve-breaks|preserve|wrap)\b
