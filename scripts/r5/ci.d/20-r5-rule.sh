@@ -44,7 +44,7 @@ halvo-learn-gate refusal_step_writes_no_edit pending
 halvo-learn edit_table built
 halvo-learn routine_sample built
 halvo-learn formal_traces pending
-halvo-learn-gate constants_match_targets pending
+halvo-learn-gate constants_match_targets built
 halvo-schema kinds_have_workflow_key built
 halvo-schema r5_golden_records built
 halvo-schema r5_golden_requests built
