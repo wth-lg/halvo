@@ -149,6 +149,7 @@ esac
 #= tests/privacy.rs an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free
 #= tests/cases.rs own_origin_refused
 #= tests/cases.rs a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest
+#= tests/cases.rs a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

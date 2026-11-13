@@ -5,14 +5,15 @@ use std::rc::Rc;
 
 use common::{
     bodies, domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request,
-    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, OWN,
+    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS,
+    OWN,
 };
 use halvo_derived::{Cause, Error, Host, Refusal, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::RequestId;
 use halvo_schema_core::record::{
-    Confidence, Proposal, Recurrence, RowRead, SummaryRead, Trigger, TypedRecord, Workflow,
-    WorkflowState, WriterStep,
+    Confidence, Instant, Proposal, Recurrence, RowRead, SummaryRead, Trigger, TypedRecord,
+    Workflow, WorkflowState, WriterStep,
 };
 use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole};
 use halvo_schema_core::site::{AppId, DomainSource, SiteDomain, SiteValue};
@@ -227,4 +228,51 @@ fn bodies_of_support(scratch: &Scratch) -> Vec<String> {
         .collect();
     summaries.sort();
     summaries
+}
+
+/// The cross-window case: a routine planted on days 1, 31 and 61, one episode per batch with an observation window of
+/// 14 days, with the expiry run on the injected clock after each batch, yields no proposal on days 1 and 31 and its
+/// proposal on day 61 from the test proposer, supported by the three summaries, while the expiry has removed the
+/// evidence of days 1 and 31.
+#[test]
+fn a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window() {
+    let scratch = Scratch::new("cross-window");
+    let clock = TestClock::at_day(DAY);
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 3 }));
+    let mut store = open_host(&scratch, host).unwrap();
+    let mut seen = Vec::new();
+    for (at, n) in [1u32, 31, 61].into_iter().zip(1u64..) {
+        clock.set_day(DAY + at);
+        let mut planted = episode(n, DAY + at, None);
+        planted.expires = Instant(i64::from(DAY + at + 14) * DAY_NS);
+        let outcome = store
+            .commit_batch(&store_id(1), &[planted], position(n, 0), &mut Seq(100 * n))
+            .unwrap();
+        let expired = store.expire().unwrap();
+        seen.push((outcome.proposals.stored, expired));
+    }
+    assert_eq!(
+        seen,
+        vec![(0, 0), (0, 1), (1, 1)],
+        "(proposals stored, rows expired) on days 1, 31 and 61"
+    );
+    drop(store);
+    assert_eq!(count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'evidence'"), 1);
+    assert_eq!(count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'summary'"), 3);
+    let bodies = bodies(&scratch, "workflow");
+    assert_eq!(bodies.len(), 1);
+    let Workflow::Full(stored) = serde_json::from_str(&bodies[0]).unwrap() else {
+        panic!("the workflow is dismissed");
+    };
+    assert_eq!(
+        stored.recurrence,
+        Recurrence {
+            count: 3,
+            period: None,
+            first: DAY + 1,
+            last: DAY + 61
+        }
+    );
+    let want: Vec<String> = [1, 2, 3].iter().map(|n| summary_id(*n).as_str().to_owned()).collect();
+    assert_eq!(bodies_of_support(&scratch), want, "the summaries of the support rows");
 }
