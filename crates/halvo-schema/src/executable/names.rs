@@ -199,7 +199,8 @@ impl EffectState {
 }
 
 names! {
-    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`.
+    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`. `secret` ends a run whose token
+    /// store could not be read, with the outcome `failed`.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -224,6 +225,7 @@ names! {
         Effect = "effect",
         Ended = "ended",
         Changed = "changed",
+        Secret = "secret",
     }
 }
 
@@ -286,10 +288,39 @@ names! {
 }
 
 names! {
+    /// The answer of a `secret_reply`: the secret is `stored`, `none` is stored, or the store is `unreadable`. Only
+    /// `none` says that no secret is stored.
+    pub enum SecretAnswer {
+        Stored = "stored",
+        None = "none",
+        Unreadable = "unreadable",
+    }
+}
+
+names! {
+    /// The member of the answer `unreadable`: the secret store was `locked`, or a `fault` kept it from being read.
+    pub enum Unreadable {
+        Locked = "locked",
+        Fault = "fault",
+    }
+}
+
+names! {
     /// The answer of an approval, which lasts for one effect.
     pub enum Answer {
         AllowOnce = "allow_once",
         RejectOnce = "reject_once",
+    }
+}
+
+names! {
+    /// The way by which an `add_origin` body adds an origin to the bindings, after an act with the person's answer:
+    /// the sign-in that the person finished and allowed, the account that the person linked, or the confirmation
+    /// that the person allowed for a request to a new origin.
+    pub enum Way {
+        SignIn = "sign_in",
+        AccountLink = "account_link",
+        NewOrigin = "new_origin",
     }
 }
 

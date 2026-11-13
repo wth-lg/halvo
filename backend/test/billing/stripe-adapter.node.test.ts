@@ -461,6 +461,7 @@ describe("the webhook signature and the reduction", () => {
         customerId: "cus_test_1",
         state,
         period: { start: 1_794_000_000_000, end: 1_796_592_000_000 },
+        endedAt: null,
       },
     });
   });

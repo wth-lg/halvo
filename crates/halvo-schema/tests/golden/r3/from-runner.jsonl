@@ -5,3 +5,6 @@
 {"t":"secret","ref":"fixture_token"}
 {"t":"progress","step":4,"of":9}
 {"t":"done","outcome":"completed"}
+{"t":"bind","origin":"http://pay.test:18090"}
+{"t":"browser","pid":4242,"created":"1794339000123456","group":4242}
+{"t":"browser","pid":4242,"created":"1794339000123456","group":null}

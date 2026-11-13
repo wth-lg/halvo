@@ -3,7 +3,7 @@ import type { Entries } from "../../src/do/entries.ts";
 import { chat } from "../../src/gateway/chat.ts";
 import type { Usage } from "../../src/ledger/index.ts";
 import type { Cap, Env, Ms } from "../../src/types.ts";
-import { HASH, type Rig, seededRig } from "./harness.ts";
+import { type AlarmFault, HASH, type Rig, seededRig } from "./harness.ts";
 
 const ACCOUNT = "6f1e2d3c-4b5a-4968-8776-5a4b3c2d1e0f";
 const CREDENTIAL = "4e".repeat(32);
@@ -50,8 +50,8 @@ export function upstreamOf(parts: Uint8Array[], end: "close" | "reset" | "open")
   };
 }
 
-export async function chatRig(o: { at: Ms; cap?: Cap; holdLifeMs?: number; deadlineMs?: number; marginMs?: number; subscription?: "active" | "payment-failed" }): Promise<ChatRig> {
-  const rig = await seededRig({ cap: o.cap ?? { amount: 100_000_000, period: "week" }, at: o.at, holdLifeMs: o.holdLifeMs, subscription: o.subscription });
+export async function chatRig(o: { at: Ms; cap?: Cap; holdLifeMs?: number; deadlineMs?: number; marginMs?: number; subscription?: "active" | "payment-failed"; alarmFault?: AlarmFault }): Promise<ChatRig> {
+  const rig = await seededRig({ cap: o.cap ?? { amount: 100_000_000, period: "week" }, at: o.at, holdLifeMs: o.holdLifeMs, subscription: o.subscription, alarmFault: o.alarmFault });
   const calls: ObjectCall[] = [];
   const before: ChatRig["before"] = {};
   const object = {
