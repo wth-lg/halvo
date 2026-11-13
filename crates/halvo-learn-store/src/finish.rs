@@ -22,8 +22,13 @@ use crate::rows::{self, Edits};
 use crate::serve::{fits, with_target};
 use crate::sources;
 
-fn lines_of(facts: &RunFacts, n: NonZeroU32) -> impl Iterator<Item = (&NonZeroU32, &Line)> {
-    facts.lines.iter().filter(move |(_, line)| line.step == n)
+fn lines_of(facts: &RunFacts, n: NonZeroU32) -> impl Iterator<Item = (usize, &Line)> {
+    facts
+        .lines
+        .iter()
+        .map(|(_, line)| line)
+        .enumerate()
+        .filter(move |(_, line)| line.step == n)
 }
 
 fn counted_cause(line: &Line) -> Option<EditCause> {
@@ -42,10 +47,10 @@ fn first_counted(facts: &RunFacts, n: NonZeroU32) -> Option<EditCause> {
 fn recovered(facts: &RunFacts, n: NonZeroU32) -> bool {
     let last = lines_of(facts, n)
         .filter(|(_, line)| line.event == LogEvent::Recovered)
-        .map(|(seq, _)| *seq)
+        .map(|(at, _)| at)
         .last();
     last.is_some_and(|at| {
-        !lines_of(facts, n).any(|(seq, line)| *seq > at && line.event == LogEvent::StepFailed)
+        !lines_of(facts, n).any(|(i, line)| i > at && line.event == LogEvent::StepFailed)
     })
 }
 
@@ -69,9 +74,13 @@ impl LearnHandlers {
                         step,
                         cause: record.cause,
                     };
-                    facts.lines.insert(record.seq, line);
+                    let entry = (record.seq, line);
+                    if !facts.lines.contains(&entry) {
+                        facts.lines.push(entry);
+                    }
                 }
             }
+            facts.lines.sort_by_key(|(seq, _)| *seq);
         }
         Ok(reply)
     }
@@ -243,13 +252,15 @@ impl Ended<'_> {
         let facts = self.facts;
         let assisted: BTreeSet<NonZeroU32> = facts
             .lines
-            .values()
+            .iter()
+            .map(|(_, line)| line)
             .filter(|line| line.event == LogEvent::Recovered)
             .map(|line| line.step)
             .collect();
         let failed_step = facts
             .lines
-            .values()
+            .iter()
+            .map(|(_, line)| line)
             .find(|line| counted_cause(line).is_some())
             .map(|line| line.step);
         let verdict = match self.verdict {

@@ -22,6 +22,7 @@ pub(crate) struct Candidate {
 }
 
 /// A `step_ok`, `step_failed` or `recovered` line of the run's log.
+#[derive(PartialEq, Eq)]
 pub(crate) struct Line {
     pub(crate) event: LogEvent,
     pub(crate) step: NonZeroU32,
@@ -38,7 +39,7 @@ pub(crate) struct RunFacts {
     pub(crate) slots: Vec<String>,
     pub(crate) served: BTreeMap<NonZeroU32, Served>,
     pub(crate) candidates: BTreeMap<NonZeroU32, Candidate>,
-    pub(crate) lines: BTreeMap<NonZeroU32, Line>,
+    pub(crate) lines: Vec<(NonZeroU32, Line)>,
 }
 
 impl RunFacts {
@@ -56,7 +57,7 @@ impl RunFacts {
                 .collect(),
             served: BTreeMap::new(),
             candidates: BTreeMap::new(),
-            lines: BTreeMap::new(),
+            lines: Vec::new(),
         }
     }
 }

@@ -350,3 +350,52 @@ fn refusal_cross_workflow_source() {
     assert_eq!(w.host.agent_rows("agent_run").len(), 2);
     assert!(w.host.edits().is_empty());
 }
+
+#[test]
+fn a_counted_line_that_a_second_body_follows_with_the_same_seq_still_reverts() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
+    assert_eq!(newest(&w)[0].state.name(), "provisional");
+    let served = w.replay(3);
+    assert_eq!(locator_names(&served[1])[0], "A");
+    let logs_before = w.host.agent_rows("agent_log").len();
+    w.log(3, &[(1, "step_failed", 2, Some("step_failed"))]);
+    w.log(3, &[(1, "step_ok", 2, None)]);
+    assert_eq!(w.host.agent_rows("agent_log").len(), logs_before + 2);
+    assert!(w.finish(3, "replay", "completed").is_ok());
+    let e = &newest(&w)[0];
+    assert_eq!(
+        (
+            e.rev.get(),
+            e.state.name(),
+            e.state.cause().map(|c| c.as_str()),
+            e.clean
+        ),
+        (2, "reverted", Some("step_failed"), 0)
+    );
+    assert!(matches!(
+        run_row(&w, 3).status,
+        RunStatus::Ended { failed_step: Some(n), .. } if n.get() == 2
+    ));
+}
+
+#[test]
+fn log_lines_are_read_in_the_order_of_their_seq_whatever_the_order_of_their_bodies() {
+    let mut w = active_world();
+    let served = w.replay(2);
+    let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
+    assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(1)));
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
+    w.log(2, &[(1, "step_failed", 2, Some("timeout"))]);
+    w.log(2, &[(1, "step_failed", 2, Some("timeout"))]);
+    assert!(w.finish(2, "replay", "completed").is_ok());
+    assert_eq!(newest(&w).len(), 1);
+    assert!(matches!(
+        run_row(&w, 2).status,
+        RunStatus::Ended {
+            kept: 1,
+            assisted: 1,
+            ..
+        }
+    ));
+}
