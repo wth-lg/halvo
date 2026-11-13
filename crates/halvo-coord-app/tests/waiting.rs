@@ -407,3 +407,33 @@ fn a_hub_whose_first_tick_never_comes_answers_next_with_the_stand_in_at_its_wait
         "the stand-in's seq"
     );
 }
+
+#[test]
+fn a_first_tick_that_changes_nothing_still_answers_the_waiting_next() {
+    let hub = Hub::with_waits(
+        world(0, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+        Waits {
+            next: ms(4_000),
+            coalesce: ms(2_000),
+        },
+    );
+    let waiting = {
+        let hub = hub.clone();
+        std::thread::spawn(move || {
+            let start = Instant::now();
+            let reply = hub.call("agents_next", Some(&json!({"after": 0})));
+            (reply, start.elapsed())
+        })
+    };
+    sleep(ms(300));
+    hub.tick();
+    let (reply, took) = waiting.join().unwrap();
+    assert_eq!(reply, Reply::Snapshot(hub.coordinator().snapshot()));
+    assert!(
+        took < ms(2_500),
+        "the first tick rings the bell although the state did not change: {took:?}"
+    );
+}
