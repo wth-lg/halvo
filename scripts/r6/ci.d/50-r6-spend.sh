@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The 19 refusal cases of T7.4, T8.4 and T9.4 and the tests formal_traces, no_grant_in_release and sequences_same pass, route-gate spend-sim for the seed 1 prints its seven lines with no overrun, no reserve above the cap and every admission within the room that it read, and its export equals docs/r6/gateway/sequences.jsonl of the commit, which the check reads before its first cargo command; a cargo command that leaves the tree changed fails the check.
+# rule: The tests of halvo-route and halvo-route-gate pass, and each of the 19 refusal cases of T7.4, T8.4 and T9.4 and of the tests formal_traces, no_grant_in_release and sequences_same counts only under its own crate, target and whole test path, when that target's list holds it, its list of ignored tests does not, and a run of the bound tests alone exits 0 and prints its ok line under its target with that target's summary; route-gate spend-sim for the seed 1 prints its seven lines with no overrun, no reserve above the cap and every admission within the room that it read, and its export has the SHA-256 of docs/r6/gateway/sequences.jsonl of the commit, which the check reads with the file's line count before its first cargo command; a cargo command that leaves the tree changed fails the check; it does not hold code that runs before main in a bound test file or in a target with its harness off, nor the job's environment, such as a runner for test binaries or a cargo earlier on the PATH.
 set -u
 name=50-r6-spend
 case $0 in
