@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  var inventory = Halvo.feed("inventory");
   var modalityNames = {
     screen_frame: "Screen",
     keystroke: "Typing",
@@ -55,7 +56,7 @@
   }
 
   function refresh() {
-    return Halvo.ipc.call("inventory").then(render).catch(Halvo.showError);
+    return Halvo.ipc.call("inventory").then(inventory.set).catch(Halvo.showError);
   }
 
   function heading(text, cls) {
@@ -78,7 +79,8 @@
       ]);
       el.append(Halvo.el("p", {}, [total, " of a ", cap, " cap. ", backend]), empty, table);
       Halvo.feed("status").on(renderStatus);
-      Halvo.feed("inventory").source(refresh);
+      inventory.on(render);
+      inventory.source(refresh);
       refresh();
       setInterval(refresh, 15000);
     },

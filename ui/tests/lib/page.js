@@ -145,6 +145,17 @@ function makePage({ document, clock, sent, context, loaded, dir }) {
       await el.click(init);
       await settle();
     },
+    async press(target, init) {
+      const el = typeof target === "string" ? byId(target) : target;
+      await el.press(init);
+      await settle();
+    },
+    async pressDown(target, init) {
+      const el = typeof target === "string" ? byId(target) : target;
+      await el.dispatchEvent(makeEvent("pointerdown", { detail: 1, ...init }));
+      await el.dispatchEvent(makeEvent("mousedown", { detail: 1, ...init }));
+      await settle();
+    },
     async type(id, value) {
       const el = byId(id);
       el.focus();

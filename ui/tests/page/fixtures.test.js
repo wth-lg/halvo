@@ -159,7 +159,7 @@ test("Delete everything, once confirmed, sends delete_all and renders the report
   const page = await openPage({ replies: { delete_all: () => fixture("delete_all-deleted") } });
   await page.click("delete");
   await page.clock.advance(600);
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(page.calls("delete_all").length, 1);
   assert.equal(page.text("delete-result"), "Deleted. 2 segments shredded, 2 keys destroyed.");
 });

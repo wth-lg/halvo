@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  var onboarding = Halvo.feed("onboarding");
   var section;
   var banner;
   var list;
@@ -73,7 +74,7 @@
   }
 
   function refresh() {
-    return Halvo.ipc.call("onboarding_state").then(render).catch(Halvo.showError);
+    return Halvo.ipc.call("onboarding_state").then(onboarding.set).catch(Halvo.showError);
   }
 
   Halvo.views.add({
@@ -91,6 +92,8 @@
         steps,
       ]);
       el.append(banner, list, walkback);
+      onboarding.on(render);
+      onboarding.source(refresh);
       refresh();
       setInterval(refresh, 3000);
     },

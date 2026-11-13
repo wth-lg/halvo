@@ -30,7 +30,7 @@ test("a confirmation 100 ms after arming sends no delete_all", async () => {
   const page = await deletePage();
   await page.click("delete");
   await page.clock.advance(100);
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 0);
 });
 
@@ -46,7 +46,7 @@ test("one click 600 ms after arming sends one delete_all", async () => {
   const page = await deletePage();
   await page.click("delete");
   await page.clock.advance(600);
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 1);
   assert.equal(armed(page), false);
   assert.equal(page.byId("delete").disabled, false);
@@ -58,7 +58,7 @@ test("a second click on Delete everything while armed sends nothing and does not
   await page.clock.advance(300);
   await page.click("delete", { detail: 2 });
   await page.clock.advance(300);
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 1);
 });
 
@@ -70,7 +70,7 @@ test("the control disarms 10 s after arming", async () => {
   await page.clock.advance(1);
   assert.equal(armed(page), false);
   assert.equal(page.byId("delete").disabled, false);
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 0);
 });
 
@@ -81,7 +81,7 @@ test("the control disarms when the window hides", async () => {
   await page.hide();
   assert.equal(armed(page), false);
   page.byId("confirm-delete").classList.remove("hidden");
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 0);
 });
 
@@ -92,7 +92,7 @@ test("Cancel disarms and a later confirmation sends nothing", async () => {
   await page.click("cancel-delete");
   assert.equal(armed(page), false);
   page.byId("confirm-delete").classList.remove("hidden");
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 0);
 });
 
@@ -151,7 +151,7 @@ test("a confirmation 10 s or more after arming sends nothing, also when the disa
   const page = await deletePage();
   await page.click("delete");
   page.clock.now = 12000;
-  await page.click("confirm-delete");
+  await page.press("confirm-delete");
   assert.equal(deletes(page), 0);
   assert.equal(armed(page), false);
   assert.equal(page.byId("delete").disabled, false);

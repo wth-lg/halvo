@@ -9,17 +9,44 @@
   var result;
   var armedAt = null;
   var disarmTimer = null;
+  var keptBox = null;
+  var keptPoint = null;
+  var pressed = false;
+
+  function hasPoint(event) {
+    return Boolean(event) && event.detail >= 1;
+  }
+
+  function atKeptPlace(event) {
+    var x = event.clientX;
+    var y = event.clientY;
+    if (keptPoint !== null && Math.abs(x - keptPoint.x) <= 2 && Math.abs(y - keptPoint.y) <= 2) return true;
+    return keptBox !== null && keptBox.width > 0 && keptBox.height > 0 && x >= keptBox.left && x <= keptBox.right && y >= keptBox.top && y <= keptBox.bottom;
+  }
+
+  function onPress() {
+    if (armedAt !== null) pressed = true;
+  }
 
   function disarm() {
     if (disarmTimer !== null) clearTimeout(disarmTimer);
     disarmTimer = null;
     armedAt = null;
+    keptBox = null;
+    keptPoint = null;
+    pressed = false;
     start.disabled = false;
     confirmRow.classList.add("hidden");
+    Halvo.views.release();
   }
 
-  function arm() {
+  function arm(event) {
     if (armedAt !== null) return;
+    var box = start.getBoundingClientRect();
+    keptBox = { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+    keptPoint = hasPoint(event) ? { x: event.clientX, y: event.clientY } : null;
+    pressed = false;
+    Halvo.views.hold();
     armedAt = performance.now();
     start.disabled = true;
     confirmRow.classList.remove("hidden");
@@ -52,6 +79,11 @@
   function onConfirm(event) {
     if (armedAt === null) return Promise.resolve();
     if (event && event.detail > 1) return Promise.resolve();
+    if (hasPoint(event)) {
+      var fromPress = pressed;
+      pressed = false;
+      if (!fromPress || atKeptPlace(event)) return Promise.resolve();
+    }
     var since = performance.now() - armedAt;
     if (since < ARM_DELAY_MS) return Promise.resolve();
     if (since >= DISARM_AFTER_MS) {
@@ -81,6 +113,8 @@
       start.onclick = arm;
       cancel.onclick = disarm;
       confirm.onclick = onConfirm;
+      confirm.addEventListener("pointerdown", onPress);
+      confirm.addEventListener("mousedown", onPress);
       el.append(
         Halvo.el("p", { class: "muted", text: "Destroys the keys to every stored capture so nothing can be read back. This cannot be undone." }),
         Halvo.el("div", { class: "row" }, [start, result]),

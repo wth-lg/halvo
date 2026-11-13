@@ -188,6 +188,15 @@ class Element extends Node {
     if (this.disabled) return Promise.resolve([]);
     return this.dispatchEvent(makeEvent("click", { detail: 1, ...init }));
   }
+  async press(init = {}) {
+    if (this.disabled) return [];
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) await this.dispatchEvent(makeEvent(type, { detail: 1, ...init }));
+    return this.dispatchEvent(makeEvent("click", { detail: 1, ...init }));
+  }
+  getBoundingClientRect() {
+    const r = this.rect || { left: 0, top: 0, width: 0, height: 0 };
+    return { left: r.left, top: r.top, width: r.width, height: r.height, right: r.left + r.width, bottom: r.top + r.height, x: r.left, y: r.top };
+  }
   focus() {
     this.ownerDocument.activeElement = this;
   }
