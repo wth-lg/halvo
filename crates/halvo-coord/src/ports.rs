@@ -65,10 +65,16 @@ pub trait Runs {
         answers: &[Answer],
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError>;
-    /// Sends the result of a handback.
+    /// Sends the result of a handback. The port's duty (ruling RD-46 (2) g): it returns an
+    /// error other than the refusal `ended` only when the run's waiting call did not get the
+    /// result, so that the coordinator, which closes the item after a success or after `ended`
+    /// only, may send a result again.
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError>;
     /// Sends the answer of the second step of a `sign_in` item, with which the supervisor
-    /// library's call `Human::allow_origin` of the run returns (I3.1, I6.2).
+    /// library's call `Human::allow_origin` of the run returns (I3.1, I6.2). The port's duty
+    /// (ruling RD-46 (2) g): it returns an error other than the refusal `ended` only when the
+    /// waiting call did not get the answer, so that the coordinator, which closes the step after
+    /// a success or after `ended` only, may send that answer again or `decline`.
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError>;
     /// Sends the frame `cancel`.
     fn cancel(&self, run: &RunId) -> Result<(), PortError>;

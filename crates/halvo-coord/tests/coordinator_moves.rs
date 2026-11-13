@@ -2463,13 +2463,63 @@ fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_
     }
 }
 
+/// What the lossy sequences found: by the kind of the item, the items that end with more than one
+/// closing row; the confirmations whose `item_answered` rows stand beside their lapse, which I4.5
+/// allows; the second steps, told by their answer row, with two answer rows or with an answer and
+/// a lapse, and the `link_account` items with `done` and then `decline`, which ruling RD-46
+/// allows; the Bind moves made and the second steps that they raised; each `answer_bind` with
+/// `allow` that did its work, and the ones that broke a property of RD-46 (5) T19.
+#[derive(Debug, Default)]
+struct Lossy {
+    twice: Vec<ItemKind>,
+    confirm_rows: usize,
+    second_twice: usize,
+    second_lapsed: usize,
+    link_done_decline: usize,
+    bind_moves: usize,
+    binds_raised: usize,
+    second_steps: usize,
+    allows: usize,
+    broken: Vec<String>,
+}
+
+impl Lossy {
+    fn add(&mut self, o: Lossy) {
+        self.twice.extend(o.twice);
+        self.confirm_rows += o.confirm_rows;
+        self.second_twice += o.second_twice;
+        self.second_lapsed += o.second_lapsed;
+        self.link_done_decline += o.link_done_decline;
+        self.bind_moves += o.bind_moves;
+        self.binds_raised += o.binds_raised;
+        self.second_steps += o.second_steps;
+        self.allows += o.allows;
+        self.broken.extend(o.broken);
+    }
+}
+
+/// The answer rows of the item among `rows`, in their order.
+fn answers_of<'a>(rows: &'a [What], item: &ItemId) -> Vec<&'a halvo_coord::types::Answered> {
+    rows.iter()
+        .filter_map(|w| match w {
+            What::ItemAnswered { item: i, answer } if i == item => Some(answer),
+            _ => None,
+        })
+        .collect()
+}
+
 /// One sequence of drawn moves over two agents in which each `log` loses its acknowledgement
 /// with chance one in four, in the form `form`; the rows of a `Later` loss land in the owner's
-/// events after the move where their `seq` is still free. Answers, by the kind of the item, the
-/// items that end with more than one closing row, and the confirmations whose `item_answered`
-/// rows stand beside their lapse, which I4.5 allows.
-fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
-    use halvo_coord::types::{Event, Raised};
+/// events after the move where their `seq` is still free. A drawn move can bring a run's request
+/// `Bind` for one of two origins, and an answer draws among the item's own choices. After each
+/// move every `answer_bind` with `allow` that did its work is checked: it was made inside a move
+/// that answers that item with Allow, the item's newest `item_answered` row was `allow` at the
+/// call, and it came after no Stop or switch-off of its run, no lapse of the item and no Don't
+/// allow on the item answered ok (ruling RD-46 (5) T19).
+fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
+    use halvo_coord::types::{
+        Answered, BindResult, DoneAnswer, Event, LinkAnswer, Origin, Raised, SignInAnswer,
+    };
     let limits = Limits {
         max_live_runs: 2,
         ..Limits::PRODUCT
@@ -2486,14 +2536,80 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
     let mut runs: [Option<RunId>; 2] = [None, None];
     let show = std::env::var("HALVO_LOSSY_SHOW").is_ok();
     let mut moves: Vec<String> = Vec::new();
+    let mut out = Lossy::default();
+    let mut stopped: Vec<RunId> = Vec::new();
+    let mut declined: Vec<ItemId> = Vec::new();
+    let run_of = |rows: &[What], item: &ItemId| {
+        rows.iter().find_map(|w| match w {
+            What::ItemRaised {
+                item: i,
+                raised: Raised::SignIn(run),
+            } if i == item => Some(run.clone()),
+            _ => None,
+        })
+    };
+    let check = |c: &Coordinator<Both>,
+                 from: usize,
+                 pressed: Option<(&ItemId, Choice)>,
+                 stopped: &[RunId],
+                 declined: &[ItemId],
+                 before: &[What],
+                 out: &mut Lossy| {
+        let calls: Vec<(RunId, BindResult, bool, usize)> =
+            c.ports().binds_at.borrow()[from..].to_vec();
+        let all: Vec<halvo_coord::types::Event> = c.ports().ports.events.borrow().clone();
+        for (run, result, ok, at) in calls {
+            if !ok || result != BindResult::Allow {
+                continue;
+            }
+            out.allows += 1;
+            let rows: Vec<What> = all[..at].iter().map(|e| e.what.clone()).collect();
+            let Some((item, Choice::Allow)) = pressed else {
+                out.broken.push(format!(
+                    "seed {seed} {form:?}: allow outside a press of Allow"
+                ));
+                continue;
+            };
+            if run_of(&rows, item).as_ref() != Some(&run) {
+                out.broken.push(format!(
+                    "seed {seed} {form:?}: allow to another run than the item's"
+                ));
+            }
+            let newest = answers_of(&rows, item).last().copied().cloned();
+            if !matches!(
+                &newest,
+                Some(Answered::SignIn(SignInAnswer::Second(b))) if b.answer == BindResult::Allow
+            ) {
+                out.broken.push(format!(
+                    "seed {seed} {form:?}: allow with the newest row {newest:?}"
+                ));
+            }
+            let lapsed = before
+                .iter()
+                .any(|w| matches!(w, What::ItemLapsed { item: i, .. } if i == item));
+            if stopped.contains(&run) || declined.contains(item) || lapsed {
+                out.broken.push(format!(
+                    "seed {seed} {form:?}: allow after a stop, a lapse or a decline"
+                ));
+            }
+        }
+    };
+    let origins = [
+        "https://pay.site1.example:443",
+        "https://card.site1.example:443",
+    ];
+    let mut again: Option<ItemId> = None;
     for _ in 0..18 {
         let lose = draw(4) == 0;
         if lose {
             c.ports().loss.set(Some(form));
         }
         let n = draw(2) as usize;
-        let mv = draw(11);
-        let before = events(&c).len();
+        let retry = again.take().filter(|_| draw(2) == 0);
+        let mv = if retry.is_some() { 5 } else { draw(12) };
+        let before = events(&c);
+        let from = c.ports().binds_at.borrow().len();
+        let mut pressed: Option<(ItemId, Choice)> = None;
         match mv {
             0 | 1 => {
                 if c.control(&agent(n), Action::RunNow).is_ok() {
@@ -2520,12 +2636,14 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
             }
             5 | 6 => {
                 let items = c.snapshot().items;
-                if let Some(item) = items.get(draw(items.len().max(1) as u64) as usize) {
+                let pick = match items.iter().position(|i| Some(i.item()) == retry.as_ref()) {
+                    Some(k) => k,
+                    None => draw(items.len().max(1) as u64) as usize,
+                };
+                if let Some(item) = items.get(pick) {
                     let id = item.item().clone();
+                    let choices: Vec<Choice> = item.choices().iter().map(|t| t.choice).collect();
                     let choice = match item.kind() {
-                        ItemKind::Check => {
-                            [Choice::TryAgain, Choice::WentThrough][draw(2) as usize]
-                        }
                         ItemKind::Confirm => {
                             c.on_screen(&id);
                             now += limits.arm_ms + 1;
@@ -2533,15 +2651,26 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
                             c.tick();
                             [Choice::Allow, Choice::Reject][draw(2) as usize]
                         }
-                        ItemKind::Ready => [Choice::Start, Choice::Skip][draw(2) as usize],
                         ItemKind::Setup => Choice::None,
-                        _ => [Choice::Done, Choice::Decline][draw(2) as usize],
+                        _ => choices[draw(choices.len() as u64) as usize],
                     };
-                    let _ = c.answer(&id, choice, None);
+                    let second =
+                        choices.contains(&Choice::Allow) && item.kind() == ItemKind::SignIn;
+                    let answered = c.answer(&id, choice, None);
+                    if second {
+                        pressed = Some((id.clone(), choice));
+                        match answered {
+                            Ok(()) if choice == Choice::Decline => declined.push(id),
+                            Ok(()) => {}
+                            Err(_) => again = Some(id),
+                        }
+                    }
                 }
             }
             7 => {
-                let _ = c.control(&agent(n), Action::Stop);
+                if c.control(&agent(n), Action::Stop).is_ok() {
+                    stopped.extend(runs[n].clone());
+                }
             }
             8 => {
                 if let Some(run) = &runs[n] {
@@ -2560,18 +2689,44 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
                 c.ports().ports.set_clock(now, DAY);
                 c.tick();
             }
+            10 => {
+                if let Some(run) = &runs[n] {
+                    out.bind_moves += 1;
+                    let origin = Origin::parse(origins[draw(2) as usize]).unwrap();
+                    let _ = c.on_run(run, RunEvent::Hello);
+                    let ask = RunEvent::Bind(halvo_coord::types::BindAsk {
+                        run: run.clone(),
+                        agent: agent(n),
+                        origin,
+                    });
+                    if c.on_run(run, ask).is_ok() {
+                        out.binds_raised += 1;
+                    }
+                }
+            }
             _ => {
                 if draw(2) == 0 {
-                    let _ = c.control(&agent(n), Action::SwitchOff);
+                    if c.control(&agent(n), Action::SwitchOff).is_ok() {
+                        stopped.extend(runs[n].clone());
+                    }
                 } else {
                     let _ = c.control(&agent(n), Action::SwitchOn);
                 }
             }
         }
+        check(
+            &c,
+            from,
+            pressed.as_ref().map(|(i, ch)| (i, *ch)),
+            &stopped,
+            &declined,
+            &before,
+            &mut out,
+        );
         if show {
             moves.push(format!(
                 "move {mv} agent {n} lose {lose}: {:?}",
-                &events(&c)[before..]
+                &events(&c)[before.len()..]
             ));
         }
         c.ports().loss.set(None);
@@ -2593,68 +2748,114 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
         }
     }
     if draw(3) == 0 {
+        let before = events(&c);
+        let from = c.ports().binds_at.borrow().len();
         let _ = c.quit_stop();
         c.tick();
         c.quit_kill();
+        check(&c, from, None, &stopped, &declined, &before, &mut out);
     }
     let stored = events(&c);
-    let mut twice = Vec::new();
-    let mut confirm_rows = 0;
     for w in &stored {
         let What::ItemRaised { item, raised } = w else {
             continue;
         };
-        let confirm = matches!(raised, Raised::Confirm(_));
-        let answered = stored
-            .iter()
-            .filter(|w| matches!(w, What::ItemAnswered { item: i, .. } if i == item))
-            .count();
+        let answers = answers_of(&stored, item);
+        let answered = answers.len();
         let ended = stored
             .iter()
             .filter(|w| {
                 matches!(w, What::ItemLapsed { item: i, .. } | What::ItemReleased { item: i, .. } if i == item)
             })
             .count();
-        let closing = if confirm { ended } else { answered + ended };
-        if closing > 1 {
-            twice.push(raised.kind());
+        let second = answers
+            .iter()
+            .any(|a| matches!(a, Answered::SignIn(SignInAnswer::Second(_))));
+        let link_done_decline = matches!(
+            &answers[..],
+            [
+                Answered::LinkAccount(LinkAnswer {
+                    answer: DoneAnswer::Done,
+                    ..
+                }),
+                Answered::LinkAccount(LinkAnswer {
+                    answer: DoneAnswer::Decline,
+                    ..
+                }),
+            ]
+        ) && ended == 0;
+        let confirm = matches!(raised, Raised::Confirm(_));
+        let closing = if confirm || second {
+            ended
+        } else {
+            answered + ended
+        };
+        if second {
+            out.second_steps += 1;
+            if answered > 1 {
+                out.second_twice += 1;
+            }
+            if ended > 0 {
+                out.second_lapsed += 1;
+            }
+        }
+        if link_done_decline {
+            out.link_done_decline += 1;
+        } else if closing > 1 {
+            out.twice.push(raised.kind());
             if show {
                 println!("seed {seed} {form:?}: {moves:#?}");
             }
         }
         if confirm && answered > 0 && ended > 0 {
-            confirm_rows += 1;
+            out.confirm_rows += 1;
         }
     }
-    (twice, confirm_rows)
+    out
 }
 
 #[test]
-fn lossy_sequences_leave_no_item_with_two_closing_rows_in_either_form_of_a_lost_acknowledgement() {
+fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_the_newest_row_in_both_forms(
+) {
     let count: u64 = std::env::var("HALVO_LOSSY_SEQUENCES")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(1_280);
     for form in ORDERS {
-        let mut twice: Vec<ItemKind> = Vec::new();
-        let mut confirm_rows = 0;
+        let mut all = Lossy::default();
         for seed in 0..count {
-            let (t, r) = lossy_sequence(seed, form);
-            twice.extend(t);
-            confirm_rows += r;
+            all.add(lossy_sequence(seed, form));
         }
         let mut by_kind: Vec<(ItemKind, usize)> = Vec::new();
-        for k in &twice {
+        for k in &all.twice {
             match by_kind.iter_mut().find(|(kind, _)| kind == k) {
                 Some((_, n)) => *n += 1,
                 None => by_kind.push((*k, 1)),
             }
         }
         println!(
-            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={confirm_rows}",
-            twice.len()
+            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} link_done_then_decline={} allows_sent={} broken={}",
+            all.twice.len(),
+            all.confirm_rows,
+            all.bind_moves,
+            all.binds_raised,
+            all.second_steps,
+            all.second_twice,
+            all.second_lapsed,
+            all.link_done_decline,
+            all.allows,
+            all.broken.len()
         );
-        assert!(twice.is_empty(), "{form:?}: {by_kind:?}");
+        assert!(all.twice.is_empty(), "{form:?}: {by_kind:?}");
+        assert!(
+            all.broken.is_empty(),
+            "{form:?}: {:?}",
+            &all.broken[..all.broken.len().min(8)]
+        );
+        assert!(
+            all.binds_raised > 0 && all.allows > 0 && all.second_twice > 0,
+            "{form:?}: {all:?}"
+        );
     }
 }
 
@@ -3352,5 +3553,85 @@ fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_
         assert_eq!(c2.answer(&item2, Choice::Done, None), Ok(()), "{order:?}");
         assert_eq!(handed_back(&c2, m), [HandbackResult::Done], "{order:?}");
         assert_eq!(step_rows(&c2, &item2), ["done"], "{order:?}");
+        let c3 = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c3, 0);
+        c3.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
+            .unwrap();
+        let (item3, _) = open_item(&c3);
+        c3.ports().loss.set(Some(order));
+        assert_eq!(c3.answer(&item3, Choice::Done, None), Err(Cause::NoService));
+        let lost: Vec<halvo_coord::types::Event> = c3.ports().lost.borrow_mut().drain(..).collect();
+        c3.ports().ports.events.borrow_mut().extend(lost);
+        c3.ports()
+            .ports
+            .refuse(Method::AnswerHandback, PortError::Busy);
+        assert_eq!(
+            c3.answer(&item3, Choice::Decline, None),
+            Err(Cause::Busy),
+            "{order:?}"
+        );
+        c3.ports().ports.clear_refusals();
+        let m = mark(&c3);
+        assert_eq!(
+            c3.answer(&item3, Choice::Decline, None),
+            Ok(()),
+            "{order:?}"
+        );
+        assert_eq!(handed_back(&c3, m), [HandbackResult::Declined], "{order:?}");
+        assert_eq!(
+            step_rows(&c3, &item3),
+            ["done", "decline"],
+            "{order:?}: the newest row decides, and the same choice stores no second decline"
+        );
+    }
+}
+
+/// The memory `Runs::answer_bind` and `Runs::answer_handback` keep the port's duty (ruling RD-46
+/// (2) g): each error other than the refusal `ended` comes with no call that did its work, so
+/// that the run's waiting call got nothing, and a success is one call that did its work.
+#[test]
+fn the_memory_answer_bind_and_answer_handback_fail_with_an_error_other_than_ended_only_when_the_call_got_nothing(
+) {
+    use halvo_coord::mem::{Config, Ports};
+    use halvo_coord::ports::Runs;
+    use halvo_coord::types::{BindResult, HandbackResult};
+    let run = RunId::parse(&format!("{:032x}", 7)).unwrap();
+    let ended = PortError::Refused(Name::parse("ended").unwrap());
+    let refusals = [
+        PortError::Busy,
+        PortError::NoService,
+        PortError::Refused(Name::parse("internal").unwrap()),
+    ];
+    for method in [Method::AnswerBind, Method::AnswerHandback] {
+        let call = |p: &Ports<Config>| match method {
+            Method::AnswerBind => p.answer_bind(&run, BindResult::Allow),
+            _ => p.answer_handback(&run, HandbackResult::Done),
+        };
+        let got = |p: &Ports<Config>| {
+            p.calls
+                .borrow()
+                .iter()
+                .filter(|t| matches!(t.call, Call::AnswerBind(..) | Call::AnswerHandback(..)))
+                .count()
+        };
+        let p: Ports<Config> = Ports::new(T0, DAY);
+        let unknown = call(&p);
+        assert!(
+            unknown.is_err() && unknown != Err(ended.clone()),
+            "{method:?}"
+        );
+        assert_eq!(got(&p), 0, "{method:?}: unknown_run");
+        p.runner_of(&run);
+        for e in &refusals {
+            p.refuse(method, e.clone());
+            assert_eq!(call(&p), Err(e.clone()), "{method:?}");
+            assert_eq!(got(&p), 0, "{method:?}: {e:?}");
+            p.clear_refusals();
+        }
+        assert_eq!(call(&p), Ok(()), "{method:?}");
+        assert_eq!(got(&p), 1, "{method:?}: a success did its work");
+        p.end_runner(&run);
+        assert_eq!(call(&p), Err(ended.clone()), "{method:?}");
+        assert_eq!(got(&p), 1, "{method:?}");
     }
 }

@@ -70,13 +70,15 @@ impl Ledger {
         }
     }
 
-    /// The row of the owner's events, as this ledger stored them or its reads gave them, that
-    /// closes `item`: an answer whose acknowledgement was lost, or a lapse (ruling RD-40). One
-    /// decision for both orders in which the coordinator learns of such a row.
+    /// The newest row by `seq` of the owner's events, as this ledger stored them or its reads
+    /// gave them, that closes `item`: an answer whose acknowledgement was lost, or a lapse (ruling
+    /// RD-40), or the decline that a `link_account` item stored after its `done` (ruling RD-46
+    /// (4) B4). One decision for both orders in which the coordinator learns of such a row.
     fn closing(&self, item: &ItemId) -> Option<&Event> {
         self.closing
             .iter()
-            .find(|e| closed_item(&e.what) == Some(item) && closes(std::slice::from_ref(e), item))
+            .filter(|e| closed_item(&e.what) == Some(item) && closes(std::slice::from_ref(e), item))
+            .max_by_key(|e| e.seq)
     }
 
     /// Keeps the rows that close an item among `events`, which the owner acknowledged.
@@ -186,9 +188,10 @@ fn closed_item(what: &What) -> Option<&ItemId> {
 
 /// Whether the rows close the item: its `item_released` or its `item_lapsed`, or its
 /// `item_answered`, but for a confirmation, whose rows without their acknowledgement count as
-/// not stored (I4.5, ruling RD-34 (b) (3)), and for the second step of a sign-in, whose stored
-/// row that its run did not take lapses with the run (U2.2c's `lapse_bind`). The kind is the
-/// row's own, since the read need not hold the item's `item_raised`.
+/// not stored (I4.5, ruling RD-34 (b) (3)), and for the second step of a sign-in, whose answer
+/// row that its run did not take is followed by the row of the person's next press or by its
+/// lapse (ruling RD-46 (2) b, d, e). The kind is the row's own, since the read need not hold the
+/// item's `item_raised`.
 fn closes(rows: &[Event], item: &ItemId) -> bool {
     rows.iter().any(|e| match &e.what {
         What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
@@ -772,7 +775,10 @@ pub fn answer_from_check<P: Runs>(
 /// already, by an earlier choice whose acknowledgement was lost, nothing is stored: the same
 /// choice counts as stored and goes on, and another choice leaves the stored answer deciding,
 /// whose result the run gets, and is answered `unknown_item`, as a choice for an item that is
-/// no longer open (ruling RD-34 (b) (2)).
+/// no longer open (ruling RD-34 (b) (2)). The one exception is the declining choice on a
+/// `link_account` item whose stored answer is `done`: its row is stored as a row of its own, and
+/// only once the owner acknowledged it the run gets `declined`, and the move answers as for an
+/// open item (ruling RD-46 (4) B4).
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -804,10 +810,22 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         item: item.clone(),
         answer: answer.clone(),
     };
-    let earlier = store_answer(ports, ledger, limits, row, now, today).map_err(|e| cause_of(&e))?;
+    let earlier =
+        store_answer(ports, ledger, limits, row.clone(), now, today).map_err(|e| cause_of(&e))?;
     let (result, decided) = match earlier {
         None => (result, false),
         Some(What::ItemAnswered { answer: stored, .. }) if stored == answer => (result, false),
+        Some(What::ItemAnswered {
+            answer:
+                Answered::LinkAccount(LinkAnswer {
+                    answer: DoneAnswer::Done,
+                    ..
+                }),
+            ..
+        }) => {
+            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            (result, false)
+        }
         Some(What::ItemAnswered { answer: stored, .. }) => {
             let choice = stored.choice().ok_or(Cause::Malformed)?;
             (handback_result(kind, choice)?, true)
@@ -826,13 +844,15 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     handed
 }
 
-/// The state of a held second step of a `sign_in` item: open for the person's answer; its
-/// `item_answered` row stored with this answer, which the run has not taken yet; or closed.
+/// The state of a held second step of a `sign_in` item: open for the person's answer, also after
+/// a press whose row got no acknowledgement; its `item_answered` row stored and acknowledged
+/// with this answer, which the run has not taken yet; or closed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BindState {
     /// Waits for the person.
     Open,
-    /// The row of this answer is stored and `Runs::answer_bind` has not taken it.
+    /// The row of this answer is stored and acknowledged, and `Runs::answer_bind` has not
+    /// taken it.
     Recorded(BindResult),
     /// Answered or lapsed.
     Closed,
@@ -904,24 +924,30 @@ pub fn raise_bind<P: Owner + Clock + Rng>(
     })
 }
 
-/// Whether an open second step has waited `wait_limit_s` since it was raised at `now`, so that
-/// it lapses with `wait_limit` (I3.1, ruling IG-18).
+/// Whether a second step that is still held, open or with an acknowledged answer that the run
+/// did not take, has waited `wait_limit_s` since it was raised, at `now`, so that it lapses with
+/// `wait_limit` (I3.1, ruling RD-46 (2) e): the limit counts from the raise, and no press of the
+/// person moves it.
 pub fn bind_due(held: &HeldBind, now: u64, limits: &Limits) -> bool {
     let limit = held
         .raised_at
         .saturating_add(limits.wait_limit_s.saturating_mul(1000));
-    held.state == BindState::Open && now >= limit
+    held.state != BindState::Closed && now >= limit
 }
 
 /// The person's choice on a second step (I3.1): `stale` for a closed step, `malformed` for a
 /// choice other than `decline` and `allow`, and `state` for a run that the guard's table holds as
-/// stopped, after which no port is called. An open step stores its `item_answered` row, which
-/// holds the answer and the whole origin (I7.1, ruling IG-14), and only once the owner
-/// acknowledged it calls `Runs::answer_bind` with the row's answer; with no acknowledgement the
-/// answer is `no_service`, nothing is stored and the run gets nothing. A step whose row is stored
-/// and whose answer the run did not take sends the row's answer again, stores no second row, and
-/// refuses the other choice with `state`. An `answer_bind` refused with `ended` is dropped and
-/// the step closes (ruling IG-18).
+/// stopped, after which no port is called. The press stores its `item_answered` row, which holds
+/// the answer and the whole origin (I7.1, ruling IG-14), and only once the owner acknowledged it
+/// calls `Runs::answer_bind` with the row's answer; with no acknowledgement the answer is the
+/// store's cause, the run gets nothing and the step is open, so that the next press stores a row
+/// of its own (ruling RD-46 (2) a, b). A step whose acknowledged answer the run did not take
+/// sends that answer again for a press of the same choice and stores no second row; after a
+/// stored `allow` the choice `decline` stores its row and then sends `decline`; after a stored
+/// `decline` the choice `allow` is refused with `state`, and nothing is stored or sent (ruling
+/// RD-46 (2) c, d). The step closes after a success of `Runs::answer_bind` and after its refusal
+/// `ended`, which is dropped (ruling IG-18), and stays after any other error, which the port
+/// returns only when the waiting call did not get the answer (ruling RD-46 (2) g).
 pub fn answer_bind<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -938,13 +964,10 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
         return Err(Cause::State);
     }
     match held.state {
-        BindState::Recorded(stored) if stored != result => return Err(Cause::State),
-        BindState::Recorded(_) | BindState::Closed => {}
-        BindState::Open => {
-            let (now, today) = match (ports.now(), ports.today()) {
-                (Ok(now), Ok(today)) => (now, today),
-                (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
-            };
+        BindState::Recorded(stored) if stored == result => {}
+        BindState::Recorded(BindResult::Decline) => return Err(Cause::State),
+        _ => {
+            let (now, today) = clock_at(ports)?;
             let row = What::ItemAnswered {
                 item: held.item.clone(),
                 answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
@@ -952,7 +975,10 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            if let Err(e) = store_once(ports, ledger, limits, vec![row], now, today) {
+                held.state = BindState::Open;
+                return Err(cause_of(&e));
+            }
             held.state = BindState::Recorded(result);
         }
     }
@@ -969,17 +995,14 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
     }
 }
 
-/// A lapse of a second step with `cause` (I3.1, ruling IG-18), as a confirmation lapses: `stale`
-/// for a closed step. For `wait_limit`, a lapse of a run that lives, of an open step, the waiting
-/// call is answered `decline` through `Runs::answer_bind`, whose refusal is dropped; then
+/// A lapse of a second step with `cause` (I3.1, ruling IG-18), as a confirmation lapses, of an
+/// open step and of one whose acknowledged answer the run did not take alike (ruling RD-46 (2)
+/// e): `stale` for a closed step. For `wait_limit` and for `cancelled`, the person's stop of the
+/// run (ruling RD-6), the run lives: the waiting call is answered `decline` through
+/// `Runs::answer_bind`, whose refusal is dropped, so that a stored `allow` is never sent; then
 /// `item_lapsed` is stored; then the run is stopped in the guard's table and through
-/// `Runs::cancel`; a step whose row is stored is refused `wait_limit` with `state`, because the
-/// person answered it. For `cancelled`, the person's stop of the run (ruling RD-6), an open step
-/// lapses as for `wait_limit`, and a step whose row is stored keeps its row and stays to the end of
-/// its run, which is stopped in the guard's table and through `Runs::cancel`, the fact that
-/// `Act::Stop` reads. For `run_ended` and `app_ended`, of an open step or of one whose row is
-/// stored and whose answer the run did not take, only `item_lapsed` is stored, and the step
-/// closes.
+/// `Runs::cancel`, the fact that `Act::Stop` reads. For `run_ended` and `app_ended` only
+/// `item_lapsed` is stored. The step closes in each case.
 pub fn lapse_bind<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -988,23 +1011,14 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
     cause: OtherLapse,
     limits: &Limits,
 ) -> Result<(), Cause> {
+    if held.state == BindState::Closed {
+        return Err(Cause::Stale);
+    }
     let run = held.ask.run.clone();
     let lives = match cause {
         OtherLapse::WaitLimit | OtherLapse::Cancelled => true,
         OtherLapse::RunEnded | OtherLapse::AppEnded => false,
     };
-    match held.state {
-        BindState::Closed => return Err(Cause::Stale),
-        BindState::Recorded(_) if cause == OtherLapse::Cancelled => {
-            if !table.is_stopped(&run) {
-                *table = table.stop(&run);
-                let _ = ports.cancel(&run);
-            }
-            return Ok(());
-        }
-        BindState::Recorded(_) if lives => return Err(Cause::State),
-        BindState::Recorded(_) | BindState::Open => {}
-    }
     if lives {
         let _ = ports.answer_bind(&run, BindResult::Decline);
     }
