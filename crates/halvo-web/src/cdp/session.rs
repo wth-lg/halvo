@@ -75,6 +75,15 @@ pub struct Stopped {
     pub profile: Option<PathBuf>,
     pub temp: Option<PathBuf>,
     pub removed: bool,
+    /// Whether the last read of the stop's wait found the process table unread, so that the wait
+    /// stayed open until `STOP_WAIT` and `left` may lack a process (CP-170 E15).
+    pub table_unread: bool,
+}
+
+/// Whether the stop's wait ends at a read: when nothing of the run runs and the table was read, or
+/// when `STOP_WAIT` has passed; a read of an unread table is never one that found nothing.
+fn wait_ends(nothing_runs: bool, unread: bool, timed_out: bool) -> bool {
+    (nothing_runs && !unread) || timed_out
 }
 
 fn state_fault(detail: impl std::fmt::Display) -> Fault {
@@ -463,8 +472,11 @@ impl Executor {
         let mark = self.mark.clone();
         let stopped_at = Instant::now();
         let (_, first) = self.stop().await;
+        let mut unread;
         let left = loop {
-            let now = procs::table().unwrap_or_default();
+            let read = procs::table();
+            unread = read.is_err();
+            let now = read.unwrap_or_default();
             let grown = procs::descendants(&now, &tree);
             push_new(&mut tree, grown);
             let more = procs::adopted(&now, &tree, since, &roots);
@@ -475,7 +487,7 @@ impl Executor {
                 .filter(|p| procs::running(p))
                 .cloned()
                 .collect();
-            if living.is_empty() || stopped_at.elapsed() > STOP_WAIT {
+            if wait_ends(living.is_empty(), unread, stopped_at.elapsed() > STOP_WAIT) {
                 break living;
             }
             if stopped_at.elapsed() > KILL_AFTER {
@@ -502,6 +514,7 @@ impl Executor {
             profile,
             temp,
             removed,
+            table_unread: unread,
         }
     }
 }
@@ -549,6 +562,15 @@ mod tests {
                 ],
             }],
         }
+    }
+
+    /// CP-170 E15 (review N3): a read of an unread table keeps the stop's wait open.
+    #[test]
+    fn an_unread_table_keeps_the_stop_s_wait_open() {
+        assert!(!wait_ends(true, true, false));
+        assert!(wait_ends(true, false, false));
+        assert!(wait_ends(true, true, true));
+        assert!(!wait_ends(false, false, false));
     }
 
     #[test]
