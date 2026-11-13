@@ -286,6 +286,15 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
     let parsed: Url = origin.parse().expect("a URL");
     assert_eq!((parsed.username(), parsed.password()), ("", Some("secret")));
     assert!(!app::is_app_url(&parsed), "the rule allows {origin}");
+    for (scheme, host) in [("tauri", "localhost"), ("http", "tauri.localhost")] {
+        let arm: Url = format!("{scheme}://:secret@{host}/")
+            .parse()
+            .expect("a URL");
+        assert!(
+            !app::is_origin(&arm, (scheme, host)),
+            "the arm {scheme}://{host} allows {arm}"
+        );
+    }
     assert!(
         !app::may_navigate(&page_address),
         "the rule allows {page_address}"
