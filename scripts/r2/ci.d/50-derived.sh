@@ -21,6 +21,8 @@ esac
 #= src/lib.rs tests::rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one
 #= src/lib.rs tests::the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing
 #= src/lib.rs tests::rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone
+#= src/lib.rs tests::the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing
+#= src/lib.rs tests::held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead
 #= tests/open.rs open_refuses_a_key_that_does_not_open_the_database
 #= tests/open.rs open_refuses_while_another_store_holds_the_writer_lock
 #= tests/open.rs the_database_refuses_another_connection_while_the_store_is_open
@@ -83,6 +85,15 @@ esac
 #= tests/typed.rs a_stored_row_that_a_later_typed_reader_refuses_keeps_its_workflow_and_its_day_and_goes_at_that_day
 #= tests/typed.rs two_requests_of_one_family_never_interleave_at_the_test_host
 #= tests/typed.rs a_fault_of_a_handler_s_keyed_read_is_answered_as_the_fault_of_its_request_and_stays_with_its_workflow
+#= tests/typed.rs held_ahead_is_no_at_two_days_ahead_and_yes_at_three_and_the_expiry_removes_the_row_of_the_yes
+#= tests/typed.rs held_ahead_is_yes_before_the_expiry_and_no_after_it_at_one_clock
+#= tests/typed.rs held_ahead_is_no_for_a_row_past_its_day_of_going_at_a_clock_set_forward
+#= tests/typed.rs held_ahead_is_no_after_the_delete_of_the_workflow
+#= tests/typed.rs held_ahead_is_no_for_another_workflow_and_for_another_kind_of_the_family
+#= tests/typed.rs held_ahead_answers_role_under_a_runner_request_and_under_a_request_of_a_further_role
+#= tests/typed.rs held_ahead_refuses_the_kinds_that_it_cannot_answer_for_and_a_kind_of_the_handler_behind
+#= tests/typed.rs three_held_ahead_calls_change_no_file_no_revision_and_give_no_report
+#= tests/typed.rs held_ahead_answers_by_the_one_reading_of_its_request
 #= tests/typed.rs open_refuses_a_step_or_a_handler_of_the_family_workflow
 #= tests/typed.rs the_owner_answers_unsupported_or_malformed_where_no_handler_takes_the_request
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused

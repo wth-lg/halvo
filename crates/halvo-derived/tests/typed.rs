@@ -8,8 +8,8 @@ use common::{
     TestClock, FRONT, NOTE, NOTE_UNKEYED, OWN, TRACE,
 };
 use halvo_derived::{
-    Cause, Committed, DayFault, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store,
-    StoredFault, Takes,
+    Cause, Committed, DayFault, Error, Handler, HandlerCx, HeldRefusal, Host, OpenError, Refusal,
+    Store, StoredFault, Takes,
 };
 use halvo_schema_core::ids::WorkflowId;
 use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
@@ -1818,5 +1818,410 @@ fn a_fault_of_a_handler_s_keyed_read_is_answered_as_the_fault_of_its_request_and
         vec![(true, 0), (true, 0), (false, 1)],
         "(the request answered the fault, rows visited) for the keyed read of the first workflow, the read of the \
          whole kind and the keyed read of the second workflow"
+    );
+}
+
+/// What one handler asks with `HandlerCx::held_ahead` in one request: the kind and the workflow id.
+type HeldAsks = Rc<RefCell<Vec<(&'static str, String)>>>;
+type HeldAnswers = Rc<RefCell<Vec<Result<bool, HeldRefusal>>>>;
+
+/// A handler that commits the records that the test put in `records`, asks each of `asks` and keeps the answers in
+/// `answers`, and, where `pass` is set, passes the request on after its asks.
+fn held_handler(
+    pass: bool,
+    records: &Records,
+    asks: &HeldAsks,
+    answers: &HeldAnswers,
+) -> Box<dyn Handler> {
+    let records = Rc::clone(records);
+    let asks = Rc::clone(asks);
+    let answers = Rc::clone(answers);
+    Box::new(FnHandler(move |_: &RawRequest, cx: &mut HandlerCx<'_>| {
+        let list: Vec<TypedRecord> = records.borrow_mut().drain(..).collect();
+        if !list.is_empty() {
+            assert!(matches!(cx.commit(&list), Ok(c) if c.stored == list.len() as u64));
+        }
+        for (kind, workflow) in asks.borrow().iter() {
+            let id = WorkflowId::parse(workflow).unwrap();
+            answers.borrow_mut().push(cx.held_ahead(kind, &id));
+        }
+        if pass {
+            cx.pass_on()?;
+        }
+        Ok(reply("null"))
+    }))
+}
+
+/// A store with two workflows, the kinds of the family `test` and `front_mark`, and one handler of the family `test`
+/// for `coordinator_write` bodies of the op `held`, for `runner` requests and for the further role `test_role`.
+struct Held {
+    store: Store,
+    clock: TestClock,
+    first: String,
+    second: String,
+    records: Records,
+    asks: HeldAsks,
+    answers: HeldAnswers,
+    reports: Rc<RefCell<usize>>,
+    scratch: Scratch,
+}
+
+const HELD: &str = r#"{"op":"held"}"#;
+
+impl Held {
+    fn new(name: &str) -> Held {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let (first, second) = two_workflows(&scratch, &clock);
+        let records: Records = Rc::new(RefCell::new(Vec::new()));
+        let asks: HeldAsks = Rc::new(RefCell::new(Vec::new()));
+        let answers: HeldAnswers = Rc::new(RefCell::new(Vec::new()));
+        let reports = Rc::new(RefCell::new(0));
+        let sink = Rc::clone(&reports);
+        let host = base(&clock, Grouping { min: 1 })
+            .handler(
+                "test",
+                Takes::Coordinator(&["held"]),
+                held_handler(false, &records, &asks, &answers),
+            )
+            .handler(
+                "test",
+                Takes::Runner,
+                held_handler(false, &records, &asks, &answers),
+            )
+            .handler(
+                "test",
+                Takes::Role("test_role"),
+                held_handler(false, &records, &asks, &answers),
+            )
+            .on_report(Box::new(move |_| *sink.borrow_mut() += 1));
+        let store = open_entries(&scratch, host, &[&NOTE, &TRACE, &OWN, &FRONT, &PLAIN]).unwrap();
+        Held {
+            store,
+            clock,
+            first,
+            second,
+            records,
+            asks,
+            answers,
+            reports,
+            scratch,
+        }
+    }
+
+    /// Commits `records` under a `coordinator_write` with the clock on `day`, then sets the clock to `at`.
+    fn store_on(&mut self, day: u32, records: Vec<TypedRecord>, at: i64) {
+        self.clock.set_day(day);
+        *self.records.borrow_mut() = records;
+        self.store
+            .handle(&raw_request("coordinator_write", HELD))
+            .unwrap();
+        self.clock.set(at);
+    }
+
+    /// The answers of `asks` in one request of the role `name` with the body `body`.
+    fn ask(
+        &mut self,
+        name: &str,
+        body: &str,
+        asks: Vec<(&'static str, String)>,
+    ) -> Vec<Result<bool, HeldRefusal>> {
+        *self.asks.borrow_mut() = asks;
+        self.answers.borrow_mut().clear();
+        self.store.handle(&raw_request(name, body)).unwrap();
+        self.answers.borrow().clone()
+    }
+
+    fn held(&mut self, kind: &'static str, workflow: &str) -> Result<bool, HeldRefusal> {
+        let w = workflow.to_owned();
+        self.ask("coordinator_write", HELD, vec![(kind, w)])
+            .remove(0)
+    }
+}
+
+fn noon(day: u32) -> i64 {
+    i64::from(day) * common::DAY_NS + NOON
+}
+
+/// S-59 (a) 1 and 2: no while the only row of the kind and workflow lies two days after the clock's day, yes once one
+/// lies three days after it, and the expiry at that clock removes exactly the row that made the yes.
+#[test]
+fn held_ahead_is_no_at_two_days_ahead_and_yes_at_three_and_the_expiry_removes_the_row_of_the_yes() {
+    let mut fx = Held::new("held-two-three");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY + 2, vec![note(&w1, DAY + 2, 6)], noon(DAY));
+    let two = fx.held("test_note", &w1);
+    fx.store_on(DAY + 3, vec![note(&w1, DAY + 3, 7)], noon(DAY));
+    let three = fx.held("test_note", &w1);
+    let removed = fx.store.expire().unwrap();
+    let after = fx.held("test_note", &w1);
+    drop(fx.store);
+    assert_eq!(
+        (two, three, removed, after),
+        (Ok(false), Ok(true), 1, Ok(false))
+    );
+    assert_eq!(
+        kind_rows(&fx.scratch, "test_note"),
+        [format!(
+            r#"{{"v":1,"workflow":"{w1}","day":{},"n":6}}"#,
+            DAY + 2
+        )]
+    );
+}
+
+/// S-59 (a) 6: the call is no read: at one clock it answers yes before `Store::expire` and no after it.
+#[test]
+fn held_ahead_is_yes_before_the_expiry_and_no_after_it_at_one_clock() {
+    let mut fx = Held::new("held-expiry");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY + 2, vec![note(&w1, DAY + 2, 1)], noon(DAY - 1));
+    let before = fx.held("test_note", &w1);
+    assert!(fx.store.expire().unwrap() >= 1);
+    let after = fx.held("test_note", &w1);
+    drop(fx.store);
+    assert_eq!((before, after), (Ok(true), Ok(false)));
+}
+
+/// S-59 (a) 2: a row past its day of going, at a clock set forward with no expiry run, is no row ahead of the clock.
+#[test]
+fn held_ahead_is_no_for_a_row_past_its_day_of_going_at_a_clock_set_forward() {
+    let mut fx = Held::new("held-past");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY, vec![note(&w1, DAY - 92, 1)], noon(DAY + 5));
+    let answer = fx.held("test_note", &w1);
+    drop(fx.store);
+    assert_eq!(answer, Ok(false));
+    assert_eq!(kind_rows(&fx.scratch, "test_note").len(), 1);
+}
+
+/// S-59 (a) 1: after the delete of the workflow no row of it is ahead of the clock.
+#[test]
+fn held_ahead_is_no_after_the_delete_of_the_workflow() {
+    let mut fx = Held::new("held-delete");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY + 3, vec![note(&w1, DAY + 3, 1)], noon(DAY));
+    let before = fx.held("test_note", &w1);
+    delete_workflow(&mut fx.store, &w1);
+    let after = fx.held("test_note", &w1);
+    drop(fx.store);
+    assert_eq!((before, after), (Ok(true), Ok(false)));
+}
+
+/// S-59 (a) 1 and 2: a row three days ahead answers for its kind and its workflow alone: no for the other workflow and
+/// no for the other kinds of the family that have a workflow key.
+#[test]
+fn held_ahead_is_no_for_another_workflow_and_for_another_kind_of_the_family() {
+    let mut fx = Held::new("held-other");
+    let (w1, w2) = (fx.first.clone(), fx.second.clone());
+    fx.store_on(DAY + 3, vec![note(&w1, DAY + 3, 1)], noon(DAY));
+    let answers = fx.ask(
+        "coordinator_write",
+        HELD,
+        vec![
+            ("test_note", w1.clone()),
+            ("test_note", w2),
+            ("test_own", w1.clone()),
+            ("test_trace", w1),
+        ],
+    );
+    drop(fx.store);
+    assert_eq!(answers, [Ok(true), Ok(false), Ok(false), Ok(false)]);
+}
+
+/// S-59 (a) 3 and 4: under a `runner` request and under a request of a further role the call answers `role`, while
+/// under a `coordinator_write` the same handler code gets the yes.
+#[test]
+fn held_ahead_answers_role_under_a_runner_request_and_under_a_request_of_a_further_role() {
+    let mut fx = Held::new("held-role");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY + 3, vec![note(&w1, DAY + 3, 1)], noon(DAY));
+    let ask = vec![("test_note", w1)];
+    let answers = [
+        fx.ask("runner", "{}", ask.clone()),
+        fx.ask("test_role", "{}", ask.clone()),
+        fx.ask("coordinator_write", HELD, ask),
+    ];
+    drop(fx.store);
+    assert_eq!(
+        answers,
+        [
+            vec![Err(HeldRefusal::Role)],
+            vec![Err(HeldRefusal::Role)],
+            vec![Ok(true)]
+        ]
+    );
+}
+
+/// S-59 (a) 3 and 4: a refusal, and never no, for a kind that the store was not opened with, a kind of another
+/// family, a kind of the family `workflow` and a kind whose entry gives no workflow key; and a handler in front, of
+/// the family `front`, that asks about a kind of the handler behind gets the refusal while the handler behind gets
+/// its answer.
+#[test]
+fn held_ahead_refuses_the_kinds_that_it_cannot_answer_for_and_a_kind_of_the_handler_behind() {
+    let mut fx = Held::new("held-refusals");
+    let w1 = fx.first.clone();
+    fx.store_on(
+        DAY + 3,
+        vec![note(&w1, DAY + 3, 1), plain(&w1, DAY + 3, 2)],
+        noon(DAY),
+    );
+    let answers = fx.ask(
+        "coordinator_write",
+        HELD,
+        vec![
+            ("test_missing", w1.clone()),
+            ("front_mark", w1.clone()),
+            ("support", w1.clone()),
+            ("test_plain", w1.clone()),
+        ],
+    );
+    drop(fx.store);
+    assert_eq!(
+        answers,
+        [
+            Err(HeldRefusal::UnknownKind),
+            Err(HeldRefusal::OtherFamily),
+            Err(HeldRefusal::WorkflowRun),
+            Err(HeldRefusal::NoWorkflowKey),
+        ]
+    );
+    let scratch = Scratch::new("held-front");
+    let clock = TestClock::at_day(DAY + 3);
+    let (w1, _) = two_workflows(&scratch, &clock);
+    let none: Records = Rc::new(RefCell::new(Vec::new()));
+    let behind_records: Records = Rc::new(RefCell::new(vec![note(&w1, DAY + 3, 1)]));
+    let asks: HeldAsks = Rc::new(RefCell::new(vec![("test_note", w1.clone())]));
+    let front: HeldAnswers = Rc::new(RefCell::new(Vec::new()));
+    let behind: HeldAnswers = Rc::new(RefCell::new(Vec::new()));
+    let host = base(&clock, Grouping { min: 1 })
+        .handler(
+            "front",
+            Takes::Coordinator(&["held"]),
+            held_handler(true, &none, &asks, &front),
+        )
+        .handler(
+            "test",
+            Takes::Coordinator(&["held"]),
+            held_handler(false, &behind_records, &asks, &behind),
+        );
+    let mut store = open_entries(&scratch, host, &[&NOTE, &FRONT]).unwrap();
+    store
+        .handle(&raw_request("coordinator_write", HELD))
+        .unwrap();
+    front.borrow_mut().clear();
+    behind.borrow_mut().clear();
+    clock.set(noon(DAY));
+    store
+        .handle(&raw_request("coordinator_write", HELD))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        (front.borrow().clone(), behind.borrow().clone()),
+        (vec![Err(HeldRefusal::OtherFamily)], vec![Ok(true)]),
+        "(the handler in front, the handler behind)"
+    );
+}
+
+/// S-59 (a) 1 and 6: three calls change no byte of the database's files, raise no revision and give the host no
+/// report.
+#[test]
+fn three_held_ahead_calls_change_no_file_no_revision_and_give_no_report() {
+    let mut fx = Held::new("held-no-write");
+    let w1 = fx.first.clone();
+    fx.store_on(DAY + 3, vec![note(&w1, DAY + 3, 1)], noon(DAY));
+    let files = |fx: &Held| -> Vec<Vec<u8>> {
+        let db = fx.scratch.db();
+        [db.clone(), db.with_extension("db-wal")]
+            .iter()
+            .map(|p| std::fs::read(p).unwrap_or_default())
+            .collect()
+    };
+    let before = (
+        files(&fx),
+        fx.store.report().unwrap().revisions,
+        *fx.reports.borrow(),
+    );
+    let answers = fx.ask(
+        "coordinator_write",
+        HELD,
+        vec![
+            ("test_note", w1.clone()),
+            ("test_note", w1.clone()),
+            ("test_note", w1),
+        ],
+    );
+    let after = (
+        files(&fx),
+        fx.store.report().unwrap().revisions,
+        *fx.reports.borrow(),
+    );
+    drop(fx.store);
+    assert_eq!(answers, [Ok(true), Ok(true), Ok(true)]);
+    assert!(
+        before == after,
+        "the files, the revisions and the count of reports"
+    );
+}
+
+/// A host clock that moves on by one nanosecond after each reading and counts its readings.
+#[derive(Clone)]
+struct MovingClock {
+    at: Rc<std::cell::Cell<i64>>,
+    readings: Rc<std::cell::Cell<u32>>,
+}
+
+impl halvo_derived::Clock for MovingClock {
+    fn now(&self) -> halvo_schema_core::record::Instant {
+        self.readings.set(self.readings.get() + 1);
+        let at = self.at.get();
+        self.at.set(at + 1);
+        halvo_schema_core::record::Instant(at)
+    }
+
+    fn day(&self, at: halvo_schema_core::record::Instant) -> u32 {
+        u32::try_from(at.0.div_euclid(common::DAY_NS)).unwrap()
+    }
+
+    fn day_start(&self, day: u32) -> halvo_schema_core::record::Instant {
+        halvo_schema_core::record::Instant(i64::from(day) * common::DAY_NS)
+    }
+}
+
+/// S-59 (a) 1 and 8: the call answers by the one reading of the host's clock that the handled request took at its
+/// start. A request that starts in the last nanosecond of DAY, while a row lies on DAY + 3, gets the yes although
+/// the clock has passed into DAY + 1, where the row lies two days ahead, before the call is made; the request reads
+/// the clock once.
+#[test]
+fn held_ahead_answers_by_the_one_reading_of_its_request() {
+    let scratch = Scratch::new("held-one-reading");
+    let (w1, _) = two_workflows(&scratch, &TestClock::at_day(DAY));
+    let clock = MovingClock {
+        at: Rc::new(std::cell::Cell::new(noon(DAY + 3))),
+        readings: Rc::new(std::cell::Cell::new(0)),
+    };
+    let records: Records = Rc::new(RefCell::new(vec![note(&w1, DAY + 3, 1)]));
+    let asks: HeldAsks = Rc::new(RefCell::new(Vec::new()));
+    let answers: HeldAnswers = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+        "test",
+        Takes::Coordinator(&["held"]),
+        held_handler(false, &records, &asks, &answers),
+    );
+    let mut store = open_entries(&scratch, host, &[&NOTE]).unwrap();
+    store
+        .handle(&raw_request("coordinator_write", HELD))
+        .unwrap();
+    *asks.borrow_mut() = vec![("test_note", w1)];
+    clock.at.set(i64::from(DAY + 1) * common::DAY_NS - 1);
+    clock.readings.set(0);
+    store
+        .handle(&raw_request("coordinator_write", HELD))
+        .unwrap();
+    let readings = clock.readings.get();
+    drop(store);
+    assert_eq!(
+        (answers.borrow().clone(), readings),
+        (vec![Ok(true)], 1),
+        "(the answer, the readings of the clock in the request)"
     );
 }

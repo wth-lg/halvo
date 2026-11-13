@@ -430,3 +430,54 @@ fn rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alon
         "the expiry leaves what the keyed read handed out"
     );
 }
+
+/// S-59 (a) 2 and DS-4 H2: the statement of the held-ahead call searches the rows of its kind by their day and sorts
+/// nothing.
+#[test]
+fn the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing() {
+    assert_eq!(
+        plan_of(sql::HELD_AHEAD),
+        ["SEARCH rows USING INDEX rows_kind_day (kind=? AND day>?)"]
+    );
+}
+
+/// S-59 (a) 2 at the level of the statement: it finds a row of its kind and workflow whose day lies more than two days
+/// after the clock's day, and no row one or two days ahead, no row past its day of going, no bounded row with no day,
+/// no row of another workflow or kind, and no row whose workflow column is empty while its text names the workflow.
+#[test]
+fn held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    let w1 = "10000000000000000000000000000001";
+    let w2 = "20000000000000000000000000000002";
+    let insert = |kind: &str, day: Option<i64>, gone: Option<i64>, workflow: Option<&str>| {
+        conn.execute(
+            "INSERT INTO rows (kind, family, class, day, gone, workflow, body) VALUES (?1, 'test', 1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![kind, day, gone, workflow, format!("{kind} {day:?} {workflow:?}")],
+        )
+        .unwrap();
+    };
+    let held = |kind: &str, workflow: &str| -> bool {
+        let ahead = NOW.ahead_limit();
+        conn.query_row(
+            sql::HELD_AHEAD.text(),
+            rusqlite::named_params! {":kind": kind, ":workflow": workflow, ":ahead": ahead},
+            |_| Ok(()),
+        )
+        .is_ok()
+    };
+    insert("k", Some(TODAY + 1), Some(TODAY + 94), Some(w1));
+    insert("k", Some(TODAY + 2), Some(TODAY + 95), Some(w1));
+    insert("k", Some(TODAY - 93), Some(TODAY), Some(w1));
+    insert("k", None, None, Some(w1));
+    insert("k", Some(TODAY + 3), Some(TODAY + 96), None);
+    insert("other", Some(TODAY + 3), Some(TODAY + 96), Some(w1));
+    let before = (held("k", w1), held("k", w2), held("other", w2));
+    insert("k", Some(TODAY + 3), Some(TODAY + 96), Some(w2));
+    let after = (held("k", w1), held("k", w2), held("other", w2));
+    assert_eq!(
+        (before, after),
+        ((false, false, false), (false, true, false)),
+        "((k under w1, k under w2, other under w2) before and after a row of k three days ahead under w2)"
+    );
+}

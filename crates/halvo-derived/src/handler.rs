@@ -16,7 +16,7 @@ use crate::Store;
 /// and answers with the serialized reply of the body's own reply type, which the owner writes with the reply writer
 /// of the schema, or with an error name.
 pub trait Handler {
-    /// Answers one request. `cx` offers the four calls of the store and, to a handler in front, `pass_on`.
+    /// Answers one request. `cx` offers the five calls of the store and, to a handler in front, `pass_on`.
     fn handle(
         &self,
         request: &RawRequest,
@@ -150,9 +150,9 @@ impl crate::Host {
     }
 }
 
-/// What the store offers a handler while it answers one request: the typed commit, the state call, the read of
-/// the rows of the handler's own family and the read of one stored workflow, and to a handler in front the call
-/// that passes the request on. Each call keeps the handler's own family, the handler behind as well.
+/// What the store offers a handler while it answers one request: the typed commit, the state call, the held-ahead
+/// call, the read of the rows of the handler's own family and the read of one stored workflow, and to a handler in
+/// front the call that passes the request on. Each call keeps the handler's own family, the handler behind as well.
 pub struct HandlerCx<'a> {
     pub(crate) db: &'a Db,
     pub(crate) request: &'a RawRequest,
