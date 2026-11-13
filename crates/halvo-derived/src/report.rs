@@ -15,8 +15,8 @@ pub struct Counts {
 /// daemon carries: the revision of every family of the entries, in their order; the count per class; the bytes on
 /// disk of the database file, its write-ahead log and its shared-memory file, summed; and the next expiry deadline,
 /// the first instant at which a stored row passes its bound, or none where no stored row expires. A row whose day lies
-/// more than two days after the clock's day is due now: the deadline is then the clock's instant at the report, and
-/// the row stays counted in its class until the expiry removes it.
+/// more than two days after the clock's day, and a bounded row with no day, is due now: the deadline is then the
+/// clock's instant at the report, and the row stays counted in its class (bounded) until the expiry removes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Report {
     pub revisions: Vec<(&'static str, u64)>,
@@ -31,7 +31,8 @@ impl Store {
     /// opened with, or whose day lies more than two days after the clock's day, every window row whose expiry has
     /// passed, and every row that then names a summary or a workflow that is not stored. A row whose day lies one or
     /// two days after the clock's day stays, as after a change of time zone or a clock set back by a day, and goes on
-    /// its own day of going. It returns the number of rows removed and raises
+    /// its own day of going. A bounded row with no day, which only a fault or another build can leave, goes and is
+    /// counted. It returns the number of rows removed and raises
     /// the revision of every family that lost a row; the truncating checkpoint runs after it.
     pub fn expire(&mut self) -> Result<u64, Fault> {
         let db = &self.db;

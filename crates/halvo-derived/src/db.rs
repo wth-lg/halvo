@@ -106,6 +106,16 @@ pub(crate) struct Tx<'c> {
     changed: RefCell<BTreeSet<String>>,
 }
 
+impl<'c> Tx<'c> {
+    /// The writer of one transaction that `conn` holds open.
+    pub(crate) fn new(conn: &'c Connection) -> Tx<'c> {
+        Tx {
+            conn,
+            changed: RefCell::new(BTreeSet::new()),
+        }
+    }
+}
+
 impl Tx<'_> {
     pub(crate) fn exec<P: Params>(&self, sql: Sql, params: P) -> Result<usize, Fault> {
         exec(self.conn, sql, params)
@@ -201,14 +211,17 @@ impl Tx<'_> {
     }
 
     /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local
-    /// day of the clock, or whose day lies more than two days after the clock's day, every window row whose expiry
-    /// instant has passed, and then every row that names a summary or a workflow that is not stored. A row whose day
-    /// lies one or two days after the clock's day stays and goes on its own day of `gone`. It returns the number of
+    /// day of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window
+    /// row whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored.
+    /// A row whose day lies one or two days after the clock's day stays and goes on its own day of `gone`. A bounded
+    /// row with no day comes only from a fault or another build, since the store gives each bounded row its day; it
+    /// was promised to go, so it goes. A window row and a kept row with no day are left to their own rules. It returns the number of
     /// rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too, and the
     /// report reads a row too far ahead by the same statement and the same limit.
     pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
         let removed = self.remove(sql::EXPIRE_GONE, [now.today])?
             + self.remove(sql::EXPIRE_AHEAD, [now.ahead_limit()])?
+            + self.remove(sql::EXPIRE_NO_DAY, [bounded_code()])?
             + self.remove(sql::EXPIRE_WINDOW, [now.now])?;
         Ok(removed + self.sweep()?)
     }
@@ -336,6 +349,24 @@ pub(crate) fn rows<T, P: Params>(
         out.push(map(row).map_err(db_fault)?);
     }
     Ok(out)
+}
+
+/// Whether a stored row is due at `now` by a rule that no stored day of going and no expiry instant gives: a row whose
+/// day lies more than two days after the clock's day, or a bounded row with no day. The expiry removes these rows by
+/// the same statements, and the report gives the clock's instant as its deadline while one is stored.
+pub(crate) fn due_now(conn: &Connection, now: Now) -> Result<bool, Fault> {
+    let ahead = one(conn, sql::EXPIRE_AHEAD, [now.ahead_limit()], |r| {
+        r.get::<_, i64>(0)
+    })?;
+    let no_day = one(conn, sql::EXPIRE_NO_DAY, [bounded_code()], |r| {
+        r.get::<_, i64>(0)
+    })?;
+    Ok(ahead.is_some() || no_day.is_some())
+}
+
+/// The class code of a bounded row.
+fn bounded_code() -> i64 {
+    class_code(RetentionClass::Bounded { days: 0 })
 }
 
 pub(crate) fn one<T, P: Params>(
@@ -620,11 +651,8 @@ impl Db {
         let gone_at =
             min_gone.map(|day| self.clock.day_start(u32::try_from(day).unwrap_or(u32::MAX)));
         let now = self.now();
-        let ahead = one(&self.conn, sql::EXPIRE_AHEAD, [now.ahead_limit()], |r| {
-            r.get::<_, i64>(0)
-        })?;
-        let due_now = ahead.map(|_| Instant(now.now));
-        let expiry = [min_expires.map(Instant), gone_at, due_now]
+        let due = due_now(&self.conn, now)?.then_some(Instant(now.now));
+        let expiry = [min_expires.map(Instant), gone_at, due]
             .into_iter()
             .flatten()
             .min();
@@ -638,10 +666,7 @@ impl Db {
 
     fn commit<T, E: From<Fault>>(&self, f: impl FnOnce(&Tx<'_>) -> Result<T, E>) -> Result<T, E> {
         let tx = self.conn.unchecked_transaction().map_err(db_fault)?;
-        let writer = Tx {
-            conn: &tx,
-            changed: RefCell::new(BTreeSet::new()),
-        };
+        let writer = Tx::new(&tx);
         let out = f(&writer)?;
         for family in writer.changed.borrow().iter() {
             exec(&tx, sql::REVISION_ENSURE, [family])?;

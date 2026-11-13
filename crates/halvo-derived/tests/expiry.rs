@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, episode, open_entries, open_host, position, store_id, summary_id, Grouping,
-    NoProposals, Scratch, Seq, TestClock, DAY_NS, NOTE, TRACE,
+    bodies, episode, open_entries, open_host, position, raw, store_id, summary_id, Grouping,
+    NoProposals, Scratch, Seq, TestClock, DAY_NS, NOTE, OWN, TRACE,
 };
 use halvo_derived::{Counts, Host, Report};
 use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
@@ -525,4 +525,58 @@ fn a_row_one_or_two_days_after_the_clock_stays_and_a_row_three_days_after_it_goe
     assert_eq!((report.counts.bounded, report.expiry), (1, first_gone));
     drop(store);
     assert_eq!(bodies(&scratch, "test_b1"), vec![b1(DAY - 1).json]);
+}
+
+fn kinds_stored(scratch: &Scratch) -> Vec<String> {
+    raw(scratch)
+        .prepare("SELECT kind FROM rows ORDER BY kind")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+#[test]
+fn a_bounded_row_with_no_day_goes_at_the_next_expiry_and_a_kept_or_window_row_with_none_stays() {
+    let scratch = Scratch::new("bounded-no-day");
+    let clock = TestClock::at_day(DAY);
+    let entries: &[&'static KindEntry] = &[&B1_30, &OWN, &W_ONE];
+    drop(open_entries(&scratch, plain(&clock), entries).unwrap());
+    let far: i64 = 9_000_000_000_000_000_000;
+    raw(&scratch)
+        .execute_batch(&format!(
+            "INSERT INTO rows (kind, family, class, body) VALUES ('test_b1', 'test', 1, '{{\"v\":1}}'), \
+             ('test_own', 'test', 2, '{{\"v\":1}}'); \
+             INSERT INTO rows (kind, family, class, expires, body) VALUES ('test_w', 'test', 0, {far}, \
+             '{{\"v\":1}}');"
+        ))
+        .unwrap();
+    assert_eq!(kinds_stored(&scratch), ["test_b1", "test_own", "test_w"]);
+    let mut store = open_entries(&scratch, plain(&clock), entries).unwrap();
+    let report = store.report().unwrap();
+    let removed = store.expire().unwrap();
+    drop(store);
+    assert_eq!(
+        (
+            kinds_stored(&scratch),
+            report.counts,
+            report.expiry,
+            removed
+        ),
+        (
+            vec!["test_own".to_owned(), "test_w".to_owned()],
+            Counts {
+                window: 1,
+                bounded: 0,
+                kept: 1
+            },
+            Some(Instant(far)),
+            0
+        ),
+        "(kinds left after the open, counts, deadline, rows that a second expiry removes)"
+    );
+    clock.set_day(DAY + 400);
+    drop(open_entries(&scratch, plain(&clock), entries).unwrap());
+    assert_eq!(kinds_stored(&scratch), ["test_own", "test_w"]);
 }
