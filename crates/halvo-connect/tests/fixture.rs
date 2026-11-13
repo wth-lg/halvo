@@ -421,3 +421,98 @@ fn a_panic_after_the_start_leaves_no_fixture_server() {
     let pid = rx.recv().expect("the pid of the server");
     assert!(!alive(pid), "the fixture server ended with the panic");
 }
+
+const HOLDER: &str = "HALVO_CONNECT_TEST_FIXTURE_HOLDER";
+
+#[test]
+fn a_fixture_holder() {
+    if std::env::var_os(HOLDER).is_none() {
+        return;
+    }
+    let pid = std::cell::Cell::new(0);
+    let _fixture = Fixture::start_then(|id| pid.set(id));
+    println!("\nfixture server pid {}", pid.get());
+    let _ = std::io::Read::read_to_end(&mut std::io::stdin(), &mut Vec::new());
+}
+
+struct Holder(std::process::Child);
+
+impl Drop for Holder {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+struct Leftover(u32);
+
+impl Drop for Leftover {
+    fn drop(&mut self) {
+        if alive(self.0) {
+            end(self.0);
+        }
+    }
+}
+
+fn end(pid: u32) {
+    #[cfg(unix)]
+    let ended = std::process::Command::new("kill")
+        .args(["-KILL", &pid.to_string()])
+        .status();
+    #[cfg(windows)]
+    let ended = std::process::Command::new("taskkill")
+        .args(["/F", "/PID", &pid.to_string()])
+        .stdout(std::process::Stdio::null())
+        .status();
+    let _ = ended;
+}
+
+#[test]
+fn a_hard_kill_of_the_test_process_ends_its_fixture_server() {
+    use std::io::BufRead;
+    use std::time::{Duration, Instant};
+
+    let mut holder = Holder(
+        std::process::Command::new(std::env::current_exe().expect("the test binary"))
+            .args([
+                "a_fixture_holder",
+                "--exact",
+                "--nocapture",
+                "--test-threads",
+                "1",
+            ])
+            .env(HOLDER, "1")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("the test binary starts"),
+    );
+    let stdout = holder.0.stdout.take().expect("its standard output");
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in std::io::BufReader::new(stdout).lines() {
+            let Ok(line) = line else { break };
+            if let Some(pid) = line.strip_prefix("fixture server pid ") {
+                let _ = tx.send(pid.parse::<u32>().ok());
+                break;
+            }
+        }
+    });
+    let pid = rx
+        .recv_timeout(Duration::from_secs(60))
+        .ok()
+        .flatten()
+        .expect("the holder prints the pid of its fixture server");
+    let _leftover = Leftover(pid);
+    assert!(alive(pid), "the fixture server runs");
+    holder.0.kill().expect("the hard kill of the holder");
+    holder.0.wait().expect("the holder ends");
+    let start = Instant::now();
+    while alive(pid) && start.elapsed() < Duration::from_secs(10) {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        !alive(pid),
+        "the fixture server ended within 10 s of the hard kill of the process that started it"
+    );
+}
