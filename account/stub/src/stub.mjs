@@ -81,10 +81,9 @@ function serve(socket, connection, app, record, idleMs) {
     socket.destroy();
   };
   const linger = () => {
-    if (socket.destroyed || !socket.writableFinished) return;
-    clearTimeout(closer);
+    if (socket.destroyed) return;
     const left = due() - Date.now();
-    if ((ended && !capped) || left <= 0) closeNow();
+    if (left <= 0) closeNow();
     else closer = setTimeout(linger, left);
   };
   const take = (chunk) => {
@@ -170,8 +169,7 @@ function serve(socket, connection, app, record, idleMs) {
   });
   socket.on("end", () => {
     ended = true;
-    if (socket.writableEnded) linger();
-    else if (!held) settle();
+    if (!held) settle();
   });
   socket.on("error", () => {});
   const cut = () => {

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
+import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
 import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
 import { BODY_CAP } from "../src/stub.mjs";
@@ -574,8 +575,11 @@ for (const how of ["close", "stop"]) {
     await pause(100);
     peer.socket.resume();
     assert.equal(await settled(peer.ended, 5000), true, "the stub's end arrived after its answers");
+    const ending = performance.now();
     peer.socket.end();
     assert.equal(await settled(stub.stopped.then(() => true), 5000), true, "the stop settled");
+    const waited = performance.now() - ending;
+    assert.ok(waited < 1500, `the stop settled ${Math.round(waited)} ms after the peer ended its side, not at the idle limit of 3,000 ms`);
     assert.deepEqual(keepsPromise(dir, { 1: answersIn(peer.got()) }), []);
   });
 
@@ -615,6 +619,45 @@ test("D3 a request cut by the stop gets the line incomplete and no answer, so a 
   assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200, "incomplete"]);
   assert.equal(answersIn(peer.got()), 1, "the cut request got no 400");
   assert.deepEqual(keepsPromise(dir, { 1: 1 }), []);
+});
+
+test("D3 at the stop, a keep-alive answer that the client has not read yet still reaches it when the client sends more and reads late", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 2000 });
+  const peer = await openPeer(portOf(stub.app));
+  peer.socket.pause();
+  peer.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+  await pause(200);
+  stub.close();
+  await pause(200);
+  peer.socket.write("x");
+  await pause(300);
+  peer.socket.resume();
+  assert.equal(await settled(peer.ended, 3000), true, "the stub's end arrived after its answer");
+  peer.socket.end();
+  assert.equal(await settled(stub.stopped.then(() => true), 3000), true);
+  assert.equal(answersIn(peer.got()), 1);
+  assert.deepEqual(keepsPromise(dir, { 1: 1 }), []);
+});
+
+test("D3 at the stop, a TLS connection still in its handshake is closed at once, while a served one is waited for", async () => {
+  const caFile = join(fresh(), "ca.pem");
+  const stub = await startStub({ record: fresh(), idleMs: 1500, tlsCa: caFile });
+  const port = portOf(stub.app);
+  const ca = readFileSync(caFile);
+  const raw = connect({ host: "127.0.0.1", port });
+  raw.on("error", () => {});
+  const rawClosed = new Promise((resolve) => raw.on("close", resolve));
+  await new Promise((resolve) => raw.on("connect", resolve));
+  const served = await openPeer(port, (where) => tlsConnect({ ...where, ca }), "secureConnect");
+  served.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+  for (let waited = 0; waited < 2000 && answersIn(served.got()) === 0; waited += 10) await pause(10);
+  const started = performance.now();
+  const stopping = stub.close();
+  assert.equal(await settled(rawClosed.then(() => true), 700), true, "the socket in its handshake closed at once");
+  assert.ok(performance.now() - started < 700);
+  await stopping;
+  served.socket.destroy();
 });
 
 if (process.platform !== "win32") {
