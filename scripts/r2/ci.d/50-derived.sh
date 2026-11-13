@@ -23,6 +23,7 @@ esac
 #= src/lib.rs tests::rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone
 #= src/lib.rs tests::the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing
 #= src/lib.rs tests::held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead
+#= src/lib.rs tests::held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_never_as_no
 #= tests/open.rs open_refuses_a_key_that_does_not_open_the_database
 #= tests/open.rs open_refuses_while_another_store_holds_the_writer_lock
 #= tests/open.rs the_database_refuses_another_connection_while_the_store_is_open
@@ -94,6 +95,9 @@ esac
 #= tests/typed.rs held_ahead_refuses_the_kinds_that_it_cannot_answer_for_and_a_kind_of_the_handler_behind
 #= tests/typed.rs three_held_ahead_calls_change_no_file_no_revision_and_give_no_report
 #= tests/typed.rs held_ahead_answers_by_the_one_reading_of_its_request
+#= tests/typed.rs held_ahead_answers_role_before_every_refusal_of_a_kind
+#= tests/typed.rs held_ahead_answers_workflow_run_for_every_kind_of_the_workflow_run_with_a_key_or_without
+#= tests/typed.rs held_ahead_answers_other_family_for_a_kind_of_another_family_with_a_key_or_without
 #= tests/typed.rs open_refuses_a_step_or_a_handler_of_the_family_workflow
 #= tests/typed.rs the_owner_answers_unsupported_or_malformed_where_no_handler_takes_the_request
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused
