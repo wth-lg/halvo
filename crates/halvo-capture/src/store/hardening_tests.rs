@@ -8603,33 +8603,6 @@ fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
     );
 }
 
-#[cfg(unix)]
-#[test]
-fn the_root_step_zeroes_no_file_that_has_a_second_name() {
-    println!("CASE-NOTE: a hard link at another root name to a file outside the roots directory must not have its outside bytes zeroed by the root step");
-    let dir = tempfile::tempdir().unwrap();
-    let (store_dir, roots_dir, root_id, _segment_id) = file_root_store(dir.path());
-    let outside = dir.path().join("outside-document");
-    std::fs::write(&outside, b"a person's document").unwrap();
-    std::fs::hard_link(
-        &outside,
-        roots_dir.join(format!("{}.root", RootId::fresh().unwrap())),
-    )
-    .unwrap();
-    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
-    let answer = store.delete_all();
-    let bytes = std::fs::read(&outside).unwrap();
-    println!(
-        "CASE-NOTE: answer {} outside bytes {bytes:?}",
-        answer_text(&answer)
-    );
-    assert_eq!(
-        bytes,
-        b"a person's document".to_vec(),
-        "the root step wrote zeros into a file outside the roots directory"
-    );
-}
-
 #[test]
 fn a_create_under_the_id_of_a_live_root_is_refused_before_it_records_anything() {
     let dir = tempfile::tempdir().unwrap();

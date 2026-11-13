@@ -976,10 +976,11 @@ set, and the root's own volume name answers the root.
 - A second name of a file (a hard link) is no refusal: another process can
   make one after any check, and a store that a backup tool restored with
   shared names still opens The zero-fill of `store.key` and of a root file
-  writes no zeros into a file that has a second name, so that the bytes of
-  that other name stay; the name is removed, and a root that another name
-  still holds is a copy of the root, as a copy of the whole data directory
-  is (`the_root_step_zeroes_no_file_that_has_a_second_name`).
+  reaches every name of the file, so that no second name keeps a key
+  (`delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it`);
+  a file of another program that a process of the same user hard-links at
+  a root file's name is zeroed with it (found by the review of store-3 and
+  left so).
 - What the review of store-3 found and left as it is, each by its reason. A
   link at a root file's name under the roots directory is removed and not
   followed, and it is not counted in `not_followed`, which counts the store's

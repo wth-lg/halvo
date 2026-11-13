@@ -340,20 +340,11 @@ fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     }
 }
 
-/// Zeroes the regular file `name` of `dir` when it has no other name, and
-/// answers whether it did; a file with a second name is left as it is,
-/// because its bytes belong to that name too.
-fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<bool> {
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
-    let meta = file.metadata()?;
-    #[cfg(unix)]
-    if std::os::unix::fs::MetadataExt::nlink(&meta) > 1 {
-        return Ok(false);
-    }
-    let len = meta.len() as usize;
+    let len = file.metadata()?.len() as usize;
     file.write_all(&vec![0u8; len])?;
-    file.sync_all()?;
-    Ok(true)
+    file.sync_all()
 }
 
 fn refused_at(name: StoreName, e: std::io::Error) -> StoreError {
@@ -1777,7 +1768,12 @@ impl EncryptedStore {
         if let Some(roots) = custody.roots() {
             clear_pending(dir, roots, key_file.names())?;
             if file_root::root_file_present(roots, custody.root_id()) {
-                return Err(StoreError::Custody(CustodyError::RootExists));
+                return Err(StoreError::Custody(
+                    custody
+                        .create_root()
+                        .err()
+                        .unwrap_or(CustodyError::RootExists),
+                ));
             }
         }
         if key_file.present()? {

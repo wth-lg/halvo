@@ -86,7 +86,7 @@ impl RootFile {
 /// made durable (or nothing was there to zero) and the removal's own result.
 pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Result<()>) {
     let zeroed = match dir.entry(name) {
-        Ok(entry) if entry.kind == EntryKind::File => matches!(zero_fill(dir, name), Ok(true)),
+        Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
         Ok(_) => false,
         Err(e) if e.kind() == ErrorKind::NotFound => return (true, Ok(())),
         Err(e) => return (false, Err(e)),
@@ -98,20 +98,11 @@ pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Resul
     (zeroed, removed)
 }
 
-/// Zeroes the regular file `name` of `dir` when it has no other name, and
-/// answers whether it did; a file with a second name is left as it is,
-/// because its bytes belong to that name too.
-fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<bool> {
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
-    let meta = file.metadata()?;
-    #[cfg(unix)]
-    if std::os::unix::fs::MetadataExt::nlink(&meta) > 1 {
-        return Ok(false);
-    }
-    let len = meta.len() as usize;
+    let len = file.metadata()?.len() as usize;
     file.write_all(&vec![0u8; len])?;
-    file.sync_all()?;
-    Ok(true)
+    file.sync_all()
 }
 
 fn seal(
