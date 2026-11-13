@@ -6589,7 +6589,7 @@ fn no_text_of_an_answer_holds_the_directory_marker_or_a_segment_id() {
             RootId::fresh().unwrap(),
         );
         match EncryptedStore::create(&odd, Box::new(custody), DEFAULT_RETENTION) {
-            Ok(mut store) => {
+            Ok(store) => {
                 if let Err(e) = store.read_segment(segment_id, &mut Vec::new()) {
                     take("read in a directory whose name is not Unicode", &e);
                 }
