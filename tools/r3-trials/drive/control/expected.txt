@@ -1,0 +1,44 @@
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line drive model=standin_right machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line drive model=standin_effect_early machine=* task=bill seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early bill tracehas compile failed cause=provenance
+effect_early bill tracelacks effect allowed
+effect_early bill tracehas run kind=compile i=1 steps_ok=false list_ok=false entries=0 allowed=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line drive model=standin_option_then_right machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_then_right bill requesthas (refused: the page did not take it
+right order line attempt model=standin_right machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line drive model=standin_right machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line drive model=standin_effect_early machine=* task=order seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early order tracehas compile failed cause=provenance
+effect_early order tracelacks effect allowed
+effect_early order tracehas run kind=compile i=1 steps_ok=false list_ok=false entries=0 allowed=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line drive model=standin_option_then_right machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_then_right order requesthas (refused: the page did not take it
