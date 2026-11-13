@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: lightningcss-openbsd-x64@1.33.0 has the license MPL-2.0, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "lightningcss-openbsd-x64@1.33.0",
+      "license": "MPL-2.0"
+    }
+  ]
+}

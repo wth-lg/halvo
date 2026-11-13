@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: @img/sharp-win32-arm64ec@0.35.5 has the license Apache-2.0 AND LGPL-3.0-or-later, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "@img/sharp-win32-arm64ec@0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later"
+    }
+  ]
+}
