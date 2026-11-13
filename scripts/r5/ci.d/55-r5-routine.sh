@@ -24,9 +24,8 @@ cleanup() {
   esac
 }
 trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+exec 9>&1
+trap 'printf "FAIL %s (signal)\n" "$name" >&9; exit 1' HUP INT TERM
 
 status_now() {
   git -c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all
