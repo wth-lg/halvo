@@ -358,9 +358,10 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                     product_ok = result == "ok";
                 }
                 format!(
-                    "row crash machine={machine} browser={kind} major={} means={name} beyond_count={} beyond_bytes={} beyond_places={} control_dumps={} control_dump_bytes={} control_places={} sent_after_crash={} dump_inside_profile={} handler={} removed={} result={result}",
+                    "row crash machine={machine} browser={kind} major={} means={name} beyond_count={} beyond_links={} beyond_bytes={} beyond_places={} control_dumps={} control_dump_bytes={} control_places={} sent_after_crash={} dump_inside_profile={} handler={} removed={} result={result}",
                     w.major,
                     beyond.len(),
+                    beyond.iter().filter(|f| f.link).count(),
                     beyond.iter().map(|f| f.size).sum::<u64>(),
                     by_place(&beyond),
                     control_dumps.len(),

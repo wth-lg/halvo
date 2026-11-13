@@ -24,6 +24,8 @@ pub struct File {
     pub rel: String,
     pub size: u64,
     pub modified: u64,
+    /// Whether the entry is a symbolic link, whose size is the length of its target.
+    pub link: bool,
 }
 
 /// The deepest level under a place's root that the listing reads.
@@ -31,7 +33,7 @@ pub const DEPTH: usize = 12;
 
 /// Every file under each place, by place and path; a place that does not exist gives none, and a
 /// link is listed and not followed.
-pub fn snapshot(places: &[Place]) -> BTreeMap<(&'static str, String), (u64, u64)> {
+pub fn snapshot(places: &[Place]) -> BTreeMap<(&'static str, String), (u64, u64, bool)> {
     let mut out = BTreeMap::new();
     for p in places {
         walk(p.name, &p.root, &p.root, 0, &mut out);
@@ -44,7 +46,7 @@ fn walk(
     root: &Path,
     dir: &Path,
     depth: usize,
-    out: &mut BTreeMap<(&'static str, String), (u64, u64)>,
+    out: &mut BTreeMap<(&'static str, String), (u64, u64, bool)>,
 ) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -69,25 +71,54 @@ fn walk(
             .ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0, |d| d.as_secs());
-        out.insert((place, rel), (meta.len(), modified));
+        out.insert(
+            (place, rel),
+            (meta.len(), modified, meta.file_type().is_symlink()),
+        );
     }
 }
 
 /// The files of `after` that are new against `before` or changed in size or time.
 pub fn changed(
-    before: &BTreeMap<(&'static str, String), (u64, u64)>,
-    after: &BTreeMap<(&'static str, String), (u64, u64)>,
+    before: &BTreeMap<(&'static str, String), (u64, u64, bool)>,
+    after: &BTreeMap<(&'static str, String), (u64, u64, bool)>,
 ) -> Vec<File> {
     after
         .iter()
         .filter(|(k, v)| before.get(*k) != Some(*v))
-        .map(|((place, rel), (size, modified))| File {
+        .map(|((place, rel), (size, modified, link))| File {
             place,
             rel: rel.clone(),
             size: *size,
             modified: *modified,
+            link: *link,
         })
         .collect()
+}
+
+/// A file's name for the comparison of two readings: its path, with the random part of the
+/// browser's singleton directory in the system's temporary directory taken out
+/// (`.com.google.Chrome.XXXXXX`, `.com.microsoft.edgemac.XXXXXX`), which each start of the browser
+/// names anew.
+pub fn name_key(rel: &str) -> String {
+    rel.split('/')
+        .map(|part| {
+            for prefix in [
+                ".com.google.Chrome.",
+                "com.google.Chrome.",
+                ".com.microsoft.edgemac.",
+                "com.microsoft.edgemac.",
+            ] {
+                if let Some(rest) = part.strip_prefix(prefix) {
+                    if rest.len() == 6 && rest.bytes().all(|b| b.is_ascii_alphanumeric()) {
+                        return format!("{prefix}*");
+                    }
+                }
+            }
+            part.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// Whether a changed file is a crash's dump or report: a minidump (`.dmp`), a report of the
@@ -117,14 +148,18 @@ pub fn left_outside(changed: &[File], places: &[Place]) -> Vec<File> {
         .collect()
 }
 
-/// The files of `with` that `without` does not hold by place, name and size: what a crash left
-/// beyond a start with no crash (CP-165 (2) (b)).
+/// The files of `with` that `without` does not hold by place, name (`name_key`) and size: what a
+/// crash left beyond a start with no crash (CP-165 (2) (b)). A symbolic link is matched by its
+/// name alone, because its size is the length of its target, which a start draws anew (the
+/// singleton's cookie).
 pub fn beyond(with: &[File], without: &[File]) -> Vec<File> {
     with.iter()
         .filter(|f| {
-            !without
-                .iter()
-                .any(|b| b.place == f.place && b.rel == f.rel && b.size == f.size)
+            !without.iter().any(|b| {
+                b.place == f.place
+                    && name_key(&b.rel) == name_key(&f.rel)
+                    && (b.size == f.size || (b.link && f.link))
+            })
         })
         .cloned()
         .collect()
@@ -441,7 +476,45 @@ mod tests {
             rel: rel.into(),
             size,
             modified: 1,
+            link: false,
         }
+    }
+
+    fn link(place: &'static str, rel: &str, size: u64) -> File {
+        File {
+            link: true,
+            ..file(place, rel, size)
+        }
+    }
+
+    /// Run 43461032070: the browser's singleton directory in the system's temporary directory has
+    /// a random name at each start and holds links whose size is a random cookie's length; the
+    /// same links under another random name and of another size are no file beyond the start with
+    /// no crash, and a regular file of another size or a new name is.
+    #[test]
+    fn the_singleton_s_random_names_and_link_sizes_are_not_beyond() {
+        let baseline = vec![
+            link("temp", ".com.google.Chrome.Ab12Cd/SingletonCookie", 19),
+            link("temp", ".com.google.Chrome.Ab12Cd/SingletonSocket", 0),
+        ];
+        let crash = vec![
+            link("temp", ".com.google.Chrome.Zx98Yw/SingletonCookie", 20),
+            link("temp", ".com.google.Chrome.Zx98Yw/SingletonSocket", 0),
+        ];
+        assert!(beyond(&crash, &baseline).is_empty());
+        let file_of_other_size = vec![file("temp", ".com.google.Chrome.Zx98Yw/x", 3)];
+        let base_file = vec![file("temp", ".com.google.Chrome.Ab12Cd/x", 2)];
+        assert_eq!(beyond(&file_of_other_size, &base_file).len(), 1);
+        let other_name = vec![link("temp", ".com.google.Chrome.Zx98Yw/Other", 20)];
+        assert_eq!(beyond(&other_name, &baseline).len(), 1);
+        assert_eq!(
+            name_key("a/com.microsoft.edgemac.Q1w2E3/b"),
+            "a/com.microsoft.edgemac.*/b"
+        );
+        assert_eq!(
+            name_key("a/com.google.Chrome.toolong1/b"),
+            "a/com.google.Chrome.toolong1/b"
+        );
     }
 
     /// CP-167 E3: a row whose control left no dump reads notrun, never ok, also when the crash
