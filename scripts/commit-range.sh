@@ -28,8 +28,7 @@ commit_range_default_of_remote() {
 # Prints the commits that git rev-list <revision>... lists, oldest first, one
 # full id on each line. When <exempt commit> is not empty and this clone holds
 # it, that commit and the commits that it reaches are left out.
-# Returns 2
-# when git cannot list the commits.
+# Returns 2 when git cannot list the commits.
 commit_range() {
   commit_range_exempt=$1
   shift
