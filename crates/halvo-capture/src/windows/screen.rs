@@ -322,7 +322,7 @@ impl Drop for ScreenSource {
 
 trait Session: Send + 'static {
     fn finished(&self) -> bool;
-    fn end(self) -> bool;
+    fn end(self) -> Result<(), CaptureError>;
 }
 
 impl Session for Control {
@@ -330,13 +330,13 @@ impl Session for Control {
         self.is_finished()
     }
 
-    fn end(self) -> bool {
-        self.stop().is_ok()
+    fn end(self) -> Result<(), CaptureError> {
+        self.stop().map_err(|_| CaptureError::ThreadEnded)
     }
 }
 
 struct Stopping {
-    done: std::sync::mpsc::Receiver<bool>,
+    done: std::sync::mpsc::Receiver<Result<(), CaptureError>>,
     ended_before: bool,
 }
 
@@ -362,7 +362,7 @@ impl Stopping {
 
     fn wait(&self, deadline: Duration) -> Option<Result<(), CaptureError>> {
         match self.done.recv_timeout(deadline) {
-            Ok(true) if !self.ended_before => Some(Ok(())),
+            Ok(Ok(())) if !self.ended_before => Some(Ok(())),
             Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 Some(Err(CaptureError::ThreadEnded))
             }
@@ -577,9 +577,13 @@ mod tests {
             self.finished
         }
 
-        fn end(self) -> bool {
+        fn end(self) -> Result<(), CaptureError> {
             std::thread::sleep(self.end_takes);
-            self.ends_well
+            if self.ends_well {
+                Ok(())
+            } else {
+                Err(CaptureError::ThreadEnded)
+            }
         }
     }
 
