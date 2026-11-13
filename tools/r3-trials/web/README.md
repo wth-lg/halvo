@@ -488,7 +488,14 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   after the first reply's deadline, or `NO_ROUTE_MESSAGE` when the probe found no refusal) and the
   fixture counted no request. On this Mac the cell is a `notrun` line with `cause=no_policy_place`:
   Chrome on macOS takes a policy from the system's managed preferences, which this unit does not
-  write here.
+  write here. On hosted-mac the four cells come from scratch runs 43333071145 and 43339621990. In
+  the second, Chrome's page showed both policies; `org_debugging` ended 9 runs of 9 ok (each waits
+  the 30 s first-reply deadline) when the workflow's own 300 s limit of the call stopped it, and the
+  stopped call's fixture kept port 18190, so both `org_proxy` calls were refused (`port_taken`).
+  Edge's page, kept as the run's artifact, lists `RemoteDebuggingAllowed` `false` `Platform`
+  `Mandatory` with the name over two lines; this Mac's PDFKit reads the name from that file, the
+  runner's (macOS 15.8) did not, so that cell is `policy_not_seen`. Edge's `org_proxy` is `ok=10
+  of=10` from the first run. A call of ten `org_debugging` runs needs more than 310 s.
 - Flags of the third round that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain`
   (the product's browser keeps its cookies with the system's key store, A8.3), the six rows'
   `--isolate-origins=` (it names the payment site, CP-93 (5)), the port control's
