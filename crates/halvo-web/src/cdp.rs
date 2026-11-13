@@ -244,6 +244,7 @@ pub struct Executor {
     child: start::Started,
     home: String,
     pipe_ids: start::PipeIds,
+    first_reply: Duration,
     refs: Vec<Target>,
     profile: Option<PathBuf>,
     temp: Option<PathBuf>,
@@ -367,6 +368,7 @@ impl Executor {
             dir: &dir,
         };
         let mark = opts.mark_now();
+        let started_at = Instant::now();
         let on = {
             let held = start::lock();
             start::start_on_pipe(&held, &spec)
@@ -427,6 +429,7 @@ impl Executor {
                 Fault::new("no_channel", "no first reply within the bound"),
             ));
         }
+        let first_reply = started_at.elapsed();
         let home = async {
             wire.attach_all().await?;
             let made = wire
@@ -485,6 +488,7 @@ impl Executor {
             child,
             home,
             pipe_ids,
+            first_reply,
             refs: Vec::new(),
             profile: None,
             temp: None,
@@ -512,6 +516,11 @@ impl Executor {
     /// The identity of the browser's pipe, which the checks of a session read (CP-89 (c)).
     pub fn pipe_ids(&self) -> &start::PipeIds {
         &self.pipe_ids
+    }
+
+    /// The time from the start of the browser's process to its first reply on the pipe (CP-158 (2)).
+    pub fn first_reply(&self) -> Duration {
+        self.first_reply
     }
 
     /// Whether the transport of the debugging channel has ended.

@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "web-probe"
 path = "src/bin/web-probe.rs"
 
+[[bin]]
+name = "web-rows"
+path = "src/bin/web-rows.rs"
+
 [dependencies]
 base64 = "=0.22.1"
 chromiumoxide = { version = "=0.9.1", default-features = false }
