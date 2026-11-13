@@ -2155,6 +2155,9 @@ mod tests {
         json
     }
 
+    /// The store lines of C2.8 that this test holds, `store=unavailable` beside
+    /// `store_error=obstructed`, stand in for fixture lines that gate-3 writes, until gate-3 adds
+    /// them to a fixture.
     #[test]
     fn e14_obstructed_is_a_cause_of_store_unavailable_and_a_value_outside_the_list_is_refused() {
         let status: DaemonStatus =

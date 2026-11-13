@@ -531,6 +531,8 @@ mod tests {
         format!("{} not_followed=0{}", &text[..at], &text[at..])
     }
 
+    /// gate-2's status fixture with the two record lines of C2.3, `last_stop_kind` and
+    /// `last_stop_lost`, after `last_stop_newest_capture`, until gate-3 adds them to the file.
     fn status_fixture(checked_out: &str) -> String {
         let text = lf(checked_out);
         if text.contains("\nlast_stop_kind=") {
@@ -812,7 +814,8 @@ mod tests {
     }
 
     #[test]
-    fn the_deleted_and_the_already_deleted_replies_render_their_fixtures() {
+    fn the_deleted_and_the_already_deleted_replies_render_their_fixtures_with_not_followed_0_put_into_c2_deleted_until_gate_3_adds_it(
+    ) {
         let deleted = Deleted {
             report: sample_delete_report(),
             store: Some(FRESH),
