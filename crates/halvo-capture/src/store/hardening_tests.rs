@@ -6443,16 +6443,14 @@ fn delete_all_answers_a_fifo_at_store_key_without_a_wait_and_removes_it() {
 #[test]
 fn create_answers_obstructed_when_sqlite_holds_a_database_outside_its_handle_and_clears_the_handle()
 {
-    use super::db::{name_seams, SEAM_AFTER_THE_LAST_LOOK};
+    use super::db::SEAM_AFTER_THE_LAST_LOOK;
     let dir = tempfile::tempdir().unwrap();
     let store_dir = dir.path().join("store");
     std::fs::create_dir(&store_dir).unwrap();
     let decoy_source = tempfile::tempdir().unwrap();
     let (decoy_store, _, _, _) = file_root_store(decoy_source.path());
     let moved = dir.path().join("moved-away");
-    name_seams::answer_stat(Some(Box::new(|| {
-        Err(io::Error::from_raw_os_error(libc::ENOENT))
-    })));
+    the_kept_name(true);
     let act = {
         let (store_dir, moved, decoy_db) = (
             store_dir.clone(),
@@ -6472,7 +6470,7 @@ fn create_answers_obstructed_when_sqlite_holds_a_database_outside_its_handle_and
         RootId::fresh().unwrap(),
     );
     let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
-    name_seams::answer_stat(None);
+    the_kept_name(false);
     let answer = answer_text(&created);
     drop(created);
     let at_the_name = names_in_store_dir(&store_dir);
@@ -6810,11 +6808,9 @@ fn the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses() {
     use super::durable::EntryKind;
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
-    name_seams::answer_stat(Some(Box::new(|| {
-        Err(io::Error::from_raw_os_error(libc::ENOENT))
-    })));
+    the_kept_name(true);
     let kept = open_over_file_root(&store_dir, &roots_dir, root_id);
-    name_seams::answer_stat(None);
+    the_kept_name(false);
     let kept = kept.unwrap();
     assert_eq!(kept.db().unwrap().name_form(), NameForm::Kept);
     assert_eq!(
@@ -6831,7 +6827,7 @@ fn the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses() {
         Err(io::Error::from_raw_os_error(libc::EIO))
     })));
     let failed = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
-    name_seams::answer_stat(None);
+    the_kept_name(false);
     assert_eq!(
         other,
         "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }"
@@ -6938,7 +6934,7 @@ fn swap_race(arm: &str, seam: &'static str, rounds: usize) -> String {
     let decoy_source = tempfile::tempdir().unwrap();
     let (decoy_store, _, _, _) = file_root_store(decoy_source.path());
     let parent = dir.path().to_path_buf();
-    let (mut ok, mut obstructed, mut other, mut decoy_changed) = (0, 0, 0, 0);
+    let (mut ok, mut obstructed, mut other, mut decoy_changed, mut kept) = (0, 0, 0, 0, 0);
     for round in 0..rounds {
         let decoy = parent.join(format!("decoy-{round}"));
         let theirs = a_decoy_at(&decoy, &decoy_store);
@@ -6961,12 +6957,17 @@ fn swap_race(arm: &str, seam: &'static str, rounds: usize) -> String {
         };
         let guard = super::failpoint::at(seam, nth_call(1, act));
         if arm == "kept-renames" {
-            super::db::name_seams::answer_stat(Some(Box::new(|| {
-                Err(io::Error::from_raw_os_error(libc::ENOENT))
-            })));
+            the_kept_name(true);
         }
-        let answer = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
-        super::db::name_seams::answer_stat(None);
+        let opened = open_over_file_root(&store_dir, &roots_dir, root_id);
+        if let Ok(store) = &opened {
+            if store.db().unwrap().name_form() == super::db::NameForm::Kept {
+                kept += 1;
+            }
+        }
+        let answer = answer_text(&opened);
+        drop(opened);
+        the_kept_name(false);
         drop(guard);
         match answer.as_str() {
             "Ok" => ok += 1,
@@ -6983,9 +6984,10 @@ fn swap_race(arm: &str, seam: &'static str, rounds: usize) -> String {
             std::fs::rename(&aside, &store_dir).unwrap();
         }
     }
+    assert_eq!(kept, 0, "{arm}: an open used the kept name");
     format!(
         "SWAP arm={arm} seam={seam:?} rounds={rounds} ok={ok} obstructed={obstructed} \
-         other={other} decoy_changed={decoy_changed}"
+         other={other} decoy_changed={decoy_changed} kept_name_opens={kept}"
     )
 }
 
@@ -7004,6 +7006,8 @@ fn swap_directories(a: &Path, b: &Path) {
 #[test]
 fn the_swap_race_counts_in_both_windows_under_the_volume_name() {
     use super::db::{SEAM_AFTER_THE_LAST_LOOK, SEAM_BEFORE_THE_FIRST_READ};
+    let readings = super::db::volume_readings(&super::durable::Dir::open(Path::new("/")).unwrap());
+    println!("VOLUME readings={readings:?} ids={:?}", readings.ids());
     for arm in ["kept-renames", "renames", "swap"] {
         for seam in [SEAM_AFTER_THE_LAST_LOOK, SEAM_BEFORE_THE_FIRST_READ] {
             println!("{}", swap_race(arm, seam, 20));
@@ -8202,8 +8206,6 @@ fn a_code_at_the_open_is_answered_by_its_class_after_a_look() {
 #[cfg(unix)]
 #[test]
 fn at_the_seam_after_the_last_look_a_moved_directory_a_link_and_a_directory_answer_obstructed() {
-    #[cfg(target_os = "macos")]
-    use super::db::name_seams;
     use super::db::SEAM_AFTER_THE_LAST_LOOK;
     let mut answers = Vec::new();
     for case in ["moved", "link at store.db", "directory at store.db-wal"] {
@@ -8231,14 +8233,12 @@ fn at_the_seam_after_the_last_look_a_moved_directory_a_link_and_a_directory_answ
             }
         };
         #[cfg(target_os = "macos")]
-        name_seams::answer_stat(Some(Box::new(|| {
-            Err(io::Error::from_raw_os_error(libc::ENOENT))
-        })));
+        the_kept_name(true);
         let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
         let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
         drop(seam);
         #[cfg(target_os = "macos")]
-        name_seams::answer_stat(None);
+        the_kept_name(false);
         answers.push(format!("{case}: {opened}"));
     }
     println!("ST35 {answers:?}");
@@ -8251,8 +8251,6 @@ fn at_the_seam_after_the_last_look_a_moved_directory_a_link_and_a_directory_answ
 #[cfg(unix)]
 #[test]
 fn an_empty_database_at_the_name_of_a_moved_directory_answers_obstructed_and_not_older_store() {
-    #[cfg(target_os = "macos")]
-    use super::db::name_seams;
     use super::db::SEAM_AFTER_THE_LAST_LOOK;
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
@@ -8265,14 +8263,12 @@ fn an_empty_database_at_the_name_of_a_moved_directory_answers_obstructed_and_not
         }
     };
     #[cfg(target_os = "macos")]
-    name_seams::answer_stat(Some(Box::new(|| {
-        Err(io::Error::from_raw_os_error(libc::ENOENT))
-    })));
+    the_kept_name(true);
     let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
     let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
     drop(seam);
     #[cfg(target_os = "macos")]
-    name_seams::answer_stat(None);
+    the_kept_name(false);
     println!("W1 {opened}");
     assert!(opened.starts_with("Obstructed {"), "{opened}");
 }
@@ -8280,8 +8276,6 @@ fn an_empty_database_at_the_name_of_a_moved_directory_answers_obstructed_and_not
 #[cfg(unix)]
 #[test]
 fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look() {
-    #[cfg(target_os = "macos")]
-    use super::db::name_seams;
     use super::db::SEAM_AFTER_THE_LAST_LOOK;
     let dir = tempfile::tempdir().unwrap();
     let store_dir = dir.path().join("store");
@@ -8294,9 +8288,7 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
         }
     };
     #[cfg(target_os = "macos")]
-    name_seams::answer_stat(Some(Box::new(|| {
-        Err(io::Error::from_raw_os_error(libc::ENOENT))
-    })));
+    the_kept_name(true);
     let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(1, act));
     let custody = file_root_custody(
         &dir.path().join("roots"),
@@ -8310,10 +8302,179 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
     ));
     drop(seam);
     #[cfg(target_os = "macos")]
-    name_seams::answer_stat(None);
+    the_kept_name(false);
     println!(
         "T1 create after the swap answered {created}; at the name {:?}",
         names_in_store_dir(&store_dir)
     );
     assert!(created.starts_with("Obstructed {"), "{created}");
+}
+
+/// Makes the opens of this thread take the kept name: the stat of the
+/// directory's volume name answers no such name, and the volume reads NO.
+#[cfg(target_os = "macos")]
+fn the_kept_name(on: bool) {
+    use super::db::{name_seams, RootAnswer, VolumeReadings};
+    if on {
+        name_seams::answer_stat(Some(Box::new(|| {
+            Err(io::Error::from_raw_os_error(libc::ENOENT))
+        })));
+        name_seams::answer_volume(Some(VolumeReadings {
+            flag: Some(false),
+            capability: Some((true, false)),
+            root: Some(RootAnswer::NoSuchName),
+        }));
+    } else {
+        name_seams::answer_stat(None);
+        name_seams::answer_volume(None);
+    }
+}
+
+#[test]
+fn a_no_such_name_answer_chooses_the_kept_name_only_on_a_volume_that_reads_no_both_times() {
+    use super::db::{choose_the_name, DirectoryStat as S, NameChoice as C, VolumeIds as V};
+    let rows: [(S, V, V, bool, u32, C); 16] = [
+        (S::TheHandle, V::Yes, V::Yes, false, 2, C::Volume),
+        (S::TheHandle, V::Unknown, V::Unknown, false, 2, C::Volume),
+        (S::AnotherIdentity, V::Yes, V::Yes, false, 2, C::Refused),
+        (S::AnotherIdentity, V::No, V::No, false, 2, C::Refused),
+        (S::Failed, V::Yes, V::Yes, false, 2, C::Failed),
+        (S::NoSuchName, V::No, V::No, false, 2, C::Kept),
+        (S::NoSuchName, V::No, V::No, true, 0, C::Kept),
+        (S::NoSuchName, V::No, V::Yes, false, 2, C::Refused),
+        (S::NoSuchName, V::Yes, V::No, false, 2, C::Refused),
+        (S::NoSuchName, V::No, V::Unknown, false, 2, C::Refused),
+        (S::NoSuchName, V::Unknown, V::Unknown, false, 2, C::Refused),
+        (S::NoSuchName, V::Yes, V::Yes, false, 2, C::StatAgain),
+        (S::NoSuchName, V::Yes, V::Yes, false, 1, C::StatAgain),
+        (S::NoSuchName, V::Yes, V::Yes, false, 0, C::Refused),
+        (S::NoSuchName, V::Yes, V::Yes, true, 2, C::Refused),
+        (S::NoSuchName, V::Unknown, V::Unknown, true, 2, C::Refused),
+    ];
+    let wrong: Vec<String> = rows
+        .iter()
+        .filter(|(stat, before, after, away, left, want)| {
+            choose_the_name(*stat, *before, *after, *away, *left) != *want
+        })
+        .map(|row| format!("{row:?}"))
+        .collect();
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+#[test]
+fn the_three_readings_of_a_volume_decide_yes_no_and_unknown() {
+    use super::db::{RootAnswer as R, VolumeIds as V, VolumeReadings};
+    let read = |flag, capability, root| {
+        VolumeReadings {
+            flag,
+            capability,
+            root,
+        }
+        .ids()
+    };
+    let rows = [
+        (
+            read(Some(false), Some((true, true)), Some(R::NoSuchName)),
+            V::Yes,
+        ),
+        (
+            read(Some(true), Some((true, false)), Some(R::NoSuchName)),
+            V::Yes,
+        ),
+        (
+            read(Some(false), Some((true, false)), Some(R::TheRoot)),
+            V::Yes,
+        ),
+        (
+            read(Some(false), Some((true, false)), Some(R::NoSuchName)),
+            V::No,
+        ),
+        (
+            read(Some(false), Some((false, false)), Some(R::NoSuchName)),
+            V::Unknown,
+        ),
+        (read(Some(false), None, Some(R::NoSuchName)), V::Unknown),
+        (
+            read(None, Some((true, false)), Some(R::NoSuchName)),
+            V::Unknown,
+        ),
+        (
+            read(Some(false), Some((true, false)), Some(R::Other)),
+            V::Unknown,
+        ),
+        (read(Some(false), Some((true, false)), None), V::Unknown),
+    ];
+    for (index, (got, want)) in rows.iter().enumerate() {
+        assert_eq!(got, want, "row {index}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_volume_of_the_tests_reads_yes_and_a_volume_that_reads_no_gets_the_kept_name() {
+    use super::db::{name_seams, NameForm, RootAnswer, VolumeIds, VolumeReadings};
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let handle = super::durable::Dir::open(&store_dir).unwrap();
+    let readings = super::db::volume_readings(&handle);
+    println!("VOLUME readings={readings:?} ids={:?}", readings.ids());
+    assert_eq!(readings.ids(), VolumeIds::Yes);
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    assert_eq!(opened.db().unwrap().volume_ids(), VolumeIds::Yes);
+    drop(opened);
+    the_kept_name(true);
+    let kept = open_over_file_root(&store_dir, &roots_dir, root_id);
+    the_kept_name(false);
+    let kept = kept.unwrap();
+    assert_eq!(kept.db().unwrap().name_form(), NameForm::Kept);
+    assert_eq!(kept.db().unwrap().volume_ids(), VolumeIds::No);
+    drop(kept);
+    name_seams::answer_stat(Some(Box::new(|| {
+        Err(io::Error::from_raw_os_error(libc::ENOENT))
+    })));
+    let on_yes = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    name_seams::answer_volume(Some(VolumeReadings {
+        flag: None,
+        capability: None,
+        root: Some(RootAnswer::Other),
+    }));
+    let on_unknown = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    the_kept_name(false);
+    assert_eq!(
+        on_yes,
+        "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }"
+    );
+    assert_eq!(
+        on_unknown,
+        "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_old_log_with_bytes_in_the_directory_while_sqlite_holds_another_log_is_refused() {
+    use super::db::SEAM_AT_THE_LOG_CHECK;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let (store_dir, aside) = (store_dir.clone(), dir.path().join("sqlite-log-aside"));
+        move || {
+            let log = store_dir.join("store.db-wal");
+            if log.exists() {
+                std::fs::rename(&log, &aside).unwrap();
+            }
+            std::fs::write(&log, vec![0x55; 4152]).unwrap();
+        }
+    };
+    let seam = super::failpoint::at(SEAM_AT_THE_LOG_CHECK, nth_call(1, act));
+    let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    drop(seam);
+    println!(
+        "W6 answer={opened} log_at_the_name_after_the_close={:?}",
+        std::fs::metadata(store_dir.join("store.db-wal")).map(|m| m.len()).ok()
+    );
+    assert_eq!(
+        opened,
+        "Obstructed { name: Log, met: DatabaseOutsideTheDirectory }"
+    );
 }

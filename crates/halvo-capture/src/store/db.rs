@@ -58,6 +58,8 @@ pub(crate) const SEAM_AFTER_THE_ROOT_STEP: &str = "a delete-all, after its root 
 pub(crate) const SEAM_BEFORE_THE_FIRST_READ: &str = "a database open, before its first read";
 #[cfg(test)]
 pub(crate) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
+#[cfg(test)]
+pub(crate) const SEAM_AT_THE_LOG_CHECK: &str = "an open, at the first instant of the log's check";
 
 fn obstructed(name: StoreName, met: Met) -> StoreError {
     StoreError::Obstructed { name, met }
@@ -366,12 +368,15 @@ pub(crate) enum NameForm {
     Kept,
 }
 
+/// The form that an open used and the volume's reading at that open.
+type Named = (NameForm, VolumeIds);
+
 /// Opens the connection on the database file of `store_dir`. On macOS the
 /// store first sets the mode of the file to 0600 on its own descriptor and
 /// closes that descriptor before SQLite opens the name, because closing a
 /// descriptor of the file after SQLite took its locks would drop them.
 #[cfg(unix)]
-fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, NameForm)> {
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     use std::os::unix::fs::PermissionsExt;
     #[cfg(test)]
     failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
@@ -402,7 +407,7 @@ fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
 /// store holds the file from its check until the connection is open, with a
 /// handle that shares no delete, so no other file can take the name.
 #[cfg(windows)]
-fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, NameForm)> {
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     #[cfg(test)]
     failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
     open_connection(store_dir, flags)
@@ -413,7 +418,7 @@ fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, 
 /// handle, the last look at the handle's name, the name for SQLite, then
 /// SQLite's open with the flags that the caller passes. A code of that open
 /// is answered after a second look.
-fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, NameForm)> {
+fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     #[cfg(test)]
     failpoint::seam(SEAM_BEFORE_THE_LOOK);
     look_at_the_database_files(store_dir)?;
@@ -422,9 +427,9 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
     refuse_a_moved_store_dir(store_dir)?;
     #[cfg(test)]
     failpoint::seam(SEAM_AFTER_THE_LAST_LOOK);
-    let (name, form) = database_name(store_dir)?;
+    let (name, form, volume) = database_name(store_dir)?;
     let conn = Connection::open_with_flags(name, flags)
-        .map(|conn| (conn, form))
+        .map(|conn| (conn, (form, volume)))
         .map_err(|e| after_a_code(store_dir, &e));
     #[cfg(test)]
     let conn = match (conn, code_seams::forced()) {
@@ -436,39 +441,248 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
     conn
 }
 
-/// The name that SQLite gets for the database of `store_dir`. On macOS it is
-/// `/.vol/<device>/<file number>/store.db`, with the two numbers read from the
-/// handle in this call and kept nowhere, after one stat of the directory's own
-/// volume name that follows no link: the same device, file number and kind
-/// give that name; an answer that no such name exists or that the system
-/// does not support one gives the kept name; another identity refuses the
-/// open; any other error is answered as the base answers it.
+/// Whether the volume of a handle resolves `/.vol/<device>/<file number>`
+/// names, read by calls that look up no name of the store directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VolumeIds {
+    Yes,
+    No,
+    Unknown,
+}
+
+/// The three readings of a volume: its mount flag `MNT_DOVOLFS`, its
+/// capability `VOL_CAP_FMT_PATH_FROM_ID` as (valid, set), and the stat of
+/// its root under the root's own volume name. `None` is a reading that
+/// failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VolumeReadings {
+    pub(crate) flag: Option<bool>,
+    pub(crate) capability: Option<(bool, bool)>,
+    pub(crate) root: Option<RootAnswer>,
+}
+
+/// What the stat of a volume's root under its own volume name answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RootAnswer {
+    TheRoot,
+    NoSuchName,
+    Other,
+}
+
+impl VolumeReadings {
+    pub(crate) fn ids(self) -> VolumeIds {
+        let yes = self.capability == Some((true, true))
+            || self.flag == Some(true)
+            || self.root == Some(RootAnswer::TheRoot);
+        let no = self.capability == Some((true, false))
+            && self.flag == Some(false)
+            && self.root == Some(RootAnswer::NoSuchName);
+        match (yes, no) {
+            (true, _) => VolumeIds::Yes,
+            (false, true) => VolumeIds::No,
+            (false, false) => VolumeIds::Unknown,
+        }
+    }
+}
+
+/// What the stat of the directory's own volume name answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DirectoryStat {
+    TheHandle,
+    AnotherIdentity,
+    NoSuchName,
+    Failed,
+}
+
+/// The step that one answer of the directory's stat decides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameChoice {
+    Volume,
+    Kept,
+    StatAgain,
+    Refused,
+    Failed,
+}
+
+/// The choice of ruling ST-39 (1)(c): the volume name for the handle's own
+/// identity; the kept name only for a no-such-name answer on a volume that
+/// reads NO before and after it; for YES a look at the handle, then the stat
+/// again while `stats_left` allows; a refusal otherwise.
+pub(crate) fn choose_the_name(
+    stat: DirectoryStat,
+    before: VolumeIds,
+    after: VolumeIds,
+    handle_away: bool,
+    stats_left: u32,
+) -> NameChoice {
+    match stat {
+        DirectoryStat::TheHandle => NameChoice::Volume,
+        DirectoryStat::AnotherIdentity => NameChoice::Refused,
+        DirectoryStat::Failed => NameChoice::Failed,
+        DirectoryStat::NoSuchName if before != after => NameChoice::Refused,
+        DirectoryStat::NoSuchName => match before {
+            VolumeIds::No => NameChoice::Kept,
+            VolumeIds::Unknown => NameChoice::Refused,
+            VolumeIds::Yes if handle_away => NameChoice::Refused,
+            VolumeIds::Yes if stats_left > 0 => NameChoice::StatAgain,
+            VolumeIds::Yes => NameChoice::Refused,
+        },
+    }
+}
+
+/// The readings of the volume of `store_dir`: the mount flag by fstatfs of
+/// the handle; the capability by the attribute call on the mount point that
+/// fstatfs names, used only when its volume id is the handle's, because the
+/// call answers volume attributes only for the root of a volume; and the
+/// stat of the root under its own volume name.
 #[cfg(target_os = "macos")]
-fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm)> {
+pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
+    #[cfg(test)]
+    if let Some(readings) = name_seams::volume_answer() {
+        return readings;
+    }
+    let Ok((flags, mount, fsid)) = store_dir.volume() else {
+        return VolumeReadings {
+            flag: None,
+            capability: None,
+            root: None,
+        };
+    };
+    let flag = Some(flags & libc::MNT_DOVOLFS as u32 != 0);
+    let root_dir = Dir::open(&mount).ok();
+    let capability = root_dir.as_ref().and_then(|root| {
+        let fd = root.raw_descriptor();
+        match durable::volume_of(fd) {
+            Ok((_, _, id)) if id == fsid => path_from_id(fd),
+            _ => None,
+        }
+    });
+    let root = root_dir.and_then(|root| {
+        let (device, file_number) = root.identity().ok()?;
+        let name = PathBuf::from(format!("/.vol/{device}/{file_number}"));
+        Some(match volume_stat_of(&name) {
+            Ok((EntryKind::Dir, d, n)) if d == device && n == file_number => RootAnswer::TheRoot,
+            Err(e)
+                if matches!(
+                    e.raw_os_error(),
+                    Some(libc::ENOENT | libc::ENOTSUP | libc::EOPNOTSUPP)
+                ) =>
+            {
+                RootAnswer::NoSuchName
+            }
+            _ => RootAnswer::Other,
+        })
+    });
+    VolumeReadings {
+        flag,
+        capability,
+        root,
+    }
+}
+
+/// The capability `VOL_CAP_FMT_PATH_FROM_ID` of the volume whose root `fd`
+/// holds, as (valid, set), read with fgetattrlist.
+#[cfg(target_os = "macos")]
+fn path_from_id(fd: std::os::fd::RawFd) -> Option<(bool, bool)> {
+    #[repr(C)]
+    struct Answer {
+        length: u32,
+        capabilities: libc::vol_capabilities_attr_t,
+    }
+    let mut list = libc::attrlist {
+        bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+        reserved: 0,
+        commonattr: 0,
+        volattr: libc::ATTR_VOL_INFO | libc::ATTR_VOL_CAPABILITIES,
+        dirattr: 0,
+        fileattr: 0,
+        forkattr: 0,
+    };
+    // SAFETY: Answer is plain data, for which all-zero bytes are a valid value.
+    let mut answer: Answer = unsafe { std::mem::zeroed() };
+    // SAFETY: list and answer outlive the call, the size is answer's own, and
+    // fd is a descriptor that the caller keeps open across the call.
+    let done = unsafe {
+        libc::fgetattrlist(
+            fd,
+            (&mut list as *mut libc::attrlist).cast(),
+            (&mut answer as *mut Answer).cast(),
+            size_of::<Answer>(),
+            0,
+        )
+    };
+    if done != 0 {
+        return None;
+    }
+    let format = libc::VOL_CAPABILITIES_FORMAT;
+    let bit = libc::VOL_CAP_FMT_PATH_FROM_ID;
+    Some((
+        answer.capabilities.valid[format] & bit != 0,
+        answer.capabilities.capabilities[format] & bit != 0,
+    ))
+}
+
+/// The name that SQLite gets for the database of `store_dir`, and the form
+/// and volume reading of that choice. On macOS it is
+/// `/.vol/<device>/<file number>/store.db`, with the two numbers read from the
+/// handle in this call and kept nowhere, after a stat of the directory's own
+/// volume name that follows no link: the same device, file number and kind
+/// give that name; another identity refuses the open; a no-such-name answer
+/// gives the kept name only on a volume that reads NO before and after it,
+/// and is refused on a volume that reads UNKNOWN or that reads YES after two
+/// more stats or when the handle's directory is removed or left its name;
+/// any other error is answered as the base answers it.
+#[cfg(target_os = "macos")]
+fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)> {
     let (device, file_number) = store_dir.identity().map_err(io_error)?;
     let volume = PathBuf::from(format!("/.vol/{device}/{file_number}"));
-    let kept = (store_dir.path().join(DATABASE_FILE), NameForm::Kept);
-    match volume_stat(&volume) {
-        Ok((EntryKind::Dir, d, n)) if d == device && n == file_number => {
-            #[cfg(test)]
-            if let Some(given) = name_seams::given_name() {
-                return Ok((given, NameForm::Volume));
+    let before = volume_readings(store_dir).ids();
+    let mut stats_left = 2;
+    loop {
+        let (stat, error) = match volume_stat(&volume) {
+            Ok((EntryKind::Dir, d, n)) if d == device && n == file_number => {
+                (DirectoryStat::TheHandle, None)
             }
-            Ok((volume.join(DATABASE_FILE), NameForm::Volume))
+            Ok(_) => (DirectoryStat::AnotherIdentity, None),
+            Err(e)
+                if matches!(
+                    e.raw_os_error(),
+                    Some(libc::ENOENT | libc::ENOTSUP | libc::EOPNOTSUPP)
+                ) =>
+            {
+                (DirectoryStat::NoSuchName, None)
+            }
+            Err(e) => (DirectoryStat::Failed, Some(e)),
+        };
+        let after = match stat {
+            DirectoryStat::NoSuchName => volume_readings(store_dir).ids(),
+            _ => before,
+        };
+        let away = stat == DirectoryStat::NoSuchName
+            && (matches!(store_dir.link_count(), Ok(0))
+                || !matches!(store_dir.still_named(), Ok(true)));
+        match choose_the_name(stat, before, after, away, stats_left) {
+            NameChoice::Volume => {
+                #[cfg(test)]
+                if let Some(given) = name_seams::given_name() {
+                    return Ok((given, NameForm::Volume, before));
+                }
+                return Ok((volume.join(DATABASE_FILE), NameForm::Volume, before));
+            }
+            NameChoice::Kept => {
+                return Ok((store_dir.path().join(DATABASE_FILE), NameForm::Kept, before))
+            }
+            NameChoice::StatAgain => stats_left -= 1,
+            NameChoice::Refused => {
+                return Err(obstructed(
+                    StoreName::StoreDirectory,
+                    Met::DirectoryNotAtItsName,
+                ))
+            }
+            NameChoice::Failed => {
+                return Err(error.map_or(StoreError::Io(ErrorKind::Other), io_error))
+            }
         }
-        Ok(_) => Err(obstructed(
-            StoreName::StoreDirectory,
-            Met::DirectoryNotAtItsName,
-        )),
-        Err(e)
-            if matches!(
-                e.raw_os_error(),
-                Some(libc::ENOENT | libc::ENOTSUP | libc::EOPNOTSUPP)
-            ) =>
-        {
-            Ok(kept)
-        }
-        Err(e) => Err(io_error(e)),
     }
 }
 
@@ -493,8 +707,12 @@ fn volume_stat(volume: &Path) -> std::io::Result<(EntryKind, u64, u64)> {
 }
 
 #[cfg(windows)]
-fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm)> {
-    Ok((store_dir.path().join(DATABASE_FILE), NameForm::Kept))
+fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)> {
+    Ok((
+        store_dir.path().join(DATABASE_FILE),
+        NameForm::Kept,
+        VolumeIds::No,
+    ))
 }
 
 /// Seams of the tests at the name that SQLite gets.
@@ -508,8 +726,17 @@ pub(crate) mod name_seams {
     type Answer = std::io::Result<(EntryKind, u64, u64)>;
 
     thread_local! {
+        static VOLUME: RefCell<Option<super::VolumeReadings>> = const { RefCell::new(None) };
         static GIVEN: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
         static STAT: RefCell<Option<Box<dyn Fn() -> Answer>>> = const { RefCell::new(None) };
+    }
+
+    pub(crate) fn answer_volume(readings: Option<super::VolumeReadings>) {
+        VOLUME.with(|volume| *volume.borrow_mut() = readings);
+    }
+
+    pub(crate) fn volume_answer() -> Option<super::VolumeReadings> {
+        VOLUME.with(|volume| *volume.borrow())
     }
 
     pub(crate) fn give_name(name: Option<PathBuf>) {
@@ -733,7 +960,7 @@ pub(crate) struct Db {
     conn: Connection,
     store_dir: Dir,
     log_name: std::ffi::OsString,
-    name_form: NameForm,
+    named: Named,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -860,7 +1087,7 @@ impl Db {
                 .create_new(OsStr::new(DATABASE_FILE))
                 .map_err(io_error)?;
         }
-        let (conn, name_form) = open_database(store_dir, DATABASE_OPEN)?;
+        let (conn, (name_form, volume_ids)) = open_database(store_dir, DATABASE_OPEN)?;
         let set_up = Self::set_up(&conn, key, database, log_was_there);
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_FIRST_READ);
@@ -870,7 +1097,7 @@ impl Db {
             conn,
             store_dir: store_dir.try_clone().map_err(io_error)?,
             log_name: DATABASE_LOG.into(),
-            name_form,
+            named: (name_form, volume_ids),
         };
         db.finish(database)
             .map_err(|e| Self::answered(store_dir, e))?;
@@ -919,6 +1146,7 @@ impl Db {
     }
 
     fn finish(&self, database: Database) -> StoreResult<()> {
+        self.log_drained()?;
         match database {
             Database::New => {
                 self.init_schema()?;
@@ -934,7 +1162,7 @@ impl Db {
             self.checkpoint_truncate()?;
             self.page_look()?;
         }
-        held_look(&self.conn, &self.store_dir, self.name_form)?;
+        held_look(&self.conn, &self.store_dir, self.named.0)?;
         failpoint::hit("db_open")?;
         self.conn
             .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)
@@ -942,9 +1170,39 @@ impl Db {
         Ok(())
     }
 
-    /// After the first write of the connection and before its first
-    /// checkpoint, the log through the handle is a regular file that holds
-    /// bytes; otherwise the log that SQLite writes is not the handle's.
+    /// The first instant of the log's check, after the connection's first
+    /// read and before its first write: SQLite checkpoints its log with
+    /// truncation, and the log through the handle is then absent or empty;
+    /// otherwise the log that SQLite holds is not the handle's. A checkpoint
+    /// that does not complete answers as a live holder does.
+    fn log_drained(&self) -> StoreResult<()> {
+        let busy: i64 = self
+            .conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+            .map_err(db_error)?;
+        if busy != 0 {
+            return Err(StoreError::Locked);
+        }
+        #[cfg(test)]
+        failpoint::seam(SEAM_AT_THE_LOG_CHECK);
+        match self.store_dir.entry(&self.log_name) {
+            Ok(entry) if entry.kind == EntryKind::File && entry.len == 0 => Ok(()),
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(obstructed(StoreName::Log, Met::Link))
+            }
+            Ok(entry) if entry.kind != EntryKind::File => {
+                Err(obstructed(StoreName::Log, Met::OtherKind))
+            }
+            Ok(_) => Err(obstructed(StoreName::Log, Met::DatabaseOutsideTheDirectory)),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
+    /// The second instant of the log's check: after the first write of the
+    /// connection and before its next checkpoint, the log through the handle
+    /// is a regular file that holds bytes; otherwise the log that SQLite
+    /// writes is not the handle's.
     fn log_look(&self) -> StoreResult<()> {
         match self.store_dir.entry(&self.log_name) {
             Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => Ok(()),
@@ -987,7 +1245,12 @@ impl Db {
 
     #[cfg(test)]
     pub(crate) fn name_form(&self) -> NameForm {
-        self.name_form
+        self.named.0
+    }
+
+    #[cfg(test)]
+    pub(crate) fn volume_ids(&self) -> VolumeIds {
+        self.named.1
     }
 
     fn init_schema(&self) -> StoreResult<()> {

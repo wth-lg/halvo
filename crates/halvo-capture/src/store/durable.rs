@@ -162,6 +162,9 @@ impl Dir {
 }
 
 #[cfg(target_os = "macos")]
+pub(crate) use unix_dir::volume_of;
+
+#[cfg(target_os = "macos")]
 mod unix_dir {
     use std::ffi::{CStr, CString, OsStr, OsString};
     use std::fs::File;
@@ -231,6 +234,23 @@ mod unix_dir {
         // SAFETY: st is a stat that outlives the call, which writes only into it.
         checked(unsafe { libc::fstat(fd, &mut st) })?;
         Ok(st)
+    }
+
+    pub(crate) fn volume_of(fd: RawFd) -> io::Result<(u32, PathBuf, [i32; 2])> {
+        // SAFETY: libc::statfs is plain data, for which all-zero bytes are a valid value.
+        let mut st: libc::statfs = unsafe { std::mem::zeroed() };
+        // SAFETY: st is a statfs that outlives the call, which writes only into it,
+        // and fd is a descriptor that the caller keeps open across the call.
+        checked(unsafe { libc::fstatfs(fd, &mut st) })?;
+        // SAFETY: f_mntonname is a NUL-terminated array that the call filled.
+        let mount = unsafe { CStr::from_ptr(st.f_mntonname.as_ptr()) };
+        Ok((
+            st.f_flags,
+            PathBuf::from(OsStr::from_bytes(mount.to_bytes())),
+            // SAFETY: fsid_t is a C struct of two i32 values, the size of [i32; 2],
+            // and every bit pattern of either is a valid value.
+            unsafe { std::mem::transmute::<libc::fsid_t, [i32; 2]>(st.f_fsid) },
+        ))
     }
 
     fn kind(st: &libc::stat) -> EntryKind {
@@ -466,6 +486,21 @@ mod unix_dir {
         pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
             let st = stat_of(self.fd.as_raw_fd())?;
             Ok((st.st_dev as u64, st.st_ino))
+        }
+
+        pub(crate) fn raw_descriptor(&self) -> RawFd {
+            self.fd.as_raw_fd()
+        }
+
+        /// The count of names of this handle's directory; 0 once it is removed.
+        pub(crate) fn link_count(&self) -> io::Result<u64> {
+            Ok(u64::from(stat_of(self.fd.as_raw_fd())?.st_nlink))
+        }
+
+        /// The mount flags of the volume of this handle, the path of its
+        /// mount point and the id of the volume, read with fstatfs.
+        pub(crate) fn volume(&self) -> io::Result<(u32, PathBuf, [i32; 2])> {
+            volume_of(self.fd.as_raw_fd())
         }
 
         /// The device and file number of the entry `name`, read through this
