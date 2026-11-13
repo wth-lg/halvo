@@ -3,6 +3,7 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::event::Modality;
+use crate::floor::payload::KeyClass;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
@@ -72,6 +73,53 @@ impl PointerSample {
     }
 }
 
+/// The keys that are down, by virtual-key code, as the keyboard source has
+/// seen them since it started.
+#[derive(Debug)]
+pub(crate) struct KeyState {
+    down: [bool; 256],
+}
+
+impl Default for KeyState {
+    fn default() -> Self {
+        Self { down: [false; 256] }
+    }
+}
+
+/// The virtual-key code of a packet that names no key.
+pub(crate) const NO_KEY: u16 = 0xFF;
+
+fn is_modifier(vkey: u16) -> bool {
+    matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5 | 0x5B | 0x5C)
+}
+
+/// The class of a key-down of `vkey` with no chord key held.
+pub(crate) fn class_of(vkey: u16) -> KeyClass {
+    match vkey {
+        0x41..=0x5A | 0x30..=0x39 | 0x20 | 0x60..=0x6F | 0xBA..=0xC0 | 0xDB..=0xDF | 0xE2 => {
+            KeyClass::Printable
+        }
+        0x08 | 0x2D | 0x2E => KeyClass::Editing,
+        0x21..=0x28 => KeyClass::Navigation,
+        0x0D => KeyClass::Enter,
+        0x09 => KeyClass::Tab,
+        _ => KeyClass::Other,
+    }
+}
+
+/// The keystroke event of one keyboard packet: the class of a key-down
+/// transition, or `None` for a packet that is no event.
+pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyClass> {
+    let _ = &mut state.down;
+    if key.released || key.vkey > NO_KEY {
+        return None;
+    }
+    if is_modifier(key.vkey) {
+        return Some(KeyClass::Other);
+    }
+    Some(class_of(key.vkey))
+}
+
 pub(crate) fn keystroke_packet(
     key: KeyStroke,
     foreground_app: Option<String>,
@@ -130,6 +178,7 @@ struct InputState {
     device: RawDevice,
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
+    keys: KeyState,
 }
 
 thread_local! {
@@ -361,13 +410,16 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 #[cfg(target_os = "windows")]
 fn emit_from_raw(packet: RawInputPacket, tick: u32) {
     INPUT_CTX.with(|cell| {
-        let borrow = cell.borrow();
-        let Some(state) = borrow.as_ref() else {
+        let mut borrow = cell.borrow_mut();
+        let Some(state) = borrow.as_mut() else {
             return;
         };
         let app = super::app_of(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
+                if map_keystroke(&mut state.keys, key).is_none() {
+                    return;
+                }
                 if let Some(packet) = keystroke_packet(key, app, tick) {
                     state.producer.push(packet);
                 }
@@ -461,6 +513,7 @@ impl CaptureSource for RawInputSource {
                     device,
                     producer,
                     last_app,
+                    keys: KeyState::default(),
                 };
                 let name = format!("halvo-rawinput-{device:?}");
                 super::spawn_pump(name, move |ready, signal| {
@@ -607,6 +660,90 @@ mod tests {
             released: true,
         };
         assert!(keystroke_packet(key, None, 7).is_none());
+    }
+
+    fn vkey_of(key: crate::floor::cases::Key) -> u16 {
+        use crate::floor::cases::{Key, Modifier};
+        match key {
+            Key::Letter => 0x41,
+            Key::Digit => 0x31,
+            Key::Space => 0x20,
+            Key::Punctuation => 0xBE,
+            Key::Backspace => 0x08,
+            Key::Delete => 0x2E,
+            Key::Insert => 0x2D,
+            Key::Arrow => 0x25,
+            Key::Home => 0x24,
+            Key::End => 0x23,
+            Key::PageUp => 0x21,
+            Key::PageDown => 0x22,
+            Key::Enter => 0x0D,
+            Key::Tab => 0x09,
+            Key::Escape => 0x1B,
+            Key::Function => 0x70,
+            Key::Modifier(Modifier::Shift) => 0x10,
+            Key::Modifier(Modifier::Control) => 0x11,
+            Key::Modifier(Modifier::OptionOrAlt) => 0x12,
+            Key::Modifier(Modifier::CommandOrWindows) => 0x5B,
+        }
+    }
+
+    #[test]
+    fn map_keystroke_gives_the_events_of_the_shared_list() {
+        use crate::floor::cases::{Expected, Input, CASES};
+        let mut ran = 0;
+        let mut failing = Vec::new();
+        for case in CASES {
+            let keys_only = case.inputs.iter().all(|input| {
+                matches!(
+                    input,
+                    Input::KeyDown(_) | Input::KeyRepeat(_) | Input::KeyUp(_)
+                )
+            });
+            if !keys_only {
+                continue;
+            }
+            ran += 1;
+            let mut state = KeyState::default();
+            let given: Vec<Expected> = case
+                .inputs
+                .iter()
+                .filter_map(|input| {
+                    let (key, released) = match *input {
+                        Input::KeyDown(key) | Input::KeyRepeat(key) => (key, false),
+                        Input::KeyUp(key) => (key, true),
+                        _ => unreachable!("a case of keys alone"),
+                    };
+                    let stroke = KeyStroke {
+                        vkey: vkey_of(key),
+                        released,
+                    };
+                    map_keystroke(&mut state, stroke).map(Expected::Key)
+                })
+                .collect();
+            if given != case.expected {
+                failing.push(case.name);
+            }
+        }
+        assert!(ran >= 15, "only {ran} cases of keys alone ran");
+        assert!(failing.is_empty(), "failing cases: {failing:?}");
+    }
+
+    #[test]
+    fn a_packet_of_vkey_255_is_no_event_and_changes_no_state() {
+        let mut state = KeyState::default();
+        let fake = KeyStroke {
+            vkey: NO_KEY,
+            released: false,
+        };
+        assert_eq!(map_keystroke(&mut state, fake), None);
+        assert_eq!(map_keystroke(&mut state, fake), None);
+        let letter = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        assert_eq!(map_keystroke(&mut state, letter), Some(KeyClass::Printable));
+        assert_eq!(map_keystroke(&mut state, letter), None);
     }
 
     #[test]
