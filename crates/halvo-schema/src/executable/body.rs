@@ -514,7 +514,8 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `put_playbook`, `put_session`, `effect`, `log` and `finish`: the count stored.
+    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint` and
+    /// `reply_row`, and of the coordinator body `mark_checkpoint`: the count stored.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Stored {
         pub stored: u32 = "stored" => from_json,

@@ -308,7 +308,7 @@ object_type! {
 
 object_type! {
     /// The instant at which an agent was set up, kind `agent_start`: ids, the day and the instant, one row for an
-    /// agent, which the handler of `create_agent` stores once.
+    /// agent, which A7.4 gives the handler of `create_agent` to store once.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentStart {
         pub v: V1 = "v" => from_json,

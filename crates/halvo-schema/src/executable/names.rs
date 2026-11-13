@@ -204,7 +204,7 @@ names! {
     /// a step whose adapter call the service answered with 401; `not_selected` stands in a `stopped` line, the line of
     /// a send whose message the reply rule no longer selects at the load before its `begin`; `no_start` stands in a
     /// `stopped` line, the line of the list step of a run whose load holds no start row. None of the three stands in
-    /// a row of an effect.
+    /// a row of an effect while the states of an effect have no `not_made` (A7.4).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -277,8 +277,8 @@ names! {
 }
 
 names! {
-    /// The events of a line of a run's log. `start_accepted` is the line that the handler of `start_run` builds, line
-    /// 1 of its run, with no step, cause, model or figure; it says that the store accepted the start.
+    /// The events of a line of a run's log. `start_accepted` is the line that A7.4 gives the handler of `start_run` to
+    /// build, line 1 of its run, with no step, cause, model or figure; it says that the store accepted the start.
     pub enum LogEvent {
         StartAccepted = "start_accepted",
         StepOk = "step_ok",
