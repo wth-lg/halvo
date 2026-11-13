@@ -118,7 +118,11 @@ fn privacy_scrub() {
         .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
         .unwrap();
     assert_eq!(
-        (outcome.summaries, outcome.evidence, outcome.proposals.stored),
+        (
+            outcome.summaries,
+            outcome.evidence,
+            outcome.proposals.stored
+        ),
         (4, 4, 1)
     );
     let items = listed(&store);
@@ -139,7 +143,11 @@ fn privacy_scrub() {
     }
     clock.set_day(DAY + 2);
     assert_eq!(store.expire().unwrap(), 1, "the expiry removes one row");
-    assert_eq!(store.purge(&[ord(2)]).unwrap(), 1, "the purge removes one row");
+    assert_eq!(
+        store.purge(&[ord(2)]).unwrap(),
+        1,
+        "the purge removes one row"
+    );
     store
         .decide(&InterfaceDecision::delete(
             &InterfaceRole::claim(),
@@ -193,14 +201,23 @@ fn count(conn: &Connection, sql: &str) -> i64 {
 }
 
 fn hmac(key: &[u8], message: &[u8]) -> String {
-    let pad = |byte: u8| -> Vec<u8> { key.iter().map(|b| b ^ byte).chain(vec![byte; 64 - key.len()]).collect() };
+    let pad = |byte: u8| -> Vec<u8> {
+        key.iter()
+            .map(|b| b ^ byte)
+            .chain(vec![byte; 64 - key.len()])
+            .collect()
+    };
     let mut inner = Sha256::new();
     inner.update(pad(0x36));
     inner.update(message);
     let mut outer = Sha256::new();
     outer.update(pad(0x5c));
     outer.update(inner.finalize());
-    outer.finalize().iter().map(|b| format!("{b:02x}")).collect()
+    outer
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Marker A of privacy_window: the title's site token, 64 lower-case hex digits, which the site token and the site
@@ -228,7 +245,11 @@ impl WriterStep for TraceStep {
 }
 
 fn window_case(keyed: bool) {
-    let scratch = Scratch::new(if keyed { "window-keyed" } else { "window-keyless" });
+    let scratch = Scratch::new(if keyed {
+        "window-keyed"
+    } else {
+        "window-keyless"
+    });
     let clock = TestClock::at_day(DAY + 2);
     let trace = Rc::new(RefCell::new(None));
     let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 3 }))
@@ -255,7 +276,11 @@ fn window_case(keyed: bool) {
     for marker in [MARKER_A, MARKER_B] {
         let found = holding(&scratch, marker);
         if keyed {
-            assert_eq!(found, Vec::<&str>::new(), "the encrypted files hold {marker}");
+            assert_eq!(
+                found,
+                Vec::<&str>::new(),
+                "the encrypted files hold {marker}"
+            );
         } else {
             assert!(
                 !found.is_empty(),
@@ -312,7 +337,11 @@ fn window_case(keyed: bool) {
         0,
         "window rows"
     );
-    assert_eq!(count(&conn, "SELECT count(*) FROM sources"), 0, "rows that name an ordinal");
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM sources"),
+        0,
+        "rows that name an ordinal"
+    );
     let site_key: Vec<u8> = conn
         .query_row("SELECT site_key FROM meta", [], |r| r.get(0))
         .unwrap();
@@ -367,8 +396,9 @@ fn summary_ids(conn: &Connection) -> Vec<String> {
 /// A host whose report sink keeps the last report in `last`.
 fn reporting(clock: &TestClock, last: &Rc<RefCell<Option<Report>>>) -> Host {
     let last = Rc::clone(last);
-    Host::new(Box::new(clock.clone()), Box::new(NoProposals))
-        .on_report(Box::new(move |report: &Report| *last.borrow_mut() = Some(report.clone())))
+    Host::new(Box::new(clock.clone()), Box::new(NoProposals)).on_report(Box::new(
+        move |report: &Report| *last.borrow_mut() = Some(report.clone()),
+    ))
 }
 
 /// privacy_bounded: the store, reopened on an injected clock, keeps a summary on the last day inside its bound of 93
@@ -402,7 +432,11 @@ fn privacy_bounded() {
         "the report's count of bounded rows before the reopen"
     );
     drop(store);
-    assert_eq!(summary_ids(&raw(&scratch)).len(), 3, "summaries stored before the reopen");
+    assert_eq!(
+        summary_ids(&raw(&scratch)).len(),
+        3,
+        "summaries stored before the reopen"
+    );
     let clock = TestClock::at_day(DAY);
     let store = open_host(&scratch, reporting(&clock, &last)).unwrap();
     assert_eq!(
@@ -471,10 +505,16 @@ fn privacy_kept() {
     assert_eq!(decoded(&analysis_write(&good)), Ok(()), "the control write");
     let mut path_app = good.clone();
     path_app["app"] = serde_json::json!("/Applications/Browser.app/Contents/MacOS/browser");
-    assert_eq!(decoded(&analysis_write(&path_app)), Err(ErrorName::Malformed));
+    assert_eq!(
+        decoded(&analysis_write(&path_app)),
+        Err(ErrorName::Malformed)
+    );
     let mut sentence = good.clone();
     sentence["site"]["domain"] = serde_json::json!("pay the bill at northwind power");
-    assert_eq!(decoded(&analysis_write(&sentence)), Err(ErrorName::Malformed));
+    assert_eq!(
+        decoded(&analysis_write(&sentence)),
+        Err(ErrorName::Malformed)
+    );
 
     let scratch = Scratch::new("privacy-kept");
     let clock = TestClock::at_day(DAY);
@@ -540,7 +580,11 @@ fn privacy_kept() {
         (0, 0),
         "one more batch with no new episode proposes nothing with the deleted key"
     );
-    assert_eq!(calls.get(), 4, "the second step is called after each commit");
+    assert_eq!(
+        calls.get(),
+        4,
+        "the second step is called after each commit"
+    );
     drop(store);
     let conn = raw(&scratch);
     let naming: i64 = conn
@@ -562,7 +606,10 @@ fn privacy_kept() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(of_key, 0, "summaries of the deleted key, their evidence and their support rows");
+    assert_eq!(
+        of_key, 0,
+        "summaries of the deleted key, their evidence and their support rows"
+    );
     let kept_notes: i64 = conn
         .query_row(
             "SELECT count(*) FROM rows WHERE kind = 'test_note' AND workflow = ?1",
@@ -570,7 +617,10 @@ fn privacy_kept() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(kept_notes, 3, "the rows of the test-only kind of the other workflow");
+    assert_eq!(
+        kept_notes, 3,
+        "the rows of the test-only kind of the other workflow"
+    );
     assert_eq!(
         count(&conn, "SELECT count(*) FROM rows WHERE kind = 'workflow'"),
         1
@@ -608,10 +658,19 @@ fn privacy_redact() {
         format!("Pay {CARD} from {IBAN}"),
     ];
     let outcome = store
-        .commit_batch(&store_id(1), &worker(&titles), position(1, 0), &mut Seq(100))
+        .commit_batch(
+            &store_id(1),
+            &worker(&titles),
+            position(1, 0),
+            &mut Seq(100),
+        )
         .unwrap();
     assert_eq!(
-        (outcome.summaries, outcome.evidence, outcome.proposals.stored),
+        (
+            outcome.summaries,
+            outcome.evidence,
+            outcome.proposals.stored
+        ),
         (3, 3, 1)
     );
     drop(store);
@@ -646,7 +705,9 @@ struct Counted {
 }
 
 fn counted(conn: &Connection) -> Counted {
-    let mut statement = conn.prepare("SELECT body FROM rows WHERE kind = 'workflow'").unwrap();
+    let mut statement = conn
+        .prepare("SELECT body FROM rows WHERE kind = 'workflow'")
+        .unwrap();
     let mut workflows: Vec<String> = statement
         .query_map([], |r| r.get::<_, String>(0))
         .unwrap()
@@ -658,7 +719,9 @@ fn counted(conn: &Connection) -> Counted {
     workflows.sort();
     let class = |code: i64| -> u64 {
         let n: i64 = conn
-            .query_row("SELECT count(*) FROM rows WHERE class = ?1", [code], |r| r.get(0))
+            .query_row("SELECT count(*) FROM rows WHERE class = ?1", [code], |r| {
+                r.get(0)
+            })
             .unwrap();
         u64::try_from(n).unwrap()
     };
@@ -695,7 +758,12 @@ fn privacy_listed() {
         Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })),
     )
     .unwrap();
-    let apps = ["com.example.one", "com.example.two", "com.example.three", "com.example.four"];
+    let apps = [
+        "com.example.one",
+        "com.example.two",
+        "com.example.three",
+        "com.example.four",
+    ];
     let mut batch = Vec::new();
     for (app, n) in apps.iter().zip((1..).step_by(2)) {
         let early = if n == 7 { DAY - 92 } else { DAY - 1 };
@@ -719,10 +787,18 @@ fn privacy_listed() {
     let (approved, dismissed) = (id_of(apps[1]), id_of(apps[2]));
     let role = InterfaceRole::claim();
     store
-        .decide(&InterfaceDecision::approve(&role, RequestId::from_random([4; 16]), approved))
+        .decide(&InterfaceDecision::approve(
+            &role,
+            RequestId::from_random([4; 16]),
+            approved,
+        ))
         .unwrap();
     store
-        .decide(&InterfaceDecision::dismiss(&role, RequestId::from_random([5; 16]), dismissed))
+        .decide(&InterfaceDecision::dismiss(
+            &role,
+            RequestId::from_random([5; 16]),
+            dismissed,
+        ))
         .unwrap();
     clock.set_day(DAY + 1);
     assert_eq!(
@@ -734,17 +810,31 @@ fn privacy_listed() {
     let report = store.report().unwrap();
     drop(store);
     let own = counted(&raw(&scratch));
-    let read: Vec<String> = items.iter().map(|item| item.workflow.id().as_str().to_owned()).collect();
-    assert_eq!(read, own.workflows, "the workflow ids of the read and of the count");
+    let read: Vec<String> = items
+        .iter()
+        .map(|item| item.workflow.id().as_str().to_owned())
+        .collect();
+    assert_eq!(
+        read, own.workflows,
+        "the workflow ids of the read and of the count"
+    );
     let read_support: Vec<(String, String)> = items
         .iter()
         .flat_map(|item| {
             let id = item.workflow.id().as_str().to_owned();
-            item.summaries.iter().map(move |s| (id.clone(), s.as_str().to_owned()))
+            item.summaries
+                .iter()
+                .map(move |s| (id.clone(), s.as_str().to_owned()))
         })
         .collect();
-    assert_eq!(read_support, own.support, "the support sets of the read and of the count");
-    assert_eq!(report.counts, own.counts, "the report's counts and the count");
+    assert_eq!(
+        read_support, own.support,
+        "the support sets of the read and of the count"
+    );
+    assert_eq!(
+        report.counts, own.counts,
+        "the report's counts and the count"
+    );
     assert_eq!(
         (own.counts.kept, own.support.len()),
         (4, 5),
@@ -778,13 +868,25 @@ fn delete_all_leaves_no_database_file_and_no_key_file() {
     let outside = scratch.path().join("store");
     std::fs::create_dir_all(&outside).unwrap();
     std::fs::write(outside.join("segment"), b"segment").unwrap();
-    let files = ["derived.db", "derived.db-wal", "derived.db-shm", "writer.lock", "master.key"];
+    let files = [
+        "derived.db",
+        "derived.db-wal",
+        "derived.db-shm",
+        "writer.lock",
+        "master.key",
+    ];
     for name in ["derived.db", "writer.lock", "master.key"] {
-        assert!(derived.join(name).exists(), "{name} before the delete of everything");
+        assert!(
+            derived.join(name).exists(),
+            "{name} before the delete of everything"
+        );
     }
     delete_all(store).unwrap();
     for name in files {
-        assert!(!derived.join(name).exists(), "{name} after the delete of everything");
+        assert!(
+            !derived.join(name).exists(),
+            "{name} after the delete of everything"
+        );
     }
     assert!(!derived.exists(), "derived/ after the delete of everything");
     assert!(outside.join("segment").exists(), "a file outside derived/");
@@ -807,7 +909,12 @@ fn planted(scratch: &Scratch, keyed: bool) -> Vec<&'static str> {
     let mut store = open_store(scratch, keyed, &registry(), host);
     let batch: Vec<Episode> = (1..=2)
         .map(|n| {
-            let mut e = titled(n, DAY, "com.example.browser", &format!("Pay {CIPHER_MARKER}"));
+            let mut e = titled(
+                n,
+                DAY,
+                "com.example.browser",
+                &format!("Pay {CIPHER_MARKER}"),
+            );
             e.site = token(CIPHER_MARKER);
             e
         })
@@ -946,7 +1053,10 @@ fn an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_fr
     );
     holder.unlock().unwrap();
     drop(holder);
-    assert!(open_host(&scratch, host()).is_ok(), "the control: an open after the lock is let go");
+    assert!(
+        open_host(&scratch, host()).is_ok(),
+        "the control: an open after the lock is let go"
+    );
 }
 
 fn support_summaries(scratch: &Scratch) -> Vec<String> {
@@ -967,7 +1077,8 @@ fn support_summaries(scratch: &Scratch) -> Vec<String> {
 /// in the report; after the clock has reached that day, the next commit gives the row and its support rows as they
 /// were before.
 #[test]
-fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day() {
+fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day(
+) {
     let scratch = Scratch::new("clock-set-back");
     let last = Rc::new(RefCell::new(None));
     let host = |clock: &TestClock| {
@@ -986,7 +1097,10 @@ fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summa
         .unwrap();
     assert_eq!(first.proposals.stored, 1);
     drop(store);
-    let before = (common::bodies(&scratch, "workflow"), support_summaries(&scratch));
+    let before = (
+        common::bodies(&scratch, "workflow"),
+        support_summaries(&scratch),
+    );
     let all: Vec<String> = (1..=3).map(|n| summary_id(n).as_str().to_owned()).collect();
     assert_eq!(before.1, all);
 
@@ -1009,7 +1123,10 @@ fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summa
     let set_back: serde_json::Value =
         serde_json::from_str(&common::bodies(&scratch, "workflow")[0]).unwrap();
     assert_eq!(
-        (&set_back["recurrence"]["count"], &set_back["recurrence"]["last"]),
+        (
+            &set_back["recurrence"]["count"],
+            &set_back["recurrence"]["last"]
+        ),
         (&serde_json::json!(2), &serde_json::json!(DAY - 1)),
         "the recurrence of the proposal without the summary ahead"
     );
@@ -1024,7 +1141,10 @@ fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summa
     assert_eq!(again.proposals.updated, 1);
     drop(store);
     assert_eq!(
-        (common::bodies(&scratch, "workflow"), support_summaries(&scratch)),
+        (
+            common::bodies(&scratch, "workflow"),
+            support_summaries(&scratch)
+        ),
         before,
         "the workflow and its support rows after the clock has reached the day"
     );

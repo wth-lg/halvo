@@ -5,8 +5,7 @@ use std::rc::Rc;
 
 use common::{
     bodies, domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request,
-    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS,
-    OWN,
+    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS, OWN,
 };
 use halvo_derived::{Cause, Error, Host, Refusal, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
@@ -53,7 +52,14 @@ fn own_host(clock: &TestClock, step: &Rc<RefCell<Option<String>>>) -> Host {
 fn open_own(scratch: &Scratch, clock: &TestClock, step: &Rc<RefCell<Option<String>>>) -> Store {
     let mut entries = registry();
     entries.push(&OWN);
-    Store::open(scratch.path(), &key(), &entries, own_host(clock, step), &mut Seq(1 << 40)).unwrap()
+    Store::open(
+        scratch.path(),
+        &key(),
+        &entries,
+        own_host(clock, step),
+        &mut Seq(1 << 40),
+    )
+    .unwrap()
 }
 
 const OWN_ROWS: &str = "SELECT count(*) FROM rows WHERE kind = 'test_own'";
@@ -70,7 +76,12 @@ fn own_origin_refused() {
     let step = Rc::new(RefCell::new(None));
     let mut store = open_own(&scratch, &clock, &step);
     let first = store
-        .commit_batch(&store_id(1), &[episode(1, DAY, None)], position(1, 0), &mut Seq(100))
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
         .unwrap();
     assert_eq!(first.proposals.stored, 1);
     let workflow = listed(&store)[0].workflow.id().clone();
@@ -94,14 +105,22 @@ fn own_origin_refused() {
         "the record of origin own that a handler of a further role commits"
     );
     drop(store);
-    assert_eq!(count(&scratch, OWN_ROWS), 0, "rows of origin own after the two refusals");
+    assert_eq!(
+        count(&scratch, OWN_ROWS),
+        0,
+        "rows of origin own after the two refusals"
+    );
     let mut store = open_own(&scratch, &clock, &step);
     store.handle(&raw_request("runner", &body)).unwrap();
     store
         .handle(&raw_request("coordinator_write", &body))
         .unwrap();
     drop(store);
-    assert_eq!(count(&scratch, OWN_ROWS), 2, "rows of origin own for a runner request and a coordinator_write");
+    assert_eq!(
+        count(&scratch, OWN_ROWS),
+        2,
+        "rows of origin own for a runner request and a coordinator_write"
+    );
     let mut store = open_own(&scratch, &clock, &step);
     store
         .decide(&InterfaceDecision::delete(
@@ -111,7 +130,11 @@ fn own_origin_refused() {
         ))
         .unwrap();
     drop(store);
-    assert_eq!(count(&scratch, OWN_ROWS), 0, "rows of origin own after the delete of their workflow");
+    assert_eq!(
+        count(&scratch, OWN_ROWS),
+        0,
+        "rows of origin own after the delete of their workflow"
+    );
 }
 
 fn northwind() -> SiteValue {
@@ -170,7 +193,12 @@ fn a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_r
             workflow.clone(),
         ))
         .unwrap();
-    *fixed.borrow_mut() = vec![proposal("com.example.other", Trigger::AppContext, 90, &[1, 2, 3])];
+    *fixed.borrow_mut() = vec![proposal(
+        "com.example.other",
+        Trigger::AppContext,
+        90,
+        &[1, 2, 3],
+    )];
     let mut other_app = episode(3, DAY, domain("northwind-power.test"));
     other_app.app = AppId::parse("com.example.other").unwrap();
     let second = store
@@ -212,9 +240,15 @@ fn a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_r
         ),
         "the app, the trigger, the recurrence and the confidence that the row takes"
     );
-    assert_eq!((stored.category, stored.site), (SeedCategory::UtilityBillPayment, Some(northwind())));
+    assert_eq!(
+        (stored.category, stored.site),
+        (SeedCategory::UtilityBillPayment, Some(northwind()))
+    );
     let support: Vec<String> = bodies_of_support(&scratch);
-    let want: Vec<String> = [1, 2, 3].iter().map(|n| summary_id(*n).as_str().to_owned()).collect();
+    let want: Vec<String> = [1, 2, 3]
+        .iter()
+        .map(|n| summary_id(*n).as_str().to_owned())
+        .collect();
     assert_eq!(support, want, "the summaries of the support rows");
 }
 
@@ -257,8 +291,17 @@ fn a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
         "(proposals stored, rows expired) on days 1, 31 and 61"
     );
     drop(store);
-    assert_eq!(count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'evidence'"), 1);
-    assert_eq!(count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'summary'"), 3);
+    assert_eq!(
+        count(
+            &scratch,
+            "SELECT count(*) FROM rows WHERE kind = 'evidence'"
+        ),
+        1
+    );
+    assert_eq!(
+        count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'summary'"),
+        3
+    );
     let bodies = bodies(&scratch, "workflow");
     assert_eq!(bodies.len(), 1);
     let Workflow::Full(stored) = serde_json::from_str(&bodies[0]).unwrap() else {
@@ -273,6 +316,13 @@ fn a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
             last: DAY + 61
         }
     );
-    let want: Vec<String> = [1, 2, 3].iter().map(|n| summary_id(*n).as_str().to_owned()).collect();
-    assert_eq!(bodies_of_support(&scratch), want, "the summaries of the support rows");
+    let want: Vec<String> = [1, 2, 3]
+        .iter()
+        .map(|n| summary_id(*n).as_str().to_owned())
+        .collect();
+    assert_eq!(
+        bodies_of_support(&scratch),
+        want,
+        "the summaries of the support rows"
+    );
 }

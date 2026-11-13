@@ -484,7 +484,9 @@ impl halvo_derived::Handler for OwnNote {
         };
         match cx.commit(&[record]) {
             Ok(_) => Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap()),
-            Err(refusal) if refusal.cause == halvo_derived::Cause::OwnOrigin => Err(ErrorName::Role),
+            Err(refusal) if refusal.cause == halvo_derived::Cause::OwnOrigin => {
+                Err(ErrorName::Role)
+            }
             Err(_) => Err(ErrorName::State),
         }
     }
