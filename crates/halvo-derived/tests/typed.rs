@@ -1545,3 +1545,106 @@ fn a_handler_s_keyed_row_read_hands_out_the_rows_of_the_whole_read_that_name_its
          none of them out"
     );
 }
+
+/// The kind `test_note` as a later entry of its family gives it: one more key, `more`, so that the check of a record
+/// under this entry refuses the text of a row stored under `NOTE`.
+static NOTE_LATER: KindEntry = KindEntry {
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("day", FieldType::Day),
+        ("n", FieldType::Count),
+        ("more", FieldType::Count),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":20767,"n":1,"more":1}"#,
+    ..NOTE
+};
+
+/// The typed reader of `test_note` that a later run of the family `test` would hold: it requires `more` and takes
+/// no key that it does not name.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct LaterNote {
+    v: u32,
+    workflow: String,
+    day: u32,
+    n: u32,
+    more: u32,
+}
+
+/// C25.2, RD-64 (b): a stored row whose text a later typed reader of its family refuses keeps its workflow column and
+/// its day of going: after an open with the later entry the keyed read of its workflow hands it out while it is
+/// inside its bound, one nanosecond before its day of going as well, an expiry then removes nothing, and from the
+/// first instant of its day of going the read hands it out no more and the next expiry removes it.
+#[test]
+fn a_stored_row_that_a_later_typed_reader_refuses_keeps_its_workflow_and_its_day_and_goes_at_that_day(
+) {
+    let scratch = Scratch::new("later-reader");
+    let clock = TestClock::at_day(DAY);
+    let (w1, w2) = two_workflows(&scratch, &clock);
+    let records: Records = Rc::new(RefCell::new(vec![note(&w1, DAY, 1), note(&w2, DAY, 2)]));
+    let none: Asks = Rc::new(RefCell::new(Vec::new()));
+    let unseen: Seen = Rc::new(RefCell::new(Vec::new()));
+    let host = base(&clock, Grouping { min: 1 }).handler(
+        "test",
+        Takes::Runner,
+        keyed_handler(false, &records, &none, &unseen),
+    );
+    let mut store = open_entries(&scratch, host, &[&NOTE]).unwrap();
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    drop(store);
+    let stored = format!(r#"{{"v":1,"workflow":"{w1}","day":{DAY},"n":1}}"#);
+    assert!(halvo_schema_core::kinds::check_record(&NOTE, &stored).is_ok());
+    assert!(halvo_schema_core::kinds::check_record(&NOTE_LATER, &stored).is_err());
+    assert!(serde_json::from_str::<LaterNote>(&stored).is_err());
+    let columns = || {
+        common::raw(&scratch)
+            .query_row(
+                "SELECT workflow, gone FROM rows WHERE kind = 'test_note' AND body = ?1",
+                [&stored],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)),
+            )
+            .unwrap()
+    };
+    assert_eq!(columns(), (w1.clone(), i64::from(DAY + 93)));
+    let asks: Asks = Rc::new(RefCell::new(vec![(
+        "test_note",
+        Some(WorkflowId::parse(&w1).unwrap()),
+    )]));
+    let seen: Seen = Rc::new(RefCell::new(Vec::new()));
+    let host = base(&clock, Grouping { min: 1 }).handler(
+        "test",
+        Takes::Runner,
+        keyed_handler(false, &Rc::new(RefCell::new(Vec::new())), &asks, &seen),
+    );
+    let mut store = open_entries(&scratch, host, &[&NOTE_LATER]).unwrap();
+    let going = i64::from(DAY + 93) * common::DAY_NS;
+    let mut walked = Vec::new();
+    for at in [
+        i64::from(DAY + 92) * common::DAY_NS + NOON,
+        going - 1,
+        going,
+    ] {
+        clock.set(at);
+        seen.borrow_mut().clear();
+        store.handle(&raw_request("runner", "{}")).unwrap();
+        let visited = seen.borrow()[0].clone();
+        let removed = store.expire().unwrap();
+        walked.push((visited == [stored.clone()], visited.is_empty(), removed > 0));
+    }
+    drop(store);
+    assert_eq!(
+        walked,
+        vec![(true, false, false), (true, false, false), (false, true, true)],
+        "(the keyed read hands out the stored row, it hands out nothing, the expiry removed a row) on DAY + 92, one \
+         nanosecond before the day of going and at its first instant"
+    );
+    assert_eq!(
+        count(
+            &scratch,
+            "SELECT count(*) FROM rows WHERE kind = 'test_note'"
+        ),
+        0
+    );
+}
