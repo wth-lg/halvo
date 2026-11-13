@@ -743,6 +743,49 @@ fn golden_names() {
 }
 
 #[test]
+fn names_file_is_byte_for_byte_the_same_when_the_later_lists_leave_out_the_registry_names() {
+    let registry: BTreeSet<&str> = kinds::registry()
+        .flat_map(|kind| [kind.name, kind.family])
+        .collect();
+    let left: Vec<Vec<&str>> = export_names::LATER
+        .iter()
+        .map(|list| {
+            list.iter()
+                .copied()
+                .filter(|name| !registry.contains(name))
+                .collect()
+        })
+        .collect();
+    let later: Vec<&[&str]> = left.iter().map(Vec::as_slice).collect();
+    assert!(
+        export_names::LOCKED
+            == [
+                category::NAMES,
+                ids::NAMES,
+                kinds::NAMES,
+                record::NAMES,
+                request::NAMES,
+                site::NAMES
+            ],
+        "LOCKED holds the six lists of the locked modules and no other"
+    );
+    let listed: BTreeSet<&str> = export_names::LOCKED
+        .iter()
+        .chain(&later)
+        .flat_map(|list| list.iter().copied())
+        .collect();
+    assert!(
+        registry.iter().any(|name| !listed.contains(name)),
+        "every kind and family name of the registry stands in a list without it"
+    );
+    assert!(
+        export_names::names_with(&later).as_bytes() == committed("names.txt").as_bytes(),
+        "the names file differs from tests/golden/names.txt when the later lists leave out the registry's names"
+    );
+    assert!(export_names::names_file() == export_names::names_with(export_names::LATER));
+}
+
+#[test]
 fn export_names_writes_the_committed_names_file_on_two_runs() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(format!("golden-export-names-{}", std::process::id()));
