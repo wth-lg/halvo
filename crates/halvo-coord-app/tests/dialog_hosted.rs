@@ -4,7 +4,15 @@
 //! posted. On every other machine the target shows nothing and prints one line. It takes no
 //! argument and reads none, so a filter or a flag that a reader passes to the crate's tests
 //! changes nothing. A case has a bound of 10 s: a case that reaches it closes its dialog and
-//! fails. The last line counts the cases that ran.
+//! fails. The last line counts the cases that ran. The early return with the one line is taken
+//! only when a second read of the runner's two variables, made at that return, says that this
+//! is no hosted runner; when it says that it is, the target fails (ruling RD-92).
+//!
+//! Named limits (ruling RD-92 (3)): the macOS cases queue the alert through Tauri's mock
+//! runtime, whose `run_on_main_thread` sends a task to the mock loop on the main thread, and
+//! not through the Wry runtime that the app hands to `System::new`, so the product's path to
+//! the main thread runs in no test; and on macOS the target would end with the status 0 and no
+//! case line if the mock runtime's `run` ever returned, which it does not at tauri 2.12.5.
 
 #[path = "hosted/gate.rs"]
 mod gate;
@@ -79,9 +87,16 @@ fn end(verdicts: &[Verdict], listed: usize) -> ! {
 }
 
 fn main() {
-    if !gate::hosted_here() {
-        println!("{OFF}");
-        return;
+    match gate::start(&gate::env) {
+        gate::Start::Run => {}
+        gate::Start::Off => {
+            println!("{OFF}");
+            return;
+        }
+        gate::Start::Fail(line) => {
+            println!("dialog_hosted {line}");
+            std::process::exit(1);
+        }
     }
     std::thread::spawn(|| {
         std::thread::sleep(BOUND * (cases::LIST + 3));
