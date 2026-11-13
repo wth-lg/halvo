@@ -160,4 +160,4 @@ function makePage({ document, clock, sent, context, loaded, dir }) {
   };
 }
 
-module.exports = { openPage, fixture, calls, settle, UI, APP, FIXTURES };
+module.exports = { openPage, fixture, calls, settle, Clock, UI, APP, FIXTURES };
