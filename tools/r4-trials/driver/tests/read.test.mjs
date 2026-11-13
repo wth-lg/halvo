@@ -219,7 +219,8 @@ function pinned(dir, file) {
   return null;
 }
 
-const OWN = { card: fs.readFileSync(path.join(crate, 'src', 'card.rs'), 'utf8'), native: fs.readFileSync(path.join(crate, 'src', 'native.rs'), 'utf8') };
+const lf = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+const OWN = { card: lf(path.join(crate, 'src', 'card.rs')), native: lf(path.join(crate, 'src', 'native.rs')) };
 const PINNED = {
   rfdMac: pinned('rfd-0.17.2', 'src/backend/macos/utils/user_alert.rs'),
   rfdWin: pinned('rfd-0.17.2', 'src/backend/win_cid/message_dialog.rs'),
