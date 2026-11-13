@@ -903,6 +903,8 @@ impl EncryptedStore {
     /// the root that it made, and answers the step's error; when one of those
     /// removals fails, it answers that removal's error in its place, and what
     /// it could not remove is left. The directory and its `writer.lock` stay.
+    /// It opens `writer.lock` by name without `O_NONBLOCK`, so a FIFO there
+    /// makes it wait for good.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -1005,6 +1007,8 @@ impl EncryptedStore {
     /// kind is not in this build or the unwrap fails:
     /// [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`] and
     /// [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
+    /// It opens `writer.lock` by name without `O_NONBLOCK`, so a FIFO there
+    /// makes it wait for good.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, retention, custody_for)
     }

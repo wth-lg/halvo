@@ -809,10 +809,9 @@ suite passed 103 tests of 103 in one run of each verifier
 (`s-soft-2-lib-suite.txt` in `verifier-2` and `q1-s-soft-tests-lines.txt` in
 `verifier-3`). A test at the level of the store that holds a duplicate of a
 store's descriptor and spawns no child does not tell m7 or m8 from the fix
-either. The sketch
-`sketch_an_open_that_fails_beside_a_duplicate_of_a_store_descriptor` holds a
-duplicate of a dropped store's descriptor open, calls an `open` that must
-fail as `Sealed`, and requires that the `open` after it is not refused as
+either. A sketch test of builder-3, which the code does not keep, held a
+duplicate of a dropped store's descriptor open, called an `open` that must
+fail as `Sealed`, and required that the `open` after it is not refused as
 `Locked`. It passed without a patch, with m7 and with m8, in one run each of
 the builder and of the reviewer (`sketch-store-level.patch` and the
 `sketch-*.log` files in the `builder-3` directory, and `04-sketch.log` in
@@ -1010,23 +1009,33 @@ it in the plan before weakening an assertion.
   a name that is no regular file; it lists a directory through its handle,
   and creates, renames and removes a segment file, and creates a new
   `store.key` and a new `store.db`, by name relative to the handle that it
-  walked or checked. The opens of the database, the probe for a holder
-  among them, carry `SQLITE_OPEN_NOFOLLOW` and no `SQLITE_OPEN_URI`. Before
-  a segment write renames its partial file, it reads the shard's name
-  relative to `segments` without following a link and goes on only when it
-  names the same directory; otherwise it answers `Corrupt` and tries to
-  remove the partial file through the shard's handle. It reports no
-  removal that fails: the partial file then stays in that directory until
-  a later sweep removes it. Every step of `create` that tests, opens or
+  walked or checked. Every connection of the store, the probe for a holder
+  among them, is opened by one function, `open_connection`, which carries
+  the caller's flags (`SQLITE_OPEN_NOFOLLOW` and no `SQLITE_OPEN_URI`).
+  Before a segment write renames its partial file, it reads the shard's
+  name relative to `segments` and the partial file's name relative to the
+  shard, without following a link, and goes on only when the first names
+  the same directory and the second the file that it wrote (device and
+  inode, on Windows the volume serial number and the file index);
+  otherwise it answers `Corrupt` and tries to remove the partial file
+  through the shard's handle. It reports no removal that fails: the
+  partial file then stays in that directory until a later sweep removes
+  it. Every step of `create` that tests, opens or
   removes an entry acts relative to the handle: the read of whether
   `store.key` is there, which takes any entry at that name, a link among
   them, as a store; the removal of the database files, of a `segments`
   tree and of a `store.key.tmp` that were left; and the removal of the
   database files after a create that fails. Before SQLite opens the
-  database by its name under the handle's name, at `create` and at `open`,
-  the store reads that name without following a link and goes on only when
-  it still stands for the handle's own directory (device and inode);
-  otherwise it answers `Corrupt`. These stay by name, under the name of the
+  database by its name under the handle's name, at `create`, at `open` and
+  for the probe for a holder, `open_connection` reads `store.db`,
+  `store.db-wal`, `store.db-shm` and `store.db-journal` through the handle
+  without following a link and without a wait (a link answers `Corrupt`,
+  on Windows also a junction or another reparse point, and a name that is
+  no regular file `DatabaseUnreadable`), and then reads the handle's name
+  without following a link and goes on only when it still stands for the
+  handle's own directory (device and inode); otherwise it answers
+  `Corrupt`. On Windows it holds `store.db` from that look until the
+  connection is open. These stay by name, under the name of the
   handle, as ruling ST-26 has them: the open of `writer.lock`; the removal
   of `store.key` (`KeyFile::destroy`), at delete-all and after a create
   that fails after its root step; and the steps of delete-all, among them
@@ -1058,9 +1067,20 @@ it in the plan before weakening an assertion.
   reads a link that is there before the custody call, and
   `open_refuses_a_link_put_at_store_db_inside_the_custody_call_and_changes_nothing_beside_its_target`
   one put in place inside it. A move after the store's last look is the
-  other process's own act: the store wrote into no directory that was
-  never its own, and what was moved away is ciphertext whose key a shred
-  or delete-all destroys.
+  other process's own act. After that look SQLite's own steps by name act
+  in whatever directory stands at the name: its open of `store.db`; the
+  writes of a `create` into the database that it finds there; and the
+  removal of the log of a database with no pages at its first read. Its
+  close checks that `store.db` has not moved, and then neither
+  checkpoints nor removes the log. The store's own calls act through the
+  handle, and what was moved away is ciphertext whose key a shred or
+  delete-all destroys. The review's two runs W1 (pr-review-14) are the
+  facts: with another directory put at the name after the last look, a
+  `create` answered `Ok` and that directory, which had held an empty
+  `store.db`, held a `store.db` of 4,096 bytes and a log; an `open`
+  answered `OlderStore`, and that directory lost its `store.db-wal` of 21
+  bytes. On Windows a link that arrives at the log's name after the look
+  and before SQLite makes the log is the same limit.
   Two counted races are ignored in the default run and run by hand when
   that code changes. Their counts are no measurement of a rate; they come
   from this Mac at a 1-minute load near 100.
@@ -1091,10 +1111,24 @@ it in the plan before weakening an assertion.
   of those two stores as well, because `create` narrows the directory on
   its handle right after it makes it (one run of the fifth formal step),
   so nothing reads the mode that `create_private_dir_all` gives.
-  The store sets no mode on a `store.key`, a `segments`, a shard, a
-  segment file or a log that exists: each keeps a wider mode that it had.
+  The store sets no mode on a `store.key`, a `writer.lock`, a `segments`,
+  a shard, a segment file or a log that exists: each keeps a wider mode
+  that it had, except an empty log, which SQLite sets to the mode of
+  `store.db` when it opens it, at an `open` that it refuses among them.
   Of the entries that exist, check 1 reads `store.db` alone, which its
   `Reopen` widens.
+- Two calls that wait on a FIFO. The open of `writer.lock`, at `open` and
+  at `create`, and the open of `store.key` that zeroes it at delete-all
+  (`KeyFile::destroy`) are by name and carry no `O_NONBLOCK`, so a FIFO
+  that another process puts at either name makes the call wait for good.
+  Store-3 rebuilds both (ruling ST-26 point 1). The docs of `open`,
+  `create` and `crypto_shred_all` say the same.
+- A second name of a file (a hard link). Another process of the same user
+  can give `store.db`, its log or a segment file a second name outside the
+  store after any check; the store does not refuse a file by its count of
+  names, because a backup tool can restore a store with shared names, so a
+  second name keeps the bytes that the store wrote, after delete-all too
+  (contract C11.3, Links).
 - The order of a durable write and of a durable removal: the sync of the
   file, the rename, the sync of the directory (`write_durably`,
   `remove_durably`). Both syncs are std's `File::sync_all`, the file's on

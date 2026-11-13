@@ -68,7 +68,8 @@ pub trait SegmentExpiry {
     /// [`StoreError::KeyFileUnparseable`] for one that the stop left zeroed,
     /// and `create` answers [`StoreError::AlreadyExists`]. Once the key file is
     /// gone, `open` answers [`StoreError::Sealed`], and `create` removes what is
-    /// left and makes a new store.
+    /// left and makes a new store. It opens `store.key` by name to zero it,
+    /// without `O_NONBLOCK`, so a FIFO there makes it wait for good.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 
