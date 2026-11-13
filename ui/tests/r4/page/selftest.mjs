@@ -463,7 +463,7 @@ function alive(pid) {
   }
 }
 
-/** A TERM to check.mjs while page.mjs runs: page.mjs, here a stand-in that writes its process id and waits, must end with it. */
+/** A TERM to check.mjs while page.mjs runs: page.mjs, here a stand-in that writes its process id and waits, must end with it. On Windows Node's kill ends check.mjs without a handler, so there the case asks only that check.mjs ended by the signal and that page.mjs is gone. */
 async function termCase(repo, fx, work) {
   const dir = join(work, 'term-during-page-mjs');
   cpSync(fx, dir, { recursive: true });
@@ -485,7 +485,8 @@ async function termCase(repo, fx, work) {
     process.kill(pid, 'SIGKILL');
     return 'page-mjs-left-' + code;
   }
-  return code === 143 ? 'ended' : 'exit-' + code;
+  const signalled = process.platform === 'win32' ? code === 'SIGTERM' || code === 143 : code === 143;
+  return signalled ? 'ended' : 'exit-' + code;
 }
 
 const SMALL_STATES = ['empty', 'ten'];
