@@ -458,8 +458,8 @@ self_test() {
     tip
   }
   d='$'
-  every_range_empty="commit_range() { case \"${d}*\" in *..*) return 0 ;; esac; shift; git rev-list --reverse --end-of-options \"${d}@\" -- </dev/null || return 2; }"
-  without_the_newest="commit_range() { shift; git rev-list --reverse --end-of-options \"${d}@\" -- </dev/null | sed '${d}d'; }"
+  every_range_empty="commit_range() { case \"${d}*\" in *..*) return 0 ;; esac; for commit_range_last do :; done; git rev-list --reverse --end-of-options \"${d}commit_range_last\" -- </dev/null || return 2; }"
+  without_the_newest="commit_range() { for commit_range_last do :; done; git rev-list --reverse --end-of-options \"${d}commit_range_last\" -- </dev/null | sed '${d}d'; }"
   branch_with_empty_ranges_at_the_root=$(plant_range_files "$every_range_empty" "$every_range_empty" 'Every range with two dots is empty.')
   runner branch-that-plants-range-files-with-every-range-empty "$main" "$branch_with_empty_ranges_at_the_root" "$branch_with_empty_ranges_at_the_root:refs/heads/feature"
   push_to_branch branch-that-plants-range-files-with-every-range-empty 1 'holds refuses this range' "$no_commit" "$branch_with_empty_ranges_at_the_root"
