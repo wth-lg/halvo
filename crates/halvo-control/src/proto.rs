@@ -342,6 +342,22 @@ pub enum ReplyError {
     Version(u64),
     #[error("the reply does not fit protocol version 1: {0}")]
     Body(String),
+    /// The reply carries a status whose fields read as a status and break a rule of
+    /// [`DaemonStatus`].
+    #[error("{0}")]
+    Status(StatusError),
+}
+
+/// The rule that the status of a reply body breaks, when the body is a status, a
+/// capture_changed or a cap_set whose status has every field of a status.
+fn broken_status_rule(body: &Object) -> Option<StatusError> {
+    let status = match body.get("kind").and_then(serde_json::Value::as_str)? {
+        "status" | "capture_changed" => serde_json::Value::Object(body.clone()),
+        "cap_set" => body.get("status")?.clone(),
+        _ => return None,
+    };
+    let fields: StatusFields = serde_json::from_value(status).ok()?;
+    DaemonStatus::new(fields).err()
 }
 
 /// A field that this build does not know is skipped.
@@ -351,8 +367,12 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
         return Err(ReplyError::Version(version));
     }
     let body = body.ok_or(ReplyError::NotAnEnvelope)?;
-    serde_json::from_value(serde_json::Value::Object(body))
-        .map_err(|e| ReplyError::Body(e.to_string()))
+    serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
+        match broken_status_rule(&body) {
+            Some(broken) => ReplyError::Status(broken),
+            None => ReplyError::Body(e.to_string()),
+        }
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1466,6 +1486,13 @@ pub struct StatusFields {
 #[error("the status does not hold together: {0}")]
 pub struct StatusError(&'static str);
 
+impl StatusError {
+    /// The fixed text of the rule that the status broke.
+    pub const fn rule(&self) -> &'static str {
+        self.0
+    }
+}
+
 /// The daemon's status. Its fields agree with each other and with its platform: the
 /// platform's own lines, its sources in order, the five switches and the eight kinds in
 /// order, the enabled sources against the source lines, the store state against its
@@ -1621,6 +1648,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
         && (f.lease != Lease::Fresh || f.desired != CaptureState::Running)
     {
         return fail("faulted has desired running and a fresh lease");
+    }
+    if f.capture == Capture::Paused && f.desired != CaptureState::Paused {
+        return fail("paused has desired paused");
     }
     if f.capture == Capture::AwaitingResume && f.desired != CaptureState::Running {
         return fail("a capture that awaits a resume has desired running");

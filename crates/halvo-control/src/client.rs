@@ -59,6 +59,9 @@ pub enum ClientError {
     Daemon(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
+    /// A reply whose status breaks a rule of the status type; the text is the rule's.
+    #[error("the capture service reported a state that does not hold together: {}", .0.rule())]
+    StateDoesNotHoldTogether(crate::proto::StatusError),
     #[error("the daemon answered {kind} to this request")]
     UnexpectedReply { kind: &'static str },
     #[error("the control channel failed: {0}")]
@@ -254,7 +257,12 @@ impl<C: Connector> Client<C> {
             }
         })?;
         let frame = read_reply(&mut timed).map_err(frame_error)?;
-        let reply = decode_reply(&frame).map_err(|e| ClientError::Protocol(e.to_string()))?;
+        let reply = decode_reply(&frame).map_err(|e| match e {
+            crate::proto::ReplyError::Status(broken) => {
+                ClientError::StateDoesNotHoldTogether(broken)
+            }
+            other => ClientError::Protocol(other.to_string()),
+        })?;
         #[cfg(feature = "r2")]
         let reply = crate::r2::decode_sections(reply)?;
         Ok(reply)

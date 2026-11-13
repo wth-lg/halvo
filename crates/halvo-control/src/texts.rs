@@ -2,13 +2,23 @@ use serde::Serialize;
 
 use crate::model::StorageCap;
 use crate::proto::{
-    Cap, Custody, DaemonStatus, OnOff, PasswordGuard, Platform, SwitchLine, SwitchName,
+    Cap, Custody, DaemonStatus, OnOff, PasswordGuard, Platform, SourceLine, SourceName,
+    SourceState, SwitchLine, SwitchName,
 };
 
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
     "Typing is not observed on Windows in this version.";
+
+/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line is not
+/// off; the words are the owner's to change (owner's list, entry I-73).
+pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture to stop it.";
+
+/// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line is not off and the
+/// switch is off; the words are the owner's to change (owner's list, entry I-73).
+pub const SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF: &str =
+    "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
 
 pub const UNSIGNED_BUILD_CUSTODY: &str = "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.";
 
@@ -35,14 +45,35 @@ pub struct Recorded {
     pub text: &'static str,
 }
 
-/// The sentences of `recorded` for the switches a daemon reports, in their order.
-pub fn recorded(platform: Platform, switches: &[SwitchLine]) -> Vec<Recorded> {
+/// The sentences of `recorded` for the switches a daemon reports, in their order. A sentence
+/// that says a source does not record is given only while that source's line reads off (a
+/// source with no line reads as off); beside a line that is not off, a sentence that says the
+/// source runs stands in its place.
+pub fn recorded(
+    platform: Platform,
+    switches: &[SwitchLine],
+    sources: &[SourceLine],
+) -> Vec<Recorded> {
+    let off = |name: SourceName| {
+        sources
+            .iter()
+            .find(|s| s.name == name)
+            .is_none_or(|s| s.state == SourceState::Off)
+    };
     let mut out = Vec::new();
     for line in switches {
         let on = line.value == OnOff::On;
         let text = match (platform, line.name, on) {
-            (Platform::Windows, SwitchName::KeyClass, _) => Some(TYPING_NOT_OBSERVED_ON_WINDOWS),
-            (_, SwitchName::ScreenActivity, false) => Some(SCREEN_ACTIVITY_NOT_RECORDED),
+            (Platform::Windows, SwitchName::KeyClass, _) if off(SourceName::Keyboard) => {
+                Some(TYPING_NOT_OBSERVED_ON_WINDOWS)
+            }
+            (Platform::Windows, SwitchName::KeyClass, _) => Some(TYPING_BEING_OBSERVED),
+            (_, SwitchName::ScreenActivity, false) if off(SourceName::Screen) => {
+                Some(SCREEN_ACTIVITY_NOT_RECORDED)
+            }
+            (_, SwitchName::ScreenActivity, false) => {
+                Some(SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF)
+            }
             (_, name, true) => Some(recorded_when_on(name)),
             (_, _, false) => None,
         };
@@ -119,7 +150,7 @@ pub struct Texts {
 pub fn texts(status: &DaemonStatus) -> Texts {
     let f = status.fields();
     Texts {
-        recorded: recorded(f.platform, &f.switches),
+        recorded: recorded(f.platform, &f.switches, &f.sources),
         passwords: passwords(f.platform, f.password_guard),
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
@@ -290,6 +321,7 @@ mod tests {
         let recorded = recorded(
             Platform::Macos,
             &sample_status(Platform::Macos).fields().switches,
+            &sample_status(Platform::Macos).fields().sources,
         );
         assert_eq!(
             texts_of(&recorded),
@@ -317,6 +349,7 @@ mod tests {
         let recorded = recorded(
             Platform::Windows,
             &sample_status(Platform::Windows).fields().switches,
+            &sample_status(Platform::Windows).fields().sources,
         );
         assert_eq!(
             texts_of(&recorded),
@@ -332,7 +365,11 @@ mod tests {
 
     #[test]
     fn the_windows_border_sentence_shows_only_while_screen_activity_is_on() {
-        let on = recorded(Platform::Windows, &switches(&[SwitchName::ScreenActivity]));
+        let on = recorded(
+            Platform::Windows,
+            &switches(&[SwitchName::ScreenActivity]),
+            &[],
+        );
         assert_eq!(
             texts_of(&on),
             [
@@ -341,12 +378,16 @@ mod tests {
                 WINDOWS_CAPTURE_BORDER
             ]
         );
-        let mac = recorded(Platform::Macos, &switches(&[SwitchName::ScreenActivity]));
+        let mac = recorded(
+            Platform::Macos,
+            &switches(&[SwitchName::ScreenActivity]),
+            &[],
+        );
         assert_eq!(
             texts_of(&mac),
             [recorded_when_on(SwitchName::ScreenActivity)]
         );
-        let all = recorded(Platform::Macos, &switches(SwitchName::ALL));
+        let all = recorded(Platform::Macos, &switches(SwitchName::ALL), &[]);
         assert_eq!(all.len(), 5);
         assert!(!texts_of(&all).contains(&SCREEN_ACTIVITY_NOT_RECORDED));
     }
