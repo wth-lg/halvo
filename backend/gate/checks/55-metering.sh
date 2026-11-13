@@ -91,19 +91,21 @@ expect() {
   esac
   line=${line#"$prefix"}
   sed 's/^/  /' "$log"
-  case "$kind:$status:$line" in
-    "good:0:PASS metering: "* | "own:0:PASS metering-"*)
+  missing=$(printf '%s\n' "$want" | while IFS= read -r part; do
+    [ -z "$part" ] || printf '%s\n' "$line" | grep -qF -- "$part" || printf '%s;' "$part"
+  done)
+  case "$kind:$status:$missing:$line" in
+    "good:0::PASS metering: "*)
       echo "self-test metering: good $fixture: PASS as expected"
       return 0
       ;;
-    "bad:1:FAIL metering: "*)
-      missing=$(printf '%s\n' "$want" | while IFS= read -r part; do
-        [ -z "$part" ] || printf '%s\n' "$line" | grep -qF -- "$part" || printf '%s;' "$part"
-      done)
-      if [ -z "$missing" ]; then
-        echo "self-test metering: bad $fixture: FAIL as expected"
-        return 0
-      fi
+    "own:0::PASS metering-"*)
+      echo "self-test metering: own $fixture: PASS as expected"
+      return 0
+      ;;
+    "bad:1::FAIL metering: "*)
+      echo "self-test metering: bad $fixture: FAIL as expected"
+      return 0
       ;;
   esac
   echo "self-test metering: $kind $fixture: exit $status, line \"$line\"${want:+, expected the text $want}"
