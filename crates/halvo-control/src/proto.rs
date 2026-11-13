@@ -2014,6 +2014,47 @@ mod tests {
     }
 
     #[test]
+    fn a1_a_version_is_an_integer_from_0_to_18446744073709551615_and_one_other_than_1_is_unsupported_whatever_the_frame_holds(
+    ) {
+        for text in [
+            r#"{"v":2,"body":{"op":"status","indicator":false}}"#,
+            r#"{"v":2,"body":{"op":"status"},"id":7}"#,
+            r#"{"v":2,"body":["status"]}"#,
+            r#"{"v":2}"#,
+            r#"{"v":18446744073709551615,"id":7}"#,
+            r#"{"v":0,"body":7}"#,
+        ] {
+            let error = decode_request(text.as_bytes()).unwrap_err();
+            assert_eq!(error.code(), ErrorCode::UnsupportedVersion, "{text}");
+            assert!(
+                matches!(decode_reply(text.as_bytes()), Err(ReplyError::Version(_))),
+                "{text}"
+            );
+        }
+        for text in [
+            r#"{"v":"2","body":{"op":"status","indicator":false}}"#,
+            r#"{"v":1.5,"body":{"op":"status","indicator":false}}"#,
+            r#"{"v":-1,"body":{"op":"status","indicator":false}}"#,
+            r#"{"v":18446744073709551616,"body":{"op":"status","indicator":false}}"#,
+            r#"{"v":null,"body":{"op":"status","indicator":false}}"#,
+        ] {
+            assert_eq!(
+                decode_request(text.as_bytes()).unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{text}"
+            );
+            assert!(
+                matches!(
+                    decode_reply(text.as_bytes()),
+                    Err(ReplyError::NotAnEnvelope)
+                ),
+                "{text}"
+            );
+        }
+        assert!(THREAT_MODEL.contains("a version is an integer from 0 to 18446744073709551615"));
+    }
+
+    #[test]
     fn a_frame_with_a_key_twice_is_invalid_argument_at_any_depth() {
         for text in [
             r#"{"v":1,"body":{"op":"run_start","op":"pause"}}"#,
