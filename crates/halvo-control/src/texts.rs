@@ -137,6 +137,10 @@ pub fn texts(status: &DaemonStatus) -> Texts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lf(checked_out: &str) -> String {
+        checked_out.replace("\r\n", "\n")
+    }
     use crate::model::StorageCap;
     use crate::proto::{Cap, Custody, OnOff, PasswordGuard, Platform, SwitchLine, SwitchName};
     use crate::testing::sample_status;
@@ -220,7 +224,7 @@ mod tests {
 
     #[test]
     fn every_switch_of_gate_2_s_status_fixtures_has_a_sentence_for_its_on_state() {
-        for text in [STATUS_MACOS, STATUS_WINDOWS] {
+        for text in [lf(STATUS_MACOS), lf(STATUS_WINDOWS)] {
             let names: Vec<&str> = text
                 .lines()
                 .filter_map(|l| l.strip_prefix("switch name="))

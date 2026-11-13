@@ -439,6 +439,10 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lf(checked_out: &str) -> String {
+        checked_out.replace("\r\n", "\n")
+    }
     use crate::client::ClientError;
     use crate::model::{StorageCap, StoreId};
     use crate::proto::{
@@ -498,14 +502,17 @@ mod tests {
 
     #[test]
     fn the_macos_status_renders_gate_2_s_fixture_byte_for_byte() {
-        assert_eq!(status_text(&sample_status(Platform::Macos)), STATUS_MACOS);
+        assert_eq!(
+            status_text(&sample_status(Platform::Macos)),
+            lf(STATUS_MACOS)
+        );
     }
 
     #[test]
     fn the_windows_status_renders_gate_2_s_fixture_byte_for_byte() {
         assert_eq!(
             status_text(&sample_status(Platform::Windows)),
-            STATUS_WINDOWS
+            lf(STATUS_WINDOWS)
         );
     }
 
@@ -516,7 +523,7 @@ mod tests {
             f.lease = Lease::Lapsed;
             stopped_sources(f);
         });
-        assert_eq!(status_text(&status), STATUS_NO_INDICATOR);
+        assert_eq!(status_text(&status), lf(STATUS_NO_INDICATOR));
     }
 
     #[test]
@@ -532,12 +539,12 @@ mod tests {
             f.last_expiry_at = None;
             stopped_sources(f);
         });
-        assert_eq!(status_text(&status), STATUS_UNSUPPORTED_VERSION);
+        assert_eq!(status_text(&status), lf(STATUS_UNSUPPORTED_VERSION));
     }
 
     #[test]
     fn the_inventory_renders_its_fixture() {
-        assert_eq!(inventory_text(&sample_inventory(Vec::new())), INVENTORY);
+        assert_eq!(inventory_text(&sample_inventory(Vec::new())), lf(INVENTORY));
     }
 
     #[test]
@@ -546,12 +553,12 @@ mod tests {
             report: sample_delete_report(),
             store: Some(FRESH),
         };
-        assert_eq!(deleted_text(&deleted), DELETED);
+        assert_eq!(deleted_text(&deleted), lf(DELETED));
         assert_eq!(
             already_deleted_text(&AlreadyDeleted {
                 current: Some(FRESH)
             }),
-            ALREADY_DELETED
+            lf(ALREADY_DELETED)
         );
     }
 
@@ -565,7 +572,7 @@ mod tests {
             })),
             &data_dir(),
         );
-        assert_eq!(printed.stdout, STOPPED);
+        assert_eq!(printed.stdout, lf(STOPPED));
         assert_eq!(printed.status, crate::exit::CLEAN);
     }
 
@@ -593,7 +600,7 @@ mod tests {
             }),
             &data_dir(),
         );
-        assert_eq!(printed.stderr, UNREACHABLE);
+        assert_eq!(printed.stderr, lf(UNREACHABLE));
         assert_eq!(printed.stdout, "");
         assert_eq!(printed.status, 69);
     }
@@ -602,10 +609,8 @@ mod tests {
     fn every_status_fixture_has_its_line_counts_and_the_five_switches_in_order() {
         let count =
             |text: &str, prefix: &str| text.lines().filter(|l| l.starts_with(prefix)).count();
-        let switches: Vec<&str> = STATUS_MACOS
-            .lines()
-            .filter(|l| l.starts_with("switch "))
-            .collect();
+        let macos = lf(STATUS_MACOS);
+        let switches: Vec<&str> = macos.lines().filter(|l| l.starts_with("switch ")).collect();
         assert_eq!(
             switches,
             [
@@ -617,18 +622,18 @@ mod tests {
             ]
         );
         for (text, sources, permissions) in [
-            (STATUS_MACOS, 5, 3),
-            (STATUS_WINDOWS, 6, 0),
-            (STATUS_NO_INDICATOR, 5, 3),
-            (STATUS_UNSUPPORTED_VERSION, 5, 3),
+            (lf(STATUS_MACOS), 5, 3),
+            (lf(STATUS_WINDOWS), 6, 0),
+            (lf(STATUS_NO_INDICATOR), 5, 3),
+            (lf(STATUS_UNSUPPORTED_VERSION), 5, 3),
         ] {
-            assert_eq!(count(text, "source "), sources);
-            assert_eq!(count(text, "permission "), permissions);
-            assert_eq!(count(text, "switch "), 5);
-            assert_eq!(count(text, "kind "), 8);
+            assert_eq!(count(&text, "source "), sources);
+            assert_eq!(count(&text, "permission "), permissions);
+            assert_eq!(count(&text, "switch "), 5);
+            assert_eq!(count(&text, "kind "), 8);
         }
-        assert!(STATUS_WINDOWS.contains("\nsource name=keyboard state=off\n"));
-        assert!(STATUS_MACOS.contains("\nsource name=screen state=off\n"));
+        assert!(lf(STATUS_WINDOWS).contains("\nsource name=keyboard state=off\n"));
+        assert!(lf(STATUS_MACOS).contains("\nsource name=screen state=off\n"));
     }
 
     #[test]
@@ -639,10 +644,10 @@ mod tests {
             "expiry_error=",
             "last_expiry_at=",
         ] {
-            assert!(STATUS_MACOS.contains(key), "{key}");
+            assert!(lf(STATUS_MACOS).contains(key), "{key}");
         }
         for key in ["files_left=", "database_left=", "entries_left=", "intent="] {
-            assert!(DELETED.contains(key), "{key}");
+            assert!(lf(DELETED).contains(key), "{key}");
         }
     }
 
