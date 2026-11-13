@@ -131,6 +131,8 @@ fn refused_or_io(e: io::Error, link: &str) -> StoreError {
         Some(Refused::Link) => StoreError::Corrupt(link.to_string()),
         Some(Refused::NotADirectory) => StoreError::Io(io::ErrorKind::NotADirectory),
         Some(Refused::NotARegularFile) => StoreError::Corrupt(SEGMENT_FILE_NOT_REGULAR.to_string()),
+        #[cfg(windows)]
+        Some(Refused::Moved) => StoreError::Corrupt(link.to_string()),
         None => io_error(e),
     }
 }
@@ -409,10 +411,17 @@ pub(crate) fn write_segment_file(
         &names.partial,
         &names.file,
         io_error,
-        || match segments.names(&names.shard, &shard) {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(StoreError::Corrupt(LINKED_SHARD.to_string())),
-            Err(e) => Err(io_error(e)),
+        |written| {
+            match segments.names(&names.shard, &shard) {
+                Ok(true) => {}
+                Ok(false) => return Err(StoreError::Corrupt(LINKED_SHARD.to_string())),
+                Err(e) => return Err(io_error(e)),
+            }
+            match shard.names_file(&names.partial, written) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(StoreError::Corrupt(LINKED_SEGMENT_FILE.to_string())),
+                Err(e) => Err(io_error(e)),
+            }
         },
         |shard, partial| {
             let _ = shard.remove_file(partial);

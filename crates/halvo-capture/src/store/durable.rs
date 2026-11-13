@@ -66,6 +66,8 @@ pub(crate) enum Refused {
     Link,
     NotADirectory,
     NotARegularFile,
+    #[cfg(windows)]
+    Moved,
 }
 
 impl fmt::Display for Refused {
@@ -74,6 +76,8 @@ impl fmt::Display for Refused {
             Refused::Link => "the name is a link",
             Refused::NotADirectory => "the name is no directory",
             Refused::NotARegularFile => "the name is no regular file",
+            #[cfg(windows)]
+            Refused::Moved => "the name no longer names the directory that was opened",
         })
     }
 }
@@ -377,6 +381,18 @@ mod unix_dir {
             File::from(self.fd.try_clone()?).sync_all()
         }
 
+        pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {
+            let named = match stat_at(self.fd.as_raw_fd(), name) {
+                Ok(st) => st,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
+                Err(e) => return Err(e),
+            };
+            let held = stat_of(file.as_raw_fd())?;
+            Ok(kind(&named) == EntryKind::File
+                && named.st_dev == held.st_dev
+                && named.st_ino == held.st_ino)
+        }
+
         pub(crate) fn names(&self, name: &OsStr, child: &Dir) -> io::Result<bool> {
             let named = match stat_at(self.fd.as_raw_fd(), name) {
                 Ok(st) => st,
@@ -399,7 +415,7 @@ mod windows_dir {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refused, Dir, Entry, EntryKind, Refused, FILE_FLAG_OPEN_REPARSE_POINT};
+    use super::{refusal, refused, Dir, Entry, EntryKind, Refused, FILE_FLAG_OPEN_REPARSE_POINT};
 
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
@@ -419,6 +435,47 @@ mod windows_dir {
         } else {
             EntryKind::Other
         }
+    }
+
+    #[repr(C)]
+    struct FileInformation {
+        attributes: u32,
+        creation_time: [u32; 2],
+        last_access_time: [u32; 2],
+        last_write_time: [u32; 2],
+        volume_serial_number: u32,
+        size_high: u32,
+        size_low: u32,
+        links: u32,
+        index_high: u32,
+        index_low: u32,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandle(
+            file: std::os::windows::io::RawHandle,
+            information: *mut FileInformation,
+        ) -> i32;
+    }
+
+    fn file_id(file: &File) -> io::Result<(u32, u64)> {
+        use std::os::windows::io::AsRawHandle;
+        let mut information = std::mem::MaybeUninit::<FileInformation>::zeroed();
+        // SAFETY: the handle is open for as long as `file` is borrowed, and the
+        // pointer is to a zeroed structure of the layout that the call writes.
+        let done =
+            unsafe { GetFileInformationByHandle(file.as_raw_handle(), information.as_mut_ptr()) };
+        if done == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: the call answered success, so it wrote every field, and the
+        // zeroed start was already a valid value of the structure.
+        let information = unsafe { information.assume_init() };
+        Ok((
+            information.volume_serial_number,
+            (u64::from(information.index_high) << 32) | u64::from(information.index_low),
+        ))
     }
 
     fn held_dir(path: &Path) -> io::Result<File> {
@@ -466,6 +523,9 @@ mod windows_dir {
             let given = held_dir(&std::path::absolute(path)?)?;
             let path = without_verbatim_prefix(std::fs::canonicalize(path)?);
             let held = held_dir(&path)?;
+            if file_id(&given)? != file_id(&held)? {
+                return Err(refused(Refused::Moved));
+            }
             drop(given);
             Ok(Dir { _held: held, path })
         }
@@ -566,6 +626,17 @@ mod windows_dir {
             Ok(())
         }
 
+        pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {
+            match held_file(
+                &self.path.join(name),
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            ) {
+                Ok(named) => Ok(file_id(&named)? == file_id(file)?),
+                Err(e) if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() => Ok(false),
+                Err(e) => Err(e),
+            }
+        }
+
         pub(crate) fn names(&self, name: &OsStr, _child: &Dir) -> io::Result<bool> {
             match self.entry(name) {
                 Ok(entry) => Ok(entry.kind == EntryKind::Dir),
@@ -583,7 +654,7 @@ pub(crate) fn write_durably<T, E>(
     temp: &OsStr,
     target: &OsStr,
     io_error: fn(io::Error) -> E,
-    before_publish: impl FnOnce() -> Result<(), E>,
+    before_publish: impl FnOnce(&File) -> Result<(), E>,
     discard: impl FnOnce(&Dir, &OsStr) -> Result<(), E>,
     fill: impl FnOnce(&mut dyn Write) -> Result<T, E>,
 ) -> Result<T, E> {
@@ -605,7 +676,7 @@ fn fill_and_publish<T, E>(
     temp: &OsStr,
     target: &OsStr,
     io_error: fn(io::Error) -> E,
-    before_publish: impl FnOnce() -> Result<(), E>,
+    before_publish: impl FnOnce(&File) -> Result<(), E>,
     fill: impl FnOnce(&mut dyn Write) -> Result<T, E>,
 ) -> Result<T, E> {
     let mut writer = BufWriter::new(file);
@@ -613,8 +684,8 @@ fn fill_and_publish<T, E>(
     writer.flush().map_err(io_error)?;
     fs.sync_file(writer.get_ref(), dir, temp)
         .map_err(io_error)?;
+    before_publish(writer.get_ref())?;
     drop(writer);
-    before_publish()?;
     fs.rename(dir, temp, target).map_err(io_error)?;
     fs.sync_dir(dir).map_err(io_error)?;
     Ok(value)
@@ -817,7 +888,7 @@ mod tests {
             name("file.tmp"),
             name("file"),
             |e| e,
-            || Ok(()),
+            |_| Ok(()),
             |_, _| Ok(()),
             |out| out.write_all(b"durable bytes").map(|()| 13),
         );
@@ -848,7 +919,7 @@ mod tests {
                 name("file.tmp"),
                 name("file"),
                 |e| e,
-                || Ok(()),
+                |_| Ok(()),
                 |_, _| Ok(()),
                 |out| out.write_all(b"bytes"),
             );
@@ -875,7 +946,7 @@ mod tests {
             name("file.tmp"),
             name("file"),
             |e| e,
-            || Ok(()),
+            |_| Ok(()),
             |_, _| Ok(()),
             |out| out.write_all(b"new"),
         );
@@ -898,7 +969,7 @@ mod tests {
             name("file.tmp"),
             name("file"),
             |e| e,
-            || Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+            |_| Err(io::Error::from(io::ErrorKind::PermissionDenied)),
             |dir, partial| dir.remove_file(partial),
             |out| out.write_all(b"bytes"),
         );

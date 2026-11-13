@@ -77,7 +77,7 @@ impl KeyFile {
             OsStr::new(KEY_FILE_TEMP),
             OsStr::new(KEY_FILE),
             io_error,
-            || Ok(()),
+            |_| Ok(()),
             |dir, temp| match dir.remove_file(temp) {
                 Err(e) if e.kind() != ErrorKind::NotFound => Err(io_error(e)),
                 _ => Ok(()),
@@ -159,6 +159,8 @@ fn key_file_error(e: std::io::Error) -> StoreError {
 fn store_dir_error(e: std::io::Error) -> StoreError {
     match durable::refusal(&e) {
         Some(Refused::Link) => StoreError::Corrupt("the store directory is a link".to_string()),
+        #[cfg(windows)]
+        Some(Refused::Moved) => StoreError::Corrupt(STORE_DIR_MOVED.to_string()),
         Some(_) => StoreError::Io(ErrorKind::NotADirectory),
         None => io_error(e),
     }

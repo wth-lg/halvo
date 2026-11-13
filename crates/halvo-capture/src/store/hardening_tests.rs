@@ -4951,7 +4951,7 @@ fn a_durable_write_and_a_durable_removal_report_a_directory_sync_that_fails() {
         temp,
         target,
         |e| e,
-        || Ok(()),
+        |_| Ok(()),
         |_, _| Ok(()),
         |out| out.write_all(b"bytes"),
     );
@@ -4984,7 +4984,7 @@ fn a_durable_write_whose_discard_fails_answers_with_the_error_of_the_discard() {
         OsStr::new("file.tmp"),
         OsStr::new("file"),
         |e| e,
-        || Ok(()),
+        |_| Ok(()),
         |_, _| Err(io::Error::from(io::ErrorKind::PermissionDenied)),
         |out| out.write_all(b"bytes"),
     );
@@ -5040,6 +5040,114 @@ fn a_shred_reads_no_size_through_a_link_at_the_log_name() {
         "a shred with a link at store.db-wal answered {shred:?}"
     );
     assert_eq!(std::fs::read(&target).unwrap(), vec![7u8; 100]);
+}
+
+#[cfg(unix)]
+fn a_write_store(dir: &Path) -> (PathBuf, EncryptedStore) {
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, RootId::fresh());
+    let store = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+    (store_dir, store)
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_write_whose_partial_file_became_a_link_at_its_sync_publishes_nothing() {
+    use super::durable::test_support::{Call, RecordingFs};
+
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("a-file-of-another-party");
+    std::fs::write(&target, b"bytes that stay").unwrap();
+    let (store_dir, mut store) = a_write_store(dir.path());
+    let swapped = Arc::new(std::sync::Mutex::new(false));
+    let fs = {
+        let (target, aside, swapped) = (
+            target.clone(),
+            dir.path().join("partial-moved-aside"),
+            Arc::clone(&swapped),
+        );
+        RecordingFs::observed_by(move |call| {
+            if let Call::SyncFile(partial) = call {
+                let mut swapped = swapped.lock().unwrap();
+                if !*swapped {
+                    std::fs::rename(partial, &aside).unwrap();
+                    std::os::unix::fs::symlink(&target, partial).unwrap();
+                    *swapped = true;
+                }
+            }
+        })
+    };
+    store.use_fs(Arc::new(fs));
+
+    let written = store
+        .write_segment(&mut Cursor::new(
+            b"a segment whose partial file became a link",
+        ))
+        .map(drop);
+
+    assert!(*swapped.lock().unwrap(), "the seam did not run");
+    assert!(
+        matches!(&written, Err(StoreError::Corrupt(text))
+            if text == "a segment file of the store is a link"),
+        "a write whose partial file became a link answered {written:?}"
+    );
+    let published: Vec<String> = entries_below(&segment::segments_root(&store_dir))
+        .into_iter()
+        .map(|(name, _)| name)
+        .filter(|name| name.ends_with(".seg"))
+        .collect();
+    assert_eq!(
+        published,
+        Vec::<String>::new(),
+        "the write published a segment"
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), b"bytes that stay");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_write_whose_shard_name_takes_a_plain_directory_at_the_create_answers_corrupt() {
+    use super::durable::test_support::{Call, RecordingFs};
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, mut store) = a_write_store(dir.path());
+    let moved = dir.path().join("moved-shard");
+    let swapped = Arc::new(std::sync::Mutex::new(false));
+    let fs = {
+        let (moved, swapped) = (moved.clone(), Arc::clone(&swapped));
+        RecordingFs::observed_by(move |call| {
+            if let Call::CreateNew(partial) = call {
+                let mut swapped = swapped.lock().unwrap();
+                if !*swapped {
+                    let shard = partial.parent().unwrap();
+                    std::fs::rename(shard, &moved).unwrap();
+                    std::fs::create_dir(shard).unwrap();
+                    *swapped = true;
+                }
+            }
+        })
+    };
+    store.use_fs(Arc::new(fs));
+
+    let written = store
+        .write_segment(&mut Cursor::new(b"a segment whose shard was replaced"))
+        .map(drop);
+
+    assert!(*swapped.lock().unwrap(), "the seam did not run");
+    assert!(
+        matches!(&written, Err(StoreError::Corrupt(text))
+            if text == "a shard of the segments directory of the store is a link"),
+        "a write whose shard name took a plain directory answered {written:?}"
+    );
+    assert_eq!(
+        (
+            entries_below(&segment::segments_root(&store_dir)),
+            entries_below(&moved)
+        ),
+        (Vec::new(), Vec::new()),
+        "the write left or published a file"
+    );
 }
 
 #[cfg(windows)]

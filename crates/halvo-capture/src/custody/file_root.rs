@@ -40,7 +40,7 @@ fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), Custod
         partial_name,
         name,
         root_io,
-        || Ok(()),
+        |_| Ok(()),
         |_, _| scrub_and_remove(partial),
         |out| out.write_all(blob).map_err(root_io),
     )
