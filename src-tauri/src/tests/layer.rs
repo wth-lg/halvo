@@ -19,8 +19,8 @@ use tauri::Manager;
 
 use super::states::{status_with, stopped, store};
 use super::{
-    fixture_daemon, invoke, main_window, scratch_dir, test_app_from, test_app_with, test_parts,
-    TestApp, APP_URL,
+    invoke, macos_fixture_daemon, main_window, scratch_dir, test_app_from, test_app_with,
+    test_parts, TestApp, APP_URL,
 };
 use crate::app;
 use crate::commands::capture::AppState;
@@ -51,7 +51,7 @@ fn hex(id: StoreId) -> String {
 fn the_app_state_of_a_failing_resolver_builds_and_its_set_up_returns_ok() {
     let state = AppState::new(|| Err::<DataDir, &str>("no home"), no_pane);
     assert!(state.data_dir.is_none());
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let test = test_app_from(
         test_parts(scratch_dir("failing-resolver"), state),
         app::context(),
@@ -68,7 +68,7 @@ fn the_app_state_of_a_failing_resolver_builds_and_its_set_up_returns_ok() {
 #[test]
 fn the_app_state_of_this_systems_environment_builds_and_its_set_up_returns_ok() {
     let state = AppState::new(DataDir::for_current_user, no_pane);
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let test = test_app_from(
         test_parts(scratch_dir("environment"), state),
         app::context(),
@@ -88,7 +88,7 @@ fn tray_that_fails(
 
 #[test]
 fn a_tray_that_fails_to_install_is_no_set_up_error_and_the_state_records_no_tray() {
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let mut parts = test_parts(scratch_dir("no-tray"), super::state_of(&connector));
     parts.tray = Some(tray_that_fails);
     let test = test_app_from(parts, app::context(), connector);
@@ -98,7 +98,7 @@ fn a_tray_that_fails_to_install_is_no_set_up_error_and_the_state_records_no_tray
 
 #[test]
 fn a_stale_id_returns_already_deleted_and_deletes_nothing() {
-    let test = app_on(fixture_daemon(), "stale-id");
+    let test = app_on(macos_fixture_daemon(), "stale-id");
     test.poll();
     let stale = store_id(0x42);
     assert_eq!(
@@ -162,7 +162,7 @@ fn an_unavailable_store_takes_the_delete_with_the_id_of_the_status() {
 
 #[test]
 fn two_deletes_in_a_row_with_the_first_id_delete_one_store() {
-    let test = app_on(fixture_daemon(), "two-deletes");
+    let test = app_on(macos_fixture_daemon(), "two-deletes");
     test.poll();
     let first = hex(FIXTURE_STORE_ID);
     let one = call(&test, "delete_all", json!({ "storeId": first })).expect("a reply");
@@ -179,7 +179,7 @@ fn two_deletes_in_a_row_with_the_first_id_delete_one_store() {
 
 #[test]
 fn delete_refused_carries_no_id_and_the_app_sends_no_second_delete() {
-    let test = app_on(fixture_daemon(), "refused");
+    let test = app_on(macos_fixture_daemon(), "refused");
     test.poll();
     assert_eq!(
         call(&test, "delete_all", json!({ "storeId": null })),
@@ -195,7 +195,7 @@ fn delete_refused_carries_no_id_and_the_app_sends_no_second_delete() {
 
 #[test]
 fn a_store_id_that_is_no_id_is_an_error_and_sends_nothing() {
-    let test = app_on(fixture_daemon(), "bad-id");
+    let test = app_on(macos_fixture_daemon(), "bad-id");
     assert_eq!(
         call(&test, "delete_all", json!({ "storeId": "not-an-id" })),
         Err(json!({ "error": "bad_store_id" }))
@@ -263,14 +263,14 @@ fn a_pause_whose_state_file_is_not_written_is_not_reached() {
         assert_eq!(reply["capture"], json!("paused"), "{state_file:?}");
         assert_eq!(reply["reached"], json!(false), "{state_file:?}");
     }
-    let test = app_on(fixture_daemon(), "state-file-ok");
+    let test = app_on(macos_fixture_daemon(), "state-file-ok");
     let reply = call(&test, "set_capture_state", json!({ "capture": "paused" })).expect("a reply");
     assert_eq!(reply["reached"], json!(true));
 }
 
 #[test]
 fn a_mutation_in_flight_answers_busy_as_an_action_error() {
-    let mut daemon = fixture_daemon();
+    let mut daemon = macos_fixture_daemon();
     daemon.set_mutation_in_flight(true);
     let test = app_on(daemon, "busy");
     assert_eq!(
@@ -298,7 +298,7 @@ impl Connector for Answering {
 
 fn app_answering(answer: Answer, name: &str) -> TestApp {
     let state = AppState::with_control(Arc::new(Gated::new(Answering(answer))), None, no_pane);
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     test_app_from(
         test_parts(scratch_dir(name), state),
         app::context(),
@@ -480,7 +480,7 @@ fn a_status_made_before_a_mutation_was_answered_does_not_replace_its_view() {
 
 #[test]
 fn a_poll_of_the_app_made_before_a_pause_was_answered_keeps_the_pause() {
-    let test = app_on(fixture_daemon(), "order");
+    let test = app_on(macos_fixture_daemon(), "order");
     let state = test.app.state::<AppState>();
     let early = state.control.places().make();
     let number = early.number();
@@ -557,9 +557,10 @@ fn the_commands_reach_the_fake_server_over_the_socket_of_a_data_directory() {
     let root = base.join(format!("h58-{}", std::process::id()));
     std::fs::create_dir_all(&root).expect("a scratch directory");
     let dir = DataDir::from_flag(root.clone()).expect("an absolute directory");
-    let server = ScriptedUnixServer::start(&dir, fixture_daemon()).expect("the server starts");
+    let server =
+        ScriptedUnixServer::start(&dir, macos_fixture_daemon()).expect("the server starts");
     let state = AppState::new(|| DataDir::from_flag(root), no_pane);
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let test = test_app_from(
         test_parts(scratch_dir("socket"), state),
         app::context(),

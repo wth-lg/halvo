@@ -410,7 +410,7 @@ mod platform {
 mod tests {
     use super::*;
 
-    fn source(name: &str) -> String {
+    fn src_file_with_lf_line_ends(name: &str) -> String {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src")
             .join(name);
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn every_engine_string_that_the_url_reader_refuses_is_refused_at_the_engine() {
-        let forms = source("engine-url-forms.txt");
+        let forms = src_file_with_lf_line_ends("engine-url-forms.txt");
         let mut refused_by_reader = 0;
         for form in forms.lines() {
             if tauri::Url::parse(form).is_err() {
@@ -504,22 +504,22 @@ mod tests {
 
     #[test]
     fn the_window_main_refuses_every_download_and_gets_the_guard_of_its_engine() {
-        let app = source("app.rs");
+        let app = src_file_with_lf_line_ends("app.rs");
         assert_eq!(app.matches(".on_download(|_, _| false)").count(), 1);
         assert_eq!(
             app.matches("(parts.guard)(&window, site, sender)").count(),
             1
         );
         assert_eq!(app.matches("::from_config(app, &config)?").count(), 1);
-        let main = source("main.rs");
+        let main = src_file_with_lf_line_ends("main.rs");
         assert_eq!(main.matches("guard: engine::guard,").count(), 1);
-        let check = source("check_page.rs");
+        let check = src_file_with_lf_line_ends("check_page.rs");
         assert_eq!(check.matches("guard: engine::guard,").count(), 1);
     }
 
     #[test]
     fn on_windows_the_handlers_cancel_alone_and_refuse_every_request_off_the_list() {
-        let source = source("engine.rs");
+        let source = src_file_with_lf_line_ends("engine.rs");
         let windows = platform_module(&source, "#[cfg(windows)]\nmod platform");
         for (text, count) in [
             ("core.add_NavigationStarting(&navigations,", 1),
@@ -544,7 +544,7 @@ mod tests {
 
     #[test]
     fn on_macos_the_install_answers_installed_only_after_the_rule_list_is_added() {
-        let source = source("engine.rs");
+        let source = src_file_with_lf_line_ends("engine.rs");
         let macos = platform_module(&source, "#[cfg(target_os = \"macos\")]\nmod platform");
         assert_eq!(macos.matches("GuardInstalled(())").count(), 1);
         let added = macos

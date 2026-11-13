@@ -59,7 +59,7 @@ fn no_pane(_permission: Permission) -> Result<(), String> {
     Ok(())
 }
 
-pub fn fixture_daemon() -> ScriptedDaemon {
+pub fn macos_fixture_daemon() -> ScriptedDaemon {
     let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
     daemon.set_inventory(sample_inventory(Vec::new()));
     daemon
@@ -113,7 +113,7 @@ impl TestApp {
 }
 
 pub fn test_app(dir: PathBuf) -> TestApp {
-    test_app_with(dir, fixture_daemon())
+    test_app_with(dir, macos_fixture_daemon())
 }
 
 pub fn test_app_with(dir: PathBuf, daemon: ScriptedDaemon) -> TestApp {
@@ -257,7 +257,7 @@ fn candidate_names() -> BTreeSet<String> {
 }
 
 fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet<String> {
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let mut app = app::build(
         mock_builder(),
         test_parts(scratch_dir(name), state_of(&connector)),
@@ -759,7 +759,7 @@ fn widening(labels: &[&str], identifier: &str) -> String {
 
 /// The app with every command of the unit granted to `labels` by `route`.
 fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let parts = test_parts(scratch_dir(name), state_of(&connector));
     let mut context = app::context::<MockRuntime>();
     if let Route::Context = route {
@@ -1130,7 +1130,7 @@ fn app_with_guard(
     guard: engine::GuardInstall<MockRuntime>,
     tray: Option<app::TrayInstall<MockRuntime>>,
 ) -> App<MockRuntime> {
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let mut parts = test_parts(scratch_dir(name), state_of(&connector));
     parts.guard = guard;
     parts.tray = tray;
@@ -1186,7 +1186,7 @@ fn the_guard_is_asked_while_the_window_main_is_blank_and_the_app_page_loads_afte
 
 #[test]
 fn an_answer_at_once_loads_the_app_page_within_the_set_up() {
-    let connector = ScriptedConnector::new(fixture_daemon());
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
     let parts = test_parts(scratch_dir("guard-at-once"), state_of(&connector));
     let test = test_app_from(parts, app::context(), connector);
     assert!(test.app.try_state::<GuardInstalled>().is_some());
