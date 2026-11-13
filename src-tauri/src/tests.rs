@@ -69,6 +69,23 @@ impl FakeStore {
             ])),
         }
     }
+
+    pub fn one_row_of_every_kind() -> Self {
+        let day = UtcDay::from_days_since_epoch(20_765).expect("2026-11-08 is a day");
+        let rows = Modality::ALL
+            .iter()
+            .zip(1u64..)
+            .map(|(&modality, n)| InventoryRow {
+                day,
+                modality,
+                events: n,
+                bytes: 10 * n,
+            })
+            .collect();
+        Self {
+            rows: Arc::new(Mutex::new(rows)),
+        }
+    }
 }
 
 impl SegmentExpiry for FakeStore {
@@ -177,8 +194,16 @@ pub struct TestApp {
 pub fn test_app(config_dir: PathBuf) -> TestApp {
     let probe = FakeProbe::default();
     let parts = test_parts(config_dir, &probe);
+    test_app_from(parts, app::context(), probe)
+}
+
+pub fn test_app_from(
+    parts: app::Parts<MockRuntime>,
+    context: tauri::Context<MockRuntime>,
+    probe: FakeProbe,
+) -> TestApp {
     let mut app = app::build(mock_builder(), parts)
-        .build(app::context())
+        .build(context)
         .expect("the app builds on the mock runtime");
     first_iteration_runs_the_set_up(&mut app);
     TestApp { app, probe }
@@ -200,13 +225,30 @@ pub fn invoke(
     command: &str,
     args: Value,
 ) -> Result<Value, Value> {
+    let mut headers = tauri::http::HeaderMap::new();
+    headers.insert(
+        "Origin",
+        url.parse().expect("an address that a header can hold"),
+    );
+    invoke_with_headers(window, url, command, args, headers)
+}
+
+/// A call as the fetch path of the IPC makes it: the Origin header holds the
+/// address that the framework's own check reads.
+pub fn invoke_with_headers(
+    window: &WebviewWindow<MockRuntime>,
+    url: &str,
+    command: &str,
+    args: Value,
+    headers: tauri::http::HeaderMap,
+) -> Result<Value, Value> {
     let request = InvokeRequest {
         cmd: command.into(),
         callback: CallbackFn(0),
         error: CallbackFn(1),
         url: url.parse().expect("a URL"),
         body: InvokeBody::Json(args),
-        headers: Default::default(),
+        headers,
         invoke_key: INVOKE_KEY.to_string(),
     };
     get_ipc_response(window, request)
@@ -687,7 +729,7 @@ fn manifest_commands() -> BTreeSet<String> {
 }
 
 fn is_refused(reply: &Result<Value, Value>) -> bool {
-    matches!(reply, Err(Value::String(text)) if text.contains("not allowed") || text.contains("not found"))
+    matches!(reply, Err(Value::String(text)) if text.contains("not allowed") || text.contains("not found") || text == commands::REFUSED)
 }
 
 #[test]
@@ -744,5 +786,359 @@ fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin
     assert!(
         answered.is_empty(),
         "the window settings at the app's origin reaches {answered:?}"
+    );
+    widened_labels_reach_no_command_of_the_unit();
+}
+
+/// The two ways in which a capability can reach a build beside the file: the
+/// context's own authority, as a capability handed to the context macro lands,
+/// and a capability added at run time after the set-up.
+#[derive(Clone, Copy, Debug)]
+enum Route {
+    Context,
+    RunTime,
+}
+
+const MADE_UP_LABEL: &str = "zq-label-of-this-test";
+
+fn widening(labels: &[&str], identifier: &str) -> String {
+    serde_json::json!({
+        "identifier": identifier,
+        "windows": labels,
+        "permissions": UNIT_PERMISSIONS,
+    })
+    .to_string()
+}
+
+/// The app with every command of the unit granted to `labels` by `route`.
+fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
+    let probe = FakeProbe::default();
+    let parts = test_parts(scratch_dir(name), &probe);
+    let mut context = app::context::<MockRuntime>();
+    if let Route::Context = route {
+        context
+            .runtime_authority_mut()
+            .add_capability(widening(labels, "widened-in-the-context"))
+            .expect("the context takes a capability");
+    }
+    let test = test_app_from(parts, context, probe);
+    if let Route::RunTime = route {
+        test.app
+            .add_capability(widening(labels, "widened-at-run-time"))
+            .expect("the app takes a capability at run time");
+    }
+    test
+}
+
+fn window_of(test: &TestApp, label: &str) -> WebviewWindow<MockRuntime> {
+    let window = WebviewWindowBuilder::new(
+        test.app.handle(),
+        label,
+        WebviewUrl::App("index.html".into()),
+    );
+    #[cfg(windows)]
+    let window = window.data_directory(scratch_dir(&format!("window-{label}")).join("webview"));
+    window.build().expect("a window builds on the mock runtime")
+}
+
+fn unit_commands() -> Vec<&'static str> {
+    names::MODULES
+        .iter()
+        .flat_map(|module| module.commands.iter().copied())
+        .collect()
+}
+
+#[test]
+fn a_window_other_than_main_gets_no_command_of_the_unit_whatever_a_capability_grants() {
+    for route in [Route::Context, Route::RunTime] {
+        for label in ["helper", MADE_UP_LABEL] {
+            let test = widened_app(&format!("widened-{route:?}-{label}"), &[label], route);
+            let window = window_of(&test, label);
+            for command in unit_commands() {
+                let reply = invoke(&window, APP_URL, command, serde_json::json!({}));
+                assert_eq!(
+                    reply,
+                    Err(Value::String(commands::REFUSED.to_string())),
+                    "{command} from the window {label} at the app origin, granted by the route {route:?}"
+                );
+            }
+        }
+    }
+}
+
+fn near_origin(port: bool, user: bool) -> String {
+    let (scheme, host) = app::APP_ORIGIN;
+    let user = if user { "user@" } else { "" };
+    let port = if port { ":8080" } else { "" };
+    format!("{scheme}://{user}{host}{port}")
+}
+
+#[test]
+fn a_call_of_the_app_host_from_another_port_or_with_user_information_is_refused() {
+    let test = test_app(scratch_dir("near-origins"));
+    let main = main_window(&test.app);
+    for address in [near_origin(true, false), near_origin(false, true)] {
+        for command in unit_commands() {
+            let reply = invoke(&main, &address, command, serde_json::json!({}));
+            assert_eq!(
+                reply,
+                Err(Value::String(commands::REFUSED.to_string())),
+                "{command} from the window main at {address}"
+            );
+        }
+    }
+    let status = invoke_with_headers(
+        &main,
+        APP_URL,
+        "capture_status",
+        serde_json::json!({}),
+        Default::default(),
+    );
+    assert!(
+        status.is_ok(),
+        "a call with no Origin header from the app's page: {status:?}"
+    );
+}
+
+fn widened_labels_reach_no_command_of_the_unit() {
+    let commands: BTreeSet<String> = unit_commands().iter().map(|c| c.to_string()).collect();
+    for route in [Route::Context, Route::RunTime] {
+        let test = widened_app(
+            &format!("every-command-{route:?}"),
+            &["helper", MADE_UP_LABEL],
+            route,
+        );
+        for label in ["helper", MADE_UP_LABEL] {
+            let window = window_of(&test, label);
+            let answered: Vec<&String> = commands
+                .iter()
+                .filter(|c| !is_refused(&invoke(&window, APP_URL, c, serde_json::json!({}))))
+                .collect();
+            assert!(
+                answered.is_empty(),
+                "the window {label}, widened by the route {route:?}, reaches {answered:?}"
+            );
+        }
+    }
+}
+
+/// The source files of the app that a build compiles outside the tests: every
+/// file under src-tauri/src but tests.rs, and build.rs.
+fn sources_of_the_app() -> Vec<(PathBuf, String)> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("a source directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rs")
+                && path.file_name().and_then(|n| n.to_str()) != Some("tests.rs")
+            {
+                out.push(path);
+            }
+        }
+    }
+    let mut files = vec![src_tauri().join("build.rs")];
+    walk(&src_tauri().join("src"), &mut files);
+    files.sort();
+    files
+        .into_iter()
+        .map(|file| {
+            let text = std::fs::read_to_string(&file).expect("a source file reads");
+            (file, text)
+        })
+        .collect()
+}
+
+/// This test reads text: it catches a line that adds a capability at run time
+/// or hands the context macro a capability (tauri 2.12.5 `Manager::add_capability`,
+/// `Context::runtime_authority_mut` with `RuntimeAuthority::add_capability` and
+/// `__allow_command`; tauri-macros 2.7.4 `generate_context!(capabilities = ...)`).
+/// The guard of the app's handler stops the call itself.
+#[test]
+fn no_source_of_the_app_adds_a_capability_at_run_time_or_hands_one_to_the_context_macro() {
+    let calls = [
+        ["add", "_capability"].concat(),
+        ["runtime", "_authority_mut"].concat(),
+        ["__allow", "_command"].concat(),
+    ];
+    let macro_call = ["generate", "_context!("].concat();
+    for (file, text) in sources_of_the_app() {
+        for (n, line) in text.lines().enumerate() {
+            for call in &calls {
+                assert!(
+                    !line.contains(call.as_str()),
+                    "{}:{} calls {call}",
+                    file.display(),
+                    n + 1
+                );
+            }
+            if let Some(at) = line.find(&macro_call) {
+                assert!(
+                    line[at + macro_call.len()..].starts_with(')'),
+                    "{}:{} hands the context macro an argument: {line}",
+                    file.display(),
+                    n + 1
+                );
+            }
+        }
+    }
+}
+
+/// This test reads text, because the mock runtime never navigates: the one
+/// builder chain of a window under src-tauri/src hands the rule to Tauri with
+/// may_navigate and nothing beside it. Only a real engine shows that the built
+/// window asks the rule.
+#[test]
+fn the_set_up_hands_may_navigate_to_the_window_main_and_no_other_window_builder_stands() {
+    let sources = sources_of_the_app();
+    let count = |needle: &str| -> usize {
+        sources
+            .iter()
+            .map(|(_, text)| text.matches(needle).count())
+            .sum()
+    };
+    assert_eq!(
+        count("WebviewWindowBuilder::"),
+        1,
+        "window builders under src-tauri/src"
+    );
+    assert_eq!(
+        count("WebviewBuilder::"),
+        0,
+        "webview builders under src-tauri/src"
+    );
+    assert_eq!(
+        count(".add_child("),
+        0,
+        "child webviews under src-tauri/src"
+    );
+    assert_eq!(
+        count(".on_navigation("),
+        1,
+        "navigation hooks under src-tauri/src"
+    );
+    assert_eq!(
+        count(".on_navigation(|url| may_navigate(url.as_str()))\n"),
+        1,
+        "the navigation hook of the window main hands may_navigate and nothing beside it"
+    );
+}
+
+/// This test reads text, because the mock runtime runs no script: the close
+/// handler sends WINDOW_HIDDEN to the page before it hides the window. Only the
+/// real window shows that the page disarms.
+#[test]
+fn the_close_handler_tells_the_page_before_it_hides_the_window() {
+    let text = std::fs::read_to_string(src_tauri().join("src/app.rs")).expect("app.rs reads");
+    let close = text
+        .find("WindowEvent::CloseRequested")
+        .expect("the close handler");
+    let eval = text[close..]
+        .find("webview.eval(WINDOW_HIDDEN)")
+        .expect("the close handler sends WINDOW_HIDDEN");
+    let hide = text[close..]
+        .find("window.hide()")
+        .expect("the close handler hides the window");
+    assert!(
+        eval < hide,
+        "the close handler hides the window before it tells the page"
+    );
+}
+
+const MACOS_NEAR_MISSES: [&str; 7] = [
+    "http://localhost/",
+    "https://localhost/",
+    "ws://localhost/",
+    "tauri://a.localhost/",
+    "tauri://notlocalhost/",
+    "tauri://user@localhost/",
+    "tauri://user:pw@localhost/",
+];
+const WINDOWS_NEAR_MISSES: [&str; 6] = [
+    "https://tauri.localhost/",
+    "http://a.tauri.localhost/",
+    "http://nottauri.localhost/",
+    "http://tauri.localhost:8080/",
+    "http://user@tauri.localhost/",
+    "http://user:pw@tauri.localhost/",
+];
+
+#[test]
+fn each_arm_of_the_rule_refuses_the_near_misses_of_its_origin() {
+    for (origin, own, misses) in [
+        (
+            ("tauri", "localhost"),
+            "tauri://localhost/index.html",
+            &MACOS_NEAR_MISSES[..],
+        ),
+        (
+            ("http", "tauri.localhost"),
+            "http://tauri.localhost/index.html",
+            &WINDOWS_NEAR_MISSES[..],
+        ),
+    ] {
+        let parse = |address: &str| address.parse::<tauri::Url>().expect("a URL");
+        assert!(app::is_origin(&parse(own), origin), "{own}");
+        for miss in misses {
+            assert!(
+                !app::is_origin(&parse(miss), origin),
+                "the arm {origin:?} allows {miss}"
+            );
+        }
+    }
+    let own_misses = if cfg!(windows) {
+        &WINDOWS_NEAR_MISSES[..]
+    } else {
+        &MACOS_NEAR_MISSES[..]
+    };
+    for miss in own_misses.iter().chain(["tauri://localhost:8080/"].iter()) {
+        assert!(
+            !app::may_navigate(miss),
+            "the rule of this system allows {miss}"
+        );
+    }
+}
+
+#[test]
+fn the_configuration_holds_no_dev_policy_and_no_dev_address() {
+    let config = app::context::<MockRuntime>().config().clone();
+    assert!(
+        config.app.security.dev_csp.is_none(),
+        "tauri.conf.json sets app.security.devCsp, which a dev build serves in place of the policy"
+    );
+    assert!(
+        config.build.dev_url.is_none(),
+        "tauri.conf.json sets build.devUrl, which a dev build loads and counts as the app's origin"
+    );
+}
+
+#[test]
+fn the_reply_of_no_required_permission_reads_back_to_the_same_value() {
+    let fixture = read_json(&fixtures_dir().join("onboarding_state-none.json"));
+    let state: halvo_capture::consent::onboarding::OnboardingState =
+        serde_json::from_value(fixture.clone()).expect("the fixture reads into the reply's type");
+    assert_eq!(
+        serde_json::to_value(&state).expect("the reply writes"),
+        fixture
+    );
+}
+
+#[test]
+fn an_inventory_of_every_kind_answers_its_fixture() {
+    let probe = FakeProbe::default();
+    let mut parts = test_parts(scratch_dir("every-kind"), &probe);
+    parts.store = Box::new(FakeStore::one_row_of_every_kind());
+    let test = test_app_from(parts, app::context(), probe);
+    let reply = invoke(
+        &main_window(&test.app),
+        APP_URL,
+        "inventory",
+        serde_json::json!({}),
+    );
+    assert_eq!(
+        reply,
+        Ok(read_json(
+            &fixtures_dir().join("inventory-one-row-of-every-kind.json")
+        ))
     );
 }

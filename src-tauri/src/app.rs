@@ -110,12 +110,24 @@ pub fn may_navigate(address: &str) -> bool {
 /// The parsed arm of `may_navigate`: whether `url` is of the app's own
 /// origin, `tauri://localhost` on macOS and `http://tauri.localhost` on Windows.
 pub fn is_app_url(url: &Url) -> bool {
-    let (scheme, host) = if cfg!(windows) {
-        ("http", "tauri.localhost")
-    } else {
-        ("tauri", "localhost")
-    };
-    url.scheme() == scheme && url.host_str() == Some(host) && url.port().is_none()
+    is_origin(url, APP_ORIGIN)
+}
+
+/// The scheme and the host of the app's own origin on this system.
+pub const APP_ORIGIN: (&str, &str) = if cfg!(windows) {
+    ("http", "tauri.localhost")
+} else {
+    ("tauri", "localhost")
+};
+
+/// Whether `url` is of the origin `scheme://host` with no port and no user
+/// information.
+pub fn is_origin(url: &Url, (scheme, host): (&str, &str)) -> bool {
+    url.scheme() == scheme
+        && url.host_str() == Some(host)
+        && url.port().is_none()
+        && url.username().is_empty()
+        && url.password().is_none()
 }
 
 fn main_window<R: Runtime>(

@@ -3,6 +3,7 @@
   { "command": "inventory", "args": {}, "reply": "inventory-two-rows-one-day" },
   { "command": "onboarding_state", "args": {}, "probe": { "input_monitoring": "not_determined" }, "reply": "onboarding_state-missing", "reply_off_macos": "onboarding_state-none" },
   { "command": "request_permission", "args": { "permission": "input_monitoring" }, "probe": { "input_monitoring": "not_determined" }, "reply": "request_permission-requested" },
+  { "command": "request_permission", "args": { "permission": "accessibility" }, "reply": "request_permission-already-granted" },
   { "command": "open_permission_pane", "args": { "permission": "input_monitoring" }, "reply": "open_permission_pane-opened" },
   { "command": "onboarding_state", "args": {}, "reply": "onboarding_state-granted", "reply_off_macos": "onboarding_state-none" },
   { "command": "onboarding_state", "args": {}, "probe": { "accessibility": "not_granted" }, "reply": "onboarding_state-lost", "reply_off_macos": "onboarding_state-none" },
