@@ -69,6 +69,9 @@ pub struct Stopped {
     pub pids: Vec<u32>,
     pub adopted: Vec<u32>,
     pub left: Vec<u32>,
+    /// What the end of the run's own processes found before it ended anything and what its last
+    /// pass found (CP-126 E1 (d)), over the stop's end and the one after its wait.
+    pub ended: crate::checks::Ended,
     pub profile: Option<PathBuf>,
     pub temp: Option<PathBuf>,
     pub removed: bool,
@@ -459,8 +462,9 @@ impl Executor {
             .into_iter()
             .collect();
         let mut adopted = procs::adopted(&before, &tree, since, &roots);
+        let mark = self.mark.clone();
         let stopped_at = Instant::now();
-        self.stop().await;
+        let (_, first) = self.stop().await;
         let left = loop {
             let now = procs::table().unwrap_or_default();
             let grown = procs::descendants(&now, &tree);
@@ -486,6 +490,8 @@ impl Executor {
             }
             tokio::time::sleep(POLL).await;
         };
+        // a process that the run left while the stop waited is ended too, before the dirs go
+        let ended = first.then(crate::checks::end_runs_own(&mark));
         let removed = match (&profile, &temp) {
             (Some(p), Some(t)) => remove_dirs(p, t).await,
             _ => false,
@@ -494,6 +500,7 @@ impl Executor {
             pids: pids(&tree),
             adopted: pids(&adopted),
             left: pids(&left),
+            ended,
             profile,
             temp,
             removed,
@@ -635,6 +642,7 @@ mod tests {
             channel: Channel::Pipe,
             relay: None,
             local_state: None,
+            program: None,
         }
     }
 
@@ -805,6 +813,7 @@ mod tests {
             channel: Channel::Pipe,
             relay: None,
             local_state: None,
+            program: None,
         }
     }
 

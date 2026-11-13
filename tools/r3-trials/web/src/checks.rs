@@ -40,6 +40,15 @@ pub struct Count {
 /// name the first process's profile directory, as the crash handler's `--database=` does; an
 /// adopted process of another browser of the same app, such as the person's own, is no member.
 pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
+    tree_of_with(table, root, &command_args)
+}
+
+/// `tree_of` with the reading of a process's arguments given, for tests.
+pub fn tree_of_with(
+    table: &[Proc],
+    root: &Proc,
+    command_args: &dyn Fn(u32) -> Option<Vec<String>>,
+) -> Vec<Proc> {
     let mut tree = procs::descendants(table, std::slice::from_ref(root));
     tree.retain(|p| table.iter().any(|t| procs::same(t, p)));
     let roots: Vec<std::path::PathBuf> = root
@@ -57,8 +66,8 @@ pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
     };
     let adopted = procs::adopted(table, &tree, root.started_us, &roots);
     for a in adopted {
-        let ours = command_args(a.pid)
-            .is_some_and(|args| args.iter().any(|x| x.contains(profile.as_str())));
+        let ours =
+            command_args(a.pid).is_some_and(|args| args.iter().any(|x| names_profile(x, &profile)));
         if ours && !tree.iter().any(|t| procs::same(t, &a)) {
             tree.push(a);
         }
@@ -79,19 +88,140 @@ pub fn names_profile(text: &str, profile: &str) -> bool {
         })
 }
 
-/// The processes of `table` other than this one that started at or after `since_us` and whose
-/// arguments name `profile` (`names_profile`): a browser's processes, which can outlive its first
-/// process with no parent in the browser's tree.
-pub fn naming_profile(table: &[Proc], profile: &Path, since_us: u64) -> Vec<Proc> {
-    let profile = profile.to_string_lossy();
-    table
-        .iter()
-        .filter(|p| p.started_us >= since_us && p.pid != std::process::id())
-        .filter(|p| {
-            command_args(p.pid).is_some_and(|a| a.iter().any(|x| names_profile(x, &profile)))
-        })
-        .cloned()
-        .collect()
+/// What makes a process a run's own (CP-126 E1 (b)): it began at or after `since_us`, the run's
+/// start less the margin of the clock; its program lies inside `root`, the app bundle of the
+/// browser that the run started (macOS) or that browser's install directory (Windows); and one of
+/// its arguments names `profile`, the run's profile directory, as a whole path (`names_profile`).
+/// The egress check's shell, its runner and its `log stream` run other programs, and a browser of
+/// another worker or of the person names another profile: none of them is the run's own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Mark {
+    pub profile: String,
+    pub since_us: u64,
+    pub root: std::path::PathBuf,
+}
+
+impl Mark {
+    /// The mark of a run of `program` (the browser itself, not a wrapper that starts it) with
+    /// `profile`, begun at `since_us`. On macOS the program's path is read through its links, as the
+    /// process table gives an executable's path.
+    pub fn new(profile: &Path, program: &Path, since_us: u64) -> Mark {
+        let program = if cfg!(target_os = "macos") {
+            std::fs::canonicalize(program).unwrap_or_else(|_| program.to_path_buf())
+        } else {
+            program.to_path_buf()
+        };
+        Mark {
+            profile: profile.to_string_lossy().into_owned(),
+            since_us,
+            root: procs::bundle_root(&program),
+        }
+    }
+
+    /// Whether `p` is the run's own, with `args` reading a process's arguments.
+    pub fn owns(&self, p: &Proc, args: &dyn Fn(u32) -> Option<Vec<String>>) -> bool {
+        p.started_us >= self.since_us
+            && p.pid != std::process::id()
+            && p.exe.as_deref().is_some_and(|e| inside(e, &self.root))
+            && args(p.pid).is_some_and(|a| a.iter().any(|x| names_profile(x, &self.profile)))
+    }
+}
+
+/// Whether `exe` lies inside `root`: by path components on macOS, and on Windows with `/` and `\`
+/// taken as one and the letter case ignored, as the system compares paths there.
+fn inside(exe: &Path, root: &Path) -> bool {
+    if root.as_os_str().is_empty() {
+        return false;
+    }
+    if cfg!(windows) {
+        let norm = |p: &Path| p.to_string_lossy().replace('\\', "/").to_lowercase();
+        let root = norm(root);
+        norm(exe).starts_with(&format!("{}/", root.trim_end_matches('/')))
+    } else {
+        exe.starts_with(root)
+    }
+}
+
+/// What one end of a run's own processes found and left (CP-126 E1 (d)): `before`, what its first
+/// pass found before it ended anything; `after`, what its last pass found (0 when it stopped on a
+/// pass that found none); `ended`, how many processes it recorded and sent the end to; `passes`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ended {
+    pub before: usize,
+    pub after: usize,
+    pub ended: usize,
+    pub passes: usize,
+}
+
+impl Ended {
+    /// Two ends of one run as one: the first one's `before`, the last one's `after`.
+    pub fn then(self, later: Ended) -> Ended {
+        Ended {
+            before: self.before,
+            after: later.after,
+            ended: self.ended + later.ended,
+            passes: self.passes + later.passes,
+        }
+    }
+}
+
+/// The most passes over the process table that one end of a run's own processes makes.
+pub const END_PASSES: usize = 100;
+/// The pause after a pass that sent an end, so that the system can take the ended processes out of
+/// its table before the next pass reads it.
+const END_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// Ends what a run left (CP-126 E1): each pass reads the process table and takes every running
+/// process that is the run's own (`Mark::owns`); each one is recorded by number and creation time
+/// and ended by `procs::kill`, which reads its creation time again just before the kill and leaves
+/// a number that another process now has alone. The routine ends on a pass that finds none: only a
+/// process that names the profile can make another one that names it. A table that cannot be read
+/// counts as a pass that found one. After `END_PASSES` it stops with what its last pass found.
+pub fn end_runs_own(mark: &Mark) -> Ended {
+    end_runs_own_with(
+        mark,
+        &procs::table,
+        &command_args,
+        &procs::running,
+        &procs::kill,
+    )
+}
+
+/// `end_runs_own` with the table, the arguments, the running test and the kill given, for tests.
+pub fn end_runs_own_with(
+    mark: &Mark,
+    table: &dyn Fn() -> std::io::Result<Vec<Proc>>,
+    args: &dyn Fn(u32) -> Option<Vec<String>>,
+    running: &dyn Fn(&Proc) -> bool,
+    kill: &dyn Fn(&Proc) -> bool,
+) -> Ended {
+    let mut out = Ended::default();
+    let mut recorded: Vec<Proc> = Vec::new();
+    for pass in 0..END_PASSES {
+        out.passes = pass + 1;
+        let found: Option<Vec<Proc>> = table().ok().map(|t| {
+            t.into_iter()
+                .filter(|p| mark.owns(p, args) && running(p))
+                .collect()
+        });
+        let n = found.as_ref().map_or(1, Vec::len);
+        if pass == 0 {
+            out.before = n;
+        }
+        out.after = n;
+        if n == 0 {
+            break;
+        }
+        for p in found.unwrap_or_default() {
+            if !recorded.iter().any(|r| procs::same(r, &p)) {
+                recorded.push(p.clone());
+            }
+            kill(&p);
+        }
+        std::thread::sleep(END_PAUSE);
+    }
+    out.ended = recorded.len();
+    out
 }
 
 /// Whether a command line names a debugging port.
@@ -101,12 +231,17 @@ pub fn names_a_port(command_line: &str) -> bool {
 
 /// Reads every rule once. A rule whose read the system refused counts each unread process as one.
 pub fn check(s: &Subject<'_>) -> Vec<Count> {
+    check_with(s, &command_line)
+}
+
+/// `check` with the reading of a process's command line given, for tests.
+pub fn check_with(s: &Subject<'_>, line_of: &dyn Fn(u32) -> Option<String>) -> Vec<Count> {
     let table = procs::table().unwrap_or_default();
     let tree = tree_of(&table, s.root);
     let pids: Vec<u32> = tree.iter().map(|p| p.pid).collect();
     let mut port_flag = 0;
     for p in &tree {
-        match command_line(p.pid) {
+        match line_of(p.pid) {
             Some(line) if names_a_port(&line) => port_flag += 1,
             Some(_) => {}
             None if procs::running(p) => port_flag += 1,
@@ -356,6 +491,359 @@ mod tests {
         assert!(!names_profile("--user-data-dir=/t/p-10", "/t/p-1"));
         assert!(!names_profile("--user-data-dir=/t/p-1x", "/t/p-1"));
         assert!(!names_profile("--user-data-dir=/t/p-1", ""));
+    }
+
+    /// The pr-review-19 test (join-1), as the review wrote it: a failed start ends each process that
+    /// names its profile. Under the egress check the check's own shell
+    /// (`sh scripts/egress/check.sh LIST -- BROWSER ARGS`) carries the browser's arguments; a perl
+    /// process with the shell's arguments stands in for it.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn naming_profile_leaves_the_egress_checks_own_shell_alone() {
+        use crate::start::Start;
+        let profile =
+            std::env::temp_dir().join(format!("r3-web-egress-own-{}", std::process::id()));
+        let since_us = crate::procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .map(|p| p.started_us)
+            .unwrap();
+        let mut check = std::process::Command::new("/usr/bin/perl")
+            .args([
+                "-e",
+                "sleep 30",
+                "--",
+                "scripts/egress/check.sh",
+                "list.txt",
+                "--",
+            ])
+            .arg("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+            .arg(format!("--user-data-dir={}", profile.display()))
+            .start()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let (mut seen, mut named) = (false, Vec::new());
+        while std::time::Instant::now() < deadline {
+            let table = crate::procs::table().unwrap();
+            seen = table.iter().any(|p| p.pid == check.id());
+            let mark = Mark::new(
+                &profile,
+                std::path::Path::new(
+                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                ),
+                since_us,
+            );
+            named = table
+                .iter()
+                .filter(|p| mark.owns(p, &command_args))
+                .cloned()
+                .collect::<Vec<_>>();
+            if seen && named.iter().any(|p| p.pid == check.id()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let _ = check.kill();
+        let _ = check.wait();
+        assert!(
+            seen,
+            "the stand-in of the check's shell was not in the table"
+        );
+        assert!(
+            !named.iter().any(|p| p.pid == check.id()),
+            "the egress check's own shell is among the processes that a failed start ends"
+        );
+    }
+
+    /// CP-126 E1 (4): the routine read a process of the run by number and creation time; by the
+    /// kill another process has the number. The kill reads the creation time again and leaves the
+    /// other process alone. The table stands in for the read, a live `sleep` for the other process.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_number_that_another_process_took_is_left_alone() {
+        use crate::start::Start;
+        let mut other = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .start()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let real = procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == other.id())
+            .unwrap();
+        let read = Proc {
+            started_us: real.started_us.saturating_sub(5_000_000),
+            ..real.clone()
+        };
+        let mark = Mark {
+            profile: "/t/p".into(),
+            since_us: 0,
+            root: real.exe.clone().unwrap().parent().unwrap().to_path_buf(),
+        };
+        let ended = end_runs_own_with(
+            &mark,
+            &|| Ok(vec![read.clone()]),
+            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| true,
+            &procs::kill,
+        );
+        let alive = matches!(other.try_wait(), Ok(None));
+        let _ = other.kill();
+        let _ = other.wait();
+        assert!(
+            alive,
+            "the process that has the number now was ended ({ended:?})"
+        );
+        assert_eq!(ended.ended, 1, "the read process was recorded");
+    }
+
+    /// A started child on the pipe and the test's own `sleep`, whose row stands for the browser's
+    /// first process so that the child on the pipe is a second process with the browser's ends.
+    #[cfg(target_os = "macos")]
+    fn second_holder() -> (crate::start::OnPipe, std::process::Child, Proc) {
+        use crate::start::Start;
+        let spec = crate::start::Spec {
+            program: std::path::Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let on = {
+            let held = crate::start::lock();
+            crate::start::start_on_pipe(&held, &spec).expect("start")
+        };
+        let root = std::process::Command::new("/bin/sleep")
+            .arg("5")
+            .start()
+            .expect("root");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let row = procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == root.id())
+            .expect("row of the root");
+        (on, root, row)
+    }
+
+    /// CP-126 E5 T1: `check()` with the pipe's ids counts a second process that holds an end of the
+    /// pipe (pr-review-19 T1: the count pinned to 0 passed every test).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn check_counts_a_second_holder_of_the_pipe() {
+        let (mut on, mut root, row) = second_holder();
+        let counts = check(&Subject {
+            root: &row,
+            profile: std::path::Path::new("/nonexistent-profile"),
+            pipe: Some(&on.ids),
+            relay_port: None,
+        });
+        on.child.kill();
+        let _ = root.kill();
+        let _ = root.wait();
+        let holders = counts
+            .iter()
+            .find(|c| c.rule == "pipe_holder")
+            .unwrap()
+            .count;
+        assert!(holders >= 1, "pipe_holder={holders} with a second holder");
+    }
+
+    /// CP-126 E5 T2: a process that holds the executor's read end alone (the third of the four
+    /// ends) is found (pr-review-19 T2: the search cut to the first two ends passed every test).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_holder_of_the_executors_read_end_alone_is_found() {
+        use crate::start::Start;
+        let (mut on, mut root, _) = second_holder();
+        let read_end = on.from_browser.try_clone().unwrap();
+        let mut holder = std::process::Command::new("/bin/sleep")
+            .arg("5")
+            .stdin(std::process::Stdio::from(read_end))
+            .start()
+            .expect("holder");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let found = holds_an_end(holder.id(), &on.ids);
+        let held = crate::peer::pipe_handles_of(holder.id()).unwrap_or_default();
+        on.child.kill();
+        for c in [&mut root, &mut holder] {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+        assert!(
+            held.iter().all(|(_, h)| *h == on.ids.handles[2]) && !held.is_empty(),
+            "the holder holds the third end alone: {held:?}"
+        );
+        assert!(found, "a holder of the third end alone was not found");
+    }
+
+    /// CP-126 E5 T6: a running process of the tree whose command line cannot be read counts in
+    /// `port_flag` (pr-review-19 T6).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_tree_process_whose_command_line_cannot_be_read_counts_in_port_flag() {
+        use crate::start::Start;
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("5")
+            .start()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let row = procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == child.id())
+            .unwrap();
+        let subject = Subject {
+            root: &row,
+            profile: std::path::Path::new("/nonexistent-profile"),
+            pipe: None,
+            relay_port: None,
+        };
+        let pid = child.id();
+        let flag = |c: &[Count]| c.iter().find(|x| x.rule == "port_flag").unwrap().count;
+        let unread = flag(&check_with(&subject, &|p| {
+            if p == pid {
+                None
+            } else {
+                command_line(p)
+            }
+        }));
+        let read = flag(&check_with(&subject, &command_line));
+        let _ = child.kill();
+        let _ = child.wait();
+        assert_eq!((unread, read), (1, 0));
+    }
+
+    /// CP-126 E5 N5: an adopted process (parent 1, in the browser's bundle, begun after the root)
+    /// joins the tree only when one of its arguments names the root's profile as a whole path
+    /// (c296a1cf's rule; pr-review-19 N5 took it out with every test passing).
+    #[test]
+    fn tree_of_takes_an_adopted_process_only_when_it_names_the_profile() {
+        let row = |pid: u32, ppid: u32, exe: &str| Proc {
+            pid,
+            ppid,
+            started_us: if pid == 100 { 10 } else { 20 },
+            exe: Some(std::path::PathBuf::from(exe)),
+        };
+        let table = vec![
+            row(100, 50, "/b/App.app/Contents/MacOS/App"),
+            row(200, 1, "/b/App.app/Contents/Frameworks/handler"),
+            row(300, 1, "/b/App.app/Contents/Frameworks/handler"),
+            row(400, 1, "/b/App.app/Contents/Frameworks/handler"),
+        ];
+        let args = |pid: u32| -> Option<Vec<String>> {
+            Some(vec![match pid {
+                100 => "--user-data-dir=/t/p-1".into(),
+                200 => "--database=/t/p-1/Crashpad".into(),
+                300 => "--user-data-dir=/t/p-10".into(),
+                _ => "--other".into(),
+            }])
+        };
+        let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(tree, vec![100, 200]);
+    }
+
+    /// The routine's passes: it stops on a pass that finds none, counts what its first pass found,
+    /// and counts a table that cannot be read as one found.
+    #[test]
+    fn the_routine_ends_on_an_empty_pass_and_counts_an_unread_table() {
+        let mark = Mark {
+            profile: "/t/p".into(),
+            since_us: 0,
+            root: std::path::PathBuf::from("/b"),
+        };
+        let p = |pid: u32| Proc {
+            pid,
+            ppid: 1,
+            started_us: 10,
+            exe: Some(std::path::PathBuf::from("/b/x")),
+        };
+        let reads = std::cell::Cell::new(0);
+        let killed = std::cell::RefCell::new(Vec::new());
+        let ended = end_runs_own_with(
+            &mark,
+            &|| {
+                reads.set(reads.get() + 1);
+                Ok(if reads.get() == 1 {
+                    vec![p(7), p(8)]
+                } else {
+                    Vec::new()
+                })
+            },
+            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| true,
+            &|q| {
+                killed.borrow_mut().push(q.pid);
+                true
+            },
+        );
+        assert_eq!(
+            (ended.before, ended.after, ended.ended, ended.passes),
+            (2, 0, 2, 2)
+        );
+        assert_eq!(*killed.borrow(), vec![7, 8]);
+        let unread = end_runs_own_with(
+            &mark,
+            &|| Err(std::io::Error::other("no table")),
+            &|_| None,
+            &|_| true,
+            &|_| true,
+        );
+        assert_eq!(
+            (unread.before, unread.after, unread.passes),
+            (1, 1, END_PASSES)
+        );
+    }
+
+    /// CP-126 E1 (3): a process whose arguments name the run's profile but whose program is not the
+    /// browser's (here perl, beside a browser that would run from an app bundle) is no process of
+    /// the run.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_process_whose_program_is_not_the_browsers_is_no_process_of_the_run() {
+        use crate::start::Start;
+        let dir = std::env::temp_dir().join(format!("r3-web-other-{}", std::process::id()));
+        let profile = dir.join("p-1");
+        let since_us = crate::procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .map(|p| p.started_us)
+            .unwrap();
+        let mut other = std::process::Command::new("/usr/bin/perl")
+            .args(["-e", "sleep 30", "--"])
+            .arg(format!("--user-data-dir={}", profile.display()))
+            .start()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut taken = false;
+        while std::time::Instant::now() < deadline {
+            let table = crate::procs::table().unwrap();
+            let mark = Mark::new(
+                &profile,
+                std::path::Path::new(
+                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                ),
+                since_us,
+            );
+            taken = table
+                .iter()
+                .any(|p| p.pid == other.id() && mark.owns(p, &command_args));
+            if taken {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let _ = other.kill();
+        let _ = other.wait();
+        assert!(
+            !taken,
+            "a process of another program counts as the run's own"
+        );
     }
 
     #[cfg(target_os = "macos")]

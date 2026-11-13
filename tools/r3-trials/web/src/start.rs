@@ -267,7 +267,11 @@ mod sys {
     }
 
     pub(super) fn hard_kill(child: &Started) {
-        // SAFETY: the child is not reaped, so its number names it and no other process.
+        // SAFETY: the child is not reaped, so its number names it and no other process. That holds
+        // while nothing else in this process reaps children: `reap` above is the only wait for a
+        // child that a start made and waits on that child's own number; the crate waits for no
+        // other child, sets no SIGCHLD disposition (SIG_IGN would let the system reap it), and
+        // builds tokio without its process feature (Cargo.toml), so no runtime reaps beside it.
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
@@ -700,6 +704,10 @@ mod sys {
             unsafe { DeleteProcThreadAttributeList(attrs) };
             return Err(fault);
         }
+        // SAFETY: STARTUPINFOEXW is a C struct of integers, handles and pointers (windows-sys
+        // declares it `#[repr(C)]` and `Copy`), for which all-zero bits are a valid value: zero
+        // sizes and flags, null handles and pointers. The fields that CreateProcessW reads are set
+        // below before the call.
         let mut si: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
         si.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
         si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -707,6 +715,9 @@ mod sys {
         si.StartupInfo.hStdOutput = std[1];
         si.StartupInfo.hStdError = std[2];
         si.lpAttributeList = attrs;
+        // SAFETY: PROCESS_INFORMATION holds two handles and two numbers (windows-sys declares it
+        // `#[repr(C)]` and `Copy`); all-zero bits are a valid value, and CreateProcessW writes
+        // every field before the code below reads one.
         let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
         // SAFETY: every pointer is valid for the call: the program and the mutable command line
         // are NUL-terminated wide strings, the environment block ends with two NULs, `si` holds
@@ -855,6 +866,88 @@ mod sys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CP-126 E5 F1: `Start::start` takes the start lock: while another thread holds it, a start
+    /// waits (pr-review-19 F1: the lock taken out of `start` passed every test).
+    #[cfg(unix)]
+    #[test]
+    fn a_start_waits_while_the_start_lock_is_held() {
+        let held = lock();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let starter = std::thread::spawn(move || {
+            let child = std::process::Command::new("/bin/sleep").arg("0").start();
+            let _ = tx.send(());
+            child
+        });
+        let early = rx.recv_timeout(std::time::Duration::from_millis(500));
+        drop(held);
+        let late = rx.recv_timeout(std::time::Duration::from_secs(10));
+        if let Ok(mut c) = starter.join().unwrap() {
+            let _ = c.wait();
+        }
+        assert!(early.is_err(), "the start ran while the lock was held");
+        assert!(
+            late.is_ok(),
+            "the start did not run after the lock was let go"
+        );
+    }
+
+    /// CP-126 E5 t12: with a link at the path of the start's error file the start refuses, and
+    /// the link's target is left as it was (pr-review-19 t12: `O_TRUNC` in place of
+    /// `O_EXCL|O_NOFOLLOW` passed every test).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_link_at_the_error_file_is_refused_and_its_target_kept() {
+        let dir = std::env::temp_dir().join(format!("r3-web-t12-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("target.txt");
+        std::fs::write(&target, "keep").unwrap();
+        let link = dir.join("stderr");
+        let _ = std::os::unix::fs::symlink(&target, &link);
+        let spec = Spec {
+            program: Path::new("/bin/sleep"),
+            args: vec!["1".into()],
+            env: Vec::new(),
+            stderr: Some(&link),
+        };
+        let started = {
+            let held = lock();
+            start_on_pipe(&held, &spec)
+        };
+        let refused = started.is_err();
+        if let Ok(mut on) = started {
+            on.child.kill();
+        }
+        assert!(refused, "the start took a link as its error file");
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "keep");
+    }
+
+    /// CP-126 E5 M13: a variable of the start replaces the process's own of that name (A11.1's
+    /// `TMPDIR` of the browser); PATH stands in, which every test process has.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_variable_of_the_start_replaces_the_processs_own() {
+        let dir = std::env::temp_dir().join(format!("r3-web-env-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("path.txt");
+        let spec = Spec {
+            program: Path::new("/bin/sh"),
+            args: vec![
+                "-c".into(),
+                "printf %s \"$PATH\" >\"$1\"".into(),
+                "sh".into(),
+                out.clone().into_os_string(),
+            ],
+            env: vec![("PATH".into(), "/r3-web-test-path".into())],
+            stderr: None,
+        };
+        let mut on = {
+            let held = lock();
+            start_on_pipe(&held, &spec).expect("start")
+        };
+        on.child.wait();
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), "/r3-web-test-path");
+    }
 
     #[cfg(target_os = "macos")]
     #[test]

@@ -569,6 +569,11 @@ impl RelayHandle {
             .unwrap_or_default()
     }
 
+    /// How many connections the relay holds open now (at most `MAX_OPEN`).
+    pub fn connections(&self) -> usize {
+        self.shared.connections.load(Ordering::SeqCst)
+    }
+
     /// The host and port of every tunnel that is open now.
     pub fn open_tunnels(&self) -> Vec<HostPort> {
         self.shared
@@ -685,6 +690,8 @@ async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
             return Ok(());
         }
     };
+    #[cfg(test)]
+    tests::connect_pause(port).await;
     if !handle.listed(&hp) {
         refuse(&mut socket, &shared, hp, 2).await;
         return Ok(());
@@ -970,6 +977,119 @@ mod tests {
         let mut reply = [0u8; 10];
         c.read_exact(&mut reply).await.unwrap();
         (c, reply[1])
+    }
+
+    /// `connect_via` with the SOCKS command given (1 CONNECT, 2 BIND, 3 UDP ASSOCIATE).
+    async fn request_via(relay: u16, host: &str, port: u16, command: u8) -> (TcpStream, u8) {
+        let mut c = client(relay);
+        c.write_all(&[5, 1, 0]).await.unwrap();
+        let mut r = [0u8; 2];
+        c.read_exact(&mut r).await.unwrap();
+        let mut req = vec![5, command, 0, 3, host.len() as u8];
+        req.extend_from_slice(host.as_bytes());
+        req.extend_from_slice(&port.to_be_bytes());
+        c.write_all(&req).await.unwrap();
+        let mut reply = [0u8; 10];
+        c.read_exact(&mut reply).await.unwrap();
+        (c, reply[1])
+    }
+
+    /// CP-126 E5 T4: a SOCKS command that is no CONNECT is refused, also for a listed host
+    /// (pr-review-19 T4; the verifier's M46).
+    #[tokio::test]
+    async fn a_socks_command_that_is_no_connect_is_refused() {
+        let (echo, accepted) = echo_server().await;
+        let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
+        relay
+            .handle()
+            .set_list(Some(vec![("echo.agent.test".into(), echo)]));
+        for command in [2u8, 3] {
+            let (_, code) = request_via(relay.port, "echo.agent.test", echo, command).await;
+            assert_ne!(code, 0, "command {command} was answered as a connect");
+        }
+        let (_, code) = request_via(relay.port, "echo.agent.test", echo, 1).await;
+        assert_eq!(code, 0, "the control: a connect to the listed host");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert_eq!(accepted.load(Ordering::SeqCst), 1);
+    }
+
+    /// CP-126 E5 M53: a connection that its peer closes leaves the relay's count of open
+    /// connections, through the relay's accept and its end and not through `admit` alone.
+    #[tokio::test]
+    async fn a_closed_connection_leaves_the_count_of_open_ones() {
+        let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
+        let h = relay.handle();
+        let wait_for = |want: usize| {
+            let h = h.clone();
+            async move {
+                let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while h.connections() != want && std::time::Instant::now() < until {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+                h.connections()
+            }
+        };
+        let mut c = client(relay.port);
+        c.write_all(&[5, 1, 0]).await.unwrap();
+        let mut r = [0u8; 2];
+        c.read_exact(&mut r).await.unwrap();
+        assert_eq!(wait_for(1).await, 1, "the open connection is not counted");
+        drop(c);
+        assert_eq!(
+            wait_for(0).await,
+            0,
+            "the closed connection is still counted"
+        );
+    }
+
+    /// A pause after the relay's upstream connect to `port`, which a test sets: it stands for a
+    /// connect that is still pending when the list changes.
+    static CONNECT_PAUSE: std::sync::Mutex<Option<(u16, u64)>> = std::sync::Mutex::new(None);
+
+    pub(super) async fn connect_pause(port: u16) {
+        let ms = match CONNECT_PAUSE.lock() {
+            Ok(p) => p.filter(|(p, _)| *p == port).map(|(_, ms)| ms),
+            Err(_) => None,
+        };
+        if let Some(ms) = ms {
+            tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+        }
+    }
+
+    /// CP-126 E5 T5: a host that leaves the list while the relay's connect to it is pending gets
+    /// no tunnel: the relay reads the list again after the connect (pr-review-19 T5; the
+    /// verifier's M47). A pause after the connect to the echo listener's port stands for the
+    /// pending connect (this Mac's loopback answers a connect at once, also with a full queue).
+    #[tokio::test]
+    async fn a_host_that_leaves_the_list_during_its_connect_gets_no_tunnel() {
+        let (echo, _) = echo_server().await;
+        if let Ok(mut p) = CONNECT_PAUSE.lock() {
+            *p = Some((echo, 800));
+        }
+        let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
+        let h = relay.handle();
+        h.set_list(Some(vec![("slow.agent.test".into(), echo)]));
+        let pending = tokio::spawn({
+            let port = relay.port;
+            async move { request_via(port, "slow.agent.test", echo, 1).await.1 }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        h.set_list(Some(vec![("other.agent.test".into(), echo)]));
+        let code = tokio::time::timeout(std::time::Duration::from_secs(10), pending)
+            .await
+            .expect("the request did not end")
+            .unwrap();
+        if let Ok(mut p) = CONNECT_PAUSE.lock() {
+            *p = None;
+        }
+        assert_ne!(
+            code, 0,
+            "the host left the list during its connect and got a tunnel"
+        );
+        assert!(h.open_tunnels().is_empty());
     }
 
     async fn echo_server() -> (u16, Arc<AtomicU64>) {

@@ -46,6 +46,11 @@ impl PipeLink {
     /// Takes the executor's two ends: `from_browser`, which it reads, and `to_browser`, which it
     /// writes. The channel ends when the browser closes its end or a message is not framed.
     pub fn new(from_browser: File, to_browser: File) -> PipeLink {
+        PipeLink::with_limit(from_browser, to_browser, MESSAGE_LIMIT)
+    }
+
+    /// `new` with the bound of one message given: a message of more bytes ends the channel.
+    pub fn with_limit(from_browser: File, to_browser: File, limit: usize) -> PipeLink {
         let (tx, reads) = mpsc::unbounded_channel();
         let unread = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let counted = unread.clone();
@@ -57,7 +62,7 @@ impl PipeLink {
                 match r.read_until(0, &mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(_) => {
-                        if buf.last() != Some(&0) || buf.len() > MESSAGE_LIMIT {
+                        if buf.last() != Some(&0) || buf.len() > limit {
                             break;
                         }
                         buf.pop();
@@ -118,6 +123,53 @@ impl PipeLink {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CP-126 E5 T8: a message above the bound through `PipeLink`'s own reader ends the channel,
+    /// one below it arrives (pr-review-19 T8: the bound taken out passed every test). The test sets
+    /// a bound of 64 bytes, so no test writes `MESSAGE_LIMIT` bytes.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_message_above_the_bound_ends_the_link_and_one_below_it_arrives() {
+        use std::io::Write;
+        use std::os::fd::FromRawFd;
+        let pair = || {
+            let _held = crate::start::lock();
+            let mut fds = [0; 2];
+            // SAFETY: pipe writes two new descriptors into the array, made close-on-exec at once
+            // under the start lock so that no child of another test inherits them.
+            unsafe {
+                assert_eq!(libc::pipe(fds.as_mut_ptr()), 0);
+                for fd in fds {
+                    libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC);
+                }
+            }
+            // SAFETY: each descriptor is new and wrapped once.
+            unsafe { (File::from_raw_fd(fds[0]), File::from_raw_fd(fds[1])) }
+        };
+        let (from_browser, mut browser_writes) = pair();
+        let (_browser_reads, to_browser) = pair();
+        let mut link = PipeLink::with_limit(from_browser, to_browser, 64);
+        browser_writes
+            .write_all(b"{\"id\":1,\"result\":{}}\0")
+            .unwrap();
+        let small =
+            tokio::time::timeout(std::time::Duration::from_secs(5), link.reads.recv()).await;
+        assert!(
+            matches!(small, Ok(Some(_))),
+            "the small message did not arrive"
+        );
+        let big = format!(
+            "{{\"id\":2,\"result\":{{\"x\":\"{}\"}}}}\0",
+            "a".repeat(200)
+        );
+        browser_writes.write_all(big.as_bytes()).unwrap();
+        let after =
+            tokio::time::timeout(std::time::Duration::from_secs(5), link.reads.recv()).await;
+        assert!(
+            matches!(after, Ok(None)),
+            "a message above the bound did not end the link"
+        );
+    }
 
     #[test]
     fn a_message_is_its_json_and_one_nul_and_the_reader_splits_at_each_nul() {

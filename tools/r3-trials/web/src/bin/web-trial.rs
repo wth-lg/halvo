@@ -340,6 +340,30 @@ fn main() -> ExitCode {
         return driver_child(&argv[1..]);
     }
     #[cfg(feature = "driver")]
+    if argv.first().map(String::as_str) == Some("--org-control") {
+        return driver::org_control(&argv[1..]);
+    }
+    if argv.first().map(String::as_str) == Some("--policy-named") {
+        // `--policy-named NAME FILE`: whether the text of a policy page in FILE names the policy NAME
+        // (r3_web::policy, CP-126 E3); the hosted jobs call it on the text that they read from the
+        // page's PDF. Prints one line of closed words; exit 0 when named, 1 when not, 2 on bad use.
+        let (Some(name), Some(file)) = (argv.get(1), argv.get(2)) else {
+            eprintln!("REFUSED usage: --policy-named NAME FILE");
+            return ExitCode::from(2);
+        };
+        let Ok(text) = std::fs::read_to_string(file) else {
+            out("policy_named named=no how=unread");
+            return ExitCode::from(1);
+        };
+        let n = r3_web::policy::named(&text, name);
+        out(&format!(
+            "policy_named named={} how={}",
+            if n.named() { "yes" } else { "no" },
+            n.word()
+        ));
+        return ExitCode::from(if n.named() { 0 } else { 1 });
+    }
+    #[cfg(feature = "driver")]
     if argv.first().map(String::as_str) == Some(r3_web::relay::GUARD_FLAG) {
         return ExitCode::from(r3_web::relay::guard_main(&argv[1..]).clamp(0, 255) as u8);
     }
@@ -530,6 +554,7 @@ mod driver {
                 channel: self.channel,
                 relay: self.relay.clone(),
                 local_state: None,
+                program: None,
             }
         }
 
@@ -1355,53 +1380,140 @@ mod driver {
         Some(out)
     }
 
-    /// Under the egress check the executor's stop ends the trial program that stands in the
-    /// browser's place, and a browser that outlived it keeps the check waiting: this ends every
-    /// process whose command line holds the run's profile path, by its number, so that the check
-    /// collects its log and takes its filters down. The check's own shell and runner carry the
-    /// browser's arguments too, and are left alone.
-    fn end_left_browser(profile: &Path) {
-        let mark = profile.to_string_lossy().into_owned();
-        let listed = if cfg!(windows) {
-            std::process::Command::new("powershell.exe")
-                .args([
-                    "-NoLogo",
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.CommandLine)\" }",
-                ])
-                .start_output()
-        } else {
-            std::process::Command::new("ps")
-                .args(["-axww", "-o", "pid=,command="])
-                .start_output()
+    /// `--org-control BROWSER DIR`: one start of BROWSER on its pipe, headless, with a new profile
+    /// under DIR and no setting of the trial's own, as the control of an `org_` cell (CP-126 E7
+    /// (a)): prints `org_control reply=yes` when the browser answered on the pipe, else
+    /// `reply=no` with the start's cause, and ends the browser through the stop (and with it what
+    /// the start left). Exit 0 when it replied, 1 when not, 2 on bad use.
+    pub fn org_control(argv: &[String]) -> ExitCode {
+        let (Some(browser), Some(dir)) = (argv.first(), argv.get(1)) else {
+            eprintln!("REFUSED usage: --org-control BROWSER DIR");
+            return ExitCode::from(2);
         };
-        let Ok(o) = listed else { return };
-        let own = std::process::id();
-        let pids: Vec<u32> = String::from_utf8_lossy(&o.stdout)
-            .lines()
-            .filter(|l| {
-                l.contains(&mark)
-                    && !l.contains("scripts/egress/check.sh")
-                    && !l.contains("egress-spawn")
-                    && !l.contains(EGRESS_WRAP_FLAG)
-            })
-            .filter_map(|l| l.split_whitespace().next()?.parse().ok())
-            .filter(|p| *p != own)
-            .collect();
-        for p in &pids {
-            let _ = if cfg!(windows) {
-                std::process::Command::new("taskkill")
-                    .args(["/F", "/PID", &p.to_string()])
-                    .start_output()
-            } else {
-                std::process::Command::new("kill")
-                    .args(["-KILL", &p.to_string()])
-                    .start_output()
-            };
+        let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        else {
+            out("org_control reply=no cause=runtime");
+            return ExitCode::from(1);
+        };
+        let opts = StartOptions {
+            browser: PathBuf::from(browser),
+            profile: Path::new(dir).join(format!("{}-org-control", std::process::id())),
+            headless: true,
+            flags: FIRST_FLAGS.iter().map(|f| f.to_string()).collect(),
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: None,
+        };
+        rt.block_on(async {
+            match Executor::start(&opts).await {
+                Ok(ex) => {
+                    let stopped = ex.stop_and_remove().await;
+                    out(&format!(
+                        "org_control reply=yes left_before={} left_after={}",
+                        stopped.ended.before, stopped.ended.after
+                    ));
+                    ExitCode::SUCCESS
+                }
+                Err(f) => {
+                    out(&format!("org_control reply=no cause={}", f.0));
+                    ExitCode::from(1)
+                }
+            }
+        })
+    }
+
+    #[cfg(all(test, target_os = "macos"))]
+    mod leftover_tests {
+        /// CP-126 E1 (3): a process that names a profile whose name begins with the run's (`p-10`
+        /// beside the run's `p-1`) is no process of the run, and the end of what a run left leaves
+        /// it alone.
+        #[test]
+        fn a_process_that_names_a_longer_profile_is_left_alone() {
+            use r3_web::start::Start;
+            let dir = std::env::temp_dir().join(format!("r3-web-p10-{}", std::process::id()));
+            let mut other = std::process::Command::new("/usr/bin/perl")
+                .args(["-e", "sleep 30", "--"])
+                .arg(format!("--user-data-dir={}", dir.join("p-10").display()))
+                .start()
+                .unwrap();
+            let mut own = std::process::Command::new("/usr/bin/perl")
+                .args(["-e", "sleep 30", "--"])
+                .arg(format!("--user-data-dir={}", dir.join("p-1").display()))
+                .start()
+                .unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            // perl stands in for the browser's program here, so the profile alone decides
+            let since = r3_web::procs::table()
+                .unwrap()
+                .into_iter()
+                .find(|p| p.pid == std::process::id())
+                .map(|p| p.started_us)
+                .unwrap();
+            let mark = r3_web::checks::Mark::new(
+                &dir.join("p-1"),
+                std::path::Path::new("/usr/bin/perl"),
+                since,
+            );
+            let ended = r3_web::checks::end_runs_own(&mark);
+            let alive = matches!(other.try_wait(), Ok(None));
+            let own_alive = matches!(own.try_wait(), Ok(None));
+            for c in [&mut other, &mut own] {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            assert!(
+                alive,
+                "a process that names p-10 was ended for the run of p-1"
+            );
+            assert!(
+                !own_alive,
+                "the control: the process that names p-1 was left ({ended:?})"
+            );
         }
-        eprintln!("egress ended_left_browser_processes={}", pids.len());
+
+        /// CP-126 E7: an `org_` cell's effect counts as the policy's only with a control reply, the
+        /// value read back as the cell needs it, and the page naming the setting wherever it could
+        /// be read; a hang with no policy in force has none of them.
+        #[test]
+        fn an_org_effect_counts_only_with_its_control_value_and_page() {
+            use super::OrgFacts;
+            let f = |c: Option<&str>, r: Option<&str>, w: Option<&str>, p: Option<&str>| OrgFacts {
+                control_before: c.map(Into::into),
+                value_read: r.map(Into::into),
+                value_want: w.map(Into::into),
+                page_named: p.map(Into::into),
+            };
+            assert_eq!(f(None, None, None, None).lacks(), Some("no_control_reply"));
+            assert_eq!(
+                f(Some("reply"), None, Some("0"), Some("yes")).lacks(),
+                Some("no_value_read")
+            );
+            assert_eq!(
+                f(Some("reply"), Some("1"), Some("0"), Some("yes")).lacks(),
+                Some("no_value_read")
+            );
+            assert_eq!(
+                f(Some("reply"), Some("0"), Some("0"), Some("no")).lacks(),
+                Some("page_not_named")
+            );
+            assert_eq!(
+                f(Some("reply"), Some("0"), Some("0"), Some("yes")).lacks(),
+                None
+            );
+            assert_eq!(
+                f(
+                    Some("reply"),
+                    Some("direct"),
+                    Some("direct"),
+                    Some("unread")
+                )
+                .lacks(),
+                None
+            );
+        }
     }
 
     /// The processes of the egress check that are still alive, by name: its shell, its runner,
@@ -1493,6 +1605,7 @@ mod driver {
         .map_err(|_| "spec".to_string())?;
         let hex: String = spec.iter().map(|b| format!("{b:02x}")).collect();
         opts.flags.push(format!("{EGRESS_WRAP_FLAG}{hex}"));
+        opts.program = Some(ctx.browser.clone());
         if cfg!(target_os = "macos") {
             opts.flags.push("--no-sandbox".into());
         }
@@ -2254,35 +2367,104 @@ mod driver {
         held(ctx, &keys, &before, seen).await
     }
 
+    /// What the hosted job read around an `org_` cell (CP-126 E7), passed to the call in its
+    /// environment: whether a start without the setting replied on the pipe before the job wrote the
+    /// policy (`R3_ORG_CONTROL_BEFORE`, `reply` when it did), the value that the job read back from
+    /// the policy after its write (`R3_ORG_VALUE_READ`) against the value that the cell needs
+    /// (`R3_ORG_VALUE_WANT`), and whether the browser's own policy page names the setting by
+    /// `r3_web::policy` (`R3_ORG_PAGE_NAMED`: `yes`, `no`, or `unread` with no way to read it).
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub(crate) struct OrgFacts {
+        control_before: Option<String>,
+        value_read: Option<String>,
+        value_want: Option<String>,
+        page_named: Option<String>,
+    }
+
+    impl OrgFacts {
+        fn from_env() -> OrgFacts {
+            let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+            OrgFacts {
+                control_before: var("R3_ORG_CONTROL_BEFORE"),
+                value_read: var("R3_ORG_VALUE_READ"),
+                value_want: var("R3_ORG_VALUE_WANT"),
+                page_named: var("R3_ORG_PAGE_NAMED"),
+            }
+        }
+
+        /// Why the effect of a cell cannot count as the policy's (None: it can): a start without
+        /// the setting replied, the value was read back as the cell needs it, and the page named
+        /// the setting wherever it could be read.
+        pub(crate) fn lacks(&self) -> Option<&'static str> {
+            if self.control_before.as_deref() != Some("reply") {
+                return Some("no_control_reply");
+            }
+            match (&self.value_read, &self.value_want) {
+                (Some(r), Some(w)) if r == w => {}
+                _ => return Some("no_value_read"),
+            }
+            match self.page_named.as_deref() {
+                Some("yes" | "unread") => None,
+                _ => Some("page_not_named"),
+            }
+        }
+
+        /// The facts as keys of the cell's line.
+        fn keys(&self) -> String {
+            let v = |o: &Option<String>| o.clone().unwrap_or_else(|| "-".into());
+            format!(
+                " control_before={} value_read={} page_named={}",
+                v(&self.control_before),
+                v(&self.value_read),
+                v(&self.page_named)
+            )
+        }
+    }
+
     async fn org_outcome(ctx: &Ctx, name: &str, started: Res<Executor>) -> Result<Run, NotRun> {
         let (want_cause, want_message) = if name == "org_debugging" {
             ("no_channel", NO_CHANNEL_MESSAGE)
         } else {
             ("no_route", NO_ROUTE_MESSAGE)
         };
-        let (ok, cause, version) = match started {
+        let (ok, cause, version, left) = match started {
             Ok(ex) => {
                 let v = ex.version().await.unwrap_or_else(|_| "-".into());
-                ex.stop_and_remove().await;
-                (false, "started".to_string(), v)
+                let stopped = ex.stop_and_remove().await;
+                (false, "started".to_string(), v, Some(stopped.ended))
             }
             Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
             Err(f) => {
                 let message = f.1.split(" stderr_kept_bytes_").next().unwrap_or("");
                 let total = counter(ctx, &["requests", "total"]).unwrap_or(-1);
-                let left = std::fs::read_dir(&ctx.scratch)
+                let entries = std::fs::read_dir(&ctx.scratch)
                     .map(|d| d.count())
                     .unwrap_or(0);
                 eprintln!(
-                    "org step={name} cause={} message_is_plain={} fixture_requests={total} scratch_entries={left}",
+                    "org step={name} cause={} message_is_plain={} fixture_requests={total} scratch_entries={entries}",
                     f.0,
                     message == want_message
                 );
-                let ok = f.0 == want_cause && message == want_message && total == 0;
-                (ok, f.0.to_string(), "-".to_string())
+                let effect = f.0 == want_cause && message == want_message && total == 0;
+                // CP-126 E7: the effect counts as the policy's only with the job's control, value
+                // and page; a hang with no policy in force gives the same effect
+                let lacks = OrgFacts::from_env().lacks();
+                let ok = effect && lacks.is_none();
+                let cause = match (effect, lacks) {
+                    (true, Some(l)) => l.to_string(),
+                    _ => f.0.to_string(),
+                };
+                (ok, cause, "-".to_string(), left_of_fault(&f.1))
             }
         };
+        let left_after = left.map_or(0, |e| e.after);
+        let (ok, cause) = if ok && left_after > 0 {
+            (false, "left_after".to_string())
+        } else {
+            (ok, cause)
+        };
         Ok(Run {
+            left,
             ok,
             cause: if ok { "-".into() } else { cause },
             ms: 0,
@@ -2345,6 +2527,24 @@ mod driver {
         version: String,
         peers: Option<(u32, u32)>,
         checks: Option<Vec<checks::Count>>,
+        /// What the end of the run's own processes found and left (CP-126 E1 (d)).
+        left: Option<checks::Ended>,
+    }
+
+    /// The counts of the end of a run's own processes that a failed start put into its fault's
+    /// detail (`left_before_<n> left_after_<n>`).
+    fn left_of_fault(detail: &str) -> Option<checks::Ended> {
+        let num = |key: &str| {
+            detail
+                .split_whitespace()
+                .find_map(|w| w.strip_prefix(key))
+                .and_then(|n| n.parse::<usize>().ok())
+        };
+        Some(checks::Ended {
+            before: num("left_before_")?,
+            after: num("left_after_")?,
+            ..Default::default()
+        })
     }
 
     #[cfg(unix)]
@@ -2433,11 +2633,20 @@ mod driver {
             opts.local_state = Some(same_site_local_state(ctx.port));
         }
         let siblings = (name == "pipe_inherit").then(|| Siblings::start(ctx));
+        let mark = opts.mark_now();
         let started = if ctx.round2 {
             ctx.stop.or(Executor::start_settled(&opts)).await
         } else {
             ctx.stop.or(Executor::start(&opts)).await
         };
+        if matches!(&started, Err(f) if f.0 == "signal") {
+            // the start was cut off before an executor held the browser: what it left is ended here
+            let e = checks::end_runs_own(&mark);
+            eprintln!(
+                "signal step={name} i={i} left_before={} left_after={}",
+                e.before, e.after
+            );
+        }
         if let Some(s) = siblings {
             ctx.siblings.replace(s.stop());
         }
@@ -2503,7 +2712,7 @@ mod driver {
             );
         }
         let keep = ex.keep_pipe();
-        ex.stop_and_remove().await;
+        let stopped = ex.stop_and_remove().await;
         let at_end = read("end", &subject);
         drop(keep);
         let checked = match (at_start, at_session, at_end) {
@@ -2522,9 +2731,6 @@ mod driver {
         for mut child in ctx.siblings.take() {
             let _ = child.kill();
             let _ = child.wait();
-        }
-        if egress.is_some() {
-            end_left_browser(&opts.profile);
         }
         let outcome = match (&egress, outcome) {
             (Some(e), Ok(v)) => match egress_read(ctx, e, name, i).await {
@@ -2554,13 +2760,19 @@ mod driver {
                 ));
             }
         }
+        let left_after = stopped.ended.after;
         Ok(Run {
-            ok: outcome.is_ok(),
-            cause: outcome.err().map(|f| f.0.to_string()).unwrap_or("-".into()),
+            ok: outcome.is_ok() && left_after == 0,
+            cause: match outcome.err() {
+                Some(f) => f.0.to_string(),
+                None if left_after > 0 => "left_after".into(),
+                None => "-".into(),
+            },
             ms,
             version,
             peers,
             checks: checked,
+            left: Some(stopped.ended),
         })
     }
 
@@ -2603,13 +2815,15 @@ mod driver {
                 match run_once(ctx, name, i).await {
                     Ok(r) => {
                         out(&format!(
-                            "run candidate={CANDIDATE} machine={} browser={} step={name} i={i} result={} ms={} version={} cause={}",
+                            "run candidate={CANDIDATE} machine={} browser={} step={name} i={i} result={} ms={} version={} cause={} left_before={} left_after={}",
                             ctx.machine,
                             ctx.kind,
                             if r.ok { "ok" } else { "miss" },
                             r.ms,
                             r.version.replace(' ', "_"),
-                            r.cause
+                            r.cause,
+                            r.left.map_or("-".to_string(), |e| e.before.to_string()),
+                            r.left.map_or("-".to_string(), |e| e.after.to_string())
                         ));
                         if let Some((all, own)) = r.peers {
                             peers.0 += all;
@@ -2740,8 +2954,13 @@ mod driver {
                 ));
                 continue;
             }
+            let org_keys = if ORG_STEPS.contains(name) {
+                OrgFacts::from_env().keys()
+            } else {
+                String::new()
+            };
             out(&format!(
-                "cell candidate={CANDIDATE} machine={} browser={} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{relay_key}",
+                "cell candidate={CANDIDATE} machine={} browser={} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{relay_key}{org_keys}",
                 ctx.machine,
                 ctx.kind,
                 median(&mut times)
@@ -3132,6 +3351,7 @@ mod driver {
             channel: a.channel,
             relay,
             local_state: None,
+            program: None,
         };
         let started = if a.round2 {
             Executor::start_settled(&opts).await

@@ -321,7 +321,11 @@ mod sys {
 
     pub fn sockets(_pids: &[u32]) -> Vec<Socket> {
         let mut out = Vec::new();
-        // SAFETY (each closure): the call writes at most `*size` bytes into the buffer given.
+        // SAFETY, for this closure and the three below it (TCP and UDP, IPv4 and IPv6): `table`
+        // gives each closure a buffer and its size in bytes, and each passes both on to a call of
+        // the one IP Helper family (GetExtendedTcpTable or GetExtendedUdpTable) that writes at most
+        // `*size` bytes into the buffer and reports a larger need through `size`. The four calls
+        // differ only in the family and the row type, so one reason holds for all four.
         if let Some(buf) = table(|p, size| unsafe {
             GetExtendedTcpTable(p, size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0)
         }) {

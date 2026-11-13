@@ -91,6 +91,26 @@ pub struct StartOptions {
     pub relay: Option<crate::relay::RelayHandle>,
     /// The `Local State` that `start_settled` writes in place of `crate::AGENT_LOCAL_STATE`.
     pub local_state: Option<String>,
+    /// The browser's own program when `browser` is a wrapper that starts it (the egress check's
+    /// wrap); a run's own processes run from this program's app bundle or install directory
+    /// (`checks::Mark`). `None`: `browser` itself.
+    pub program: Option<PathBuf>,
+}
+
+impl StartOptions {
+    /// The mark of a run of these options that begins now (`checks::Mark`), with the margin of the
+    /// clock's reading against a process's creation time.
+    pub fn mark_now(&self) -> crate::checks::Mark {
+        let since_us = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_micros() as u64)
+            .saturating_sub(LEFTOVER_SLACK_US);
+        crate::checks::Mark::new(
+            &self.profile,
+            self.program.as_deref().unwrap_or(&self.browser),
+            since_us,
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -244,6 +264,9 @@ impl Drop for Executor {
         if let Some(relay) = &self.relay {
             relay.trust(None);
         }
+        if self.ended.is_none() {
+            self.ended = Some(crate::checks::end_runs_own(&self.mark));
+        }
     }
 }
 
@@ -266,30 +289,19 @@ pub struct Executor {
     temp: Option<PathBuf>,
     wire: wire::Wire,
     wire_task: JoinHandle<()>,
+    /// What a run's own processes are (CP-126 E1), and what the end of them found, once it ran.
+    mark: crate::checks::Mark,
+    ended: Option<crate::checks::Ended>,
     places: Mutex<HashMap<String, Place>>,
     owners: Mutex<HashMap<String, (Place, BackendNodeId)>>,
 }
 
-/// Keeps the browser's standard error, which its start wrote into the temporary directory, in a
-/// file beside the profile whose name ends in `.stderr`, and names its size.
 /// How long before the start a process that names the start's profile may have begun and still be
 /// counted as the start's own: the margin of the clock's reading against a process's creation time.
 const LEFTOVER_SLACK_US: u64 = 1_000_000;
 
-/// Ends, by number and creation time, each process that names `profile` and began after `since_us`
-/// (`checks::naming_profile`), and returns how many it ended. A failed start calls it after the end
-/// of its child: a browser's first process that ends can leave a process of its own, with the pipe,
-/// that the end of the child does not reach.
-fn end_leftovers(profile: &Path, since_us: u64) -> usize {
-    let Ok(table) = crate::procs::table() else {
-        return 0;
-    };
-    crate::checks::naming_profile(&table, profile, since_us)
-        .iter()
-        .filter(|p| crate::procs::kill(p))
-        .count()
-}
-
+/// Keeps the browser's standard error, which its start wrote into the temporary directory, in a
+/// file beside the profile whose name ends in `.stderr`, and names its size.
 fn keep_stderr(profile: &Path, temp: &Path) -> usize {
     let stderr = std::fs::read(temp.join("stderr")).unwrap_or_default();
     let mut kept = profile.as_os_str().to_owned();
@@ -403,10 +415,7 @@ impl Executor {
             env,
             stderr: Some(&stderr),
         };
-        let since_us = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_micros() as u64)
-            .saturating_sub(LEFTOVER_SLACK_US);
+        let mark = opts.mark_now();
         let kept;
         let (mut child, link, pipe_ids) = match opts.channel {
             Channel::Pipe => {
@@ -449,12 +458,15 @@ impl Executor {
                 g.kill();
             }
             child.kill();
-            let ended = end_leftovers(&opts.profile, since_us);
+            let ended = crate::checks::end_runs_own(&mark);
             task.abort();
             let kept = keep_stderr(&opts.profile, temp);
             Fault::new(
                 f.0,
-                format!("{} stderr_kept_bytes_{kept} leftovers_ended_{ended}", f.1),
+                format!(
+                    "{} stderr_kept_bytes_{kept} left_before_{} left_after_{}",
+                    f.1, ended.before, ended.after
+                ),
             )
         };
         if wire
@@ -537,6 +549,8 @@ impl Executor {
             temp: None,
             wire,
             wire_task,
+            mark,
+            ended: None,
             places: Mutex::new(HashMap::new()),
             owners: Mutex::new(HashMap::new()),
         })
@@ -678,7 +692,7 @@ impl Executor {
 
     /// Closes the browser over its channel and waits up to 10 s for its first process to end,
     /// then ends it with the system's hard kill through the child that the start made.
-    pub async fn stop(mut self) -> Vec<u32> {
+    pub async fn stop(mut self) -> (Vec<u32>, crate::checks::Ended) {
         let _ = self
             .wire
             .call_within(None, CloseParams::default(), Duration::from_secs(5))
@@ -690,6 +704,9 @@ impl Executor {
         if !self.child.exited() {
             self.child.kill();
         }
+        // what the run left is ended before the guard's wait, so the guard sees the tree gone
+        let ended = crate::checks::end_runs_own(&self.mark);
+        self.ended = Some(ended);
         self.wire_task.abort();
         if let Some(relay) = &self.relay {
             relay.trust(None);
@@ -701,7 +718,7 @@ impl Executor {
             }
             g.kill();
         }
-        self.pid.into_iter().collect()
+        (self.pid.into_iter().collect(), ended)
     }
 
     async fn exec<C: chromiumoxide::types::Command>(
@@ -1777,6 +1794,7 @@ mod tests {
             channel: Channel::Pipe,
             relay: None,
             local_state: None,
+            program: None,
         };
         let refused = Executor::start(&opts).await.err();
         assert_eq!(
@@ -1800,16 +1818,10 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn a_failed_start_ends_a_process_that_the_browser_left_with_its_profile() {
-        use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("r3-web-leftover-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let browser = dir.join("browser.sh");
-        std::fs::write(
-            &browser,
-            "#!/bin/sh\nexec 3<&- 4>&-\n/usr/bin/perl -e 'sleep 30' -- \"$@\" </dev/null >/dev/null 2>&1 &\nexit 0\n",
-        )
-        .unwrap();
-        std::fs::set_permissions(&browser, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let stand_in = crate::standin::bundle(&dir);
+        let browser = crate::standin::launcher(stand_in.binary.parent().unwrap(), "leave");
         let profile = dir.join("p");
         let opts = StartOptions {
             browser,
@@ -1819,6 +1831,7 @@ mod tests {
             channel: Channel::Pipe,
             relay: None,
             local_state: None,
+            program: Some(stand_in.binary.clone()),
         };
         let since_us = crate::procs::table()
             .unwrap()
@@ -1836,6 +1849,137 @@ mod tests {
             "{fault:?}"
         );
         assert_eq!(left.len(), 0, "processes left that name the profile");
+    }
+
+    /// This process's creation time, the floor of what the tests below count as a run's own.
+    #[cfg(target_os = "macos")]
+    fn own_start_us() -> u64 {
+        crate::procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .map(|p| p.started_us)
+            .unwrap()
+    }
+
+    /// The processes that name `profile` (`naming`), read until `wait` has passed or one shows.
+    #[cfg(target_os = "macos")]
+    async fn named_within(
+        profile: &Path,
+        since_us: u64,
+        wait: Duration,
+    ) -> Vec<crate::procs::Proc> {
+        let until = Instant::now() + wait;
+        loop {
+            let left = naming(profile, since_us);
+            if !left.is_empty() || Instant::now() > until {
+                return left;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// CP-126 E1 (1): a stand-in browser that answers the start and the stop on its pipe starts, when
+    /// it is asked to close, a process that names the profile and starts another one 300 ms later,
+    /// after the browser has ended. After the stop none of them is left.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn a_normal_stop_ends_a_process_that_appears_after_the_browser_ended() {
+        let dir = std::env::temp_dir().join(format!("r3-web-late-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let stand_in = crate::standin::bundle(&dir);
+        let profile = dir.join("p");
+        let opts = StartOptions {
+            browser: stand_in.script.clone(),
+            profile: profile.clone(),
+            headless: true,
+            flags: Vec::new(),
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: Some(stand_in.binary.clone()),
+        };
+        let since_us = own_start_us();
+        let ex = Executor::start(&opts).await.expect("the stand-in starts");
+        ex.stop_and_remove().await;
+        let left = named_within(&profile, since_us, Duration::from_secs(2)).await;
+        for p in &left {
+            crate::procs::kill(p);
+        }
+        assert_eq!(
+            left.len(),
+            0,
+            "processes left after the stop that name the profile"
+        );
+    }
+
+    /// CP-126 E1 (2): a failed start under a stand-in of the egress wrap. The wrap starts a shell
+    /// (the check's, which carries the browser's arguments), the shell starts a stand-in of its
+    /// `log stream` and the stand-in browser, and the wrap closes the pipe and ends. The failed start
+    /// leaves no browser process and leaves the check's shell and its log stream running.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn a_failed_start_under_the_wrap_leaves_no_browser_and_leaves_the_check() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("r3-web-wrap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let stand_in = crate::standin::bundle(&dir);
+        let check = dir.join("check.sh");
+        std::fs::write(
+            &check,
+            format!(
+                "#!/bin/sh\nd=$(dirname \"$0\")\n/bin/sleep 30 &\necho $! >\"$d/log.pid\"\n{}=helper \"{}\" {} --exact --quiet --test-threads=1 -- \"$@\" &\necho $! >\"$d/browser.pid\"\n/bin/sleep 30\n",
+                crate::standin::VAR,
+                stand_in.binary.display(),
+                crate::standin::ENTRY
+            ),
+        )
+        .unwrap();
+        let wrap = dir.join("wrap.sh");
+        std::fs::write(
+            &wrap,
+            "#!/bin/sh\nd=$(dirname \"$0\")\n( exec 3<&- 4>&-; exec /bin/sh \"$d/check.sh\" \"$@\" ) &\necho $! >\"$d/check.pid\"\nn=0\nwhile [ ! -s \"$d/browser.pid\" ] && [ $n -lt 100 ]; do sleep 0.05; n=$((n + 1)); done\nsleep 0.3\nexit 0\n",
+        )
+        .unwrap();
+        for f in [&check, &wrap] {
+            std::fs::set_permissions(f, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let profile = dir.join("p");
+        let opts = StartOptions {
+            browser: wrap,
+            profile: profile.clone(),
+            headless: true,
+            flags: Vec::new(),
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: Some(stand_in.binary.clone()),
+        };
+        let fault = Executor::start(&opts).await.err().map(|f| f.0);
+        let pid = |name: &str| -> u32 {
+            std::fs::read_to_string(dir.join(name))
+                .unwrap_or_default()
+                .trim()
+                .parse()
+                .unwrap_or(0)
+        };
+        let table = crate::procs::table().unwrap();
+        let row = |p: u32| table.iter().find(|r| r.pid == p && p != 0).cloned();
+        let (browser, shell, log) = (
+            row(pid("browser.pid")),
+            row(pid("check.pid")),
+            row(pid("log.pid")),
+        );
+        for p in [&browser, &shell, &log].into_iter().flatten() {
+            crate::procs::kill(p);
+        }
+        assert!(
+            matches!(fault, Some("browser_start" | "no_channel")),
+            "{fault:?}"
+        );
+        assert!(browser.is_none(), "the browser stand-in is left");
+        assert!(shell.is_some(), "the check's shell was ended");
+        assert!(log.is_some(), "the check's log stream was ended");
     }
 
     #[test]
@@ -1912,6 +2056,7 @@ mod tests {
             channel: Channel::Pipe,
             relay: None,
             local_state: None,
+            program: None,
         };
         let mut ex = Executor::start(&opts).await.expect("start");
         let utility = crate::fixture::origin(crate::fixture::UTILITY, port);

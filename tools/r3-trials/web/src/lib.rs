@@ -5,9 +5,12 @@ pub mod fixture;
 pub mod peer;
 #[cfg(feature = "driver")]
 pub mod pipe;
+pub mod policy;
 pub mod procs;
 #[cfg(feature = "driver")]
 pub mod relay;
+#[cfg(all(test, target_os = "macos", feature = "driver"))]
+mod standin;
 pub mod start;
 pub mod tls;
 
