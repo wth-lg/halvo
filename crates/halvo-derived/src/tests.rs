@@ -528,7 +528,8 @@ fn request(name: &str, body: &str) -> halvo_schema_core::request::RawRequest {
 /// S-66 E3 and E4. With the table of the rows renamed away through the store's own connection, so that every
 /// statement on it fails: under a `runner` request and under a request of a further role the held-ahead call answers
 /// `Role`, which comes before any statement (E3); under a `coordinator_write`, about a kind of the handler's own family
-/// that has a workflow key, it answers the store's fault and never no (E4).
+/// that has a workflow key, it answers the store's fault and never no (E4). The rename rewrites the table's stored
+/// text, which a later open refuses, so the test takes a directory named by its start and removes it at its end.
 #[test]
 fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_never_as_no() {
     let answers = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
@@ -539,14 +540,13 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .handler("test", crate::Takes::Runner, asker())
         .handler("test", crate::Takes::Role("test_role"), asker())
         .handler("test", crate::Takes::Coordinator(&["held"]), asker());
-    let mut store = Store::open(
-        &data_dir("held-fault"),
-        &DbKey::new([7; 32]),
-        &entries,
-        host,
-        &mut Counting(0),
-    )
-    .unwrap();
+    let started = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = data_dir(&format!("held-fault-{started}"));
+    let mut store =
+        Store::open(&dir, &DbKey::new([7; 32]), &entries, host, &mut Counting(0)).unwrap();
     store
         .db
         .conn
@@ -565,6 +565,7 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .execute_batch("ALTER TABLE rows_away RENAME TO rows")
         .unwrap();
     drop(store);
+    std::fs::remove_dir_all(&dir).unwrap();
     let answers = answers.borrow().clone();
     assert_eq!(
         answers[..2],
