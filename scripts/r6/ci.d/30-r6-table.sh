@@ -417,6 +417,12 @@ restore_repo() {
   cp -R "$work/pristine/." "$work/repo/" || exit 2
 }
 
+required_text() {
+  required_count=$(LC_ALL=C sort -u "$work/wanted.txt" | grep -c '') || exit 2
+  printf 'required tests=%s ok=%s listed=%s ignored=0 ran=%s\n' \
+    "$required_count" "$required_count" "$required_count" "$required_count"
+}
+
 make_stub() {
   mkdir -p "$work/stub" "$work/pristine/scripts/r6" "$work/pristine/crates/halvo-route/src" \
     "$work/pristine/crates/halvo-route/tests" "$work/pristine/crates/halvo-route-gate/tests/data" "$work/tree" || exit 2
@@ -552,12 +558,12 @@ FAIL $name (specimen)"
   printf 'h crates/halvo-route/src/admit.rs\n' >"$STUB_TREE/flags"
   check flagged-file-before-the-run FAIL 'tree changed=before h crates/halvo-route/src/admit.rs'
   printf '? notes.txt\n! target/\n' >"$STUB_TREE/status"
-  check untracked-and-ignored-before-the-run PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check untracked-and-ignored-before-the-run PASS "$want_required"
 
   STUB_QUIET=true
-  check job-sets-cargo-quiet PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check job-sets-cargo-quiet PASS "$want_required"
   STUB_COLOR=always
-  check job-sets-cargo-colour PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check job-sets-cargo-colour PASS "$want_required"
 
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   code=$?
@@ -657,11 +663,11 @@ required_cases() {
 
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check carriage-returns PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check carriage-returns PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check windows-paths PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check windows-paths PASS "$want_required"
 
   stub_case running-line-without-a-binary
   awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "     Running tests/forge.rs" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -942,6 +948,7 @@ esac
 EOF
   chmod +x "$work/bin/cargo"
   make_stub
+  want_required=$(required_text) || exit 2
   restore_repo
   rejected=0
   wrong=
@@ -950,7 +957,7 @@ EOF
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
 
-  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21' ' files=5 same=5' "$want_line
+  check all-hold PASS "$want_required" ' files=5 same=5' "$want_line
 specimen rows=540 same=yes
 PASS $name"
   [ -z "${R6_TABLE_NESTED:-}" ] || self_test_end
