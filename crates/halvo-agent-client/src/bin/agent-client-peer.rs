@@ -5,7 +5,7 @@
 //! process of a group of its own that sleeps with the standard input and output it was given and then exits with
 //! the status 0, logs it to LOG and exits, or ends it and exits with 1 when it cannot read its creation time or
 //! write the line; on Windows `hold PID IN OUT LOG [SECONDS]` copies the two handles IN and OUT of the process PID
-//! into itself, logs how many to LOG, sleeps and exits with the status 0. Each sleeps SECONDS, 240 by default. As
+//! into itself, logs how many to LOG, sleeps and exits with the status 0. Each sleeps SECONDS, 300 by default. As
 //! `console-report HOST RUNNER LOG` it appends to LOG whether HOST and RUNNER are attached to its console and whether
 //! that console has a window.
 
@@ -53,7 +53,7 @@ enum OnEof {
 
 const FLOOD_CHUNK: usize = 65_536;
 
-const HOLD_BOUND: u64 = 240;
+const HOLD_BOUND: u64 = 300;
 
 fn write_stderr(bytes: &[u8]) -> bool {
     let mut err = io::stderr().lock();
