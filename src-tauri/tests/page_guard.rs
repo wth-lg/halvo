@@ -204,11 +204,29 @@ fn refused() -> Result<Value, Value> {
     Err(Value::String(commands::REFUSED.to_string()))
 }
 
+const C10_9_COMMANDS: [&str; 8] = [
+    "capture_status",
+    "inventory",
+    "set_capture_state",
+    "delete_all",
+    "set_storage_cap",
+    "onboarding_state",
+    "request_permission",
+    "open_permission_pane",
+];
+
 fn unit_commands() -> Vec<&'static str> {
-    commands::names::MODULES
+    let commands: Vec<&'static str> = commands::names::MODULES
         .iter()
         .flat_map(|module| module.commands.iter().copied())
-        .collect()
+        .collect();
+    for name in C10_9_COMMANDS {
+        assert!(
+            commands.contains(&name),
+            "the commands of the app's modules lack {name}: {commands:?}"
+        );
+    }
+    commands
 }
 
 #[test]
