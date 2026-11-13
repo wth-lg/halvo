@@ -156,28 +156,40 @@ mod tests {
     fn every_one_of_200_takes_succeeds_against_a_loop_of_reads() {
         let base = dir();
         let path = base.path().to_path_buf();
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+        let stop = std::sync::Arc::new(AtomicBool::new(false));
+        let reads = std::sync::Arc::new(AtomicU64::new(0));
         let reader = {
-            let (path, stop) = (path.clone(), std::sync::Arc::clone(&stop));
+            let (path, stop, reads) = (
+                path.clone(),
+                std::sync::Arc::clone(&stop),
+                std::sync::Arc::clone(&reads),
+            );
             std::thread::spawn(move || {
-                let mut reads = 0u64;
-                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                while !stop.load(Ordering::Relaxed) {
                     read(&path).unwrap();
-                    reads += 1;
+                    reads.fetch_add(1, Ordering::Relaxed);
                 }
-                reads
             })
         };
+        let until = Instant::now() + Duration::from_secs(10);
+        while reads.load(Ordering::Relaxed) == 0 {
+            assert!(Instant::now() < until, "the reader made no read in 10 s");
+            std::thread::yield_now();
+        }
+        let before = reads.load(Ordering::Relaxed);
         let mut taken = 0;
         for _ in 0..200 {
             if InstanceLock::take(&path).unwrap().is_some() {
                 taken += 1;
             }
         }
-        stop.store(true, std::sync::atomic::Ordering::Relaxed);
-        let reads = reader.join().unwrap();
+        let during = reads.load(Ordering::Relaxed) - before;
+        stop.store(true, Ordering::Relaxed);
+        reader.join().unwrap();
         assert_eq!(taken, 200);
-        assert!(reads > 0);
+        println!("reads while the 200 takes ran: {during}");
     }
 
     #[test]
