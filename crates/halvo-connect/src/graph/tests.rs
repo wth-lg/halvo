@@ -111,14 +111,17 @@ fn http_needs_the_loopback_route() {
 
 #[test]
 fn the_loopback_route_maps_host_names_only() {
-    for host in [
-        "192.0.2.1",
-        "3221225985",
-        "0xc0000201",
-        "192.0.513",
-        "127.0.0.1",
-        "2130706433",
-    ] {
+    for host in ["3221225985", "0xc0000201", "192.0.513", "2130706433"] {
+        for scheme in ["http", "https"] {
+            assert_eq!(
+                WebOrigin::parse(&format!("{scheme}://{host}:18090"))
+                    .map_err(|refusal| refusal.rule()),
+                Err("origin_ipv4"),
+                "{scheme}://{host}"
+            );
+        }
+    }
+    for host in ["192.0.2.1", "127.0.0.1"] {
         for scheme in ["http", "https"] {
             let origin = WebOrigin::parse(&format!("{scheme}://{host}:18090")).expect("an origin");
             assert_eq!(
