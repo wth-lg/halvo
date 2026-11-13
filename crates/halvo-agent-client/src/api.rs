@@ -155,7 +155,7 @@ impl RunnerExit {
         not(test),
         expect(
             dead_code,
-            reason = "RunEnd and the start's answer carry it from the unit that edits src/supervisor.rs (U4.9's report)"
+            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
         )
     )]
     pub fn is_refusal(self) -> bool {
@@ -195,7 +195,9 @@ pub struct Parts {
 /// `link_end` after it closed the link, whether or not the runner saw the end of its input, and it takes a runner's
 /// end from its process and not from the end of its output alone. The library closes the link of a run `link_end`
 /// after the run's `finish` was stored when its runner has not ended by then, and from that close the runner has
-/// `link_end`, as after any close.
+/// `link_end`, as after any close. The library reads that bound between two events of the run: a call of its
+/// caller in which it waits, such as `Confirmer::answers` for a `confirm` frame that a runner sends after its
+/// stored `finish`, is not cut short by it, and the close comes once that call has returned.
 /// The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
 /// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
 /// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them

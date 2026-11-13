@@ -292,7 +292,7 @@ impl RunProc {
         not(test),
         expect(
             dead_code,
-            reason = "RunEnd and the start's answer carry it from the unit that edits src/supervisor.rs (U4.9's report)"
+            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
         )
     )]
     pub(crate) fn exit(&self) -> Option<RunnerExit> {
