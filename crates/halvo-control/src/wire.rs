@@ -318,32 +318,130 @@ mod tests {
         (PEAK.with(Cell::get), LIVE.with(Cell::get))
     }
 
-    /// `{"v":1,"a":` and `inner` and `}`, with spaces before the `}` so that the frame is
-    /// `size` bytes; `None` when `inner` does not fit.
-    fn padded(inner: &str, size: usize) -> Option<Vec<u8>> {
-        let head = HEAD.as_bytes();
-        let used = head.len() + inner.len() + 1;
+    /// An envelope of protocol version 1 whose body the decoder of one side takes, or refuses only
+    /// after it has read the body, with a field `x` last in the body: a name, the text before the
+    /// value of `x` and the text after it.
+    struct Envelope {
+        name: &'static str,
+        head: String,
+        tail: &'static str,
+    }
+
+    fn envelopes(side: &str) -> Vec<Envelope> {
+        let at = |name, head: &str, tail| Envelope {
+            name,
+            head: head.to_string(),
+            tail,
+        };
+        if side == "request" {
+            return vec![
+                at(
+                    "a pause with the field x too many",
+                    r#"{"v":1,"body":{"op":"pause","x":"#,
+                    "}}",
+                ),
+                at(
+                    "an op that the table does not know, with a field x",
+                    r#"{"v":1,"body":{"op":"zzz","x":"#,
+                    "}}",
+                ),
+            ];
+        }
+        let status = String::from_utf8(crate::proto::encode_reply(&crate::proto::Reply::Status(
+            crate::testing::sample_status(crate::proto::Platform::Macos),
+        )))
+        .unwrap();
+        let broken = status.replace(r#""capture":"running""#, r#""capture":"paused""#);
+        assert_ne!(broken, status, "the sample status reads capture=running");
+        let open = broken.strip_suffix("}}").unwrap();
+        let fields = open
+            .strip_prefix(r#"{"v":1,"body":{"kind":"status","#)
+            .unwrap();
+        vec![
+            at(
+                "an error reply with a field x that the build does not know",
+                r#"{"v":1,"body":{"kind":"error","code":"busy","message":"m","x":"#,
+                "}}",
+            ),
+            at(
+                "a status that reads capture=paused beside desired=running, with a field x",
+                &format!(r#"{open},"x":"#),
+                "}}",
+            ),
+            at(
+                "a cap_set whose status reads capture=paused beside desired=running, with a field x",
+                &format!(r#"{{"v":1,"body":{{"kind":"cap_set","evicting":false,"status":{{{fields},"x":"#),
+                "}}}",
+            ),
+        ]
+    }
+
+    /// The envelope's head, `inner`, spaces and its tail, `size` bytes in all; `None` when `inner`
+    /// does not fit.
+    fn in_body(envelope: &Envelope, inner: &str, size: usize) -> Option<Vec<u8>> {
+        let used = envelope.head.len() + inner.len() + envelope.tail.len();
         if used > size {
             return None;
         }
-        let mut frame = head.to_vec();
+        let mut frame = Vec::with_capacity(size);
+        frame.extend_from_slice(envelope.head.as_bytes());
         frame.extend_from_slice(inner.as_bytes());
-        frame.resize(size - 1, b' ');
-        frame.push(b'}');
+        frame.resize(size - envelope.tail.len(), b' ');
+        frame.extend_from_slice(envelope.tail.as_bytes());
         Some(frame)
     }
 
-    /// `[` and copies of `item` separated by commas and `]`, as many as fit in a frame of
-    /// `size` bytes.
-    fn array_of(item: &str, size: usize) -> Vec<u8> {
-        let mut items = std::iter::repeat(item);
-        array_drawn(size, || items.next().unwrap())
+    /// The bytes that the envelope leaves for the value of `x` in a frame of `size` bytes.
+    fn room(envelope: &Envelope, size: usize) -> usize {
+        size - envelope.head.len() - envelope.tail.len()
     }
 
-    /// `[`, the items that `next` gives while they fit, separated by commas, and `]`, in a
-    /// frame of `size` bytes.
-    fn array_drawn<'a>(size: usize, mut next: impl FnMut() -> &'a str) -> Vec<u8> {
-        let room = size - HEAD.len() - 1;
+    /// The frame of `size` bytes whose field x holds an array of `width` trees side by side, each
+    /// an object of the empty key nested `depth` levels around 0; `None` when they do not fit.
+    fn tree_frame(envelope: &Envelope, depth: usize, width: usize, size: usize) -> Option<Vec<u8>> {
+        let mut tree = String::with_capacity(5 * depth + 1);
+        for _ in 0..depth {
+            tree.push_str(r#"{"":"#);
+        }
+        tree.push('0');
+        for _ in 0..depth {
+            tree.push('}');
+        }
+        let mut inner = String::with_capacity(width * (tree.len() + 1) + 1);
+        inner.push('[');
+        for i in 0..width {
+            if i > 0 {
+                inner.push(',');
+            }
+            inner.push_str(&tree);
+        }
+        inner.push(']');
+        in_body(envelope, &inner, size)
+    }
+
+    /// The most trees nested `depth` levels that fit side by side in the envelope's room.
+    fn widest(envelope: &Envelope, depth: usize, size: usize) -> usize {
+        (room(envelope, size) - 1) / (5 * depth + 2)
+    }
+
+    /// The deepest nesting of objects of the empty key in the field x whose frame the decoder
+    /// still reads to its body.
+    fn deepest(side: &str, envelope: &Envelope, size: usize) -> usize {
+        (1..1_000)
+            .take_while(|d| decode_on(side, &tree_frame(envelope, *d, 1, size).unwrap()))
+            .last()
+            .unwrap()
+    }
+
+    /// `[` and copies of `item` separated by commas and `]`, as many as fit in `room` bytes.
+    fn array_of(item: &str, room: usize) -> String {
+        let mut items = std::iter::repeat(item);
+        array_drawn(room, || items.next().unwrap())
+    }
+
+    /// `[`, the items that `next` gives while they fit in `room` bytes, separated by commas, and
+    /// `]`.
+    fn array_drawn<'a>(room: usize, mut next: impl FnMut() -> &'a str) -> String {
         let mut inner = String::with_capacity(room);
         inner.push('[');
         inner.push_str(next());
@@ -356,25 +454,12 @@ mod tests {
             inner.push_str(item);
         }
         inner.push(']');
-        padded(&inner, size).unwrap()
+        inner
     }
 
-    const HEAD: &str = r#"{"v":1,"a":"#;
-
-    /// The deepest nesting of arrays that the parser takes, counted from the top.
-    fn depth_limit() -> usize {
-        (1..1_000)
-            .take_while(|d| {
-                let text = format!("{}{}", "[".repeat(*d), "]".repeat(*d));
-                serde_json::from_slice::<serde_json::Value>(text.as_bytes()).is_ok()
-            })
-            .last()
-            .unwrap()
-    }
-
-    /// The frames of the worst shapes, each exactly `size` bytes, with their names.
-    fn worst_shapes(size: usize) -> Vec<(String, Vec<u8>)> {
-        let deep = depth_limit() - 2;
+    /// The values of the worst shapes for the field x, each as long as fits in `room` bytes, with
+    /// their names; `deep` is the most levels that a shape nests inside its array.
+    fn worst_shapes(room: usize, deep: usize) -> Vec<(String, String)> {
         let nest = |open: &str, leaf: &str, close: &str, levels: usize| {
             format!("{}{leaf}{}", open.repeat(levels), close.repeat(levels))
         };
@@ -385,37 +470,39 @@ mod tests {
         let mut shapes = vec![
             (
                 "an array of one-byte values".to_string(),
-                array_of("0", size),
+                array_of("0", room),
             ),
-            ("an array of empty arrays".to_string(), array_of("[]", size)),
+            ("an array of empty arrays".to_string(), array_of("[]", room)),
             (
                 "an array of arrays of one value".to_string(),
-                array_of("[0]", size),
+                array_of("[0]", room),
             ),
             (
                 "an array of objects of one one-byte key".to_string(),
-                array_of(r#"{"a":0}"#, size),
+                array_of(r#"{"a":0}"#, room),
             ),
             (
-                format!("arrays nested {deep} deep at the parser's depth limit, side by side"),
-                array_of(&nest("[", "", "]", deep - 1), size),
+                format!("arrays nested {deep} deep at the decoder's depth limit, side by side"),
+                array_of(&nest("[", "", "]", deep), room),
             ),
             (
                 format!("objects of the empty key nested {deep} deep, side by side"),
-                array_of(&nest(r#"{"":"#, "0", "}", deep - 1), size),
+                array_of(&nest(r#"{"":"#, "0", "}", deep), room),
             ),
         ];
-        if let Some(frame) = padded(&format!("{{{keys}}}"), size) {
+        let object = format!("{{{keys}}}");
+        if object.len() <= room {
             shapes.push((
                 "an object of the 128 one-byte keys, each once".to_string(),
-                frame,
+                object,
             ));
         }
         shapes
     }
 
-    /// Frames of exactly `size` bytes whose array holds items drawn from a few shapes.
-    fn drawn_frames(size: usize, count: usize) -> Vec<Vec<u8>> {
+    /// Values for the field x of at most `room` bytes whose array holds items drawn from a few
+    /// shapes.
+    fn drawn_values(room: usize, count: usize) -> Vec<String> {
         const ITEMS: [&str; 8] = [
             "0",
             "[]",
@@ -428,40 +515,105 @@ mod tests {
         ];
         let mut draw = Draw(0x2545_f491_4f6c_dd1d);
         (0..count)
-            .map(|_| array_drawn(size, || ITEMS[(draw.next() % ITEMS.len() as u64) as usize]))
+            .map(|_| array_drawn(room, || ITEMS[(draw.next() % ITEMS.len() as u64) as usize]))
             .collect()
     }
 
-    #[test]
-    #[ignore = "prints the peak live bytes of each shape"]
-    fn print_the_peak_live_bytes_of_one_decode_call() {
-        for (side, size) in [("request", REQUEST_MAX_BYTES), ("reply", REPLY_MAX_BYTES)] {
-            for (name, frame) in worst_shapes(size) {
-                assert_eq!(frame.len(), size);
-                let (peak, end) = live_bytes_of(|| {
-                    if side == "request" {
-                        drop(crate::proto::decode_request(&frame));
-                    } else {
-                        drop(crate::proto::decode_reply(&frame));
-                    }
-                });
-                println!("peak {side} {peak} end {end} {name}");
+    /// Every frame of `size` bytes that the test of the named peaks measures on `side`, with its
+    /// name: the worst shapes in the body of each envelope, 20 drawn values in the body of the
+    /// first, and a sweep over depth and width of the trees of [`tree_frame`] in each envelope.
+    /// The sweep takes every depth from 1 to the deepest that the decoder reads, at the widths
+    /// 1, half the widest and the widest, on the request's side; on the reply's side, where one
+    /// decode takes longer, the depths of `REPLY_SWEEP_DEPTHS` and the deepest two at the
+    /// widest width. The ignored test below prints the whole sweep of both sides.
+    fn measured_frames(side: &str, size: usize) -> Vec<(String, Vec<u8>)> {
+        let mut frames = Vec::new();
+        for (e, envelope) in envelopes(side).iter().enumerate() {
+            let deep = deepest(side, envelope, size);
+            for (name, inner) in worst_shapes(room(envelope, size), deep) {
+                let frame = in_body(envelope, &inner, size).unwrap();
+                frames.push((format!("{}: {name}", envelope.name), frame));
             }
-            let mut most = 0;
-            for frame in drawn_frames(size, 50) {
-                let (peak, _) = live_bytes_of(|| {
-                    if side == "request" {
-                        drop(crate::proto::decode_request(&frame));
-                    } else {
-                        drop(crate::proto::decode_reply(&frame));
-                    }
-                });
-                most = most.max(peak);
+            if e == 0 {
+                for (i, inner) in drawn_values(room(envelope, size), 20)
+                    .into_iter()
+                    .enumerate()
+                {
+                    let frame = in_body(envelope, &inner, size).unwrap();
+                    frames.push((format!("{}: drawn value {i}", envelope.name), frame));
+                }
             }
-            println!("peak {side} {most} drawn");
+            let depths: Vec<usize> = if side == "request" {
+                (1..=deep).collect()
+            } else {
+                REPLY_SWEEP_DEPTHS
+                    .iter()
+                    .copied()
+                    .filter(|d| *d < deep - 1)
+                    .chain([deep - 1, deep])
+                    .collect()
+            };
+            for depth in depths {
+                let most = widest(envelope, depth, size);
+                let widths = if side == "request" {
+                    vec![1, most / 2, most]
+                } else {
+                    vec![most]
+                };
+                for width in widths.into_iter().filter(|w| *w > 0) {
+                    let frame = tree_frame(envelope, depth, width, size).unwrap();
+                    frames.push((
+                        format!(
+                            "{}: objects of the empty key nested {depth} deep, {width} side by side",
+                            envelope.name
+                        ),
+                        frame,
+                    ));
+                }
+            }
         }
+        frames
     }
 
+    const REPLY_SWEEP_DEPTHS: [usize; 8] = [1, 2, 4, 8, 16, 32, 64, 96];
+
+    #[test]
+    #[ignore = "prints the peak live bytes of each frame of the whole sweep"]
+    fn print_the_peak_live_bytes_of_one_decode_call() {
+        for (side, size) in [("request", REQUEST_MAX_BYTES), ("reply", REPLY_MAX_BYTES)] {
+            let mut most = (0, String::new());
+            for (name, frame) in measured_frames(side, size) {
+                assert_eq!(frame.len(), size);
+                let mut read = false;
+                let (peak, end) = live_bytes_of(|| read = decode_on(side, &frame));
+                println!("peak {side} {peak} end {end} read the body {read}: {name}");
+                if peak > most.0 {
+                    most = (peak, name);
+                }
+            }
+            for (e, envelope) in envelopes(side).iter().enumerate() {
+                let deep = deepest(side, envelope, size);
+                for depth in 1..=deep {
+                    let top = widest(envelope, depth, size);
+                    for width in [1, top / 4, top / 2, top] {
+                        if width == 0 {
+                            continue;
+                        }
+                        let frame = tree_frame(envelope, depth, width, size).unwrap();
+                        let mut read = false;
+                        let (peak, end) = live_bytes_of(|| read = decode_on(side, &frame));
+                        println!(
+                            "sweep {side} envelope {e} depth {depth} width {width} peak {peak} end {end} read the body {read}"
+                        );
+                        if peak > most.0 {
+                            most = (peak, format!("envelope {e}, depth {depth}, width {width}"));
+                        }
+                    }
+                }
+            }
+            println!("most {side} {} {}", most.0, most.1);
+        }
+    }
     #[global_allocator]
     static ALLOCATOR: Largest = Largest;
 
@@ -515,11 +667,19 @@ mod tests {
         }
     }
 
-    fn decode_on(side: &str, frame: &[u8]) {
+    /// Decodes `frame` on `side`, drops the answer, and says whether the decoder read the body:
+    /// every answer but no envelope.
+    fn decode_on(side: &str, frame: &[u8]) -> bool {
         if side == "request" {
-            drop(crate::proto::decode_request(frame));
+            !matches!(
+                crate::proto::decode_request(frame),
+                Err(crate::proto::RequestError::NotAnEnvelope)
+            )
         } else {
-            drop(crate::proto::decode_reply(frame));
+            !matches!(
+                crate::proto::decode_reply(frame),
+                Err(crate::proto::ReplyError::NotAnEnvelope)
+            )
         }
     }
 
@@ -531,13 +691,11 @@ mod tests {
             ("request", REQUEST_MAX_BYTES, REQUEST_DECODE_PEAK_BYTES),
             ("reply", REPLY_MAX_BYTES, REPLY_DECODE_PEAK_BYTES),
         ] {
-            let mut frames = worst_shapes(size);
-            for (i, frame) in drawn_frames(size, 20).into_iter().enumerate() {
-                frames.push((format!("drawn frame {i}"), frame));
-            }
-            for (name, frame) in &frames {
+            for (name, frame) in &measured_frames(side, size) {
                 assert_eq!(frame.len(), size, "{side}: {name}");
-                let (peak, end) = live_bytes_of(|| decode_on(side, frame));
+                let mut read = false;
+                let (peak, end) = live_bytes_of(|| read = decode_on(side, frame));
+                assert!(read, "{side}: {name}: the decoder did not read the body");
                 assert!(
                     peak <= bound as isize,
                     "{side}: {name}: one decode call held {peak} live bytes, above {bound}"
@@ -549,7 +707,9 @@ mod tests {
             }
         }
         let request = crate::proto::encode_request(&crate::proto::Request::Pause);
-        let (_, end) = live_bytes_of(|| decode_on("request", &request));
+        let (_, end) = live_bytes_of(|| {
+            decode_on("request", &request);
+        });
         assert_eq!(end, 0, "a request that decodes left bytes live");
     }
 
