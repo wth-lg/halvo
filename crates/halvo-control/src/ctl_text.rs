@@ -376,17 +376,27 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         }
         (Verb::Pause | Verb::Resume, Reply::CaptureChanged(status)) => {
             let stdout = format!("capture={}\n", status.fields().capture.as_str());
+            let mut stderr = String::new();
+            if *verb == Verb::Pause && status.fields().capture == crate::proto::Capture::Pausing {
+                stderr.push_str(
+                    "halvo-capture: capture did not stop in time; the capture service is ending\n",
+                );
+            }
             if status.fields().state_file == StateFile::WriteFailed {
-                Printed {
-                    stdout,
-                    stderr: format!(
-                        "halvo-capture: the state file was not written: {}\n",
-                        data_dir.state_file().display()
-                    ),
-                    status: crate::exit::ERROR,
-                }
+                stderr.push_str(&format!(
+                    "halvo-capture: the state file was not written: {}\n",
+                    data_dir.state_file().display()
+                ));
+            }
+            let status = if stderr.is_empty() {
+                crate::exit::CLEAN
             } else {
-                printed(stdout, crate::exit::CLEAN)
+                crate::exit::ERROR
+            };
+            Printed {
+                stdout,
+                stderr,
+                status,
             }
         }
         (Verb::Stop, Reply::Stopped(stopped)) => printed(
@@ -863,6 +873,41 @@ mod tests {
             .stderr
             .contains(data_dir().state_file().to_str().unwrap()));
         assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn a_pause_whose_source_did_not_stop_prints_pausing_says_the_service_ends_and_exits_1() {
+        let pausing = edited(Platform::Macos, |f| {
+            f.desired = crate::model::CaptureState::Paused;
+            f.capture = Capture::Pausing;
+            stopped_sources(f);
+            f.sources[2].state = SourceState::Failed {
+                reason: Reason::Timeout,
+                error: None,
+            };
+        });
+        let printed = print(
+            &Verb::Pause,
+            Ok(Reply::CaptureChanged(pausing)),
+            &data_dir(),
+        );
+        assert_eq!(printed.stdout, "capture=pausing\n");
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: capture did not stop in time; the capture service is ending\n"
+        );
+        assert_eq!(printed.status, 1);
+        let paused = edited(Platform::Macos, |f| {
+            f.desired = crate::model::CaptureState::Paused;
+            f.capture = Capture::Paused;
+            stopped_sources(f);
+        });
+        let printed = print(&Verb::Pause, Ok(Reply::CaptureChanged(paused)), &data_dir());
+        assert_eq!(
+            (printed.stdout.as_str(), printed.status),
+            ("capture=paused\n", 0)
+        );
+        assert_eq!(printed.stderr, "");
     }
 
     const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=0\nmax_lag_ms=0\nsecure_input_keystrokes=0\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
