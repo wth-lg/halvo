@@ -95,6 +95,7 @@ inspect() {
   script_name=${script_name%.sh}
   script_jobs=
   script_rule=
+  script_lane=
   if [ -L "$script_file" ] || [ ! -f "$script_file" ]; then
     refusal="it is not a regular file"
     return 1
@@ -136,6 +137,19 @@ inspect() {
   case $script_rule in
     '' | *"$nl"*)
       refusal="its first 10 lines hold no single '# rule:' line"
+      return 1
+      ;;
+  esac
+  script_lane=$(sed -n '1,10{/^# lane:/p;}' "$script_file")
+  case $script_lane in
+    '') script_lane=cargo ;;
+    '# lane: free') script_lane=free ;;
+    *"$nl"*)
+      refusal="its first 10 lines hold more than one '# lane:' line"
+      return 1
+      ;;
+    *)
+      refusal="its '# lane:' line is not '# lane: free'; a check that names no lane runs in the cargo lane"
       return 1
       ;;
   esac
@@ -831,6 +845,7 @@ own_self_test() {
     chmod +x "$tmp/late-date/date"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
+  lane_refusal="its '# lane:' line is not '# lane: free'; a check that names no lane runs in the cargo lane"
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
   perl_line='FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)'
 
@@ -906,6 +921,16 @@ own_self_test() {
   own_case two-rule-lines 1 "FAIL 10-a (its first 10 lines hold no single '# rule:' line)" macos
   new_repo && add_script r1 10-a.sh "# jobs: macos$nl$good" "$pass_a"
   own_case two-jobs-lines 1 "FAIL 10-a (its first 10 lines hold no single '# jobs:' line)" macos
+  new_repo && add_script r1 10-a.sh "$good$nl# lane: cargo" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
+  own_case lane-other-than-free 1 "FAIL 10-a ($lane_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good$nl# lane: free$cr" "$pass_a"
+  own_case lane-line-with-a-carriage-return 1 "FAIL 10-a ($lane_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good$nl# lane: free$nl# lane: free" "$pass_a"
+  own_case two-lane-lines 1 "FAIL 10-a (its first 10 lines hold more than one '# lane:' line)" macos
+  new_repo && add_script r1 10-a.sh "$good$nl# lane:" "$pass_a"
+  own_case rules-refuses-a-lane-line 1 "FAIL 10-a ($lane_refusal)" --rules
+  new_repo && add_script r1 10-a.sh "$good$nl# lane: free" "$pass_a"
+  own_case lane-free-is-no-refusal 0 '10-a (macos windows): A fixture rule.' --rules
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r2 10-a.sh "$good" "$pass_a"
   own_case name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' macos
   own_case rules-name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' --rules
