@@ -54,6 +54,7 @@ export type Scenario = {
   readonly capAnchorSecondsBeforeSubscription: number;
   readonly commands: readonly Command[];
   readonly faultsByProviderCall: readonly Fault[];
+  readonly repeatAnswer?: "duplicate" | "failed";
 };
 
 export type Options = { readonly downtimeBudgetSeconds: number; readonly onFailedCheck: "stop" | "list" };
@@ -441,8 +442,14 @@ class World {
     return fault;
   }
 
-  private answerOf(result: SendResult): { kind: "recorded" } | { kind: "duplicate" } | { kind: "refused"; reason: Extract<SendResult, { status: "refused" }>["reason"] } {
+  private answerOf(
+    result: SendResult,
+  ): { kind: "recorded" } | { kind: "duplicate" } | { kind: "failed" } | { kind: "refused"; reason: Extract<SendResult, { status: "refused" }>["reason"] } {
     if (result.status === "refused") return { kind: "refused", reason: result.reason };
+    if (result.status === "duplicate" && this.scenario.repeatAnswer === "failed") {
+      this.count("send.repeat-answered-failed");
+      return { kind: "failed" };
+    }
     return { kind: result.status };
   }
 

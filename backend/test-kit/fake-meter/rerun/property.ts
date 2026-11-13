@@ -388,5 +388,32 @@ export function searchCases(): SearchCase[] {
   const here = (import.meta as unknown as { url: string }).url;
   const ordering = JSON.parse(fs.readFileSync(new URL("../../../gate/fixtures/metering/ordering-seed3-5701.json", here), "utf8")) as Scenario;
   cases.push({ scenario: { ...ordering, faultsByProviderCall: [] }, faultsOfEarlierCalls: ordering.faultsByProviderCall, faults: [{ kind: "none" }] });
+  const searchedAfterTheSequence: Fault[] = [{ kind: "none" }, { kind: "refused" }, { kind: "request-lost" }, { kind: "response-lost" }];
+  const recordedLateInTheWindowThenRefused: Fault[] = [
+    { kind: "crash-before-call", downSeconds: 80_000 },
+    { kind: "response-lost" },
+    { kind: "refused" },
+    { kind: "none" },
+    { kind: "refused" },
+    { kind: "refused" },
+  ];
+  const resentPastTheWindowThenRefused: Fault[] = [
+    { kind: "crash-before-call", downSeconds: PAST_THE_FAKES_WINDOW },
+    { kind: "none" },
+    { kind: "response-lost" },
+    { kind: "none" },
+    { kind: "refused" },
+    { kind: "none" },
+    { kind: "refused" },
+    { kind: "none" },
+    { kind: "refused" },
+  ];
+  cases.push({ scenario: scenario(minuteAndLagging, oneIntervalOnAnAccountThatStays), faultsOfEarlierCalls: recordedLateInTheWindowThenRefused, faults: searchedAfterTheSequence });
+  cases.push({ scenario: scenario(minuteAndLagging, oneIntervalOnAnAccountThatStays), faultsOfEarlierCalls: resentPastTheWindowThenRefused, faults: searchedAfterTheSequence });
+  cases.push({
+    scenario: { ...scenario(minuteAndLagging, oneIntervalOnAnAccountThatStays), repeatAnswer: "failed" },
+    faultsOfEarlierCalls: [{ kind: "response-lost" }],
+    faults: [...searchedAfterTheSequence, ...crashes([HALF_A_WINDOW])],
+  });
   return cases;
 }

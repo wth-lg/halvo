@@ -14,7 +14,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search, setting 23, faults [",
-    "the record disagrees with the provider"
+    "unexplained-total=failed",
+    "first failure: the test \"case 14: an event at the meter that no interval of the module owns, of 5 minor units"
   ]
 }

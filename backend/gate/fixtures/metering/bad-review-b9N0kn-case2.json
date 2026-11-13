@@ -14,7 +14,7 @@
   ],
   "line": [
     "FAIL metering: ",
-    "first failure: the fault-sequence search, setting 33, faults [",
-    "the record disagrees with the provider"
+    "late-read=failed",
+    "first failure: the test \"case 10: a request truly lost, then a refusal that stays"
   ]
 }

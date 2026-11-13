@@ -8,7 +8,7 @@ const ROOT = process.env.HALVO_ROOT ?? join(HERE, "../../..");
 const STATE = process.env.GATE_STATE ?? join(ROOT, ".tmp");
 const SEEDS = [1, 2, 3, 4, 5];
 const ORDERINGS = 20000;
-const SETTINGS = 35;
+const SETTINGS = 38;
 const WORKERS = 4;
 const TEST_SECONDS = 600;
 const TESTS = [
@@ -27,6 +27,21 @@ const TESTS = [
     "send-limit",
     "test/metering/sync.node.test.ts",
     "bound SEND_LIMIT_MS: a meter that never answers gets one send, the first clock call past the interval's timestamp plus SEND_LIMIT_MS closes the interval as not billable with no further call, logs one line, and the account delete then finishes",
+  ],
+  [
+    "late-read",
+    "test/metering/late-read.node.test.ts",
+    "case 10: a request truly lost, then a refusal that stays: rounds inside the window count nothing, the late read counts the refusal, and two more refused sends one retry delay apart close the interval as not billable, after which the account delete finishes",
+  ],
+  [
+    "unexplained-total",
+    "test/metering/late-read.node.test.ts",
+    "case 14: an event at the meter that no interval of the module owns, of 5 minor units in the interval's minute, leaves the total unexplained, so the interval is read again and never sent",
+  ],
+  [
+    "retry-delay",
+    "test/metering/retry-delay.node.test.ts",
+    "case 11: a meter that never answers gets 29 sends in the first 86,100 s, at a delay that doubles from the retry delay to RETRY_DELAY_CAP_MS; past the window it gets reads alone, the last one before the late point exactly at it, and the try after a change comes one retry delay later",
   ],
 ];
 
