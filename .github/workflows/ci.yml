@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,133 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: "win-2: proof files and a second checkout"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set -u
+          files="$RUNNER_TEMP/w2"
+          mkdir -p "$files"
+          cat >"$files/w2-mutants.sh" <<'W2_MUTANTS_EOF'
+          #!/bin/bash
+          # The one-rule changes of win-2, one after another in one checkout of the head
+          # with one target directory: apply, build and run the named test, restore with
+          # git checkout. A change is caught when its test fails or it does not build.
+          set -u
+          w=$1
+          files=$2
+          list=$3
+          cd "$w" || exit 2
+          head=$(git rev-parse HEAD)
+          tab=$(printf '\t')
+          caught=0
+          survived=0
+          nobuild=0
+          unapplied=0
+          n=0
+          while IFS="$tab" read -r name file subst kind test; do
+            [ -n "$name" ] || continue
+            n=$((n + 1))
+            git checkout --quiet -- "$file"
+            if ! SUBST="$subst" perl -0777 -i -pe '$c = eval "\$_ =~ $ENV{SUBST}"; die "no match\n" unless $c;' "$file" 2>"$files/m-apply.err"; then
+              unapplied=$((unapplied + 1))
+              printf 'W2 mutant name=%s result=not-applied\n' "$name"
+              git checkout --quiet -- "$file"
+              continue
+            fi
+            log=$files/mutant-$n.log
+            began=$(date +%s)
+            if [ "$kind" = tf ]; then
+              timeout 900 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$test" --nocapture >"$log" 2>&1
+            else
+              timeout 900 cargo test --locked -p halvo-capture --lib -- --exact "$test" >"$log" 2>&1
+            fi
+            code=$?
+            ended=$(date +%s)
+            ran=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ')
+            if grep -a -q 'could not compile\|^error\[E' "$log"; then
+              result=no-build
+              nobuild=$((nobuild + 1))
+            elif [ "$code" -eq 124 ]; then
+              result=caught-time-limit
+              caught=$((caught + 1))
+            elif [ "$ran" -ne 1 ]; then
+              result=not-one-test-ran
+              survived=$((survived + 1))
+            elif [ "$code" -ne 0 ] && grep -a -q "^test .* \.\.\. FAILED" "$log"; then
+              result=caught
+              caught=$((caught + 1))
+            else
+              result=survived
+              survived=$((survived + 1))
+            fi
+            printf 'W2 mutant name=%s kind=%s test=%s exit=%s tests_ran=%s result=%s seconds=%s\n' "$name" "$kind" "$test" "$code" "$ran" "$result" "$((ended - began))"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. |panicked at|^error(\[|:)|^TF ' | head -6 | sed 's/^/W2   /'
+            case $result in
+              caught | caught-time-limit) ;;
+              *) tr -d '\r' <"$log" | tail -n 15 | sed 's/^/W2   tail | /' ;;
+            esac
+            git checkout --quiet -- "$file"
+          done <"$list"
+          git diff --quiet "$head" || echo "W2 mutants the checkout differs from the head after the run"
+          printf 'W2 mutants summary changes=%s caught=%s no_build=%s survived=%s not_applied=%s\n' "$n" "$caught" "$nobuild" "$survived" "$unapplied"
+          W2_MUTANTS_EOF
+          cat >"$files/w2-proofs.sh" <<'W2_PROOFS_EOF'
+          #!/bin/bash
+          # The proofs of round W2-1: each new test at the commit before its fix and
+          # after it, the crate tests of windows:: at the comment commit and at the head.
+          set -u
+          w=$1
+          files=$2
+          cd "$w" || exit 2
+          run() {
+            part=$1 at=$2 commit=$3
+            shift 3
+            git checkout --quiet --force --detach "$commit" || { echo "W2 proof part=$part at=$at commit=$commit result=checkout-failed"; return; }
+            log=$files/proof3-$part-$at.log
+            timeout 900 cargo test --locked -p halvo-capture --lib -- "$@" >"$log" 2>&1
+            code=$?
+            ok=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ok$')
+            failed=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. FAILED$')
+            echo "W2 proof part=$part at=$at commit=$commit exit=$code ok=$ok failed=$failed"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. (FAILED|ok)$|^test result:|panicked at|the drop waited|^error(\[|:)' | head -40 | sed 's/^/W2   /'
+          }
+          run comment-commit tests 288ca1d7efb97964519b66d8c3231a92958f3ba9 windows::
+          run point-1 before f05dfdba086b68b7c0b3643f22300b4a57abfb66 --exact windows::tests::a_dropped_source_whose_pump_does_not_end_waits_its_deadline_once windows::tests::a_dropped_source_whose_stop_timed_out_waits_no_more windows::screen::tests::a_dropped_screen_source_whose_stop_timed_out_waits_no_more windows::tests::a_stop_that_timed_out_keeps_the_pump_known_until_it_ends
+          run point-1 after 0c3b7f1f78591027795fbaf3240ec8603e706b22 --exact windows::tests::a_dropped_source_whose_pump_does_not_end_waits_its_deadline_once windows::tests::a_dropped_source_whose_stop_timed_out_waits_no_more windows::screen::tests::a_dropped_screen_source_whose_stop_timed_out_waits_no_more windows::tests::a_stop_that_timed_out_keeps_the_pump_known_until_it_ends
+          run point-2 row-and-test 488be2d6d033f181655c078e70e280ae04bfd340 --exact windows::screen::tests::the_process_mta_reference_is_taken_once_and_holds_an_mta_for_a_new_thread
+          run point-3 before 2f856bb5f29f8b033c1476bd27cff4e59c2da8f0 --exact windows::input::tests::a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop windows::input::tests::a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop
+          run point-3 after 3e70c29da1b2c51717eb0f8f04f4ad80e4a2afc3 --exact windows::input::tests::a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop windows::input::tests::a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop
+          run head tests "$W2_HEAD" windows::
+          git checkout --quiet --force --detach "$W2_HEAD"
+          echo "W2 proofs done"
+          W2_PROOFS_EOF
+          printf '%s' 'cHVtcC1kcm9wLXN0b3BzLWFnYWluCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgaWYgc2VsZlwuc3RvcF9yZXF1ZXN0ZWQgXHtccj9cbiAgICAgICAgICAgIHNlbGZcLmxldF9nb1woXCk7LyAgICAgICAgaWYgZmFsc2Uge1xuICAgICAgICAgICAgc2VsZi5sZXRfZ28oKTsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9kcm9wcGVkX3NvdXJjZV93aG9zZV9wdW1wX2RvZXNfbm90X2VuZF93YWl0c19pdHNfZGVhZGxpbmVfb25jZQpkcm9wLWFmdGVyLXRpbWVvdXQtc3RvcHMtYWdhaW4JY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBpZiBzZWxmXC50aW1lZF9vdXRcLmlzX25vbmVcKFwpIFx7LyAgICAgICAgaWYgdHJ1ZSB7LwlsaWIJd2luZG93czo6dGVzdHM6OmFfZHJvcHBlZF9zb3VyY2Vfd2hvc2Vfc3RvcF90aW1lZF9vdXRfd2FpdHNfbm9fbW9yZQpzY3JlZW4tZHJvcC13YWl0cy1hZnRlci10aW1lb3V0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgaWYgc2VsZlwudGltZWRfb3V0XC5pc19zb21lXChcKSAmJiBzZWxmXC5zdG9wcGluZ1wuaXNfc29tZVwoXCkgXHsvICAgICAgICBpZiBmYWxzZSB7LwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9kcm9wcGVkX3NjcmVlbl9zb3VyY2Vfd2hvc2Vfc3RvcF90aW1lZF9vdXRfd2FpdHNfbm9fbW9yZQpyb3c6c3RvcC1wb3N0cy1vbmNlLXdpdGhvdXQtdGhlLWV2ZW50CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgc2VsZlwuc2lnbmFsXC5zZXRcKFwpO1xyP1xuICAgICAgICBsb29wIFx7XHI/XG4gICAgICAgICAgICBwb3N0X3F1aXRfdG9cKHNlbGZcLmlkXCk7XHI/XG4vICAgICAgICBwb3N0X3F1aXRfdG8oc2VsZi5pZCk7XG4gICAgICAgIGxvb3Age1xuLwlsaWIJd2luZG93czo6dGVzdHM6OnN0b3BfZW5kc19hX3B1bXBfd2hvc2VfZmlyc3RfcXVpdF9wb3N0X2ZhaWxzX2luc2lkZV9pdHNfZGVhZGxpbmUKcm93Omhvb2stcHVtcC1za2lwcy1pdHMtaGFuZGxlLXRlc3QJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzLyAgICBpZiBob29rXC5pc19pbnZhbGlkXChcKSBce1xyP1xuICAgICAgICBsZXQgZXJyb3IgPSBzdXBlcjo6bGFzdF9vc19lcnJvclwoXCJTZXRXaW5FdmVudEhvb2tcIlwpO1xyP1xuICAgICAgICBGT1JFR1JPVU5EX0NUWC8gICAgaWYgZmFsc2Uge1xuICAgICAgICBsZXQgZXJyb3IgPSBzdXBlcjo6bGFzdF9vc19lcnJvcihcIlNldFdpbkV2ZW50SG9va1wiKTtcbiAgICAgICAgRk9SRUdST1VORF9DVFgvCWxpYgl3aW5kb3dzOjpmb3JlZ3JvdW5kOjp0ZXN0czo6YV9mb3JlZ3JvdW5kX2hvb2tfdGhhdF9kb2VzX25vdF9pbnN0YWxsX2ZhaWxzX3RoZV9zdGFydF93aXRoX2l0c19zdGVwCnJvdzpvbi1jbG9zZWQtcmVjb3Jkcy1ub3RoaW5nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgc2VsZlwuY2xvc2VkXC5zdG9yZVwodHJ1ZSwgT3JkZXJpbmc6OlJlbGF4ZWRcKTtccj9cbi8vCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjphX2Nsb3NlZF9jYXB0dXJlX2l0ZW1fcmVhZHNfYXNfZmFpbGVkX2hlYWx0aApyb3c6Y2FsbGJhY2stc2VuZHMtdG8tdGhlLXNpbmsJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgIHB1YlwoY3JhdGVcKSBmbiBwdXNoXCgmc2VsZiwgcGFja2V0OiBQYWNrZXRcKSBce1xyP1xuLyAgICBwdWIoY3JhdGUpIGZuIHB1c2goJnNlbGYsIHBhY2tldDogUGFja2V0KSB7XG4gICAgICAgIGxldCBfID0gZm9yd2FyZF9vbmUoJnNlbGYuc2hhcmVkLnNpbmssIHBhY2tldCk7XG4gICAgfVxuXG4gICAgI1thbGxvdyhkZWFkX2NvZGUpXVxuICAgIGZuIHB1c2hfcXVldWVkKCZzZWxmLCBwYWNrZXQ6IFBhY2tldCkge1xuLwlsaWIJd2luZG93czo6dGVzdHM6OndpdGhfdGhlX3NpbmtfZnVsbF9vbmVfbW90aW9uX3NhbXBsZV9pc19wZW5kaW5nX2FuZF9ub19idXR0b25fcGFja2V0X2lzX2xvc3QKcm93Om10YS1yZWZlcmVuY2Utc2tpcHBlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJcy8gKnVuc2FmZSBceyB3aW5kb3dzOjpXaW4zMjo6U3lzdGVtOjpDb206OkNvSW5jcmVtZW50TVRBVXNhZ2VcKFwpIFx9XHI/XG4gKlwubWFwX2VyclwoW147XSo7XHI/XG4vLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6dGhlX3Byb2Nlc3NfbXRhX3JlZmVyZW5jZV9pc190YWtlbl9vbmNlX2FuZF9ob2xkc19hbl9tdGFfZm9yX2FfbmV3X3RocmVhZAo=' | base64 -d >"$files/mutants.tsv"
+          git fetch --quiet --deepen=60 origin "$GITHUB_REF"
+          git cat-file -e 288ca1d7efb97964519b66d8c3231a92958f3ba9^{commit}
+          git worktree add --quiet --detach "$files/wt" "$GITHUB_SHA"
+          git -C "$files/wt" log --oneline -1
+          echo "W2 files mutants=$(grep -c . "$files/mutants.tsv") proof_runs=$(grep -c '^run ' "$files/w2-proofs.sh")"
+      - name: "win-2: one-rule changes"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 40
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash "$RUNNER_TEMP/w2/w2-mutants.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2" "$RUNNER_TEMP/w2/mutants.tsv"
+      - name: "win-2: part proofs before and after each fix"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 50
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: W2_HEAD="$GITHUB_SHA" bash "$RUNNER_TEMP/w2/w2-proofs.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
