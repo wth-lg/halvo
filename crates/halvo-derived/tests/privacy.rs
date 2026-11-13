@@ -86,9 +86,11 @@ const SCRUB_EXPIRY: &str = "qzscrube5501";
 const SCRUB_PURGE: &str = "qzscrubp5502";
 const SCRUB_DELETE: &str = "qzscrubd5503";
 const SCRUB_OWN: &str = "qzscrubo5504";
+const SCRUB_BELOW: &str = "qzscrubb5505";
 
 /// privacy_scrub: in the keyless test build, which keeps every setting of the product and leaves the key out, a
-/// marker that the test planted in a row that an expiry, a purge or the delete of a workflow removes is in no byte of
+/// marker that the test planted in a row that an expiry, a purge, a purge below the first live ordinal or the delete
+/// of a workflow removes is in no byte of
 /// the database, its write-ahead log or its shared-memory file after them, while every marker stood in those files
 /// before them. The rows are an evidence row past its expiry, an evidence row whose segment is purged, the evidence of
 /// a deleted workflow's summaries and a row of a kind of origin own that names it.
@@ -112,7 +114,8 @@ fn privacy_scrub() {
         episode.category = SeedCategory::ShopOrder;
         episode.expires = Instant(FAR);
     }
-    let mut batch = vec![expiring, purged];
+    let below = titled(5, DAY, "com.example.below", &format!("Pay {SCRUB_BELOW}"));
+    let mut batch = vec![expiring, purged, below];
     batch.extend(deleted);
     let outcome = store
         .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
@@ -123,7 +126,7 @@ fn privacy_scrub() {
             outcome.evidence,
             outcome.proposals.stored
         ),
-        (4, 4, 1)
+        (5, 5, 1)
     );
     let items = listed(&store);
     assert_eq!(items.len(), 1, "one workflow, of the two deleted episodes");
@@ -134,7 +137,13 @@ fn privacy_scrub() {
             &own_note_body(workflow.as_str(), &format!("Note {SCRUB_OWN}")),
         ))
         .unwrap();
-    let markers = [SCRUB_EXPIRY, SCRUB_PURGE, SCRUB_DELETE, SCRUB_OWN];
+    let markers = [
+        SCRUB_EXPIRY,
+        SCRUB_PURGE,
+        SCRUB_DELETE,
+        SCRUB_OWN,
+        SCRUB_BELOW,
+    ];
     for marker in markers {
         assert!(
             !holding(&scratch, marker).is_empty(),
@@ -155,11 +164,16 @@ fn privacy_scrub() {
             workflow,
         ))
         .unwrap();
+    assert_eq!(
+        store.purge_below(ord(6)).unwrap(),
+        1,
+        "the purge below the first live ordinal removes one row"
+    );
     for marker in markers {
         assert_eq!(
             holding(&scratch, marker),
             Vec::<&str>::new(),
-            "after the expiry, the purge and the delete, the files that hold {marker}"
+            "after the expiry, the purges and the delete, the files that hold {marker}"
         );
     }
     drop(store);
@@ -304,7 +318,7 @@ fn window_case(keyed: bool) {
     }
     let workflow = listed(&store)[0].workflow.id().as_str().to_owned();
     store.purge(&[ord(200)]).unwrap();
-    *trace.borrow_mut() = Some((workflow, 200));
+    *trace.borrow_mut() = Some((workflow.clone(), 200));
     let mut late = episode(104, DAY + 17, None);
     late.segments = vec![ord(200)];
     let other_order = store
@@ -326,6 +340,24 @@ fn window_case(keyed: bool) {
             dropped: 1
         })],
         "the window record of the second step that names the purged ordinal"
+    );
+    *trace.borrow_mut() = Some((workflow, 300));
+    let stored = store
+        .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+        .unwrap();
+    assert_eq!(
+        stored.steps,
+        vec![Ok(Committed {
+            stored: 1,
+            dropped: 0
+        })],
+        "the window record of the second step that names a live ordinal"
+    );
+    *trace.borrow_mut() = None;
+    assert_eq!(
+        store.purge_below(ord(301)).unwrap(),
+        1,
+        "the purge below the first live ordinal removes the window row of the test kind"
     );
     drop(store);
     let conn = own(&scratch, keyed);
@@ -466,9 +498,20 @@ impl WriterStep for NoteStep {
         self.named
             .borrow()
             .iter()
-            .map(|workflow| TypedRecord {
-                kind: "test_note",
-                json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{DAY},"n":{n}}}"#),
+            .flat_map(|workflow| {
+                [
+                    TypedRecord {
+                        kind: "test_note",
+                        json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{DAY},"n":{n}}}"#),
+                    },
+                    TypedRecord {
+                        kind: "test_trace",
+                        json: format!(
+                            r#"{{"v":1,"workflow":"{workflow}","segments":[{}],"expires":{FAR}}}"#,
+                            500 + n
+                        ),
+                    },
+                ]
             })
             .collect()
     }
@@ -494,8 +537,8 @@ fn decoded(bytes: &[u8]) -> Result<(), ErrorName> {
 
 /// privacy_kept: the registry passes `kinds::check_registry`; the owner's reader refuses an analysis write whose app
 /// id is a path or whose domain is a sentence; with one test-only kind of origin capture whose entry gives a workflow
-/// key, and a second test step after the test proposer that is called after each commit and whose records of that kind
-/// are stored by the typed commit, the delete of one workflow leaves no row of any registered kind that names it, no
+/// key, and a second test step after the test proposer that is called after each commit and whose records of that kind,
+/// with records of a test-only window kind with a workflow key beside them, are stored by the typed commit, the delete of one workflow leaves no row of any registered kind that names it, no
 /// summary of its key and no evidence or support row of those summaries, while the other workflow keeps its rows, and
 /// one more batch with no new matching episode proposes nothing with its key.
 #[test]
@@ -527,7 +570,7 @@ fn privacy_kept() {
             named: Rc::clone(&named),
         }),
     );
-    let mut store = open_store(&scratch, true, &with(&[&NOTE]), host);
+    let mut store = open_store(&scratch, true, &with(&[&NOTE, &TRACE]), host);
     let batch = [
         episode(1, DAY, None),
         episode(2, DAY, None),
@@ -559,7 +602,7 @@ fn privacy_kept() {
         assert_eq!(
             outcome.steps,
             vec![Ok(Committed {
-                stored: 2,
+                stored: 4,
                 dropped: 0
             })]
         );
@@ -620,6 +663,17 @@ fn privacy_kept() {
     assert_eq!(
         kept_notes, 3,
         "the rows of the test-only kind of the other workflow"
+    );
+    let kept_traces: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM rows WHERE kind = 'test_trace' AND workflow = ?1",
+            [kept.as_str()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        kept_traces, 3,
+        "the window rows of the test-only kind of the other workflow"
     );
     assert_eq!(
         count(&conn, "SELECT count(*) FROM rows WHERE kind = 'workflow'"),
@@ -800,6 +854,13 @@ fn privacy_listed() {
             dismissed,
         ))
         .unwrap();
+    assert_eq!(
+        std::fs::metadata(scratch.path().join("derived").join("derived.db-wal"))
+            .map(|m| m.len())
+            .unwrap_or(0),
+        0,
+        "the bytes of the write-ahead log after the dismissal, which the truncating checkpoint follows"
+    );
     clock.set_day(DAY + 1);
     assert_eq!(
         store.expire().unwrap(),
@@ -1147,5 +1208,45 @@ fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summa
         ),
         before,
         "the workflow and its support rows after the clock has reached the day"
+    );
+}
+
+/// A support row goes with its summary whatever its own day: in a database where a support row's day and day of going
+/// lie 50 days after those of its summary, as only another build or a fault leaves them, the expiry that removes the
+/// summary at its bound removes the support row with it, by the sweep of rows that name a summary that is not stored.
+/// The row is read as gone by the stored rows of the test's own connection.
+#[test]
+fn a_support_row_goes_with_its_summary_whatever_its_own_day() {
+    let scratch = Scratch::new("support-sweep");
+    let clock = TestClock::at_day(DAY);
+    let host = || Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }));
+    let mut store = open_host(&scratch, host()).unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!(outcome.proposals.stored, 1);
+    drop(store);
+    let moved = raw(&scratch)
+        .execute(
+            "UPDATE rows SET day = day + 50, gone = gone + 50 WHERE kind = 'support'",
+            [],
+        )
+        .unwrap();
+    assert_eq!(moved, 1, "support rows moved");
+    clock.set_day(DAY + 93);
+    drop(open_host(&scratch, host()).unwrap());
+    let conn = raw(&scratch);
+    assert_eq!(
+        (
+            count(&conn, "SELECT count(*) FROM rows WHERE kind = 'summary'"),
+            count(&conn, "SELECT count(*) FROM rows WHERE kind = 'support'")
+        ),
+        (0, 0),
+        "(summaries, support rows) after the expiry at the summary's bound"
     );
 }
