@@ -36,8 +36,9 @@ pub fn os_entropy_hook_installed() -> bool {
 /// Whether the linked SQLCipher is this crate's build, whose copy of the
 /// pinned source zeroes, under secure delete, the gap of a page that the
 /// database builds again. Only that copy defines the function that answers
-/// here, so a program that links another SQLCipher does not link at all. A
-/// store's open requires `true`, as it requires secure delete.
+/// here, in the same object as the database's code, so a program that calls
+/// this links that object or does not link at all. Each store's open is to
+/// require `true`, as it requires secure delete.
 pub fn page_gap_mend_linked() -> bool {
     unsafe { halvo_sqlcipher_page_gap_mend() == 1 }
 }
