@@ -14,7 +14,7 @@ row by row, and `traces.jsonl` with `effect_step`, move by move.
 | `Rebinds.cfg` | The second: one effect, two approvals, two digests, two rebinds. |
 | `Full.cfg` | Two effects and two rebinds. The check does not run it; a person does, after each change of the model. |
 | `Control.cfg` | The control copy: `Confirm.cfg` with the switches `PaymentMayRun` and `BeginUnguarded` on. TLC must report P1. |
-| `Export.cfg` | The export, with the seed and the count of the committed traces. |
+| `Export.cfg` | The export, with the seed 20261113 and the count 400 of the committed traces. The check holds its text, as it holds the four files above. |
 | `export.sh` | Writes the two files below. A person runs it. |
 | `policy-table.tsv` | The 3,840 rows of `Decide`. |
 | `traces.jsonl` | 400 traces of `Step`. |
@@ -94,24 +94,56 @@ under `/tmp` when that is not set, and leaves that directory in place.
 
 ## The check in CI
 
-`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of CI on every push, through
-`sh scripts/ci/run-ci-d.sh <job> 30-r3-formal`. It requires `Confirm.cfg`, `Rebinds.cfg`,
-`Full.cfg` and `Control.cfg` to be the texts that it writes itself, with the constants that
-the section "What the check reaches" gives and the list P1 to P11, so a change of a bound is
-a change of the check as well.
-It fetches the jar from the address of the line above into a directory from `mktemp -d`,
-which it leaves in place, and compares the size and the SHA-256; with `TLA2TOOLS_JAR` set it
-copies that file instead and compares it the same way. It runs TLC with three workers on
-`Confirm.cfg` and `Rebinds.cfg`, exports the two files again with the seed and the count of
-the committed first line of `traces.jsonl`, compares both byte for byte with the committed
-files, and runs `Control.cfg`, which must report P1 and nothing else. It also requires the
-distinct states of the two runs to be the counts of the section "What the check reaches",
-637,933 and 61,728, so that a change of the model that makes the system reach less, or more,
-fails the check until the counts in the check and in that section are written again. It
-prints:
+`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of CI on every push: the workflow calls
+the driver as `sh scripts/ci/run-ci-d.sh macos` and `sh scripts/ci/run-ci-d.sh windows`, which
+runs every script of its job, and `sh scripts/ci/run-ci-d.sh <job> 30-r3-formal` runs this one
+alone. Its PASS is a statement about the commit:
+
+- Before it looks for java, and again after its last step, it ends `FAIL 30-r3-formal
+  (tracked)` when a tracked file of this directory or the script itself differs from `HEAD`,
+  staged or not. It reads its inputs from the work tree, and so only from a work tree that is
+  the commit in them. Its first line names the commit and the bound of the fetch.
+- It requires `Confirm.cfg`, `Rebinds.cfg`, `Full.cfg`, `Control.cfg` and `Export.cfg` to be
+  the texts that it writes itself: the constants that the section "What the check reaches"
+  gives, the list P1 to P11, and for `Export.cfg` the seed 20261113 and the count 400. The
+  first line of `traces.jsonl` must hold that seed and that count.
+- It fetches the jar from the address of the line above into a directory from `mktemp -d`,
+  which it leaves in place, and compares the size and the SHA-256; with `TLA2TOOLS_JAR` set it
+  copies that file instead and compares it the same way. The fetch speaks https alone, also
+  after a redirect, expands no brackets or braces in the address, and ends within 60 s with
+  every try: two tries of at most 25 s each and a pause of 5 s.
+- It runs TLC with three workers on `Confirm.cfg` and `Rebinds.cfg`, and requires no
+  invariant violated and the distinct states 637,933 and 61,728, the counts of the section
+  "What the check reaches". A change of the model that makes the system reach less, or more,
+  fails the check until the counts in the check and in that section are written again.
+- It exports the two files again with the seed and the count of `Export.cfg` and compares
+  both byte for byte with the committed files.
+- It runs twelve controls, and each must report its invariant and no other: the control copy
+  `Control.cfg`, which must report P1, and eleven copies of `Confirm.tla` that the script
+  makes with exact replacements of their lines, each run under the bounds of `Rebinds.cfg`
+  with its one invariant in the list. A replacement that no longer finds its lines fails the
+  check.
+
+| Control | Invariant | The wrong design that the copy makes |
+|---|---|---|
+| `Control.cfg` | P1 | `begin` from `cleared` for a money class, and `run` proposed for `payment` |
+| P2 | P2 | `approve` does not compare the digests |
+| P3 | P3 | `used` is never read |
+| P4 | P4 | the request is sent again with no new `begin` |
+| P5 | P5 | the step relation makes an effect for `read`, `prepare` and `credential` |
+| P6 | P6 | the checkpoint is taken as `yes` |
+| P7 | P7 | the parser lets every set through |
+| P8 | P8 | the runner takes `confirm` as `run` for `send`, `delete` and `submit` |
+| P9 | P9 | `commit` is stored with no reply |
+| P10 | P10 | `lose` comes while the runner lives, and the request leaves after it |
+| P10-live | P10 | the paused request of a `releasing` effect leaves after the run's end and before `lose` |
+| P11 | P11 | the end of the run loses the `releasing` row |
+
+It prints:
 
 ```
-formal configs files=4 same=4
+formal subject commit=<commit> files=formal/r3-confirm,scripts/r3/ci.d/30-r3-formal.sh same-as-commit=yes fetch-bound-seconds=60
+formal configs files=5 same=5
 formal java major=<n>
 formal jar source=fetch bytes=2274532 same=yes
 formal states=699661 invariants=11 violated=0
@@ -120,14 +152,34 @@ formal export status=0
 formal table rows=3840 same=yes
 formal traces count=400 same=yes
 formal control violated=1
+formal control name=P2 invariant=P2 reported=P2 status=12 states=<n> seconds=<n>
+... one such line for each of P3 to P11 and P10-live ...
+formal controls count=12 reported=12
 PASS 30-r3-formal
 ```
 
-`--self-test` runs the control copy as if it were a file of the check, which must fail, and
-compares a table with one row removed with the export, which must differ. The check shows
-that P1 can fail, through the control copy, for a `payment` effect; it does not show that
-any other invariant can fail, nor P1 for `purchase` or `sign`. A change of `Confirm.tla`
-that weakens an invariant and leaves the export and the reach as they are passes it.
+`--self-test` runs the control copy as if it were a file of the check, which must fail,
+compares a table with one row removed with the export, which must differ, and runs the
+control of P5 on a copy in which P5 is `TRUE`, which must not report. Then it reaches each
+other guard of the check with a fixture of its own, written from text inside the script: in
+a small repository of its own under the check's temporary directory, with a stand-in for java
+where a guard reads TLC's output, and with a listener on the loopback address that accepts a
+connection and sends nothing for the bound of the fetch. Its last line counts the fixtures
+that it rejected.
+
+What the check does not see:
+
+- A weakened invariant whose control still reports it. Each control shows one way in which
+  its invariant fails, and a weakening that keeps that way passes. Of the weakenings that the
+  verifier of this unit tried, these pass: P1 without its conjunct on the wire, P5 without its
+  conjunct on the wire, P7 narrowed to `credential`, and P11 with `rejected` let in.
+- P1 for `purchase` and `sign`: the control copy shows P1 for a `payment` effect.
+- A move taken out of `Next` while another move reaches its states: the reach counts states,
+  and TLC's count of generated states changes with the number of workers.
+- `formal_traces` reads `traces.jsonl` from the source tree when it runs, so a test binary
+  that runs without the checkout cannot read it, and a step that runs before the test can
+  change it; the check reads the file of the commit.
+- Each job fetches the jar twice, once for the check and once for its self-test.
 
 ## The decision
 
@@ -412,6 +464,13 @@ the 134 sets of values and with the derived moves that the section "The traces" 
    marks a fault of the model: change the model, and leave the invariant as it is.
 4. When a row of `policy-table.tsv` and `decide_row` differ, A5.1 says which is right.
 5. A new move that changes a row has to call `Noted`, or no invariant sees what it did.
+6. Some changes of the model are changes of the check, `scripts/r3/ci.d/30-r3-formal.sh`, in
+   the same commit:
+   - a bound or a constant of a configuration file: `cfg_text` and `configs`;
+   - the reach: `reach_want`, and the section "What the check reaches";
+   - the seed or the count of the export: `seed_want` and `count_want`, `export_text`, and
+     `traces.jsonl` exported again;
+   - a line that a control replaces: that control's lines in `block`.
 
 ## What the model does not cover
 
@@ -442,6 +501,8 @@ the 134 sets of values and with the derived moves that the section "The traces" 
   effect reaches an end.
 - A page that sends other values than it shows. P10 holds for the values that the runner
   reads again; the model's `val` is those values.
-- Windows. The export was run on macOS only. The model computes the traces with whole
-  numbers below 2^31 and prints them in the order of their numbers; `export.sh` takes
-  carriage returns out of TLC's output and sorts in byte order.
+- Windows, beyond the export and the runs of the check. The check runs TLC and the export
+  in the windows job of CI as in the macos job, and the export gives the committed bytes
+  there. The model computes the traces with whole numbers below 2^31 and prints them in the
+  order of their numbers; `export.sh` takes carriage returns out of TLC's output and sorts in
+  byte order.
