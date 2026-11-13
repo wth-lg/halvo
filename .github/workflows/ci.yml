@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,107 +14,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 60
@@ -140,21 +41,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -190,6 +80,79 @@ jobs:
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
+      - name: sift probes of verifier-interrogate-11 on the unit's code as at the head (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/sift.log"
+          for t in windows::input::tests::sift_a_click_of_the_same_tick_from_the_pointer_pump windows::input::tests::sift_a_key_that_a_held_pump_takes_late; do
+            timeout 420 cargo test --locked -p halvo-capture --lib -- --ignored --exact "$t" --nocapture --test-threads=1 >"$log" 2>&1
+            code=$?
+            echo "SIFT step=1 test=$t exit=$code"
+            tr -d '\r' <"$log" | grep -E 'SIFT |panicked at|left:|right:|INCONCLUSIVE|^test .* \.\.\. |^test result|^error' | head -n 60
+          done
+          echo "SIFT step=1 end"
+          exit 0
+      - name: sift probes of verifier-interrogate-11 on changed copies of the unit's code (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 32
+        shell: bash
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/sift.log"
+          gate=crates/halvo-capture/src/windows/secure_input.rs
+          input=crates/halvo-capture/src/windows/input.rs
+          show() {
+            tr -d '\r' <"$log" | grep -E 'SIFT |panicked at|left:|right:|INCONCLUSIVE|^test .* \.\.\. |^test result|^error' | head -n "$1"
+          }
+          cp crates/halvo-capture/tests/sift/secure_input.rs.logged "$gate" && cp crates/halvo-capture/tests/sift/input.rs.logged "$input"
+          echo "SIFT step=2 gate-log exit=$? changed_files=$(git diff --name-only -- crates/halvo-capture/src | wc -l)"
+          cp crates/halvo-capture/tests/sift/win3_sift_probe.rs crates/halvo-capture/tests/win3_sift_probe.rs
+          timeout 840 cargo test --locked -p halvo-capture --test win3_sift_probe --no-run >"$log" 2>&1
+          code=$?
+          echo "SIFT step=2 build exit=$code"
+          if [ "$code" -ne 0 ]; then tr -d '\r' <"$log" | tail -n 60; fi
+          for t in sift_a_tab_then_a_letter_against_a_stalled_program sift_b_a_tab_then_a_letter_against_a_program_that_serves_sent_messages sift_c_a_click_then_a_letter_against_a_stalled_program sift_d_a_letter_and_then_the_program_moves_the_focus_itself; do
+            timeout 480 cargo test --locked -p halvo-capture --test win3_sift_probe -- --ignored --exact "$t" --nocapture --test-threads=1 >"$log" 2>&1
+            code=$?
+            echo "SIFT step=2 test=$t exit=$code"
+            show 400
+          done
+          mv crates/halvo-capture/tests/win3_sift_probe.rs "$RUNNER_TEMP/win3_sift_probe.rs.used"
+          git checkout --quiet -- "$gate" "$input"
+          echo "SIFT step=2 restored after the stall phases: $(git status --porcelain | wc -l) changed paths"
+          mutate() {
+            SIFT_SUB=$1 perl -0777 -i -pe 'BEGIN { $s = $ENV{SIFT_SUB} } eval $s; die $@ if $@' "$gate"
+            echo "SIFT step=2 change=$2 numstat: $(git diff --numstat -- "$gate")"
+            git diff -- "$gate" | grep -E '^[-+] ' | tr -d '\r'
+          }
+          rule_tests() {
+            timeout 600 cargo test --locked -p halvo-capture --lib -- secure_input::windows --test-threads=1 >"$log" 2>&1
+            code=$?
+            echo "SIFT step=2 change=$1 tests=secure_input::windows exit=$code"
+            tr -d '\r' <"$log" | grep -E '^test .*(a_read_that_ends_in_an_error_reads_unknown|a_desktop_switch_reads_unknown_and_closes_the_gate|after_attach_the_gate_reads_unknown_until_the_first_read_of_the_focused_field) \.\.\. |^test .* FAILED|^test result|panicked at|^error' | head -n 30
+          }
+          rule_tests head
+          mutate 's/(let Some\(element\) = element else \{\s+return )super::unreadable_state\(\);/${1}FieldState::Clear;/' "R1-a-read-with-no-element-answers-clear"
+          rule_tests R1
+          git checkout --quiet -- "$gate"
+          mutate 's/shared\.desktop_switched\(time\);/let _ = (shared, time);/' "R2-the-desktop-hook-calls-nothing"
+          rule_tests R2
+          git checkout --quiet -- "$gate"
+          mutate 's/shared\.read\(reader\.focused\(\)\);/shared.read(FieldState::Clear);/' "R3-the-first-read-after-attach-is-a-constant-clear"
+          rule_tests R3
+          git checkout --quiet -- "$gate"
+          echo "SIFT step=2 restored: $(git status --porcelain | wc -l) changed paths"
+          echo "SIFT step=2 end"
+          exit 0
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
