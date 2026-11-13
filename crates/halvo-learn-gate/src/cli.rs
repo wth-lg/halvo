@@ -140,7 +140,7 @@ impl<'a> Flags<'a> {
 pub fn run(args: &[String]) -> Result<Report, Refusal> {
     let (command, rest) = args
         .split_first()
-        .ok_or_else(|| Refusal::usage("no command; commands: drift, delete"))?;
+        .ok_or_else(|| Refusal::usage("no command; commands: drift, delete, routine"))?;
     match command.as_str() {
         "drift" => drift::run(rest),
         "delete" => delete::run(rest),
@@ -149,7 +149,7 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
         "soak" => soak::run(rest),
         "model" => model::run(rest),
         _ => Err(Refusal::usage(
-            "an unknown command; commands: drift, delete",
+            "an unknown command; commands: drift, delete, routine",
         )),
     }
 }

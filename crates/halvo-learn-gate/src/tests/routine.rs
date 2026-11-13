@@ -302,3 +302,19 @@ fn routine_reads_a_train_and_refuses_each_line_that_is_not_one() {
         "the sample is not UTF-8"
     );
 }
+
+#[test]
+fn routine_usage_refusals_name_routine_among_the_commands() {
+    let none = crate::cli::run(&[]).expect_err("a refusal with no argument");
+    assert_eq!(none.cause, Cause::Usage);
+    assert_eq!(
+        none.line(),
+        "REFUSED usage: no command; commands: drift, delete, routine"
+    );
+    let other = crate::cli::run(&["nosuch".to_owned()]).expect_err("a refusal of nosuch");
+    assert_eq!(other.cause, Cause::Usage);
+    assert_eq!(
+        other.line(),
+        "REFUSED usage: an unknown command; commands: drift, delete, routine"
+    );
+}
