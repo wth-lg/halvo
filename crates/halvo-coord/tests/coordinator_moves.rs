@@ -3351,7 +3351,8 @@ fn a_stored_decline_that_the_run_did_not_take_refuses_allow_and_sends_decline_ag
 }
 
 #[test]
-fn a_stored_allow_that_the_run_did_not_take_lapses_at_the_wait_limit_with_decline() {
+fn a_stored_allow_that_the_run_did_not_take_is_sent_by_no_tick_or_read_and_lapses_at_the_wait_limit_with_decline(
+) {
     use halvo_coord::types::BindResult;
     let limits = Limits::PRODUCT;
     let (c, run, item) = second_step();
@@ -3361,10 +3362,14 @@ fn a_stored_allow_that_the_run_did_not_take_lapses_at_the_wait_limit_with_declin
     for at in [1_000, limits.wait_limit_s * 1000 - 1] {
         c.ports().ports.set_clock(T0 + at, DAY);
         c.tick();
+        let _ = c.snapshot();
+        let _ = c.same();
+        let _ = c.next(0);
+        let _ = c.card(&agent(0));
     }
     assert!(
         binds_since(&c, m).is_empty(),
-        "no tick before the limit sends anything"
+        "no tick and no read before the limit sends anything"
     );
     assert_eq!(events(&c).len(), stored, "and stores nothing");
     c.ports()
