@@ -292,15 +292,27 @@ impl Class {
     }
 }
 
-/// The IPv4 address inside an IPv6 one, mapped (`::ffff:a.b.c.d`) or compatible
-/// (`::a.b.c.d`, other than `::` and `::1`), which the class rule reads as IPv4.
+/// The IPv4 address inside an IPv6 one, which the class rule reads as IPv4: mapped
+/// (`::ffff:a.b.c.d`), compatible (`::a.b.c.d`, other than `::` and `::1`), translated
+/// (`::ffff:0:a.b.c.d`), in the well-known translation prefix (`64:ff9b::a.b.c.d`, 64:ff9b::/96),
+/// and 6to4 (2002::/16, its bits 16 to 48) (CP-186 S1). A network's own translation prefix
+/// (64:ff9b:1::/48 among them) and 2001::/32 are not read.
 fn inner_v4(a: Ipv6Addr) -> Option<Ipv4Addr> {
     if let Some(v4) = a.to_ipv4_mapped() {
         return Some(v4);
     }
     let s = a.segments();
-    (s[..6] == [0; 6] && !a.is_unspecified() && a != Ipv6Addr::LOCALHOST)
-        .then(|| Ipv4Addr::new((s[6] >> 8) as u8, s[6] as u8, (s[7] >> 8) as u8, s[7] as u8))
+    let v4 = |hi: u16, lo: u16| Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8);
+    if s[..6] == [0; 6] && !a.is_unspecified() && a != Ipv6Addr::LOCALHOST {
+        return Some(v4(s[6], s[7]));
+    }
+    if s[..6] == [0, 0, 0, 0, 0xffff, 0] || s[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
+        return Some(v4(s[6], s[7]));
+    }
+    if s[0] == 0x2002 {
+        return Some(v4(s[1], s[2]));
+    }
+    None
 }
 
 /// The refused class of `ip`, read in its plain form, an IPv4 address inside an IPv6 one taken out
@@ -955,6 +967,16 @@ mod tests {
             ("::ffff:10.0.0.1", Some(Private)),
             ("::ffff:8.8.8.8", None),
             ("::127.0.0.1", Some(Loopback)),
+            ("64:ff9b::127.0.0.1", Some(Loopback)),
+            ("64:ff9b::10.1.2.3", Some(Private)),
+            ("64:ff9b::8.8.8.8", None),
+            ("2002:7f00:1::", Some(Loopback)),
+            ("2002:c0a8:101::1", Some(Private)),
+            ("2002:808:808::1", None),
+            ("::ffff:0:127.0.0.1", Some(Loopback)),
+            ("::ffff:0:192.168.1.1", Some(Private)),
+            ("::ffff:0:8.8.8.8", None),
+            ("64:ff9b:1::7f00:1", None),
         ];
         for (text, want) in cases {
             let ip: IpAddr = text.parse().unwrap();
