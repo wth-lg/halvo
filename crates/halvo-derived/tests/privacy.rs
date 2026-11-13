@@ -1,7 +1,10 @@
 mod common;
 
 use std::cell::{Cell, RefCell};
+use std::path::Path;
+use std::process::{Command, Stdio};
 use std::rc::Rc;
+use std::time::Duration;
 
 use common::{
     domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request, registry,
@@ -9,7 +12,7 @@ use common::{
     FAR, NOTE, OWN, TRACE,
 };
 use halvo_derived::test_host::{delete_all, open_keyless};
-use halvo_derived::{Committed, Counts, Host, Report, Store, Takes};
+use halvo_derived::{Committed, Counts, Host, OpenError, Report, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{RequestId, WorkflowId};
 use halvo_schema_core::kinds::{self, KindEntry};
@@ -832,5 +835,94 @@ fn the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes() {
     assert!(
         !planted(&Scratch::new("cipher-keyless"), false).is_empty(),
         "the control: the keyless files hold the marker"
+    );
+}
+
+const SECOND: &str = "HALVO_DERIVED_SECOND_PROCESS_DIR";
+const SECOND_TEST: &str = "a_second_process_is_refused_also_with_the_lock_file_unlinked";
+const LOCKED: i32 = 40;
+const OPENED: i32 = 41;
+const OTHER: i32 = 42;
+
+/// The second process of the test: this test binary run again for the one test of the second process, with the data
+/// directory in its environment. Dropped on any path of the test, a panic among them, it ends the one process that it
+/// started, by the handle that it got at the start, and no other.
+struct Second(std::process::Child);
+
+impl Second {
+    fn start(dir: &Path) -> Second {
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([SECOND_TEST, "--exact", "--test-threads=1"])
+            .env(SECOND, dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        Second(child)
+    }
+
+    /// The exit code of the second process, waited for at most 120 seconds.
+    fn code(mut self) -> Option<i32> {
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_secs(120) {
+            if let Some(status) = self.0.try_wait().unwrap() {
+                return status.code();
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        None
+    }
+}
+
+impl Drop for Second {
+    fn drop(&mut self) {
+        if let Ok(None) = self.0.try_wait() {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+}
+
+/// A second process is refused while a store holds the derived database: with the writer lock file in place, and
+/// again after the lock file is unlinked, when the second process takes a new lock file and the database's exclusive
+/// lock refuses it. The control: after the store is closed, a second process opens it.
+#[test]
+fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
+    if let Some(dir) = std::env::var_os(SECOND) {
+        let host = Host::new(Box::new(TestClock::at_day(DAY)), Box::new(NoProposals));
+        let opened = Store::open(Path::new(&dir), &key(), &registry(), host, &mut Seq(1));
+        std::process::exit(match opened {
+            Err(OpenError::Locked) => LOCKED,
+            Ok(_) => OPENED,
+            Err(_) => OTHER,
+        });
+    }
+    let scratch = Scratch::new("second-process");
+    let clock = TestClock::at_day(DAY);
+    let store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(NoProposals)),
+    )
+    .unwrap();
+    let lock = scratch.path().join("derived").join("writer.lock");
+    assert!(lock.exists(), "the lock file of the open store");
+    assert_eq!(
+        Second::start(scratch.path()).code(),
+        Some(LOCKED),
+        "a second process with the lock file in place"
+    );
+    std::fs::remove_file(&lock).unwrap();
+    assert!(!lock.exists(), "the lock file after it is unlinked");
+    assert_eq!(
+        Second::start(scratch.path()).code(),
+        Some(LOCKED),
+        "a second process with the lock file unlinked"
+    );
+    drop(store);
+    assert_eq!(
+        Second::start(scratch.path()).code(),
+        Some(OPENED),
+        "the control: a second process after the store is closed"
     );
 }
