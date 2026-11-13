@@ -54,21 +54,41 @@ fn probe_support() -> Result<CaptureSupport, CaptureError> {
     })
 }
 
-fn hold_process_mta() -> Result<(), CaptureError> {
-    static HELD: Mutex<bool> = Mutex::new(false);
-    let mut held = HELD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if *held {
-        return Ok(());
+mod apartment {
+    use std::sync::{Mutex, PoisonError};
+
+    use crate::source::CaptureError;
+
+    #[derive(Debug, Clone, Copy)]
+    pub(super) struct MtaHeld(());
+
+    /// One reference on the process's multithreaded apartment, taken before
+    /// the first capture session and never released, because without it the
+    /// process can fault when one of its windows is destroyed after its last
+    /// capture session has ended (RR-windows-04; the test
+    /// c8b_window_destroyed_after_the_last_capture_session).
+    pub(super) fn hold_process_mta() -> Result<MtaHeld, CaptureError> {
+        static HELD: Mutex<bool> = Mutex::new(false);
+        let mut held = HELD.lock().unwrap_or_else(PoisonError::into_inner);
+        if !*held {
+            // SAFETY: CoIncrementMTAUsage takes no pointer of ours; the cookie
+            // that it returns is never passed to CoDecrementMTAUsage, so the
+            // reference lasts for the life of the process.
+            unsafe { windows::Win32::System::Com::CoIncrementMTAUsage() }
+                .map_err(|e| crate::windows::os_error("CoIncrementMTAUsage", &e))?;
+            *held = true;
+        }
+        Ok(MtaHeld(()))
     }
-    // SAFETY: CoIncrementMTAUsage takes no pointer of ours; the cookie that it
-    // returns is never passed to CoDecrementMTAUsage, so the reference lasts
-    // for the life of the process.
-    unsafe { windows::Win32::System::Com::CoIncrementMTAUsage() }
-        .map_err(|e| super::os_error("CoIncrementMTAUsage", &e))?;
-    *held = true;
-    Ok(())
+}
+
+use apartment::{hold_process_mta, MtaHeld};
+
+fn start_session(
+    settings: Settings<ScreenFlags, Monitor>,
+    _mta: MtaHeld,
+) -> Result<Control, CaptureError> {
+    ScreenHandler::start_free_threaded(settings).map_err(start_error)
 }
 
 pub(crate) fn choose_settings(
@@ -230,7 +250,7 @@ impl CaptureSource for ScreenSource {
         if self.life.is_busy() {
             return Err(CaptureError::AlreadyStarted);
         }
-        hold_process_mta()?;
+        let mta = hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
         let handoff = HandOff::start(
@@ -255,7 +275,7 @@ impl CaptureSource for ScreenSource {
             ColorFormat::Bgra8,
             flags,
         );
-        let control = ScreenHandler::start_free_threaded(settings).map_err(start_error)?;
+        let control = start_session(settings, mta)?;
         self.life.started(control);
         self.handoff = Some(handoff);
         self.closed = closed;
