@@ -76,8 +76,10 @@
 //!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
 //! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until
 //!   the clock reaches its day.
-//! - The list of the check `scripts/r2/ci.d/50-derived.sh` names the crate's tests by hand, and the check fails for a
-//!   test that the crate's test binaries run and the list does not name, so a commit that adds a test adds its line.
+//! - The list of the check `scripts/r2/ci.d/50-derived.sh` names the crate's tests by hand. The check runs the crate's
+//!   test binaries and fails for each test that they report, ignored or not, that the list does not name, so a commit
+//!   that adds a `#[test]` adds its line. It runs no doc-test, and it cannot list a `#[should_panic]` test, which the
+//!   binaries report under its name followed by ` - should panic`, so the check fails while such a test exists.
 //!
 //! # What may be logged
 //!

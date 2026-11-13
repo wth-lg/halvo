@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The halvo-derived test binaries of the workspace's test build, which 12-test has built before it in the hosted job, pass, each test that this file lists passes under its test target, each test that those binaries run is on this file's list, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
+# rule: The halvo-derived test binaries of the workspace's test build, which 12-test has built before it in the hosted job, pass, each test that this file lists passes under its test target, each test that those binaries report, ignored or not, is on this file's list, so an ignored test fails the check, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
 set -u
 name=50-derived
 own=scripts/r2/ci.d/50-derived.sh
