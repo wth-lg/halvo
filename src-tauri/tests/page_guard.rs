@@ -17,16 +17,33 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's app.rs by path and uses part of it: \
+              WINDOW_SHOWN and PageLoads::count stay unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/app.rs"]
 mod app;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's commands by path and uses part of them: \
+              the fields module and reads of commands/names.rs stay unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/commands/mod.rs"]
 mod commands;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's launch.rs by path, because tray.rs names its exit codes: \
+              USAGE stays unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/launch.rs"]
 mod launch;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \
+              the four id constants, install, on_menu_event and show_main_window stay unused here; \
+              the app's own build lints the whole module"
+)]
 #[path = "../src/tray.rs"]
 mod tray;
 
