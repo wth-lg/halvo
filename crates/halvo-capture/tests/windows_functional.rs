@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
-use halvo_capture::source::{CaptureSource, SourceContext};
+use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
 use halvo_capture::windows::input::RawInputSource;
@@ -2712,6 +2712,70 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             5,
             "key presses queued before the stop were neither delivered nor counted: \
              delivered {delivered}, lost {lost}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
+    with_deadline("after-timeout", Duration::from_secs(60), || {
+        env_report("after-timeout");
+        source_built_by_test("after-timeout", "keyboard");
+        let (sink, writer) = channel(64);
+        let last_app = Arc::new(Mutex::new(None));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        std::thread::sleep(Duration::from_millis(200));
+        let held = last_app.lock().expect("the last-app cell");
+        let accepted_before = press_keys(1);
+        std::thread::sleep(Duration::from_millis(300));
+        let (done, returned) = mpsc::channel();
+        let stopper = std::thread::Builder::new()
+            .name("tf-after-timeout-stop".to_string())
+            .spawn(move || {
+                let stopped = keyboard.shutdown();
+                let _ = done.send(stopped);
+                keyboard
+            })
+            .expect("spawn the stop thread");
+        let stopped = returned.recv_timeout(Duration::from_secs(5));
+        let accepted_after = press_keys(5);
+        std::thread::sleep(Duration::from_millis(300));
+        drop(held);
+        let keyboard = stopper.join().expect("the stop thread");
+        std::thread::sleep(Duration::from_secs(1));
+        let lost = keyboard.handoff_counts().lost;
+        let events = forward(writer);
+        let delivered = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        ) as u64;
+        say(
+            "after-timeout",
+            format!(
+                "keyboard_start={} presses_before_the_stop=1 presses_after_the_answer=5 \
+                 sendinput_key_events_accepted_before={accepted_before} \
+                 sendinput_key_events_accepted_after={accepted_after} stop={stopped:?} \
+                 keystrokes_delivered={delivered} lost={lost}",
+                show(&start),
+            ),
+        );
+        drop(keyboard);
+        drop(sink);
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            accepted_before == 2 && accepted_after == 10,
+            "INCONCLUSIVE: SendInput did not insert every key event"
+        );
+        assert!(
+            matches!(stopped, Ok(Err(CaptureError::Timeout { .. }))),
+            "INCONCLUSIVE: the held pump's stop did not answer Timeout: {stopped:?}"
+        );
+        assert_eq!(
+            delivered + lost,
+            1,
+            "the pump read input posted after the Timeout answer: delivered {delivered}, lost {lost}"
         );
     });
 }

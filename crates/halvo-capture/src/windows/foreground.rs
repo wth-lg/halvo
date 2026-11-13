@@ -30,6 +30,15 @@ pub(crate) const HOOK_FLAGS: u32 = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCE
 
 pub(crate) type HookInstaller = fn(u32, WINEVENTPROC) -> HWINEVENTHOOK;
 
+/// The call that removes a WinEvent hook that this thread installed.
+pub(crate) type HookRemover = fn(HWINEVENTHOOK) -> windows::core::Result<()>;
+
+pub(crate) fn unhook_win_event(hook: HWINEVENTHOOK) -> windows::core::Result<()> {
+    // SAFETY: `hook` is a hook that the calling thread installed; a handle
+    // that names no hook makes the call fail.
+    unsafe { UnhookWinEvent(hook) }.ok()
+}
+
 pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVENTHOOK {
     // SAFETY: SetWinEventHook takes the event range, no module and a callback
     // with the WINEVENTPROC signature; out-of-context hooks need no module.
@@ -209,6 +218,7 @@ pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
     installer: HookInstaller,
+    remover: HookRemover,
 }
 
 impl ForegroundAppSource {
@@ -217,6 +227,15 @@ impl ForegroundAppSource {
             last_app: Arc::new(Mutex::new(None)),
             life: Lifecycle::default(),
             installer: set_win_event_hook,
+            remover: unhook_win_event,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_remover(remover: HookRemover) -> Self {
+        Self {
+            remover,
+            ..Self::new()
         }
     }
 
@@ -348,6 +367,7 @@ impl CaptureSource for ForegroundAppSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let last_app = Arc::clone(&self.last_app);
         let installer = self.installer;
+        let remover = self.remover;
         self.life
             .begin(&ctx, "halvo-foreground-forward", move |producer| {
                 let state = ForegroundState {
@@ -356,7 +376,7 @@ impl CaptureSource for ForegroundAppSource {
                     tracker: FrontTracker::default(),
                 };
                 super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
-                    run_foreground_hook(state, installer, ready, &signal)
+                    run_foreground_hook(state, (installer, remover), ready, &signal)
                 })
             })
     }
@@ -373,7 +393,7 @@ impl CaptureSource for ForegroundAppSource {
 #[cfg(target_os = "windows")]
 fn run_foreground_hook(
     state: ForegroundState,
-    installer: HookInstaller,
+    (installer, remover): (HookInstaller, HookRemover),
     ready: PumpReady,
     signal: &super::StopSignal,
 ) {
@@ -407,8 +427,8 @@ fn run_foreground_hook(
     // names no timer; `hook` is the valid handle that this thread installed.
     unsafe {
         let _ = windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll);
-        let _ = UnhookWinEvent(hook);
     }
+    let _ = remover(hook);
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
 }
 
@@ -604,6 +624,40 @@ mod tests {
                 })
             ),
             "{started:?}"
+        );
+    }
+
+    fn removal_refused(_hook: HWINEVENTHOOK) -> windows::core::Result<()> {
+        Err(windows::core::Error::from_hresult(
+            windows::Win32::Foundation::ERROR_INVALID_HANDLE.to_hresult(),
+        ))
+    }
+
+    #[test]
+    fn a_foreground_source_whose_unhook_fails_answers_the_os_error_of_the_unhook() {
+        use crate::source::{HealthReason, SourceState};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = ForegroundAppSource::with_remover(removal_refused);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let stopped = source.shutdown();
+        let refused = CaptureError::Os {
+            stage: "UnhookWinEvent",
+            domain: "HRESULT",
+            code: i64::from(
+                windows::Win32::Foundation::ERROR_INVALID_HANDLE
+                    .to_hresult()
+                    .0,
+            ),
+        };
+        assert!(started.is_ok(), "{started:?}");
+        assert_eq!(stopped, Err(refused.clone()));
+        assert_eq!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: refused,
+            }
         );
     }
 

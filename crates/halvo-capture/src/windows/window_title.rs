@@ -8,7 +8,9 @@ use crate::source::{
 use super::{Lifecycle, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
-use super::foreground::{resolve_front, set_win_event_hook, HookInstaller};
+use super::foreground::{
+    resolve_front, set_win_event_hook, unhook_win_event, HookInstaller, HookRemover,
+};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
@@ -98,6 +100,7 @@ struct TitleState {
 pub struct WindowTitleSource {
     life: Lifecycle,
     installer: HookInstaller,
+    remover: HookRemover,
 }
 
 impl WindowTitleSource {
@@ -105,6 +108,15 @@ impl WindowTitleSource {
         Self {
             life: Lifecycle::default(),
             installer: set_win_event_hook,
+            remover: unhook_win_event,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_remover(remover: HookRemover) -> Self {
+        Self {
+            remover,
+            ..Self::new()
         }
     }
 
@@ -187,6 +199,7 @@ fn emit_front_title(front: HWND, time: u32) {
 impl CaptureSource for WindowTitleSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let installer = self.installer;
+        let remover = self.remover;
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
                 let state = TitleState {
@@ -194,7 +207,7 @@ impl CaptureSource for WindowTitleSource {
                     last: LastTitle::default(),
                 };
                 super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
-                    run_title_hook(state, installer, ready, &signal)
+                    run_title_hook(state, (installer, remover), ready, &signal)
                 })
             })
     }
@@ -211,7 +224,7 @@ impl CaptureSource for WindowTitleSource {
 #[cfg(target_os = "windows")]
 fn run_title_hook(
     state: TitleState,
-    installer: HookInstaller,
+    (installer, remover): (HookInstaller, HookRemover),
     ready: PumpReady,
     signal: &super::StopSignal,
 ) {
@@ -239,11 +252,8 @@ fn run_title_hook(
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     emit_front_title(unsafe { GetForegroundWindow() }, super::now_tick());
     super::pump_messages(signal);
-    // SAFETY: both hooks are valid handles that this thread installed above.
-    unsafe {
-        let _ = UnhookWinEvent(front_hook);
-        let _ = UnhookWinEvent(hook);
-    }
+    let _ = remover(front_hook);
+    let _ = remover(hook);
     TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
 }
 
@@ -394,6 +404,34 @@ mod tests {
                 })
             ),
             "{started:?}"
+        );
+    }
+
+    fn removal_refused(_hook: HWINEVENTHOOK) -> windows::core::Result<()> {
+        Err(windows::core::Error::from_hresult(
+            windows::Win32::Foundation::ERROR_INVALID_HANDLE.to_hresult(),
+        ))
+    }
+
+    #[test]
+    fn a_title_source_whose_unhook_fails_answers_the_os_error_of_the_unhook() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = WindowTitleSource::with_remover(removal_refused);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let stopped = source.shutdown();
+        assert!(started.is_ok(), "{started:?}");
+        assert_eq!(
+            stopped,
+            Err(CaptureError::Os {
+                stage: "UnhookWinEvent",
+                domain: "HRESULT",
+                code: i64::from(
+                    windows::Win32::Foundation::ERROR_INVALID_HANDLE
+                        .to_hresult()
+                        .0
+                ),
+            })
         );
     }
 

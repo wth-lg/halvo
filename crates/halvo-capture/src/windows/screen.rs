@@ -638,6 +638,7 @@ mod tests {
         finished: bool,
         ends_well: bool,
         end_takes: Duration,
+        fails_with: Option<CaptureError>,
     }
 
     impl Session for FakeSession {
@@ -647,6 +648,9 @@ mod tests {
 
         fn end(self) -> Result<(), CaptureError> {
             std::thread::sleep(self.end_takes);
+            if let Some(error) = self.fails_with {
+                return Err(error);
+            }
             if self.ends_well {
                 Ok(())
             } else {
@@ -662,7 +666,35 @@ mod tests {
             finished,
             ends_well,
             end_takes: Duration::from_millis(end_takes_ms),
+            fails_with: None,
         }
+    }
+
+    #[test]
+    fn a_session_whose_end_is_refused_answers_its_os_error_and_reads_failed() {
+        let refused = CaptureError::Os {
+            stage: "PostThreadMessageW",
+            domain: "HRESULT",
+            code: 5,
+        };
+        let mut life = ScreenLife::default();
+        life.started(FakeSession {
+            fails_with: Some(refused.clone()),
+            ..fake(false, false, 0)
+        });
+        let stopped = life.shutdown(Duration::from_secs(1));
+        assert_eq!(stopped, Err(refused.clone()));
+        assert_eq!(
+            life.state(false, false),
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: refused,
+            }
+        );
+        assert!(
+            life.is_busy(),
+            "a source whose stop failed counts as started"
+        );
     }
 
     #[test]

@@ -21,6 +21,7 @@ fail() {
 expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing
+a_timed_out_stop_reads_no_input_posted_after_its_answer
 c1_raw_input_delivers_keystrokes_and_pointer_events
 c2_screen_source_delivers_a_frame
 c3_foreground_source_reports_an_activated_window

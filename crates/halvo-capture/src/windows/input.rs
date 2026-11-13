@@ -253,6 +253,7 @@ struct StartCalls {
     register_class: fn(&WNDCLASSW) -> u16,
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
     register_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+    remove_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
 }
 
 const SYSTEM_CALLS: StartCalls = StartCalls {
@@ -260,6 +261,7 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     register_class: register_window_class,
     create_window: create_message_window,
     register_device: register_raw_input_device,
+    remove_device: register_raw_input_device,
 };
 
 fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
@@ -568,6 +570,7 @@ impl CaptureSource for RawInputSource {
 struct DeviceGuard {
     usage_page: u16,
     usage: u16,
+    remove: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
     _claim: DeviceClaim,
 }
 
@@ -579,12 +582,7 @@ impl Drop for DeviceGuard {
             dwFlags: RIDEV_REMOVE,
             hwndTarget: HWND(core::ptr::null_mut()),
         };
-        // SAFETY: the slice holds one initialized RAWINPUTDEVICE that removes
-        // the registration, and the size argument is the size of that struct.
-        unsafe {
-            let _ =
-                RegisterRawInputDevices(&[remove], core::mem::size_of::<RAWINPUTDEVICE>() as u32);
-        }
+        let _ = (self.remove)(&remove);
     }
 }
 
@@ -655,6 +653,7 @@ fn run_raw_input(
     let _device_guard = DeviceGuard {
         usage_page: HID_USAGE_PAGE_GENERIC,
         usage: device.hid_usage(),
+        remove: calls.remove_device,
         _claim: claim,
     };
 
@@ -1057,6 +1056,45 @@ mod tests {
 
     fn a_later_start_is_taken() -> bool {
         start_with(SYSTEM_CALLS).is_ok()
+    }
+
+    const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
+
+    fn removal_refused(_device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        Err(refusal(ERROR_ACCESS_DENIED))
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_removal_is_refused_answers_the_os_error_of_the_removal() {
+        use crate::source::{SourceState, Started};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = RawInputSource::with_calls(
+            RawDevice::Keyboard,
+            StartCalls {
+                remove_device: removal_refused,
+                ..SYSTEM_CALLS
+            },
+        );
+        let started = source.begin(crate::source::SourceContext::new(sink.clone()));
+        let stopped = source.shutdown();
+        let health = source.health().state;
+        let again = source.begin(crate::source::SourceContext::new(sink));
+        let refused = refused_at(REMOVE_STAGE, ERROR_ACCESS_DENIED);
+        assert!(matches!(started, Ok(Started::Running)), "{started:?}");
+        assert_eq!(stopped, Err(refused.clone()));
+        assert_eq!(
+            health,
+            SourceState::Failed {
+                reason: crate::source::HealthReason::OsError,
+                error: refused,
+            }
+        );
+        assert_eq!(again, Err(CaptureError::AlreadyStarted));
+        assert!(
+            a_later_start_is_taken(),
+            "a start after the refused removal was not taken"
+        );
     }
 
     #[test]
