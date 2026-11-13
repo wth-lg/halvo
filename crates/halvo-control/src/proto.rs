@@ -266,6 +266,17 @@ impl<'de> Deserialize<'de> for Unique {
     }
 }
 
+/// The most bytes that one call of [`decode_request`] holds live at once for a frame of at most
+/// [`crate::wire::REQUEST_MAX_BYTES`]: 128 for each byte. The call parses the whole frame into
+/// a tree before it reads the shape; the worst shape that the test of wire.rs measures, objects
+/// of the empty key nested side by side, holds 471,098.
+pub const REQUEST_DECODE_PEAK_BYTES: usize = 524_288;
+
+/// The most bytes that one call of [`decode_reply`] holds live at once for a frame of at most
+/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The worst shape that the test of
+/// wire.rs measures, objects of the empty key nested side by side, holds 33,009,946.
+pub const REPLY_DECODE_PEAK_BYTES: usize = 33_554_432;
+
 /// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to
 /// 18446744073709551615, and its body when the object holds `v` and an object `body` alone.
 fn read_envelope(frame: &[u8]) -> Option<(u64, Option<Object>)> {
@@ -331,6 +342,22 @@ pub enum ReplyError {
     Version(u64),
     #[error("the reply does not fit protocol version 1: {0}")]
     Body(String),
+    /// The reply carries a status whose fields read as a status and break a rule of
+    /// [`DaemonStatus`].
+    #[error("{0}")]
+    Status(StatusError),
+}
+
+/// The rule that the status of a reply body breaks, when the body is a status, a
+/// capture_changed or a cap_set whose status has every field of a status.
+fn broken_status_rule(body: &Object) -> Option<StatusError> {
+    let status = match body.get("kind").and_then(serde_json::Value::as_str)? {
+        "status" | "capture_changed" => serde_json::Value::Object(body.clone()),
+        "cap_set" => body.get("status")?.clone(),
+        _ => return None,
+    };
+    let fields: StatusFields = serde_json::from_value(status).ok()?;
+    DaemonStatus::new(fields).err()
 }
 
 /// A field that this build does not know is skipped.
@@ -340,8 +367,12 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
         return Err(ReplyError::Version(version));
     }
     let body = body.ok_or(ReplyError::NotAnEnvelope)?;
-    serde_json::from_value(serde_json::Value::Object(body))
-        .map_err(|e| ReplyError::Body(e.to_string()))
+    serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
+        match broken_status_rule(&body) {
+            Some(broken) => ReplyError::Status(broken),
+            None => ReplyError::Body(e.to_string()),
+        }
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -353,6 +384,8 @@ pub enum Reply {
     Stopped(Stopped),
     Deleted(Deleted),
     AlreadyDeleted(AlreadyDeleted),
+    /// The delete removed nothing; the reply carries no store id (ruling PL-8 part (4)(c)).
+    DeleteRefused,
     CapSet(CapSet),
     PermissionRequested(PermissionRequested),
     Error(ErrorReply),
@@ -367,6 +400,7 @@ impl Reply {
             Reply::Stopped(_) => "stopped",
             Reply::Deleted(_) => "deleted",
             Reply::AlreadyDeleted(_) => "already_deleted",
+            Reply::DeleteRefused => "delete_refused",
             Reply::CapSet(_) => "cap_set",
             Reply::PermissionRequested(_) => "permission_requested",
             Reply::Error(_) => "error",
@@ -426,8 +460,7 @@ pub struct Deleted {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlreadyDeleted {
-    #[serde(deserialize_with = "required")]
-    pub current: Option<StoreId>,
+    pub current: StoreId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -471,6 +504,9 @@ pub struct DeleteFields {
     pub root_id: Option<StoreId>,
     pub files_left: u64,
     pub database_left: bool,
+    /// The store names, the store directory's own among them, at which the delete met a link,
+    /// an entry of another kind, or a directory that was not its own (ruling ST-30 (2)(e)).
+    pub not_followed: u64,
     pub entries_removed: u64,
     pub entries_left: u64,
     pub unknown_entries: u64,
@@ -849,6 +885,9 @@ pub enum StoreErrorKind {
     NoSpace,
     CustodyLocked,
     RootDenied,
+    /// At one of the store's names stands something that is not the store's own entry, or the
+    /// store directory does not stand at its name (ruling ST-30 part (2)(a)).
+    Obstructed,
     RootMissing,
     RootCorrupt,
     WrapAuth,
@@ -865,6 +904,7 @@ one_spelling!(StoreErrorKind, "store error", [
     NoSpace => "no_space",
     CustodyLocked => "custody_locked",
     RootDenied => "root_denied",
+    Obstructed => "obstructed",
     RootMissing => "root_missing",
     RootCorrupt => "root_corrupt",
     WrapAuth => "wrap_auth",
@@ -886,7 +926,7 @@ impl StoreState {
             | StoreState::NoReleaseCustody => cause.is_none(),
             StoreState::Unavailable => matches!(
                 cause,
-                Some(Locked | Io | NoSpace | CustodyLocked | RootDenied)
+                Some(Locked | Io | NoSpace | CustodyLocked | RootDenied | Obstructed)
             ),
             StoreState::Sealed => matches!(
                 cause,
@@ -1453,6 +1493,13 @@ pub struct StatusFields {
 #[error("the status does not hold together: {0}")]
 pub struct StatusError(&'static str);
 
+impl StatusError {
+    /// The fixed text of the rule that the status broke.
+    pub const fn rule(&self) -> &'static str {
+        self.0
+    }
+}
+
 /// The daemon's status. Its fields agree with each other and with its platform: the
 /// platform's own lines, its sources in order, the five switches and the eight kinds in
 /// order, the enabled sources against the source lines, the store state against its
@@ -1609,6 +1656,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     {
         return fail("faulted has desired running and a fresh lease");
     }
+    if f.capture == Capture::Paused && f.desired != CaptureState::Paused {
+        return fail("paused has desired paused");
+    }
     if f.capture == Capture::AwaitingResume && f.desired != CaptureState::Running {
         return fail("a capture that awaits a resume has desired running");
     }
@@ -1624,28 +1674,66 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     Ok(())
 }
 
+/// The two requests that change capture, as [`reaches_the_end`] names them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureChange {
+    Pause,
+    Resume,
+}
+
+/// Whether `status` shows the end that `change` asks for (ruling PL-8 part (5)(a)): for a pause
+/// desired paused and capture paused; for a resume desired running and capture starting,
+/// running, partial, faulted or no_indicator. ctl's exit status and the app's
+/// `set_capture_state` both read it.
+pub fn reaches_the_end(change: CaptureChange, status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    match change {
+        CaptureChange::Pause => f.desired == CaptureState::Paused && f.capture == Capture::Paused,
+        CaptureChange::Resume => {
+            f.desired == CaptureState::Running
+                && matches!(
+                    f.capture,
+                    Capture::Starting
+                        | Capture::Running
+                        | Capture::Partial
+                        | Capture::Faulted
+                        | Capture::NoIndicator
+                )
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteDecision {
     Accept,
-    AlreadyDeleted { current: Option<StoreId> },
+    AlreadyDeleted { current: StoreId },
     Busy,
-    DashWithAnId,
+    Refused,
 }
 
-/// The delete rule of contracts.md C2.6: a deleting or locked store is busy; otherwise the
-/// armed id must be the id that Status shows, a stale id is already deleted, and no id is
-/// taken only when Status shows none.
-pub fn delete_decision(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
-    let f = status.fields();
-    if f.store == StoreState::Deleting || f.store_error == Some(StoreErrorKind::Locked) {
+/// The delete rule of ruling PL-8 part (4)(a), in its order. A deleting store or a locked one
+/// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
+/// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
+/// with a shown id, is refused. With neither, an open store or one with no release custody is
+/// refused, and any other store is accepted. The rule reads the store's state, its cause and
+/// the two ids, and no other field of a status.
+pub fn delete_decision(
+    store: StoreState,
+    cause: Option<StoreErrorKind>,
+    shown: Option<StoreId>,
+    armed: Option<StoreId>,
+) -> DeleteDecision {
+    if store == StoreState::Deleting || cause == Some(StoreErrorKind::Locked) {
         return DeleteDecision::Busy;
     }
-    match (armed, f.store_id) {
-        (None, Some(_)) => DeleteDecision::DashWithAnId,
-        (Some(armed), current) if Some(armed) != current => {
-            DeleteDecision::AlreadyDeleted { current }
+    match (armed, shown) {
+        (Some(armed), Some(shown)) if armed == shown => DeleteDecision::Accept,
+        (Some(_), Some(shown)) => DeleteDecision::AlreadyDeleted { current: shown },
+        (Some(_), None) | (None, Some(_)) => DeleteDecision::Refused,
+        (None, None) if matches!(store, StoreState::Open | StoreState::NoReleaseCustody) => {
+            DeleteDecision::Refused
         }
-        _ => DeleteDecision::Accept,
+        (None, None) => DeleteDecision::Accept,
     }
 }
 
@@ -1729,6 +1817,7 @@ mod tests {
                 root_id: None,
                 files_left: 0,
                 database_left: false,
+                not_followed: 0,
                 entries_removed: 4,
                 entries_left: 0,
                 unknown_entries: 0,
@@ -1799,9 +1888,9 @@ mod tests {
             deleted(Some(store_id(2))),
             deleted(None),
             Reply::AlreadyDeleted(AlreadyDeleted {
-                current: Some(store_id(2)),
+                current: store_id(2),
             }),
-            Reply::AlreadyDeleted(AlreadyDeleted { current: None }),
+            Reply::DeleteRefused,
             Reply::CapSet(CapSet {
                 status: sample_status(Platform::Windows),
                 evicting: true,
@@ -1853,7 +1942,7 @@ mod tests {
     fn every_v1_reply_round_trips_through_serde_and_the_frame_codec() {
         let replies = every_reply();
         let kinds: std::collections::BTreeSet<&str> = replies.iter().map(Reply::kind).collect();
-        assert_eq!(kinds.len(), 9, "a reply kind has no sample");
+        assert_eq!(kinds.len(), 10, "a reply kind has no sample");
         for reply in replies {
             assert_eq!(through_the_wire_reply(&reply), reply);
         }
@@ -1896,17 +1985,17 @@ mod tests {
             ),
             (
                 Reply::AlreadyDeleted(AlreadyDeleted {
-                    current: Some(store_id(2)),
+                    current: store_id(2),
                 }),
                 r#"{"v":1,"body":{"kind":"already_deleted","current":"00000000000000000000000000000002"}}"#,
             ),
             (
-                Reply::AlreadyDeleted(AlreadyDeleted { current: None }),
-                r#"{"v":1,"body":{"kind":"already_deleted","current":null}}"#,
+                Reply::DeleteRefused,
+                r#"{"v":1,"body":{"kind":"delete_refused"}}"#,
             ),
             (
                 deleted(None),
-                r#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#,
+                r#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#,
             ),
             (
                 Reply::PermissionRequested(PermissionRequested {
@@ -2007,6 +2096,84 @@ mod tests {
                 ErrorCode::InvalidArgument,
                 "v={v}"
             );
+        }
+    }
+
+    /// The sample status as JSON, with `store`, `store_error` and `store_retry_in_s` set.
+    fn status_json_with_store(store: &str, error: &str, retry: u64) -> serde_json::Value {
+        let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
+        json["store"] = serde_json::Value::from(store);
+        json["store_error"] = serde_json::Value::from(error);
+        json["store_retry_in_s"] = serde_json::Value::from(retry);
+        json
+    }
+
+    #[test]
+    fn e14_obstructed_is_a_cause_of_store_unavailable_and_a_value_outside_the_list_is_refused() {
+        let status: DaemonStatus =
+            serde_json::from_value(status_json_with_store("unavailable", "obstructed", 5))
+                .expect("store=unavailable store_error=obstructed is taken");
+        let text = crate::ctl_text::status_text(&status);
+        assert!(
+            text.contains(&format!(
+                "\nstore=unavailable\nstore_id={FIXTURE_STORE_ID}\nstore_error=obstructed\nstore_retry_in_s=5\n"
+            )),
+            "{text}"
+        );
+        assert_eq!(
+            serde_json::to_value(&status).unwrap()["store_error"],
+            "obstructed"
+        );
+        for (store, error) in [
+            ("unavailable", "obstructe"),
+            ("unavailable", "Obstructed"),
+            ("open", "obstructed"),
+            ("sealed", "obstructed"),
+        ] {
+            assert!(
+                serde_json::from_value::<DaemonStatus>(status_json_with_store(store, error, 5))
+                    .is_err(),
+                "store={store} store_error={error}"
+            );
+        }
+    }
+
+    #[test]
+    fn e15_a_deleted_report_carries_not_followed_after_database_left_and_one_without_it_does_not_decode(
+    ) {
+        let with = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":1,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        let Reply::Deleted(deleted) = decode_reply(with).expect("a report with not_followed")
+        else {
+            panic!("not a deleted reply");
+        };
+        assert!(
+            crate::ctl_text::deleted_text(&deleted)
+                .contains(" files_left=0 database_left=no not_followed=1 entries_removed=4 "),
+            "{}",
+            crate::ctl_text::deleted_text(&deleted)
+        );
+        let without = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        assert!(decode_reply(without).is_err());
+    }
+
+    #[test]
+    fn a1_capture_paused_beside_a_desired_state_that_is_not_paused_is_refused() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = sample_status(platform).into_fields();
+            f.capture = Capture::Paused;
+            for line in &mut f.sources {
+                if line.state != SourceState::Off {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            assert_eq!(f.desired, CaptureState::Running);
+            let refused = DaemonStatus::new(f.clone()).unwrap_err();
+            assert_eq!(
+                refused.to_string(),
+                "the status does not hold together: paused has desired paused"
+            );
+            f.desired = CaptureState::Paused;
+            assert!(DaemonStatus::new(f).is_ok(), "{platform:?}");
         }
     }
 
@@ -2356,7 +2523,7 @@ mod tests {
             (NoReleaseCustody, &[]),
             (
                 Unavailable,
-                &[Locked, Io, NoSpace, CustodyLocked, RootDenied],
+                &[Locked, Io, NoSpace, CustodyLocked, RootDenied, Obstructed],
             ),
             (
                 Sealed,
@@ -2774,6 +2941,7 @@ mod tests {
                 "no_space",
                 "custody_locked",
                 "root_denied",
+                "obstructed",
                 "root_missing",
                 "root_corrupt",
                 "wrap_auth",
@@ -3024,6 +3192,7 @@ mod tests {
             root_id: None,
             files_left: 0,
             database_left: false,
+            not_followed: 0,
             entries_removed: 4,
             entries_left: 0,
             unknown_entries: 0,
@@ -3083,7 +3252,9 @@ mod tests {
         };
         crate::model::every_key_is_read::<DeleteReport>(&serde_json::to_value(d.report).unwrap());
         crate::model::every_key_is_read::<Deleted>(&serde_json::to_value(&d).unwrap());
-        crate::model::every_key_is_read::<AlreadyDeleted>(&serde_json::json!({"current": null}));
+        crate::model::every_key_is_read::<AlreadyDeleted>(
+            &serde_json::json!({"current": "00000000000000000000000000000002"}),
+        );
         crate::model::every_key_is_read::<Stopped>(
             &serde_json::json!({"flushed": true, "events_lost": 0}),
         );
@@ -3123,6 +3294,7 @@ mod tests {
                     Some(StoreErrorKind::NoSpace),
                     Some(StoreErrorKind::CustodyLocked),
                     Some(StoreErrorKind::RootDenied),
+                    Some(StoreErrorKind::Obstructed),
                 ],
                 StoreState::Sealed => &[
                     Some(StoreErrorKind::RootMissing),
@@ -3147,8 +3319,9 @@ mod tests {
                 } else {
                     DeleteDecision::Accept
                 };
+                let f = status.fields();
                 assert_eq!(
-                    delete_decision(&status, Some(current)),
+                    delete_decision(f.store, f.store_error, Some(current), Some(current)),
                     want,
                     "{state:?} {cause:?}"
                 );
@@ -3157,29 +3330,49 @@ mod tests {
     }
 
     #[test]
-    fn the_delete_rule_takes_dash_only_when_the_status_shows_no_id() {
-        let mut fields = sample_status(Platform::Macos).into_fields();
-        fields.store = StoreState::Sealed;
-        fields.store_error = Some(StoreErrorKind::KeyFile);
-        fields.store_id = None;
-        let no_id = DaemonStatus::new(fields).unwrap();
-        assert_eq!(delete_decision(&no_id, None), DeleteDecision::Accept);
-        assert_eq!(
-            delete_decision(&no_id, Some(store_id(1))),
-            DeleteDecision::AlreadyDeleted { current: None }
-        );
-        let open = sample_status(Platform::Macos);
-        assert_eq!(delete_decision(&open, None), DeleteDecision::DashWithAnId);
-        assert_eq!(
-            delete_decision(&open, Some(store_id(7))),
-            DeleteDecision::AlreadyDeleted {
-                current: Some(FIXTURE_STORE_ID)
-            }
-        );
-        assert_eq!(
-            delete_decision(&open, Some(FIXTURE_STORE_ID)),
-            DeleteDecision::Accept
-        );
+    fn the_delete_rule_reads_the_two_ids_in_the_order_of_ruling_pl_8() {
+        use StoreState::*;
+        let (shown, other) = (Some(FIXTURE_STORE_ID), Some(store_id(7)));
+        let key_file = Some(StoreErrorKind::KeyFile);
+        let io = Some(StoreErrorKind::Io);
+        for (store, cause, shown, armed, want) in [
+            (Open, None, shown, shown, DeleteDecision::Accept),
+            (
+                Open,
+                None,
+                shown,
+                other,
+                DeleteDecision::AlreadyDeleted {
+                    current: FIXTURE_STORE_ID,
+                },
+            ),
+            (Open, None, shown, None, DeleteDecision::Refused),
+            (Sealed, key_file, None, other, DeleteDecision::Refused),
+            (Unavailable, io, None, other, DeleteDecision::Refused),
+            (Open, None, None, None, DeleteDecision::Refused),
+            (NoReleaseCustody, None, None, None, DeleteDecision::Refused),
+            (Sealed, key_file, None, None, DeleteDecision::Accept),
+            (Unavailable, io, None, None, DeleteDecision::Accept),
+            (Deleting, None, None, None, DeleteDecision::Busy),
+            (
+                Unavailable,
+                Some(StoreErrorKind::Locked),
+                shown,
+                other,
+                DeleteDecision::Busy,
+            ),
+        ] {
+            assert_eq!(
+                delete_decision(store, cause, shown, armed),
+                want,
+                "{store:?} {cause:?} shown {shown:?} armed {armed:?}"
+            );
+        }
+    }
+
+    fn decide(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
+        let f = status.fields();
+        delete_decision(f.store, f.store_error, f.store_id, armed)
     }
 
     #[test]
@@ -3188,7 +3381,7 @@ mod tests {
         fields.store = StoreState::Deleting;
         let deleting = DaemonStatus::new(fields).unwrap();
         for armed in [None, Some(store_id(1)), Some(store_id(7))] {
-            assert_eq!(delete_decision(&deleting, armed), DeleteDecision::Busy);
+            assert_eq!(decide(&deleting, armed), DeleteDecision::Busy);
         }
         let mut fields = sample_status(Platform::Macos).into_fields();
         fields.store = StoreState::Unavailable;
@@ -3196,7 +3389,7 @@ mod tests {
         let locked = DaemonStatus::new(fields).unwrap();
         for armed in [None, Some(FIXTURE_STORE_ID), Some(store_id(7))] {
             assert_eq!(
-                delete_decision(&locked, armed),
+                decide(&locked, armed),
                 DeleteDecision::Busy,
                 "locked, armed {armed:?}"
             );

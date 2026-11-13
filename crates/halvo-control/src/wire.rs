@@ -60,7 +60,10 @@ pub fn read_frame<R: Read>(reader: &mut R, max: usize) -> Result<Vec<u8>, FrameE
     Ok(body)
 }
 
-/// Reads the one frame of a connection and requires the stream to end after it.
+/// Reads the one frame of a connection and requires the stream to end after it: a byte after
+/// the frame is [`FrameError::Trailing`] and a timeout of that wait is an error. The server reads
+/// a request with it; the client reads a reply with its own reader in client.rs, which waits a
+/// bounded time after the frame and takes the frame when the stream stays open.
 pub fn read_one_frame<R: Read>(reader: &mut R, max: usize) -> Result<Vec<u8>, FrameError> {
     let body = read_frame(reader, max)?;
     let mut probe = [0u8; 1];
@@ -239,36 +242,55 @@ mod tests {
 
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::cell::Cell;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
+    /// The test binary's allocator. While the flag `TRACKED` of a thread is set, it records the
+    /// largest single block that the thread asks for (`LARGEST`) and the thread's live bytes:
+    /// the bytes it allocated less the bytes it freed (`LIVE`) and their highest value
+    /// (`PEAK`).
     struct Largest;
-
-    static LARGEST: AtomicUsize = AtomicUsize::new(0);
 
     thread_local! {
         static TRACKED: Cell<bool> = const { Cell::new(false) };
+        static LARGEST: Cell<usize> = const { Cell::new(0) };
+        static LIVE: Cell<isize> = const { Cell::new(0) };
+        static PEAK: Cell<isize> = const { Cell::new(0) };
+    }
+
+    fn tracked() -> bool {
+        TRACKED.try_with(Cell::get).unwrap_or(false)
+    }
+
+    fn add_live(bytes: isize) {
+        let live = LIVE.with(Cell::get) + bytes;
+        LIVE.with(|l| l.set(live));
+        PEAK.with(|p| p.set(p.get().max(live)));
     }
 
     // SAFETY: every call is passed on to the system allocator unchanged; the only addition
-    // reads a thread-local flag and stores a size.
+    // reads and writes thread-local counters and stores a size.
     unsafe impl GlobalAlloc for Largest {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            if TRACKED.with(Cell::get) {
-                LARGEST.fetch_max(layout.size(), Ordering::Relaxed);
+            if tracked() {
+                LARGEST.with(|l| l.set(l.get().max(layout.size())));
+                add_live(layout.size() as isize);
             }
             // SAFETY: the caller's layout goes to the system allocator as it came.
             unsafe { System.alloc(layout) }
         }
 
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-            if TRACKED.with(Cell::get) {
-                LARGEST.fetch_max(layout.size(), Ordering::Relaxed);
+            if tracked() {
+                LARGEST.with(|l| l.set(l.get().max(layout.size())));
+                add_live(layout.size() as isize);
             }
             // SAFETY: the caller's layout goes to the system allocator as it came.
             unsafe { System.alloc_zeroed(layout) }
         }
 
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            if tracked() {
+                add_live(-(layout.size() as isize));
+            }
             // SAFETY: the block is one that this allocator handed out through alloc, alloc_zeroed
             // or realloc, each of which passes to System, and `layout` is the one that the block
             // has now.
@@ -276,11 +298,167 @@ mod tests {
         }
 
         unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-            if TRACKED.with(Cell::get) {
-                LARGEST.fetch_max(new_size, Ordering::Relaxed);
+            if tracked() {
+                LARGEST.with(|l| l.set(l.get().max(new_size)));
+                add_live(new_size as isize - layout.size() as isize);
             }
             // SAFETY: the pointer and layout came from this allocator and go back to it.
             unsafe { System.realloc(ptr, layout, new_size) }
+        }
+    }
+
+    /// Runs `call` with the live bytes of this thread counted from 0, and gives the highest
+    /// count and the count at its end.
+    fn live_bytes_of(call: impl FnOnce()) -> (isize, isize) {
+        LIVE.with(|l| l.set(0));
+        PEAK.with(|p| p.set(0));
+        TRACKED.with(|t| t.set(true));
+        call();
+        TRACKED.with(|t| t.set(false));
+        (PEAK.with(Cell::get), LIVE.with(Cell::get))
+    }
+
+    /// `{"v":1,"a":` and `inner` and `}`, with spaces before the `}` so that the frame is
+    /// `size` bytes; `None` when `inner` does not fit.
+    fn padded(inner: &str, size: usize) -> Option<Vec<u8>> {
+        let head = HEAD.as_bytes();
+        let used = head.len() + inner.len() + 1;
+        if used > size {
+            return None;
+        }
+        let mut frame = head.to_vec();
+        frame.extend_from_slice(inner.as_bytes());
+        frame.resize(size - 1, b' ');
+        frame.push(b'}');
+        Some(frame)
+    }
+
+    /// `[` and copies of `item` separated by commas and `]`, as many as fit in a frame of
+    /// `size` bytes.
+    fn array_of(item: &str, size: usize) -> Vec<u8> {
+        let mut items = std::iter::repeat(item);
+        array_drawn(size, || items.next().unwrap())
+    }
+
+    /// `[`, the items that `next` gives while they fit, separated by commas, and `]`, in a
+    /// frame of `size` bytes.
+    fn array_drawn<'a>(size: usize, mut next: impl FnMut() -> &'a str) -> Vec<u8> {
+        let room = size - HEAD.len() - 1;
+        let mut inner = String::with_capacity(room);
+        inner.push('[');
+        inner.push_str(next());
+        loop {
+            let item = next();
+            if inner.len() + 1 + item.len() + 1 > room {
+                break;
+            }
+            inner.push(',');
+            inner.push_str(item);
+        }
+        inner.push(']');
+        padded(&inner, size).unwrap()
+    }
+
+    const HEAD: &str = r#"{"v":1,"a":"#;
+
+    /// The deepest nesting of arrays that the parser takes, counted from the top.
+    fn depth_limit() -> usize {
+        (1..1_000)
+            .take_while(|d| {
+                let text = format!("{}{}", "[".repeat(*d), "]".repeat(*d));
+                serde_json::from_slice::<serde_json::Value>(text.as_bytes()).is_ok()
+            })
+            .last()
+            .unwrap()
+    }
+
+    /// The frames of the worst shapes, each exactly `size` bytes, with their names.
+    fn worst_shapes(size: usize) -> Vec<(String, Vec<u8>)> {
+        let deep = depth_limit() - 2;
+        let nest = |open: &str, leaf: &str, close: &str, levels: usize| {
+            format!("{}{leaf}{}", open.repeat(levels), close.repeat(levels))
+        };
+        let keys: String = (0u8..128)
+            .map(|b| format!("\"\\u{b:04x}\":0"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let mut shapes = vec![
+            (
+                "an array of one-byte values".to_string(),
+                array_of("0", size),
+            ),
+            ("an array of empty arrays".to_string(), array_of("[]", size)),
+            (
+                "an array of arrays of one value".to_string(),
+                array_of("[0]", size),
+            ),
+            (
+                "an array of objects of one one-byte key".to_string(),
+                array_of(r#"{"a":0}"#, size),
+            ),
+            (
+                format!("arrays nested {deep} deep at the parser's depth limit, side by side"),
+                array_of(&nest("[", "", "]", deep - 1), size),
+            ),
+            (
+                format!("objects of the empty key nested {deep} deep, side by side"),
+                array_of(&nest(r#"{"":"#, "0", "}", deep - 1), size),
+            ),
+        ];
+        if let Some(frame) = padded(&format!("{{{keys}}}"), size) {
+            shapes.push((
+                "an object of the 128 one-byte keys, each once".to_string(),
+                frame,
+            ));
+        }
+        shapes
+    }
+
+    /// Frames of exactly `size` bytes whose array holds items drawn from a few shapes.
+    fn drawn_frames(size: usize, count: usize) -> Vec<Vec<u8>> {
+        const ITEMS: [&str; 8] = [
+            "0",
+            "[]",
+            "{}",
+            "\"\"",
+            "\"ab\"",
+            "[0]",
+            r#"{"a":0}"#,
+            "[[[0]]]",
+        ];
+        let mut draw = Draw(0x2545_f491_4f6c_dd1d);
+        (0..count)
+            .map(|_| array_drawn(size, || ITEMS[(draw.next() % ITEMS.len() as u64) as usize]))
+            .collect()
+    }
+
+    #[test]
+    #[ignore = "prints the peak live bytes of each shape"]
+    fn print_the_peak_live_bytes_of_one_decode_call() {
+        for (side, size) in [("request", REQUEST_MAX_BYTES), ("reply", REPLY_MAX_BYTES)] {
+            for (name, frame) in worst_shapes(size) {
+                assert_eq!(frame.len(), size);
+                let (peak, end) = live_bytes_of(|| {
+                    if side == "request" {
+                        drop(crate::proto::decode_request(&frame));
+                    } else {
+                        drop(crate::proto::decode_reply(&frame));
+                    }
+                });
+                println!("peak {side} {peak} end {end} {name}");
+            }
+            let mut most = 0;
+            for frame in drawn_frames(size, 50) {
+                let (peak, _) = live_bytes_of(|| {
+                    if side == "request" {
+                        drop(crate::proto::decode_request(&frame));
+                    } else {
+                        drop(crate::proto::decode_reply(&frame));
+                    }
+                });
+                most = most.max(peak);
+            }
+            println!("peak {side} {most} drawn");
         }
     }
 
@@ -299,34 +477,85 @@ mod tests {
     }
 
     #[test]
-    fn arbitrary_bytes_never_panic_the_decoder_or_allocate_above_the_limit() {
-        let mut draw = Draw(0x9e37_79b9_7f4a_7c15);
-        let mut inputs: Vec<Vec<u8>> = Vec::new();
-        for _ in 0..4_000 {
-            let len = (draw.next() % 64) as usize;
-            inputs.push((0..len).map(|_| draw.next() as u8).collect());
+    fn the_frame_reader_never_panics_on_arbitrary_bytes_and_asks_for_no_block_above_the_frame_limit_on_either_side(
+    ) {
+        for (max, inputs, count) in [
+            (REQUEST_MAX_BYTES, 4_000, 1_000),
+            (REPLY_MAX_BYTES, 1_000, 200),
+        ] {
+            let mut draw = Draw(0x9e37_79b9_7f4a_7c15);
+            let mut frames: Vec<Vec<u8>> = Vec::new();
+            for _ in 0..inputs {
+                let len = (draw.next() % 64) as usize;
+                frames.push((0..len).map(|_| draw.next() as u8).collect());
+            }
+            for _ in 0..count {
+                let announced = match draw.next() % 4 {
+                    0 => (draw.next() % (max as u64 + 1_000)) as u32,
+                    1 => max as u32 + (draw.next() % 3) as u32,
+                    2 => u32::MAX - (draw.next() % 3) as u32,
+                    _ => draw.next() as u32,
+                };
+                let mut bytes = announced.to_be_bytes().to_vec();
+                let body = (draw.next() % (max as u64 + 1_000)) as usize;
+                bytes.extend((0..body).map(|_| draw.next() as u8));
+                frames.push(bytes);
+            }
+            LARGEST.with(|l| l.set(0));
+            for bytes in &frames {
+                TRACKED.with(|t| t.set(true));
+                let _ = read_one_frame(&mut &bytes[..], max);
+                TRACKED.with(|t| t.set(false));
+                let largest = LARGEST.with(Cell::get);
+                assert!(
+                    largest <= max,
+                    "the frame reader asked for a block of {largest} bytes for a frame of at most {max}"
+                );
+            }
         }
-        for _ in 0..1_000 {
-            let announced = match draw.next() % 4 {
-                0 => (draw.next() % 5_000) as u32,
-                1 => REQUEST_MAX_BYTES as u32 + (draw.next() % 3) as u32,
-                2 => u32::MAX - (draw.next() % 3) as u32,
-                _ => draw.next() as u32,
-            };
-            let mut bytes = announced.to_be_bytes().to_vec();
-            let body = (draw.next() % 5_000) as usize;
-            bytes.extend((0..body).map(|_| draw.next() as u8));
-            inputs.push(bytes);
+    }
+
+    fn decode_on(side: &str, frame: &[u8]) {
+        if side == "request" {
+            drop(crate::proto::decode_request(frame));
+        } else {
+            drop(crate::proto::decode_reply(frame));
         }
-        for bytes in &inputs {
-            TRACKED.with(|t| t.set(true));
-            let _ = read_one_frame(&mut &bytes[..], REQUEST_MAX_BYTES);
-            TRACKED.with(|t| t.set(false));
-            let largest = LARGEST.load(Ordering::Relaxed);
-            assert!(
-                largest <= REQUEST_MAX_BYTES,
-                "the decoder allocated {largest} bytes for a frame of at most {REQUEST_MAX_BYTES}"
-            );
+    }
+
+    #[test]
+    fn one_decode_call_holds_at_most_its_named_peak_of_live_bytes_and_frees_them_on_both_sides() {
+        use crate::proto::{REPLY_DECODE_PEAK_BYTES, REQUEST_DECODE_PEAK_BYTES};
+
+        for (side, size, bound) in [
+            ("request", REQUEST_MAX_BYTES, REQUEST_DECODE_PEAK_BYTES),
+            ("reply", REPLY_MAX_BYTES, REPLY_DECODE_PEAK_BYTES),
+        ] {
+            let mut frames = worst_shapes(size);
+            for (i, frame) in drawn_frames(size, 20).into_iter().enumerate() {
+                frames.push((format!("drawn frame {i}"), frame));
+            }
+            for (name, frame) in &frames {
+                assert_eq!(frame.len(), size, "{side}: {name}");
+                let (peak, end) = live_bytes_of(|| decode_on(side, frame));
+                assert!(
+                    peak <= bound as isize,
+                    "{side}: {name}: one decode call held {peak} live bytes, above {bound}"
+                );
+                assert_eq!(
+                    end, 0,
+                    "{side}: {name}: the decode call left {end} bytes live after it returned"
+                );
+            }
         }
+        let request = crate::proto::encode_request(&crate::proto::Request::Pause);
+        let (_, end) = live_bytes_of(|| decode_on("request", &request));
+        assert_eq!(end, 0, "a request that decodes left bytes live");
+    }
+
+    #[test]
+    fn the_named_peaks_are_128_bytes_for_each_byte_of_a_frame() {
+        assert_eq!(crate::proto::REQUEST_DECODE_PEAK_BYTES, 524_288);
+        assert_eq!(crate::proto::REPLY_DECODE_PEAK_BYTES, 33_554_432);
     }
 }

@@ -39,11 +39,18 @@ Until builds are signed, any process of the same user can read whatever a reply 
 | `run_end` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 
 Every other op is answered `unsupported_op`. In the key `v` of a frame that is one JSON
-object, a version is an integer from 0 to 18446744073709551615; every version other than 1 is
-answered `unsupported_version`, whatever the rest of the frame holds, and a `v` that is no
-such integer is answered `invalid_argument`. Expiry, cap eviction and delete-all need no lease;
+object, a version is an integer from 0 to 18446744073709551615. A frame that starts with `{`
+and ends with `}`, is one JSON object with each key once at every depth, and holds in `v` a
+version other than 1 is answered `unsupported_version`; a `v` that is no such integer is
+answered `invalid_argument`. Expiry, cap eviction and delete-all need no lease;
 after a lapse capture reads `no_indicator`, and the lapse writes nothing to the state
 file.
+
+One decode of a request frame of at most 4,096 bytes holds at most 524,288 bytes live at
+once (`REQUEST_DECODE_PEAK_BYTES`), and the worst shape that the crate's test measures,
+objects of the empty key nested side by side, holds 471,098. One decode of a reply frame of
+at most 262,144 bytes holds at most 33,554,432 bytes live at once (`REPLY_DECODE_PEAK_BYTES`),
+and the same shape holds 33,009,946.
 
 ## What never crosses the channel
 
@@ -56,9 +63,17 @@ descriptor or a handle from a reply.
 
 - Read and change the files of the data directory.
 - Send signals to the daemon.
+- Fill the accept queue of the socket, remove the socket file or hold the instance lock of
+  the data directory, so that ctl and the app cannot pause, stop or delete through the
+  channel. ctl then prints "the data directory is in use and no connection could be made at
+  <socket path>; capture may be running" with exit 1 while the lock is held, and never
+  "capture service not running" then. The ways left are a signal to the daemon and the
+  app's end of a child that does not answer.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
-  guard against that is the pid of the child it started; `ctl` has none.
+  guard against that is the pid of the child it started; `ctl` has none. Exit 0 of
+  `ctl pause` and `ctl resume` proves only that the peer at the socket answered that
+  state, and a false server of the same user can answer anything.
 - Unwrap the root. On Windows DPAPI's user scope lets any program of the same user
   unprotect the root file. The root file of an unsigned macOS build has owner-only
   permissions and is readable by the same user.

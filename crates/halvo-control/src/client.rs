@@ -7,7 +7,7 @@ use crate::proto::{
     decode_reply, encode_request, AlreadyDeleted, CapSet, DaemonStatus, Deleted, ErrorReply,
     InventoryReply, Reply, Request, Stopped,
 };
-use crate::wire::{read_one_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
+use crate::wire::{read_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 /// A connected stream to the daemon that carries one request and its reply.
 pub trait Transport: Read + Write {
@@ -51,6 +51,10 @@ pub enum ClientError {
     Unsupported,
     #[error("capture service not running at {endpoint}")]
     Unreachable { endpoint: String },
+    /// No connection could be made while the instance lock of the data directory stayed
+    /// held, up to the request's deadline (ruling PL-8 part (2)(b)).
+    #[error("the data directory is in use and no connection could be made at {endpoint}; capture may be running")]
+    DataDirInUse { endpoint: String },
     #[error("the control endpoint was refused: {0}")]
     PeerRejected(PeerRejection),
     #[error("no reply within {seconds} s")]
@@ -59,13 +63,19 @@ pub enum ClientError {
     Daemon(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
+    /// A reply whose status breaks a rule of the status type; the text is the rule's.
+    #[error("the capture service reported a state that does not hold together: {}", .0.rule())]
+    StateDoesNotHoldTogether(crate::proto::StatusError),
     #[error("the daemon answered {kind} to this request")]
     UnexpectedReply { kind: &'static str },
     #[error("the control channel failed: {0}")]
     Io(std::io::Error),
 }
 
-/// How long the client waits for each request, from the connect to the end of the reply.
+/// How long the client waits for each request, from the connect to the end of the reply. After
+/// a whole reply frame the client waits at most [`crate::REPLY_END_WAIT_MS`] inside this
+/// deadline for the end of the stream; the server's reader, `wire::read_one_frame`, requires the
+/// end of the stream after a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Deadlines {
     pub read: Duration,
@@ -110,6 +120,14 @@ impl Deadlines {
 pub enum DeleteOutcome {
     Deleted(Deleted),
     AlreadyDeleted(AlreadyDeleted),
+    /// The delete removed nothing; the caller reads the status and asks the person again.
+    Refused,
+}
+
+/// Whether an `already_deleted` can answer a delete armed with `armed`: only one that carried
+/// an id, and only when the reply names another id as the current store.
+pub fn already_deleted_answers(armed: Option<StoreId>, already: &AlreadyDeleted) -> bool {
+    armed.is_some_and(|armed| armed != already.current)
 }
 
 /// The client of protocol v1. Each call makes one connection, sends one request and reads
@@ -164,6 +182,34 @@ fn is_timeout(error: &std::io::Error) -> bool {
     matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock)
 }
 
+/// The client's reader of a reply. It reads one frame inside the request's deadline, then
+/// waits at most [`crate::REPLY_END_WAIT_MS`], and never past that deadline, for what follows:
+/// a byte is [`FrameError::Trailing`], and the end of the stream, the end of the wait and any
+/// error of the transport give the frame.
+fn read_reply<T: Transport>(timed: &mut Timed<'_, T>) -> Result<Vec<u8>, FrameError> {
+    let frame = read_frame(timed, REPLY_MAX_BYTES)?;
+    let Ok(time_left) = left(timed.deadline) else {
+        return Ok(frame);
+    };
+    let mut wait = time_left.min(Duration::from_millis(crate::REPLY_END_WAIT_MS));
+    let wait_until = Instant::now() + wait;
+    let mut probe = [0u8; 1];
+    loop {
+        if timed.transport.set_timeout(wait).is_err() {
+            return Ok(frame);
+        }
+        match timed.transport.read(&mut probe) {
+            Ok(0) => return Ok(frame),
+            Ok(_) => return Err(FrameError::Trailing),
+            Err(e) if e.kind() == ErrorKind::Interrupted => match left(wait_until) {
+                Ok(rest) => wait = rest,
+                Err(_) => return Ok(frame),
+            },
+            Err(_) => return Ok(frame),
+        }
+    }
+}
+
 impl<C: Connector> Client<C> {
     pub fn new(connector: C) -> Self {
         Self::with_deadlines(connector, Deadlines::V1)
@@ -214,8 +260,13 @@ impl<C: Connector> Client<C> {
                 ClientError::Io(e)
             }
         })?;
-        let frame = read_one_frame(&mut timed, REPLY_MAX_BYTES).map_err(frame_error)?;
-        let reply = decode_reply(&frame).map_err(|e| ClientError::Protocol(e.to_string()))?;
+        let frame = read_reply(&mut timed).map_err(frame_error)?;
+        let reply = decode_reply(&frame).map_err(|e| match e {
+            crate::proto::ReplyError::Status(broken) => {
+                ClientError::StateDoesNotHoldTogether(broken)
+            }
+            other => ClientError::Protocol(other.to_string()),
+        })?;
         #[cfg(feature = "r2")]
         let reply = crate::r2::decode_sections(reply)?;
         Ok(reply)
@@ -273,7 +324,10 @@ impl<C: Connector> Client<C> {
     pub fn delete_all(&self, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
         match self.call(Request::DeleteAll { store: armed })? {
             Reply::Deleted(deleted) => Ok(DeleteOutcome::Deleted(deleted)),
-            Reply::AlreadyDeleted(already) => Ok(DeleteOutcome::AlreadyDeleted(already)),
+            Reply::AlreadyDeleted(already) if already_deleted_answers(armed, &already) => {
+                Ok(DeleteOutcome::AlreadyDeleted(already))
+            }
+            Reply::DeleteRefused => Ok(DeleteOutcome::Refused),
             other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
         }
     }
@@ -608,6 +662,167 @@ mod tests {
         );
     }
 
+    /// What a [`Held`] transport does once its bytes are read.
+    #[derive(Debug, Clone, Copy)]
+    enum Then {
+        /// Every read times out, as a socket whose peer keeps the connection.
+        Silence,
+        /// One more byte, then the end.
+        Byte,
+        /// An error of the transport that is no timeout.
+        Fails,
+        /// The end of the stream.
+        End,
+    }
+
+    /// A transport that gives `bytes` and then does as `then` says, and records each timeout
+    /// that it is asked for.
+    #[derive(Clone)]
+    struct Held {
+        bytes: Vec<u8>,
+        at: std::sync::Arc<std::sync::Mutex<usize>>,
+        then: Then,
+        timeouts: std::sync::Arc<std::sync::Mutex<Vec<Duration>>>,
+    }
+
+    impl Held {
+        fn new(bytes: Vec<u8>, then: Then) -> Self {
+            Self {
+                bytes,
+                at: std::sync::Arc::default(),
+                then,
+                timeouts: std::sync::Arc::default(),
+            }
+        }
+
+        fn last_timeout(&self) -> Duration {
+            *self.timeouts.lock().unwrap().last().unwrap()
+        }
+    }
+
+    impl Read for Held {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let mut at = self.at.lock().unwrap();
+            if *at < self.bytes.len() {
+                let n = buf.len().min(self.bytes.len() - *at);
+                buf[..n].copy_from_slice(&self.bytes[*at..*at + n]);
+                *at += n;
+                return Ok(n);
+            }
+            match self.then {
+                Then::Silence => Err(ErrorKind::WouldBlock.into()),
+                Then::Byte if *at == self.bytes.len() && !buf.is_empty() => {
+                    *at += 1;
+                    buf[0] = b'x';
+                    Ok(1)
+                }
+                Then::Byte | Then::End => Ok(0),
+                Then::Fails => Err(ErrorKind::ConnectionReset.into()),
+            }
+        }
+    }
+
+    impl Write for Held {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Transport for Held {
+        fn set_timeout(&mut self, timeout: Duration) -> std::io::Result<()> {
+            self.timeouts.lock().unwrap().push(timeout);
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Connector for Held {
+        type Transport = Held;
+
+        fn endpoint(&self) -> String {
+            "held".into()
+        }
+
+        fn connect(&self, _: Duration) -> Result<Held, ClientError> {
+            Ok(self.clone())
+        }
+    }
+
+    fn status_frame() -> Vec<u8> {
+        framed(&crate::proto::encode_reply(&Reply::Status(sample_status(
+            Platform::Macos,
+        ))))
+    }
+
+    #[test]
+    fn the_wait_after_a_whole_reply_frame_is_250_ms() {
+        assert_eq!(crate::REPLY_END_WAIT_MS, 250);
+    }
+
+    #[test]
+    fn a_reply_frame_and_then_silence_is_the_reply_after_a_wait_of_the_named_constant() {
+        let held = Held::new(status_frame(), Then::Silence);
+        let client = Client::new(held.clone());
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        assert_eq!(
+            held.last_timeout(),
+            Duration::from_millis(crate::REPLY_END_WAIT_MS)
+        );
+    }
+
+    #[test]
+    fn the_wait_after_a_reply_frame_never_passes_the_request_s_deadline() {
+        let held = Held::new(status_frame(), Then::Silence);
+        let mut deadlines = Deadlines::V1;
+        deadlines.read = Duration::from_millis(100);
+        let client = Client::with_deadlines(held.clone(), deadlines);
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+        assert!(held.last_timeout() <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn a_byte_inside_the_wait_after_a_reply_frame_is_trailing() {
+        let client = Client::new(Held::new(status_frame(), Then::Byte));
+        match client.status() {
+            Err(ClientError::Protocol(text)) => assert!(text.contains("bytes follow the frame")),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_error_of_the_transport_after_a_reply_frame_is_the_reply() {
+        let client = Client::new(Held::new(status_frame(), Then::Fails));
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn the_end_of_the_stream_after_a_reply_frame_is_the_reply() {
+        let client = Client::new(Held::new(status_frame(), Then::End));
+        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn half_a_reply_frame_held_open_is_the_deadline_and_half_a_frame_then_the_end_is_truncated() {
+        let mut half = status_frame();
+        half.truncate(half.len() / 2);
+        let held = Client::new(Held::new(half.clone(), Then::Silence));
+        assert!(matches!(held.status(), Err(ClientError::Deadline { .. })));
+        let ended = Client::new(Held::new(half, Then::End));
+        match ended.status() {
+            Err(ClientError::Protocol(text)) => assert!(text.contains("ended inside a frame")),
+            other => panic!("{other:?}"),
+        }
+        let prefix = Client::new(Held::new(vec![0, 0], Then::Silence));
+        assert!(matches!(prefix.status(), Err(ClientError::Deadline { .. })));
+    }
+
     #[test]
     fn the_plain_read_sends_no_claim_and_the_claim_method_sends_one() {
         let (client, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));
@@ -648,7 +863,7 @@ mod tests {
     }
 
     #[test]
-    fn t18_b_dash_is_taken_only_when_status_shows_no_id() {
+    fn t18_b_dash_is_accepted_where_status_shows_no_id_and_refused_beside_a_shown_id() {
         let no_id = with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None);
         let (client_a, _) = client(ScriptedDaemon::new(no_id));
         assert!(matches!(
@@ -656,15 +871,235 @@ mod tests {
             DeleteOutcome::Deleted(_)
         ));
         let (client_b, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));
-        assert_eq!(
-            daemon_error(client_b.delete_all(None)),
-            ErrorCode::InvalidArgument
-        );
+        assert_eq!(client_b.delete_all(None).unwrap(), DeleteOutcome::Refused);
         assert_eq!(
             connector.status().fields().store_id,
             Some(FIXTURE_STORE_ID),
             "a refused delete changed the store"
         );
+    }
+
+    /// The data directory that ctl is given in these tests: an absolute path on each system.
+    fn ctl_data_dir() -> crate::paths::DataDir {
+        crate::paths::DataDir::from_flag(if cfg!(windows) {
+            r"C:\halvo-data"
+        } else {
+            "/halvo-data"
+        })
+        .unwrap()
+    }
+
+    const DELETE_REFUSED_STDOUT: &str = "delete_refused\n";
+    const DELETE_REFUSED_STDERR: &str = "halvo-capture: this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again\n";
+
+    fn ctl_delete(
+        armed: Option<StoreId>,
+        reply: Result<Reply, ClientError>,
+    ) -> (String, String, i32) {
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::DeleteAll(armed),
+            reply,
+            &ctl_data_dir(),
+        );
+        (printed.stdout, printed.stderr, printed.status)
+    }
+
+    fn refused_by_ctl() -> (String, String, i32) {
+        (
+            DELETE_REFUSED_STDOUT.to_string(),
+            DELETE_REFUSED_STDERR.to_string(),
+            1,
+        )
+    }
+
+    #[test]
+    fn d7_an_armed_id_against_a_status_that_shows_no_id_is_delete_refused_with_exit_1_and_deletes_nothing(
+    ) {
+        for status in [
+            with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None),
+            with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None),
+        ] {
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let armed = Some(store_id(5));
+            let reply = client.send(&Request::DeleteAll { store: armed });
+            assert_eq!(reply.as_ref().unwrap().kind(), "delete_refused");
+            assert_eq!(ctl_delete(armed, reply), refused_by_ctl());
+            assert_eq!(connector.status(), status);
+        }
+    }
+
+    #[test]
+    fn d10_a_second_dash_after_a_dash_delete_whose_reply_was_lost_is_delete_refused_with_exit_1() {
+        let status = with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None);
+        let (client, connector) = client(ScriptedDaemon::new(status));
+        let lost = client.send(&Request::DeleteAll { store: None }).unwrap();
+        assert_eq!(lost.kind(), "deleted");
+        let fresh = connector.status().fields().store_id;
+        assert!(fresh.is_some());
+        let again = client.send(&Request::DeleteAll { store: None });
+        assert_eq!(again.as_ref().unwrap().kind(), "delete_refused");
+        assert_eq!(ctl_delete(None, again), refused_by_ctl());
+        assert_eq!(connector.status().fields().store_id, fresh);
+    }
+
+    fn already_deleted_frame(current: StoreId) -> Vec<u8> {
+        let body =
+            format!(r#"{{"v":1,"body":{{"kind":"already_deleted","current":"{current}"}}}}"#);
+        framed(body.as_bytes())
+    }
+
+    #[test]
+    fn c3_an_already_deleted_that_names_the_armed_id_or_answers_no_id_is_an_error_with_exit_1() {
+        for armed in [Some(FIXTURE_STORE_ID), None] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
+            let (client, _) = client(daemon);
+            assert!(client.delete_all(armed).is_err(), "{armed:?}");
+            let reply = client.send(&Request::DeleteAll { store: armed });
+            assert_eq!(reply.as_ref().unwrap().kind(), "already_deleted");
+            let (_, stderr, status) = ctl_delete(armed, reply);
+            assert_eq!(status, 1, "{armed:?}");
+            assert!(stderr.starts_with("halvo-capture: "), "{stderr:?}");
+        }
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
+        let (client, _) = client(daemon);
+        assert!(client.delete_all(Some(store_id(7))).is_ok());
+    }
+
+    #[test]
+    fn no_id_on_an_open_or_no_release_custody_store_that_shows_no_id_is_delete_refused() {
+        for state in [StoreState::Open, StoreState::NoReleaseCustody] {
+            let status = with_store(state, None, None);
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let reply = client.send(&Request::DeleteAll { store: None }).unwrap();
+            assert_eq!(reply.kind(), "delete_refused", "{state:?}");
+            assert_eq!(connector.status(), status);
+        }
+    }
+
+    #[test]
+    fn no_id_on_a_sealed_key_file_or_an_unavailable_io_store_that_shows_no_id_is_accepted() {
+        for status in [
+            with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None),
+            with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None),
+        ] {
+            let (client, _) = client(ScriptedDaemon::new(status));
+            let reply = client.send(&Request::DeleteAll { store: None }).unwrap();
+            assert_eq!(reply.kind(), "deleted");
+        }
+    }
+
+    #[test]
+    fn an_already_deleted_frame_with_a_null_id_does_not_decode() {
+        assert!(
+            decode_reply(br#"{"v":1,"body":{"kind":"already_deleted","current":null}}"#).is_err()
+        );
+    }
+
+    #[test]
+    fn delete_refused_decodes_from_an_empty_body_and_ctl_prints_its_two_lines_with_exit_1() {
+        let reply = decode_reply(br#"{"v":1,"body":{"kind":"delete_refused"}}"#).unwrap();
+        assert_eq!(reply.kind(), "delete_refused");
+        assert_eq!(
+            crate::proto::encode_reply(&reply),
+            br#"{"v":1,"body":{"kind":"delete_refused"}}"#
+        );
+        assert_eq!(
+            ctl_delete(Some(store_id(5)), Ok(reply.clone())),
+            refused_by_ctl()
+        );
+        assert_eq!(ctl_delete(None, Ok(reply)), refused_by_ctl());
+    }
+
+    /// A reply frame of `kind` whose status has the fields of the sample after `edit`, with no
+    /// check of the status rule.
+    fn unchecked_status_frame(
+        kind: &str,
+        edit: impl FnOnce(&mut crate::proto::StatusFields),
+    ) -> Vec<u8> {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        edit(&mut fields);
+        let mut body = serde_json::to_value(&fields).unwrap();
+        body.as_object_mut()
+            .unwrap()
+            .insert("kind".into(), serde_json::Value::from(kind));
+        let frame = serde_json::json!({"v": 1, "body": body});
+        framed(frame.to_string().as_bytes())
+    }
+
+    fn paused_beside_running(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Paused;
+        stop_all(f);
+    }
+
+    fn faulted_beside_a_lapsed_lease(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Faulted;
+        f.capture_reason = Some(crate::proto::CaptureReason::NoSource);
+        f.lease = crate::proto::Lease::Lapsed;
+        stop_all(f);
+    }
+
+    const NOT_TOGETHER: &str = "the capture service reported a state that does not hold together: ";
+
+    #[test]
+    fn a_reply_whose_status_breaks_a_rule_of_the_type_is_its_own_error_through_status_and_pause() {
+        for (edit, rule) in [
+            (
+                paused_beside_running as fn(&mut crate::proto::StatusFields),
+                "paused has desired paused",
+            ),
+            (
+                faulted_beside_a_lapsed_lease,
+                "faulted has desired running and a fresh lease",
+            ),
+        ] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(unchecked_status_frame("status", edit));
+            let (read, _) = client(daemon);
+            let error = read.status().unwrap_err();
+            assert_eq!(error.to_string(), format!("{NOT_TOGETHER}{rule}"));
+            let printed = crate::ctl_text::print(
+                &crate::ctl_text::Verb::Status { indicator: false },
+                Err(error),
+                &ctl_data_dir(),
+            );
+            assert_eq!(
+                (printed.stdout.as_str(), printed.stderr, printed.status),
+                ("", format!("halvo-capture: {NOT_TOGETHER}{rule}\n"), 1)
+            );
+
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(unchecked_status_frame("capture_changed", edit));
+            let (paused, _) = client(daemon);
+            assert_eq!(
+                paused.pause().unwrap_err().to_string(),
+                format!("{NOT_TOGETHER}{rule}")
+            );
+        }
+    }
+
+    #[test]
+    fn a_reply_frame_that_cannot_be_read_stays_a_protocol_error() {
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_raw_reply(framed(br#"{"v":1,"body":{"kind":"status","pid":1}}"#));
+        let (client, _) = client(daemon);
+        assert!(matches!(client.status(), Err(ClientError::Protocol(_))));
+    }
+
+    #[test]
+    fn e14_the_scripted_store_shows_obstructed_and_takes_a_delete_with_the_shown_id() {
+        let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
+        json["store"] = serde_json::Value::from("unavailable");
+        json["store_error"] = serde_json::Value::from("obstructed");
+        json["store_retry_in_s"] = serde_json::Value::from(1);
+        let obstructed: DaemonStatus = serde_json::from_value(json).unwrap();
+        let (client, _) = client(ScriptedDaemon::new(obstructed.clone()));
+        assert_eq!(client.status().unwrap(), obstructed);
+        assert!(matches!(
+            client.delete_all(Some(FIXTURE_STORE_ID)).unwrap(),
+            DeleteOutcome::Deleted(_)
+        ));
     }
 
     #[test]
@@ -710,9 +1145,7 @@ mod tests {
         for _ in 0..2 {
             assert_eq!(
                 client.delete_all(armed).unwrap(),
-                DeleteOutcome::AlreadyDeleted(crate::proto::AlreadyDeleted {
-                    current: Some(fresh)
-                })
+                DeleteOutcome::AlreadyDeleted(crate::proto::AlreadyDeleted { current: fresh })
             );
             assert_eq!(connector.status().fields().store_id, Some(fresh));
         }
@@ -1094,6 +1527,174 @@ mod tests {
         assert_eq!(resumed.fields().capture, crate::proto::Capture::Partial);
         assert!(DaemonStatus::new(resumed.into_fields()).is_ok());
         assert!(client.status().is_ok());
+    }
+
+    fn capture(status: &DaemonStatus) -> crate::proto::Capture {
+        status.fields().capture
+    }
+
+    fn pausing(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Pausing;
+        f.capture_reason = None;
+        stop_all(f);
+        f.sources[2].state = crate::proto::SourceState::Failed {
+            reason: crate::proto::Reason::Timeout,
+            error: None,
+        };
+    }
+
+    #[test]
+    fn once_capture_reads_pausing_a_claim_a_pause_and_a_resume_read_pausing_and_start_no_source() {
+        let (client, _) = client(scripted(|f| {
+            f.lease = crate::proto::Lease::Lapsed;
+            pausing(f);
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&claimed), 0);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&resumed), 0);
+        let paused = client.pause().unwrap();
+        assert_eq!(capture(&paused), crate::proto::Capture::Pausing);
+        let stored = client.status().unwrap();
+        assert_eq!(capture(&stored), crate::proto::Capture::Pausing);
+        assert_eq!(running_sources(&stored), 0);
+    }
+
+    #[test]
+    fn a_second_pause_while_capture_reads_pausing_prints_pausing_the_c2_5_line_and_exit_1() {
+        let (client, _) = client(scripted(|f| {
+            f.desired = crate::model::CaptureState::Paused;
+            pausing(f);
+        }));
+        let reply = client.pause().unwrap();
+        assert_eq!(capture(&reply), crate::proto::Capture::Pausing);
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Pause,
+            Ok(Reply::CaptureChanged(reply)),
+            &ctl_data_dir(),
+        );
+        assert_eq!(printed.stdout, "capture=pausing\n");
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: capture did not stop in time; the capture service is ending\n"
+        );
+        assert_eq!(printed.status, 1);
+    }
+
+    fn held(f: &mut crate::proto::StatusFields) {
+        lapsed(f);
+        f.capture = crate::proto::Capture::AwaitingResume;
+    }
+
+    #[test]
+    fn a_claim_on_awaiting_resume_renews_the_lease_starts_no_source_and_keeps_the_hold() {
+        let (client, _) = client(scripted(held));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().lease, crate::proto::Lease::Fresh);
+        assert_eq!(capture(&claimed), crate::proto::Capture::AwaitingResume);
+        assert_eq!(running_sources(&claimed), 0);
+        assert_eq!(
+            capture(&client.status().unwrap()),
+            crate::proto::Capture::AwaitingResume
+        );
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+        assert_eq!(resumed, sample_status(Platform::Macos));
+    }
+
+    #[test]
+    fn the_hold_reads_paused_under_a_pause_and_the_resume_that_ends_the_pause_clears_it() {
+        let (client, _) = client(scripted(held));
+        let paused = client.pause().unwrap();
+        assert_eq!(capture(&paused), crate::proto::Capture::Paused);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::NoIndicator);
+        assert_eq!(running_sources(&resumed), 0);
+        assert_eq!(
+            capture(&client.status().unwrap()),
+            crate::proto::Capture::NoIndicator
+        );
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
+    }
+
+    #[test]
+    fn a_resume_restarts_a_stream_the_person_stopped_and_a_claim_does_not() {
+        let user_stopped = crate::proto::SourceState::Stopped { by_user: true };
+        let (client, _) = client(scripted(|f| {
+            f.enabled_sources
+                .insert(1, crate::proto::SourceName::Screen);
+            lapsed(f);
+            f.sources[1].state = user_stopped.clone();
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().sources[1].state, user_stopped);
+        assert_eq!(capture(&claimed), crate::proto::Capture::Partial);
+        let resumed = client.resume().unwrap();
+        assert_eq!(
+            resumed.fields().sources[1].state,
+            crate::proto::SourceState::Running
+        );
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+    }
+
+    fn no_source_can_run(f: &mut crate::proto::StatusFields) {
+        for line in &mut f.sources {
+            if line.state != crate::proto::SourceState::Off {
+                line.state = crate::proto::SourceState::Failed {
+                    reason: crate::proto::Reason::Permission,
+                    error: None,
+                };
+            }
+        }
+    }
+
+    #[test]
+    fn a_resume_of_a_faulted_capture_keeps_the_reason_that_stood() {
+        let (client, _) = client(scripted(|f| {
+            no_source_can_run(f);
+            f.capture = crate::proto::Capture::Faulted;
+            f.capture_reason = Some(crate::proto::CaptureReason::Permission);
+        }));
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Faulted);
+        assert_eq!(
+            resumed.fields().capture_reason,
+            Some(crate::proto::CaptureReason::Permission)
+        );
+    }
+
+    #[test]
+    fn a_claim_that_finds_no_source_able_to_run_and_no_reason_reads_faulted_no_source() {
+        let (client, _) = client(scripted(|f| {
+            lapsed(f);
+            no_source_can_run(f);
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Faulted);
+        assert_eq!(
+            claimed.fields().capture_reason,
+            Some(crate::proto::CaptureReason::NoSource)
+        );
+    }
+
+    #[test]
+    fn with_every_source_off_a_claim_and_a_resume_read_running_as_built() {
+        let (client, _) = client(scripted(|f| {
+            f.enabled_sources.clear();
+            for line in &mut f.sources {
+                line.state = crate::proto::SourceState::Off;
+            }
+            f.lease = crate::proto::Lease::Lapsed;
+            f.capture = crate::proto::Capture::NoIndicator;
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
+        assert_eq!(claimed.fields().capture_reason, None);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
     }
 
     #[test]

@@ -83,6 +83,7 @@ pub(crate) fn check_server(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnixConnector {
     socket: PathBuf,
+    data_dir: PathBuf,
     expected_pid: Option<u32>,
 }
 
@@ -93,12 +94,19 @@ impl UnixConnector {
     ) -> Result<Self, ClientError> {
         let socket = crate::paths::socket_path(data_dir, account)
             .map_err(|e| ClientError::Protocol(e.to_string()))?;
-        Ok(Self::at(socket))
+        Ok(Self {
+            socket,
+            data_dir: data_dir.path().to_path_buf(),
+            expected_pid: None,
+        })
     }
 
-    pub(crate) fn at(socket: PathBuf) -> Self {
+    /// The connector to the control socket under `run/` of `data_dir`.
+    #[cfg(test)]
+    pub(crate) fn at(data_dir: &DataDir) -> Self {
         Self {
-            socket,
+            socket: data_dir.control_socket(),
+            data_dir: data_dir.path().to_path_buf(),
             expected_pid: None,
         }
     }
@@ -111,6 +119,11 @@ impl UnixConnector {
 
     pub fn socket(&self) -> &Path {
         &self.socket
+    }
+
+    /// The data directory whose instance lock the connector reads.
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
     }
 
     fn unreachable(&self) -> ClientError {
@@ -176,7 +189,37 @@ impl Connector for UnixConnector {
         self.socket.to_string_lossy().into_owned()
     }
 
-    fn connect(&self, _timeout: Duration) -> Result<UnixStream, ClientError> {
+    /// Tries the connect; on each path that finds no daemon it reads the instance lock of the
+    /// data directory. Free, or no data directory: unreachable at once. Held: it waits a step
+    /// and tries again inside `timeout`, and at its end answers that the directory is in use.
+    fn connect(&self, timeout: Duration) -> Result<UnixStream, ClientError> {
+        let until = std::time::Instant::now() + timeout;
+        loop {
+            match self.connect_once() {
+                Err(ClientError::Unreachable { .. }) => {}
+                other => return other,
+            }
+            match crate::instance_lock::read(&self.data_dir).map_err(ClientError::Io)? {
+                crate::instance_lock::LockRead::Free
+                | crate::instance_lock::LockRead::NoDirectory => return Err(self.unreachable()),
+                crate::instance_lock::LockRead::Held => {}
+            }
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(ClientError::DataDirInUse {
+                    endpoint: self.endpoint(),
+                });
+            }
+            std::thread::sleep(left.min(Duration::from_millis(CONNECT_STEP_MS)));
+        }
+    }
+}
+
+/// The step between two connects while the instance lock is held.
+pub const CONNECT_STEP_MS: u64 = 50;
+
+impl UnixConnector {
+    fn connect_once(&self) -> Result<UnixStream, ClientError> {
         let euid = effective_uid();
         let missing = |e: std::io::Error| match e.kind() {
             std::io::ErrorKind::NotFound => self.unreachable(),
@@ -325,7 +368,7 @@ mod tests {
             ScriptedDaemon::new(crate::proto::DaemonStatus::new(fields).unwrap()),
         )
         .unwrap();
-        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let client = Client::new(UnixConnector::at(&dir));
         assert!(client.resume().is_ok());
         assert!(client.status().is_ok());
         assert_eq!(server.requests().len(), 2);
@@ -337,7 +380,7 @@ mod tests {
         let server =
             ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
                 .unwrap();
-        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let client = Client::new(UnixConnector::at(&dir));
         assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
         assert!(client.stop().unwrap().flushed);
         assert_eq!(server.requests().len(), 2);
@@ -350,15 +393,152 @@ mod tests {
             ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
                 .unwrap();
         let mine = std::process::id();
-        let client = Client::new(UnixConnector::at(dir.control_socket()).expecting_pid(mine));
+        let client = Client::new(UnixConnector::at(&dir).expecting_pid(mine));
         assert!(client.status().is_ok());
-        let other = Client::new(UnixConnector::at(dir.control_socket()).expecting_pid(mine + 1));
+        let other = Client::new(UnixConnector::at(&dir).expecting_pid(mine + 1));
         assert!(matches!(
             other.status(),
             Err(ClientError::PeerRejected(
                 PeerRejection::NotTheExpectedServer
             ))
         ));
+    }
+
+    #[test]
+    fn a_peer_that_sends_its_whole_reply_and_keeps_the_connection_gives_the_reply_inside_the_deadline(
+    ) {
+        use std::io::{Read, Write};
+
+        let (_base, dir) = short_data_dir();
+        crate::testing::make_private_dir(&dir.run_dir()).unwrap();
+        let listener = std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap();
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let _ = stream.read_to_end(&mut request);
+            let body = crate::proto::encode_reply(&crate::proto::Reply::Status(sample_status(
+                Platform::Macos,
+            )));
+            let mut frame = (body.len() as u32).to_be_bytes().to_vec();
+            frame.extend_from_slice(&body);
+            stream.write_all(&frame).unwrap();
+            let _ = held.recv_timeout(Duration::from_secs(10));
+        });
+        let client = Client::new(UnixConnector::at(&dir));
+        let started = Instant::now();
+        let reply = client.status();
+        let took = started.elapsed();
+        let _ = release.send(());
+        server.join().unwrap();
+        assert_eq!(reply.unwrap(), sample_status(Platform::Macos));
+        assert!(
+            took < Duration::from_millis(1_500),
+            "the reply took {took:?} against a deadline of 2 s"
+        );
+    }
+
+    const CHILD_DATA_DIR: &str = "HALVO_CONTROL_TEST_CHILD_DATA_DIR";
+
+    #[test]
+    #[ignore = "a child of the_pid_of_a_server_in_another_process_is_the_one_checked"]
+    fn serve_a_scripted_daemon_until_standard_input_closes() {
+        use std::io::Read;
+
+        let Some(dir) = std::env::var_os(CHILD_DATA_DIR) else {
+            return;
+        };
+        let dir = DataDir::from_flag(std::path::PathBuf::from(dir)).unwrap();
+        let _server =
+            ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
+                .unwrap();
+        println!("server-ready");
+        let (closed, wait) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = std::io::stdin().read_to_end(&mut Vec::new());
+            let _ = closed.send(());
+        });
+        let _ = wait.recv_timeout(Duration::from_secs(120));
+    }
+
+    /// The server child: its standard input is closed and it is waited for, with a
+    /// bound, and killed when the bound passes, on every path out of the test.
+    struct ServerChild(Option<std::process::Child>);
+
+    impl Drop for ServerChild {
+        fn drop(&mut self) {
+            let Some(mut child) = self.0.take() else {
+                return;
+            };
+            drop(child.stdin.take());
+            let until = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < until {
+                if !matches!(child.try_wait(), Ok(None)) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let _ = child.kill();
+            let until = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < until && matches!(child.try_wait(), Ok(None)) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+
+    #[test]
+    fn the_pid_of_a_server_in_another_process_is_the_one_checked() {
+        let (_base, dir) = short_data_dir();
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "client_unix::tests::serve_a_scripted_daemon_until_standard_input_closes",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD_DATA_DIR, dir.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let child_pid = child.id();
+        let mut child = ServerChild(Some(child));
+        let stdout = child.0.as_mut().unwrap().stdout.take().unwrap();
+        let (ready, wait) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(stdout).lines() {
+                match line {
+                    Ok(line) if line.contains("server-ready") => {
+                        let _ = ready.send(true);
+                    }
+                    Ok(_) => {}
+                    Err(_) => break,
+                }
+            }
+            let _ = ready.send(false);
+        });
+        assert_eq!(
+            wait.recv_timeout(Duration::from_secs(60)),
+            Ok(true),
+            "the server child did not report its socket bound in 60 s"
+        );
+        assert_ne!(child_pid, std::process::id());
+
+        let theirs = Client::new(UnixConnector::at(&dir).expecting_pid(child_pid));
+        assert_eq!(theirs.status().unwrap(), sample_status(Platform::Macos));
+        let mine = Client::new(UnixConnector::at(&dir).expecting_pid(std::process::id()));
+        assert!(matches!(
+            mine.status(),
+            Err(ClientError::PeerRejected(
+                PeerRejection::NotTheExpectedServer
+            ))
+        ));
+        drop(child);
     }
 
     #[test]
@@ -369,7 +549,7 @@ mod tests {
             ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
                 .unwrap();
         std::fs::set_permissions(dir.run_dir(), std::fs::Permissions::from_mode(0o755)).unwrap();
-        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let client = Client::new(UnixConnector::at(&dir));
         let result = client.status();
         std::fs::set_permissions(dir.run_dir(), std::fs::Permissions::from_mode(0o700)).unwrap();
         assert!(matches!(
@@ -390,7 +570,7 @@ mod tests {
                 .unwrap();
         crate::testing::make_private_dir(&dir.run_dir()).unwrap();
         std::os::unix::fs::symlink(other.control_socket(), dir.control_socket()).unwrap();
-        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let client = Client::new(UnixConnector::at(&dir));
         assert!(matches!(
             client.status(),
             Err(ClientError::PeerRejected(PeerRejection::NotASocket))
@@ -400,19 +580,151 @@ mod tests {
     #[test]
     fn no_socket_or_no_listener_is_unreachable_and_names_the_socket() {
         let (_base, dir) = short_data_dir();
-        let client = Client::new(UnixConnector::at(dir.control_socket()));
+        let client = client_within(&dir, 300);
         match client.status() {
             Err(ClientError::Unreachable { endpoint }) => {
                 assert_eq!(endpoint, dir.control_socket().to_str().unwrap())
             }
             other => panic!("{other:?}"),
         }
+        crate::testing::make_private_dir(dir.path()).unwrap();
+        for case in [
+            "no run/ directory",
+            "no socket file",
+            "a bound socket that does not listen",
+        ] {
+            match case {
+                "no socket file" => crate::testing::make_private_dir(&dir.run_dir()).unwrap(),
+                "a bound socket that does not listen" => {
+                    drop(std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap())
+                }
+                _ => {}
+            }
+            assert!(
+                matches!(client.status(), Err(ClientError::Unreachable { .. })),
+                "{case}, the lock free"
+            );
+            let lock = held(&dir);
+            in_use(client.status(), &dir, case);
+            drop(lock);
+        }
+    }
+
+    const IN_USE: &str = "the data directory is in use and no connection could be made at ";
+
+    fn client_within(dir: &DataDir, ms: u64) -> Client<UnixConnector> {
+        let mut deadlines = Deadlines::V1;
+        deadlines.read = Duration::from_millis(ms);
+        Client::with_deadlines(UnixConnector::at(dir), deadlines)
+    }
+
+    fn held(dir: &DataDir) -> crate::instance_lock::InstanceLock {
+        crate::testing::make_private_dir(dir.path()).unwrap();
+        crate::instance_lock::InstanceLock::try_take(dir.path())
+            .unwrap()
+            .expect("the lock is free before the test takes it")
+    }
+
+    fn in_use<T: std::fmt::Debug>(result: Result<T, ClientError>, dir: &DataDir, case: &str) {
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "{IN_USE}{}; capture may be running",
+                dir.control_socket().display()
+            ),
+            "{case}"
+        );
+    }
+
+    #[test]
+    fn no_data_directory_is_unreachable() {
+        let (_base, dir) = short_data_dir();
+        assert!(!dir.path().exists());
+        assert!(matches!(
+            client_within(&dir, 300).status(),
+            Err(ClientError::Unreachable { .. })
+        ));
+    }
+
+    #[test]
+    fn f3_a_listener_whose_queue_is_full_is_in_use_under_a_held_lock_and_not_unreachable() {
+        use std::os::unix::io::AsRawFd;
+
+        let (_base, dir) = short_data_dir();
         crate::testing::make_private_dir(&dir.run_dir()).unwrap();
-        drop(std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap());
+        let listener = std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap();
+        // SAFETY: the descriptor is the bound socket of `listener`; listen takes no pointer.
+        assert_eq!(unsafe { libc::listen(listener.as_raw_fd(), 1) }, 0);
+        let mut queued = Vec::new();
+        let mut refused = false;
+        for _ in 0..16 {
+            match UnixStream::connect(dir.control_socket()) {
+                Ok(stream) => queued.push(stream),
+                Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+                    refused = true;
+                    break;
+                }
+                Err(e) => panic!("{e}"),
+            }
+        }
+        assert!(
+            refused,
+            "no connect was refused after {} connections",
+            queued.len()
+        );
+        println!(
+            "f3: {} connections held before the first refusal",
+            queued.len()
+        );
+        let client = client_within(&dir, 300);
+        let lock = held(&dir);
+        in_use(client.status(), &dir, "a full queue");
+        drop(lock);
         assert!(matches!(
             client.status(),
             Err(ClientError::Unreachable { .. })
         ));
+        drop(queued);
+    }
+
+    #[test]
+    fn a_listener_that_appears_while_the_lock_is_held_gives_the_reply() {
+        let (_base, dir) = short_data_dir();
+        let lock = held(&dir);
+        let starter = {
+            let dir = dir.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(300));
+                ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
+                    .unwrap()
+            })
+        };
+        let reply = client_within(&dir, 5_000).status();
+        let server = starter.join().unwrap();
+        drop(lock);
+        assert_eq!(reply.unwrap(), sample_status(Platform::Macos));
+        drop(server);
+    }
+
+    #[test]
+    fn a_lock_that_is_freed_during_the_wait_gives_unreachable() {
+        let (_base, dir) = short_data_dir();
+        let lock = held(&dir);
+        let freer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            drop(lock);
+        });
+        let started = Instant::now();
+        let result = client_within(&dir, 5_000).status();
+        let took = started.elapsed();
+        freer.join().unwrap();
+        assert!(
+            matches!(result, Err(ClientError::Unreachable { .. })),
+            "{result:?}"
+        );
+        assert!(took >= Duration::from_millis(250), "{took:?}");
+        assert!(took < Duration::from_millis(4_000), "{took:?}");
     }
 
     #[test]
@@ -423,7 +735,7 @@ mod tests {
         let _server = ScriptedUnixServer::start(&dir, daemon).unwrap();
         let mut deadlines = Deadlines::V1;
         deadlines.read = Duration::from_millis(300);
-        let client = Client::with_deadlines(UnixConnector::at(dir.control_socket()), deadlines);
+        let client = Client::with_deadlines(UnixConnector::at(&dir), deadlines);
         let started = Instant::now();
         assert!(matches!(client.status(), Err(ClientError::Deadline { .. })));
         let took = started.elapsed();

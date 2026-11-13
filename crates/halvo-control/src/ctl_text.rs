@@ -321,13 +321,14 @@ pub fn inventory_text(inventory: &InventoryReply) -> String {
 pub fn deleted_text(deleted: &Deleted) -> String {
     let r = deleted.report.fields();
     format!(
-        "deleted segments_shredded={} keys_destroyed={} root_destroyed={} root_id={} files_left={} database_left={} entries_removed={} entries_left={} unknown_entries={} intent={} store_id={}\n",
+        "deleted segments_shredded={} keys_destroyed={} root_destroyed={} root_id={} files_left={} database_left={} not_followed={} entries_removed={} entries_left={} unknown_entries={} intent={} store_id={}\n",
         or_unknown(r.segments_shredded),
         or_unknown(r.keys_destroyed),
         r.root_destroyed.as_str(),
         or_dash(r.root_id),
         r.files_left,
         yes_no(r.database_left),
+        r.not_followed,
         r.entries_removed,
         r.entries_left,
         r.unknown_entries,
@@ -337,8 +338,11 @@ pub fn deleted_text(deleted: &Deleted) -> String {
 }
 
 pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
-    format!("already_deleted store_id={}\n", or_dash(already.current))
+    format!("already_deleted store_id={}\n", already.current)
 }
+
+/// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
+pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
 pub fn stopped_text(stopped: &Stopped) -> String {
     format!(
@@ -423,12 +427,25 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
             printed(inventory_text(&inventory), crate::exit::CLEAN)
         }
         (Verb::Pause | Verb::Resume, Reply::CaptureChanged(status)) => {
-            let stdout = format!("capture={}\n", status.fields().capture.as_str());
+            let f = status.fields();
+            let (change, name) = if *verb == Verb::Pause {
+                (crate::proto::CaptureChange::Pause, "pause")
+            } else {
+                (crate::proto::CaptureChange::Resume, "resume")
+            };
+            let reached = crate::proto::reaches_the_end(change, &status);
+            let stdout = format!("capture={}\n", f.capture.as_str());
             let mut stderr = String::new();
-            if *verb == Verb::Pause && status.fields().capture == crate::proto::Capture::Pausing {
+            if *verb == Verb::Pause && f.capture == crate::proto::Capture::Pausing {
                 stderr.push_str(
                     "halvo-capture: capture did not stop in time; the capture service is ending\n",
                 );
+            } else if !reached {
+                stderr.push_str(&format!(
+                    "halvo-capture: the capture service answered desired={} capture={}, not the state that {name} asks for\n",
+                    f.desired.as_str(),
+                    f.capture.as_str()
+                ));
             }
             if status.fields().state_file == StateFile::WriteFailed {
                 stderr.push_str(&format!(
@@ -436,7 +453,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                     data_dir.state_file().display()
                 ));
             }
-            let status = if stderr.is_empty() {
+            let status = if reached && f.state_file != StateFile::WriteFailed {
                 crate::exit::CLEAN
             } else {
                 crate::exit::ERROR
@@ -473,9 +490,16 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                 _ => printed(stdout, crate::exit::CLEAN),
             }
         }
-        (Verb::DeleteAll(_), Reply::AlreadyDeleted(already)) => {
+        (Verb::DeleteAll(armed), Reply::AlreadyDeleted(already))
+            if crate::client::already_deleted_answers(*armed, &already) =>
+        {
             printed(already_deleted_text(&already), crate::exit::CLEAN)
         }
+        (Verb::DeleteAll(_), Reply::DeleteRefused) => Printed {
+            stdout: "delete_refused\n".to_string(),
+            stderr: format!("halvo-capture: {DELETE_REFUSED_TEXT}\n"),
+            status: crate::exit::ERROR,
+        },
         (Verb::SetCap(_), Reply::CapSet(set)) => printed(cap_set_text(&set), crate::exit::CLEAN),
         (_, other) => failed(
             format!("the daemon answered {} to this verb", other.kind()),
@@ -494,6 +518,17 @@ mod tests {
 
     const NO_RECORD: &str =
         "last_stop_kind=-\nlast_stop_lost events=0 first=- last=- error=- final=yes\n";
+
+    /// gate-2's `deleted` fixture with the count `not_followed=0` of ruling ST-30 after
+    /// `database_left`, until gate-3 adds it to the file.
+    fn deleted_fixture(checked_out: &str) -> String {
+        let text = lf(checked_out);
+        if text.contains(" not_followed=") {
+            return text;
+        }
+        let at = text.find(" entries_removed=").unwrap();
+        format!("{} not_followed=0{}", &text[..at], &text[at..])
+    }
 
     fn status_fixture(checked_out: &str) -> String {
         let text = lf(checked_out);
@@ -549,6 +584,165 @@ mod tests {
             if line.state == SourceState::Running {
                 line.state = SourceState::Stopped { by_user: false };
             }
+        }
+    }
+
+    const C2_5_LINE: &str =
+        "halvo-capture: capture did not stop in time; the capture service is ending\n";
+
+    /// A status whose `desired`, `capture` and `state_file` are the ones given, with the lease,
+    /// the sources and the reason that `capture` needs; `None` when the type refuses it.
+    fn capture_status(
+        desired: crate::model::CaptureState,
+        capture: Capture,
+        state_file: StateFile,
+    ) -> Option<DaemonStatus> {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.desired = desired;
+        f.capture = capture;
+        f.capture_reason = None;
+        f.state_file = state_file;
+        match capture {
+            Capture::NoIndicator => {
+                f.lease = crate::proto::Lease::Lapsed;
+                stopped_sources(&mut f);
+            }
+            Capture::Paused | Capture::AwaitingResume => stopped_sources(&mut f),
+            Capture::Faulted => {
+                stopped_sources(&mut f);
+                f.capture_reason = Some(CaptureReason::NoSource);
+            }
+            Capture::Partial => {
+                f.sources[2].state = SourceState::Failed {
+                    reason: crate::proto::Reason::Permission,
+                    error: None,
+                };
+            }
+            Capture::Starting | Capture::Running | Capture::Pausing => {}
+        }
+        DaemonStatus::new(f).ok()
+    }
+
+    /// The rows of ruling PL-8 part (5)(a) whose status reaches the verb's end.
+    const REACHED: [(&str, &str, &str); 6] = [
+        ("pause", "paused", "paused"),
+        ("resume", "running", "starting"),
+        ("resume", "running", "running"),
+        ("resume", "running", "partial"),
+        ("resume", "running", "faulted"),
+        ("resume", "running", "no_indicator"),
+    ];
+
+    #[test]
+    fn pause_and_resume_exit_0_only_when_the_reply_reaches_the_verb_s_end_and_the_state_file_was_written(
+    ) {
+        use crate::model::CaptureState;
+        let mut rows = 0;
+        for (verb, name) in [(Verb::Pause, "pause"), (Verb::Resume, "resume")] {
+            for desired in [CaptureState::Running, CaptureState::Paused] {
+                for &capture in Capture::ALL {
+                    for state_file in [StateFile::Ok, StateFile::WriteFailed] {
+                        let Some(status) = capture_status(desired, capture, state_file) else {
+                            continue;
+                        };
+                        rows += 1;
+                        let (d, c) = (desired.as_str(), capture.as_str());
+                        let row =
+                            format!("{name} desired={d} capture={c} state_file={state_file:?}");
+                        let reached = REACHED.contains(&(name, d, c));
+                        let mut stderr = String::new();
+                        if verb == Verb::Pause && capture == Capture::Pausing {
+                            stderr.push_str(C2_5_LINE);
+                        } else if !reached {
+                            stderr.push_str(&format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that {name} asks for\n"));
+                        }
+                        if state_file == StateFile::WriteFailed {
+                            stderr.push_str(&format!(
+                                "halvo-capture: the state file was not written: {}\n",
+                                data_dir().state_file().display()
+                            ));
+                        }
+                        let want = (
+                            format!("capture={c}\n"),
+                            stderr,
+                            if reached && state_file == StateFile::Ok {
+                                0
+                            } else {
+                                1
+                            },
+                        );
+                        let printed = print(&verb, Ok(Reply::CaptureChanged(status)), &data_dir());
+                        assert_eq!(
+                            (printed.stdout, printed.stderr, printed.status),
+                            want,
+                            "row: {row}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(rows >= 40, "only {rows} rows were taken by the type");
+    }
+
+    #[test]
+    fn c1_a_pause_answered_with_capture_running_exits_1() {
+        use crate::model::CaptureState;
+        let running =
+            capture_status(CaptureState::Running, Capture::Running, StateFile::Ok).unwrap();
+        let printed = print(
+            &Verb::Pause,
+            Ok(Reply::CaptureChanged(running)),
+            &data_dir(),
+        );
+        assert_eq!(printed.stdout, "capture=running\n");
+        assert_eq!(printed.stderr, "halvo-capture: the capture service answered desired=running capture=running, not the state that pause asks for\n");
+        assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn c2_a_resume_answered_with_awaiting_resume_paused_or_pausing_exits_1_with_no_line_of_c2_5() {
+        use crate::model::CaptureState;
+        for (desired, capture) in [
+            (CaptureState::Running, Capture::AwaitingResume),
+            (CaptureState::Paused, Capture::Paused),
+            (CaptureState::Running, Capture::Pausing),
+            (CaptureState::Paused, Capture::Pausing),
+        ] {
+            let status = capture_status(desired, capture, StateFile::Ok).unwrap();
+            let printed = print(
+                &Verb::Resume,
+                Ok(Reply::CaptureChanged(status)),
+                &data_dir(),
+            );
+            let (d, c) = (desired.as_str(), capture.as_str());
+            assert_eq!(printed.stdout, format!("capture={c}\n"));
+            assert_eq!(
+                printed.stderr,
+                format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that resume asks for\n"),
+                "resume on desired={d} capture={c}"
+            );
+            assert_eq!(printed.status, 1, "resume on desired={d} capture={c}");
+        }
+    }
+
+    #[test]
+    fn a_pause_and_a_resume_whose_state_file_write_failed_exit_1_with_the_file_named() {
+        use crate::model::CaptureState;
+        for (verb, desired, capture) in [
+            (Verb::Pause, CaptureState::Paused, Capture::Paused),
+            (Verb::Resume, CaptureState::Running, Capture::Running),
+        ] {
+            let status = capture_status(desired, capture, StateFile::WriteFailed).unwrap();
+            let printed = print(&verb, Ok(Reply::CaptureChanged(status)), &data_dir());
+            assert_eq!(
+                printed.stderr,
+                format!(
+                    "halvo-capture: the state file was not written: {}\n",
+                    data_dir().state_file().display()
+                ),
+                "{verb:?}"
+            );
+            assert_eq!(printed.status, 1, "{verb:?}");
         }
     }
 
@@ -617,11 +811,9 @@ mod tests {
             report: sample_delete_report(),
             store: Some(FRESH),
         };
-        assert_eq!(deleted_text(&deleted), lf(DELETED));
+        assert_eq!(deleted_text(&deleted), deleted_fixture(DELETED));
         assert_eq!(
-            already_deleted_text(&AlreadyDeleted {
-                current: Some(FRESH)
-            }),
+            already_deleted_text(&AlreadyDeleted { current: FRESH }),
             lf(ALREADY_DELETED)
         );
     }
@@ -801,6 +993,7 @@ mod tests {
             root_id: None,
             files_left: 2,
             database_left: true,
+            not_followed: 0,
             entries_removed: 3,
             entries_left: 1,
             unknown_entries: 5,
@@ -818,7 +1011,7 @@ mod tests {
         );
         assert_eq!(
             printed.stdout,
-            "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
+            "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes not_followed=0 entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
         );
         assert_eq!(printed.status, 0);
     }
@@ -854,13 +1047,16 @@ mod tests {
     }
 
     #[test]
-    fn already_deleted_exits_0_and_prints_the_current_id_or_dash() {
+    fn already_deleted_exits_0_and_prints_the_current_id() {
         let printed = print(
-            &Verb::DeleteAll(Some(FRESH)),
-            Ok(Reply::AlreadyDeleted(AlreadyDeleted { current: None })),
+            &Verb::DeleteAll(Some(crate::testing::store_id(9))),
+            Ok(Reply::AlreadyDeleted(AlreadyDeleted { current: FRESH })),
             &data_dir(),
         );
-        assert_eq!(printed.stdout, "already_deleted store_id=-\n");
+        assert_eq!(
+            printed.stdout,
+            format!("already_deleted store_id={FRESH}\n")
+        );
         assert_eq!(printed.status, 0);
     }
 
@@ -944,6 +1140,48 @@ mod tests {
                 .unwrap()]
             );
         }
+    }
+
+    #[test]
+    fn peer_text_turns_tab_us_del_and_0x80_into_a_question_mark_and_keeps_space_and_tilde() {
+        for (given, printed) in [
+            ("\u{9}", "?"),
+            ("\u{1f}", "?"),
+            ("\u{7f}", "?"),
+            ("\u{80}", "?"),
+            (" ", " "),
+            ("~", "~"),
+            ("a\u{9}b\u{1f}c\u{7f}d\u{80}e f~", "a?b?c?d?e f~"),
+        ] {
+            assert_eq!(peer_text(given), printed, "{given:?}");
+        }
+    }
+
+    #[test]
+    fn peer_text_prints_the_first_200_of_201_printable_bytes() {
+        assert_eq!(PEER_TEXT_MAX_BYTES, 200);
+        let given: String = (0..201u8).map(|i| char::from(b' ' + i % 95)).collect();
+        assert_eq!(given.len(), 201);
+        let printed = peer_text(&given);
+        assert_eq!(printed.len(), 200);
+        assert_eq!(printed, given[..200]);
+    }
+
+    #[test]
+    fn a_data_directory_in_use_prints_its_one_line_with_exit_1() {
+        let printed = print(
+            &Verb::Pause,
+            Err(ClientError::DataDirInUse {
+                endpoint: "/halvo-data/run/control.sock".into(),
+            }),
+            &data_dir(),
+        );
+        assert_eq!(printed.stdout, "");
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: the data directory is in use and no connection could be made at /halvo-data/run/control.sock; capture may be running\n"
+        );
+        assert_eq!(printed.status, 1);
     }
 
     #[test]
