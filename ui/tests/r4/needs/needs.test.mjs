@@ -1590,6 +1590,11 @@ async function compose(origin, dir) {
     if (JSON.stringify(f.caret) !== '[500,500]') faults.push(t + ':selection=' + f.caret.join('-'));
     if (sentence(f) !== 'too_long') faults.push(t + ':sentence=' + sentence(f));
     await act(h, { act: 'choose', param: item.item });
+    if (typedCalls(out).length !== 0) faults.push(t + ':the_press_after_the_end_sent=' + typedCalls(out).length);
+    const back = await facts(h);
+    if (!(await h.page.evaluate((s) => document.activeElement === document.querySelector(s), line))) faults.push(t + ':focus_not_on_the_line');
+    if (JSON.stringify(back.caret) !== '[500,500]') faults.push(t + ':selection_after_the_stop=' + back.caret.join('-'));
+    await act(h, { act: 'choose', param: item.item });
     const sent = typedCalls(out);
     if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(t + ':sent=' + sent.map((s) => Buffer.byteLength(s)).join(','));
   });
@@ -1668,6 +1673,7 @@ async function compose(origin, dir) {
     await h.page.evaluate((sel) => document.querySelector(sel).click(), choose);
     await settled(h);
     if (typedCalls(out).length !== 0) faults.push(t + ':calls=' + typedCalls(out).length);
+    if (!(await h.page.evaluate((s) => document.activeElement === document.querySelector(s), line))) faults.push(t + ':focus_not_on_the_line');
   });
   await run('a_press_in_which_a_composition_end_was_refused_sends_nothing', async (h, out) => {
     const t = 'a_press_in_which_a_composition_end_was_refused_sends_nothing';
@@ -1675,6 +1681,7 @@ async function compose(origin, dir) {
     await scripted(h, { ...over, press: choose });
     await settled(h);
     if (typedCalls(out).length !== 0) faults.push(t + ':calls=' + typedCalls(out).length);
+    if (!(await h.page.evaluate((s) => document.activeElement === document.querySelector(s), line))) faults.push(t + ':focus_not_on_the_line');
     await act(h, { act: 'choose', param: item.item });
     const sent = typedCalls(out);
     if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(t + ':the_next_press=' + sent.length);
@@ -1708,6 +1715,9 @@ async function compose(origin, dir) {
     if (JSON.stringify(f.caret) !== '[500,500]') faults.push(ime + '_over:selection=' + f.caret.join('-'));
     if (sentence(f) !== 'too_long') faults.push(ime + '_over:sentence=' + sentence(f));
     await act(h, { act: 'choose', param: item.item });
+    if (typedCalls(out).length !== 0) faults.push(ime + '_over:the_press_after_the_end_sent=' + typedCalls(out).length);
+    if (!(await h.page.evaluate((s) => document.activeElement === document.querySelector(s), line))) faults.push(ime + '_over:focus_not_on_the_line');
+    await act(h, { act: 'choose', param: item.item });
     const sent = typedCalls(out);
     if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(ime + '_over:sent=' + sent.length);
     await h.page.locator(line).fill(xs(1010));
@@ -1715,6 +1725,585 @@ async function compose(origin, dir) {
     await send(spelling);
     f = await facts(h);
     if (f.value !== xs(1010) + spelling.commit) faults.push(ime + '_spelling:line_holds=' + Buffer.byteLength(f.value));
+  });
+  return faults;
+}
+
+const KANA2 = String.fromCodePoint(0x304b, 0x306a);
+const KANA4 = String.fromCodePoint(0x304b, 0x306a, 0x304c, 0x308f);
+
+/** Page helpers of the press and hold cases: a composition, its end and a press, made by a script. */
+function pageKit(h, engine) {
+  const run = (fn, arg) => h.page.evaluate(fn, arg);
+  return {
+    begin: (sel, updates) =>
+      run(([s, ups]) => {
+        const t = document.querySelector(s);
+        t.focus();
+        t.r4at = t.selectionStart;
+        t.r4base = t.value;
+        t.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+        for (const u of ups) {
+          t.value = t.r4base.slice(0, t.r4at) + u + t.r4base.slice(t.r4at);
+          t.setSelectionRange(t.r4at + u.length, t.r4at + u.length);
+          t.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: u }));
+          t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: u, isComposing: true }));
+        }
+      }, [sel, updates]),
+    end: (sel, commit) =>
+      run(([s, c, order]) => {
+        const t = document.querySelector(s);
+        const text = c === null ? '' : c;
+        t.value = t.r4base.slice(0, t.r4at) + text + t.r4base.slice(t.r4at);
+        t.setSelectionRange(t.r4at + text.length, t.r4at + text.length);
+        const end = () => t.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
+        const last = () => t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: text, isComposing: order === 'chromium' }));
+        if (order === 'chromium') {
+          last();
+          end();
+        } else {
+          end();
+          last();
+        }
+      }, [sel, commit, engine]),
+    endOnBlur: (sel, commit) =>
+      run(([s, c, order]) => {
+        const t = document.querySelector(s);
+        t.addEventListener(
+          'blur',
+          () => {
+            t.value = t.r4base.slice(0, t.r4at) + c + t.r4base.slice(t.r4at);
+            const end = () => t.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: c }));
+            const last = () => t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: c, isComposing: order === 'chromium' }));
+            if (order === 'chromium') {
+              last();
+              end();
+            } else {
+              end();
+              last();
+            }
+          },
+          { once: true },
+        );
+      }, [sel, commit, engine]),
+    input: (sel, value) =>
+      run(([s, v]) => {
+        const t = document.querySelector(s);
+        t.value = v;
+        t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'x' }));
+      }, [sel, value]),
+    event: (type, init) =>
+      run(([ty, i]) => {
+        const e = ty.startsWith('pointer') ? new PointerEvent(ty, { bubbles: true, isPrimary: true, ...i }) : new KeyboardEvent(ty, { bubbles: true, ...i });
+        document.body.dispatchEvent(e);
+      }, [type, init || {}]),
+    pointerDown: (sel) => run((s) => document.querySelector(s).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true })), sel),
+    clickDetail1: (sel) => run((s) => document.querySelector(s).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })), sel),
+    click0: (sel) => run((s) => document.querySelector(s).click(), sel),
+    focus: (sel) => run((s) => document.querySelector(s).focus(), sel),
+    activeIs: (sel) => run((s) => document.activeElement === document.querySelector(s), sel),
+    line: (sel) =>
+      run((s) => {
+        const t = document.querySelector(s);
+        const id = t.getAttribute('aria-describedby');
+        const note = id ? document.getElementById(id) : null;
+        return { value: t.value, caret: [t.selectionStart, t.selectionEnd], note: note ? note.textContent : null };
+      }, sel),
+    says: () => run(() => [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent)),
+  };
+}
+
+async function press(origin, dir) {
+  const faults = [];
+  const item = stateFile(dir, 'setup_three').snapshot.items[0];
+  const p = item.params.find((x) => x.typed === 'yes');
+  const line = '[data-act="typed"][data-param="' + p.name + '"]';
+  const choose = '[data-act="choose"][data-param="' + item.item + '"]';
+  const typedSent = (out) => callsOf(out).filter((c) => c.call === 'agents_setup_typed').map((c) => c.args.text);
+  const bytesOf = (list) => list.map((s) => Buffer.byteLength(s)).join(',') || '-';
+  const run = async (tag, fn, opts) => {
+    const out = outDir();
+    const h = await open({ origin, views: [VIEW], out, ...(opts || { state: 'setup_three' }) });
+    try {
+      await fn(h, out, pageKit(h, engineOf(h)));
+    } catch (err) {
+      faults.push(tag + ':throws=' + String((err && err.message) || err).split('\n')[0].slice(0, 80));
+    } finally {
+      await h.close();
+    }
+  };
+  const expectSent = (tag, out, want) => {
+    const got = typedSent(out);
+    if (JSON.stringify(got.map((s) => Buffer.byteLength(s))) !== JSON.stringify(want)) faults.push(tag + ':sent=' + bytesOf(got));
+  };
+  const mousePress = async (h, sel) => {
+    const box = await h.page.locator(sel).boundingBox();
+    await h.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await settled(h);
+  };
+  const protocolOnly = (h, tag) => {
+    if (engineOf(h) === 'chromium') return false;
+    console.log('press ' + tag + ': not run on ' + engineOf(h) + ', which takes no composition through the browser\'s protocol in this harness');
+    return true;
+  };
+
+  await run('p1_a_pointer_press_through_the_protocol_on_an_open_composition', async (h, out) => {
+    const t = 'p1_a_pointer_press_through_the_protocol_on_an_open_composition';
+    if (protocolOnly(h, t)) return;
+    await h.page.locator(line).fill(xs(1000));
+    await h.page.evaluate((s) => {
+      window.r4order = [];
+      const t = document.querySelector(s);
+      t.addEventListener('compositionend', () => window.r4order.push('compositionend'), true);
+      for (const ty of ['pointerdown', 'pointerup', 'click']) window.addEventListener(ty, () => window.r4order.push(ty), true);
+    }, line);
+    const cdp = await h.page.context().newCDPSession(h.page);
+    for (const s of [KANA2.slice(0, 1), KANA2]) await cdp.send('Input.imeSetComposition', { text: s, selectionStart: s.length, selectionEnd: s.length });
+    await mousePress(h, choose);
+    const order = await h.page.evaluate(() => window.r4order.join(','));
+    console.log('press p1 order=' + order);
+    const kit = pageKit(h, engineOf(h));
+    const f = await kit.line(line);
+    expectSent(t + '_first', out, []);
+    if (Buffer.byteLength(f.value) !== 1006) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (!(await kit.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
+    await mousePress(h, choose);
+    expectSent(t + '_second', out, [1006]);
+  });
+  await run('p2_a_press_through_the_protocol_on_a_composition_that_does_not_fit(pin)', async (h, out) => {
+    const t = 'p2_a_press_through_the_protocol_on_a_composition_that_does_not_fit(pin)';
+    if (protocolOnly(h, t)) return;
+    await h.page.locator(line).fill(xs(1018));
+    const cdp = await h.page.context().newCDPSession(h.page);
+    for (let i = 1; i <= 4; i++) await cdp.send('Input.imeSetComposition', { text: KANA4.slice(0, i), selectionStart: i, selectionEnd: i });
+    await mousePress(h, choose);
+    expectSent(t + '_first', out, []);
+    const f = await pageKit(h, engineOf(h)).line(line);
+    if (f.note !== p.too_long) faults.push(t + ':sentence=' + (f.note === null ? 'none' : 'other'));
+    await mousePress(h, choose);
+    expectSent(t + '_second', out, [1018]);
+  });
+  await run('p3_a_pointer_press_through_the_protocol_ends_a_script_composition', async (h, out, k) => {
+    const t = 'p3_a_pointer_press_through_the_protocol_ends_a_script_composition';
+    await h.page.locator(line).fill(xs(1000));
+    await k.begin(line, [KANA2.slice(0, 1), KANA2]);
+    await k.endOnBlur(line, KANA2);
+    await mousePress(h, choose);
+    expectSent(t + '_first', out, []);
+    const f = await k.line(line);
+    if (f.value !== xs(1000) + KANA2) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (JSON.stringify(f.caret) !== '[1002,1002]') faults.push(t + ':selection=' + f.caret.join('-'));
+    if (!(await k.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
+    await mousePress(h, choose);
+    expectSent(t + '_second', out, [1006]);
+  });
+  await run('p3_the_same_order_by_a_script', async (h, out, k) => {
+    const t = 'p3_the_same_order_by_a_script';
+    await h.page.locator(line).fill(xs(1000));
+    await k.begin(line, [KANA2]);
+    await k.pointerDown(choose);
+    await k.focus(choose);
+    await k.end(line, KANA2);
+    await k.clickDetail1(choose);
+    await settled(h);
+    expectSent(t + '_first', out, []);
+    if (!(await k.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
+    await k.pointerDown(choose);
+    await k.clickDetail1(choose);
+    await settled(h);
+    expectSent(t + '_second', out, [1006]);
+  });
+  for (const [n, commit, sent] of [
+    [1000, KANA2, 1006],
+    [1018, KANA4, 1018],
+  ]) {
+    const t = 'p4_the_end_first_then_a_pointer_press_on_' + n + '_bytes';
+    await run(t, async (h, out, k) => {
+      await h.page.locator(line).fill(xs(n));
+      await k.begin(line, [commit]);
+      await k.end(line, commit);
+      await k.pointerDown(choose);
+      await k.clickDetail1(choose);
+      await settled(h);
+      expectSent(t + '_first', out, []);
+      if (n === 1018) {
+        const f = await k.line(line);
+        if (f.note !== p.too_long) faults.push(t + ':too_long_gone_before_the_send');
+      }
+      await k.pointerDown(choose);
+      await k.clickDetail1(choose);
+      await settled(h);
+      expectSent(t + '_second', out, [sent]);
+      if (n === 1018 && (await k.line(line)).note !== null) faults.push(t + ':too_long_stands_after_the_send');
+    });
+  }
+  await run('p5_the_order_of_an_assistive_press', async (h, out, k) => {
+    const t = 'p5_the_order_of_an_assistive_press';
+    await h.page.locator(line).fill(xs(1000));
+    await k.begin(line, [KANA2]);
+    await k.focus(choose);
+    await k.end(line, KANA2);
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_first', out, []);
+    if (!(await k.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_second', out, [1006]);
+  });
+  await run('p6_a_refused_end_then_two_clicks_with_no_press', async (h, out, k) => {
+    const t = 'p6_a_refused_end_then_two_clicks_with_no_press';
+    await h.page.locator(line).fill(xs(1018));
+    await k.begin(line, [KANA4]);
+    await k.end(line, KANA4);
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_first', out, []);
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_second', out, [1018]);
+  });
+  await run('p7_a_cancelled_composition_then_two_clicks_with_no_press', async (h, out, k) => {
+    const t = 'p7_a_cancelled_composition_then_two_clicks_with_no_press';
+    await h.page.locator(line).fill('abc');
+    await k.begin(line, [KANA2]);
+    await k.end(line, null);
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_first', out, []);
+    await k.click0(choose);
+    await settled(h);
+    expectSent(t + '_second', out, [3]);
+  });
+  for (const [n, commit, sent, mark] of [
+    [1018, KANA4, 1018, 'after_a_refused_end'],
+    [1000, KANA2, 1006, 'after_a_taken_end(pin)'],
+  ]) {
+    const t = 'p8_a_commit_by_a_key_' + mark;
+    await run(t, async (h, out, k) => {
+      await h.page.locator(line).fill(xs(n));
+      await k.begin(line, [commit]);
+      await k.event('keydown', { key: 'Enter' });
+      await k.end(line, commit);
+      await k.event('keyup', { key: 'Enter' });
+      await k.click0(choose);
+      await settled(h);
+      expectSent(t, out, [sent]);
+    });
+  }
+  for (const [what, type, init, sends] of [
+    ['a_pointerup(pin)', 'pointerup', {}, true],
+    ['a_pointercancel(pin)', 'pointercancel', {}, true],
+    ['a_keydown_that_is_a_repeat', 'keydown', { key: 'a', repeat: true }, false],
+  ]) {
+    const t = 'p9_after_a_taken_end_' + what;
+    await run(t, async (h, out, k) => {
+      await h.page.locator(line).fill(xs(1000));
+      await k.begin(line, [KANA2]);
+      await k.end(line, KANA2);
+      await k.event(type, init);
+      await k.click0(choose);
+      await settled(h);
+      expectSent(t, out, sends ? [1006] : []);
+    });
+  }
+  await run('p10_the_check_at_the_click_stays(pin)', async (h, out, k) => {
+    const t = 'p10_the_check_at_the_click_stays(pin)';
+    await h.page.locator(line).fill('abc');
+    await k.pointerDown(choose);
+    await k.begin(line, [KANA2]);
+    await k.clickDetail1(choose);
+    await settled(h);
+    expectSent(t, out, []);
+  });
+  const two = withId(item, 'e'.repeat(32));
+  two.agent = 'f'.repeat(32);
+  writeState(dir, 'test_two_setups', [item, two]);
+  const lineIn = (id) => 'li:has([data-param="' + id + '"]) ' + line;
+  const chooseOf = (id) => '[data-act="choose"][data-param="' + id + '"]';
+  await run(
+    'p11_two_cards',
+    async (h, out, k) => {
+      const t = 'p11_two_cards';
+      await h.page.locator(lineIn(item.item)).fill(xs(1018));
+      await h.page.locator(lineIn(two.item)).fill('abc');
+      await k.begin(lineIn(item.item), [KANA4]);
+      await k.end(lineIn(item.item), KANA4);
+      await k.click0(chooseOf(two.item));
+      await settled(h);
+      const calls = () => callsOf(out).filter((c) => c.call === 'agents_setup_typed').map((c) => c.args.item.slice(0, 1) + Buffer.byteLength(c.args.text));
+      if (calls().join(',') !== 'e3') faults.push(t + ':after_the_second_card=' + calls().join(','));
+      await k.click0(chooseOf(item.item));
+      await settled(h);
+      if (calls().join(',') !== 'e3') faults.push(t + ':first_card_first_click=' + calls().join(','));
+      await k.click0(chooseOf(item.item));
+      await settled(h);
+      if (calls().join(',') !== 'e3,01018') faults.push(t + ':first_card_second_click=' + calls().join(','));
+    },
+    { state: 'test_two_setups' },
+  );
+  await run(
+    'p11_a_stopped_click_on_one_card_leaves_the_other',
+    async (h, out, k) => {
+      const t = 'p11_a_stopped_click_on_one_card_leaves_the_other';
+      for (const id of [item.item, two.item]) {
+        await h.page.locator(lineIn(id)).fill(xs(1018));
+        await k.begin(lineIn(id), [KANA4]);
+        await k.end(lineIn(id), KANA4);
+      }
+      await k.click0(chooseOf(item.item));
+      await settled(h);
+      await k.click0(chooseOf(two.item));
+      await settled(h);
+      if (typedSent(out).length !== 0) faults.push(t + ':the_other_card_sent=' + typedSent(out).length);
+      await k.click0(chooseOf(two.item));
+      await settled(h);
+      if (typedSent(out).length !== 1) faults.push(t + ':the_other_card_at_its_second_click=' + typedSent(out).length);
+    },
+    { state: 'test_two_setups' },
+  );
+  const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
+  const typedLine = (text, extra) => ({ call: 'agents_setup_typed', args: { item: item.item, param: p.name, text }, ...extra });
+  await run(
+    'p12_a_card_that_waits_for_a_reply',
+    async (h, out, k) => {
+      const t = 'p12_a_card_that_waits_for_a_reply';
+      await h.page.locator(line).fill(xs(1018));
+      await k.click0(choose);
+      await settled(h);
+      await k.begin(line, [KANA4]);
+      await k.end(line, KANA4);
+      await k.click0(choose);
+      await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+      await settled(h);
+      await frames(h);
+      const before = typedSent(out).length;
+      await k.click0(choose);
+      await settled(h);
+      if (typedSent(out).length !== before) faults.push(t + ':click_after_the_reply_sent');
+      await k.click0(choose);
+      await settled(h);
+      if (typedSent(out).length !== before + 1) faults.push(t + ':no_call_at_the_next_click=' + typedSent(out).length);
+    },
+    { replies: [{ state: snap(1, [item]) }, typedLine(xs(1018), { hold: true }), gate, { state: snap(2, [item]) }, typedLine(xs(1018), { reply: { ok: 'yes' } })] },
+  );
+  await run('p13_a_commit_by_the_protocol_insert_text_then_a_pointer_press(limit_of_4_5,pinned_as_ruled)', async (h, out) => {
+    const t = 'p13_a_commit_by_the_protocol_insert_text_then_a_pointer_press(limit_of_4_5,pinned_as_ruled)';
+    if (protocolOnly(h, t)) return;
+    await h.page.locator(line).fill(xs(1000));
+    const cdp = await h.page.context().newCDPSession(h.page);
+    await cdp.send('Input.imeSetComposition', { text: KANA2, selectionStart: 2, selectionEnd: 2 });
+    await cdp.send('Input.insertText', { text: KANA2 });
+    await mousePress(h, choose);
+    expectSent(t + '_first', out, []);
+    await mousePress(h, choose);
+    expectSent(t + '_second', out, [1006]);
+  });
+  return faults;
+}
+
+async function holds(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'setup_three').snapshot.items[0];
+  const p = setup.params.find((x) => x.typed === 'yes');
+  const line = '[data-act="typed"][data-param="' + p.name + '"]';
+  const stuck = told(withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'b'.repeat(32)), 'Stuck');
+  const ready = told(withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32)), 'Ready');
+  const confirm = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'a'.repeat(32)), 'Confirm');
+  const second = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'd'.repeat(32)), 'Second');
+  const other = told(withId(stateFile(dir, 'needs_show').snapshot.items[0], '7'.repeat(32)), 'Other');
+  const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
+  const answerLine = (c, extra) => ({ call: 'agents_answer', args: { item: c.item, choice: 'reject' }, ...(extra || { reply: { ok: 'yes' } }) });
+  const B = p.too_long;
+  const waitIds = (h, items) =>
+    h.page.waitForFunction(
+      (want) => [...new Set([...document.querySelectorAll('#views [data-param]')].map((e) => e.getAttribute('data-param')))].filter((x) => /^[0-9a-f]{32}$/.test(x)).sort().join(',') === want,
+      items.map((i) => i.item).sort().join(','),
+      { timeout: 5000 },
+    );
+  const pass = async (h, items) => {
+    await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+    await waitIds(h, items);
+    await frames(h);
+  };
+  const answerOpen = (h) =>
+    h.page.evaluate(() => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+    });
+  const afterClose = async (h) => {
+    await frames(h);
+    await settled(h);
+    await frames(h);
+  };
+  const flow = async (tag, replies, fn) => {
+    const h = await open({ origin, replies, views: [VIEW] });
+    try {
+      await fn(h, pageKit(h, engineOf(h)));
+    } catch (err) {
+      faults.push(tag + ':throws=' + String((err && err.message) || err).split('\n')[0].slice(0, 80));
+    } finally {
+      await h.close();
+    }
+  };
+  const expect = (tag, got, want) => {
+    if (JSON.stringify(got) !== JSON.stringify(want)) faults.push(tag + ':says=' + (got.map((s) => (s === B ? 'B' : s === p.full ? 'A' : s)).join('|') || '-'));
+  };
+  const refuse = async (k) => {
+    await k.begin(line, [KANA4]);
+    await k.end(line, KANA4);
+  };
+
+  const h1 = 'h1_a_refusal_while_a_confirmation_is_open';
+  await flow(h1, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm), { state: snap(3, [setup]) }, gate, { state: snap(4, [setup, second]) }, answerLine(second)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await refuse(k);
+    expect(h1 + '_while_open', await k.says(), []);
+    const inTask = await h.page.evaluate(() => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+      return [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+    });
+    expect(h1 + '_in_the_closing_task', inTask, []);
+    await afterClose(h);
+    await waitIds(h, [setup]);
+    await afterClose(h);
+    expect(h1 + '_after_the_close_and_the_reply', await k.says(), [B]);
+    await pass(h, [setup, second]);
+    await answerOpen(h);
+    await afterClose(h);
+    if ((await k.says()).includes(B)) faults.push(h1 + ':a_second_confirmation_adds_the_line_again');
+  });
+  const h2 = 'h2_a_refusal_and_items_that_came_and_went';
+  await flow(h2, [{ state: snap(1, [setup, stuck]) }, gate, { state: snap(2, [setup, stuck, confirm]) }, gate, { state: snap(3, [setup, confirm, ready]) }, answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, stuck, confirm]);
+    await refuse(k);
+    await pass(h, [setup, confirm, ready]);
+    await answerOpen(h);
+    await afterClose(h);
+    expect(h2, await k.says(), [B, 'Stuck went.', 'Ready came.']);
+  });
+  const h3 = 'h3_a_confirmation_dropped_with_no_answer';
+  await flow(h3, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, gate, { state: snap(3, [setup]) }], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await refuse(k);
+    await pass(h, [setup]);
+    await afterClose(h);
+    expect(h3, await k.says(), [B, 'Confirm went.']);
+  });
+  const h4 = 'h4_a_card_built_again_during_the_hold(pin)';
+  const setupChanged = { ...setup, text: setup.text + ' Again.' };
+  await flow(h4, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, gate, { state: snap(3, [setupChanged, confirm]) }, answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await refuse(k);
+    await pass(h, [setupChanged, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    if ((await k.says()).includes(B)) faults.push(h4 + ':the_old_line_is_added');
+  });
+  const h5 = 'h5_a_removal_during_the_hold(pin)';
+  await flow(h5, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await refuse(k);
+    await k.input(line, xs(1017));
+    await answerOpen(h);
+    await afterClose(h);
+    if ((await k.says()).includes(B)) faults.push(h5 + ':the_removed_sentence_is_added');
+  });
+  const h6 = 'h6_the_confirmation_shown_again';
+  await flow(h6, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm, { hold: true }), answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    h.held.shift()({ error: 'busy' });
+    await h.page.waitForFunction(() => Boolean([...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'))), null, { timeout: 5000 });
+    await frames(h);
+    await refuse(k);
+    expect(h6 + '_while_shown_again', await k.says(), []);
+    await answerOpen(h);
+    await afterClose(h);
+    expect(h6 + '_after_the_second_close(the_first_close_is_delivered_before_the_error,by_a_held_call)', await k.says(), [B]);
+  });
+  const h7 = 'h7_a_refusal_in_the_task_that_closes';
+  await flow(h7, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm, ready]) }, answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm, ready]);
+    await h.page.evaluate(([s, big]) => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+      const t = document.querySelector(s);
+      t.value = t.value + big;
+      t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+    }, [line, 'y'.repeat(30)]);
+    await afterClose(h);
+    expect(h7, await k.says(), [B, 'Ready came.']);
+  });
+  const two = stateFile(dir, 'test_setup').snapshot.items[0];
+  const typed = two.params.filter((x) => x.typed === 'yes').map((x) => '[data-act="typed"][data-param="' + x.name + '"]');
+  for (const [mark, firstFill, firstRefusal, want] of [
+    ['h8_the_same_words_once', 'abc', 'abc' + 'y'.repeat(2000), [B]],
+    ['h8_full_then_too_long_in_the_order_of_the_list', xs(1024), xs(1024) + 'a', [p.full, B]],
+  ]) {
+    await flow(mark, [{ state: snap(1, [two]) }, gate, { state: snap(2, [two, confirm]) }, answerLine(confirm)], async (h, k) => {
+      await h.page.locator(typed[0]).fill(firstFill);
+      await h.page.locator(typed[1]).fill('abc');
+      await pass(h, [two, confirm]);
+      await k.input(typed[0], firstRefusal);
+      await k.input(typed[1], 'abc' + 'y'.repeat(2000));
+      await answerOpen(h);
+      await afterClose(h);
+      expect(mark, await k.says(), want);
+    });
+  }
+  const h9 = 'h9_an_item_that_came_with_a_confirmation';
+  await flow(h9, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm), { state: snap(3, [stuck, ready]) }], async (h, k) => {
+    await pass(h, [stuck, confirm, ready]);
+    await answerOpen(h);
+    await afterClose(h);
+    await waitIds(h, [stuck, ready]);
+    await afterClose(h);
+    expect(h9 + '_after_the_reply_without_the_answered_confirmation', await k.says(), ['Ready came.']);
+  });
+  const h9b = 'h9_a_reply_without_the_answered_confirmation_and_with_another_item';
+  await flow(h9b, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, answerLine(confirm), gate, { state: snap(3, [stuck, other]) }], async (h, k) => {
+    await pass(h, [stuck, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    await pass(h, [stuck, other]);
+    expect(h9b, await k.says(), ['Other came.']);
+  });
+  const h10 = 'h10_a_composition_through_the_protocol_when_a_confirmation_opens';
+  await flow(h10, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+    if (engineOf(h) !== 'chromium') {
+      console.log('hold h10: not run on ' + engineOf(h) + ', which takes no composition through the browser\'s protocol in this harness');
+      return;
+    }
+    await h.page.locator(line).fill(xs(1018));
+    const cdp = await h.page.context().newCDPSession(h.page);
+    for (let i = 1; i <= 4; i++) await cdp.send('Input.imeSetComposition', { text: KANA4.slice(0, i), selectionStart: i, selectionEnd: i });
+    await pass(h, [setup, confirm]);
+    await h.page.keyboard.press(h.build.walkKey);
+    await h.page.keyboard.press('Enter');
+    await afterClose(h);
+    expect(h10, await k.says(), [B]);
+    const f = await k.line(line);
+    if (Buffer.byteLength(f.value) !== 1018) faults.push(h10 + ':line_holds=' + Buffer.byteLength(f.value));
+  });
+  const h11 = 'h11_a_sentence_from_before_the_hold(pin)';
+  await flow(h11, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await refuse(k);
+    expect(h11 + '_before', await k.says(), [B]);
+    await pass(h, [setup, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    if ((await k.says()).includes(B)) faults.push(h11 + ':added_at_the_release');
   });
   return faults;
 }
@@ -1756,7 +2345,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -1778,6 +2367,8 @@ if (PAGE_TESTS.some(want)) {
     if (want('features')) report('features', await features(origin), ['features']);
     if (want('region')) report('region', await region(origin, dir));
     if (want('compose')) report('compose', await compose(origin, dir));
+    if (want('press')) report('press', await press(origin, dir));
+    if (want('holds')) report('holds', await holds(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

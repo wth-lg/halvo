@@ -43,7 +43,8 @@
   const heldGone = new Map();
   const answeredGone = new Set();
   const opened = new Set();
-  const lines = new Set();
+  let pointerRead = [];
+  let closing = false;
 
   function fresh() {
     serial += 1;
@@ -75,7 +76,7 @@
   }
 
   function limit(typed, full, tooLong) {
-    const line = { kept: '', composing: false, endRefused: false, sent: null };
+    const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
@@ -95,7 +96,7 @@
       note.id = fresh();
       typed.parentNode.insertBefore(note, typed.nextSibling);
       typed.setAttribute('aria-describedby', note.id);
-      tell(text);
+      tell(text, line);
     }
     function atBound() {
       return mark || bytes(line.kept) >= 1024;
@@ -121,6 +122,9 @@
     line.sent = function () {
       if (shown === 'too_long') show(null);
     };
+    line.text = function () {
+      return shown === 'full' ? full : shown === 'too_long' ? tooLong : '';
+    };
     typed.addEventListener('beforeinput', function () {
       before = [typed.selectionStart, typed.selectionEnd];
     });
@@ -133,7 +137,8 @@
       const was = start;
       start = null;
       before = null;
-      if (!judge(typed.value, was)) line.endRefused = true;
+      line.ended = true;
+      judge(typed.value, was);
     });
     typed.addEventListener('input', function () {
       if (line.composing) return;
@@ -141,7 +146,6 @@
       before = null;
       judge(typed.value, was);
     });
-    lines.add(line);
     return line;
   }
 
@@ -245,14 +249,48 @@
     });
   }
 
-  function blocked(card) {
-    return card.answers.some(function (a) {
-      return a.line !== null && (a.line.composing || a.line.endRefused);
-    });
+  function linesOf(card) {
+    return card.answers
+      .map(function (a) {
+        return a.line;
+      })
+      .filter(function (l) {
+        return l !== null;
+      });
   }
 
-  function answer(item, choice, card) {
-    if (card.busy || blocked(card)) return;
+  function allLines() {
+    let out = [];
+    cards.forEach(function (card) {
+      out = out.concat(linesOf(card));
+    });
+    return out;
+  }
+
+  function unsettled(l) {
+    return l.composing || l.ended;
+  }
+
+  function stopped(card, event) {
+    const read = event.detail > 0 ? pointerRead : [];
+    const lines = linesOf(card).filter(function (l) {
+      return read.indexOf(l) >= 0 || unsettled(l);
+    });
+    if (lines.length === 0) return false;
+    linesOf(card).forEach(function (l) {
+      l.ended = false;
+    });
+    const typed = lines[0].field;
+    if (document.activeElement !== typed) {
+      const sel = [typed.selectionStart, typed.selectionEnd];
+      typed.focus();
+      if (!lines[0].composing && (typed.selectionStart !== sel[0] || typed.selectionEnd !== sel[1])) typed.setSelectionRange(sel[0], sel[1]);
+    }
+    return true;
+  }
+
+  function answer(item, choice, card, event) {
+    if (card.busy || stopped(card, event)) return;
     if (choice.choice === 'present') {
       held(card, call('agents_present', { item: item.item }));
       return;
@@ -283,9 +321,12 @@
   function input(event) {
     tick += 1;
     const type = event.type;
-    if (type === 'pointerdown' || (type === 'keydown' && !event.repeat)) {
-      lines.forEach(function (l) {
-        l.endRefused = false;
+    if (type === 'pointerdown') {
+      pointerRead = allLines().filter(unsettled);
+    }
+    if (type !== 'keydown' || !event.repeat) {
+      allLines().forEach(function (l) {
+        l.ended = false;
       });
     }
     if (type === 'keydown') {
@@ -358,7 +399,7 @@
         }
         if (event.detail > 1) return;
         if (!card.dialog && event.detail > 0 && !pointedOn(b)) return;
-        answer(item, c, card);
+        answer(item, c, card, event);
       });
       controls.appendChild(b);
     });
@@ -396,7 +437,10 @@
     const card = cards.get(key);
     if (!card) return;
     card.gone = true;
-    if (card.dialog && card.dialog.open) card.dialog.close();
+    if (card.dialog && card.dialog.open) {
+      closing = true;
+      card.dialog.close();
+    }
     card.li.remove();
     cards.delete(key);
   }
@@ -485,8 +529,23 @@
     });
   }
 
-  function tell(text) {
-    if (region && !holdBase && !pageWaiting()) addition([text]);
+  function holding() {
+    return holdBase !== null || closing || pageWaiting();
+  }
+
+  function tell(text, line) {
+    if (!region) return;
+    if (holding()) line.held = true;
+    else addition([text]);
+  }
+
+  function heldLines() {
+    const out = [];
+    allLines().forEach(function (l) {
+      const text = l.held ? l.text() : '';
+      if (text && out.indexOf(text) < 0) out.push(text);
+    });
+    return out;
   }
 
   function firsts(items) {
@@ -498,11 +557,19 @@
   }
 
   function release() {
-    if (!holdBase || pageWaiting()) return;
+    if (pageWaiting()) return;
+    closing = false;
+    const out = heldLines();
+    allLines().forEach(function (l) {
+      l.held = false;
+    });
+    if (!holdBase) {
+      if (out.length > 0) addition(out);
+      return;
+    }
     const base = holdBase;
     holdBase = null;
     const now = last ? firsts(last.items) : new Map();
-    const out = [];
     base.forEach(function (item, id) {
       if (!now.has(id) && !(isPage(item) && answeredGone.has(id))) out.push(item.say_gone);
     });
@@ -531,7 +598,7 @@
     const came = before ? Array.from(after.entries()).filter(function (e) {
       return !before.has(e[0]);
     }) : [];
-    if (holdBase || pageWaiting()) {
+    if (holding()) {
       if (!holdBase) holdBase = before || after;
       gone.forEach(function (e) {
         if (!isPage(e[1])) return;
@@ -542,6 +609,9 @@
       return;
     }
     if (gone.length + came.length === 0) return;
+    if (came.length === 0 && gone.every(function (e) {
+      return isPage(e[1]) && answeredNow.has(e[0]);
+    })) return;
     const out = [];
     gone.forEach(function (e) {
       if (!(isPage(e[1]) && answeredNow.has(e[0]))) out.push(e[1].say_gone);
