@@ -150,7 +150,8 @@ measure() {
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || setup_failed
 
-  system=$(uname -s 2>/dev/null)
+  uname -s >"$artifacts/system.txt" 2>/dev/null
+  IFS= read -r system <"$artifacts/system.txt" || system=
   case $system:${GITHUB_ACTIONS:-} in
     Darwin:true)
       machine=hosted-mac
@@ -170,7 +171,8 @@ measure() {
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || run_failed
   cargo build --locked -p halvo-route-gate --bin route-gate --message-format=json \
     >"$artifacts/cargo-build.json" 2>"$artifacts/cargo-build-json.err" || run_failed
-  built=$(built_route_gate "$artifacts/cargo-build.json")
+  built_route_gate "$artifacts/cargo-build.json" >"$artifacts/built.txt"
+  IFS= read -r built <"$artifacts/built.txt" || built=
   case $built in
     "binary "*) exe=${built#binary } ;;
     *) run_failed ;;
@@ -226,6 +228,18 @@ artifact() {
     "$1" "$1" "$2" "$2" "$3" "$1" "$4" "$5" "$6"
 }
 
+differ_from_the_first() {
+  first=
+  while IFS=' ' read -r sum size file; do
+    if [ -z "$first" ]; then
+      first="$sum $size"
+    elif [ "$sum $size" = "$first" ]; then
+      return 1
+    fi
+  done <"$1"
+  return 0
+}
+
 check_reset() {
   STUB_UNAME=Darwin
   STUB_BUILD_EXIT=0
@@ -240,17 +254,16 @@ check_reset() {
 }
 
 check() {
-  out=$(
-    PATH=$work/bin:$PATH
-    CI_D_REPO=${case_repo:-$work/repo}
-    CI_D_ARTIFACTS=$work/artifacts
-    unset GITHUB_ACTIONS
-    [ -z "$case_actions" ] || GITHUB_ACTIONS=$case_actions
-    export PATH CI_D_REPO CI_D_ARTIFACTS GITHUB_ACTIONS
-    export STUB_UNAME STUB_BUILD_EXIT STUB_JSON STUB_JSON_EXIT STUB_EXE STUB_OUT STUB_ERR STUB_CODE
-    sh "$self" 2>&1
-  )
+  PATH=$work/bin:$PATH CI_D_REPO=${case_repo:-$work/repo} CI_D_ARTIFACTS=$work/artifacts \
+    GITHUB_ACTIONS=$case_actions STUB_UNAME=$STUB_UNAME STUB_BUILD_EXIT=$STUB_BUILD_EXIT \
+    STUB_JSON=$STUB_JSON STUB_JSON_EXIT=$STUB_JSON_EXIT STUB_EXE=$STUB_EXE STUB_OUT=$STUB_OUT \
+    STUB_ERR=$STUB_ERR STUB_CODE=$STUB_CODE sh "$self" >"$work/case.txt" 2>&1
   code=$?
+  out=
+  while IFS= read -r line || [ -n "$line" ]; do
+    out=$out$line$nl
+  done <"$work/case.txt"
+  out=${out%"$nl"}
   last=${out##*"$nl"}
   case $code:$last in
     "0:PASS $name") got=PASS ;;
@@ -393,17 +406,19 @@ EOF
   sed 's/^median peak_bytes=1318912$/1318912/' "$work/good.out" >"$work/median-key.out"
   sed -e 's/^run n=1 /run n=X /' -e 's/^run n=2 /run n=1 /' -e 's/^run n=X /run n=2 /' "$work/good.out" >"$work/order.out"
   sed 's/n=1 exit=0 peak_bytes=1310720 capped=no/n=1 exit=0 peak_bytes=1310720 rss=1 capped=no/' "$work/good.out" >"$work/key.out"
+  set -- "$work/good.out"
   for each in breach long-breach four median checks checks-form limit no-suffix no-prefix taskpolicy windows job-commit \
     exit empty-exit zero empty-peak empty-start empty-end end-word extra capped capped-word median-count short median-form median-key order key; do
-    if cmp -s "$work/good.out" "$work/$each.out"; then
-      setup_failed
-    fi
+    set -- "$@" "$work/$each.out"
   done
+  cksum "$@" >"$work/out.sums" || setup_failed
+  differ_from_the_first "$work/out.sums" || setup_failed
+  set -- "$work/good.json"
   for each in k-alt stale no-line two-lines no-executable not-a-file other-package windows after-text; do
-    if cmp -s "$work/good.json" "$work/$each.json"; then
-      setup_failed
-    fi
+    set -- "$@" "$work/$each.json"
   done
+  cksum "$@" >"$work/json.sums" || setup_failed
+  differ_from_the_first "$work/json.sums" || setup_failed
 
   rejected=0
   accepted=0
