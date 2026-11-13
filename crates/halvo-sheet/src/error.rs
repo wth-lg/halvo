@@ -49,9 +49,9 @@ pub enum PathRefusal {
     /// as a workbook.
     OwnFile,
     /// The file name is so long that a name that `prepare` or the removal of a checkpoint
-    /// builds for it would hold more than [`halvo_checkpoint::NAME_MAX`] units of the system
-    /// (bytes on macOS, UTF-16 code units on Windows). `prepare` refuses it before it writes
-    /// anything.
+    /// builds for it would hold more than [`halvo_checkpoint::NAME_MAX`] units as the crate
+    /// counts them (bytes on macOS, UTF-16 code units on Windows). `prepare` refuses it before
+    /// it writes anything.
     TooLong,
 }
 

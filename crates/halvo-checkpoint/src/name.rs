@@ -28,9 +28,15 @@ pub fn checkpoint_name(workbook: &Path, run: &RunId) -> Option<OsString> {
     own_name(workbook, &format!("checkpoint-{}", run.as_str()))
 }
 
-/// The most units that one file name may hold: 255 bytes of UTF-8 on macOS (APFS and HFS+
-/// count bytes) and 255 UTF-16 code units on Windows (NTFS counts code units). `prepare`
-/// refuses a workbook when a name that it or [`crate::remove`] builds for it would hold more
+/// The most units that one file name may hold, as the crate counts them: 255 bytes of UTF-8 on
+/// macOS and 255 UTF-16 code units on Windows (NTFS counts code units). The APFS volume of a Mac
+/// counts UTF-16 code units too: on the Mac that this crate was built on it makes a name of 255
+/// CJK characters (765 bytes) and refuses one of 256, and refuses a name of 128 characters
+/// outside the Basic Multilingual Plane (128 code points, 256 units). A name never has fewer
+/// bytes than UTF-16 units, so counting bytes on macOS never takes a name that the volume
+/// refuses, and it refuses a non-ASCII name that the volume would take: with an extension of
+/// four letters, a name of more than 173 bytes and at most 173 units. `prepare` refuses a
+/// workbook when a name that it or [`crate::remove`] builds for it would hold more
 /// ([`names_fit`]). A volume whose names are shorter, such as a share whose server takes fewer
 /// units, refuses such a name with an error of the system, which `prepare` answers as it
 /// answers any error of a write.
