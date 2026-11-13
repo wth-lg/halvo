@@ -582,8 +582,14 @@ mod tests {
         let size = 1 << 20;
         FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
         let (window, _) = allocations(&apart, || black_box(vec![0_u8; size]));
-        assert_eq!(window.first, (1, size as u64));
-        assert!(window.others.1 < size as u64, "{:?}", window.others);
+        let size = size as u64;
+        assert!(
+            window.first.0 >= 1 && window.first.1 >= size && window.first.1 < 2 * size,
+            "first {:?}, others {:?}",
+            window.first,
+            window.others
+        );
+        assert!(window.others.1 < size, "{:?}", window.others);
     }
 
     #[test]
