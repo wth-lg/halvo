@@ -926,3 +926,25 @@ fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
         "the control: a second process after the store is closed"
     );
 }
+
+/// The writer lock refuses an open on its own: while another holder has the lock of `derived/writer.lock` and no
+/// store holds the database, an open is refused as `Locked`, and after the holder lets the lock go the open succeeds.
+#[test]
+fn an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free() {
+    let scratch = Scratch::new("writer-lock");
+    let clock = TestClock::at_day(DAY);
+    let host = || Host::new(Box::new(clock.clone()), Box::new(NoProposals));
+    drop(open_host(&scratch, host()).unwrap());
+    let holder = std::fs::File::options()
+        .write(true)
+        .open(scratch.path().join("derived").join("writer.lock"))
+        .unwrap();
+    holder.try_lock().unwrap();
+    assert!(
+        matches!(open_host(&scratch, host()), Err(OpenError::Locked)),
+        "an open while another holds the writer lock"
+    );
+    holder.unlock().unwrap();
+    drop(holder);
+    assert!(open_host(&scratch, host()).is_ok(), "the control: an open after the lock is let go");
+}
