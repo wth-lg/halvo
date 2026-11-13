@@ -1698,7 +1698,10 @@ fn open_refuses_a_link_put_at_store_db_inside_the_custody_call_and_changes_nothi
         }
         None => panic!("open did not call the custody: {answer}"),
     }
-    assert_ne!(answer, "Ok", "an open went through a link put at store.db");
+    assert_eq!(
+        answer, "Corrupt(\"the database file of the store is a link\")",
+        "an open with a link put at store.db inside the custody call"
+    );
     assert_eq!(
         names_in(outside.path()),
         beside_before,
@@ -5148,6 +5151,737 @@ fn a_segment_write_whose_shard_name_takes_a_plain_directory_at_the_create_answer
         (Vec::new(), Vec::new()),
         "the write left or published a file"
     );
+}
+
+#[cfg(unix)]
+const CALL_BOUND: Duration = Duration::from_secs(5);
+
+/// The answer of `call`, made on a thread of its own, when it comes within
+/// `bound`; `None` when it does not, and then that thread is left behind.
+#[cfg(unix)]
+fn within<T: Send + 'static>(
+    bound: Duration,
+    call: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    let (sender, answers) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(call());
+    });
+    answers.recv_timeout(bound).ok()
+}
+
+fn say_branch(test: &str, branch: &str) {
+    let _ = writeln!(std::io::stderr(), "BRANCH {test}: {branch}");
+}
+
+/// Moves `name` away and puts a link to `target` there; the answer of the
+/// move, which on Windows a held handle refuses with error 32.
+fn put_a_link_in_place_of(name: &Path, aside: &Path, target: &Path) -> Result<(), Option<i32>> {
+    std::fs::rename(name, aside).map_err(|e| e.raw_os_error())?;
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, name).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(target, name).unwrap();
+    Ok(())
+}
+
+fn nth_call(n: usize, mut act: impl FnMut() + 'static) -> impl FnMut() + 'static {
+    let mut calls = 0;
+    move || {
+        calls += 1;
+        if calls == n {
+            act();
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CallSite {
+    Probe,
+    Existing,
+    New,
+}
+
+fn a_link_put_at_store_db_after_the_last_look(site: CallSite) {
+    use super::db::SEAM_AFTER_THE_LAST_LOOK;
+    use super::failpoint;
+
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let (other_dir, other_roots, other_root, _) = file_root_store(outside.path());
+    let held = open_over_file_root(&other_dir, &other_roots, other_root).unwrap();
+    let target = match site {
+        CallSite::Probe => other_dir.join("store.db"),
+        CallSite::Existing => {
+            let copy = outside.path().join("a-copy.db");
+            std::fs::copy(store_dir.join("store.db"), &copy).unwrap();
+            copy
+        }
+        CallSite::New => {
+            let empty = outside.path().join("an-empty.db");
+            std::fs::write(&empty, b"").unwrap();
+            empty
+        }
+    };
+    if let CallSite::New = site {
+        std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+    }
+    let target_dir = target.parent().unwrap().to_path_buf();
+    let (bytes_before, beside_before) = (std::fs::read(&target).unwrap(), names_in(&target_dir));
+    let moved = Arc::new(std::sync::Mutex::new(None));
+    let act = {
+        let (name, aside, target, moved) = (
+            store_dir.join("store.db"),
+            dir.path().join("store-db-aside"),
+            target.clone(),
+            Arc::clone(&moved),
+        );
+        move || *moved.lock().unwrap() = Some(put_a_link_in_place_of(&name, &aside, &target))
+    };
+    let _seam = failpoint::at(
+        SEAM_AFTER_THE_LAST_LOOK,
+        nth_call(if let CallSite::Existing = site { 2 } else { 1 }, act),
+    );
+
+    let answer = match site {
+        CallSite::Probe | CallSite::Existing => {
+            answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id))
+        }
+        CallSite::New => {
+            let custody = file_root_custody(
+                &dir.path().join("roots-new"),
+                TestProtector::new(0x5a).0,
+                RootId::fresh(),
+            );
+            answer_text(&EncryptedStore::create(
+                &store_dir,
+                Box::new(custody),
+                DEFAULT_RETENTION,
+            ))
+        }
+    };
+
+    let moved = *moved.lock().unwrap();
+    let test = format!("a link at store.db after the last look, {site:?}");
+    match moved {
+        Some(Ok(())) => {
+            say_branch(&test, "the name was moved and a link put there");
+            assert!(
+                answer == "Corrupt(\"the database file of the store is a link\")",
+                "{test}: the call answered {answer}"
+            );
+        }
+        Some(Err(code)) => {
+            say_branch(&test, &format!("the move was refused with {code:?}"));
+            assert!(
+                cfg!(windows) && code == Some(32),
+                "{test}: the move answered {code:?}"
+            );
+        }
+        None => panic!("{test}: the seam did not run; the call answered {answer}"),
+    }
+    assert!(
+        std::fs::read(&target).unwrap() == bytes_before,
+        "{test}: the target's bytes changed ({answer})"
+    );
+    assert_eq!(
+        names_in(&target_dir),
+        beside_before,
+        "{test}: an entry appeared beside the target ({answer})"
+    );
+    drop(held);
+}
+
+#[test]
+fn the_holder_probe_opens_no_link_put_at_store_db_after_its_last_look() {
+    a_link_put_at_store_db_after_the_last_look(CallSite::Probe);
+}
+
+#[test]
+fn the_open_of_an_existing_database_opens_no_link_put_at_store_db_after_its_last_look() {
+    a_link_put_at_store_db_after_the_last_look(CallSite::Existing);
+}
+
+#[test]
+fn the_open_of_a_new_database_opens_no_link_put_at_store_db_after_its_last_look() {
+    a_link_put_at_store_db_after_the_last_look(CallSite::New);
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug)]
+enum Planted {
+    Link,
+    Directory,
+    Fifo,
+}
+
+#[cfg(unix)]
+fn plant(at: &Path, what: Planted, outside: &Path) {
+    if at.exists() || std::fs::symlink_metadata(at).is_ok() {
+        std::fs::rename(at, outside.join("moved-aside")).unwrap();
+    }
+    match what {
+        Planted::Link => {
+            let target = outside.join("target");
+            std::fs::write(&target, b"bytes of another party").unwrap();
+            std::os::unix::fs::symlink(&target, at).unwrap();
+        }
+        Planted::Directory => std::fs::create_dir(at).unwrap(),
+        Planted::Fifo => make_fifo(at),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn open_and_create_answer_a_link_a_directory_or_a_fifo_at_each_database_name_within_a_bound() {
+    let mut answers = Vec::new();
+    for name in [
+        "store.db",
+        "store.db-wal",
+        "store.db-shm",
+        "store.db-journal",
+    ] {
+        for what in [Planted::Link, Planted::Directory, Planted::Fifo] {
+            for call in ["open", "create"] {
+                let dir = tempfile::tempdir().unwrap();
+                let outside = tempfile::tempdir().unwrap();
+                let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+                if call == "create" {
+                    std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+                }
+                plant(&store_dir.join(name), what, outside.path());
+                let made_roots = dir.path().join("roots-of-create");
+                let answer = within(CALL_BOUND, move || {
+                    if call == "open" {
+                        answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id))
+                    } else {
+                        let custody = file_root_custody(
+                            &made_roots,
+                            TestProtector::new(0x5a).0,
+                            RootId::fresh(),
+                        );
+                        answer_text(&EncryptedStore::create(
+                            &store_dir,
+                            Box::new(custody),
+                            DEFAULT_RETENTION,
+                        ))
+                    }
+                });
+                let target = outside.path().join("target");
+                if target.exists() {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"bytes of another party");
+                }
+                let answer = answer.unwrap_or_else(|| {
+                    panic!("{call} with a {what:?} at {name} gave no answer in {CALL_BOUND:?}")
+                });
+                answers.push(format!("{call} {what:?} at {name}: {answer}"));
+            }
+        }
+    }
+    let _ = writeln!(std::io::stderr(), "ANSWERS {answers:#?}");
+    let linked_db = "Corrupt(\"the database file of the store is a link\")";
+    let linked_side = "Corrupt(\"a file beside the database of the store is a link\")";
+    let mut expected = Vec::new();
+    for name in [
+        "store.db",
+        "store.db-wal",
+        "store.db-shm",
+        "store.db-journal",
+    ] {
+        for what in ["Link", "Directory", "Fifo"] {
+            let open = match (name, what) {
+                ("store.db", "Link") => linked_db,
+                (_, "Link") => linked_side,
+                _ => "DatabaseUnreadable",
+            };
+            let create = match (name, what) {
+                ("store.db-journal", "Link") => linked_side,
+                ("store.db-journal", _) => "DatabaseUnreadable",
+                (_, "Directory") => "Io(PermissionDenied)",
+                _ => "Ok",
+            };
+            expected.push(format!("open {what} at {name}: {open}"));
+            expected.push(format!("create {what} at {name}: {create}"));
+        }
+    }
+    assert_eq!(answers, expected);
+}
+
+#[cfg(unix)]
+fn open_with_a_seam(
+    store_dir: &Path,
+    roots_dir: &Path,
+    root_id: RootId,
+    seam: &'static str,
+    nth: usize,
+    act: impl FnMut() + Send + 'static,
+) -> Option<String> {
+    let (store, roots) = (store_dir.to_path_buf(), roots_dir.to_path_buf());
+    within(CALL_BOUND, move || {
+        let _seam = super::failpoint::at(seam, nth_call(nth, act));
+        answer_text(&open_over_file_root(&store, &roots, root_id))
+    })
+}
+
+#[cfg(unix)]
+#[test]
+fn open_answers_not_locked_for_a_held_store_put_at_its_name_before_the_probes_look() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let (other_dir, other_roots, other_root, _) = file_root_store(outside.path());
+    let held = open_over_file_root(&other_dir, &other_roots, other_root).unwrap();
+    let theirs = files_with_bytes(&other_dir);
+    let act = {
+        let (store, moved, other) = (
+            store_dir.clone(),
+            dir.path().join("moved-store"),
+            other_dir.clone(),
+        );
+        move || {
+            std::fs::rename(&store, &moved).unwrap();
+            std::fs::rename(&other, &store).unwrap();
+        }
+    };
+
+    let answer = open_with_a_seam(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        super::db::SEAM_BEFORE_THE_LOOK,
+        1,
+        act,
+    );
+
+    let theirs_after = files_with_bytes(&store_dir);
+    drop(held);
+    assert_eq!(
+        answer.as_deref(),
+        Some("Corrupt(\"the store directory no longer stands at its name\")"),
+        "open with a held store put at its name before the probe's look"
+    );
+    assert!(
+        theirs_after == theirs,
+        "the probe changed the database of the store put at the name"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_answers_a_fifo_swapped_in_at_store_db_before_the_probes_look_within_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let (db, aside) = (
+            store_dir.join("store.db"),
+            dir.path().join("store-db-aside"),
+        );
+        move || {
+            std::fs::rename(&db, &aside).unwrap();
+            make_fifo(&db);
+        }
+    };
+
+    let answer = open_with_a_seam(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        super::db::SEAM_BEFORE_THE_LOOK,
+        1,
+        act,
+    );
+
+    assert_eq!(
+        answer.as_deref(),
+        Some("DatabaseUnreadable"),
+        "within {CALL_BOUND:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_answers_a_fifo_at_store_db_journal_within_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    make_fifo(&store_dir.join("store.db-journal"));
+
+    let answer = within(CALL_BOUND, move || {
+        answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id))
+    });
+
+    assert_eq!(
+        answer.as_deref(),
+        Some("DatabaseUnreadable"),
+        "within {CALL_BOUND:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_mode_step_sets_no_mode_through_a_link_put_at_store_db_after_its_type_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let target = outside.path().join("a-file-at-0644");
+    std::fs::write(&target, b"bytes of another party").unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let act = {
+        let (db, aside, target) = (
+            store_dir.join("store.db"),
+            dir.path().join("store-db-aside"),
+            target.clone(),
+        );
+        move || {
+            std::fs::rename(&db, &aside).unwrap();
+            std::os::unix::fs::symlink(&target, &db).unwrap();
+        }
+    };
+
+    let answer = open_with_a_seam(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        super::db::SEAM_BEFORE_THE_MODE_STEP,
+        1,
+        act,
+    );
+
+    let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+    assert_eq!(
+        (answer.as_deref(), mode),
+        (
+            Some("Corrupt(\"the database file of the store is a link\")"),
+            0o644
+        ),
+        "the mode step and a link put at store.db after its type read"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_store_db_that_goes_away_before_the_mode_step_answers_database_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let (db, aside) = (
+            store_dir.join("store.db"),
+            dir.path().join("store-db-aside"),
+        );
+        move || std::fs::rename(&db, &aside).unwrap()
+    };
+
+    let answer = open_with_a_seam(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        super::db::SEAM_BEFORE_THE_MODE_STEP,
+        1,
+        act,
+    );
+
+    assert_eq!(answer.as_deref(), Some("DatabaseMissing"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_store_db_that_becomes_a_fifo_before_the_mode_step_answers_database_unreadable_within_a_bound()
+{
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let (db, aside) = (
+            store_dir.join("store.db"),
+            dir.path().join("store-db-aside"),
+        );
+        move || {
+            std::fs::rename(&db, &aside).unwrap();
+            make_fifo(&db);
+        }
+    };
+
+    let answer = open_with_a_seam(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        super::db::SEAM_BEFORE_THE_MODE_STEP,
+        1,
+        act,
+    );
+
+    assert_eq!(
+        answer.as_deref(),
+        Some("DatabaseUnreadable"),
+        "within {CALL_BOUND:?}"
+    );
+}
+
+/// An open store whose directory is then moved away, with another directory
+/// put at its name that holds `theirs`; the store keeps its handle.
+#[cfg(unix)]
+fn a_store_moved_away_from_its_name(
+    dir: &Path,
+    theirs: &[(&str, &[u8])],
+) -> (PathBuf, PathBuf, EncryptedStore, Uuid) {
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir);
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let moved = dir.join("moved-store");
+    std::fs::rename(&store_dir, &moved).unwrap();
+    for (name, bytes) in theirs {
+        let file = store_dir.join(name);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, bytes).unwrap();
+    }
+    (store_dir, moved, store, segment_id)
+}
+
+#[cfg(unix)]
+fn shard_of(segment_id: Uuid) -> String {
+    segment_id.simple().to_string()[..2].to_string()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_sweep_after_the_store_directory_moved_acts_in_its_own_directory_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let shard = shard_of(segment_id);
+    let ours = format!("{shard}{}.seg", "1".repeat(30));
+    let theirs_name = format!("segments/{shard}/{shard}{}.seg", "2".repeat(30));
+    std::fs::write(
+        store_dir.join("segments").join(&shard).join(&ours),
+        b"keyless and ours",
+    )
+    .unwrap();
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let moved = dir.path().join("moved-store");
+    std::fs::rename(&store_dir, &moved).unwrap();
+    let file = store_dir.join(&theirs_name);
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, b"theirs").unwrap();
+    let theirs = files_with_bytes(&store_dir);
+
+    let swept = store
+        .remove_keyless_files()
+        .map(|s| (s.removed, s.not_store_files));
+
+    assert_eq!(
+        (
+            swept.map_err(|e| format!("{e:?}")),
+            files_with_bytes(&store_dir)
+        ),
+        (Ok((1, 0)), theirs),
+        "the sweep after a move"
+    );
+    assert!(
+        !moved.join("segments").join(&shard).join(&ours).exists(),
+        "the sweep left the store's own keyless file"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_write_and_its_read_after_the_store_directory_moved_act_in_its_own_directory_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, _moved, mut store, segment_id) =
+        a_store_moved_away_from_its_name(dir.path(), &[("notes.txt", b"theirs")]);
+    let _ = segment_id;
+    let theirs = files_with_bytes(&store_dir);
+
+    let written = store
+        .write_segment(&mut Cursor::new(b"written after the move"))
+        .map(|(seg_ref, _)| seg_ref.segment_id);
+    let read = written
+        .as_ref()
+        .map_err(|e| format!("{e:?}"))
+        .and_then(|id| {
+            let mut out = Vec::new();
+            store
+                .read_segment(*id, &mut out)
+                .map(|_| out)
+                .map_err(|e| format!("{e:?}"))
+        });
+
+    assert_eq!(
+        read,
+        Ok(b"written after the move".to_vec()),
+        "the write {written:?}"
+    );
+    assert_eq!(
+        files_with_bytes(&store_dir),
+        theirs,
+        "the write changed the directory at the name"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_size_after_the_store_directory_moved_counts_its_own_directory_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let big = vec![9u8; 1 << 20];
+    let (store_dir, moved, store, segment_id) = a_store_moved_away_from_its_name(dir.path(), &[]);
+    let file = store_dir
+        .join("segments")
+        .join(shard_of(segment_id))
+        .join("big");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, &big).unwrap();
+
+    let size = store.size_bytes().map_err(|e| format!("{e:?}"));
+
+    assert_eq!(
+        size,
+        Ok(regular_file_bytes(&moved)),
+        "size_bytes after a move"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn create_answers_a_moved_directory_when_a_link_to_it_stands_at_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    std::fs::create_dir(&store_dir).unwrap();
+    let moved = dir.path().join("moved-store");
+    let mut linked = false;
+    let mut open_lock = |path: &Path| -> io::Result<std::fs::File> {
+        if !linked {
+            linked = true;
+            std::fs::rename(&store_dir, &moved).unwrap();
+            std::os::unix::fs::symlink(&moved, &store_dir).unwrap();
+        }
+        std::fs::File::options()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(path)
+    };
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        RootId::fresh(),
+    );
+
+    let created = EncryptedStore::create_with(
+        &store_dir,
+        Box::new(custody),
+        DEFAULT_RETENTION,
+        &mut open_lock,
+    )
+    .map(drop);
+
+    assert!(linked, "the seam did not run");
+    assert!(
+        matches!(&created, Err(StoreError::Corrupt(text))
+            if text == "the store directory no longer stands at its name"),
+        "create with a link to its own directory at its name answered {created:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn create_removes_a_keyless_store_key_tmp_and_makes_its_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    std::fs::create_dir(&store_dir).unwrap();
+    std::fs::write(
+        store_dir.join("store.key.tmp"),
+        b"left by a create that stopped",
+    )
+    .unwrap();
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        RootId::fresh(),
+    );
+
+    let created =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).map(drop);
+
+    assert!(
+        created.is_ok(),
+        "create over a keyless store.key.tmp answered {created:?}"
+    );
+    assert!(KeyFile::path(&store_dir).exists());
+    assert!(!store_dir.join("store.key.tmp").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn the_size_skips_a_directory_that_became_a_link_after_the_listing() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("big"), vec![9u8; 1 << 20]).unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let act = {
+        let (segments, aside, target) = (
+            store_dir.join("segments"),
+            dir.path().join("segments-aside"),
+            outside.path().to_path_buf(),
+        );
+        move || {
+            std::fs::rename(&segments, &aside).unwrap();
+            std::os::unix::fs::symlink(&target, &segments).unwrap();
+        }
+    };
+    let _seam = super::failpoint::at(super::db::SEAM_SIZE_AFTER_THE_LISTING, nth_call(1, act));
+
+    let size = store.size_bytes().map_err(|e| format!("{e:?}"));
+
+    assert_eq!(
+        size,
+        Ok(regular_file_bytes(&store_dir)),
+        "size_bytes with segments made a link after the listing"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_sweep_walks_no_directory_whose_name_is_no_shard_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let not_a_shard = store_dir.join("segments").join("0a1");
+    std::fs::create_dir(&not_a_shard).unwrap();
+    let file = not_a_shard.join(format!("0a1{}.seg", "3".repeat(29)));
+    std::fs::write(&file, b"no file of the store").unwrap();
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+
+    let swept = store
+        .remove_keyless_files()
+        .map(|s| (s.removed, s.not_store_files));
+
+    assert!(
+        file.exists(),
+        "the sweep removed a file below a directory that is no shard ({swept:?})"
+    );
+    assert_eq!(swept.map_err(|e| format!("{e:?}")), Ok((0, 1)));
+}
+
+#[cfg(unix)]
+#[test]
+fn the_sweep_takes_no_segment_name_that_stands_in_another_shard() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let shard = shard_of(segment_id);
+    let other = if shard == "cd" { "ef" } else { "cd" };
+    let file = store_dir
+        .join("segments")
+        .join(&shard)
+        .join(format!("{other}{}.seg", "4".repeat(30)));
+    std::fs::write(&file, b"a segment name of another shard").unwrap();
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+
+    let swept = store
+        .remove_keyless_files()
+        .map(|s| (s.removed, s.not_store_files));
+
+    assert!(
+        file.exists(),
+        "the sweep removed a segment name that stands in another shard ({swept:?})"
+    );
+    assert_eq!(swept.map_err(|e| format!("{e:?}")), Ok((0, 1)));
 }
 
 #[cfg(windows)]

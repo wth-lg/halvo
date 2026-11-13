@@ -33,6 +33,16 @@ const DATABASE_LOG: &str = "store.db-wal";
 const LINKED_DATABASE: &str = "the database file of the store is a link";
 const STORE_DIR_MOVED: &str = "the store directory no longer stands at its name";
 const LINKED_SIDE_FILE: &str = "a file beside the database of the store is a link";
+const DATABASE_SIDE_FILES: [&str; 3] = [DATABASE_LOG, "store.db-shm", "store.db-journal"];
+
+#[cfg(test)]
+pub(crate) const SEAM_BEFORE_THE_LOOK: &str = "a database open, before its look";
+#[cfg(test)]
+pub(crate) const SEAM_AFTER_THE_LAST_LOOK: &str = "a database open, after its last look";
+#[cfg(test)]
+pub(crate) const SEAM_BEFORE_THE_MODE_STEP: &str = "the mode step of store.db";
+#[cfg(test)]
+pub(crate) const SEAM_SIZE_AFTER_THE_LISTING: &str = "the size, after its first listing";
 
 #[derive(Deserialize)]
 struct KeyFileVersion {
@@ -199,15 +209,16 @@ const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
 /// closes that descriptor before SQLite opens the name, because closing a
 /// descriptor of the file after SQLite took its locks would drop them.
 #[cfg(unix)]
-fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
     use std::os::unix::fs::PermissionsExt;
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
     store_dir
         .open_file(OsStr::new(DATABASE_FILE))
         .map_err(database_file_error)?
         .set_permissions(std::fs::Permissions::from_mode(0o600))
         .map_err(io_error)?;
-    refuse_a_moved_store_dir(store_dir)?;
-    Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error)
+    open_connection(store_dir, flags)
 }
 
 /// SQLite opens the database by its name under the handle's name, so the
@@ -225,14 +236,63 @@ fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
 /// store holds the file from its check until the connection is open, with a
 /// handle that shares no delete, so no other file can take the name.
 #[cfg(windows)]
-fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
-    let held = store_dir
-        .hold_file(OsStr::new(DATABASE_FILE))
-        .map_err(database_file_error)?;
+fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
+    open_connection(store_dir, flags)
+}
+
+/// The one open of SQLite in the store, for the probe and for both
+/// connections: a look at the four names of the database through the
+/// handle, the last look at the handle's name, then SQLite's open of the
+/// database by that name with the flags that the caller passes.
+fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<Connection> {
+    #[cfg(test)]
+    failpoint::seam(SEAM_BEFORE_THE_LOOK);
+    look_at_the_database_files(store_dir)?;
+    #[cfg(windows)]
+    let held = hold_the_database_file(store_dir)?;
     refuse_a_moved_store_dir(store_dir)?;
-    let conn = Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error);
+    #[cfg(test)]
+    failpoint::seam(SEAM_AFTER_THE_LAST_LOOK);
+    let conn =
+        Connection::open_with_flags(Db::path(store_dir.path()), flags).map_err(database_open_error);
+    #[cfg(windows)]
     drop(held);
     conn
+}
+
+/// On Windows the database file is held from the look until the connection
+/// is open, with a handle that shares no delete, so no other file can take
+/// its name meanwhile.
+#[cfg(windows)]
+fn hold_the_database_file(store_dir: &Dir) -> StoreResult<Option<File>> {
+    match store_dir.hold_file(OsStr::new(DATABASE_FILE)) {
+        Ok(held) => Ok(Some(held)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(database_file_error(e)),
+    }
+}
+
+/// Reads store.db and its three side files through the handle, following no
+/// link and without a wait: each is absent or a regular file, a link answers
+/// Corrupt, and a name that is no regular file answers DatabaseUnreadable.
+fn look_at_the_database_files(store_dir: &Dir) -> StoreResult<()> {
+    let names = [(DATABASE_FILE, LINKED_DATABASE)]
+        .into_iter()
+        .chain(DATABASE_SIDE_FILES.map(|name| (name, LINKED_SIDE_FILE)));
+    for (name, linked) in names {
+        match store_dir.entry(OsStr::new(name)) {
+            Ok(entry) if entry.kind == EntryKind::File => {}
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                return Err(StoreError::Corrupt(linked.to_string()))
+            }
+            Ok(_) => return Err(StoreError::DatabaseUnreadable),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(io_error(e)),
+        }
+    }
+    Ok(())
 }
 
 pub(crate) use super::failpoint;
@@ -389,14 +449,14 @@ impl Db {
 
     fn refuse_a_live_holder(store_dir: &Dir) -> StoreResult<()> {
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
-        let path = Self::path(store_dir.path());
         match store_dir.entry(OsStr::new(DATABASE_FILE)) {
             Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => {}
             _ => return Ok(()),
         }
-        let probe = match Connection::open_with_flags(&path, PROBE_OPEN) {
+        let probe = match open_connection(store_dir, PROBE_OPEN) {
             Ok(probe) => probe,
-            Err(_) => return Ok(()),
+            Err(StoreError::Db(_)) => return Ok(()),
+            Err(e) => return Err(e),
         };
         probe.busy_timeout(Duration::ZERO).map_err(db_error)?;
         probe
@@ -433,7 +493,6 @@ impl Db {
             Self::require_file(store_dir)?;
         }
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
-        let path = Self::path(store_dir.path());
         let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
             Ok(_) => true,
             Err(e) if e.kind() == ErrorKind::NotFound => false,
@@ -444,7 +503,7 @@ impl Db {
                 .create_new(OsStr::new(DATABASE_FILE))
                 .map_err(io_error)?;
         }
-        let conn = open_database(store_dir, &path)?;
+        let conn = open_database(store_dir, DATABASE_OPEN)?;
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
@@ -1137,6 +1196,8 @@ pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     let mut total = 0u64;
     let mut pending = Pending::new();
     take(None, listed(dir)?, &mut total, &mut pending);
+    #[cfg(test)]
+    failpoint::seam(SEAM_SIZE_AFTER_THE_LISTING);
     while let Some((parent, name)) = pending.pop() {
         let opened = match &parent {
             Some(parent) => parent.open_dir(&name),
@@ -1686,7 +1747,7 @@ mod tests {
     }
 
     #[test]
-    fn every_database_open_carries_the_no_follow_flag_and_no_uri_flag() {
+    fn the_open_flag_constants_carry_no_follow_and_neither_uri_nor_create() {
         for flags in [DATABASE_OPEN, PROBE_OPEN] {
             assert!(flags.contains(OpenFlags::SQLITE_OPEN_NOFOLLOW), "{flags:?}");
             assert!(!flags.contains(OpenFlags::SQLITE_OPEN_URI), "{flags:?}");
@@ -1696,7 +1757,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_database_open_of_a_link_answers_corrupt_and_writes_nothing_beside_the_target() {
+    fn sqlite_under_the_constant_flags_refuses_a_link_and_the_store_maps_it_to_corrupt() {
         halvo_sqlcipher::initialize().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let resolved = Dir::open(dir.path()).unwrap();
