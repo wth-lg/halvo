@@ -9,6 +9,14 @@ probe_word=--r6-egress-no-such-argument
 unknown='REFUSED usage: unknown command'
 nl='
 '
+w_rust=RUST
+w_rustc=${w_rust}C
+w_cargo=CARGO
+v_flags=${w_rust}FLAGS
+v_encoded=${w_cargo}_ENCODED_$v_flags
+v_build=${w_cargo}_BUILD_$v_flags
+v_clippy=CLIPPY_ARGS
+v_wrappers="${w_rustc}_WRAPPER ${w_rustc}_WORKSPACE_WRAPPER ${w_cargo}_BUILD_${w_rustc}_WRAPPER ${w_cargo}_BUILD_${w_rustc}_WORKSPACE_WRAPPER $w_rustc ${w_cargo}_BUILD_$w_rustc"
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -268,6 +276,165 @@ run_canary() {
     printf 'egress canary: the forbid run let the canary through\n'
     fail check
   fi
+}
+
+env_rules() {
+  env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u >"$work/env-names.txt" || fail setup
+  while IFS= read -r var; do
+    case " $v_wrappers " in
+      *" $var "*)
+        printf 'rule env %s is set\n' "$var"
+        holds=no
+        continue
+        ;;
+    esac
+    case $var in
+      "$v_flags" | "$v_encoded" | "$v_build" | "$v_clippy" | "${w_cargo}_TARGET_"*"_$v_flags") ;;
+      *) continue ;;
+    esac
+    printenv "$var" >"$work/env-value.txt" || continue
+    if tr '\037' ' ' <"$work/env-value.txt" | awk '
+      {
+        for (i = 1; i <= NF; i++) {
+          if ($i ~ /^-A/ || $i ~ /^--allow/ || $i ~ /cap[-_]lints/ || $i ~ /^--cfg/) bad = 1
+        }
+      }
+      END { exit bad ? 0 : 1 }
+    '; then
+      printf 'rule env %s holds an allow, a cap on lints or a cfg\n' "$var"
+      holds=no
+    fi
+  done <"$work/env-names.txt"
+}
+
+text_rules() {
+  awk -v root="$root_abs" '
+    function lineof(text, at,   head) {
+      head = substr(text, 1, at)
+      return gsub(/\n/, "\n", head) + 1
+    }
+    function shown(path) {
+      gsub(/\\/, "/", path)
+      if (root != "" && index(path, root "/") == 1) path = substr(path, length(root) + 2)
+      if (path ~ /^\// || path ~ /^[A-Za-z]:\//) path = "outside-the-repository"
+      return path
+    }
+    function scan(path, text,   off, rest, at, attr, i, c, depth, pred, quoted, word) {
+      off = 0
+      rest = text
+      while (match(rest, /(^|[^A-Za-z0-9_])cfg(_attr)?[ \t\r\n]*!?[ \t\r\n]*\(/)) {
+        at = off + RSTART
+        attr = index(substr(rest, RSTART, RLENGTH), "cfg_attr") > 0
+        i = off + RSTART + RLENGTH
+        depth = 1
+        pred = ""
+        quoted = 0
+        while (i <= length(text) && depth > 0) {
+          c = substr(text, i, 1)
+          if (quoted) {
+            if (c == "\\") i++
+            else if (c == "\"") quoted = 0
+            i++
+            continue
+          }
+          if (c == "\"") quoted = 1
+          else if (c == "(") depth++
+          else if (c == ")") depth--
+          else if (c == "," && depth == 1 && attr) break
+          if (depth > 0) pred = pred c
+          i++
+        }
+        while (match(pred, /[A-Za-z_][A-Za-z0-9_]*/)) {
+          word = substr(pred, RSTART, RLENGTH)
+          if (word != "test" && word != "unix" && word != "windows" && word != "any" && word != "all" && word != "not") {
+            printf "rule cfg %s:%d %s\n", shown(path), lineof(text, at), word
+          }
+          pred = substr(pred, RSTART + RLENGTH)
+        }
+        off = i
+        rest = substr(text, i + 1)
+      }
+      off = 0
+      rest = text
+      while (match(rest, /#[ \t\r\n]*!?[ \t\r\n]*\[[ \t\r\n]*\$[A-Za-z_][A-Za-z0-9_]*[ \t\r\n]*(\(|=|::)/)) {
+        printf "rule attribute %s:%d\n", shown(path), lineof(text, off + RSTART)
+        off += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+    }
+    {
+      path = $0
+      text = ""
+      first = 1
+      while ((got = (getline line < path)) > 0) {
+        text = text (first ? "" : "\n") line
+        first = 0
+      }
+      if (got < 0) printf "rule unread %s\n", shown(path)
+      close(path)
+      scan(path, text)
+      files++
+    }
+    END { printf "files %d\n", files }
+  ' "$1"
+}
+
+dep_info_files() {
+  awk '
+    index($0, "{\"reason\":\"compiler-artifact\"") == 1 && index($0, "\"package_id\":\"path+file") > 0 {
+      if (!match($0, /"filenames":\["[^"]*"/)) next
+      file = substr($0, RSTART + 14, RLENGTH - 15)
+      gsub(/\\\\/, "/", file)
+      dir = file
+      sub(/\/[^\/]*$/, "", dir)
+      stem = substr(file, length(dir) + 2)
+      sub(/^lib/, "", stem)
+      sub(/\.[^.]*$/, "", stem)
+      print dir "/" stem ".d"
+    }
+  ' "$artifacts/forbid.json" | sort -u >"$work/dep-info-files.txt" || fail setup
+  : >"$work/dep-info-named.txt"
+  while IFS= read -r depfile; do
+    if [ ! -f "$depfile" ]; then
+      printf 'rule unread %s\n' "${depfile##*/}"
+      holds=no
+      continue
+    fi
+    awk '
+      NR == 1 {
+        line = $0
+        sub(/^.*\.d: /, "", line)
+        gsub(/\\ /, "\001", line)
+        n = split(line, part, " ")
+        for (i = 1; i <= n; i++) {
+          if (part[i] == "") continue
+          gsub(/\001/, " ", part[i])
+          print part[i]
+        }
+      }
+    ' "$depfile" >>"$work/dep-info-named.txt" || fail setup
+  done <"$work/dep-info-files.txt"
+}
+
+all_text_rules() {
+  git ls-tree -r -z --name-only "$tree" -- crates/halvo-route crates/halvo-route-gate crates/halvo-route-wire \
+    >"$work/crate-files.z" || fail setup
+  tr '\000' '\n' <"$work/crate-files.z" >"$work/crate-files.txt" || fail setup
+  dep_info_files
+  sort -u "$work/crate-files.txt" "$work/dep-info-named.txt" >"$work/text-files.txt" || fail setup
+  text_rules "$work/text-files.txt" >"$work/text-rules.txt" || fail setup
+  refused=0
+  while IFS= read -r line; do
+    case $line in
+      'files '*) read_files=${line#files } ;;
+      *)
+        printf '%s\n' "$line"
+        refused=$((refused + 1))
+        ;;
+    esac
+  done <"$work/text-rules.txt"
+  printf 'egress rules files=%s refused=%s\n' "${read_files:-0}" "$refused"
+  [ "$refused" -eq 0 ] || holds=no
 }
 
 forbid_crates() {
@@ -685,6 +852,7 @@ check() {
     report_changes before "$work/before.txt"
     fail setup
   fi
+  env_rules
   count_entries
   not_observed
 
@@ -693,6 +861,7 @@ check() {
   write_canary
   run_canary
   forbid_crates
+  all_text_rules
   printf 'egress seconds graph=%s canary=%s forbid=%s\n' "$graph_seconds" "$canary_seconds" "$forbid_seconds"
 
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || fail setup
@@ -880,6 +1049,24 @@ EOF
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed setup
   printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed setup
   printf '[package]\nname = "halvo-route-gate"\n%s' "${4:-}" >"$dir/crates/halvo-route-gate/Cargo.toml" || self_failed setup
+  cat >"$dir/crates/halvo-route-gate/src/allowed.rs" <<'EOF' || self_failed setup
+#[cfg(all(unix, not(test)))]
+pub fn a() {}
+#[cfg_attr(not(test), allow(unused_variables))]
+pub fn b(x: u8) {}
+#[cfg(any(windows, test))]
+pub fn c() {}
+macro_rules! named {
+    ($name:ident) => {
+        #[$name]
+        fn f() {}
+    };
+}
+EOF
+  if [ -n "${5:-}" ]; then
+    mkdir -p "$dir/${5%/*}" || self_failed setup
+    printf '%s\n' "$6" >"$dir/$5" || self_failed setup
+  fi
   cat >"$dir/scripts/egress/check.sh" <<'EOF' || self_failed setup
 #!/bin/sh
 list=$1
@@ -927,6 +1114,7 @@ case_reset() {
   case_job=$own_job
   case_actions=
   case_arg=
+  case_env=
 }
 
 case_run() {
@@ -934,7 +1122,8 @@ case_run() {
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
-    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
+    env ${case_env:+"$case_env"} sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -986,6 +1175,21 @@ self_test() {
   entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed setup
   patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed setup
   features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed setup
+  cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
+    '#[cfg(target_os = "linux")]') || self_failed setup
+  nested_tree=$(write_repo "$work/repo-nested" '' '' '' crates/halvo-route-gate/src/net.rs \
+    '#[cfg_attr(test, cfg(debug_assertions))]') || self_failed setup
+  # shellcheck disable=SC2016
+  attr_tree=$(write_repo "$work/repo-attr" '' '' '' crates/halvo-route-gate/src/net.rs \
+    'macro_rules! m { ($a:ident) => { #[ $a ( x ) ] fn f() {} }; }') || self_failed setup
+  outside_tree=$(write_repo "$work/repo-outside" '' '' '' docs/outside.rs '#[cfg(feature = "x")]') || self_failed setup
+  mkdir -p "$work/deps" || self_failed setup
+  printf '%s/deps/gate-1.d: crates/halvo-route-gate/src/main.rs docs/outside.rs\n' "$work" >"$work/deps/gate-1.d" ||
+    self_failed setup
+  printf '{"reason":"compiler-artifact","package_id":"path+file:///x#0.0.0","filenames":["%s/deps/libgate-1.rmeta"],"fresh":true}\n' \
+    "$work" >"$work/clippy-dep-info.json" || self_failed setup
+  printf '{"reason":"compiler-artifact","package_id":"path+file:///x#0.0.0","filenames":["%s/deps/libgone-1.rmeta"],"fresh":true}\n' \
+    "$work" >"$work/clippy-dep-info-gone.json" || self_failed setup
   system=$(uname -s) || self_failed setup
   case $system in
     Darwin)
@@ -1020,6 +1224,37 @@ self_test() {
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
+  case_run rules-allowed-forms PASS - 'egress rules files='
+  case_env="$v_flags=-Dwarnings"
+  case_run env-deny-flag PASS - 'egress rules files='
+  case_env="$v_flags=-Aclippy::disallowed_types"
+  case_run env-allow-flag FAIL check "rule env $v_flags holds an allow, a cap on lints or a cfg"
+  case_env="$v_encoded=-Dwarnings$(printf '\037')--cap-lints$(printf '\037')warn"
+  case_run env-encoded-cap FAIL check "rule env $v_encoded holds"
+  case_env="${w_cargo}_TARGET_X86_64_UNKNOWN_LINUX_GNU_$v_flags=--cfg=nonet"
+  case_run env-per-target-cfg FAIL check "rule env ${w_cargo}_TARGET_X86_64_UNKNOWN_LINUX_GNU_$v_flags holds"
+  case_env="$v_clippy=--cap-lints=allow"
+  case_run env-clippy-arguments FAIL check "rule env $v_clippy holds"
+  case_env="${w_rustc}_WORKSPACE_WRAPPER=/x"
+  case_run env-wrapper-set FAIL check "rule env ${w_rustc}_WORKSPACE_WRAPPER is set"
+  case_repo=$work/repo-cfg
+  case_tree=$cfg_tree
+  case_run rule-cfg-target-os FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
+  case_repo=$work/repo-nested
+  case_tree=$nested_tree
+  case_run rule-cfg-nested FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 debug_assertions'
+  case_repo=$work/repo-attr
+  case_tree=$attr_tree
+  case_run rule-attribute-from-a-macro-variable FAIL check 'rule attribute crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-outside
+  case_tree=$outside_tree
+  case_run rule-outside-the-crates-not-named PASS - 'egress rules files='
+  STUB_CLIPPY_JSON=$work/clippy-dep-info.json
+  case_repo=$work/repo-outside
+  case_tree=$outside_tree
+  case_run rule-file-named-by-dep-info FAIL check 'rule cfg docs/outside.rs:1 feature'
+  STUB_CLIPPY_JSON=$work/clippy-dep-info-gone.json
+  case_run rule-dep-info-missing FAIL check 'rule unread gone-1.d'
   STUB_GRAPH=extra-third
   case_run graph-third-party-package-added FAIL check 'egress graph unknown=libc'
   STUB_GRAPH=extra-path
