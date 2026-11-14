@@ -5,7 +5,9 @@ use halvo_schema::executable::{CoordinatorReply, RunnerReply};
 use halvo_schema::kinds::{check_record, registry};
 use halvo_schema::learning::record::{LearnEdit, LearnRoutine, LearnRun};
 use halvo_schema::learning::KINDS;
-use halvo_schema::{ErrorName, Instant, RowRead, TypedRecord, Workflow, WorkflowId, WorkflowItem};
+use halvo_schema::{
+    ErrorName, Instant, RetentionClass, RowRead, TypedRecord, Workflow, WorkflowId, WorkflowItem,
+};
 use serde_json::{json, Value};
 
 use crate::{Clock, CoordinatorAnswer, LearnHandlers, LearnHost, Refused};
@@ -105,6 +107,15 @@ impl TestHost {
         self.agent.store.put_workflow(workflow);
     }
 
+    /// Every stored row of the kind, those that the read withholds too.
+    pub fn stored(&self, kind: &str) -> Vec<String> {
+        self.learn
+            .iter()
+            .filter(|(k, _)| *k == kind)
+            .map(|(_, json)| json.clone())
+            .collect()
+    }
+
     pub fn learn_rows(&self, kind: &str) -> Vec<String> {
         let mut out = Vec::new();
         self.for_each(kind, &mut |row| out.push(row.to_owned()));
@@ -150,12 +161,30 @@ impl Clock for TestHost {
     }
 }
 
+/// The store's bound rule (W-C2.5; the workflow run's rulings DS-2 and DS-4): the read withholds a row of a bounded
+/// kind whose `day` lies its bound or more days before today, or more than two days after it, or that has no `day`.
+fn withheld(kind: &str, json: &str, today: u32) -> bool {
+    let Some(RetentionClass::Bounded { days }) =
+        registry().find(|e| e.name == kind).map(|e| e.class)
+    else {
+        return false;
+    };
+    let day = serde_json::from_str::<Value>(json)
+        .ok()
+        .and_then(|v| v.get("day").and_then(Value::as_u64));
+    match day {
+        None => true,
+        Some(d) if d > u64::from(today) => d - u64::from(today) > 2,
+        Some(d) => u64::from(today) - d >= u64::from(days),
+    }
+}
+
 impl RowRead for TestHost {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
         let mut rows: Vec<String> = self
             .learn
             .iter()
-            .filter(|(k, _)| *k == kind)
+            .filter(|(k, json)| *k == kind && !withheld(kind, json, self.day))
             .map(|(_, json)| json.clone())
             .collect();
         if let (Some(other), "learn_run") = (&self.run_workflow, kind) {
@@ -419,13 +448,31 @@ impl World {
 }
 
 pub fn world() -> World {
-    let mut w = World {
+    let mut w = bare_world();
+    w.create(1);
+    w
+}
+
+/// A world with no workflow and no agent.
+pub fn bare_world() -> World {
+    World {
         host: TestHost::new(),
         handlers: LearnHandlers::new(),
         loaded: 0,
         pair: 1,
-    };
-    w.create(1);
+    }
+}
+
+/// Workflow 1 and its agent 1 as a stop behind the state call of `create_agent` leaves them: the agent store's rows
+/// and no row of the family `learn` (the workflow run's ruling S-69).
+pub fn world_with_no_routine_row() -> World {
+    let mut w = bare_world();
+    w.host
+        .put_workflow(workflow(&wf(1), "utility_bill_payment", "approved", None));
+    let now = w.host.agent_now();
+    let body = json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)});
+    let reply = halvo_agent_store::coordinator(&mut w.host.agent, now, body.to_string().as_bytes());
+    assert!(reply.is_ok(), "the agent store's create_agent: {reply:?}");
     w
 }
 

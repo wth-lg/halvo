@@ -5,7 +5,7 @@ use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, RunId};
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::{Mark, RefinementKind};
 use halvo_schema::learning::record::{Day, EditState, LearnRoutine, LearnRun, RunStatus};
-use halvo_schema::{ErrorName, Workflow};
+use halvo_schema::{AgentId, ErrorName, Workflow, WorkflowId};
 
 use crate::agent;
 use crate::handlers::{CoordinatorAnswer, Fault, LearnHandlers, Refused};
@@ -126,51 +126,96 @@ impl LearnHandlers {
 }
 
 impl LearnHandlers {
-    /// At a `start_run` that the agent store accepted: stores the run's `learn_run` rev 1 and remembers the start
-    /// (contracts.md L4.3). A run whose row stands already changes nothing. Where the run rows of the workflow cannot
-    /// be read, or the commit is refused, the start is remembered with no row and the run is a lost run.
+    /// At a `start_run` that the agent store accepted (contracts.md L4.3): stores the run's `learn_run` rev 1 and
+    /// remembers the start; in the same typed commit, or alone where the run's row stands already, the `learn_routine`
+    /// row that `routine_due` gives. A run whose row stands already changes nothing else. Where the run rows of the
+    /// workflow cannot be read, nothing is stored and the start is remembered with no row; where the commit is
+    /// refused, the start is remembered with no row too, and the run is a lost run.
     fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
         let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
             self.remember_start(b, false);
             return Ok(());
         };
-        if rows::newest_run(&runs, b.run.as_str()).is_some() {
-            return Ok(());
+        let stands = rows::newest_run(&runs, b.run.as_str()).is_some();
+        let stored = start_rows(host, b, stands);
+        if !stands {
+            self.remember_start(b, stored.is_ok());
         }
-        let stored = today(host).and_then(|day| {
-            let row = LearnRun {
-                workflow: b.workflow.clone(),
-                agent: b.agent.clone(),
-                run: b.run.clone(),
-                day,
-                mode: b.mode,
-                status: RunStatus::Started,
-            };
-            host.commit(vec![rows::run_record(&row)?])
-        });
-        self.remember_start(b, stored.is_ok());
         Ok(stored?)
     }
 }
 
-fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
-    let Read::Rows(routines) = rows::routines(host.rows(), &b.workflow) else {
-        return Ok(());
-    };
-    let stored = routines
-        .iter()
-        .any(|r| r.workflow == b.workflow && r.agent == b.agent);
-    if stored {
+fn start_rows(host: &mut dyn LearnHost, b: &StartRun, stands: bool) -> Result<(), ErrorName> {
+    let day = today(host)?;
+    let mut records = Vec::new();
+    if !stands {
+        let row = LearnRun {
+            workflow: b.workflow.clone(),
+            agent: b.agent.clone(),
+            run: b.run.clone(),
+            day,
+            mode: b.mode,
+            status: RunStatus::Started,
+        };
+        records.push(rows::run_record(&row)?);
+    }
+    if let Some(row) = routine_due(host, &b.workflow, &b.agent, day) {
+        records.push(rows::routine_record(&row)?);
+    }
+    if records.is_empty() {
         return Ok(());
     }
-    let Some(Workflow::Full(w)) = host.workflow(&b.workflow).map(|item| item.workflow) else {
-        return Ok(());
+    host.commit(records)
+}
+
+/// The `learn_routine` row that an accepted `start_run` stores for the body's workflow and agent (contracts.md L4.3;
+/// the workflow run's ruling S-69; the coordinator's ruling LM-57): where a read of the routine rows that succeeded
+/// holds no row of the pair, rev 1 as at `create_agent`; where the pair's newest row by `rows::newest_routine` is at
+/// least `REWRITE_DAYS` days old and holds the mark `none`, that row again with `rev` + 1 and `day` today; else none,
+/// also where the read stops the workflow. A row that holds `stale` is not written again.
+fn routine_due(
+    host: &dyn LearnHost,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    day: Day,
+) -> Option<LearnRoutine> {
+    let Read::Rows(routines) = rows::routines(host.rows(), workflow) else {
+        return None;
     };
-    let row = LearnRoutine {
-        workflow: b.workflow.clone(),
-        agent: b.agent.clone(),
+    match rows::newest_routine(&routines, workflow, agent) {
+        None => first_routine(host, workflow, agent, day),
+        Some(row)
+            if row.mark == Mark::None
+                && day.get().saturating_sub(row.day.get()) >= REWRITE_DAYS =>
+        {
+            Some(LearnRoutine {
+                rev: row.rev.checked_add(1)?,
+                day,
+                ..row.clone()
+            })
+        }
+        Some(_) => None,
+    }
+}
+
+/// The age in days at which an accepted `start_run` writes the pair's newest routine row again.
+const REWRITE_DAYS: u32 = 30;
+
+/// Rev 1 of the pair's routine row from the stored workflow's key, or none where the workflow is not stored whole.
+fn first_routine(
+    host: &dyn LearnHost,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    day: Day,
+) -> Option<LearnRoutine> {
+    let Some(Workflow::Full(w)) = host.workflow(workflow).map(|item| item.workflow) else {
+        return None;
+    };
+    Some(LearnRoutine {
+        workflow: workflow.clone(),
+        agent: agent.clone(),
         rev: NonZeroU32::MIN,
-        day: today(host)?,
+        day,
         category: w.category,
         site: w.site,
         app: w.app,
@@ -182,6 +227,18 @@ fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
         missed: 0,
         mark: Mark::None,
         since: None,
+    })
+}
+
+fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
+    let Read::Rows(routines) = rows::routines(host.rows(), &b.workflow) else {
+        return Ok(());
+    };
+    if rows::newest_routine(&routines, &b.workflow, &b.agent).is_some() {
+        return Ok(());
+    }
+    let Some(row) = first_routine(host, &b.workflow, &b.agent, today(host)?) else {
+        return Ok(());
     };
     Ok(host.commit(vec![rows::routine_record(&row)?])?)
 }

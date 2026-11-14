@@ -111,7 +111,8 @@ impl CoordinatorAnswer {
 /// candidate and no move and store a rev 2 with `kept` 0; a `learn_run` row its run rows, its runs being lost runs whose
 /// mode comes from the remembered start; a `learn_routine` row its routine rows. A body that the agent store answered
 /// gets the agent store's reply whatever the learning part could read or store, and a replay `put_playbook` its count;
-/// `list_refinements` alone answers `store` (LM-58 (b)).
+/// `list_refinements` alone answers `store` (LM-58 (b)). An accepted `start_run` also stores the pair's `learn_routine` row
+/// where none can be read, and its newest row again at 30 days with the mark `none` (L4.3; S-69, LM-57).
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
