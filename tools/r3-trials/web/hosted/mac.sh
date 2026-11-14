@@ -1,10 +1,4 @@
 # shellcheck shell=sh
-# The macOS part of the hosted harness of the org_ cells: harness.sh sources it after its guard.
-# mac_main writes each setting as a property list of the browser's bundle id into the managed
-# preferences directory, owned by root with mode 644, ends cfprefsd so that it reads the file, reads
-# the browser's policy page back, runs the cell, then moves the file out and ends cfprefsd again.
-# Optional: LIMIT (seconds per call, 420), RUN_SH (the trial's run.sh), PAGE_WAIT (seconds for a
-# policy page, 45).
 
 LIMIT=${LIMIT:-420}
 RUN_SH=${RUN_SH:-tools/r3-trials/web/run.sh}

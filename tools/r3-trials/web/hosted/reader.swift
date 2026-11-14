@@ -1,19 +1,3 @@
-// The policy-page reader of U0.7c's ninth run.
-//   reader pdf PDF NAME VALUE [TEXT_OUT]   reads the PDF's text with PDFKit (and writes it to TEXT_OUT)
-//   reader text FILE NAME VALUE            reads a text file, for tries without a browser
-// It prints booleans, counts and closed-list words only:
-//   policy_page  the text holds "policy name" in any case, with spaces and line ends taken out
-//   named        yes when the name is in the text (named_by=text), in the text squashed to letters and
-//                digits (named_by=squashed: line ends, spaces, soft hyphens and zero-width marks
-//                gone), or in pieces: a word that ends with a prefix of the name (6 letters, or half
-//                of a short name and at least 4), then words up to 12 lines after or before it that
-//                carry the rest, other words between them skipped (named_by=pieces); else no
-//                (named_by=none)
-//   prefix_len   the longest prefix of the name that the squashed text holds, of name_len
-//   near         the words of the name's first line and the six lines after it, as false, direct,
-//                Platform, Machine, Mandatory, OK or other (a piece of the name itself is skipped)
-//   value_seen   near holds VALUE
-//   platform_count  how often the text holds "Platform"
 import Foundation
 import PDFKit
 
@@ -43,7 +27,6 @@ let lines = text.components(separatedBy: .newlines)
 let sq = lines.map(squash)
 let all = squash(text)
 
-// the line where the name starts and how it was found
 var start: Int? = nil
 var by = "none"
 if let i = lines.firstIndex(where: { $0.contains(name) }) {
@@ -57,8 +40,6 @@ if let i = lines.firstIndex(where: { $0.contains(name) }) {
         start = i
     }
 } else {
-    // pieces: a word that ends with a prefix of the name (6 characters or more), then words on
-    // the lines up to 12 before or after it that carry the rest piece by piece, other words skipped
     var words: [(line: Int, w: String)] = []
     for (n, l) in lines.enumerated() {
         for w in l.split(whereSeparator: { $0.isWhitespace }) {
@@ -66,7 +47,6 @@ if let i = lines.firstIndex(where: { $0.contains(name) }) {
             if !q.isEmpty { words.append((n, q)) }
         }
     }
-    // the shortest first piece: 6 letters, or half the name for a short name (at least 4)
     let least = min(6, max(4, name.count / 2))
     outer: for (wi, x) in words.enumerated() {
         var p = min(x.w.count, name.count - 1)

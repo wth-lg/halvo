@@ -1076,8 +1076,6 @@ async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool) {
     (done, stopped.removed)
 }
 
-/// The relay of a run's browser, its list the fixture's two hosts on `port`, as the product's list
-/// holds the bound origins of a run.
 async fn relay_for(port: u16) -> Option<Relay> {
     let relay = Relay::start().await.ok()?;
     relay.handle().set_list(Some(vec![
@@ -1087,8 +1085,6 @@ async fn relay_for(port: u16) -> Option<Relay> {
     Some(relay)
 }
 
-/// Item 3: runs this program as `--item egress` under the egress check with the list of A14.3,
-/// and prints the item's line from the check's line and the run's.
 async fn item3(args: &Args, kind: &'static str) -> ExitCode {
     let cell = format!("machine={} browser={kind}", args.machine);
     let set = if args.first { "first" } else { "final" };
@@ -1232,9 +1228,6 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
     }
 }
 
-/// The command of item 3 under the egress check: the fixture and one browser in the start of
-/// item 3, which signs in on the utility fixture with the second factor, opens /bill and /pay and
-/// holds that page for 20 s, then stops. Prints one `egress_run` line.
 async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
     let cell = format!("machine={} browser={kind}", args.machine);
     let report = |started: bool, result: &str, cause: &str| {

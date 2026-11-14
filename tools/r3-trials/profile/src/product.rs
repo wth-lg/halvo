@@ -20,9 +20,7 @@ pub enum Start {
     /// the same-site setting written before the start, the first flag set of A13.2, the flags of
     /// U0.7b for the ways out, and the relay of `relay` as the browser's only route.
     Product { relay: RelayHandle, relay_port: u16 },
-    /// The product's start without the relay (item 3): the relay is the executor's own and runs
-    /// outside the egress check's tree, so the browser's own connections go out direct and the check
-    /// sees each; the relay's flags that close a way out stay.
+    /// The product's start without the relay (item 3): the relay's flags that close a way out stay.
     ProductDirect,
     /// The first flag set of A13.2 on the pipe, with no setting written: where item 3 begins.
     First,
@@ -53,10 +51,6 @@ fn set_by_the_executor(flag: &str) -> bool {
     .any(|p| flag.starts_with(p))
 }
 
-/// The start flags that the product carries, as the `flag` lines of A13.3 list them: the first set
-/// of A13.2, the flags that U0.7b keeps for the ways out of A11.1, and the relay's flags that close
-/// a way out; without what the executor sets itself (the profile directory, headless, the
-/// debugging channel, the relay's address) and without the resolver rule.
 pub fn product_flags() -> Vec<String> {
     let mut f: Vec<String> = FIRST_FLAGS.iter().map(|s| s.to_string()).collect();
     f.extend(ROUND2_FLAGS.iter().map(|s| s.to_string()));
@@ -122,10 +116,6 @@ fn leaves(prefix: &str, v: &serde_json::Value, out: &mut Vec<String>) {
     }
 }
 
-/// The `pref` lines of A13.3: each setting that the product's start writes into a new profile, as
-/// `pref <name>=<value>` with the name's path of keys joined by dots, from the profile's `Local
-/// State` (the same-site setting for the payment origin on `port`, and secure lookups off) and
-/// its `Default/Preferences`.
 pub fn pref_lines(port: u16) -> Vec<String> {
     let mut out = Vec::new();
     for text in [same_site_local_state(port), AGENT_PREFERENCES.to_string()] {

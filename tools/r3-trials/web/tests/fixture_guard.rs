@@ -1,7 +1,3 @@
-//! The fixture server's lifetime under a trial (CP-133 (c)): it is gone within the fixture's own
-//! bound, `GONE_MS` of tools/fixture-server/variants/selftest.mjs, when its trial process is
-//! killed, and at once when the trial drops its `Server`, also by a panic.
-
 use r3_web::fixture::{fixture_program, Control, Server};
 use r3_web::procs::{self, Proc};
 use r3_web::start::Start;
@@ -43,8 +39,6 @@ fn gone_within(p: &Proc, bound: Duration) -> bool {
     }
 }
 
-/// Ends, when a test leaves by any way, the processes that the test started: its child by its
-/// handle, and the server by its number and creation time.
 struct Ends {
     child: Option<Child>,
     server: Option<Proc>,

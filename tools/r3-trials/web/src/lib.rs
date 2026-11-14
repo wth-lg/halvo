@@ -126,11 +126,9 @@ pub fn same_site_local_state(port: u16) -> String {
 /// browser's launcher under the egress check; its value is the hex of a JSON array.
 pub const EGRESS_WRAP_FLAG: &str = "--r3-egress-wrap=";
 
-/// The policy of A4.2 that the executor adds to every document and worker script (CP-67).
+/// The policy of A4.2 that the executor adds (CP-67).
 pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
 
-/// The one start flag that the rows of A13.7 add: it puts the payment frame of the fixture on
-/// `port` into a process of its own.
 pub fn isolate_flag(port: u16) -> String {
     format!("--isolate-origins=http://pay.agent.test:{port}")
 }
@@ -152,11 +150,7 @@ pub const FIRST_FLAGS: [&str; 11] = [
 pub const RESOLVER_RULE: &str = "--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND";
 
 /// The start flags that U0.7b adds to the first flag set, the resolver rule and the relay's flags,
-/// each to close a way out of A13.7: the browser's waking of its updater, which then looks names up
-/// itself, lookups for links, hyperlink pings, the browser's extensions,
-/// and the features of fetches after a document is gone, discovery on the local network, signed
-/// exchanges, prerendering, prefetch through a proxy, reports, federated sign-in, payment handlers,
-/// a passkey on another device and the measurement interfaces.
+/// each to close a way out of A13.7.
 pub const ROUND2_FLAGS: [&str; 6] = [
     "--disable-updater-scheduler",
     "--dns-prefetch-disable",
@@ -166,16 +160,11 @@ pub const ROUND2_FLAGS: [&str; 6] = [
     "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns",
 ];
 
-/// The `Local State` of the agent's new profile: secure lookups off.
 pub const AGENT_LOCAL_STATE: &str = r#"{"dns_over_https":{"mode":"off","templates":""}}"#;
 
-/// The `Default/Preferences` of the agent's new profile: every permission that a page can ask for
-/// denied, prediction and prefetch off, no saved password or payment method, safe browsing,
-/// suggestions and spell checking off.
+/// The `Default/Preferences` of the agent's new profile.
 pub const AGENT_PREFERENCES: &str = r#"{"profile":{"default_content_setting_values":{"notifications":2,"geolocation":2,"media_stream_camera":2,"media_stream_mic":2,"clipboard":2,"midi_sysex":2,"usb_guard":2,"serial_guard":2,"hid_guard":2,"bluetooth_guard":2,"bluetooth_scanning":2,"file_system_write_guard":2,"file_system_read_guard":2,"automatic_downloads":2,"sensors":2,"idle_detection":2,"window_placement":2,"local_fonts":2,"payment_handler":2,"protocol_handlers":2,"ar":2,"vr":2,"nfc":2,"storage_access":2},"password_manager_enabled":false},"credentials_enable_service":false,"autofill":{"profile_enabled":false,"credit_card_enabled":false},"payments":{"can_make_payment_enabled":false},"net":{"network_prediction_options":2},"safebrowsing":{"enabled":false},"search":{"suggest_enabled":false},"browser":{"enable_spellchecking":false},"dns_prefetching":{"enabled":false},"webrtc":{"ip_handling_policy":"disable_non_proxied_udp","multiple_routes_enabled":false,"nonproxied_udp_enabled":false},"web_package":{"signed_exchange":{"enabled":false}}}"#;
 
-/// The key ` majors=<v>:<n>,...` of a cell line whose runs reported more than one major version
-/// (CP-73), from the sorted majors of its runs; empty when they reported one.
 /// The `kill` line of a form of `driver_killed` (A13.7): the machine, the browser, the form, the
 /// kills and how many of them let a byte of the paused request arrive.
 pub fn kill_line(machine: &str, browser: &str, form: &str, kills: u32, arrived: u32) -> String {

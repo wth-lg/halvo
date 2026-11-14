@@ -1,10 +1,4 @@
 # shellcheck shell=sh
-# The Windows part of the hosted harness of the org_ cells: harness.sh sources it after its guard.
-# win_main writes each setting as a value under HKLM\SOFTWARE\Policies of the browser, reads it
-# back, prints the browser's policy page headless with no debugging channel and reads it as text,
-# runs the cell, then deletes the value (and the key when the harness made it). Optional: LIMIT
-# (seconds per call, 420), RUNS (runs per cell, 10), KEEP_PAGES (keep each page's PDF and text
-# under target/ci-artifacts/pages).
 
 LIMIT=${LIMIT:-420}
 RUNS=${RUNS:-10}

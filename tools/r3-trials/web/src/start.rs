@@ -8,16 +8,10 @@ use std::sync::{Mutex, MutexGuard};
 
 static STARTS: Mutex<()> = Mutex::new(());
 
-/// The one lock that every start of a child in this process takes. A value of this type is the
-/// only way to start a child: the crate's `clippy.toml` refuses `std::process::Command::spawn`,
-/// `output` and `status` everywhere but in `StartLock::spawn`. While it is held, the ends of a
-/// browser's pipe exist in this process with nothing but close-on-exec (macOS) or with the
-/// inherit flag clear (Windows), except inside a start of that browser under the same lock.
 pub struct StartLock {
     _held: MutexGuard<'static, ()>,
 }
 
-/// Takes the start lock, waiting for a start of another thread to end.
 pub fn lock() -> StartLock {
     StartLock {
         _held: STARTS
@@ -26,7 +20,6 @@ pub fn lock() -> StartLock {
     }
 }
 
-/// A failed start: the step that failed and the system's error number, never a path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StartFault {
     pub step: &'static str,
@@ -49,7 +42,6 @@ impl StartFault {
 }
 
 impl StartLock {
-    /// Starts `cmd` as std does, under this lock.
     #[allow(clippy::disallowed_methods)]
     pub fn spawn(&self, cmd: &mut std::process::Command) -> std::io::Result<std::process::Child> {
         cmd.spawn()
@@ -75,7 +67,6 @@ pub trait Start {
     fn start(&mut self) -> std::io::Result<std::process::Child>;
     /// `output` with the start under the start lock.
     fn start_output(&mut self) -> std::io::Result<std::process::Output>;
-    /// `status` with the start under the start lock.
     fn start_status(&mut self) -> std::io::Result<std::process::ExitStatus>;
 }
 
@@ -110,9 +101,6 @@ pub struct PipeIds {
     pub handles: [usize; 4],
 }
 
-/// A child that a start of this module made. It is ended only through `kill`, which reaches the
-/// child while it is not reaped, because an unreaped child keeps its process number (macOS) and
-/// the held process handle keeps it (Windows).
 pub struct Started {
     pid: u32,
     reaped: bool,
@@ -127,10 +115,6 @@ unsafe impl Send for Started {}
 #[cfg(windows)]
 unsafe impl Sync for Started {}
 
-/// The browser on its pipe: the child, the end from which the executor reads the browser's
-/// messages, the end to which it writes its own, the identity of both pipes, and on Windows the
-/// executor's copies of the browser's two ends, not inheritable, which `ids` names; a copy of the
-/// browser's write end keeps the executor's read from ending while it is held.
 pub struct OnPipe {
     pub child: Started,
     pub from_browser: File,
@@ -139,13 +123,10 @@ pub struct OnPipe {
     pub kept: Vec<File>,
 }
 
-/// What a start places into the child besides its standard streams.
 pub struct Spec<'a> {
     pub program: &'a Path,
     pub args: Vec<OsString>,
-    /// Variables set or replaced in the child's environment; the rest is this process's.
     pub env: Vec<(OsString, OsString)>,
-    /// A new file for the child's standard error, or the null device.
     pub stderr: Option<&'a Path>,
 }
 
@@ -154,7 +135,6 @@ impl Started {
         self.pid
     }
 
-    /// Whether the child has ended; it is reaped then.
     pub fn exited(&mut self) -> bool {
         if self.reaped {
             return true;
@@ -163,7 +143,6 @@ impl Started {
         self.reaped
     }
 
-    /// Ends the child with the system's hard kill while it is not reaped, then reaps it.
     pub fn kill(&mut self) {
         if !self.reaped {
             sys::hard_kill(self);
@@ -171,7 +150,6 @@ impl Started {
         }
     }
 
-    /// Waits for the child's end and reaps it.
     pub fn wait(&mut self) {
         if !self.reaped {
             self.reaped = sys::reap(self, true);
@@ -185,19 +163,10 @@ impl Drop for Started {
     }
 }
 
-/// Starts the browser with its debugging channel on a pipe and with nothing else of this process
-/// in it but its standard streams: on macOS `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT` and
-/// the browser's ends placed at descriptors 3 and 4 (`--remote-debugging-pipe`); on Windows
-/// `CreateProcessW` with `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` naming the browser's two ends and its
-/// standard handles, the ends made inheritable inside the lock alone and named by
-/// `--remote-debugging-io-pipes`. The caller's `args` hold `--remote-debugging-pipe`.
 pub fn start_on_pipe(held: &StartLock, spec: &Spec<'_>) -> Result<OnPipe, StartFault> {
     sys::start_on_pipe(held, spec)
 }
 
-/// Starts a program with one more descriptor or handle placed in it besides its standard
-/// streams: on macOS at descriptor 3, on Windows as an inheritable handle in the handle list,
-/// whose value the caller passes in `spec.args`. Nothing else of this process reaches the child.
 pub fn start_with(
     held: &StartLock,
     spec: &Spec<'_>,
@@ -211,8 +180,6 @@ pub type RawPlaced = std::os::fd::RawFd;
 #[cfg(windows)]
 pub type RawPlaced = windows_sys::Win32::Foundation::HANDLE;
 
-/// One argument of a Windows command line, quoted by the rules of the C runtime's parser, which
-/// Chrome and Edge use: a backslash is literal unless a run of them ends at a double quote.
 pub fn quote_windows_arg(arg: &str) -> String {
     if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '\x0b', '"']) {
         return arg.to_string();
@@ -272,14 +239,12 @@ mod sys {
         // child that a start made, and every other wait in the crate names its own child (std's
         // `Child::wait` and `try_wait` call waitpid with that child's number); nothing waits for
         // any child (waitpid with -1, wait), the crate sets no SIGCHLD disposition (SIG_IGN would
-        // let the system reap it), and tokio is built without its process feature (Cargo.toml),
-        // so no runtime reaps beside it.
+        // let the system reap it).
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
     pub(super) fn release(_child: &mut Started) {}
 
-    /// Moves `fd` to a number of 10 or more with close-on-exec set, and closes `fd`.
     fn lift(fd: RawFd) -> Result<RawFd, StartFault> {
         // SAFETY: fcntl and close on a descriptor that this function's caller owns.
         let lifted = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 10) };
@@ -299,7 +264,6 @@ mod sys {
         }
     }
 
-    /// The system's handle of the pipe end at `fd` in this process.
     pub(super) fn pipe_handle(fd: RawFd) -> Option<u64> {
         crate::peer::pipe_handle_of(std::process::id(), fd)
     }
@@ -326,8 +290,6 @@ mod sys {
             .collect()
     }
 
-    /// Runs `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`: the child gets the null device or the
-    /// file of `spec.stderr` at 0 to 2 and `placed[i]` at `3 + i`, and nothing else.
     fn spawn(spec: &Spec<'_>, placed: &[RawFd]) -> Result<u32, StartFault> {
         let program = cstring(spec.program.as_os_str().as_bytes())?;
         let mut argv_owned = vec![program.clone()];
@@ -480,9 +442,6 @@ mod sys {
         })
     }
 
-    /// A copy of `placed` at a number of 10 or more with close-on-exec set, so that the action
-    /// that places it at 3 never copies a descriptor onto itself, which would keep its
-    /// close-on-exec flag and leave the child without it.
     pub(super) fn lifted_copy(placed: RawFd) -> Result<RawFd, StartFault> {
         // SAFETY: F_DUPFD_CLOEXEC makes a new descriptor for the open `placed`.
         let lifted = unsafe { libc::fcntl(placed, libc::F_DUPFD_CLOEXEC, 10) };
@@ -577,8 +536,6 @@ mod sys {
         }
     }
 
-    /// Opens the null device, or creates the new file `path`, as an inheritable handle; the
-    /// caller holds the start lock and closes it after the start.
     fn std_handle(path: Option<&std::path::Path>, write: bool) -> Result<HANDLE, StartFault> {
         let sa = SECURITY_ATTRIBUTES {
             nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
@@ -629,8 +586,6 @@ mod sys {
         block
     }
 
-    /// Runs `CreateProcessW` with a handle list of the standard handles and `placed`, each made
-    /// inheritable for the call alone and made not inheritable again after it.
     fn spawn(spec: &Spec<'_>, placed: &[HANDLE]) -> Result<Started, StartFault> {
         let stdin = std_handle(None, false)?;
         let stdout = match std_handle(None, true) {
@@ -869,8 +824,6 @@ mod sys {
 mod tests {
     use super::*;
 
-    /// CP-126 E5 F1: `Start::start` takes the start lock: while another thread holds it, a start
-    /// waits (pr-review-19 F1: the lock taken out of `start` passed every test).
     #[cfg(unix)]
     #[test]
     fn a_start_waits_while_the_start_lock_is_held() {
@@ -894,9 +847,6 @@ mod tests {
         );
     }
 
-    /// CP-126 E5 t12: with a link at the path of the start's error file the start refuses, and
-    /// the link's target is left as it was (pr-review-19 t12: `O_TRUNC` in place of
-    /// `O_EXCL|O_NOFOLLOW` passed every test).
     #[cfg(target_os = "macos")]
     #[test]
     fn a_link_at_the_error_file_is_refused_and_its_target_kept() {
@@ -924,10 +874,6 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "keep");
     }
 
-    /// CP-126 E5 M13: a variable of the start replaces the process's own of that name (A11.1's
-    /// `TMPDIR` of the browser): the child's environment holds the name once, with the start's
-    /// value. PATH stands in, which every test process has. The child is the stand-in in its `env`
-    /// mode, which writes every entry of its environment, so a second entry of the name shows.
     #[cfg(all(target_os = "macos", feature = "driver"))]
     #[test]
     fn a_variable_of_the_start_replaces_the_processs_own() {

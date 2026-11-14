@@ -216,11 +216,6 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     Ok(a)
 }
 
-/// The trial program as the browser's launcher under the egress check (CP-71): it runs
-/// `sh scripts/egress/check.sh LIST -- BROWSER ARGS` in the repository, with the arguments that it
-/// got less its own flag. The check's standard error, which carries the browser's, goes to a file
-/// that this program follows to its own standard error: a pipe would end the check with SIGPIPE
-/// when the executor's stop ends this program first. Its exit code is the check's.
 fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
     let parts: Option<Vec<String>> = (0..spec.len() / 2)
         .map(|i| u8::from_str_radix(spec.get(2 * i..2 * i + 2)?, 16).ok())
@@ -280,11 +275,6 @@ fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
     }
 }
 
-/// The foreign process of the row `relay_foreign`: connects to the relay's port as a process
-/// outside the browser's tree, sends a SOCKS5 greeting and a CONNECT to HOST:PORT and a request,
-/// and prints how many bytes the relay sent back and how the connection ended: `reset` when the
-/// relay closed it with the probe's bytes unread, `eof` when it closed after reading them,
-/// `timeout` after 5 s.
 fn foreign_probe(argv: &[String]) -> ExitCode {
     use std::io::Read;
     let (Some(relay), Some(host), Some(port)) = (
@@ -344,11 +334,6 @@ fn main() -> ExitCode {
         return driver::org_control(&argv[1..]);
     }
     if argv.first().map(String::as_str) == Some("--policy-named") {
-        // `--policy-named NAME FILE [VALUE_READ]`: whether the text of a policy page in FILE names the
-        // policy NAME (r3_web::policy, CP-126 E3); the hosted jobs call it on the text that they read
-        // from the page's PDF, with the value that the job wrote and read back, which the joined form
-        // of CP-145 (6) needs. Prints one line of closed words; exit 0 when named, 1 when not, 2 on
-        // bad use.
         let (Some(name), Some(file)) = (argv.get(1), argv.get(2)) else {
             eprintln!("REFUSED usage: --policy-named NAME FILE");
             return ExitCode::from(2);
@@ -1358,9 +1343,6 @@ mod driver {
         before: u64,
     }
 
-    /// The addresses of the UDP sockets in the browser's network log whose connect the check
-    /// refused (net error -10). A refused connect of a UDP socket sends no packet: Chrome does
-    /// this to learn whether IPv6 reaches the internet, to 2001:4860:4860::8888 port 443.
     fn refused_udp_connects(path: &Path) -> Option<Vec<String>> {
         let text = std::fs::read_to_string(path).ok()?;
         let d: serde_json::Value = serde_json::Deserializer::from_str(&text)
@@ -1385,11 +1367,6 @@ mod driver {
         Some(out)
     }
 
-    /// `--org-control BROWSER DIR`: one start of BROWSER on its pipe, headless, with a new profile
-    /// under DIR and no setting of the trial's own, as the control of an `org_` cell (CP-126 E7
-    /// (a)): prints `org_control reply=yes` when the browser answered on the pipe, else
-    /// `reply=no` with the start's cause, and ends the browser through the stop (and with it what
-    /// the start left). Exit 0 when it replied, 1 when not, 2 on bad use.
     pub fn org_control(argv: &[String]) -> ExitCode {
         let (Some(browser), Some(dir)) = (argv.first(), argv.get(1)) else {
             eprintln!("REFUSED usage: --org-control BROWSER DIR");
@@ -1432,9 +1409,6 @@ mod driver {
 
     #[cfg(all(test, target_os = "macos"))]
     mod leftover_tests {
-        /// CP-126 E1 (3): a process that names a profile whose name begins with the run's (`p-10`
-        /// beside the run's `p-1`) is no process of the run, and the end of what a run left leaves
-        /// it alone.
         #[test]
         fn a_process_that_names_a_longer_profile_is_left_alone() {
             use r3_web::start::Start;
@@ -1450,7 +1424,6 @@ mod driver {
                 .start()
                 .unwrap();
             std::thread::sleep(std::time::Duration::from_millis(300));
-            // perl stands in for the browser's program here, so the profile alone decides
             let since = r3_web::procs::table()
                 .unwrap()
                 .into_iter()
@@ -1479,9 +1452,6 @@ mod driver {
             );
         }
 
-        /// CP-126 E7: an `org_` cell's effect counts as the policy's only with a control reply, the
-        /// value read back as the cell needs it, and the page naming the setting wherever it could
-        /// be read; a hang with no policy in force has none of them.
         #[test]
         fn an_org_effect_counts_only_with_its_control_value_and_page() {
             use super::OrgFacts;
@@ -1522,8 +1492,6 @@ mod driver {
         }
     }
 
-    /// The processes of the egress check that are still alive, by name: its shell, its runner,
-    /// its log stream and what they started.
     fn check_processes() -> String {
         let names: Vec<String> = processes()
             .into_iter()
@@ -1568,8 +1536,6 @@ mod driver {
             .unwrap_or(0)
     }
 
-    /// A path as `sh` reads it: on Windows `C:\x` becomes `/c/x`, so that the check finds the
-    /// browser's program and names it in its filters.
     fn sh_path(p: &Path) -> String {
         let s = p.to_string_lossy().replace('\\', "/");
         let b = s.as_bytes();
@@ -1580,9 +1546,6 @@ mod driver {
         }
     }
 
-    /// Starts the trial program in the browser's place, which runs the browser as the command of
-    /// `sh scripts/egress/check.sh` with a list that holds the relay's port alone (CP-71). On
-    /// macOS the browser gets `--no-sandbox`: its own sandbox cannot start inside the check's.
     fn egress_setup(
         ctx: &Ctx,
         opts: &mut StartOptions,
@@ -1629,8 +1592,6 @@ mod driver {
         })
     }
 
-    /// Reads the run of the check that this browser had: the first directory under
-    /// `target/egress` that is newer than the start and done, and its `denied.log`.
     async fn egress_read(ctx: &Ctx, e: &Egress, name: &str, i: u32) -> EgressSeen {
         let mut found = None;
         let t0 = Instant::now();
@@ -1733,8 +1694,6 @@ mod driver {
         way_open_on(ex, ctx, row, UTILITY).await
     }
 
-    /// Opens the row's page on `host` at the way listener's port, which the relay's list and the
-    /// request rule allow.
     async fn way_open_on(ex: &mut Executor, ctx: &Ctx, row: &str, host: &str) -> Res<Listener> {
         let relay = relay_of(ctx)?;
         let program = ctx.repo.join("tools/r3-trials/web/ways-listener.mjs");
@@ -1762,11 +1721,8 @@ mod driver {
         c["paths"][path].as_u64().unwrap_or(0)
     }
 
-    /// The rows whose page only reaches out: ok when the listener counts nothing but the page.
     async fn way_plain(ex: &mut Executor, ctx: &Ctx, row: &str) -> Res<Option<u128>> {
         let mut listener = way_open(ex, ctx, row).await?;
-        // updater_wake stays on an idle page past the moment, some 30 s after the start, when the
-        // browser wakes its updater (seen on hosted-mac with Chrome 157 and Edge 157).
         let wait = if row == "updater_wake" { 75 } else { 4 };
         tokio::time::sleep(Duration::from_secs(wait)).await;
         let c = way_counts(&mut listener);
@@ -1854,8 +1810,6 @@ mod driver {
         outcome(misses, None)
     }
 
-    /// The processes of the machine: number, parent and name.
-    /// The processes of the machine: number, parent, program name and command line.
     fn processes() -> Vec<(u32, u32, String, String)> {
         let text = if cfg!(windows) {
             std::process::Command::new("powershell.exe")
@@ -1883,8 +1837,6 @@ mod driver {
                     let name = w.next()?.trim().to_string();
                     Some((pid, ppid, name, w.next().unwrap_or("").to_string()))
                 } else {
-                    // comm= may hold spaces; command= starts with the program's path, so the
-                    // command line is cut at the first word that starts with a slash.
                     let mut w = l.split_whitespace();
                     let pid = w.next()?.parse().ok()?;
                     let ppid = w.next()?.parse().ok()?;
@@ -1916,8 +1868,6 @@ mod driver {
             .map(|p| p.0)
             .collect();
         let own = std::process::id();
-        // A process below this program, or below an egress check of this or an earlier run (its
-        // `ps`, `log` and runner), is not one that a handler started.
         let below_own = |mut p: u32| {
             for _ in 0..64 {
                 if p == own || checks.contains(&p) {
@@ -1957,10 +1907,6 @@ mod driver {
         outcome(misses, None)
     }
 
-    /// A row of CP-78: the page on 127.0.0.1 makes `context` read evil.agent.test on the
-    /// listener's port, which the relay's list holds and the request rule does not, so that only
-    /// the rule stands between the read and the listener. Ok when no byte reaches that host, and,
-    /// but for the service worker, the context reported that it ran.
     async fn reach(ex: &mut Executor, ctx: &Ctx, context: &str) -> Res<Option<u128>> {
         let relay = relay_of(ctx)?;
         let program = ctx.repo.join("tools/r3-trials/web/ways-listener.mjs");
@@ -2164,9 +2110,6 @@ mod driver {
         outcome(misses, None)
     }
 
-    /// The second children of the row `pipe_inherit`: a thread that starts copies of the trial
-    /// program in a holding mode, each under the start lock, from just before the browser's start
-    /// until it returns.
     struct Siblings {
         go: std::sync::Arc<std::sync::atomic::AtomicBool>,
         thread: std::thread::JoinHandle<Vec<std::process::Child>>,
@@ -2373,12 +2316,6 @@ mod driver {
         held(ctx, &keys, &before, seen).await
     }
 
-    /// What the hosted job read around an `org_` cell (CP-126 E7), passed to the call in its
-    /// environment: whether a start without the setting replied on the pipe before the job wrote the
-    /// policy (`R3_ORG_CONTROL_BEFORE`, `reply` when it did), the value that the job read back from
-    /// the policy after its write (`R3_ORG_VALUE_READ`) against the value that the cell needs
-    /// (`R3_ORG_VALUE_WANT`), and whether the browser's own policy page names the setting by
-    /// `r3_web::policy` (`R3_ORG_PAGE_NAMED`: `yes`, `no`, or `unread` with no way to read it).
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
     pub(crate) struct OrgFacts {
         control_before: Option<String>,
@@ -2400,9 +2337,6 @@ mod driver {
             }
         }
 
-        /// Why the effect of a cell cannot count as the policy's (None: it can): a start without
-        /// the setting replied, the value was read back as the cell needs it, and the page named
-        /// the setting wherever it could be read.
         pub(crate) fn lacks(&self) -> Option<&'static str> {
             if self.control_before.as_deref() != Some("reply") {
                 return Some("no_control_reply");
@@ -2417,7 +2351,6 @@ mod driver {
             }
         }
 
-        /// The facts as keys of the cell's line; an unread page names why (CP-137 (3)).
         fn keys(&self) -> String {
             let v = |o: &Option<String>| o.clone().unwrap_or_else(|| "-".into());
             let cause = if self.page_named.as_deref() == Some("unread") {
@@ -2440,8 +2373,6 @@ mod driver {
         } else {
             ("no_route", NO_ROUTE_MESSAGE)
         };
-        // CP-137 (1): a page that the job read and that does not name the setting shows no policy
-        // in force, so no run of the cell counts, neither as the policy's effect nor as a miss
         let not_seen = OrgFacts::from_env().page_named.as_deref() == Some("no");
         let (ok, cause, version, left) = match started {
             Ok(ex) => {
@@ -2478,8 +2409,6 @@ mod driver {
                     message == want_message
                 );
                 let effect = f.0 == want_cause && message == want_message && total == 0;
-                // CP-126 E7: the effect counts as the policy's only with the job's control, value
-                // and page; a hang with no policy in force gives the same effect
                 let lacks = OrgFacts::from_env().lacks();
                 let ok = effect && lacks.is_none();
                 let cause = match (effect, lacks) {
@@ -2560,14 +2489,10 @@ mod driver {
         version: String,
         peers: Option<(u32, u32)>,
         checks: Option<Vec<checks::Count>>,
-        /// What the end of the run's own processes found and left (CP-126 E1 (d)).
         left: Option<checks::Ended>,
-        /// How many processes the stop read as the run's: the browser's tree and the adopted ones.
         procs: Option<usize>,
     }
 
-    /// The counts of the end of a run's own processes that a failed start put into its fault's
-    /// detail (`left_before_<n> left_after_<n>`).
     fn left_of_fault(detail: &str) -> Option<checks::Ended> {
         let num = |key: &str| {
             detail
@@ -2675,7 +2600,6 @@ mod driver {
             ctx.stop.or(Executor::start(&opts)).await
         };
         if matches!(&started, Err(f) if f.0 == "signal") {
-            // the start was cut off before an executor held the browser: what it left is ended here
             let e = checks::end_runs_own(&mark);
             eprintln!(
                 "signal step={name} i={i} left_before={} left_after={}",
@@ -2714,8 +2638,6 @@ mod driver {
                         pipe: pipe.as_ref(),
                         relay_port: ctx.relay.as_ref().map(|_| ctx.relay_port),
                     });
-                    // CP-145 (2) (g): each process counted in port_flag or pipe_holder, named and
-                    // classed, on standard output where the block keeps it
                     for n in &named {
                         out(&format!(
                             "check_named machine={} browser={} step={name} i={i} at={at} {}",
@@ -3340,9 +3262,6 @@ mod driver {
         )
     }
 
-    /// The driver of the rows `driver_killed_*`: starts the browser over the pipe or the port,
-    /// with or without the relay in its own process, holds or lets through one POST to the
-    /// target, prints `paused`, and waits to be killed; it gives up after `CHILD_LIFE`.
     pub fn child_main(argv: &[String]) -> ExitCode {
         let a = match child_args(argv) {
             Ok(a) => a,
@@ -3466,17 +3385,11 @@ mod driver {
         watched: bool,
         version: String,
         left: bool,
-        /// What the end of the run's own processes found after the watch and left (CP-126 E1).
         ended: checks::Ended,
-        /// The watch of `relay_port_free` (CP-145 (1)), where the row has one.
         watch: Option<r3_web::killwatch::Watched>,
-        /// Who ended the browser (CP-148 (3)): `guard ended_ms=<ms>`, `self` or `row`.
         ended_by: String,
     }
 
-    /// The processes of a kill's run that run now: those of the tree read before the kill and
-    /// every process that the run's mark owns (CP-145 (1) (b): a member born after the kill
-    /// counts). `None` when the process table could not be read.
     fn of_the_run(
         tree: &[r3_web::procs::Proc],
         mark: &checks::Mark,
@@ -3498,9 +3411,6 @@ mod driver {
         Some(out)
     }
 
-    /// Whether another socket can bind 127.0.0.1:`port` now, as a process that wants the port
-    /// would try: on macOS with `SO_REUSEADDR`, as std binds; on Windows plainly and with
-    /// `SO_REUSEADDR`.
     fn port_bindable(port: u16) -> bool {
         if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
             return true;
@@ -3609,8 +3519,6 @@ mod driver {
             form.step,
             if let_through { "control" } else { "kill" }
         ));
-        // the run's own processes are the browser's that name this profile (CP-126 E1): the
-        // killed driver runs no end of its own, so the row ends them after its watch
         let mark = StartOptions {
             browser: ctx.browser.clone(),
             profile: profile.clone(),
@@ -3735,8 +3643,6 @@ mod driver {
         let mut free_ms = None;
         let mut watch = None;
         if let (true, Some(port)) = (paused, watch_port) {
-            // CP-145 (1): the watch ends nothing before its cap; a table that could not be read
-            // shows no end of the run
             use r3_web::killwatch;
             let first = root.clone();
             let w = killwatch::watch(
@@ -3806,12 +3712,8 @@ mod driver {
         let ended = checks::end_runs_own(&mark);
         let mut temp = profile.clone().into_os_string();
         temp.push("-tmp");
-        // CP-148 (3): who ended the browser: the guard (its record in the run's temporary
-        // directory), the browser by itself, or the row at the cap
         let ended_by =
             match std::fs::read_to_string(Path::new(&temp).join(r3_web::cdp::GUARD_RECORD)) {
-                // the guard ended the browser when its first process was among what it ended;
-                // else the browser ended by itself and the guard ended other processes of its tree
                 Ok(r) => {
                     let key = |k: &str| {
                         r.split_whitespace()
@@ -3870,7 +3772,6 @@ mod driver {
                     return false;
                 }
             };
-            // CP-145 (1) (c): ok, a miss with its cause, or open; left_before decides here too
             let outcome = match &k.watch {
                 Some(w) => r3_web::killwatch::decide(&w.passes, k.ended.before, k.ended.after),
                 None => r3_web::killwatch::Outcome::Miss("unwatched"),
@@ -3908,7 +3809,6 @@ mod driver {
             out(&format!("notrun {head} step={name} cause=version"));
             return false;
         };
-        // CP-145 (1) (e): a call with an open kill and no miss could not finish its watch
         if let Some(cause) = r3_web::killwatch::call_notrun(misses, opens) {
             out(&format!(
                 "notrun {head} step={name} cause={cause} ok={ok} open={opens} of={runs}"
