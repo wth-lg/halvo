@@ -151,6 +151,113 @@ pub fn refusal_causes(check_stderr: &str) -> String {
     }
 }
 
+/// The values of item 3's inner line `egress_run <cell> browser_started=<yes|no>
+/// task=<ok|miss|notrun> cause=<word>`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RunLine {
+    pub started: bool,
+    pub task: &'static str,
+    pub cause: String,
+}
+
+impl RunLine {
+    pub fn line(&self, cell: &str) -> String {
+        format!(
+            "egress_run {cell} browser_started={} task={} cause={}",
+            if self.started { "yes" } else { "no" },
+            self.task,
+            self.cause
+        )
+    }
+}
+
+/// The inner line of item 3 from `start_returned`, whether the executor's start of the browser
+/// returned Ok (None when no start was tried), and the task's result, which holds the start's own
+/// fault when the start failed. `browser_started=yes` only when the start returned Ok; a fault before
+/// any start and a signal give `task=notrun`.
+pub fn run_line(start_returned: Option<bool>, task: Result<(), &str>) -> RunLine {
+    let started = start_returned == Some(true);
+    let (task_word, cause) = match (start_returned, task) {
+        (_, Err("signal")) => ("notrun", "signal"),
+        (None, Err(word)) => ("notrun", word),
+        (None, Ok(())) => ("notrun", "-"),
+        (Some(true), Ok(())) => ("ok", "-"),
+        (Some(_), Err(word)) => ("miss", word),
+        (Some(false), Ok(())) => ("miss", "-"),
+    };
+    RunLine {
+        started,
+        task: task_word,
+        cause: cause.to_string(),
+    }
+}
+
+/// What the outer item 3 prints after the egress check.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outer {
+    /// The cell's `egress` line.
+    Egress(String),
+    /// The `egress_control` line of a call with `--sandbox-off`, which is no cell.
+    Control(String),
+    /// `notrun item=3 ... cause=<word>`.
+    NotRun(String),
+    /// The notrun line of a signal.
+    Signal,
+}
+
+fn key<'a>(line: &'a str, name: &str) -> Option<&'a str> {
+    line.split(' ')
+        .find_map(|w| w.strip_prefix(name).and_then(|rest| rest.strip_prefix('=')))
+}
+
+/// The outer line of item 3 from the inner `egress_run` line (None when the program printed none),
+/// read by its keys, the check's standard error and whether the call was the `--sandbox-off`
+/// control.
+pub fn outer(
+    machine: &str,
+    cell: &str,
+    set: &str,
+    inner: Option<&str>,
+    check_stderr: &str,
+    sandbox_off: bool,
+) -> Outer {
+    let Some(inner) = inner else {
+        return Outer::NotRun("egress_check".into());
+    };
+    let (Some(started), Some(task), Some(cause)) = (
+        key(inner, "browser_started"),
+        key(inner, "task"),
+        key(inner, "cause"),
+    ) else {
+        return Outer::NotRun("egress_check".into());
+    };
+    if task == "notrun" {
+        return if cause == "signal" {
+            Outer::Signal
+        } else {
+            Outer::NotRun(cause.into())
+        };
+    }
+    let started = match started {
+        "yes" => true,
+        "no" => false,
+        _ => return Outer::NotRun("egress_check".into()),
+    };
+    if started && task != "ok" {
+        return Outer::NotRun("task".into());
+    }
+    let Some(line) = egress_line(machine, check_stderr, started) else {
+        return Outer::NotRun("egress_check".into());
+    };
+    if sandbox_off {
+        let rest = line.split_once(" mode=").map_or("", |(_, rest)| rest);
+        return Outer::Control(format!(
+            "egress_control {cell} set={set} sandbox=off mode={rest}"
+        ));
+    }
+    Outer::Egress(line)
+}
+
 /// The `egress` line of item 3 from the egress check's standard error (its last line that starts
 /// `egress mode=`) and whether the browser started: `egress machine=<m> mode=<mode>
 /// browser_started=<yes|no> denied=<n>`. None when the check printed no such line.
@@ -345,6 +452,115 @@ mod tests {
             .collect();
         let want = set_lines(EGRESS_PORT);
         assert_eq!(lines, want.iter().map(String::as_str).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn item_3_prints_browser_started_yes_only_for_a_start_that_returned_ok() {
+        let row = |start: Option<bool>, task: Result<(), &str>| {
+            let r = run_line(start, task);
+            (r.started, r.task, r.cause)
+        };
+        assert_eq!(
+            row(None, Err("runtime")),
+            (false, "notrun", "runtime".into())
+        );
+        assert_eq!(row(None, Err("seed")), (false, "notrun", "seed".into()));
+        assert_eq!(
+            row(None, Err("fixture")),
+            (false, "notrun", "fixture".into())
+        );
+        assert_eq!(
+            row(Some(false), Err("browser_start")),
+            (false, "miss", "browser_start".into())
+        );
+        assert_eq!(
+            row(Some(false), Err("no_channel")),
+            (false, "miss", "no_channel".into())
+        );
+        assert_eq!(
+            row(Some(false), Err("start")),
+            (false, "miss", "start".into())
+        );
+        assert_eq!(row(Some(true), Ok(())), (true, "ok", "-".into()));
+        assert_eq!(row(Some(true), Err("task")), (true, "miss", "task".into()));
+        assert_eq!(
+            row(Some(true), Err("signal")),
+            (true, "notrun", "signal".into())
+        );
+        assert_eq!(
+            row(Some(false), Err("signal")),
+            (false, "notrun", "signal".into())
+        );
+        assert_eq!(row(None, Err("signal")), (false, "notrun", "signal".into()));
+        assert_eq!(
+            run_line(Some(false), Err("start")).line("machine=mac browser=chrome"),
+            "egress_run machine=mac browser=chrome browser_started=no task=miss cause=start"
+        );
+    }
+
+    #[test]
+    fn the_outer_item_3_line_follows_the_inner_line_by_its_keys() {
+        let cell = "machine=hosted-win browser=chrome";
+        let err = "egress mode=wfp list=x command=0 denied=0 log=l\n";
+        let inner = |s: &str, t: &str, c: &str| {
+            format!("egress_run {cell} browser_started={s} task={t} cause={c}")
+        };
+        let o = |line: Option<&str>, off: bool| outer("hosted-win", cell, "final", line, err, off);
+        assert_eq!(
+            o(Some(&inner("yes", "ok", "-")), false),
+            Outer::Egress("egress machine=hosted-win mode=wfp browser_started=yes denied=0".into())
+        );
+        assert_eq!(
+            o(Some(&inner("no", "miss", "start")), false),
+            Outer::Egress("egress machine=hosted-win mode=wfp browser_started=no denied=0".into())
+        );
+        assert_eq!(
+            o(Some(&inner("yes", "miss", "task")), false),
+            Outer::NotRun("task".into())
+        );
+        assert_eq!(
+            o(Some(&inner("no", "notrun", "fixture")), false),
+            Outer::NotRun("fixture".into())
+        );
+        assert_eq!(
+            o(Some(&inner("no", "notrun", "seed")), false),
+            Outer::NotRun("seed".into())
+        );
+        assert_eq!(
+            o(Some(&inner("yes", "notrun", "signal")), false),
+            Outer::Signal
+        );
+        assert_eq!(
+            o(Some(&inner("no", "notrun", "signal")), false),
+            Outer::Signal
+        );
+        assert_eq!(
+            o(Some(&inner("yes", "ok", "-")), true),
+            Outer::Control(format!(
+                "egress_control {cell} set=final sandbox=off mode=wfp browser_started=yes denied=0"
+            ))
+        );
+        assert_eq!(o(None, false), Outer::NotRun("egress_check".into()));
+        assert_eq!(
+            o(
+                Some(&format!(
+                    "egress_run {cell} xbrowser_started=yes task=ok cause=-"
+                )),
+                false
+            ),
+            Outer::NotRun("egress_check".into())
+        );
+        assert_eq!(
+            outer(
+                "hosted-win",
+                cell,
+                "final",
+                Some(&inner("yes", "ok", "-")),
+                "REFUSED list: x\n",
+                false
+            ),
+            Outer::NotRun("egress_check".into())
+        );
     }
 
     #[test]

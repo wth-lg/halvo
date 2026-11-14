@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use r3_profile::product::{self, Start, EGRESS_LIST, EGRESS_PORT};
+use r3_profile::product::{self, Outer, RunLine, Start, EGRESS_LIST, EGRESS_PORT};
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
@@ -1018,7 +1018,7 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             relay_port: relay.port,
         },
     };
-    let (done, removed) = task(&ctx, profile.clone()).await;
+    let (done, removed, _) = task(&ctx, profile.clone()).await;
     relay.stop();
     server.stop();
     match done {
@@ -1041,13 +1041,13 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
     }
 }
 
-async fn task(ctx: &Ctx, dir: PathBuf) -> (Res<()>, bool) {
+async fn task(ctx: &Ctx, dir: PathBuf) -> (Res<()>, bool, Option<bool>) {
     task_with(ctx, ctx.options(dir)).await
 }
 
-async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool) {
+async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool, Option<bool>) {
     if ctx.control.reset(&["second_factor"]).is_err() {
-        return (Err(Fault::new("fixture", "reset")), false);
+        return (Err(Fault::new("fixture", "reset")), false, None);
     }
     let started = if ctx.start.settled() {
         ctx.stop.or(Executor::start_settled(&opts)).await
@@ -1056,7 +1056,7 @@ async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool) {
     };
     let mut ex = match started {
         Ok(ex) => ex,
-        Err(f) => return (Err(f), false),
+        Err(f) => return (Err(f), false, Some(false)),
     };
     let done = ctx
         .stop
@@ -1073,7 +1073,7 @@ async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool) {
         })
         .await;
     let stopped = ex.stop_and_remove().await;
-    (done, stopped.removed)
+    (done, stopped.removed, Some(true))
 }
 
 async fn relay_for(port: u16) -> Option<Relay> {
@@ -1145,8 +1145,7 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
             }
         }
     });
-    let mut started = false;
-    let mut ran = false;
+    let mut inner: Option<String> = None;
     let mut signalled = false;
     let mut stop_rx = stop.0.clone();
     loop {
@@ -1154,10 +1153,7 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
             line = rx.recv() => {
                 let Some(line) = line else { break };
                 out(&line);
-                if line.starts_with("egress_run ") {
-                    ran = true;
-                    started = line.contains(" browser_started=yes ");
-                }
+                note_inner(&line, &mut inner);
             }
             _ = stop_rx.wait_for(|s| *s), if !signalled => {
                 signalled = true;
@@ -1200,59 +1196,63 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
             }
         );
     }
-    if !ran {
-        out(&format!(
-            "notrun item=3 {cell} set={set} cause=egress_check"
-        ));
-        return ExitCode::from(1);
-    }
-    match product::egress_line(&args.machine, &err, started) {
-        Some(line) if args.sandbox_off => {
-            out(&format!(
-                "egress_control {cell} set={set} sandbox=off mode={}",
-                line.split_once(" mode=").map_or("", |(_, rest)| rest)
-            ));
-            ExitCode::SUCCESS
-        }
-        Some(line) => {
+    match product::outer(
+        &args.machine,
+        &cell,
+        set,
+        inner.as_deref(),
+        &err,
+        args.sandbox_off,
+    ) {
+        Outer::Egress(line) => {
             out(&format!("egress_set {cell} set={set}"));
             out(&line);
             ExitCode::SUCCESS
         }
-        None => {
-            out(&format!(
-                "notrun item=3 {cell} set={set} cause=egress_check"
-            ));
+        Outer::Control(line) => {
+            out(&line);
+            ExitCode::SUCCESS
+        }
+        Outer::NotRun(cause) => {
+            out(&format!("notrun item=3 {cell} set={set} cause={cause}"));
+            ExitCode::from(1)
+        }
+        Outer::Signal => {
+            out(&format!("notrun item=3 {cell} cause=signal"));
             ExitCode::from(1)
         }
     }
 }
 
+fn note_inner(line: &str, inner: &mut Option<String>) {
+    if line.starts_with("egress_run ") {
+        *inner = Some(line.to_string());
+    }
+}
+
 async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
-    let cell = format!("machine={} browser={kind}", args.machine);
-    let report = |started: bool, result: &str, cause: &str| {
-        out(&format!(
-            "egress_run {cell} browser_started={} task={result} cause={cause}",
-            if started { "yes" } else { "no" }
-        ));
-    };
+    let line = egress_run_line(args, kind).await;
+    out(&line.line(&format!("machine={} browser={kind}", args.machine)));
+    if line.task == "ok" {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+async fn egress_run_line(args: &Args, kind: &'static str) -> RunLine {
     let Ok(stop) = watch_signals() else {
-        report(false, "miss", "runtime");
-        return ExitCode::from(1);
+        return product::run_line(None, Err("runtime"));
     };
     let Ok(seed) = Seed::load(&args.repo, 1) else {
-        report(false, "miss", "seed");
-        return ExitCode::from(1);
+        return product::run_line(None, Err("seed"));
     };
     let server = match Server::start(
         &fixture_program(&args.repo),
         &["--port".into(), args.port.to_string()],
     ) {
         Ok(s) => s,
-        Err(_) => {
-            report(false, "miss", "fixture");
-            return ExitCode::from(1);
-        }
+        Err(_) => return product::run_line(None, Err("fixture")),
     };
     let ctx = Ctx {
         browser: PathBuf::from(&args.browser),
@@ -1272,7 +1272,7 @@ async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
     let dir = args
         .scratch
         .join(format!("{}-profile-egress", std::process::id()));
-    let (done, _) = if args.sandbox_off {
+    let (done, _, start_returned) = if args.sandbox_off {
         let mut opts = ctx.options(dir);
         opts.flags.push("--no-sandbox".into());
         task_with(&ctx, opts).await
@@ -1280,21 +1280,111 @@ async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
         task(&ctx, dir).await
     };
     server.stop();
-    match done {
-        Ok(()) => {
-            report(true, "ok", "-");
-            ExitCode::SUCCESS
-        }
-        Err(f) => {
-            let started = !matches!(f.0, "start" | "browser_start" | "signal");
-            report(started, "miss", f.0);
-            ExitCode::from(1)
-        }
-    }
+    product::run_line(start_returned, done.map_err(|f| f.0))
 }
 
 #[cfg(unix)]
 extern "C" {
     #[link_name = "kill"]
     fn libc_kill(pid: i32, sig: i32) -> i32;
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn rt() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("r3-profile-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn free_port() -> u16 {
+        std::net::TcpListener::bind(("127.0.0.1", 0))
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port()
+    }
+
+    fn args(repo: PathBuf, scratch: PathBuf, browser: &Path, port: u16) -> Args {
+        Args {
+            item: 6,
+            browser: browser.to_string_lossy().into_owned(),
+            port,
+            machine: "mac".into(),
+            repo,
+            scratch,
+            ..Args::default()
+        }
+    }
+
+    fn executable(path: &Path, text: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::write(path, text).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn a_fixture_that_cannot_be_reset_is_no_start_of_the_browser() {
+        let dir = scratch("reset");
+        let repo = dir.join("repo");
+        let variants = repo.join("tools/fixture-server/variants");
+        std::fs::create_dir_all(variants.join("data")).unwrap();
+        let real =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tools/fixture-server/variants");
+        std::fs::copy(
+            real.join("data/seed-1.json"),
+            variants.join("data/seed-1.json"),
+        )
+        .unwrap();
+        std::fs::write(
+            variants.join("server.mjs"),
+            "process.stdout.write('listening 127.0.0.1:1\\n');\nsetInterval(() => {}, 1000);\n",
+        )
+        .unwrap();
+        let browser = dir.join("Google Chrome");
+        executable(&browser, "#!/bin/sh\nexit 1\n");
+        let a = args(repo, dir.join("scratch"), &browser, free_port());
+        let line = rt().block_on(egress_run_line(&a, "chrome"));
+        assert_eq!(
+            line.line("c"),
+            "egress_run c browser_started=no task=notrun cause=fixture"
+        );
+    }
+
+    #[test]
+    fn a_browser_that_ends_at_once_did_not_start() {
+        let dir = scratch("ends");
+        let browser = dir.join("Google Chrome");
+        executable(&browser, "#!/bin/sh\nexit 1\n");
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let a = args(repo, dir.join("scratch"), &browser, free_port());
+        let line = rt().block_on(egress_run_line(&a, "chrome"));
+        assert!(!line.started, "{}", line.line("c"));
+        assert_eq!(line.task, "miss", "{}", line.line("c"));
+    }
+
+    #[test]
+    fn the_outer_item_3_reads_the_last_inner_line_of_the_programs_output() {
+        let mut inner = None;
+        for l in [
+            "egress_set x",
+            "egress_run c browser_started=no task=miss cause=start",
+            "other",
+        ] {
+            note_inner(l, &mut inner);
+        }
+        assert_eq!(
+            inner.as_deref(),
+            Some("egress_run c browser_started=no task=miss cause=start")
+        );
+    }
 }
