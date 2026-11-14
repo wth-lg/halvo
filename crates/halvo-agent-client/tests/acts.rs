@@ -7,7 +7,7 @@ use std::time::Duration;
 use common::{wait_until, Rig};
 use halvo_agent_client::{CallError, Forced, ForcedPath, OriginAnswer, RunEnd};
 use halvo_schema::executable::frame::HandbackResult;
-use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason};
+use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Outcome};
 use halvo_schema::executable::text::{Name, RunId, V1};
 
 const SHORT: Duration = Duration::from_secs(10);
@@ -813,4 +813,118 @@ fn a_secret_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unask
 #[test]
 fn a_browser_frame_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
     after_finish("browser");
+}
+
+fn load_store() -> String {
+    common::ask_store(
+        &common::id(0x52),
+        r#"{"op":"load","agent":"{agent}","run":"{run}"}"#,
+    )
+    .replacen("ask ", "send ", 1)
+}
+
+/// A runner whose bind the person declined and that then sends `frame`: the run ends at once as a lost flow, with no
+/// call of a caller's trait beyond the sign-in's handback and its question (ruling CP-193 item 2).
+fn after_bound_no(name: &str, frame: &str) {
+    let rig = Rig::new("after-bound-no");
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log declined",
+        frame,
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig
+        .rec
+        .wait_end(&run, SHORT)
+        .unwrap_or_else(|| panic!("{name}: the run did not end: {}", script.log()));
+    assert!(
+        script.log().contains("declined"),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(
+        binds(&script),
+        vec![r#"{"t":"bind_reply","bound":"no"}"#],
+        "{name}"
+    );
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::LinkEnd,
+            browser: false
+        }),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(trait_calls(&rig), (0, 1, 1, 0), "{name}");
+    assert_eq!(script.replies().len(), 2, "{name}: {}", script.log());
+    assert_eq!(rig.store.count(r#""op":"load""#), 0, "{name}");
+    assert!(adds(&rig).is_empty(), "{name}");
+}
+
+#[test]
+fn a_confirm_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("confirm", &frame_out_of_turn("confirm"));
+}
+
+#[test]
+fn a_handback_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("handback", &frame_out_of_turn("handback"));
+}
+
+#[test]
+fn a_bind_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("bind", &frame_out_of_turn("bind"));
+}
+
+#[test]
+fn a_secret_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("secret", &frame_out_of_turn("secret"));
+}
+
+#[test]
+fn a_browser_frame_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("browser", &frame_out_of_turn("browser"));
+}
+
+#[test]
+fn a_store_of_another_body_than_finish_after_bound_no_ends_the_run_unrelayed() {
+    after_bound_no("load", &load_store());
+}
+
+#[test]
+fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
+    let rig = Rig::new("bound-no-finish");
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        r#"send {"t":"progress","step":2,"of":2}"#,
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert!(
+        end.finish.is_some(),
+        "the finish was stored: {}",
+        script.log()
+    );
+    assert_eq!(end.outcome, Some(Outcome::Declined));
+    assert_eq!(end.forced, None, "{}", script.log());
+    assert_eq!(rig.store.count(r#""op":"finish""#), 1);
 }

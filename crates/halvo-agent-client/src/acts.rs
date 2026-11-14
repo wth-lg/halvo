@@ -51,6 +51,7 @@ pub(crate) struct Acts {
     pub(crate) bound: HashSet<WebOrigin>,
     waiting: Waiting,
     bind_turn: bool,
+    declined: bool,
     adds: Vec<Pending>,
     next_try: Option<Instant>,
 }
@@ -59,6 +60,12 @@ impl Acts {
     /// Whether the runner waits for a reply that the library holds.
     pub(crate) fn waiting(&self) -> bool {
         !matches!(self.waiting, Waiting::Nothing)
+    }
+
+    /// Whether the library wrote `bound=no` to the runner: from then on it takes progress, done and the store of the
+    /// run's `finish` alone (ruling CP-193 item 2).
+    pub(crate) fn declined(&self) -> bool {
+        self.declined
     }
 }
 
@@ -203,6 +210,7 @@ impl Running<'_> {
 
     fn bind_reply(&mut self, bound: YesNo) -> Flow {
         if self.slot.write(&ToRunner::BindReply(BindReply { bound })) {
+            self.acts.declined |= bound == YesNo::No;
             Flow::Go
         } else {
             Flow::Lost
