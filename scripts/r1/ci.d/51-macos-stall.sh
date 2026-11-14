@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
 set -u
 name=51-macos-stall
 limit_override=${MS_TEST_LIMIT_S:-}
@@ -357,6 +357,7 @@ measure() {
     fail "ms.txt cannot be written"
   measure_gap
   notices=$(grep -c '^measure notice' "$work"/gap-*-lines.txt | awk -F: '{ n += $NF } END { print n + 0 }')
+  unclocked=0
   passed=0
   known=0
   fixed=0
@@ -393,6 +394,8 @@ measure() {
     tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=)|^$test: " | sed 's/^/    | /'
     found=$(tr -d '\r' <"$log" | grep -c -E "^$test (late_click |drops .* sleep=[1-9])")
     notices=$((notices + found))
+    found=$(tr -d '\r' <"$log" | sed -n -E "s/^$test drops .* unclocked=([0-9]+).*/\1/p" | sort -n | tail -n 1)
+    unclocked=$((unclocked + ${found:-0}))
     judge "$code" "$kind" "$log"
     three=
     if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
@@ -433,9 +436,9 @@ measure() {
     [ "$seconds" -le "$budget_s" ] ||
       printf 'MS the short form took %s s, above its budget of %s s; this fails nothing (ruling MA-23 Addition 1 (5))\n' \
         "$seconds" "$budget_s" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
-    line="MS form=short seconds=$seconds budget=$budget_s notices=$notices"
+    line="MS form=short seconds=$seconds budget=$budget_s notices=$notices unclocked=$unclocked"
   else
-    line="MS form=long seconds=$seconds notices=$notices"
+    line="MS form=long seconds=$seconds notices=$notices unclocked=$unclocked"
   fi
   printf '%s\n' "$line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
@@ -597,6 +600,7 @@ handed=$(env | sed -n 's/^\(HALVO_STALL_[A-Z_]*\)=.*/\1/p' | sort | tr '\n' ' ')
 printf '%s gap_ms=%s form=%s handed=%s\n' "$test" "$HALVO_STALL_GAP_MS" "$HALVO_STALL_FORM" "$handed"
 spec "late-click-$test" && printf '%s late_click wait_ms=150 ahead=8\n' "$test"
 spec "sleep-$test" && printf '%s drops round=0 on=1 gap=0 sleep=1 stop=0\n' "$test"
+spec "unclocked-$test" && printf '%s drops round=0 on=1 gap=0 sleep=0 unclocked=1 stop=0\n%s drops round=1 on=1 gap=0 sleep=0 unclocked=2 stop=0\n' "$test" "$test"
 case $test in
   measured_* | loop_* | three_long)
     if [ "$HALVO_STALL_FORM" != long ]; then
@@ -695,6 +699,8 @@ MS gap_ms=190 source=measured spacing_max_us=90474 load1=1.00' ''
   check notice-of-the-measurement PASS 'budget=240 notices=1' 'measure-notice'
   check notice-of-a-late-click PASS 'budget=240 notices=1' 'late-click-phase_one'
   check notice-of-sleep PASS 'budget=240 notices=1' 'sleep-phase_two'
+  check unclocked-by-name PASS 'budget=240 notices=0 unclocked=2' 'unclocked-phase_one'
+  check unclocked-of-none PASS 'budget=240 notices=0 unclocked=0' ''
   MS_BUDGET_S=0
   export MS_BUDGET_S
   check over-the-budget PASS 'above its budget of 0 s; this fails nothing' ''
