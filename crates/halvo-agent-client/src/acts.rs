@@ -44,12 +44,13 @@ struct Pending {
     then: Then,
 }
 
-/// The state of a run's acts: the origins that the bindings hold, what the runner waits for, and the
-/// `add_origin` bodies that wait for their acknowledgement.
+/// The state of a run's acts: the origins that the bindings hold, what the runner waits for, whether a `bind` is in
+/// turn, and the `add_origin` bodies that wait for their acknowledgement.
 #[derive(Default)]
 pub(crate) struct Acts {
     pub(crate) bound: HashSet<WebOrigin>,
     waiting: Waiting,
+    bind_turn: bool,
     adds: Vec<Pending>,
     next_try: Option<Instant>,
 }
@@ -129,6 +130,7 @@ impl Running<'_> {
         if request.run != spec.run || request.agent != spec.agent || link_without_origin {
             return Flow::Lost;
         }
+        self.acts.bind_turn = false;
         self.inner.parts.human.handback(&spec.run, &request);
         self.acts.waiting = Waiting::Handback(request);
         Flow::Go
@@ -144,8 +146,13 @@ impl Running<'_> {
         let Waiting::Handback(request) = std::mem::take(&mut self.acts.waiting) else {
             return Err(CallError::Ended);
         };
-        let link = request.reason == HandbackReason::AccountLink
-            && result.outcome == HandbackOutcome::Done;
+        let done = result.outcome == HandbackOutcome::Done;
+        let link = request.reason == HandbackReason::AccountLink && done;
+        let signed_in = done
+            && matches!(
+                request.reason,
+                HandbackReason::SignIn | HandbackReason::SecondFactor | HandbackReason::Captcha
+            );
         match (link, request.origin) {
             (true, Some(origin)) => {
                 self.acts.waiting = Waiting::Link;
@@ -161,12 +168,19 @@ impl Running<'_> {
                 {
                     return Err(CallError::Ended);
                 }
+                self.acts.bind_turn = signed_in;
             }
         }
         Ok(())
     }
 
+    /// Takes a `bind` once after a result `done` of a handback of the reason `sign_in`, `second_factor` or
+    /// `captcha` of the run; any other `bind` is a frame out of turn, for which the library asks nobody, sends no
+    /// `add_origin` and ends the run as a lost flow (contracts.md A6.6, ruling CP-135 (7)).
     pub(crate) fn bind(&mut self, origin: WebOrigin) -> Flow {
+        if !std::mem::take(&mut self.acts.bind_turn) {
+            return Flow::Lost;
+        }
         if self.acts.bound.contains(&origin) {
             return self.bind_reply(YesNo::Yes);
         }
