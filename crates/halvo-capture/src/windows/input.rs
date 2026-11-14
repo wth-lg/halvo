@@ -596,7 +596,7 @@ struct StartCalls {
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
     register_device: RegisterCall,
     remove_device: RemoveCall,
-    set_timer: fn() -> usize,
+    set_timer: fn() -> Option<core::num::NonZeroUsize>,
     #[cfg(test)]
     after_hand_over: fn(),
 }
@@ -612,12 +612,12 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     after_hand_over: || {},
 };
 
-fn set_poll_timer() -> usize {
+fn set_poll_timer() -> Option<core::num::NonZeroUsize> {
     // SAFETY: SetTimer with no window makes a timer of this thread, whose
     // callback has the TIMERPROC signature; the pump dispatches it.
-    unsafe {
+    core::num::NonZeroUsize::new(unsafe {
         windows::Win32::UI::WindowsAndMessaging::SetTimer(None, 0, GATE_POLL_MS, Some(gate_poll))
-    }
+    })
 }
 
 pub(crate) const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
@@ -1167,13 +1167,12 @@ fn run_raw_input(
 
     super::ensure_message_queue();
     let poll = if device == RawDevice::Keyboard {
-        let poll = (calls.set_timer)();
-        if poll == 0 {
+        let Some(poll) = (calls.set_timer)() else {
             let error = super::last_os_error("SetTimer");
             let _ = keyboard_lets_mouse_go(calls.remove_device);
             ready.report(Err(error));
             return;
-        }
+        };
         Some(poll)
     } else {
         None
@@ -1204,7 +1203,8 @@ fn run_raw_input(
     });
     if let Some(poll) = poll {
         // SAFETY: `poll` is the timer of this thread made above.
-        let killed = unsafe { windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll) };
+        let killed =
+            unsafe { windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll.get()) };
         signal.report_removal("KillTimer", killed);
     }
     drop(ctx_guard);
@@ -1619,8 +1619,8 @@ mod tests {
         assert_eq!(keyboard_stopped, Ok(()));
     }
 
-    fn no_timer() -> usize {
-        0
+    fn no_timer() -> Option<core::num::NonZeroUsize> {
+        None
     }
 
     #[test]

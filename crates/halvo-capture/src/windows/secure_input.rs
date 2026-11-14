@@ -81,18 +81,30 @@ pub(crate) enum Kept {
     Drop,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KeptElement {
+    Same,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadBy {
+    OwnRead,
+    Event,
+}
+
 pub(crate) fn with_kept(
     kept: Option<u64>,
-    same: bool,
+    element: KeptElement,
     read: FieldState,
-    own: bool,
+    by: ReadBy,
     moves: u64,
 ) -> (FieldState, Kept) {
     match kept {
-        Some(_) if same => (FieldState::Password, Kept::Leave),
+        Some(_) if element == KeptElement::Same => (FieldState::Password, Kept::Leave),
         _ if read == FieldState::Password => (FieldState::Password, Kept::Set),
         None => (read, Kept::Leave),
-        Some(_) if !own => (read, Kept::Leave),
+        Some(_) if by == ReadBy::Event => (read, Kept::Leave),
         Some(at) if moves > at => (read, Kept::Drop),
         Some(_) => (FieldState::Password, Kept::Leave),
     }
@@ -135,7 +147,7 @@ pub enum Moved {
 enum Mark {
     Field(FieldState),
     Read { state: FieldState, moved: Moved },
-    Latch(LatchFrom),
+    Latch { from: LatchFrom, at: u32 },
     Started,
 }
 
@@ -144,7 +156,7 @@ impl Mark {
         match self {
             Mark::Field(state) | Mark::Read { state, .. } => Some(state),
             Mark::Started => Some(FieldState::Unknown),
-            Mark::Latch(_) => None,
+            Mark::Latch { .. } => None,
         }
     }
 }
@@ -248,10 +260,9 @@ fn latch_states(marks: &VecDeque<Entry>, first_read_after_start: Option<u64>) ->
     let mut floor = 0u64;
     let mut blocked = false;
     for entry in marks.iter() {
-        let Mark::Latch(from) = entry.mark else {
+        let Mark::Latch { from, at } = entry.mark else {
             continue;
         };
-        let at = entry.at.unwrap_or(entry.began);
         let mut state = LatchState {
             seq: entry.seq,
             at,
@@ -526,7 +537,7 @@ impl Shared {
         };
         note_mark(what, None, None, Some(tick), tick, None);
         let mut marks = self.lock();
-        marks.push(Some(tick), tick, Mark::Latch(from));
+        marks.push(None, tick, Mark::Latch { from, at: tick });
         marks.moves += 1;
         marks.settle_due = Some(tick.wrapping_add(ms(LATCH_SETTLE)));
     }
@@ -711,7 +722,7 @@ impl PasswordGate {
             .lock()
             .entries
             .iter()
-            .filter(|entry| matches!(entry.mark, Mark::Latch(_)))
+            .filter(|entry| matches!(entry.mark, Mark::Latch { .. }))
             .count()
     }
 }
@@ -1130,7 +1141,7 @@ mod detector {
         fn state(
             &self,
             element: Option<&IUIAutomationElement>,
-            own: bool,
+            by: super::ReadBy,
             moves: u64,
         ) -> FieldState {
             let Some(element) = element else {
@@ -1147,6 +1158,11 @@ mod detector {
                 unsafe { self.automation.CompareElements(previous, element) }
                     .is_ok_and(|same| same.as_bool())
             });
+            let of_the_kept = if same {
+                super::KeptElement::Same
+            } else {
+                super::KeptElement::Other
+            };
             let read = if same {
                 #[cfg(feature = "test-seam")]
                 self.saw("the_kept_password_element".to_string());
@@ -1154,8 +1170,13 @@ mod detector {
             } else {
                 super::state_of(self.read(element), false)
             };
-            let (state, change) =
-                super::with_kept(kept.as_ref().map(|(_, at)| *at), same, read, own, moves);
+            let (state, change) = super::with_kept(
+                kept.as_ref().map(|(_, at)| *at),
+                of_the_kept,
+                read,
+                by,
+                moves,
+            );
             match change {
                 super::Kept::Leave => {}
                 super::Kept::Set => *kept = Some((element.clone(), moves)),
@@ -1184,7 +1205,10 @@ mod detector {
             };
             *last = element.clone();
             drop(last);
-            (self.state(element.as_ref(), true, moves), moved)
+            (
+                self.state(element.as_ref(), super::ReadBy::OwnRead, moves),
+                moved,
+            )
         }
     }
 
@@ -1273,7 +1297,7 @@ mod detector {
             )
         };
         let moves = handler.shared.lock().moves;
-        let state = handler.reader.state(element, false, moves);
+        let state = handler.reader.state(element, super::ReadBy::Event, moves);
         handler
             .shared
             .field_seen(tick(), state, handler.reader.seen());
@@ -1580,8 +1604,8 @@ mod detector {
             assert!(joined.is_ok(), "{joined:?}");
             let _com = Com;
             let reader = new_reader().expect("the reader is made");
-            let own = reader.state(None, true, 0);
-            let event = reader.state(None, false, 3);
+            let own = reader.state(None, super::super::ReadBy::OwnRead, 0);
+            let event = reader.state(None, super::super::ReadBy::Event, 3);
             let seen = reader.seen();
             drop(reader);
             assert_eq!(own, FieldState::Unknown);
@@ -2111,27 +2135,32 @@ mod tests {
     #[test]
     fn the_kept_password_element_is_let_go_by_an_own_read_after_a_focus_move_alone() {
         use FieldState::{Clear, Password};
+        use KeptElement::{Other, Same};
+        use ReadBy::{Event, OwnRead};
         assert_eq!(
-            with_kept(Some(3), true, Clear, false, 9),
+            with_kept(Some(3), Same, Clear, Event, 9),
             (Password, Kept::Leave)
         );
         assert_eq!(
-            with_kept(None, false, Password, false, 4),
+            with_kept(None, Other, Password, Event, 4),
             (Password, Kept::Set)
         );
         assert_eq!(
-            with_kept(Some(3), false, Clear, false, 9),
+            with_kept(Some(3), Other, Clear, Event, 9),
             (Clear, Kept::Leave)
         );
         assert_eq!(
-            with_kept(Some(3), false, Clear, true, 3),
+            with_kept(Some(3), Other, Clear, OwnRead, 3),
             (Password, Kept::Leave)
         );
         assert_eq!(
-            with_kept(Some(3), false, Clear, true, 4),
+            with_kept(Some(3), Other, Clear, OwnRead, 4),
             (Clear, Kept::Drop)
         );
-        assert_eq!(with_kept(None, false, Clear, true, 4), (Clear, Kept::Leave));
+        assert_eq!(
+            with_kept(None, Other, Clear, OwnRead, 4),
+            (Clear, Kept::Leave)
+        );
     }
 
     const FRONT: u32 = 7;
