@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
+# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, the crates that the app links start no child but the two named limits, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
 set -u
 name=20-r4-core
 
@@ -363,6 +363,56 @@ if ($mode eq 'allow') {
   }
   printf "allow crates=%d rust_files=%d test_files=%d product_files=%d manifests=%d found=%d\n",
     scalar(grep { $has{"$_/Cargo.toml"} } @crates), $rust, $tests, $product, scalar @tomls, $found;
+} elsif ($mode eq 'starts') {
+  my ($app, $linkedfile) = @rest;
+  my %linked;
+  open my $lf, '<', $linkedfile or exit 2;
+  while (<$lf>) { s/\r?\n\z//; $linked{$1} = 1 if /\A(\S+)/ }
+  close $lf;
+  my %dir;
+  for my $m (grep { m{\A(?:src-tauri|crates/[^/]+)/Cargo\.toml\z} } keys %blob) {
+    my ($d) = $m =~ m{\A(.*)/Cargo\.toml\z};
+    my $pkg = 0;
+    for my $line (split /\n/, $blob{$m}) {
+      if ($line =~ /\A\s*\[\s*([^\]]*?)\s*\]/) { $pkg = $1 eq 'package'; next }
+      if ($pkg && $line =~ /\A\s*name\s*=\s*"([^"]+)"/) { $dir{$1} = $d; last }
+    }
+  }
+  my @limits = (['crates/halvo-control/src/onboarding.rs', '/usr/bin/open'],
+                ['crates/halvo-capture/src/consent/onboarding.rs', '/usr/bin/sw_vers']);
+  my %used;
+  my ($crates, $files, $all, $lim, $other) = (0, 0, 0, 0, 0);
+  my $re = qr/\bCommand\s*::\s*new\b|\bposix_spawnp?\b|\b(?:libc|unistd)\s*::\s*(?:fork|vfork|exec[lv]\w*|system|popen)\b|\bCreateProcess\w*|\bShellExecute\w*|\bWinExec\b|\bNSTask\b/;
+  my @unres;
+  for my $name (sort keys %linked) {
+    next unless defined $dir{$name};
+    $crates++;
+    my $d = $dir{$name};
+    my @roots = grep { exists $blob{$_} } ("$d/src/lib.rs", $name eq $app ? "$d/src/main.rs" : ());
+    my ($kind, $unresolved) = walk(@roots);
+    push @unres, @$unresolved;
+    for my $f (sort grep { $kind->{$_} eq 'product' } keys %$kind) {
+      $files++;
+      my @lines = split /\n/, $blob{$f}, -1;
+      for my $h (hits($f, $re)) {
+        $all++;
+        my $text = $lines[$h->[0] - 1];
+        my ($l) = grep { !$used{$_} && $limits[$_][0] eq $f && $text =~ /\bCommand\s*::\s*new\s*\(\s*"\Q$limits[$_][1]\E"\s*\)/ } 0 .. $#limits;
+        if (defined $l) {
+          $used{$l} = 1;
+          $lim++;
+          print $out "start limit $f:$h->[0]\n";
+        } else {
+          $other++;
+          print $out "start other $f:$h->[0]\n";
+        }
+      }
+    }
+  }
+  for my $u (@unres) { print $out "start unresolved $u\n" }
+  $found = $other;
+  printf "starts crates=%d files=%d hits=%d limits=%d other=%d unresolved=%d\n",
+    $crates, $files, $all, $lim, $other, scalar @unres;
 } else {
   exit 2;
 }
@@ -418,6 +468,22 @@ tauri_features() {
   fi
 }
 
+child_starts() {
+  cargo tree -e normal --target all -p halvo --prefix none --format '{p}' --locked \
+    >"$artifacts/linked.txt" 2>"$artifacts/linked-tree.txt"
+  code=$?
+  [ "$code" -eq 0 ] || fail tree
+  blobs starts 'src-tauri/*.rs' 'crates/*.rs' src-tauri/Cargo.toml 'crates/*/Cargo.toml'
+  perl "$scan" starts "$artifacts/starts.list" "$artifacts/starts.blobs" "$artifacts/starts.txt" \
+    halvo "$artifacts/linked.txt"
+  code=$?
+  case $code in
+    0) ;;
+    1) fail start ;;
+    *) fail setup ;;
+  esac
+}
+
 measure() {
   cd "$repo" 2>/dev/null || fail setup
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
@@ -428,6 +494,7 @@ measure() {
   scanner >"$scan" || fail setup
   lint_allows
   tauri_features
+  child_starts
   : >"$log" 2>/dev/null || fail setup
   app=no
   if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -477,7 +544,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT STUB_LINKED
     "$@" 2>&1
   )
   code=$?
@@ -537,6 +604,16 @@ fixture() {
     crate "$dir/crates/halvo-coord-app"
     put "$dir/crates/halvo-coord-app/src/lib.rs" 'pub fn a() {}\n'
   fi
+  put "$dir/src-tauri/Cargo.toml" '[package]\nname = "halvo"\n'
+  put "$dir/src-tauri/src/main.rs" 'mod agents;\nfn main() {}\n'
+  put "$dir/src-tauri/src/agents.rs" '#[cfg(test)]\nmod tests {\n    fn t() { let _ = std::process::Command::new("/bin/ls"); }\n}\n'
+  put "$dir/crates/halvo-control/Cargo.toml" '[package]\nname = "halvo-control"\n'
+  put "$dir/crates/halvo-control/src/lib.rs" '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n'
+  put "$dir/crates/halvo-control/src/onboarding.rs" '// std::process::Command::new("/bin/ls")\npub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\n'
+  put "$dir/crates/halvo-control/src/testing.rs" 'pub fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
+  put "$dir/crates/halvo-control/tests/start.rs" 'fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
+  put "$dir/crates/halvo-other/Cargo.toml" '[package]\nname = "halvo-other"\n'
+  put "$dir/crates/halvo-other/src/lib.rs" 'pub fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
   git -C "$dir" init -q >/dev/null 2>&1 || exit 2
   git -C "$dir" add . >/dev/null 2>&1 || exit 2
 }
@@ -573,6 +650,10 @@ case $* in
     printf '%s\n' "$STUB_TAURI"
     exit "$STUB_TREE_EXIT"
     ;;
+  'tree -e normal --target all -p halvo --prefix none --format {p} --locked')
+    cat "$STUB_LINKED"
+    exit "$STUB_TREE_EXIT"
+    ;;
   tree*) exit 94 ;;
 esac
 if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -588,6 +669,8 @@ EOF
   STUB_EXIT=0
   STUB_TREE_EXIT=0
   STUB_TAURI=default,wry
+  STUB_LINKED=$work/linked.txt
+  printf 'halvo v0.0.0 (/fixture/src-tauri)\nhalvo-control v0.0.0 (/fixture/crates/halvo-control)\nhalvo-control v0.0.0 (/fixture/crates/halvo-control) (*)\nserde v1.0.0\n' >"$STUB_LINKED" || exit 2
   rejected=0
   wrong=
   fixture one
@@ -609,6 +692,7 @@ EOF
   check app-crate-in-the-tree PASS 'halvo-coord-app=yes' \
     env CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-app" sh "$here/$name.sh"
   check allows-in-test-code-only PASS 'allow crates=1 rust_files=6 test_files=4 product_files=2 manifests=1 found=0' run_one
+  check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=2 files=4 hits=1 limits=1 other=0 unresolved=1' run_one
   STUB_TAURI=default,test-util,wry,unstable-x
   check tauri-features-that-only-hold-the-words PASS 'tauri normal features=4 unstable=no test=no' run_one
   check usage FAIL "FAIL $name (usage)" sh "$here/$name.sh" --bogus
@@ -652,6 +736,13 @@ EOF
   check tauri-with-unstable FAIL "FAIL $name (tauri)" run_one
   STUB_TREE_EXIT=101
   check cargo-tree-fails FAIL "FAIL $name (tree)" run_one
+
+  variant start-other crates/halvo-control/src/onboarding.rs 'pub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\npub fn ls() {\n    let _ = std::process::Command::new("/bin/ls").output();\n}\n'
+  check another-start-in-a-linked-crate FAIL "FAIL $name (start)" run_in start-other
+  variant start-twice crates/halvo-control/src/onboarding.rs 'pub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\n'
+  check the-named-limit-twice FAIL "FAIL $name (start)" run_in start-twice
+  variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
+  check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
