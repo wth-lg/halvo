@@ -49,6 +49,7 @@ pub(crate) struct Slot {
     writer: Mutex<Option<ChildStdin>>,
     events: Mutex<Option<Sender<Event>>>,
     ended: AtomicBool,
+    cancelled: AtomicBool,
 }
 
 impl Slot {
@@ -59,6 +60,7 @@ impl Slot {
             writer: Mutex::new(None),
             events: Mutex::new(None),
             ended: AtomicBool::new(false),
+            cancelled: AtomicBool::new(false),
         }
     }
 
@@ -75,6 +77,43 @@ impl Slot {
             Some(w) => write_frame(w, &json).is_ok(),
             None => false,
         }
+    }
+
+    /// Writes the frame `cancel` and records it under the lock of the writer, so that a frame that
+    /// `write_unless_cancelled` writes comes before the cancel or not at all.
+    fn write_cancel(&self) -> bool {
+        let Ok(json) = ToRunner::Cancel(Cancel {}).to_json() else {
+            return false;
+        };
+        let mut writer = lock(&self.writer);
+        let written = writer
+            .as_mut()
+            .is_some_and(|w| write_frame(w, &json).is_ok());
+        if written {
+            self.cancelled.store(true, Ordering::SeqCst);
+        }
+        written
+    }
+
+    /// Whether the library wrote the frame `cancel` to the runner.
+    pub(crate) fn cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+
+    /// Writes one frame unless the library has written `cancel`: `None` when it had, else whether the write went.
+    pub(crate) fn write_unless_cancelled(&self, frame: &ToRunner) -> Option<bool> {
+        let Ok(json) = frame.to_json() else {
+            return Some(false);
+        };
+        let mut writer = lock(&self.writer);
+        if self.cancelled() {
+            return None;
+        }
+        Some(
+            writer
+                .as_mut()
+                .is_some_and(|w| write_frame(w, &json).is_ok()),
+        )
     }
 
     fn close_link(&self) {
@@ -280,7 +319,7 @@ impl Supervisor {
     /// Writes the frame `cancel` to the runner of `run`.
     pub fn cancel(&self, run: &RunId) -> Result<(), CallError> {
         let slot = self.slot(run)?;
-        if slot.ended() || !slot.write(&ToRunner::Cancel(Cancel {})) {
+        if slot.ended() || !slot.write_cancel() {
             return Err(CallError::Ended);
         }
         Ok(())
@@ -482,8 +521,9 @@ impl Running<'_> {
     /// Answers one frame of the running run. After a stored `finish` a `confirm`, `handback`, `bind`, `secret` or
     /// `browser` frame is a frame out of turn: no trait is called, no reply is written and the run is lost, by the
     /// path `after_finish` (ruling CP-193 item 1). After the library wrote `bound=no` it takes progress, done and the
-    /// store of the run's `finish` alone, and any other frame is lost (ruling CP-193 item 2). A request while the
-    /// runner waits for a reply is lost too.
+    /// store of the run's `finish` alone, and any other frame is lost (ruling CP-193 item 2). After it wrote
+    /// `cancel` to a run whose bind is open, it drops that bind and takes the same three alone (ruling CP-193 item
+    /// 3). A request while the runner waits for a reply is lost too.
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
         let after_finish = matches!(
             frame,
@@ -504,10 +544,22 @@ impl Running<'_> {
         if self.acts.declined() && !end_of_declined {
             return Flow::Lost;
         }
+        self.drop_cancelled_bind();
+        if self.acts.cancelled_bind() {
+            return if end_of_declined {
+                self.on_turn(frame)
+            } else {
+                Flow::Lost
+            };
+        }
         let request = !matches!(frame, FromRunner::Progress(_) | FromRunner::Done(_));
         if request && self.acts.waiting() {
             return Flow::Lost;
         }
+        self.on_turn(frame)
+    }
+
+    fn on_turn(&mut self, frame: FromRunner) -> Flow {
         match frame {
             FromRunner::Progress(p) => {
                 self.inner

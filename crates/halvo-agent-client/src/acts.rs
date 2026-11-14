@@ -29,6 +29,9 @@ pub(crate) enum Waiting {
     Handback(HandbackRequest),
     Bind,
     Link,
+    /// The library wrote `cancel` while the runner waited for a `bind_reply`: it writes none, and takes the store of
+    /// the run's `finish` and its done (ruling CP-193 item 3).
+    CancelledBind,
 }
 
 enum Then {
@@ -60,6 +63,11 @@ impl Acts {
     /// Whether the runner waits for a reply that the library holds.
     pub(crate) fn waiting(&self) -> bool {
         !matches!(self.waiting, Waiting::Nothing)
+    }
+
+    /// Whether the library dropped an open bind because it wrote `cancel`.
+    pub(crate) fn cancelled_bind(&self) -> bool {
+        matches!(self.waiting, Waiting::CancelledBind)
     }
 
     /// Whether the library wrote `bound=no` to the runner: from then on it takes progress, done and the store of the
@@ -191,12 +199,16 @@ impl Running<'_> {
         if self.acts.bound.contains(&origin) {
             return self.bind_reply(YesNo::Yes);
         }
-        match self
+        let answer = self
             .inner
             .parts
             .human
-            .allow_origin(&self.slot.spec.run, &origin)
-        {
+            .allow_origin(&self.slot.spec.run, &origin);
+        if self.slot.cancelled() {
+            self.acts.waiting = Waiting::CancelledBind;
+            return Flow::Go;
+        }
+        match answer {
             OriginAnswer::Decline => self.bind_reply(YesNo::No),
             OriginAnswer::Allow => {
                 self.acts.waiting = Waiting::Bind;
@@ -209,11 +221,30 @@ impl Running<'_> {
     }
 
     fn bind_reply(&mut self, bound: YesNo) -> Flow {
-        if self.slot.write(&ToRunner::BindReply(BindReply { bound })) {
-            self.acts.declined |= bound == YesNo::No;
-            Flow::Go
-        } else {
-            Flow::Lost
+        match self
+            .slot
+            .write_unless_cancelled(&ToRunner::BindReply(BindReply { bound }))
+        {
+            Some(true) => {
+                self.acts.declined |= bound == YesNo::No;
+                Flow::Go
+            }
+            Some(false) => Flow::Lost,
+            None => {
+                self.acts.waiting = Waiting::CancelledBind;
+                Flow::Go
+            }
+        }
+    }
+
+    /// After the library wrote `cancel` while the runner waits for a `bind_reply`, drops the waiting `add_origin` of
+    /// the way `sign_in` and writes no `bind_reply` (ruling CP-193 item 3).
+    pub(crate) fn drop_cancelled_bind(&mut self) {
+        if matches!(self.acts.waiting, Waiting::Bind) && self.slot.cancelled() {
+            self.acts
+                .adds
+                .retain(|p| !matches!(p.then, Then::BindReply));
+            self.acts.waiting = Waiting::CancelledBind;
         }
     }
 
@@ -232,6 +263,7 @@ impl Running<'_> {
 
     /// Sends again each `add_origin` that waits, once `ADD_AGAIN` has passed since the last try.
     pub(crate) fn retry_adds(&mut self) -> Flow {
+        self.drop_cancelled_bind();
         match self.acts.next_try {
             Some(at) if Instant::now() >= at => self.try_adds(),
             _ => Flow::Go,
@@ -255,18 +287,23 @@ impl Running<'_> {
                 continue;
             }
             self.acts.bound.insert(p.origin);
-            let reply = match p.then {
-                Then::BindReply => Some(ToRunner::BindReply(BindReply { bound: YesNo::Yes })),
+            match p.then {
+                Then::BindReply => {
+                    self.acts.waiting = Waiting::Nothing;
+                    if let Flow::Lost = self.bind_reply(YesNo::Yes) {
+                        flow = Flow::Lost;
+                    }
+                }
                 Then::HandbackReply(result) => {
-                    Some(ToRunner::HandbackReply(HandbackReply { result }))
+                    self.acts.waiting = Waiting::Nothing;
+                    if !self
+                        .slot
+                        .write(&ToRunner::HandbackReply(HandbackReply { result }))
+                    {
+                        flow = Flow::Lost;
+                    }
                 }
-                Then::Nothing => None,
-            };
-            if let Some(reply) = reply {
-                self.acts.waiting = Waiting::Nothing;
-                if !self.slot.write(&reply) {
-                    flow = Flow::Lost;
-                }
+                Then::Nothing => {}
             }
         }
         self.acts.next_try = (!left.is_empty()).then(|| Instant::now() + ADD_AGAIN);

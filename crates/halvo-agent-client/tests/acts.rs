@@ -928,3 +928,92 @@ fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
     assert_eq!(end.forced, None, "{}", script.log());
     assert_eq!(rig.store.count(r#""op":"finish""#), 1);
 }
+
+/// A runner that sends a bind, waits for the file `go`, then stores its declined `finish`, sends done and exits.
+fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
+    let go = rig.dir.join("go");
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        &format!("wait-for {}", go.display()),
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    (script, go)
+}
+
+fn assert_cancelled_bind_ended_as_declined(rig: &Rig, script: &common::Script, end: &RunEnd) {
+    assert!(script.log().contains("\ncancel"), "{}", script.log());
+    assert!(
+        binds(script).is_empty(),
+        "a bind_reply was written: {}",
+        script.log()
+    );
+    assert!(
+        end.finish.is_some(),
+        "the finish was not stored: {}",
+        script.log()
+    );
+    assert_eq!(end.outcome, Some(Outcome::Declined));
+    assert_eq!(end.forced, None, "the run was lost: {}", script.log());
+    assert_eq!(rig.store.count(r#""op":"finish""#), 1);
+}
+
+#[test]
+fn a_cancel_while_the_library_stands_in_allow_origin_drops_the_bind_and_takes_the_declined_finish()
+{
+    let rig = Rig::new("cancel-in-allow");
+    *rig.people.hold_allow.lock().unwrap() = true;
+    let (script, go) = cancelled_bind_script(&rig);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || !rig
+        .people
+        .asked_origins
+        .lock()
+        .unwrap()
+        .is_empty()));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    *rig.people.hold_allow.lock().unwrap() = false;
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
+    assert!(
+        adds(&rig).is_empty(),
+        "add_origin was sent: {:?}",
+        adds(&rig)
+    );
+}
+
+#[test]
+fn a_cancel_while_the_add_origin_of_a_bind_waits_drops_it_and_takes_the_declined_finish() {
+    let rig = Rig::new("cancel-in-bind-wait");
+    rig.store
+        .fail_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    let (script, go) = cancelled_bind_script(&rig);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || adds(&rig).len() >= 2));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    std::thread::sleep(Duration::from_millis(300));
+    let at_cancel = adds(&rig).len();
+    std::thread::sleep(Duration::from_millis(1200));
+    assert_eq!(
+        adds(&rig).len(),
+        at_cancel,
+        "the add_origin of the bind was sent again after the cancel"
+    );
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
+}

@@ -406,6 +406,7 @@ pub struct People {
     pub progress: Mutex<Vec<(u32, u32)>>,
     pub hold_answers: Mutex<bool>,
     pub asked_confirms: AtomicUsize,
+    pub hold_allow: Mutex<bool>,
 }
 
 impl Default for People {
@@ -420,6 +421,7 @@ impl Default for People {
             progress: Mutex::new(Vec::new()),
             hold_answers: Mutex::new(false),
             asked_confirms: AtomicUsize::new(0),
+            hold_allow: Mutex::new(false),
         }
     }
 }
@@ -453,6 +455,9 @@ impl Human for People {
 
     fn allow_origin(&self, _run: &RunId, origin: &WebOrigin) -> OriginAnswer {
         self.asked_origins.lock().unwrap().push(origin.clone());
+        while *self.hold_allow.lock().unwrap() {
+            thread::sleep(Duration::from_millis(10));
+        }
         *self.allow.lock().unwrap()
     }
 
