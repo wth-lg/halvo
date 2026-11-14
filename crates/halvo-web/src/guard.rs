@@ -2015,6 +2015,8 @@ mod tests {
         let me = std::env::current_exe().unwrap();
         let profile =
             std::env::temp_dir().join(format!("halvo-guard-left-profile-{}", std::process::id()));
+        let record_file =
+            std::env::temp_dir().join(format!("halvo-guard-left-record-{}", std::process::id()));
         let start = |entry: &str, extra: &[String]| {
             std::process::Command::new(&me)
                 .args(crate::child::entry_args(entry, extra))
@@ -2111,14 +2113,22 @@ mod tests {
                         }
                     })
                 },
-                record: &mut |act| records.push(act.clone()),
+                record: &mut |act| {
+                    write_record(&record_file, act);
+                    records.push(act.clone());
+                },
             },
         );
+        let written = std::fs::read_to_string(&record_file).unwrap_or_default();
+        let _ = std::fs::remove_file(&record_file);
+        eprintln!("g7_record {}", written.trim_end());
         assert_eq!(code, 0);
         assert!(fence.refused.borrow().is_empty());
         assert!(!procs::running(&b), "the stand-in browser still runs");
         let name = me.file_name().unwrap().to_string_lossy().replace(' ', "_");
         let last = records.last().expect("the guard wrote its record");
+        assert_eq!(written, last.line() + "\n");
+        assert!(written.starts_with("ended_by=guard "), "{written}");
         assert_eq!((last.left, last.left_programs.clone()), (1, vec![name]));
         assert!(last.first, "{last:?}");
     }
