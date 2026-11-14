@@ -163,6 +163,7 @@ fn the_key_reader_gives_nothing_where_the_key_cannot_be_read_or_the_kind_has_non
         format!("{{\"workflow\":\"{name}\""),
         format!("{{\"Workflow\":\"{name}\"}}"),
         format!("{{\"inner\":{{\"workflow\":\"{name}\"}}}}"),
+        format!("{{\"workflow\":{{\"workflow\":\"{name}\"}}}}"),
     ] {
         assert_eq!(refused_workflow("learn_routine", &json), None, "{json}");
     }
