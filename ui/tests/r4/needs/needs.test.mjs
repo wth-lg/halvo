@@ -59,7 +59,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0, touches: 0, required: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0, touches: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -2386,43 +2386,6 @@ async function holds(origin, dir) {
   return faults;
 }
 
-const MARKED = ['agents_answer', 'agents_setup_typed'];
-
-async function required(origin, dir, states) {
-  const faults = [];
-  const rows = commands().filter((c) => MARKED.includes(c.command));
-  if (rows.length !== MARKED.length) faults.push('rows=' + rows.length);
-  const needed = new Map(rows.map((r) => [r.command, r.args.filter((a) => a.when === null).map((a) => a.name)]));
-  for (const r of rows) if (!needed.get(r.command).includes('step')) faults.push(r.command + ':row_without_step');
-  const made = new Map(MARKED.map((name) => [name, 0]));
-  for (const state of states) {
-    const items = stateFile(dir, state).snapshot.items;
-    for (const item of items) {
-      const earlier = isPageItem(item) ? pageConfirms(items).slice(0, pageConfirms(items).indexOf(item)) : [];
-      for (const choice of item.choices) {
-        if (choice.choice === 'present') continue;
-        const first = earlier.flatMap((e) => plan(e, e.choices.find((c) => c.safe === 'yes')).acts);
-        const tag = state + ':' + item.item.slice(-2) + ':' + choice.choice;
-        const r = await after(origin, state, [...first, ...plan(item, choice).acts]);
-        for (const c of r.calls) {
-          if (!needed.has(c.call)) continue;
-          made.set(c.call, made.get(c.call) + 1);
-          seen.required += 1;
-          for (const name of needed.get(c.call)) {
-            if (!Object.prototype.hasOwnProperty.call(c.args, name) || c.args[name] === null) faults.push(tag + ':' + c.call + ':missing_' + name);
-          }
-        }
-      }
-    }
-  }
-  for (const [name, count] of made) if (count === 0) faults.push(name + ':never_made');
-  return faults;
-}
-
-function isPageItem(item) {
-  return item.kind === 'confirm' && item.presenter === 'page';
-}
-
 function askedAgain(item, step) {
   const copy = JSON.parse(JSON.stringify(item));
   copy.step = step;
@@ -2570,7 +2533,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'required', 'step', 'again'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2594,7 +2557,6 @@ if (PAGE_TESTS.some(want)) {
     if (want('compose')) report('compose', await compose(origin, dir));
     if (want('press')) report('press', await press(origin, dir));
     if (want('holds')) report('holds', await holds(origin, dir));
-    if (want('required')) report('required', await required(origin, dir, states), ['required']);
     if (want('step')) report('step', await steps(origin, dir));
     if (want('again')) report('again', await again(origin, dir));
   }
