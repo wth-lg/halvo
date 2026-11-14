@@ -677,7 +677,7 @@ pub(crate) fn start(
     if environment.is_some() {
         flags |= CREATE_UNICODE_ENVIRONMENT;
     }
-    // SAFETY: `application`, `command_line` and `directory` end in a NUL, `environment` ends in two, `startup` is a live STARTUPINFOEXW whose list lives until after the call, and `info` is a live place for the answer.
+    // SAFETY: CreateProcessW reads `application` and `directory` up to their NUL, `environment` up to its two NULs as a block of UTF-16 strings (CREATE_UNICODE_ENVIRONMENT), and may write into `command_line` within its length; the one caller, proc::spawn, ends `application` and `directory` in a NUL that it appends, `command_line` in the NUL that proc::command_line writes, and `environment` in the two NULs of proc::environment_block, and nothing here checks them; `command_line` is this function's own buffer, live and writable until after the call; the null security attributes give the defaults; `startup` is a live STARTUPINFOEXW whose list lives until after the call, and `info` is a live place for the answer.
     let ok = unsafe {
         CreateProcessW(
             application.as_ptr(),

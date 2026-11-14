@@ -104,7 +104,7 @@ pub(crate) fn close_beyond_three(cmd: &mut Command) {
     let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
     let room = usize::try_from(held).unwrap_or(0) / size_of::<ProcFdInfo>() * 2 + 64;
     let mut list = vec![ProcFdInfo::default(); room];
-    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock.
+    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock. POSIX lists getpid and fcntl as async-signal-safe and does not list proc_pidinfo, a call of macOS alone: it is a system call through libproc that takes no lock of this process and allocates nothing, which is what the step relies on, and no text of the system promises it.
     unsafe {
         cmd.pre_exec(move || close_at_exec_beyond_three(&mut list));
     }

@@ -35,7 +35,6 @@ fn sign_in() -> String {
     handback("sign_in", "http://pay.test:18090")
 }
 
-/// Answers the `n`th handback of the run `done` once the person has been asked for it.
 fn signed_in(rig: &Rig, run: &RunId, n: usize) {
     assert!(
         wait_until(SHORT, || rig.people.handbacks.lock().unwrap().len() >= n),
@@ -608,8 +607,6 @@ fn a_refused_answer_handback_leaves_the_wait_for_a_bind_reply_in_place() {
     assert_eq!(rig.people.asked_confirms.load(Ordering::SeqCst), 0);
 }
 
-/// Starts `lines`, answers the handbacks of the run with `results` in order, and waits for the run's end, which a
-/// bind out of turn makes come at once as for a lost flow.
 fn out_of_turn(
     name: &str,
     lines: &[&str],
@@ -734,7 +731,6 @@ fn a_bind_after_a_done_handback_of_each_sign_in_reason_is_taken() {
     }
 }
 
-/// Every call of a caller's trait that a frame can make, counted.
 fn trait_calls(rig: &Rig) -> (usize, usize, usize, usize) {
     (
         rig.people.asked_confirms.load(Ordering::SeqCst),
@@ -754,8 +750,6 @@ fn frame_out_of_turn(name: &str) -> String {
     }
 }
 
-/// A runner that stores its `finish` and then sends the frame `name`: the run ends at once by the path
-/// `after_finish`, with no call of a caller's trait and no reply but the finish's (ruling CP-193 item 1).
 fn after_finish(name: &str) {
     let finish = common::ask_finish();
     let frame = frame_out_of_turn(name);
@@ -823,8 +817,6 @@ fn load_store() -> String {
     .replacen("ask ", "send ", 1)
 }
 
-/// A runner whose bind the person declined and that then sends `frame`: the run ends at once as a lost flow, with no
-/// call of a caller's trait beyond the sign-in's handback and its question (ruling CP-193 item 2).
 fn after_bound_no(name: &str, frame: &str) {
     let rig = Rig::new("after-bound-no");
     *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
@@ -929,7 +921,6 @@ fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
     assert_eq!(rig.store.count(r#""op":"finish""#), 1);
 }
 
-/// A runner that sends a bind, waits for the file `go`, then stores its declined `finish`, sends done and exits.
 fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
     let go = rig.dir.join("go");
     let finish = common::ask_finish();

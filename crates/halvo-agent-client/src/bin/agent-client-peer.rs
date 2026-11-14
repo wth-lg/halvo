@@ -346,7 +346,7 @@ fn write_inherited(number: &str, text: &[u8]) -> &'static str {
         return "absent";
     }
     let mut wrote = 0u32;
-    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call.
+    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call. The null OVERLAPPED asks for a synchronous write, which WriteFile takes only for a handle opened without FILE_FLAG_OVERLAPPED: the handles that the tests name are the host's file of SCRIPT.mark, which OpenOptions opens without that flag, and the host's standard output and error, the child's ends of pipes that the standard library makes without it.
     let ok = unsafe {
         WriteFile(
             handle,

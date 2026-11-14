@@ -125,9 +125,16 @@ pub(crate) fn environment(read: ReadValue) -> Result<Vec<(OsString, OsString)>, 
 /// it and no other: the two ends of the link as its standard input and output and the null device as its standard
 /// error. It gives the runner the whole environment `env`, made by `environment`, and the system's directory as its working
 /// directory: `/` on macOS, the system directory on Windows, never the library's own; a Windows start whose system
-/// directory cannot be read makes no process. On macOS the runner is the leader of a process group of its own and
+/// directory cannot be read makes no process. The three streams are held by the tests
+/// `a_runner_holds_its_three_descriptors_and_no_other_while_the_library_holds_descriptors_of_each_kind_at_low_and_high_numbers`
+/// and `a_handle_that_the_library_made_inheritable_and_its_own_standard_output_and_error_are_not_open_in_the_runner`
+/// of tests/handles.rs, and the null device by
+/// `the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_stream_no_file_and_no_run_end_of_the_host`
+/// of tests/stderr.rs. On macOS the runner is the leader of a process group of its own and
 /// every other descriptor closes at its exec; on Windows it starts suspended, with the list of those three as the
-/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line.
+/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line: on macOS from
+/// the process table after it has made the process, where a process that the read no longer finds may have exited
+/// and not yet been reaped, so a row that is gone is no reap.
 pub(crate) fn spawn(
     cmd: &mut Command,
     env: &[(OsString, OsString)],
@@ -483,6 +490,13 @@ impl RunProc {
     /// then each descendant outside it (its group when it leads one); while the runner has exited unreaped it ends
     /// the runner's group; and it ends the browser's group while a process of a line is in it. On Windows the job.
     /// When it found a process of the run living, it records the end as forced by the path that the run has.
+    /// A group is signalled only while its leader still has the number and creation time of its line; for the
+    /// runner, the library's own child, the library's own `waitid` on that child stands in for that read, and the
+    /// state that it gives decides what is signalled. A kill made during the runner's exit, under a parent that
+    /// ignores SIGCHLD, still signals the group whose number the runner holds. The end is a kill by number
+    /// (`Child::kill`) after that read: under a parent that ignores SIGCHLD a runner read as running during its exit
+    /// may be reaped by the system before that call, and the number then names another process only if the system's
+    /// counter passed every number in between, a named limit.
     pub(crate) fn end_all(&mut self) {
         let browser = self.browser_lives();
         #[cfg(target_os = "macos")]

@@ -9,8 +9,6 @@ const SHORT: Duration = Duration::from_secs(10);
 
 const SHORT_LINK_END: Duration = Duration::from_secs(4);
 
-/// Starts `lines`, in which `wait-for GO` waits for the start's answer, kills the run after the log line
-/// `kill_after` when one is named, and waits for the run's end.
 fn ended(rig: &Rig, lines: &[&str], kill_after: Option<&str>) -> RunEnd {
     let go = rig.dir.join(format!("go-{}", common::run_id()));
     let wait = format!("wait-for {}", go.display());

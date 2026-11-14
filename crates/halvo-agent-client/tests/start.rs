@@ -601,6 +601,9 @@ fn exit_reported(pid: u32) -> bool {
 }
 
 #[cfg(target_os = "macos")]
+const PROBE_PIPE: &str = "the standard library makes the probe's pipe on macOS and then marks its ends close-on-exec, which is no one step; a process that another thread of the test binary starts in between holds the write end, so /bin/cat sees no end of its input and the probe fails at the wait for its exit, a failure of the probe and not of the read";
+
+#[cfg(target_os = "macos")]
 #[test]
 fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_read_with_it_finds_the_unreaped_one(
 ) {
@@ -636,6 +639,7 @@ fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_
         process::creation_time(pid),
         created.is_some_and(|c| process::is_running(pid, c)),
     );
+    println!("exit-read limit: {PROBE_PIPE}");
     println!(
         "exit-read running: arg0={:?} arg1={:?} public={} | exited unreaped: arg0={:?} arg1={:?} public={} | reaped: arg0={:?} arg1={:?} public={}",
         running.0,

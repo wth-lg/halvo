@@ -576,7 +576,6 @@ fn link_dir(target: &std::path::Path, link: &std::path::Path) {
     made.unwrap_or_else(|e| panic!("the test could not make its link: {e}"));
 }
 
-/// A profile directory of a run with a file, a folder and the temporary directory beside the profile in it.
 fn profile_tree(dir: &std::path::Path) {
     fs::create_dir_all(dir.join("profile").join("Default")).unwrap();
     fs::create_dir_all(dir.join("tmp")).unwrap();
