@@ -352,6 +352,36 @@ mod store_segment_files_named_by_their_module_twin {
     pub(crate) use crate::store::db as files;
 }
 
+#[cfg(halvo_proof = "store_expiry_named_by_its_module")]
+mod store_expiry_named_by_its_module {
+    pub(crate) use crate::store::expiry as shred;
+}
+
+#[cfg(halvo_proof = "store_expiry_named_by_its_module_twin")]
+mod store_expiry_named_by_its_module_twin {
+    pub(crate) use crate::store::db as shred;
+}
+
+#[cfg(halvo_proof = "store_verify_named_by_its_module")]
+mod store_verify_named_by_its_module {
+    pub(crate) use crate::store::verify as checks;
+}
+
+#[cfg(halvo_proof = "store_verify_named_by_its_module_twin")]
+mod store_verify_named_by_its_module_twin {
+    pub(crate) use crate::store::db as checks;
+}
+
+#[cfg(halvo_proof = "store_default_retention_named_by_its_path")]
+fn store_default_retention_named_by_its_path() -> u64 {
+    crate::store::DEFAULT_RETENTION.as_secs()
+}
+
+#[cfg(halvo_proof = "store_default_retention_named_by_its_path_twin")]
+fn store_default_retention_named_by_its_path_twin() -> &'static str {
+    std::any::type_name::<crate::store::ShredReport>()
+}
+
 #[cfg(halvo_proof = "store_database_named_after_a_glob_of_the_crate_root")]
 #[rustfmt::skip]
 mod store_database_named_after_a_glob_of_the_crate_root {
