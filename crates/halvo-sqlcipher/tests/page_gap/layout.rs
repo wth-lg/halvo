@@ -174,6 +174,23 @@ fn cells_of_three_bytes_in_a_one_column_table_without_rowid_pass_the_check() {
         )
         .unwrap();
     assert_eq!((cells, payload), (4, 8), "four cells of 2 payload bytes");
-    let read = rules::check(&conn, &std::fs::read(scratch.db()).unwrap());
+    let mut db = std::fs::read(scratch.db()).unwrap();
+    let read = rules::check(&conn, &db);
     assert_eq!(read.problems, Vec::<String>::new());
+    let page: i64 = conn
+        .query_row("SELECT pageno FROM dbstat WHERE name = 'k'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let size = read2(&db, 16);
+    let at = (page as usize - 1) * size;
+    let cell = read2(&db, at + 8);
+    db[at + cell + 3] = 1;
+    let found = rules::check(&conn, &db).problems;
+    assert!(
+        found
+            .iter()
+            .any(|line| line.contains(&format!("byte {} of the content area", cell + 3))),
+        "a byte planted after a cell of 3 bytes is not named: {found:?}"
+    );
 }
