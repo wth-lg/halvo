@@ -88,6 +88,43 @@ fn the_structural_check_sees_four_bytes_of_text_planted_in_a_gap() {
 }
 
 #[test]
+fn a_stale_offset_passes_only_between_its_slot_plus_2_and_the_usable_size_less_4() {
+    crate::initialize().unwrap();
+    let scratch = small_store(Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let db = std::fs::read(scratch.db()).unwrap();
+    assert_eq!(rules::check(&conn, &db).problems, Vec::<String>::new());
+    let size = read2(&db, 16);
+    let (number, slot) = (2..=db.len() / size)
+        .find_map(|number| {
+            let page = &db[(number - 1) * size..number * size];
+            let pointers_end = 8 + 2 * read2(page, 3);
+            (matches!(page[0], 10 | 13) && read2(page, 5) >= pointers_end + 8)
+                .then_some((number, pointers_end))
+        })
+        .expect("a leaf with a gap of at least 8 bytes");
+    for (value, passes) in [
+        (slot + 1, false),
+        (slot + 2, true),
+        (size - 4, true),
+        (size - 3, false),
+    ] {
+        let mut planted = db.clone();
+        let at = (number - 1) * size + slot;
+        planted[at..at + 2].copy_from_slice(&(value as u16).to_be_bytes());
+        let found = rules::check(&conn, &planted).problems;
+        let named = found.iter().any(|line| {
+            line.starts_with(&format!("page {number}: the gap's slot at {slot} holds"))
+        });
+        assert_eq!(
+            (found.is_empty(), named),
+            (passes, !passes),
+            "the stale value {value} in the slot at {slot} of page {number}: {found:?}"
+        );
+    }
+}
+
+#[test]
 fn the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads() {
     crate::initialize().unwrap();
     let scratch = small_store(Mode::Plain);

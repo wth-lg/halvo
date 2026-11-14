@@ -102,11 +102,24 @@ in the draws of the tests", with the limits below.
   crate's tests can include it; its `plants` function plants a byte in each
   place that it reads in a copy of a caller's own image. Its allowances are
   its limit: a run of stale 2-byte offsets right after the pointer array whose
-  values are below the usable size, and 4-byte values no larger than the page
-  count in the tail of an overflow page and in a freelist trunk past its
-  count. A leftover made only of such values is not seen. Because a larger
-  page lets more text pass as offsets, the check stops by name on a page size
-  above 4,096 bytes, which both stores use.
+  values are at least the slot's own offset plus 2 and at most the usable size
+  less 4, and 4-byte values no larger than the page count in the tail of an
+  overflow page and in a freelist trunk past its count. A leftover made only
+  of such values is not seen. Because a larger page lets more text pass as
+  offsets, the check stops by name on a page size above 4,096 bytes, which
+  both stores use. At a usable size of 4,096 a pair passes when its first
+  byte is below 0x10, that is a tab, a newline or a carriage return followed
+  by any byte, or a zero byte followed by a non-zero byte (text in a 2-byte
+  encoding of Latin letters, small numbers); under a key the bound is the
+  smaller usable size. It is a limit of the check and not of the build: both
+  statements zero the gap after every edit and rebuild, the byte search sees
+  whole markers wherever they stand, a count over the head's files read
+  508,159 stale slots with no printable pair, and two draws never formed such
+  a leftover even without the rebuildPage statement. The bound of the slot's
+  offset plus 2 and the usable size less 4 was tried on every drawn file and
+  kept because each passes it; the test
+  `page_gap::layout::a_stale_offset_passes_only_between_its_slot_plus_2_and_the_usable_size_less_4`
+  plants the values on both sides of each end (ruling S-86 E6).
 - The keyed draws get no byte search and no structural check: they read the
   rows back against the model and run the integrity check alone. The stores'
   own checks read the keyed layout (rulings ST-42 (2) and S-83 7 (b)).

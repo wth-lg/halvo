@@ -5,7 +5,8 @@
 //! and bytes 52 to 55 of the file header. The allowances, each a limit of the
 //! check: in the gap between the pointer array and the content area, a run of
 //! whole 2-byte slots from the end of the pointer array, in step with it,
-//! whose values are offsets inside the page (stale pointers); in the tail of
+//! whose values lie between the slot's own offset plus 2 and the usable size
+//! less 4 (stale pointers); in the tail of
 //! an overflow page and in a freelist trunk past its count, 4-byte values no
 //! larger than the page count. A leftover made only of such values is not
 //! seen. This file uses `std` and `rusqlite` alone, so that another crate's
@@ -143,9 +144,12 @@ fn btree_page(
     let mut at = pointers_end;
     while at + 1 < content && (page[at] != 0 || page[at + 1] != 0) {
         let stale = read2(page, at);
-        if stale >= usable {
+        if stale < at + 2 || stale > usable - 4 {
             problems.push(format!(
-                "page {number}: the gap's slot at {at} holds {stale:#06x}, no offset inside the page"
+                "page {number}: the gap's slot at {at} holds {stale:#06x}, no offset of a cell past \
+                 the slot ({}..={})",
+                at + 2,
+                usable - 4
             ));
         }
         at += 2;
