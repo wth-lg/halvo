@@ -43,8 +43,8 @@ pub type Read = dyn Fn(&ItemId) -> Result<Card, Cause> + Send + Sync;
 /// `Native::on_screen`, and hands the answer to `Native::answer`, `reject` for a show that never
 /// reported itself on screen. An answer refused as `early`
 /// shows the dialog once more, as long as the dialog was on screen; any other reply ends the
-/// thread, and so does a card that the reader refuses, before anything is shown and with no
-/// answer. The `Native` is dropped when the thread ends, so the item can be shown again by a
+/// thread, and so does a card that the reader refuses or that breaks the composed form (ruling
+/// RD-90 item 10), before anything is shown and with no answer. The `Native` is dropped when the thread ends, so the item can be shown again by a
 /// later `agents_present`. Each show holds every control of the dialog for `arm`, the limit
 /// `arm_ms` (I4.2), so `armed` for a native item says that the core takes an answer, not that
 /// the dialog's controls are ready (ruling RD-91 item 5).
@@ -111,7 +111,7 @@ fn serve<T: Target + ?Sized, D: Dialog + ?Sized>(
     dialog: &D,
     arm: Duration,
 ) {
-    let Ok(card) = read(target.item()) else {
+    let Some(card) = read(target.item()).ok().filter(Card::whole) else {
         return;
     };
     loop {

@@ -1,7 +1,9 @@
-use super::{arm, item, pay, ALLOW, REJECT};
+use super::{arm, field, item, pay, ALLOW, REJECT};
+use crate::present::card::LINES;
 use crate::present::{serve, Card, Dialog, DialogPresenter, Read, Target};
 use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::types::{Cause, ItemId};
+use halvo_coord::types::{Class, FieldFrom};
 use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -104,6 +106,42 @@ fn a_reader_that_refuses_the_card_shows_nothing_and_answers_nothing() {
     assert_eq!(shows.count(), 0);
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.len()), (0, 0));
+}
+
+#[test]
+fn a_card_that_breaks_the_composed_form_is_shown_never_and_answers_nothing() {
+    let broken = [
+        Card::new(
+            &[Class::Payment],
+            &[field(
+                "Pay to",
+                &["City Power\nAmount: 0.01 USD"],
+                FieldFrom::Site,
+            )],
+        )
+        .unwrap(),
+        Card::of(
+            "Pay this?",
+            &["Pay to: City Power"; LINES + 1],
+            "Don't pay",
+            "Pay",
+        ),
+        Card::of(
+            "Pay this?",
+            &["Pay to: City Power"],
+            "Don't pay",
+            "Pay\u{202e}",
+        ),
+    ];
+    for card in broken {
+        let (fake, seen) = Fake::new(&[Ok(())]);
+        let shows = Shows::new(&[(true, ALLOW)]);
+        let read: Box<Read> = Box::new(move |_: &ItemId| Ok(card.clone()));
+        serve(&fake, &*read, &shows, arm());
+        assert_eq!(shows.count(), 0);
+        let seen = seen.lock().unwrap();
+        assert_eq!((seen.on_screen, seen.answers.len()), (0, 0));
+    }
 }
 
 #[test]
