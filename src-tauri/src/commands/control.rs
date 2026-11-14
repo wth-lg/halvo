@@ -9,10 +9,10 @@ use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
 
-pub const PLACES: usize = 4;
+pub const MAX_CALLS_IN_FLIGHT: usize = 4;
 
 #[cfg(test)]
-pub const REPLY_BYTES_IN_FLIGHT: usize = PLACES * halvo_control::wire::REPLY_MAX_BYTES;
+pub const REPLY_BYTES_IN_FLIGHT: usize = MAX_CALLS_IN_FLIGHT * halvo_control::wire::REPLY_MAX_BYTES;
 
 #[derive(Debug, Default)]
 struct Line {
@@ -31,7 +31,7 @@ pub struct Places {
 pub struct Made {
     places: Arc<Places>,
     number: u64,
-    at: Instant,
+    deadline_from: Instant,
     entered: bool,
 }
 
@@ -53,7 +53,7 @@ impl Places {
         Made {
             places: Arc::clone(self),
             number,
-            at: Instant::now(),
+            deadline_from: Instant::now(),
             entered: false,
         }
     }
@@ -96,7 +96,7 @@ impl Made {
         let places = Arc::clone(&self.places);
         let mut line = places.line();
         loop {
-            if line.waiting.front() == Some(&self.number) && line.in_flight < PLACES {
+            if line.waiting.front() == Some(&self.number) && line.in_flight < MAX_CALLS_IN_FLIGHT {
                 line.waiting.pop_front();
                 line.in_flight += 1;
                 self.entered = true;
@@ -146,7 +146,7 @@ pub trait Control: Send + Sync {
     ) -> Result<RequestOutcome, ClientError>;
 }
 
-fn every(left: Duration) -> Deadlines {
+fn the_same_for_each_request(left: Duration) -> Deadlines {
     Deadlines {
         read: left,
         pause: left,
@@ -180,7 +180,7 @@ impl<C: Connector + Clone> Gated<C> {
         call: impl FnOnce(&Client<C>) -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
         let limit = Deadlines::V1.of(request);
-        let until = made.at + limit;
+        let until = made.deadline_from + limit;
         let late = || ClientError::Deadline {
             seconds: limit.as_secs(),
         };
@@ -189,7 +189,10 @@ impl<C: Connector + Clone> Gated<C> {
         if left.is_zero() {
             return Err(late());
         }
-        let answer = call(&Client::with_deadlines(self.connector.clone(), every(left)));
+        let answer = call(&Client::with_deadlines(
+            self.connector.clone(),
+            the_same_for_each_request(left),
+        ));
         drop(place);
         match answer {
             Err(ClientError::Deadline { .. }) => Err(late()),

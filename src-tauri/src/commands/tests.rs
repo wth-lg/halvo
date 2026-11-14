@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use halvo_control::client::{ClientError, Connector, NoTransport};
 
-use super::control::{Control, Gated, PLACES, REPLY_BYTES_IN_FLIGHT};
+use super::control::{Control, Gated, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
 
 const BOUND: Duration = Duration::from_secs(20);
 const MARGIN: Duration = Duration::from_millis(300);
@@ -115,7 +115,7 @@ fn release_all(held: &Held, calls: Vec<Call>) {
 
 #[test]
 fn a_fifth_call_waits_until_one_returns() {
-    assert_eq!(PLACES, 4);
+    assert_eq!(MAX_CALLS_IN_FLIGHT, 4);
     assert_eq!(halvo_control::wire::REPLY_MAX_BYTES, 262_144);
     assert_eq!(REPLY_BYTES_IN_FLIGHT, 1_048_576);
     let (held, gated, mut calls) = four_in_flight();
