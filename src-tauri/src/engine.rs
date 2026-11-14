@@ -347,57 +347,84 @@ mod platform {
         Ok(())
     }
 
-    fn turn_off_engine_features(view: &WKWebView) -> Result<(), String> {
-        // SAFETY: on the main thread with `view` retained; both reads come back retained, and the
-        // preferences are the object that the page's settings follow (WebKit's configuration copy
-        // shares it).
-        let prefs = unsafe { view.configuration().preferences() };
-        // SAFETY: `prefs` is a retained NSObject; respondsToSelector: takes a SEL and returns BOOL.
-        let has_peer: bool =
-            unsafe { msg_send![&*prefs, respondsToSelector: sel!(_setPeerConnectionEnabled:)] };
-        if !has_peer {
-            return Err(
-                "the preferences of this system have no peer-connection setting".to_string(),
-            );
-        }
-        // SAFETY: the preferences respond to _setPeerConnectionEnabled: (checked above), which takes
-        // a BOOL and returns void, on the main thread.
-        let _: () = unsafe { msg_send![&*prefs, _setPeerConnectionEnabled: false] };
-        // SAFETY: the getter of the same property, which takes nothing and returns BOOL.
-        let peer_on: bool = unsafe { msg_send![&*prefs, _peerConnectionEnabled] };
-        if peer_on {
-            return Err("peer connections stay on after the preference was set".to_string());
-        }
+    fn answers(object: &AnyObject, selector: Sel) -> bool {
+        // SAFETY: `object` is a live Objective-C object or class for the call; respondsToSelector:
+        // of NSObject takes a SEL and returns BOOL.
+        unsafe { msg_send![object, respondsToSelector: selector] }
+    }
+
+    fn feature_named(key: &str) -> Result<Retained<AnyObject>, String> {
         let class = WKPreferences::class();
-        // SAFETY: the class object is alive for the process; respondsToSelector: as above.
-        let has_features: bool = unsafe { msg_send![class, respondsToSelector: sel!(_features)] };
-        if !has_features {
+        if !answers(class.as_ref(), sel!(_features)) {
             return Err("the preferences of this system list no features".to_string());
         }
         // SAFETY: +_features takes nothing and returns an autoreleased NSArray of _WKFeature,
         // which Retained retains.
         let features: Option<Retained<NSArray<AnyObject>>> = unsafe { msg_send![class, _features] };
         let features = features.ok_or("no feature list")?;
-        let link_preconnect = (0..features.count())
-            .map(|i| features.objectAtIndex(i))
-            .find(|feature| {
-                // SAFETY: each element is a _WKFeature, whose key takes nothing and returns an
-                // NSString owned by the feature.
-                let key: Option<Retained<NSString>> = unsafe { msg_send![&**feature, key] };
-                key.is_some_and(|key| key.to_string() == super::LINK_PRECONNECT_FEATURE)
-            })
-            .ok_or("the preferences of this system have no link-preconnect feature")?;
-        // SAFETY: the preferences take _setEnabled:forFeature: with a BOOL and a _WKFeature of the
-        // list above, on the main thread, and return void.
-        let _: () =
-            unsafe { msg_send![&*prefs, _setEnabled: false, forFeature: &*link_preconnect] };
-        // SAFETY: _isEnabledForFeature: takes the same _WKFeature and returns BOOL.
-        let preconnect_on: bool =
-            unsafe { msg_send![&*prefs, _isEnabledForFeature: &*link_preconnect] };
-        if preconnect_on {
-            return Err("link preconnect stays on after the feature was set".to_string());
+        for i in 0..features.count() {
+            let feature = features.objectAtIndex(i);
+            if !answers(&feature, sel!(key)) {
+                return Err("a feature of this system has no key".to_string());
+            }
+            // SAFETY: the feature answers key (checked above), which takes nothing and returns an
+            // NSString owned by the feature.
+            let name: Option<Retained<NSString>> = unsafe { msg_send![&*feature, key] };
+            if name.is_some_and(|name| name.to_string() == key) {
+                return Ok(feature);
+            }
+        }
+        Err(format!(
+            "the preferences of this system have no feature {key}"
+        ))
+    }
+
+    fn set_feature(prefs: &WKPreferences, key: &str, on: bool) -> Result<(), String> {
+        let feature = feature_named(key)?;
+        if !answers(prefs, sel!(_setEnabled:forFeature:)) {
+            return Err("the preferences of this system cannot set a feature".to_string());
+        }
+        if !answers(prefs, sel!(_isEnabledForFeature:)) {
+            return Err("the preferences of this system cannot read a feature back".to_string());
+        }
+        // SAFETY: the preferences answer _setEnabled:forFeature: (checked above), which takes a
+        // BOOL and a _WKFeature of the list and returns void, on the main thread.
+        let _: () = unsafe { msg_send![prefs, _setEnabled: on, forFeature: &*feature] };
+        // SAFETY: the preferences answer _isEnabledForFeature: (checked above), which takes the
+        // same _WKFeature and returns BOOL.
+        let now: bool = unsafe { msg_send![prefs, _isEnabledForFeature: &*feature] };
+        if now != on {
+            return Err(format!("the feature {key} does not read back as set"));
         }
         Ok(())
+    }
+
+    fn turn_off_engine_features(view: &WKWebView) -> Result<(), String> {
+        // SAFETY: on the main thread with `view` retained; both reads come back retained, and the
+        // preferences are the object that the page's settings follow (WebKit's configuration copy
+        // shares it).
+        let prefs = unsafe { view.configuration().preferences() };
+        if !answers(&prefs, sel!(_setPeerConnectionEnabled:)) {
+            return Err(
+                "the preferences of this system have no peer-connection setting".to_string(),
+            );
+        }
+        if !answers(&prefs, sel!(_peerConnectionEnabled)) {
+            return Err(
+                "the preferences of this system cannot read the peer-connection setting back"
+                    .to_string(),
+            );
+        }
+        // SAFETY: the preferences answer _setPeerConnectionEnabled: (checked above), which takes
+        // a BOOL and returns void, on the main thread.
+        let _: () = unsafe { msg_send![&*prefs, _setPeerConnectionEnabled: false] };
+        // SAFETY: the preferences answer _peerConnectionEnabled (checked above), which takes
+        // nothing and returns BOOL.
+        let peer_on: bool = unsafe { msg_send![&*prefs, _peerConnectionEnabled] };
+        if peer_on {
+            return Err("peer connections stay on after the preference was set".to_string());
+        }
+        set_feature(&prefs, super::LINK_PRECONNECT_FEATURE, false)
     }
 
     pub fn install(webview: &PlatformWebview, site: &EngineSite, answer: Sender<GuardAnswer>) {
@@ -650,8 +677,17 @@ mod tests {
             ),
             ("msg_send![&*prefs, _setPeerConnectionEnabled: false]", 1),
             ("msg_send![&*prefs, _peerConnectionEnabled]", 1),
-            ("msg_send![&*prefs, _setEnabled: false, forFeature: &*link_preconnect]", 1),
-            ("msg_send![&*prefs, _isEnabledForFeature: &*link_preconnect]", 1),
+            ("msg_send![class, _features]", 1),
+            ("msg_send![&*feature, key]", 1),
+            ("msg_send![prefs, _setEnabled: on, forFeature: &*feature]", 1),
+            ("msg_send![prefs, _isEnabledForFeature: &*feature]", 1),
+            ("answers(&prefs, sel!(_setPeerConnectionEnabled:))", 1),
+            ("answers(&prefs, sel!(_peerConnectionEnabled))", 1),
+            ("answers(class.as_ref(), sel!(_features))", 1),
+            ("answers(&feature, sel!(key))", 1),
+            ("answers(prefs, sel!(_setEnabled:forFeature:))", 1),
+            ("answers(prefs, sel!(_isEnabledForFeature:))", 1),
+            ("set_feature(&prefs, super::LINK_PRECONNECT_FEATURE, false)", 1),
             ("super::LINK_PRECONNECT_FEATURE", 1),
             ("super::engine_allows(", 1),
             ("handler.call((WKNavigationActionPolicy::Cancel,));", 1),
