@@ -593,6 +593,12 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
     if path.to_str().is_none() {
         return Err(PathError::NotUtf8);
     }
+    whole_form(&path)
+}
+
+/// The whole form that [`DataDir`] gives a path: absolute, with no part "..", built again from its
+/// parts, so that a slash at the end, a part "." and a doubled slash go.
+pub(crate) fn whole_form(path: &Path) -> Result<PathBuf, PathError> {
     if !path.is_absolute() {
         return Err(PathError::Relative);
     }
@@ -1557,6 +1563,66 @@ mod tests {
         fn link(target: &Path, at: &Path) -> DataDir {
             std::os::unix::fs::symlink(target, at).unwrap();
             DataDir::from_flag(at).unwrap()
+        }
+
+        fn spelled(link: &Path, tail: &str) -> PathBuf {
+            let mut text = link.as_os_str().to_os_string();
+            text.push(tail);
+            PathBuf::from(text)
+        }
+
+        #[test]
+        fn k1_a_lock_taken_on_the_link_s_name_with_a_slash_a_dot_or_two_slashes_is_through_a_link()
+        {
+            for (bits, linked) in [(0o755, false), (0o700, true)] {
+                for tail in ["/", "/.", "//"] {
+                    let root = tempfile::tempdir().unwrap();
+                    let target = root.path().join("moved");
+                    dir_of_mode(&target, bits);
+                    let data = link(&target, &root.path().join("d"));
+                    let lock = InstanceLock::take(&spelled(data.path(), tail))
+                        .unwrap()
+                        .unwrap();
+                    let want = if linked {
+                        Ok(DataDirCheck::Linked {
+                            resolved: target.canonicalize().unwrap(),
+                        })
+                    } else {
+                        Err(DataDirFault::LinkedAndOpenToOthers)
+                    };
+                    assert_eq!(
+                        check_data_dir(&data, Some(&lock)),
+                        want,
+                        "{bits:o} {tail:?}"
+                    );
+                    assert_eq!(mode(&target), bits, "{bits:o} {tail:?}");
+                }
+            }
+        }
+
+        #[test]
+        fn k1_a_lock_on_a_path_with_a_part_dot_dot_or_a_relative_path_is_refused_as_invalid_input()
+        {
+            let root = tempfile::tempdir().unwrap();
+            let target = root.path().join("moved");
+            dir_of_mode(&target, 0o755);
+            std::fs::create_dir(target.join("sub")).unwrap();
+            let data = link(&target, &root.path().join("d"));
+            let dotted = data.path().join("sub").join("..");
+            for path in [dotted.as_path(), Path::new("relative/d")] {
+                let taken = InstanceLock::try_take(path).map(|l| l.is_some());
+                assert_eq!(
+                    taken.map_err(|e| e.kind()),
+                    Err(std::io::ErrorKind::InvalidInput),
+                    "{path:?}"
+                );
+                assert_eq!(
+                    crate::instance_lock::read(path).map_err(|e| e.kind()),
+                    Err(std::io::ErrorKind::InvalidInput),
+                    "{path:?}"
+                );
+            }
+            assert_eq!(mode(&target), 0o755);
         }
 
         #[test]

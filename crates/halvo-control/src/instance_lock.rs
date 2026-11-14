@@ -58,9 +58,13 @@ fn open_with(dir: &Path, flags: libc::c_int) -> std::io::Result<std::fs::File> {
 
 /// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
 /// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
-/// open never waits; std adds close-on-exec. macOS answers ENOTDIR for a link opened with
-/// `O_DIRECTORY` and `O_NOFOLLOW`.
+/// open never waits; std adds close-on-exec. The path is brought to the whole form of a
+/// [`crate::paths::DataDir`] first; a relative path or a part ".." is an error of kind
+/// InvalidInput. macOS answers ENOTDIR for a link opened with `O_DIRECTORY` and `O_NOFOLLOW`.
 pub(crate) fn open(dir: &Path) -> std::io::Result<Opened> {
+    let whole = crate::paths::whole_form(dir)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    let dir = whole.as_path();
     let opened = match open_with(dir, libc::O_NOFOLLOW) {
         Ok(directory) => Ok(Opened {
             directory,
