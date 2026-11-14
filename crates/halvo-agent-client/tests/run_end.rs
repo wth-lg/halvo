@@ -9,11 +9,26 @@ const SHORT: Duration = Duration::from_secs(10);
 
 const SHORT_LINK_END: Duration = Duration::from_secs(4);
 
+/// Starts `lines`, in which `wait-for GO` waits for the start's answer, kills the run after the log line
+/// `kill_after` when one is named, and waits for the run's end.
 fn ended(rig: &Rig, lines: &[&str], kill_after: Option<&str>) -> RunEnd {
-    let script = rig.script(lines);
+    let go = rig.dir.join(format!("go-{}", common::run_id()));
+    let wait = format!("wait-for {}", go.display());
+    let lines: Vec<&str> = lines
+        .iter()
+        .map(|l| {
+            if *l == "wait-for GO" {
+                wait.as_str()
+            } else {
+                l
+            }
+        })
+        .collect();
+    let script = rig.script(&lines);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    std::fs::write(&go, b"").unwrap();
     if let Some(line) = kill_after {
         assert!(script.wait_log(line, SHORT), "{}", script.log());
         assert_eq!(rig.sup.kill(&run), Ok(()));
@@ -31,7 +46,7 @@ fn forced(path: ForcedPath, browser: bool) -> Option<Forced> {
 fn a_runner_that_exits_with_1_by_itself_and_one_that_the_library_kills_end_with_two_different_values(
 ) {
     let rig = Rig::new("end-exit-1");
-    let own = ended(&rig, &["hello", "exit 1"], None);
+    let own = ended(&rig, &["hello", "wait-for GO", "exit 1"], None);
     assert_eq!(own.exit, Some(RunnerExit::Status(1)), "its own exit");
     assert_eq!(own.forced, None, "nothing was ended by force");
     let killed = ended(&rig, &["hello", "log ready", "idle"], Some("ready"));
