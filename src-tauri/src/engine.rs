@@ -714,6 +714,7 @@ mod tests {
         for refused in [
             "http://xn--zz.localhost:48123/leak?d=x",
             "http://xn--zz.localhost:1/",
+            "http://xn--zz.com:47026/p?q#f",
             "http://example.com/",
             "",
             "not an address",
