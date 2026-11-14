@@ -165,3 +165,46 @@ fn a_table_of_the_fts5_form_with_its_secure_delete_leaves_no_removed_token() {
     let found = fts5_form(24);
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
+
+#[test]
+fn rows_that_analyze_or_optimize_read_leave_no_text_after_their_removal() {
+    crate::initialize().unwrap();
+    for (seed, analyze) in [(11, "ANALYZE;"), (12, "PRAGMA optimize = 0x10002;")] {
+        let scratch = Scratch::new(seed, Mode::Plain);
+        let conn = connect(&scratch.db(), Mode::Plain);
+        conn.execute_batch(
+            "CREATE TABLE t(id INTEGER PRIMARY KEY, kind INTEGER NOT NULL, body TEXT NOT NULL);
+             CREATE INDEX t_kind_body ON t(kind, body);",
+        )
+        .unwrap();
+        let mut rng = Rng::new(seed);
+        let mut removed = BTreeSet::new();
+        conn.execute_batch("BEGIN").unwrap();
+        for id in 1..=400u64 {
+            let marker = format!("h{id:06}q");
+            let body = format!("{marker}{}", "v".repeat(20 + rng.below(200) as usize));
+            conn.execute(
+                "INSERT INTO t(id, kind, body) VALUES (?1, ?2, ?3)",
+                params![id as i64, rng.below(5) as i64, body],
+            )
+            .unwrap();
+            removed.insert(marker);
+        }
+        conn.execute_batch("COMMIT").unwrap();
+        conn.execute_batch(analyze).unwrap();
+        let samples: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE name = 'sqlite_stat4'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        conn.execute_batch("DELETE FROM t;").unwrap();
+        checkpoint(&conn);
+        let mut found = places(&conn, &scratch.0, &removed, analyze);
+        if samples != 0 {
+            found.push(format!("{analyze}: the build made sqlite_stat4"));
+        }
+        assert!(found.is_empty(), "{}", found.join("\n"));
+    }
+}

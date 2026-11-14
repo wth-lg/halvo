@@ -36,7 +36,6 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
     ("SQLITE_ENABLE_FTS5", None),
     ("SQLITE_ENABLE_JSON1", None),
     ("SQLITE_ENABLE_RTREE", None),
-    ("SQLITE_ENABLE_STAT4", None),
     ("SQLITE_SOUNDEX", None),
     ("SQLITE_USE_URI", None),
     ("HAVE_STDINT_H", Some("1")),
