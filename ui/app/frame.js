@@ -102,8 +102,9 @@
   };
 
   Halvo.formatBytes = function (n) {
-    if (n < 1024) return n + " B";
-    var units = ["KB", "MB", "GB", "TB"];
+    var w = Halvo.words;
+    if (n < 1024) return n + w.UNIT_B;
+    var units = [w.UNIT_KB, w.UNIT_MB, w.UNIT_GB, w.UNIT_TB];
     var v = n / 1024;
     var i = 0;
     while (v >= 1024 && i < units.length - 1) {

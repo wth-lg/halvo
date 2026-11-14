@@ -35,7 +35,7 @@
   Halvo.views.add({
     id: "keeps",
     order: 2,
-    heading: "What Halvo keeps",
+    heading: w.KEEPS_HEADING,
     mount: function (el) {
       text = Halvo.el("p", { id: "window-text", class: "muted", text: w.KEEPS_UNKNOWN });
       recorded = Halvo.el("ul", { id: "recorded" });

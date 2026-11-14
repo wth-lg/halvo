@@ -41,14 +41,14 @@
   var DRAIN = { no_space: w.CAUSE_NO_SPACE, io: w.CAUSE_IO, db: w.CAUSE_DB, rejected: w.CAUSE_REJECTED };
   var EXPIRY = { io: w.CAUSE_IO, no_space: w.CAUSE_NO_SPACE, db: w.CAUSE_DB };
   var SOURCE = {
-    foreground: "The app in front",
+    foreground: w.SOURCE_FOREGROUND,
     screen: w.SCREEN_ACTIVITY,
-    input: "Typing and the pointer",
-    system_audio: "System audio",
-    microphone: "Microphone",
-    keyboard: "Typing",
-    pointer: "The pointer",
-    window_title: "Window titles",
+    input: w.SOURCE_INPUT,
+    system_audio: w.KIND_SYSTEM_AUDIO,
+    microphone: w.KIND_MICROPHONE,
+    keyboard: w.KIND_TYPING,
+    pointer: w.SOURCE_POINTER,
+    window_title: w.KIND_WINDOW_TITLES,
   };
 
   Halvo.service = function () {
@@ -150,7 +150,7 @@
   Halvo.views.add({
     id: "status",
     order: 1,
-    heading: "Capture",
+    heading: w.CAPTURE_HEADING,
     mount: function (el) {
       dot = Halvo.el("div", { id: "dot", class: "dot" });
       state = Halvo.el("span", { id: "state", text: w.CONNECTING });

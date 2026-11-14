@@ -102,6 +102,43 @@ const WORDS = {
   ERROR_NOT_ANSWERING: "Halvo's capture service did not take the request.",
   ERROR_OTHER: "The request failed.",
   DISMISS: "Dismiss",
+  STORAGE_CAP: "Storage cap",
+  SAVE: "Save",
+  LOWER_CAP: "Lower the cap",
+  KEEP_CAP: "Keep the current cap",
+  KEEP_AT_MOST: "Keep at most",
+  DELETE_EVERYTHING: "Delete everything",
+  DELETE_YES: "Yes, delete everything",
+  CANCEL: "Cancel",
+  KEEPS_HEADING: "What Halvo keeps",
+  GRANT_ON: "On",
+  GRANT_LOST: "Lost",
+  GRANT_NOT_ASKED: "Not asked yet",
+  GRANT_OFF: "Off",
+  OPEN_SETTINGS: "Open System Settings",
+  ASK_NOW: "Ask now",
+  PERMISSIONS_HEADING: "Permissions",
+  WALKBACK_INTRO: "To get capture working again:",
+  CAPTURE_HEADING: "Capture",
+  SOURCE_FOREGROUND: "The app in front",
+  SOURCE_INPUT: "Typing and the pointer",
+  SOURCE_POINTER: "The pointer",
+  KIND_TYPING: "Typing",
+  KIND_MOUSE: "Mouse",
+  KIND_APP_IN_FRONT: "App in front",
+  KIND_WINDOW_TITLES: "Window titles",
+  KIND_SYSTEM_AUDIO: "System audio",
+  KIND_MICROPHONE: "Microphone",
+  KIND_CAMERA: "Camera",
+  STORED_HEADING: "Stored on this computer",
+  COLUMN_WHAT: "What",
+  COLUMN_EVENTS: "Events",
+  COLUMN_SIZE: "Size",
+  UNIT_B: " B",
+  UNIT_KB: "KB",
+  UNIT_MB: "MB",
+  UNIT_GB: "GB",
+  UNIT_TB: "TB",
 };
 
 const OWNER = {
@@ -138,12 +175,91 @@ test("the owner's proposals of entries I-73 and I-77 are named constants of word
   for (const [entry, name] of Object.entries(OWNER)) assert.ok(typeof words[name] === "string" && words[name].length > 0, entry);
 });
 
-test("no view file under ui/app/views holds a sentence of words.js as a literal", () => {
-  const dir = path.join(APP, "views");
-  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".js"))) {
-    const text = fs.readFileSync(path.join(dir, file), "utf8");
-    for (const [name, literal] of Object.entries(WORDS)) {
-      if (literal.length > 12) assert.equal(text.includes(JSON.stringify(literal)), false, file + " holds " + name);
+const NOT_READ = [
+  ["*", "use strict", "the directive of strict mode"],
+  ["agents.js", "Your agents", "45-r4-words reads the heading of an R4 view from its line heading: \"...\" in the view file"],
+  ["needs.js", "What needs you", "45-r4-words reads the heading of an R4 view from its line heading: \"...\" in the view file"],
+  ["agents.js", "Enter", "a key name compared with event.key"],
+  ["needs.js", "Enter", "a key name compared with event.key"],
+  ["agents.js", "BUTTON", "a tag name compared with tagName"],
+  ["needs.js", "BUTTON", "a tag name compared with tagName"],
+  ["frame.js", "DOMContentLoaded", "an event name"],
+  ["stored.js", "the inventory reply has no list of rows", "the message of an Error: Halvo.showError shows ERROR_BROKEN for an Error, never its message"],
+  ["cap.js", "confirm-row hidden", "a class list"],
+  ["delete.js", "confirm-row hidden", "a class list"],
+  ["delete.js", "muted hidden", "a class list"],
+  ["stored.js", "muted hidden", "a class list"],
+  ["permissions.js", "banner hidden", "a class list"],
+  ["permissions.js", "muted why", "a class list"],
+  ["permissions.js", "muted walkback-intro", "a class list"],
+  ["status.js", "row status-row", "a class list"],
+];
+
+const READ = /[A-Z]|\p{L} \p{L}/u;
+
+function literalsOf(text) {
+  const found = [];
+  let i = 0;
+  let line = 1;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "\n") {
+      line += 1;
+      i += 1;
+    } else if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i += 1;
+    } else if (c === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      assert.notEqual(end, -1, "a block comment ends");
+      line += text.slice(i, end).split("\n").length - 1;
+      i = end + 2;
+    } else if (c === '"' || c === "'" || c === "`") {
+      const start = line;
+      let value = "";
+      i += 1;
+      while (text[i] !== c) {
+        assert.ok(i < text.length, "a literal ends");
+        if (text[i] === "\\") {
+          value += text[i] + text[i + 1];
+          i += 2;
+        } else {
+          if (text[i] === "\n") line += 1;
+          value += text[i];
+          i += 1;
+        }
+      }
+      i += 1;
+      found.push({ line: start, value });
+    } else {
+      i += 1;
     }
   }
+  return found;
+}
+
+function readFiles() {
+  const dir = path.join(APP, "views");
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".js"))
+    .sort()
+    .map((f) => path.join(dir, f))
+    .concat([path.join(APP, "frame.js")]);
+}
+
+test("no file under ui/app/views and not ui/app/frame.js holds a string literal a person reads: one with an upper-case letter, or with a letter, a space and a letter, unless the allow-list holds it", () => {
+  const read = [];
+  const allowedSeen = new Set();
+  for (const file of readFiles()) {
+    const name = path.basename(file);
+    for (const { line, value } of literalsOf(fs.readFileSync(file, "utf8"))) {
+      if (!READ.test(value)) continue;
+      const allowed = NOT_READ.findIndex(([where, literal]) => (where === "*" || where === name) && literal === value);
+      if (allowed === -1) read.push(name + ":" + line + " " + JSON.stringify(value));
+      else allowedSeen.add(allowed);
+    }
+  }
+  const stale = NOT_READ.filter((_, index) => !allowedSeen.has(index)).map(([where, literal]) => where + " " + JSON.stringify(literal));
+  assert.deepEqual(stale, [], "the allow-list names a literal that no file holds");
+  assert.deepEqual(read, [], read.length + " literals a person reads stand outside words.js");
 });

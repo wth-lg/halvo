@@ -4,13 +4,13 @@
   var inventory = Halvo.feed("inventory");
   var modalityNames = {
     screen_frame: w.SCREEN_ACTIVITY,
-    keystroke: "Typing",
-    pointer: "Mouse",
-    foreground_app: "App in front",
-    window_title: "Window titles",
-    system_audio: "System audio",
-    microphone: "Microphone",
-    camera: "Camera",
+    keystroke: w.KIND_TYPING,
+    pointer: w.KIND_MOUSE,
+    foreground_app: w.KIND_APP_IN_FRONT,
+    window_title: w.KIND_WINDOW_TITLES,
+    system_audio: w.KIND_SYSTEM_AUDIO,
+    microphone: w.KIND_MICROPHONE,
+    camera: w.KIND_CAMERA,
   };
   var RETRIES = { io: true, locked: true };
   var total;
@@ -142,7 +142,7 @@
   Halvo.views.add({
     id: "stored",
     order: 4,
-    heading: "Stored on this computer",
+    heading: w.STORED_HEADING,
     mount: function (el) {
       total = Halvo.el("span", { id: "total", text: "—" });
       logical = Halvo.el("span", { id: "logical", text: "—" });
@@ -155,7 +155,7 @@
       dayLine = Halvo.el("p", { id: "day-start", class: "muted", text: w.DAY_STARTS.replace("{hour}", localTimeOfUtcMidnight()) });
       body = Halvo.el("tbody");
       table = Halvo.el("table", { id: "inventory", class: "hidden" }, [
-        Halvo.el("thead", {}, [Halvo.el("tr", {}, [heading(w.DAY_UTC), heading("What"), heading("Events", "num"), heading("Size", "num")])]),
+        Halvo.el("thead", {}, [Halvo.el("tr", {}, [heading(w.DAY_UTC), heading(w.COLUMN_WHAT), heading(w.COLUMN_EVENTS, "num"), heading(w.COLUMN_SIZE, "num")])]),
         body,
       ]);
       el.append(

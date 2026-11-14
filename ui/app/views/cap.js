@@ -79,7 +79,7 @@
   Halvo.views.add({
     id: "storage-cap",
     order: 5,
-    heading: "Storage cap",
+    heading: w.STORAGE_CAP,
     mount: function (el) {
       field = Halvo.el("input", { id: "cap-gb", type: "number", min: String(MIN_GB), max: String(MAX_GB), step: "1" });
       field.addEventListener("input", function () {
@@ -87,14 +87,14 @@
         closeConfirm();
       });
       message = Halvo.el("span", { id: "cap-message", class: "field-message" });
-      var button = Halvo.el("button", { id: "save-cap", text: "Save" });
+      var button = Halvo.el("button", { id: "save-cap", text: w.SAVE });
       button.onclick = save;
       saveButton = button;
       storage = Halvo.el("p", { id: "cap-storage", class: "muted" });
       evicting = Halvo.el("p", { id: "cap-evicting" });
       question = Halvo.el("p", { id: "cap-question" });
-      var confirm = Halvo.el("button", { id: "confirm-cap", class: "danger", text: "Lower the cap" });
-      var cancel = Halvo.el("button", { id: "cancel-cap", text: "Keep the current cap" });
+      var confirm = Halvo.el("button", { id: "confirm-cap", class: "danger", text: w.LOWER_CAP });
+      var cancel = Halvo.el("button", { id: "cancel-cap", text: w.KEEP_CAP });
       confirm.onclick = function () {
         return pending === null ? Promise.resolve() : send(pending);
       };
@@ -102,9 +102,9 @@
       confirmRow = Halvo.el("div", { id: "cap-confirm-row", class: "confirm-row hidden" }, [question, Halvo.el("div", { class: "row" }, [confirm, cancel])]);
       el.append(
         Halvo.el("div", { class: "row" }, [
-          Halvo.el("label", { for: "cap-gb", text: "Keep at most" }),
+          Halvo.el("label", { for: "cap-gb", text: w.KEEP_AT_MOST }),
           field,
-          Halvo.el("span", { text: "GB" }),
+          Halvo.el("span", { text: w.UNIT_GB }),
           button,
           message,
         ]),

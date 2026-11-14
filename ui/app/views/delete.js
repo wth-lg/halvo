@@ -136,7 +136,7 @@
       })
       .then(function () {
         busy = false;
-        start.textContent = "Delete everything";
+        start.textContent = w.DELETE_EVERYTHING;
         confirm.disabled = false;
         renderOffer();
       });
@@ -163,11 +163,11 @@
   Halvo.views.add({
     id: "delete-everything",
     order: 6,
-    heading: "Delete everything",
+    heading: w.DELETE_EVERYTHING,
     mount: function (el) {
-      start = Halvo.el("button", { id: "delete", class: "danger", text: "Delete everything" });
-      confirm = Halvo.el("button", { id: "confirm-delete", class: "danger", text: "Yes, delete everything" });
-      cancel = Halvo.el("button", { id: "cancel-delete", text: "Cancel" });
+      start = Halvo.el("button", { id: "delete", class: "danger", text: w.DELETE_EVERYTHING });
+      confirm = Halvo.el("button", { id: "confirm-delete", class: "danger", text: w.DELETE_YES });
+      cancel = Halvo.el("button", { id: "cancel-delete", text: w.CANCEL });
       result = Halvo.el("span", { id: "delete-result", class: "muted" });
       cleanup = Halvo.el("code", { id: "delete-cleanup", class: "hidden" });
       cleanupNote = Halvo.el("p", { id: "delete-cleanup-note", class: "muted hidden", text: w.CLEANUP_NAMES_ACCOUNT });
