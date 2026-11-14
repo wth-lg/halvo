@@ -23,7 +23,8 @@ a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded phase
 a_key_typed_on_a_return_to_a_secure_field_is_not_recorded three-way
 the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded phase
 the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field phase
-at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys phase
+at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys three-way
+the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
 known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded known-fault
 known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded known-fault
 EOF
@@ -33,6 +34,7 @@ proof_lines() {
   cat <<'EOF'
 hold_bound_in_a_release_build E0599
 held_key_printed E0277
+seam_in_a_release_build E0599
 EOF
 }
 
@@ -148,7 +150,9 @@ measure() {
   status=$?
   [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions passed another bound or printed a held key"
   while read -r proof code; do
-    grep -q "error\[$code\]" "$work/proofs.txt" || fail "the proof $proof did not fail with $code"
+    wanted=$(grep -c " $code\$" "$work/proofs")
+    found=$(grep -c "error\[$code\]" "$work/proofs.txt")
+    [ "$found" -ge "$wanted" ] || fail "the proof $proof did not fail with $code ($found errors $code for $wanted proofs)"
     printf 'proof %s: refused with %s\n' "$proof" "$code"
   done <"$work/proofs"
 
@@ -181,6 +185,7 @@ measure() {
   fixed=0
   failed=0
   not_driven=0
+  not_kept=0
   index=0
   while read -r test kind; do
     [ "$kind" != not-run ] || continue
@@ -190,17 +195,18 @@ measure() {
     run_test "$test" "$log"
     code=$?
     seconds=$(($(date +%s) - started))
-    tr -d '\r' <"$log" | grep -E "^$test (fixture=|round=|control=|verdict=|notdriven )" | sed 's/^/    | /'
+    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |drops |side=)" | sed 's/^/    | /'
     judge "$code" "$kind" "$log"
     three=
     if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
-      three=$(tr -d '\r' <"$log" | sed -n -E "s/^$test verdict=(held|notdriven) .*/\1/p" | tail -n 1)
+      three=$(tr -d '\r' <"$log" | sed -n -E "s/^$test verdict=(held|notdriven|notkept) .*/\1/p" | tail -n 1)
       case $three in
         held) ;;
         notdriven) not_driven=$((not_driven + 1)) ;;
+        notkept) not_kept=$((not_kept + 1)) ;;
         *)
           verdict=FAIL
-          cause='the three-way phase printed no verdict line of held or notdriven'
+          cause='the three-way phase printed no verdict line of held, notdriven or notkept'
           ;;
       esac
     fi
@@ -218,7 +224,7 @@ measure() {
 
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
-  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven fail=$((failed + fixed))"
+  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
@@ -269,14 +275,15 @@ write_stubs() {
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 case $* in
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin"')
     spec twins-fail && exit 101
     exit 0
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="seam_in_a_release_build"')
     spec proofs-build && exit 0
     spec proof-other-code && { printf 'error[E0308]: mismatched types\nerror[E0277]: no Debug\n'; exit 101; }
-    printf 'error[E0599]: no function or associated item named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\n'
+    spec proof-one-e0599 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\n'; exit 101; }
+    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
     exit 101
     ;;
   'test --locked -p halvo-capture --test macos_stall_fixture --no-run --message-format json')
@@ -314,7 +321,10 @@ spec "leak-$test" && { printf "thread 'x' panicked at y:\n%s: recorded keys besi
 spec "empty-$test" && { printf 'test result: ok. 0 passed; 0 failed; 1 ignored\n'; exit 0; }
 case $test in
   three_*)
-    spec "silent-$test" || { spec "notdriven-$test" && printf '%s verdict=notdriven held=3 failed=0 notdriven=2\n' "$test" || printf '%s verdict=held held=5 failed=0 notdriven=0\n' "$test"; }
+    if spec "silent-$test"; then :
+    elif spec "notdriven-$test"; then printf '%s verdict=notdriven held=3 failed=0 notdriven=2\n' "$test"
+    elif spec "notkept-$test"; then printf '%s verdict=notkept widest_gap_us=61000 gap_drops=2\n' "$test"
+    else printf '%s verdict=held held=5 failed=0 notdriven=0\n' "$test"; fi
     printf 'test result: ok. 1 passed; 0 failed; 0 ignored\n'
     exit 0
     ;;
@@ -354,9 +364,10 @@ test a_rule ... ok'
   wrong=
   rejected=0
   limit=
-  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 fail=0' ''
+  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
+  check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
-  check three-way-without-a-verdict FAIL 'printed no verdict line of held or notdriven' 'silent-three_one'
+  check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
   check phase-fails FAIL 'FAIL 51-macos-stall (1 tests failed)' 'fail-phase_one'
   check phase-runs-no-test FAIL 'phase_two: exit 0, and not one test ran and passed' 'empty-phase_two'
   check known-fault-passes FAIL 'FIXED-BUT-LISTED' 'pass-known_one'
@@ -366,6 +377,7 @@ test a_rule ... ok'
   check twins-fail FAIL 'the twins of the proofs did not build' 'twins-fail'
   check proofs-build FAIL 'the proofs built' 'proofs-build'
   check proof-fails-with-another-code FAIL 'did not fail with E0599' 'proof-other-code'
+  check one-error-for-two-proofs FAIL '(1 errors E0599 for 2 proofs)' 'proof-one-e0599'
   check fixture-fails FAIL 'the fixture did not compile' 'fixture-fails'
   check test-build-fails FAIL 'the test build failed' 'test-build-fails'
   check tracked-file-changed FAIL 'a tracked file differs from HEAD after the run' 'touch-phase_two'

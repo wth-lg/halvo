@@ -4,7 +4,8 @@
 //
 // Commands, each answered on standard output:
 //   state            front=<0|1> key=<0|1> focus=<plain|secure|other> plain=<n> secure=<n>
-//   plain | secure   moves the focus; answers focus=<field> at=<uptime ns>
+//   plain | secure   moves the focus, with the insertion point after the field's
+//                    text; answers focus=<field> at=<uptime ns>
 //   clear            empties both fields; answers cleared
 //   where            answers x=<n> y=<n>: the centre of the secure field in
 //                    display points, origin at the top left of the main display
@@ -100,6 +101,7 @@ static NSString *focusName(void) {
 
 static void focus(NSControl *field, NSString *name) {
     [window makeFirstResponder:field];
+    [field.currentEditor setSelectedRange:NSMakeRange(field.stringValue.length, 0)];
     say([NSString stringWithFormat:@"focus=%@ at=%llu", name, uptime_ns()]);
 }
 

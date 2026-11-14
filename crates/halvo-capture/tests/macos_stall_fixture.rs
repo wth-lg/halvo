@@ -17,10 +17,11 @@ use std::time::{Duration, Instant, SystemTime};
 use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType};
 use halvo_capture::event::Modality;
 use halvo_capture::macos::foreground::ForegroundReader;
-use halvo_capture::macos::input::{HoldPlan, InputCounters, InputSource};
+use halvo_capture::macos::input::{DropCounts, HoldPlan, InputCounters, InputSource, StallSeam};
+use halvo_capture::secure_input_macos::hold::{GAP_BOUND, HOLD_BOUND, READING_STEP};
 use halvo_capture::secure_input_macos::{read_session, secure_input_active, Session};
 use halvo_capture::sink;
-use halvo_capture::source::{CaptureSource, SourceContext};
+use halvo_capture::source::{CaptureSource, HealthReason, SourceContext, SourceState};
 use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
 
 #[repr(C)]
@@ -93,22 +94,58 @@ fn session_line() -> String {
     )
 }
 
-fn source_for(bound: Duration) -> InputSource {
-    match session_reader() {
-        None => InputSource::with_hold_bound(
-            ForegroundReader::nothing_in_front(),
-            InputCounters::new(),
-            HoldPlan::Never,
-            bound,
-        ),
-        Some(session) => InputSource::with_hold_bound_and_session(
-            ForegroundReader::nothing_in_front(),
-            InputCounters::new(),
-            HoldPlan::Never,
-            bound,
-            session,
+fn millis_of(variable: &str, default: u64) -> Duration {
+    match std::env::var(variable) {
+        Err(_) => Duration::from_millis(default),
+        Ok(text) => Duration::from_millis(
+            text.parse()
+                .unwrap_or_else(|_| panic!("refused: {variable} is a count of milliseconds")),
         ),
     }
+}
+
+fn test_gap() -> Duration {
+    millis_of("HALVO_STALL_GAP_MS", 30)
+}
+
+fn test_step() -> Duration {
+    millis_of("HALVO_STALL_STEP_MS", 10)
+}
+
+fn seamed(bound: Duration, gap: Duration, step: Duration) -> (InputSource, DropCounts) {
+    let drops = DropCounts::new();
+    let source = InputSource::with_seam(
+        ForegroundReader::nothing_in_front(),
+        InputCounters::new(),
+        HoldPlan::Never,
+        StallSeam {
+            bound,
+            gap,
+            step,
+            session: session_reader().unwrap_or(read_session),
+            drops: drops.clone(),
+        },
+    );
+    (source, drops)
+}
+
+fn source_for(bound: Duration) -> (InputSource, DropCounts) {
+    seamed(bound, test_gap(), test_step())
+}
+
+fn product_source(bound: Duration) -> (InputSource, DropCounts) {
+    let _ = bound;
+    seamed(HOLD_BOUND, GAP_BOUND, READING_STEP)
+}
+
+fn drops_line(drops: &DropCounts) -> String {
+    let mut line: Vec<String> = drops
+        .by_cause()
+        .into_iter()
+        .map(|(name, count)| format!("{name}={count}"))
+        .collect();
+    line.push(format!("widest_gap_us={}", drops.widest_gap().as_micros()));
+    line.join(" ")
 }
 
 struct Fixture {
@@ -426,10 +463,11 @@ struct Recorder {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
     source: InputSource,
+    drops: DropCounts,
 }
 
 impl Recorder {
-    fn start(mut source: InputSource) -> Self {
+    fn start((mut source, drops): (InputSource, DropCounts)) -> Self {
         let (handle, writer) = sink::channel(4096);
         source
             .begin(SourceContext::new(handle))
@@ -461,6 +499,7 @@ impl Recorder {
             stop,
             thread: Some(thread),
             source,
+            drops,
         }
     }
 
@@ -643,10 +682,15 @@ fn phase_with(
     name: &str,
     how: Move,
     waits: &[(u64, Duration)],
-    source: fn(Duration) -> InputSource,
+    source: fn(Duration) -> (InputSource, DropCounts),
     count: usize,
 ) -> Vec<Round> {
     let mut fixture = started_fixture(name);
+    println!(
+        "{name} gap_ms={} step_ms={}",
+        test_gap().as_millis(),
+        test_step().as_millis()
+    );
     let mut rounds = Vec::new();
     let mut running: Option<(Duration, Recorder)> = None;
     for &(wait_ms, bound) in waits {
@@ -666,6 +710,10 @@ fn phase_with(
                 round.markers,
                 round.plain,
                 round.secure
+            );
+            println!(
+                "{name} drops round={number} {}",
+                drops_line(&recorder.drops)
             );
             rounds.push(round);
         }
@@ -827,6 +875,8 @@ fn the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded() {
 struct Control {
     counted: bool,
     why_not: &'static str,
+    landed_plain: usize,
+    landed_secure: usize,
     plain: usize,
     secure: usize,
     after: usize,
@@ -836,6 +886,8 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
     let mut control = Control {
         counted: false,
         why_not: "",
+        landed_plain: 0,
+        landed_secure: 0,
         plain: 0,
         secure: 0,
         after: 0,
@@ -868,6 +920,8 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
     control.secure = recorder.between(secure_from, after_from);
     control.after = recorder.between(after_from, SystemTime::now());
     let state = fixture.state();
+    control.landed_plain = state.plain;
+    control.landed_secure = state.secure;
     if state.plain != 8 || state.secure != 3 {
         control.why_not = "the letters did not land where they were typed";
         return control;
@@ -876,23 +930,40 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
     control
 }
 
-fn control_phase(name: &str, bound: Duration, source: InputSource, count: usize) {
+fn control_rounds(
+    name: &str,
+    bound: Duration,
+    source: (InputSource, DropCounts),
+    count: usize,
+) -> (Vec<Control>, DropCounts) {
     let mut fixture = started_fixture(name);
     let recorder = Recorder::start(source);
     let mut rounds = Vec::new();
     for number in 0..count {
         let control = control_round(&mut fixture, &recorder, bound);
         println!(
-            "{name} control={number} bound_ms={} counted={} plain_records={} secure_records={} \
-             after_records={}",
+            "{name} control={number} bound_ms={} counted={} landed_plain={} landed_secure={} \
+             plain_records={} secure_records={} after_records={}",
             bound.as_millis(),
             u8::from(control.counted),
+            control.landed_plain,
+            control.landed_secure,
             control.plain,
             control.secure,
             control.after
         );
+        println!(
+            "{name} drops control={number} {}",
+            drops_line(&recorder.drops)
+        );
         rounds.push(control);
     }
+    let drops = recorder.drops.clone();
+    (rounds, drops)
+}
+
+fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts), count: usize) {
+    let (rounds, _) = control_rounds(name, bound, source, count);
     let not_counted: Vec<&str> = rounds
         .iter()
         .filter(|control| !control.counted)
@@ -920,34 +991,101 @@ fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_
     control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), ROUNDS);
 }
 
-fn product_source(bound: Duration) -> InputSource {
-    match session_reader() {
-        None => InputSource::new(
-            ForegroundReader::nothing_in_front(),
-            InputCounters::new(),
-            HoldPlan::Never,
-        ),
-        Some(session) => InputSource::with_hold_bound_and_session(
-            ForegroundReader::nothing_in_front(),
-            InputCounters::new(),
-            HoldPlan::Never,
-            bound,
-            session,
-        ),
-    }
-}
-
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys() {
     let name =
         "at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys";
-    let bound = halvo_capture::secure_input_macos::hold::HOLD_BOUND;
-    judge(
-        name,
-        &phase_with(name, Move::Tab, &[(300, bound)], product_source, 1),
+    let rounds = phase_with(name, Move::Tab, &[(300, HOLD_BOUND)], product_source, 1);
+    let (controls, drops) = control_rounds(name, HOLD_BOUND, product_source(HOLD_BOUND), 1);
+    let failed = rounds.iter().any(|round| round.counted && round.ahead > 0)
+        || controls
+            .iter()
+            .any(|control| control.counted && control.secure > 0);
+    let held = rounds
+        .iter()
+        .all(|round| round.counted && round.markers == MARKERS.len())
+        && controls
+            .iter()
+            .all(|control| control.counted && (control.plain, control.after) == (5, 3));
+    let verdict = if failed {
+        "failed"
+    } else if held {
+        "held"
+    } else if drops.of("gap") > 0 {
+        "notkept"
+    } else {
+        "failed"
+    };
+    println!(
+        "{name} verdict={verdict} widest_gap_us={} gap_drops={}",
+        drops.widest_gap().as_micros(),
+        drops.of("gap")
     );
-    control_phase(name, bound, product_source(bound), 1);
+    assert!(
+        verdict != "failed",
+        "{name}: at the product's constants a key was recorded that the rule forbids, or a round \
+         did not count for another cause than a gap"
+    );
+}
+
+fn side(fixture: &mut Fixture, gap: Duration, step: Duration) -> (usize, bool, DropCounts) {
+    let recorder = Recorder::start(seamed(SHORT_BOUND, gap, step));
+    fixture.ask("clear", "cleared");
+    fixture.focus("plain");
+    assert!(
+        state_reads(false, Duration::from_secs(2)) && fixture.in_front(),
+        "refused: the fixture is not in front with secure input off"
+    );
+    let from = SystemTime::now();
+    fixture.keys(Duration::from_millis(30), &codes(&MARKERS));
+    std::thread::sleep(SHORT_BOUND + MARGIN);
+    let recorded = recorder.between(from, SystemTime::now());
+    let impaired = recorder.source.health().state
+        == SourceState::Impaired {
+            reason: HealthReason::RunLoopStalled,
+        };
+    let drops = recorder.drops.clone();
+    (recorded, impaired, drops)
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is(
+) {
+    let name = "the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is";
+    let mut fixture = started_fixture(name);
+    let every = side(
+        &mut fixture,
+        Duration::from_millis(30),
+        Duration::from_millis(60),
+    );
+    println!(
+        "{name} side=every_tick_a_gap recorded={} impaired={} {}",
+        every.0,
+        u8::from(every.1),
+        drops_line(&every.2)
+    );
+    let none = side(
+        &mut fixture,
+        Duration::from_millis(10_000),
+        Duration::from_millis(10),
+    );
+    println!(
+        "{name} side=no_tick_a_gap recorded={} impaired={} {}",
+        none.0,
+        u8::from(none.1),
+        drops_line(&none.2)
+    );
+    assert!(
+        every.0 == 0 && every.1 && every.2.of("gap") > 0,
+        "{name}: with every tick a gap a key was recorded or the source did not read impaired"
+    );
+    assert_eq!(
+        (none.0, none.2.of("gap")),
+        (MARKERS.len(), 0),
+        "{name}: with no tick a gap the markers were not released"
+    );
 }
 
 type Seen = Arc<Mutex<Vec<(u32, u64, u64, u64)>>>;
