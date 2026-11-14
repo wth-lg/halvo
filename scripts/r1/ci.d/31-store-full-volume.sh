@@ -56,7 +56,8 @@ measure() {
     cargo test --locked -p halvo-capture --lib -- --exact "$n5_test" --include-ignored --nocapture --test-threads=1 > "$CI_D_ARTIFACTS/n5.txt" 2>&1
     code=$?
     grep '^N5 ' "$CI_D_ARTIFACTS/n5.txt"
-    printf 'N5 seconds=%s\n' "$(($(date +%s) - n5_started))"
+    n5_ended=$(date +%s)
+    printf 'N5 seconds=%s\n' "$((n5_ended - n5_started))"
     defect=$(n5_defect "$code" "$CI_D_ARTIFACTS/n5.txt") || found="$found $defect;"
   else
     printf "N5's bound is skipped outside CI: no time on a developer's Mac is a measurement (ruling ST-46 K5 N5)\n"

@@ -386,7 +386,8 @@ tree_case() {
 # with $3 set, is left out, written to $1.
 source_output() {
   {
-    printf '\nrunning %s tests\n' "$(printf '%s\n' "$source_tests" | grep -c '')"
+    source_count=$(printf '%s\n' "$source_tests" | grep -c '')
+    printf '\nrunning %s tests\n' "$source_count"
     failed=0
     passed=0
     for source_test in $source_tests; do
