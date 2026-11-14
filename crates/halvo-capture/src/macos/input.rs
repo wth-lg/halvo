@@ -2436,9 +2436,12 @@ mod tests {
                     ticks(&held.ctx, 990);
                     let stop = held.ctx.stop.clone();
                     STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 2, stop)));
-                    JUMP_AT_ASK.with(|jump| jump.set(Some(asked() + 2)));
                     tick(&held.ctx);
-                    assert_eq!(keystrokes(writer.as_ref().expect("the writer")), 1);
+                    assert_eq!(
+                        keystrokes(writer.as_ref().expect("the writer")),
+                        1,
+                        "the second key was due at the release loop's reading that saw the stop asked"
+                    );
                     (Cause::Stop, 1, false)
                 }
             };
@@ -5298,7 +5301,13 @@ mod tests {
         key_down(&held.ctx);
         held.ctx.stop.store(true, Ordering::SeqCst);
         answer(Reading::On);
+        let asked_at_the_stop = asked();
         tick(&held.ctx);
+        assert_eq!(
+            asked(),
+            asked_at_the_stop,
+            "a tick after the stop takes no reading"
+        );
         advance(1);
         on_tap_event(&held.ctx, event(CGEventType::KeyUp));
         assert_eq!(held_now(&held.ctx), 0);
@@ -5312,8 +5321,14 @@ mod tests {
         key_down(&held.ctx);
         held.ctx.stop.store(true, Ordering::SeqCst);
         answer(Reading::On);
+        let asked_at_the_stop = asked();
         advance(1);
         on_tap_event(&held.ctx, event(CGEventType::KeyUp));
+        assert_eq!(
+            asked(),
+            asked_at_the_stop,
+            "an event after the stop takes no reading"
+        );
         assert_eq!(held_now(&held.ctx), 0);
         assert!(!held.counters.figures().keys_withheld);
         assert_eq!(held.counters.suppressed_keys(), 0);
