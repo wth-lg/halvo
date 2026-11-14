@@ -2490,6 +2490,49 @@ async function steps(origin, dir) {
   return faults;
 }
 
+async function again(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'setup_three').snapshot.items[0];
+  const later = askedAgain(setup, 1);
+  const chain = (item) => plan(item, item.choices.find((c) => c.choice === 'choose')).calls;
+  const [first] = chain(setup);
+  const strays = (h) => trail(h).filter((l) => l.includes('not_next_in_transcript')).length;
+  const out = outDir();
+  const h = await open({
+    origin,
+    replies: [{ state: snap(1, [setup]) }, { ...first, reply: { error: 'state' } }, { state: snap(2, [later]) }, ...chain(later).map((c) => ({ ...c, reply: { ok: 'yes' } }))],
+    views: [VIEW],
+    out,
+  });
+  try {
+    for (const a of prepare(setup)) await act(h, a);
+    await h.page.evaluate(() => {
+      for (const el of document.querySelectorAll('#views [data-param]')) el.r4needsMark = true;
+    });
+    await h.page.locator(sel('choose', setup.item)).click();
+    await h.page.waitForFunction((text) => document.getElementById('views').textContent.includes(text), later.fields[0].label, { timeout: 10000 });
+    for (let i = 0; i < 12; i++) await frames(h);
+    if (callsOf(out).length !== 1 || strays(h) !== 0) faults.push('chain_not_stopped:calls=' + callsOf(out).length + ':strays=' + strays(h));
+    const r = await read(h);
+    if (firstDiff(r.units, expectedUnits([later])) >= 0) faults.push('not_read_anew');
+    const says = r.region.flatMap((x) => x.says);
+    if (says.length !== 0) faults.push('said=' + says.length);
+    const kept = await h.page.evaluate(() => [...document.querySelectorAll('#views [data-param]')].filter((el) => el.r4needsMark).length);
+    if (kept !== 0) faults.push('not_rebuilt=' + kept);
+    for (const a of prepare(later)) await act(h, a);
+    await act(h, { act: 'choose', param: later.item });
+    await waitCalls(h, out, 1 + chain(later).length);
+    const want = [first, ...chain(later)].map((c) => ({ call: c.call, args: c.args }));
+    const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
+    if (firstDiff(got, want) >= 0) faults.push('rebuilt_press:steps=' + (got.map((c) => c.args.step).join(',') || '-'));
+  } catch {
+    faults.push('throws:calls=' + callsOf(out).length + ':strays=' + strays(h));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
 async function features(origin) {
@@ -2527,7 +2570,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'required', 'step'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'required', 'step', 'again'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2553,6 +2596,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('holds')) report('holds', await holds(origin, dir));
     if (want('required')) report('required', await required(origin, dir, states), ['required']);
     if (want('step')) report('step', await steps(origin, dir));
+    if (want('again')) report('again', await again(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

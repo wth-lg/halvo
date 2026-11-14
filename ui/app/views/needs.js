@@ -300,7 +300,7 @@
       if (calls.length === 0) return;
       held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
-          return reply === null ? null : call(c[0], c[1]);
+          return reply === null || reply.error ? reply : call(c[0], c[1]);
         });
       }, Promise.resolve({})));
       card.answers.forEach(function (a) {
