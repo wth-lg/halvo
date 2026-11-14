@@ -1,7 +1,7 @@
 ------------------------------ MODULE Confirm4 ------------------------------
 EXTENDS Integers, Sequences, FiniteSets
 
-CONSTANTS NEffects, Req1, Req2, Native
+CONSTANTS NEffects, Req1, Req2, Native, Binds, Requests
 
 VARIABLES st, h
 
@@ -16,12 +16,19 @@ RecStates == {"approved", "releasing", "committed"}
 Table == {"run", "confirm"}
 NoApproval == -1
 Causes == {"digest", "run_ended", "wait_limit", "cancelled", "no_record", "app_ended"}
+BindItems == 1..Binds
+Choices == {"allow", "decline"}
+BindCauses == {"wait_limit", "cancelled", "run_ended", "app_ended"}
+Stores == {"ack", "lost"}
+RunsAnswers == {"ok", "ended", "busy"}
 
 ASSUME /\ Req1 \subseteq Effects
        /\ Req2 \subseteq Effects
        /\ Req1 # {}
        /\ Req2 # {}
        /\ Native \subseteq Effects
+       /\ Binds \in Nat
+       /\ Requests \in Nat
 
 ReqEffects(n) == IF n = 1 THEN Req1 ELSE Req2
 Digest(n, e) == (n - 1) * NEffects + e
@@ -29,7 +36,7 @@ Class(e) == IF e \in Native THEN "payment" ELSE "send"
 Presenter(n) == IF ReqEffects(n) \cap Native # {} THEN "native" ELSE "page"
 Once(ans) == IF ans = "allow" THEN "allow_once" ELSE "reject_once"
 
-Init0 == [items |-> <<>>, nap |-> 0, table |-> {}, run |-> "live", app |-> "live"]
+Init0 == [items |-> <<>>, nap |-> 0, table |-> {}, run |-> "live", app |-> "live", binds |-> <<>>]
 
 InitH ==
     [n |-> 0,
@@ -43,9 +50,21 @@ InitH ==
      released |-> {},
      passed |-> {},
      refused |-> {},
-     stopped |-> FALSE]
+     stopped |-> FALSE,
+     nb |-> 0,
+     waits |-> 0,
+     newest |-> [j \in BindItems |-> "none"],
+     rows |-> {},
+     lost |-> {},
+     bound |-> {},
+     unsent |-> {},
+     blapsed |-> {},
+     killed |-> FALSE]
 
 OpenItems(s) == {i \in DOMAIN s.items : s.items[i].st \notin Final}
+OpenBinds(s) == {j \in DOMAIN s.binds : s.binds[j].st # "closed"}
+Busy(s) == OpenItems(s) # {} \/ OpenBinds(s) # {}
+Asked(s) == Len(s.items) + Len(s.binds)
 
 Mint(s, n) ==
     {[effect |-> e, approval |-> s.nap + Cardinality({x \in ReqEffects(n) : x <= e})] :
@@ -68,7 +87,7 @@ Issue(s, ok) ==
     LET n == Len(s.items) + 1
         it == [req |-> n, st |-> "shown", ans |-> "none", ids |-> {}]
     IN IF s.run # "live" THEN No(s, "state")
-       ELSE IF OpenItems(s) # {} THEN No([s EXCEPT !.run = "ended"], "state")
+       ELSE IF Busy(s) THEN No([s EXCEPT !.run = "ended"], "state")
        ELSE IF ok
        THEN [r |-> "ok", st |-> [s EXCEPT !.items = Append(@, it)],
              out |-> <<[k |-> "item_raised", item |-> n]>>]
@@ -143,8 +162,54 @@ Lapse(s, i, cause) ==
                      \o (IF stop THEN <<[k |-> "cancel"]>> ELSE <<>>)]
 
 Stop(s) ==
-    IF s.run # "live" \/ OpenItems(s) # {} THEN No(s, "state")
+    IF s.run # "live" \/ Busy(s) THEN No(s, "state")
     ELSE [r |-> "ok", st |-> [s EXCEPT !.run = "stopped"], out |-> <<[k |-> "cancel"]>>]
+
+Bind(s) ==
+    LET j == Len(s.binds) + 1
+    IN IF s.run # "live" THEN No(s, "state")
+       ELSE IF Busy(s) THEN No([s EXCEPT !.run = "ended"], "state")
+       ELSE [r |-> "ok", st |-> [s EXCEPT !.binds = Append(@, [st |-> "open"])],
+             out |-> <<[k |-> "bind_raised", item |-> j]>>]
+
+Press(s, j, c, store, runs) ==
+    IF j \notin DOMAIN s.binds THEN No(s, "state")
+    ELSE LET b == s.binds[j].st
+             row == b # c
+             tried == IF row THEN <<[k |-> "bind_row", item |-> j, answer |-> c]>> ELSE <<>>
+             call == <<[k |-> "answer_bind", item |-> j, answer |-> c]>>
+         IN IF b = "closed" THEN No(s, "stale")
+            ELSE IF s.run = "stopped" THEN No(s, "state")
+            ELSE IF b = "decline" /\ c = "allow" THEN No(s, "state")
+            ELSE IF row /\ store = "lost"
+            THEN [r |-> "no_service", st |-> [s EXCEPT !.binds[j].st = "open"], out |-> tried]
+            ELSE IF runs = "busy"
+            THEN [r |-> "busy", st |-> [s EXCEPT !.binds[j].st = c], out |-> tried \o call]
+            ELSE [r |-> "ok",
+                  st |-> [s EXCEPT !.binds[j].st = "closed",
+                                   !.run = IF runs = "ended" THEN "ended" ELSE @],
+                  out |-> tried \o call]
+
+BindLapse(s, j, cause) ==
+    IF j \notin DOMAIN s.binds THEN No(s, "state")
+    ELSE IF s.binds[j].st = "closed" THEN No(s, "stale")
+    ELSE LET lives == cause \in {"wait_limit", "cancelled"}
+         IN [r |-> "ok",
+             st |-> [s EXCEPT !.binds[j].st = "closed",
+                              !.run = IF lives THEN "stopped" ELSE "ended",
+                              !.app = IF cause = "app_ended" THEN "ended" ELSE @],
+             out |-> (IF lives THEN <<[k |-> "answer_bind", item |-> j, answer |-> "decline"]>> ELSE <<>>)
+                     \o <<[k |-> "bind_lapsed", item |-> j, cause |-> cause]>>
+                     \o (IF lives THEN <<[k |-> "cancel"]>> ELSE <<>>)]
+
+Kill(s, rows) ==
+    LET gone == {j \in OpenBinds(s) : j \notin rows}
+        order == [n \in 1..Cardinality(gone) |->
+                     CHOOSE j \in gone : Cardinality({x \in gone : x < j}) = n - 1]
+    IN [r |-> "ok",
+        st |-> [s EXCEPT !.binds = [j \in DOMAIN @ |-> IF j \in gone THEN [st |-> "closed"] ELSE @[j]],
+                         !.run = "ended", !.app = "ended"],
+        out |-> [n \in DOMAIN order |-> [k |-> "bind_lapsed", item |-> order[n], cause |-> "app_ended"]]]
 
 Guard(s, rec) ==
     LET pass == [r |-> "ok", st |-> s, out |-> <<[k |-> "pass"]>>]
@@ -174,6 +239,15 @@ Step(s, mv) ==
       [] mv.m = "lapse" -> Lapse(s, mv.item, mv.cause)
       [] mv.m = "stop" -> Stop(s)
       [] mv.m = "guard" -> Guard(s, mv)
+      [] mv.m = "bind" -> Bind(s)
+      [] mv.m = "press" -> Press(s, mv.item, mv.choice, mv.store, mv.runs)
+      [] mv.m = "bind_lapse" -> BindLapse(s, mv.item, mv.cause)
+      [] mv.m = "kill" -> Kill(s, mv.rows)
+
+BindMoves(s, j) ==
+    {[m |-> "press", item |-> j, choice |-> c, store |-> x, runs |-> y] :
+        c \in Choices, x \in Stores, y \in RunsAnswers}
+    \cup {[m |-> "bind_lapse", item |-> j, cause |-> c] : c \in BindCauses}
 
 ItemMoves(s, i) ==
     {[m |-> "arm", item |-> i], [m |-> "record", item |-> i], [m |-> "release", item |-> i]}
@@ -194,13 +268,20 @@ GuardMoves(s) ==
 Moves(s) ==
     IF s.app = "ended" THEN {}
     ELSE IF s.run = "ended"
-    THEN IF OpenItems(s) # {}
+    THEN IF Busy(s)
          THEN {[m |-> "lapse", item |-> i, cause |-> "run_ended", stored |-> FALSE] : i \in OpenItems(s)}
+              \cup {[m |-> "bind_lapse", item |-> j, cause |-> "run_ended"] : j \in OpenBinds(s)}
          ELSE UNION {ItemMoves(s, i) : i \in DOMAIN s.items}
-    ELSE (IF Len(s.items) < NRequests THEN {[m |-> "issue", ok |-> b] : b \in BOOLEAN} ELSE {})
+              \cup UNION {BindMoves(s, j) : j \in DOMAIN s.binds}
+    ELSE (IF Len(s.items) < NRequests /\ Asked(s) < Requests THEN {[m |-> "issue", ok |-> b] : b \in BOOLEAN} ELSE {})
+         \cup (IF Len(s.binds) < Binds /\ Asked(s) < Requests THEN {[m |-> "bind"]} ELSE {})
          \cup UNION {ItemMoves(s, i) : i \in DOMAIN s.items}
+         \cup UNION {BindMoves(s, j) : j \in DOMAIN s.binds}
          \cup {[m |-> "stop"]}
          \cup GuardMoves(s)
+
+KillMoves(s, g) ==
+    IF s.app = "ended" \/ OpenItems(s) # {} THEN {} ELSE {[m |-> "kill", rows |-> g.rows]}
 
 HLast(g, i) == IF Len(g.moves[i]) = 0 THEN "none" ELSE g.moves[i][Len(g.moves[i])].m
 HMade(m, cause) == [m |-> m, cause |-> cause]
@@ -220,6 +301,37 @@ HBefore(g, mv) ==
       [] mv.m \in {"arm", "record", "release"} ->
             [g EXCEPT !.moves[mv.item] = Append(@, HMade(mv.m, "none"))]
       [] mv.m = "lapse" -> [g EXCEPT !.moves[mv.item] = Append(@, HMade("lapse", mv.cause))]
+      [] mv.m = "bind" -> [g EXCEPT !.nb = @ + 1, !.waits = g.nb + 1]
+      [] OTHER -> g
+
+HAcked(mv) == mv.m = "press" => mv.store = "ack"
+HTaken(g, mv) == g.waits # 0 /\ (mv.m = "press" => mv.runs = "ok")
+HInPress(g, mv) ==
+    /\ mv.m = "press"
+    /\ mv.choice = "allow"
+    /\ mv.item = g.waits
+    /\ g.newest[g.waits] = [answer |-> "allow", acked |-> TRUE]
+
+HBind(g, e, mv) ==
+    CASE e.k = "bind_row" ->
+            [g EXCEPT !.newest[e.item] = [answer |-> e.answer, acked |-> HAcked(mv)],
+                      !.rows = @ \cup {e.item},
+                      !.lost = IF HAcked(mv) THEN @ ELSE @ \cup {e.item}]
+      [] e.k = "answer_bind" ->
+            IF HTaken(g, mv)
+            THEN [g EXCEPT !.bound = @ \cup {[item |-> g.waits, answer |-> e.answer, ok |-> HInPress(g, mv),
+                                               again |-> g.waits \in g.unsent]},
+                           !.waits = 0,
+                           !.unsent = IF mv.m = "press" THEN @ \ {g.waits} ELSE @]
+            ELSE IF mv.m = "press" /\ mv.runs = "ended"
+            THEN [g EXCEPT !.waits = 0, !.unsent = @ \ {e.item}]
+            ELSE IF mv.m = "press" /\ mv.runs = "busy"
+            THEN [g EXCEPT !.unsent = @ \cup {e.item}]
+            ELSE g
+      [] e.k = "bind_lapsed" ->
+            [g EXCEPT !.blapsed = @ \cup {[item |-> e.item, cause |-> e.cause, stored |-> e.item \in g.unsent,
+                                            kill |-> mv.m = "kill"]},
+                      !.unsent = @ \ {e.item}]
       [] OTHER -> g
 
 HEvent(g, e, mv) ==
@@ -244,6 +356,7 @@ HEvent(g, e, mv) ==
                                                /\ p.digest = mv.digest
                                                /\ p.approval = mv.approval,
                   stopped |-> g.stopped]}]
+      [] e.k \in {"bind_row", "answer_bind", "bind_lapsed"} -> HBind(g, e, mv)
       [] OTHER -> g
 
 RECURSIVE HFold(_, _, _, _)
@@ -252,6 +365,10 @@ HFold(g, out, i, mv) == IF i > Len(out) THEN g ELSE HFold(HEvent(g, out[i], mv),
 HAfter(g, mv) ==
     CASE mv.m = "lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
       [] mv.m = "stop" -> [g EXCEPT !.stopped = TRUE]
+      [] mv.m = "bind_lapse" ->
+            [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"},
+                      !.waits = IF mv.cause \in {"run_ended", "app_ended"} THEN 0 ELSE @]
+      [] mv.m = "kill" -> [g EXCEPT !.killed = TRUE, !.waits = 0]
       [] OTHER -> g
 
 HPassedOn(out) == \E i \in 1..Len(out) : out[i].k = "pass"
@@ -281,7 +398,7 @@ Asks(g) == \A i \in 1..g.n : \A e \in ReqEffects(i) \cap ReqEffects(g.n + 1) : G
 Offered(s, g, mv) == mv.m # "issue" \/ Asks(g) \/ Step(s, mv).r # "ok"
 
 Init == st = Init0 /\ h = InitH
-Next == \E mv \in Moves(st) :
+Next == \E mv \in Moves(st) \cup KillMoves(st, h) :
             /\ Offered(st, h, mv)
             /\ LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
 
@@ -329,6 +446,24 @@ L9 == \A p \in h.passed :
         /\ \A d \in h.got : \A e \in d.entries : e.answer = "reject_once" => e.approval # p.approval
 L10 == \A p \in h.passed : p.state = "releasing" =>
             IF p.approval = NoApproval THEN p.policy = "run" ELSE Row(p) # {}
+L11 == \A d \in h.bound : d.answer = "allow" => d.ok
+
+ReachBindAllow == \A d \in h.bound : d.answer # "allow"
+ReachBindTwo == Len(st.binds) < 2
+ReachBindLostAllow == \A d \in h.bound : ~(d.answer = "allow" /\ d.item \in h.lost)
+ReachBindUnsent == h.unsent = {}
+ReachBindAgain == \A d \in h.bound : ~d.again
+ReachBindEnded == ~(\E j \in DOMAIN st.binds : /\ st.binds[j].st = "closed"
+                                              /\ st.run = "ended"
+                                              /\ \A d \in h.bound : d.item # j
+                                              /\ \A x \in h.blapsed : x.item # j)
+ReachBindStopStored == \A x \in h.blapsed : ~(x.cause = "cancelled" /\ x.stored)
+ReachBindWaitStored == \A x \in h.blapsed : ~(x.cause = "wait_limit" /\ x.stored)
+ReachBindEndStored == \A x \in h.blapsed : ~(x.cause = "run_ended" /\ x.stored)
+ReachBindQuitStored == \A x \in h.blapsed : ~(x.cause = "app_ended" /\ x.stored /\ ~x.kill)
+ReachBindKillRow == ~(h.killed /\ OpenBinds(st) # {})
+ReachBindKillOpen == \A x \in h.blapsed : ~x.kill
+ReachBindAndConfirm == ~(Len(st.binds) > 0 /\ Len(st.items) > 0)
 
 ReachEffects == \A d \in h.got : ~(/\ d.via = "release"
                                    /\ Cardinality(d.entries) >= 2

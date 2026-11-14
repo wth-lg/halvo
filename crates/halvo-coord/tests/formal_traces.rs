@@ -1,10 +1,11 @@
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Table};
+use halvo_coord::items::drive::{answer_bind, lapse_bind, raise_bind, BindState, HeldBind, Ledger};
 use halvo_coord::items::{
     confirm_step, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation, Raise, Source,
 };
 use halvo_coord::mem::{Call, Config, Method, Ports};
-use halvo_coord::ports::{PortError, Reaped};
-use halvo_coord::run::{delete_step, drive, recover, Act, StopBy};
+use halvo_coord::ports::{Clock, Owner, PortError, Reaped, Rng, Runs};
+use halvo_coord::run::{delete_step, drive, recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{self, holds, Answer, Board, Ended, Served};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, ApprovalId, AskedEffect, Body, Category, Cause, Class,
@@ -13,7 +14,12 @@ use halvo_coord::types::{
     Presenter, Raised, RunEnd, RunId, RunItem, RunItemKind, What, Workflow, WorkflowId,
     WorkflowState, WorkflowTrigger,
 };
+use halvo_coord::types::{
+    Answer as PortAnswer, BindAsk, BindResult, Choice, Decision as PortDecision, HandbackResult,
+    Origin, OtherLapse, Reply, RunEvent, RunSpec, SignInAnswer,
+};
 use serde_json::{json, Map, Value};
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
@@ -959,12 +965,95 @@ fn replay_schedule(traces: &[Trace]) -> Vec<String> {
     out.0
 }
 
+/// The memory ports with an owner that can store a body and lose its reply: with `lose` set, the
+/// next body that the memory owner stores is answered `no_service`, as a lost acknowledgement.
+struct Lossy<'a> {
+    inner: &'a Ports<Config>,
+    lose: Cell<bool>,
+}
+
+impl Owner for Lossy<'_> {
+    type Config = Config;
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        let stored = self.inner.log(events);
+        if stored.is_ok() && self.lose.replace(false) {
+            return Err(PortError::NoService);
+        }
+        stored
+    }
+    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+        self.inner.history(agent, after)
+    }
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.inner.workflows()
+    }
+    fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        self.inner.agents()
+    }
+    fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        self.inner.send(body)
+    }
+}
+
+impl Runs for Lossy<'_> {
+    fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.inner.start(spec)
+    }
+    fn answer_confirm(
+        &self,
+        run: &RunId,
+        answers: &[PortAnswer],
+        record: &mut dyn FnMut(&PortDecision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.inner.answer_confirm(run, answers, record)
+    }
+    fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
+        self.inner.answer_handback(run, result)
+    }
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.inner.answer_bind(run, result)
+    }
+    fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        self.inner.cancel(run)
+    }
+    fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        self.inner.kill(run)
+    }
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+        self.inner.reap()
+    }
+}
+
+impl Clock for Lossy<'_> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.inner.now()
+    }
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
+    }
+}
+
+impl Rng for Lossy<'_> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.inner.bytes16()
+    }
+}
+
 /// One run of one agent with the confirmations and the guard's table, replayed through the
 /// pure functions: `confirm_step` for the moves of an item, `raise_step` for whether a request
 /// is admitted, `run_step` for the person's stop, `guard_step` for a record and the table's
 /// own moves. The port mints approval ids from a counter, `p1` first, in the order of the
-/// effects (I4.6).
+/// effects (I4.6). The second step of a `sign_in` item goes through the items drive on the
+/// memory ports (`raise_bind`, `answer_bind`, `lapse_bind`), and a kill through `recover_step`
+/// over the owner's events.
 struct Conf {
+    ports: Ports<Config>,
+    ledger: Ledger,
+    binds: Vec<(String, HeldBind)>,
+    killed: Vec<String>,
+    answering: Option<String>,
+    events_seen: usize,
+    tried_seen: usize,
     items: Vec<(String, Confirmation)>,
     pending: BTreeMap<String, Decision>,
     table: Table,
@@ -1030,7 +1119,26 @@ fn rows(event: &str, item: &str, d: &Decision) -> Vec<Value> {
 
 impl Conf {
     fn new() -> Conf {
+        let limits = limits();
+        let ports: Ports<Config> = Ports::with_limits(T0, DAY, limits);
+        ports
+            .workflows
+            .borrow_mut()
+            .push(Workflow::Full(Conf::workflow()));
+        let run = conf_id(RunId::parse, "r1");
+        ports.runner_of(&run);
         Conf {
+            ports,
+            ledger: Ledger::new(
+                conf_id(WorkflowId::parse, "w1"),
+                conf_id(AgentId::parse, "a1"),
+                0,
+            ),
+            binds: Vec::new(),
+            killed: Vec::new(),
+            answering: None,
+            events_seen: 0,
+            tried_seen: 0,
             items: Vec::new(),
             pending: BTreeMap::new(),
             table: Table::new(),
@@ -1039,7 +1147,7 @@ impl Conf {
             state: "live",
             minted: 0,
             raised: Vec::new(),
-            limits: limits(),
+            limits,
         }
     }
 
@@ -1060,14 +1168,105 @@ impl Conf {
         Decision::new(entries).unwrap()
     }
 
+    fn workflow() -> FullWorkflow {
+        FullWorkflow {
+            id: conf_id(WorkflowId::parse, "w1"),
+            state: WorkflowState::Active,
+            category: Category::Email,
+            site: None,
+            trigger: WorkflowTrigger::Manual,
+            period: None,
+            last: DAY,
+            agent: Some(conf_id(AgentId::parse, "a1")),
+        }
+    }
+
     fn open_item(&self) -> Option<RunItem> {
-        self.items
+        let confirm = self
+            .items
             .iter()
             .find(|(_, c)| c.state().is_open())
             .map(|(name, _)| RunItem {
                 item: conf_id(ItemId::parse, name),
                 kind: RunItemKind::Confirm,
-            })
+            });
+        let bind = self
+            .binds
+            .iter()
+            .find(|(name, b)| *b.state() != BindState::Closed && !self.killed.contains(name))
+            .map(|(_, b)| RunItem {
+                item: b.item().clone(),
+                kind: RunItemKind::SignIn,
+            });
+        confirm.or(bind)
+    }
+
+    fn bind_name(&self, item: &ItemId) -> String {
+        self.binds
+            .iter()
+            .find(|(_, b)| b.item() == item)
+            .map(|(n, _)| n.clone())
+            .unwrap_or_default()
+    }
+
+    fn bind_state(&self, name: &str, b: &HeldBind) -> &'static str {
+        if self.killed.iter().any(|k| k == name) {
+            return "closed";
+        }
+        match b.state() {
+            BindState::Open => "open",
+            BindState::Recorded(BindResult::Allow) => "allow",
+            BindState::Recorded(BindResult::Decline) => "decline",
+            BindState::Closed => "closed",
+        }
+    }
+
+    /// The events that the memory owner stored and the calls that act since the last line, as
+    /// a trace line writes them.
+    fn port_lines(&mut self, e: &mut Vec<Value>, p: &mut Vec<Value>) {
+        let stored: Vec<Event> = self.ports.events.borrow()[self.events_seen..].to_vec();
+        self.events_seen = self.ports.events.borrow().len();
+        for ev in stored {
+            match &ev.what {
+                What::ItemRaised { item, .. } => {
+                    e.push(json!({"event": "item_raised", "item": self.bind_name(item)}))
+                }
+                What::ItemAnswered {
+                    item,
+                    answer: Answered::SignIn(SignInAnswer::Second(b)),
+                } => e.push(
+                    json!({"event": "item_answered", "item": self.bind_name(item),
+                    "answer": b.answer.name()}),
+                ),
+                What::ItemLapsed {
+                    item,
+                    lapsed: Lapsed::SignIn(cause),
+                } => e.push(json!({"event": "item_lapsed", "item": self.bind_name(item),
+                    "cause": cause.cause().name()})),
+                other => panic!("an event that no bind line stores: {other:?}"),
+            }
+        }
+        let tried: Vec<Call> = self.ports.tried.borrow()[self.tried_seen..]
+            .iter()
+            .map(|t| t.call.clone())
+            .collect();
+        self.tried_seen = self.ports.tried.borrow().len();
+        let open = self
+            .binds
+            .iter()
+            .rev()
+            .find(|(_, b)| *b.state() != BindState::Closed)
+            .map(|(n, _)| n.clone());
+        for call in tried {
+            match call {
+                Call::AnswerBind(_, result) => {
+                    let name = self.answering.clone().or(open.clone()).unwrap_or_default();
+                    p.push(json!({"call": "answer_bind", "item": name, "answer": result.name()}))
+                }
+                Call::Cancel(_) => p.push(json!({"call": "cancel"})),
+                _ => {}
+            }
+        }
     }
 
     fn facts(&self) -> Facts<Config> {
@@ -1340,6 +1539,142 @@ impl Conf {
                     Err(refusal) => r = refusal.name().into(),
                 }
             }
+            "bind" => {
+                let ask = BindAsk {
+                    run: self.run.clone(),
+                    agent: self.agent.clone(),
+                    origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+                };
+                let event = RunEvent::Bind(ask.clone());
+                let mut item = Value::Null;
+                match raise_step(&self.facts(), Source::of(&event).unwrap(), &self.limits) {
+                    Raise::Run(RunItemKind::SignIn) => {
+                        let lossy = Lossy {
+                            inner: &self.ports,
+                            lose: Cell::new(false),
+                        };
+                        match raise_bind(&lossy, &mut self.ledger, &self.table, &self.limits, &ask)
+                        {
+                            Ok(held) => {
+                                let name = format!("b{}", self.binds.len() + 1);
+                                self.raised.push(Event {
+                                    workflow: conf_id(WorkflowId::parse, "w1"),
+                                    agent: self.agent.clone(),
+                                    seq: NonZeroU32::new(self.raised.len() as u32 + 1).unwrap(),
+                                    day: DAY,
+                                    at: 0,
+                                    what: What::ItemRaised {
+                                        item: held.item().clone(),
+                                        raised: Raised::SignIn(self.run.clone()),
+                                    },
+                                });
+                                item = json!(name);
+                                self.binds.push((name, held));
+                                r = "ok".into();
+                            }
+                            Err(c) => r = c.name().into(),
+                        }
+                    }
+                    Raise::End(_) => {
+                        self.state = "ended";
+                        r = "state".into();
+                    }
+                    Raise::Refused(c) => r = c.name().into(),
+                    other => r = format!("{other:?}"),
+                }
+                self.port_lines(&mut e, &mut p);
+                keys.insert("item".into(), item);
+            }
+            "press" | "bind_lapse" => {
+                let name = a["item"].as_str().unwrap().to_string();
+                let Some(j) = self.binds.iter().position(|(n, _)| *n == name) else {
+                    panic!("{at}: no item {name}");
+                };
+                self.ports.clear_refusals();
+                self.answering = Some(name.clone());
+                let lossy = Lossy {
+                    inner: &self.ports,
+                    lose: Cell::new(a["store"] == "lost"),
+                };
+                let answer = if m["m"] == "press" {
+                    match a["runs"].as_str().unwrap() {
+                        "busy" => self.ports.refuse(Method::AnswerBind, PortError::Busy),
+                        "ended" => self.ports.refuse(
+                            Method::AnswerBind,
+                            PortError::Refused(Name::parse("ended").unwrap()),
+                        ),
+                        _ => {}
+                    }
+                    let choice = if a["choice"] == "allow" {
+                        Choice::Allow
+                    } else {
+                        Choice::Decline
+                    };
+                    answer_bind(
+                        &lossy,
+                        &mut self.ledger,
+                        &self.table,
+                        &self.limits,
+                        &mut self.binds[j].1,
+                        choice,
+                    )
+                } else {
+                    let cause = OtherLapse::parse(a["cause"].as_str().unwrap()).unwrap();
+                    let lapsed = lapse_bind(
+                        &lossy,
+                        &mut self.ledger,
+                        &mut self.table,
+                        &mut self.binds[j].1,
+                        cause,
+                        &self.limits,
+                    );
+                    if lapsed.is_ok() {
+                        self.state = match cause {
+                            OtherLapse::WaitLimit | OtherLapse::Cancelled => "stopped",
+                            _ => "ended",
+                        };
+                    }
+                    lapsed
+                };
+                let ended = self.ports.tried.borrow()[self.tried_seen..]
+                    .iter()
+                    .any(|t| {
+                        matches!(t.call, Call::AnswerBind(..))
+                            && t.refused == Some(PortError::Refused(Name::parse("ended").unwrap()))
+                    });
+                if ended {
+                    self.state = "ended";
+                    self.ports.end_runner(&self.run);
+                }
+                self.ports.clear_refusals();
+                r = match answer {
+                    Ok(()) => "ok".into(),
+                    Err(c) => c.name().into(),
+                };
+                self.port_lines(&mut e, &mut p);
+                self.answering = None;
+            }
+            "kill" => {
+                let events: Vec<Event> = self.ports.events.borrow().clone();
+                let recovery = recover_step(
+                    &Earlier {
+                        agent: &self.agent,
+                        events: &events,
+                        last: None,
+                    },
+                    &[],
+                );
+                for (item, lapsed) in &recovery.lapsed {
+                    let name = self.bind_name(item);
+                    let Lapsed::SignIn(cause) = lapsed else {
+                        panic!("{at}: a kill lapses no confirmation");
+                    };
+                    e.push(json!({"event": "item_lapsed", "item": name, "cause": cause.cause().name()}));
+                    self.killed.push(name);
+                }
+                self.state = "ended";
+                r = "ok".into();
+            }
             other => panic!("{at}: no move {other}"),
         }
         out.check(at, "r", &m["r"], &json!(r));
@@ -1367,6 +1702,11 @@ impl Conf {
                 .collect::<Vec<_>>()),
         );
         keys.insert("run".into(), json!(self.state));
+        let mut binds = Map::new();
+        for (name, b) in &self.binds {
+            binds.insert(name.clone(), json!(self.bind_state(name, b)));
+        }
+        keys.insert("binds".into(), Value::Object(binds));
         let want = m["s"].as_object().unwrap();
         let mut gk: Vec<&String> = keys.keys().collect();
         let mut wk: Vec<&String> = want.keys().collect();
