@@ -1,6 +1,8 @@
 #![cfg(debug_assertions)]
 
-use halvo_secrets::{DeleteIfHolds, Directory, Name, Read, Secret, Store, Write};
+use halvo_secrets::{
+    Delete, DeleteIfHolds, Directory, Name, Read, Secret, Store, StoreKind, Write,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -56,6 +58,14 @@ fn one_byte_off(at: usize) -> Vec<u8> {
     let mut other = HELD.to_vec();
     other[at] ^= 1;
     other
+}
+
+fn kind_of_this_store() -> StoreKind {
+    if cfg!(windows) {
+        StoreKind::Dpapi
+    } else {
+        StoreKind::File
+    }
 }
 
 #[test]
@@ -122,4 +132,41 @@ fn a_claim_that_a_stopped_delete_left_is_put_back_by_the_next_operation() {
             assert!(names.is_empty(), "{op}: {names:?}");
         }
     }
+}
+
+#[test]
+fn a_removal_names_the_store_of_this_place_alone_and_then_reads() {
+    let dir = scratch("removal");
+    let store = store_in(&dir);
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    for kind in [StoreKind::Keychain, StoreKind::File, StoreKind::Dpapi] {
+        if kind != kind_of_this_store() {
+            assert!(store.remove(kind).is_none(), "{kind:?}");
+            assert_eq!(found(store.read()), HELD, "{kind:?}");
+        }
+    }
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::Deleted);
+    assert!(
+        matches!(removal.then, Read::NotStored),
+        "{:?}",
+        removal.then
+    );
+    assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::NotStored);
+    assert!(matches!(removal.then, Read::NotStored));
+
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    left_claim(&dir);
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::Deleted);
+    assert!(matches!(removal.then, Read::NotStored));
+    assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
 }

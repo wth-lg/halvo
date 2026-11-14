@@ -1453,6 +1453,99 @@ fn a_delete_if_holds_passes_on_the_answer_of_its_read_and_of_its_own_step() {
     assert_eq!(store.keychain.keychain.items(), [HELD.to_vec()]);
 }
 
+#[test]
+fn a_removal_at_the_person_s_word_leaves_the_state_of_other_bytes_in_both_stores() {
+    let other = held_one_byte_off(0);
+    let both = |keeps| mac(keeps, File::holding(HELD), Keys::holding(&[&other]));
+
+    let store = both(Keeps::File);
+    assert_eq!(store.remove(StoreKind::Keychain), Some(Delete::Deleted));
+    assert!(store.keychain.keychain.items().is_empty());
+    assert_eq!(found(store.read()), HELD);
+
+    let store = both(Keeps::File);
+    assert_eq!(store.remove(StoreKind::File), Some(Delete::Deleted));
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(
+        store.keychain.keychain.items(),
+        std::slice::from_ref(&other)
+    );
+    let read = store.read();
+    assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+
+    let store = both(Keeps::Keychain);
+    assert_eq!(store.remove(StoreKind::File), Some(Delete::Deleted));
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(found(store.read()), other);
+
+    let store = both(Keeps::Keychain);
+    assert_eq!(store.remove(StoreKind::Keychain), Some(Delete::Deleted));
+    assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+    assert_eq!(found(store.read()), HELD);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(store.keychain.keychain.items(), [HELD.to_vec()]);
+}
+
+#[test]
+fn a_removal_touches_the_named_store_alone() {
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::holding(HELD), Keys::holding(&[HELD]));
+        assert_eq!(store.remove(StoreKind::Dpapi), None);
+        assert!(store.file.ops().is_empty());
+        assert!(store.keychain.keychain.ops().is_empty());
+
+        let store = mac(keeps, File::holding(HELD), Keys::empty());
+        assert_eq!(store.remove(StoreKind::Keychain), Some(Delete::NotStored));
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+        assert!(!store.file.ops().contains(&"delete"));
+
+        let store = mac(keeps, File::empty(), Keys::holding(&[HELD]));
+        assert_eq!(store.remove(StoreKind::File), Some(Delete::NotStored));
+        assert_eq!(store.keychain.keychain.items(), [HELD.to_vec()]);
+        assert!(!store.keychain.keychain.ops().contains(&"delete"));
+    }
+}
+
+#[test]
+fn a_removal_answers_the_failure_of_the_named_store_and_keeps_its_item() {
+    for (fails, answer) in [
+        (Fails::Locked(refused(13)), Delete::Locked(refused(13))),
+        (
+            Fails::Fault(Fault { code: 5 }),
+            Delete::Fault(Fault { code: 5 }),
+        ),
+    ] {
+        let store = mac(
+            Keeps::Keychain,
+            File::holding(HELD).failing_settle(fails),
+            Keys::empty(),
+        );
+        assert_eq!(store.remove(StoreKind::File), Some(answer));
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+        assert!(!store.file.ops().contains(&"delete"));
+
+        let store = mac(
+            Keeps::File,
+            File::holding(HELD).failing_delete(fails),
+            Keys::empty(),
+        );
+        assert_eq!(store.remove(StoreKind::File), Some(answer));
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+    }
+    for (code, answer) in [
+        (AUTH_FAILED, Delete::Locked(refused(AUTH_FAILED))),
+        (NOT_AVAILABLE, Delete::Fault(fault(NOT_AVAILABLE))),
+    ] {
+        let store = mac(
+            Keeps::File,
+            File::empty(),
+            Keys::holding(&[HELD]).failing("delete", code),
+        );
+        assert_eq!(store.remove(StoreKind::Keychain), Some(answer));
+        assert_eq!(store.keychain.keychain.items(), [HELD.to_vec()]);
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod real_files {
     use super::*;
@@ -1847,5 +1940,25 @@ mod real_files {
         assert_eq!(shown(store.delete_if_holds(X)), "Deleted");
         assert!(store.keychain.keychain.items().is_empty());
         assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    #[test]
+    fn a_removal_of_the_file_ends_a_claim_that_a_killed_move_left_first() {
+        let label = "claim-removal-same";
+        stopped_after_the_claim(label, X, 4243);
+        let store = signed(label, Keys::holding(&[X]));
+        assert_eq!(store.remove(StoreKind::File), Some(Delete::NotStored));
+        assert_eq!(store.keychain.keychain.items(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+
+        let label = "claim-removal-other";
+        let mut other = X.to_vec();
+        other[5] ^= 1;
+        stopped_after_the_claim(label, X, 4243);
+        let store = signed(label, Keys::holding(&[&other]));
+        assert_eq!(store.remove(StoreKind::File), Some(Delete::Deleted));
+        assert_eq!(store.keychain.keychain.items(), [other.clone()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+        assert_eq!(found(store.read()), other);
     }
 }

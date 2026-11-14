@@ -117,6 +117,34 @@ fn the_store_of_this_build_deletes_only_the_bytes_that_its_caller_read() {
     );
 }
 
+#[test]
+fn a_removal_by_the_name_of_this_build_s_store_removes_its_item_and_then_reads() {
+    on_a_hosted_runner();
+    let store = store("removal");
+    let kind = store.kind();
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    if cfg!(windows) {
+        assert!(store.remove(StoreKind::File).is_none());
+        assert!(store.remove(StoreKind::Keychain).is_none());
+    } else {
+        assert!(store.remove(StoreKind::Dpapi).is_none());
+    }
+    assert_eq!(found(store.read()), HELD);
+    let removal = store.remove(kind).expect("the store of this build");
+    assert_eq!(removal.removed, Delete::Deleted);
+    assert!(
+        matches!(removal.then, Read::NotStored),
+        "{:?}",
+        removal.then
+    );
+    println!(
+        "\nremoval store={} answered {:?} and then {:?}",
+        kind.as_str(),
+        removal.removed,
+        removal.then
+    );
+}
+
 #[cfg(target_os = "macos")]
 mod by_reference {
     use super::*;
@@ -265,6 +293,55 @@ mod beside_the_keychain {
     }
 
     #[test]
+    fn an_unsigned_build_leaves_other_bytes_in_both_stores_at_the_person_s_word() {
+        on_a_hosted_runner();
+        let signed = b"0123456789abcdef".repeat(4);
+        let earlier = held_one_byte_off(0);
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        for (label, from) in [
+            ("unsigned-keeps-file", StoreKind::Keychain),
+            ("unsigned-keeps-item", StoreKind::File),
+        ] {
+            let store = store(label);
+            let file = file_store(label);
+            keychain_items::add(&name(label), &signed);
+            assert_eq!(file.write(&secret(&earlier)), Write::Stored);
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+            let removal = store.remove(from).expect("a store of a Mac");
+            assert_eq!(removal.removed, Delete::Deleted, "{label}");
+            match from {
+                StoreKind::Keychain => {
+                    assert_eq!(found(removal.then), earlier);
+                    assert_eq!(keychain_items::count(&name(label)), 0);
+                    assert_eq!(found(file.read()), earlier);
+                    assert_eq!(
+                        other_bytes(store.delete_if_holds(&secret(&signed))),
+                        earlier
+                    );
+                    assert!(matches!(
+                        store.delete_if_holds(&secret(&earlier)),
+                        halvo_secrets::DeleteIfHolds::Deleted
+                    ));
+                    assert!(matches!(file.read(), Read::NotStored));
+                }
+                _ => {
+                    assert!(
+                        matches!(removal.then, Read::Locked(Locked::OtherStore)),
+                        "{:?}",
+                        removal.then
+                    );
+                    assert!(matches!(file.read(), Read::NotStored));
+                    assert_eq!(keychain_items::count(&name(label)), 1);
+                    keychain_items::remove(&name(label));
+                }
+            }
+            assert!(matches!(store.read(), Read::NotStored), "{label}");
+            println!("\nan unsigned build with other bytes of 64 in both stores removed the {} item at the person's word and then read what stayed", from.as_str());
+        }
+    }
+
+    #[test]
     fn the_store_of_a_build_without_the_keychain_is_the_file_store() {
         on_a_hosted_runner();
         let label = "file-kind";
@@ -409,6 +486,45 @@ mod moves {
         assert_eq!(found(store.read()), signed);
         assert_eq!(store.delete(), Delete::Deleted);
         println!("\nwith both places full of two credentials of 64 bytes that differ in one byte, the read answered Locked(OtherStore) twice, and so did a delete");
+    }
+
+    #[test]
+    fn a_signed_build_leaves_other_bytes_in_both_stores_at_the_person_s_word() {
+        on_a_hosted_runner();
+        let signed = b"0123456789abcdef".repeat(4);
+        let earlier = held_one_byte_off(0);
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        for (label, from) in [
+            ("signed-keeps-item", StoreKind::File),
+            ("signed-keeps-file", StoreKind::Keychain),
+        ] {
+            let store = store(label);
+            let file = file_store(label);
+            assert_eq!(store.write(&secret(&signed)), Write::Stored);
+            assert_eq!(file.write(&secret(&earlier)), Write::Stored);
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+            let removal = store.remove(from).expect("a store of a Mac");
+            assert_eq!(removal.removed, Delete::Deleted, "{label}");
+            let stays = match from {
+                StoreKind::File => signed.clone(),
+                _ => earlier.clone(),
+            };
+            assert_eq!(found(removal.then), stays, "{label}");
+            assert!(matches!(file.read(), Read::NotStored), "{label}");
+            assert_eq!(keychain_items::count(&name(label)), 1, "{label}");
+            let other = if stays == signed { &earlier } else { &signed };
+            assert_eq!(other_bytes(store.delete_if_holds(&secret(other))), stays);
+            assert_eq!(keychain_items::count(&name(label)), 1, "{label}");
+            let deleted = store.delete_if_holds(&secret(&stays));
+            assert!(
+                matches!(deleted, halvo_secrets::DeleteIfHolds::Deleted),
+                "{deleted:?}"
+            );
+            assert_eq!(keychain_items::count(&name(label)), 0, "{label}");
+            assert!(matches!(store.read(), Read::NotStored), "{label}");
+            println!("\na signed build with other bytes of 64 in both stores removed the {} item at the person's word, read what stayed, and deleted it only for its own bytes", from.as_str());
+        }
     }
 }
 

@@ -118,6 +118,17 @@ impl From<Delete> for DeleteIfHolds {
     }
 }
 
+/// What a removal of the item of one named store answers: what the removal did in that
+/// store, and then what a read of the whole store answered.
+#[must_use]
+#[derive(Debug)]
+pub struct Removal {
+    /// The answer of the removal from the named store alone.
+    pub removed: Delete,
+    /// What a read of the store answered after the removal.
+    pub then: Read,
+}
+
 /// Why a store does not give, take or remove what stands under a name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Locked {
@@ -156,8 +167,8 @@ pub enum Locked {
     /// On macOS, the store that this build does not keep its secret in holds an item under
     /// the name too: a build without the feature `keychain` found a Keychain item, or a
     /// build with it found the file of the file store beside its own Keychain item, with
-    /// other bytes. The store picks neither, and no operation of this crate leaves the
-    /// state in which both stores hold other bytes.
+    /// other bytes. The store picks neither. The one operation that leaves the state in
+    /// which both stores hold other bytes is `Store::remove`, at the person's word.
     OtherStore,
     /// On macOS, a build with the feature `keychain` found the file of the file store, and
     /// the move of that file into the Keychain did not finish because a step of it failed:

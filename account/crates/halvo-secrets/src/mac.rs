@@ -1,4 +1,4 @@
-use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, Write};
+use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, StoreKind, Write};
 use crate::keychain::{Keychain, KeychainItem};
 use crate::place::{Claim, Codec, Fs, Item};
 use crate::Secret;
@@ -175,6 +175,25 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             DeleteIfHolds::Deleted => self.answer_from_both(Delete::Deleted).into(),
             DeleteIfHolds::NotStored => self.answer_from_both(Delete::NotStored).into(),
             answer => answer,
+        }
+    }
+
+    pub(crate) fn remove(&self, from: StoreKind) -> Option<Delete> {
+        match from {
+            StoreKind::Keychain => Some(self.keychain.delete()),
+            StoreKind::File => {
+                let keychain = self.keychain.read();
+                let moved = match &keychain {
+                    Read::Found(secret) => Some(secret.expose()),
+                    _ => None,
+                };
+                Some(match self.file.settle(moved) {
+                    Ok(()) => self.file.delete(),
+                    Err(Ok(locked)) => Delete::Locked(locked),
+                    Err(Err(fault)) => Delete::Fault(fault),
+                })
+            }
+            StoreKind::Dpapi => None,
         }
     }
 

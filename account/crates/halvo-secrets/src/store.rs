@@ -1,4 +1,4 @@
-use crate::answer::{Delete, DeleteIfHolds, Read, StoreKind, Write};
+use crate::answer::{Delete, DeleteIfHolds, Read, Removal, StoreKind, Write};
 #[cfg(windows)]
 use crate::dpapi::{Dpapi, WindowsFs};
 #[cfg(target_os = "macos")]
@@ -16,8 +16,8 @@ use crate::{Directory, Name, Secret};
 /// `service` and `name`. On Windows it is the file `<dir>/<name>` that holds the secret
 /// sealed by DPAPI in the scope of the user. A read that fails answers `Locked` or `Fault`
 /// and never `NotStored`; a write only creates; a delete removes the one item that a read
-/// gives; and `delete_if_holds` removes it only while it holds the bytes that its caller
-/// read.
+/// gives; `delete_if_holds` removes it only while it holds the bytes that its caller read;
+/// and `remove`, at the person's word, removes the item of one named store.
 ///
 /// The removal by `delete_if_holds` from a file, on both systems: it claims the file by one
 /// rename, which never replaces a name, to the claim's private name in the store
@@ -87,9 +87,9 @@ use crate::{Directory, Name, Secret};
 /// answers what the Keychain holds. When the Keychain item and the file stand with equal
 /// bytes, a read removes the file and answers `Found`: it finishes a move that stopped
 /// there. When they stand with other bytes, every read, write and delete of both builds
-/// answers `Locked::OtherStore` and changes nothing, and no operation of this crate leaves
-/// that state. When the Keychain item stands and the file cannot be read, a read gives the
-/// item.
+/// answers `Locked::OtherStore` and changes nothing; `remove` at the person's word is the
+/// one operation that leaves that state. When the Keychain item stands and the file cannot
+/// be read, a read gives the item.
 ///
 /// A write of either build first reads as above, the move included. On `NotStored` it makes
 /// the only-create write in the store that the build keeps; on `Found` it answers
@@ -118,11 +118,22 @@ use crate::{Directory, Name, Secret};
 /// passes on its `Other`, `Locked` or `Fault`. After a removal, or when the read answered
 /// `NotStored`, it answers by the table above.
 ///
+/// `remove` at the person's word, after the app has said what it costs: `from` names the
+/// file of the file store or the Keychain item. It removes whatever item that store holds,
+/// with no compare, and the other store's item stays; the removal of the file first ends
+/// each claim as the place above says. Then it reads, the move included, and gives that
+/// read beside the removal's answer, so the caller learns what then stands: in the state
+/// with other bytes in both stores, a build with the feature then reads the item that
+/// stays, moving the file into the Keychain where the Keychain's item was removed, and a
+/// build without it reads the file where the Keychain's item was removed and answers
+/// `Locked::OtherStore` while the Keychain item stays. A kind that the store never looks
+/// at, `Dpapi` on macOS, answers `None`.
+///
 /// Two limits stay. A delete or a `delete_if_holds` of a build without the feature whose
 /// two steps both fall between a move's read of the file and its add answers `Deleted`,
 /// and the move then adds the credential that it read. Two first sign-ins on the two
-/// builds at one moment can store one each, which leaves both stores with other bytes.
-/// No order of steps closes either without one lock over the operations
+/// builds at one moment can store one each, which leaves both stores with other bytes
+/// until `remove`. No order of steps closes either without one lock over the operations
 /// of both builds.
 ///
 /// `Store::in_directory` reads and writes the file alone and never searches the Keychain.
@@ -287,6 +298,26 @@ impl Store {
             #[cfg(windows)]
             Place::Dpapi(item) => item.after_claims(|item| item.delete_if_holds(held)),
         }
+    }
+
+    /// At the person's word, after the app has said what it costs: removes whatever item
+    /// the store `from` holds under the name, and then reads. `None` when this store never
+    /// looks at a store of that kind, and then nothing is touched. See the type.
+    pub fn remove(&self, from: StoreKind) -> Option<Removal> {
+        let removed = match &self.place {
+            #[cfg(target_os = "macos")]
+            Place::File(item) => (from == StoreKind::File).then(|| item.after_claims(Item::delete)),
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => mac.remove(from),
+            #[cfg(windows)]
+            Place::Dpapi(item) => {
+                (from == StoreKind::Dpapi).then(|| item.after_claims(Item::delete))
+            }
+        }?;
+        Some(Removal {
+            removed,
+            then: self.read(),
+        })
     }
 }
 
