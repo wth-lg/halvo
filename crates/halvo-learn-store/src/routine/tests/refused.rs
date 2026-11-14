@@ -179,3 +179,38 @@ fn the_key_reader_gives_nothing_where_the_key_cannot_be_read_or_the_kind_has_non
         None
     );
 }
+
+#[test]
+fn a_key_that_only_begins_with_the_workflow_key_is_not_the_key_and_stops_every_workflow() {
+    let name = wf(1);
+    for json in [
+        format!("{{\"workflowX\":\"{name}\"}}"),
+        format!("{{\"workflow_old\":\"{name}\"}}"),
+    ] {
+        assert_eq!(refused_workflow("learn_routine", &json), None, "{json}");
+        for kind in ["learn_routine", "learn_run"] {
+            let mut store = three_workflows();
+            store.rows.push((kind, json.clone()));
+            assert!(store.step(DAY + 30).is_empty(), "{kind} {json}");
+        }
+    }
+}
+
+#[test]
+fn a_workflow_value_with_a_blank_or_a_newline_around_it_is_no_workflow_id_and_stops_every_workflow()
+{
+    let name = wf(1);
+    for json in [
+        format!("{{\"workflow\":\" {name}\"}}"),
+        format!("{{\"workflow\":\"{name} \"}}"),
+        format!("{{\"workflow\":\"\\n{name}\"}}"),
+        format!("{{\"workflow\":\"{name}\\n\"}}"),
+    ] {
+        assert_eq!(refused_workflow("learn_routine", &json), None, "{json}");
+        for kind in ["learn_routine", "learn_run"] {
+            let mut store = three_workflows();
+            store.rows.push((kind, json.clone()));
+            assert!(store.step(DAY + 30).is_empty(), "{kind} {json}");
+        }
+    }
+}
