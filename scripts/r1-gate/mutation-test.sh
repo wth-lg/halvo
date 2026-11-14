@@ -780,6 +780,10 @@ case $hold in
   0) ;;
   refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'error[E0308]: mismatched types\n'; exit 101; fi ;;
+  warn-refuse)
+    if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'warning: unused variable: x\nerror[E0308]: mismatched types\n'; exit 101; fi ;;
+  plain-refuse)
+    if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'cargo: the compiler ended by a signal\n'; exit 101; fi ;;
   go)
     : > "$here/marker"
     polls=0
@@ -1459,6 +1463,13 @@ form_cases() {
   row form-copy-refused/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
   t apply-only-copy-that-does-not-type-check-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused yes 'FAIL unmutated:type-check (error[E0308]: mismatched types)'
   t full-run-copy-that-does-not-build-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused no 'FAIL unmutated:build (error[E0308]: mismatched types)'
+  for form_reason in warn-refuse plain-refuse; do
+    form_fixture "form-copy-$form_reason" crates/x "$form_reason"
+    printf 'pub fn f() -> i32 { 1 } refuse-me\n' > "$gate_scratch/form-copy-$form_reason/crates/x/src/lib.rs"
+    row "form-copy-$form_reason/crates/x/mutants.rows" held src/lib.rs 's/1 }/2 }/' leak required X-1
+  done
+  t apply-only-copy-names-the-error-line-after-a-warning PASS with_cargo_home form-copy-warn-refuse form_said form-copy-warn-refuse yes 'FAIL unmutated:type-check (error[E0308]: mismatched types)'
+  t apply-only-copy-names-its-first-line-when-no-line-is-an-error PASS with_cargo_home form-copy-plain-refuse form_said form-copy-plain-refuse yes 'FAIL unmutated:type-check (cargo: the compiler ended by a signal)'
   t sh-row-line-still-says-builds PASS fixture_says builds 'PASS mutation:applies (applies and builds)' yes
   t full-run-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher no "$form_build$form_nl$form_build"
   for form_spelling in dot double; do
