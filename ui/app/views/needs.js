@@ -233,9 +233,9 @@
         return r.input.checked;
       })[0];
       if (picked) {
-        calls.push(['agents_answer', { item: item.item, choice: 'choose', param: a.param, n: picked.n }]);
+        calls.push(['agents_answer', { item: item.item, step: item.step, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.line && a.line.kept.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.line.kept }]);
+        calls.push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
       }
     });
     return calls;
@@ -313,7 +313,7 @@
       drop(card.key);
       openNext();
     }
-    held(card, call('agents_answer', { item: item.item, choice: choice.choice })).then(function (reply) {
+    held(card, call('agents_answer', { item: item.item, step: item.step, choice: choice.choice })).then(function (reply) {
       if ((!reply || reply.error) && answered.delete(item.item) && last) apply(last);
     });
   }
