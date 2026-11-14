@@ -7598,7 +7598,11 @@ fn an_allow_again_after_a_stored_allow_that_the_run_did_not_take_reads_first_and
             "{case}: the lapse's decline alone, never the stored allow"
         );
         decline_before_one_cancel(&c, m, &run, &case);
-        assert_eq!(step_rows(&c, &item), ["allow"], "{case}: no second row");
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow", "lapsed:cancelled"],
+            "{case}: no second allow row, and the step lapses"
+        );
         assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
