@@ -950,6 +950,7 @@ mod tests {
                         os_code: -3801,
                     }),
                 },
+                unstopped: false,
             };
             f.sources[0].state = SourceState::Impaired {
                 reason: Reason::TitleReadErrors,

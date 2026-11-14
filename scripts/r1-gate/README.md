@@ -121,7 +121,7 @@ row.
 A test that a row runs can make a root that its own guard removes when its
 case ends; a test ended in the middle of a case leaves that root behind. So
 TERM, INT or HUP to the runner, to its process group or to every process
-below it does not end the running test:
+below it does not end the running test, gate check or cargo build of the copy:
 
 - A cargo test runs with TERM, INT and HUP ignored, because a Rust test has
   no handler for them and would end before its guard. A gate self-test case
@@ -130,41 +130,65 @@ below it does not end the running test:
   `--self-test`, which keeps the traps of lib.sh and exits with the signal's
   status and no STOPPED line, from the first signal on the runner starts no
   new step of the run (a row, a test, a build, a gate check, a copy, a read by
-  awk, perl, cp, sort, tar or git; it still waits for the running test as
-  below, and it removes its scratch),
+  awk, perl, cp, sort, tar or git; it still waits for the running test, gate
+  check or cargo build of the copy as below, and it removes its scratch),
   prints exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count
   line for a step that the signal ended, and exits with 143 for TERM, 130 for
   INT and 129 for HUP. Exit 0, 1 and 2 never follow a signal that the runner
-  got, and a later signal changes nothing.
-- The STOPPED line has one of four forms. Before any row, during the copy of
+  got, and a later signal changes nothing. From the first signal on the runner
+  ignores TERM, INT and HUP, and so does every process that it starts after it,
+  which is only its own reads of the running step; a step that runs from before
+  the signal has them ignored as below, but for a program that sets its own
+  handler, as rustc does for INT.
+- The STOPPED line has one of five forms. Before any row, during the copy of
   HEAD, the read of the rows files and the name check, the `--only`
   selection, and under `--list`:
   `STOPPED mutation (signal <name>; no row had started)`. In a row when no
-  test runs (the unmutated build, a gate check, a short step) and in the tail
+  test runs and the running step ends within 60 s (the unmutated build, a gate
+  check, a short step) and in the tail
   (the read of mutants.expected and the count line):
   `STOPPED mutation:<row> (signal <name>; no test was running)`. During a test:
   `STOPPED mutation:<row> (signal <name>; the running case was let end)`, after
   the runner sends the test's process group TERM and waits up to 60 s, a
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
-  case made may be left. A KILL of the runner itself leaves its scratch, the
-  throwaway copy and its build directory, as well.
-- A gate check that runs when the signal comes is not shielded: a signal that
-  reaches only the runner lets it end, a signal to the group ends it, and no
-  next check starts. A step whose exit status says that a signal ended it
-  (129, 130, 137 or 143) is never read as an answer: with a signal of the
+  case made may be left. During a gate check or the cargo build of the copy
+  that does not end within 60 s of the signal:
+  `STOPPED mutation:<row> (signal <name>; the running check-<name> did not end within 60 s and was killed)`,
+  or `... the running build of the copy did not end ...`, and what that step
+  made may be left. A KILL of the runner itself leaves its scratch, the
+  throwaway copy and its build directory, as well. A shielded step or test
+  that was running then goes on with TERM, INT and HUP ignored; a step that
+  the kill at the bound had already stopped stays stopped while its process
+  group has another member and goes on when the group is orphaned; KILL to
+  each of its processes ends them.
+- A gate check and the cargo build of the copy, unmutated or of a mutant, run
+  with TERM, INT and HUP ignored and with their standard input from /dev/null.
+  On the signal the runner starts no next step and waits up to 60 s for the
+  running step, then stops and kills it with every process below it and names
+  it in the STOPPED line. The build of a mutant on any other file is not
+  shielded. rustc sets its own handler for INT, so an INT ends a running
+  rustc: when the runner got the same INT, as it does from its group, the run
+  ends as a stop (`STOPPED mutation:<row> (signal INT; no test was running)`,
+  exit 130); when it got none, the build reads as failed. A step whose exit
+  status says that a signal ended it (129, 130, 137 or 143) is never read as an
+  answer: with a signal of the
   runner's own within 2 s the run ends as a stop, and without one it ends with
   exit 2 and `FAIL step:<step> (ended by signal <name>; the runner got no signal)`.
   A cargo build that a signal ends while the runner got none reads as a mutant
   that does not build, because lib.sh's gate_build returns 1 whatever ended
   cargo: a FAIL, never a caught row.
-- A signal that comes after a test has started and before the runner waits for
-  it is acted on when the test ends by itself, with the test's own limit as its
-  bound. A runner that was started with a signal ignored, as a shell does for
-  INT in a background job, cannot trap that signal.
+- A signal that comes after a test or a shielded step has started and before
+  the runner waits for it is acted on when that step ends by itself, with its
+  own limit as its bound; a build has none. A runner that was started with a
+  signal ignored, as a shell does for INT in a background job, cannot trap that
+  signal.
 - A test that the runner starts has its standard input from /dev/null and QUIT
   ignored. A row's test must not stop a child of its own by TERM, INT or HUP:
-  the child of a shielded cargo test ignores them too.
+  the child of a shielded cargo test ignores them too. A gate check and the
+  cargo build of the copy have their standard input from /dev/null too. A
+  check that ends a child of its own by TERM, INT or HUP gets no such end: a
+  verify child past its deadline ends by the check's KILL 5 s later.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
   rows a time limit above the time of its rows.

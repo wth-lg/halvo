@@ -10,7 +10,7 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    ActionClass, AgentLog, AgentRun, Cause, EffectState, ExecutableStep, FromRunner,
+    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
     HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply, StoreRequest,
     ToRunner, WebOrigin,
 };
@@ -20,6 +20,7 @@ use halvo_sheet::Value;
 use crate::args::Args;
 use crate::clock::{day, now, random16};
 use crate::effect::Tracked;
+use crate::file::ReadUnder;
 use crate::link::{Broken, Link};
 
 /// Why the run's work stopped before its end: the link broke, or the run ends with an outcome and a cause.
@@ -63,19 +64,38 @@ pub(crate) fn cause_of(error: ReplyError) -> Cause {
     }
 }
 
+/// The `seq` of the log row `start_accepted`, which the store's handler of `start_run` stores, so that the
+/// runner's own lines count from the next (A7.4, CP-135 (5)).
+const START_ROW: u32 = 1;
+
 pub(crate) struct Runner {
     pub(crate) args: Args,
     pub(crate) link: Link,
     role: RunnerRole,
     started: Clock,
     pub(crate) waited: Duration,
+    /// Milliseconds that a test adds to the run's time: the clock of the test's own.
+    #[cfg(test)]
+    pub(crate) test_clock: std::sync::Arc<std::sync::atomic::AtomicU64>,
     log_seq: u32,
+    /// The `wall_s` of the newest load of the configuration; 0 before the first load.
+    wall_limit: u32,
     pub(crate) steps: u32,
     pub(crate) handbacks: u32,
     pub(crate) confirmations: u32,
     pub(crate) playbook: Option<NonZeroU32>,
     pub(crate) effects: Vec<Tracked>,
+    /// The approval ids that a row of this run held.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+        )
+    )]
+    pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
+    pub(crate) read_under: Option<ReadUnder>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -88,20 +108,25 @@ pub(crate) fn run(args: Args, link: Link) -> i32 {
 
 impl Runner {
     /// A runner of `args` on `link`, before its run.
-    fn new(args: Args, link: Link) -> Runner {
+    pub(crate) fn new(args: Args, link: Link) -> Runner {
         Runner {
             args,
             link,
             role: RunnerRole::claim(),
             started: Clock::now(),
             waited: Duration::ZERO,
-            log_seq: 0,
+            #[cfg(test)]
+            test_clock: std::sync::Arc::default(),
+            log_seq: START_ROW,
+            wall_limit: 0,
             steps: 0,
             handbacks: 0,
             confirmations: 0,
             playbook: None,
             effects: Vec::new(),
+            approvals: Vec::new(),
             kept: HashMap::new(),
+            read_under: None,
         }
     }
 
@@ -135,12 +160,12 @@ impl Runner {
         if self.steps >= limits.steps {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Steps)));
         }
-        self.within_wall(limits)
+        self.within_wall()
     }
 
-    /// Ends the run when its `wall` limit has passed.
-    pub(crate) fn within_wall(&self, limits: &Limits) -> Result<(), Stop> {
-        if self.wall_s() > limits.wall_s {
+    /// Ends the run when its time is at or above the `wall_s` of the newest load (A6.5, CP-135 (3) (iv)).
+    pub(crate) fn within_wall(&self) -> Result<(), Stop> {
+        if self.wall_s() >= self.wall_limit {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Wall)));
         }
         Ok(())
@@ -153,7 +178,7 @@ impl Runner {
             Some(Target::File(target)) if step.class == ActionClass::Read => {
                 self.file_read(step, target, loaded)
             }
-            Some(Target::File(target)) => self.file_write(step, target, loaded),
+            Some(Target::File(target)) => self.file_write(step, target),
             Some(Target::Api(target)) => self.api_call(target, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }
@@ -175,7 +200,7 @@ impl Runner {
     }
 
     /// Opens a handback and waits for its result; the wait is no time of the run's `wall_s`. A log line that the
-    /// store refuses does not keep the handback from opening.
+    /// store refuses does not keep the handback from opening. A `cancel` is read when the result has come.
     pub(crate) fn handback(
         &mut self,
         reason: HandbackReason,
@@ -195,13 +220,15 @@ impl Runner {
                 endpoint: None,
             },
         });
-        let asked = Clock::now();
+        let asked = self.elapsed();
         let reply = self.link.ask(&frame);
-        self.waited += asked.elapsed();
-        match reply? {
-            ToRunner::HandbackReply(HandbackReply { result }) => Ok(result),
-            _ => Err(Broken::Frame("not_a_handback_reply").into()),
-        }
+        self.waited += self.elapsed().saturating_sub(asked);
+        let result = match reply? {
+            ToRunner::HandbackReply(HandbackReply { result }) => result,
+            _ => return Err(Broken::Frame("not_a_handback_reply").into()),
+        };
+        self.check()?;
+        Ok(result)
     }
 
     /// Takes what came on the link while no request waited, and ends the run after a `cancel`.
@@ -271,6 +298,7 @@ impl Runner {
                 {
                     return Err(Broken::Frame("load_of_another_agent").into());
                 }
+                self.wall_limit = reply.config.limits.wall_s;
                 Ok(reply)
             }
             Ok(_) => Err(Broken::Frame("not_the_answer").into()),
@@ -314,13 +342,22 @@ impl Runner {
         }
     }
 
+    /// The time since the runner started, on a clock that never goes back.
+    pub(crate) fn elapsed(&self) -> Duration {
+        let elapsed = self.started.elapsed();
+        #[cfg(test)]
+        let elapsed = elapsed
+            + Duration::from_millis(self.test_clock.load(std::sync::atomic::Ordering::SeqCst));
+        elapsed
+    }
+
     /// The runner's seconds without the waits for a confirmation or a handback reply.
     pub(crate) fn wall_s(&self) -> u32 {
-        let spent = self.started.elapsed().saturating_sub(self.waited);
+        let spent = self.elapsed().saturating_sub(self.waited);
         u32::try_from(spent.as_secs()).unwrap_or(u32::MAX)
     }
 
-    fn close(mut self, end: Result<Outcome, Stop>) -> i32 {
+    pub(crate) fn close(mut self, end: Result<Outcome, Stop>) -> i32 {
         let (mut outcome, mut cause) = match end {
             Ok(outcome) => (outcome, None),
             Err(Stop::End(outcome, cause)) => (outcome, cause),
@@ -376,6 +413,18 @@ impl Runner {
             tokens_out: 0,
             wall_s: self.wall_s(),
             model: None,
+            before_start: None,
+            cut: None,
+            no_key: None,
+            not_to_account: None,
+            incomplete: None,
+            reply_to_other: None,
+            more_pages: None,
+            held_recipient: None,
+            organized: None,
+            other_task: None,
+            held_earlier: None,
+            earlier_page: None,
         };
         let call = RunnerCall::Finish(Finish {
             agent: self.args.agent.clone(),

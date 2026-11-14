@@ -1,3 +1,5 @@
+#![deny(clippy::undocumented_unsafe_blocks)]
+
 mod common;
 
 use std::time::Duration;
@@ -79,6 +81,7 @@ fn a_runner_that_ends_with_no_stored_finish_gets_end_run_and_its_mark_goes_at_th
     let rig = Rig::new("end-run");
     let script = rig.script(&[
         "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
         r#"send {"t":"progress","step":1,"of":2}"#,
         r#"send {"t":"done","outcome":"failed"}"#,
         "exit 1",
@@ -113,7 +116,11 @@ fn an_end_run_that_is_not_acknowledged_leaves_the_mark() {
     rig.store
         .fail_all
         .store(1, std::sync::atomic::Ordering::SeqCst);
-    let script = rig.script(&["hello", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
@@ -366,15 +373,15 @@ fn a_hello_of_another_agent_is_no_start() {
 fn a_frame_that_cannot_be_read_ends_the_run_and_its_runner() {
     for bad in ["garbage", "oversize"] {
         let rig = Rig::new("broken-frame");
-        let script = rig.script(&["hello", "on-eof hang", "child", bad, "log sent", "idle"]);
+        let script = rig.script(&["hello", "on-eof hang", "child", bad, "idle"]);
         let spec = rig.spec(&script);
         let run = spec.run.clone();
         rig.sup.start(spec).unwrap();
-        assert!(script.wait_log("sent", SHORT), "{}", script.log());
         let end = rig.rec.wait_end(&run, SHORT);
         assert!(end.is_some(), "{bad}: the run did not end");
         assert_runner_gone(&script);
         let child = script.logged("child");
+        assert_eq!(child.len(), 1, "{bad}: {}", script.log());
         assert!(
             wait_until(SHORT, || child.iter().all(|(p, c)| gone(*p, *c))),
             "{bad}"
@@ -402,4 +409,155 @@ fn a_runner_that_closes_its_output_gets_link_end_to_end_by_itself_before_the_lib
     assert!(rig.rec.wait_end(&run, SHORT + link_end).is_some());
     assert!(gone(runner[0].0, runner[0].1));
     assert!(closed.elapsed() >= link_end - Duration::from_millis(1600));
+}
+
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn waitid(idtype: i32, id: u32, info: *mut std::ffi::c_void, options: i32) -> i32;
+    fn proc_pidinfo(
+        pid: i32,
+        flavor: i32,
+        arg: u64,
+        buffer: *mut std::ffi::c_void,
+        size: i32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+const PROC_PIDTBSDINFO: i32 = 3;
+#[cfg(target_os = "macos")]
+const PROC_BSDINFO_SIZE: usize = 136;
+#[cfg(target_os = "macos")]
+const P_PID: i32 = 1;
+#[cfg(target_os = "macos")]
+const WEXITED: i32 = 0x04;
+#[cfg(target_os = "macos")]
+const WNOHANG: i32 = 0x01;
+#[cfg(target_os = "macos")]
+const WNOWAIT: i32 = 0x20;
+#[cfg(target_os = "macos")]
+const SIGINFO_BUFFER_WORDS: usize = 32;
+#[cfg(target_os = "macos")]
+const SIGINFO_PID_WORD: usize = 3;
+
+#[cfg(target_os = "macos")]
+struct OwnChild(std::process::Child);
+
+#[cfg(target_os = "macos")]
+impl Drop for OwnChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn table_row(pid: u32, arg: u64) -> Result<u32, i32> {
+    let mut buf = [0u8; PROC_BSDINFO_SIZE];
+    let size = i32::try_from(PROC_BSDINFO_SIZE).unwrap();
+    let pid = i32::try_from(pid).unwrap();
+    // SAFETY: buf holds PROC_BSDINFO_SIZE bytes, the size that the call is given, and proc_pidinfo writes at most
+    // that many; it reads the table and changes nothing.
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDTBSDINFO, arg, buf.as_mut_ptr().cast(), size) };
+    if got == size {
+        Ok(u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]))
+    } else {
+        Err(std::io::Error::last_os_error().raw_os_error().unwrap_or(0))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn exit_reported(pid: u32) -> bool {
+    let mut info = [0i32; SIGINFO_BUFFER_WORDS];
+    // SAFETY: info holds 128 bytes, more than the 104 bytes of siginfo_t that waitid writes; WNOWAIT leaves the
+    // child unreaped and WNOHANG returns at once.
+    let r = unsafe {
+        waitid(
+            P_PID,
+            pid,
+            info.as_mut_ptr().cast(),
+            WEXITED | WNOHANG | WNOWAIT,
+        )
+    };
+    r == 0 && u32::try_from(info[SIGINFO_PID_WORD]).ok() == Some(pid)
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_read_with_it_finds_the_unreaped_one(
+) {
+    use std::process::{Command, Stdio};
+    let mut child = OwnChild(
+        Command::new("/bin/cat")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let pid = child.0.id();
+    let input = child.0.stdin.take();
+    let created = process::creation_time(pid);
+    let running = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    drop(input);
+    let exited = wait_until(SHORT, || exit_reported(pid));
+    let unreaped = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        process::creation_time(pid),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    let reaped_status = if exited { child.0.wait().ok() } else { None };
+    let reaped = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        process::creation_time(pid),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    println!(
+        "exit-read running: arg0={:?} arg1={:?} public={} | exited unreaped: arg0={:?} arg1={:?} public={} | reaped: arg0={:?} arg1={:?} public={}",
+        running.0,
+        running.1,
+        running.2,
+        unreaped.0,
+        unreaped.1,
+        unreaped.2.is_some() || unreaped.3,
+        reaped.0,
+        reaped.1,
+        reaped.2.is_some() || reaped.3
+    );
+    assert!(running.0.is_ok(), "the read with 0 finds the running child");
+    assert!(running.1.is_ok(), "the read with 1 finds the running child");
+    assert!(running.2, "the public reads find the running child");
+    assert!(
+        exited,
+        "the child exited within SHORT once the test closed its input"
+    );
+    assert!(
+        unreaped.0.is_err(),
+        "the read with 0 finds no exited child that is not reaped"
+    );
+    assert!(
+        unreaped.1.is_ok(),
+        "the read with 1 finds the exited child that is not reaped"
+    );
+    assert_eq!(
+        (unreaped.2, unreaped.3),
+        (None, false),
+        "the public reads find no exited child"
+    );
+    assert!(reaped_status.is_some_and(|s| s.success()));
+    assert!(
+        reaped.0.is_err() && reaped.1.is_err(),
+        "neither read finds the reaped child"
+    );
+    assert_eq!(
+        (reaped.2, reaped.3),
+        (None, false),
+        "the public reads find no reaped child"
+    );
 }
