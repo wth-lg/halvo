@@ -438,15 +438,17 @@ EOF
 }
 
 break_record() {
-  node - "$scratch/$1/$records_dir" "$2" "$3" "$4" <<'EOF' || exit 2
+  node - "$scratch/$1/$records_dir" "$2" "$3" "$4" "${5:-0}" <<'EOF' || exit 2
 const fs = require("fs");
 const path = require("path");
-const [dir, kind, prefix, body] = process.argv.slice(2);
+const [dir, kind, prefix, body, nth] = process.argv.slice(2);
 const file = fs.readdirSync(dir)
   .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
   .sort()
-  .find((name) => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")).kind === kind);
+  .filter((name) => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")).kind === kind)[Number(nth)];
 if (!file) process.exit(3);
+console.log(file);
+if (body === "") process.exit(0);
 const before = fs.readFileSync(path.join(dir, file), "utf8");
 const record = JSON.parse(before);
 new Function("record", body)(record);
@@ -497,6 +499,7 @@ commit_record_name() {
 }
 
 expect_records() {
+  wanted_verdict=$1
   case_name=$2
   dir=$scratch/$case_name
   at=$(git -C "$dir" rev-parse --verify -q HEAD)
@@ -508,7 +511,11 @@ expect_records() {
     *) got=exit-$code ;;
   esac
   [ "$got" != FAIL ] || grep -q -F -- "$3" "$dir/cause" || got=FAIL-for-another-cause
-  verdict "$1" "$got" "$case_name"
+  shift 3
+  for broken in "$@"; do
+    grep -q -F "self-test concurrency: record ${broken%.json}: " "$dir/out/records.txt" 2>/dev/null || got=$got-without-the-problem-line-of-${broken%.json}
+  done
+  verdict "$wanted_verdict" "$got" "$case_name"
 }
 
 measure_fixture() {
@@ -672,17 +679,15 @@ self_test() {
   records_fixture records-of-head
   expect_records PASS records-of-head ''
 
-  records_fixture a-file-that-is-no-record-at-head
-  printf 'not a record\n' >"$scratch/a-file-that-is-no-record-at-head/$records_dir/notes.txt" || exit 2
-  git -C "$scratch/a-file-that-is-no-record-at-head" add "$records_dir/notes.txt" || exit 2
-  commit_fixture a-file-that-is-no-record-at-head
-  expect_records PASS a-file-that-is-no-record-at-head ''
-
-  records_fixture a-record-with-a-name-that-is-not-ascii
-  cp "$scratch/a-record-with-a-name-that-is-not-ascii/$first_good" "$scratch/a-record-with-a-name-that-is-not-ascii/$records_dir/good-caf$(printf '\303\251')-a-copy.json" || exit 2
-  git -C "$scratch/a-record-with-a-name-that-is-not-ascii" add "$records_dir" || exit 2
-  commit_fixture a-record-with-a-name-that-is-not-ascii
-  expect_records PASS a-record-with-a-name-that-is-not-ascii ''
+  shared=$scratch/files-that-are-no-records-a-name-that-is-not-ascii-and-an-untracked-record
+  records_fixture files-that-are-no-records-a-name-that-is-not-ascii-and-an-untracked-record
+  printf 'not a record\n' >"$shared/$records_dir/notes.txt" || exit 2
+  printf 'not a record\n' >"$shared/$records_dir/notes.json.txt" || exit 2
+  cp "$shared/$first_good" "$shared/$records_dir/good-caf$(printf '\303\251')-a-copy.json" || exit 2
+  git -C "$shared" add -- "$records_dir" || exit 2
+  commit_fixture files-that-are-no-records-a-name-that-is-not-ascii-and-an-untracked-record
+  cp "$shared/$first_good" "$shared/$records_dir/good-a-copy-that-head-does-not-hold.json" || exit 2
+  expect_records PASS files-that-are-no-records-a-name-that-is-not-ascii-and-an-untracked-record ''
 
   records_fixture a-record-in-a-sub-directory
   mkdir -p "$scratch/a-record-in-a-sub-directory/$records_dir/kept" || exit 2
@@ -698,29 +703,18 @@ let failed = 0;'
   expect_records FAIL records-mjs-prints-only-the-last-line 'of the commit has no line'
 
   records_fixture a-good-record-expects-another-count
-  break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted'
+  break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted' >/dev/null
   commit_fixture a-good-record-expects-another-count
   expect_records FAIL a-good-record-expects-another-count "check 50's records exited 1"
 
-  records_fixture a-bad-record-expects-no-violation
-  break_record a-bad-record-expects-no-violation judge bad- 'record.expect.violations = []'
-  commit_fixture a-bad-record-expects-no-violation
-  expect_records FAIL a-bad-record-expects-no-violation "check 50's records exited 1"
-
-  records_fixture a-line-record-expects-another-line
-  break_record a-line-record-expects-another-line line good- 'record.expect.line += "."'
-  commit_fixture a-line-record-expects-another-line
-  expect_records FAIL a-line-record-expects-another-line "check 50's records exited 1"
-
-  records_fixture a-record-of-a-kind-with-no-reading
-  break_record a-record-of-a-kind-with-no-reading judge good- 'record.kind = "no-such-reading"'
-  commit_fixture a-record-of-a-kind-with-no-reading
-  expect_records FAIL a-record-of-a-kind-with-no-reading "check 50's records exited 1"
-
-  records_fixture a-record-that-is-no-json
-  printf ',\n' >>"$scratch/a-record-that-is-no-json/$first_good" || exit 2
-  commit_fixture a-record-that-is-no-json
-  expect_records FAIL a-record-that-is-no-json "check 50's records exited 1"
+  records_fixture four-records-broken-in-one-tree
+  bad_judge=$(break_record four-records-broken-in-one-tree judge bad- 'record.expect.violations = []') || exit 2
+  good_line_record=$(break_record four-records-broken-in-one-tree line good- 'record.expect.line += "."') || exit 2
+  no_reading=$(break_record four-records-broken-in-one-tree judge good- 'record.kind = "no-such-reading"' 1) || exit 2
+  no_json=$(break_record four-records-broken-in-one-tree send good- '') || exit 2
+  printf ',\n' >>"$scratch/four-records-broken-in-one-tree/$records_dir/$no_json" || exit 2
+  commit_fixture four-records-broken-in-one-tree
+  expect_records FAIL four-records-broken-in-one-tree "check 50's records exited 1" "$bad_judge" "$good_line_record" "$no_reading" "$no_json"
 
   records_fixture records-mjs-skips-a-record
   edit_file "$scratch/records-mjs-skips-a-record/$records_script" '  .sort();' '  .sort().slice(1);'
@@ -729,13 +723,9 @@ let failed = 0;'
 
   records_fixture records-mjs-exits-0-on-a-broken-record
   edit_file "$scratch/records-mjs-exits-0-on-a-broken-record/$records_script" 'process.exit(failed === 0 ? 0 : 1);' 'process.exit(0);'
-  break_record records-mjs-exits-0-on-a-broken-record judge good- 'record.expect.counted = !record.expect.counted'
+  break_record records-mjs-exits-0-on-a-broken-record judge good- 'record.expect.counted = !record.expect.counted' >/dev/null
   commit_fixture records-mjs-exits-0-on-a-broken-record
   expect_records FAIL records-mjs-exits-0-on-a-broken-record 'a problem line with exit 0'
-
-  records_fixture a-record-that-head-does-not-hold
-  cp "$scratch/a-record-that-head-does-not-hold/$first_good" "$scratch/a-record-that-head-does-not-hold/$records_dir/good-a-copy-that-head-does-not-hold.json" || exit 2
-  expect_records PASS a-record-that-head-does-not-hold ''
 
   records_fixture a-record-in-a-sub-directory-beside-an-untracked-record
   mkdir -p "$scratch/a-record-in-a-sub-directory-beside-an-untracked-record/$records_dir/kept" || exit 2
