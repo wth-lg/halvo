@@ -41,10 +41,14 @@ pub enum EntryAtDataDir {
     NotADirectory,
 }
 
-/// The cause of ruling ST-36 (e) at `dir`, read by the name; `None` when nothing stands there or
-/// a directory does, through a link or not.
+/// The cause of ruling ST-36 (e) at `dir`, read by the name; `None` when a directory stands
+/// there, through a link or not, or when nothing stands there and the nearest parent that stands
+/// is a directory. A missing name below a parent link whose target is away answers that parent's
+/// cause.
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
-    let named = std::fs::symlink_metadata(dir).ok()?;
+    let Ok(named) = std::fs::symlink_metadata(dir) else {
+        return dir.parent().and_then(entry_fault);
+    };
     match std::fs::metadata(dir) {
         Ok(target) if target.is_dir() => None,
         Ok(_) => Some(EntryAtDataDir::NotADirectory),
@@ -121,8 +125,9 @@ pub enum DataDirFault {
 }
 
 /// The check of a data directory, on the lock's own descriptor when `held` is given and on a
-/// descriptor of its own otherwise (the app's call when no daemon answers): the owner must be this
-/// user; a directory at its own name whose mode gives group or others access is set to 0700 on
+/// descriptor of its own otherwise (the app's call when no daemon answers), and never by the name
+/// again: whether the directory was reached through a link is what its open recorded. The owner
+/// must be this user; a directory at its own name whose mode gives group or others access is set to 0700 on
 /// the descriptor; a directory reached through a link at its last name is never narrowed, and its
 /// mode must give group and others no access. A parent that is a link is no fault. Windows has no
 /// such check in this release (ruling ST-36 (b) to (d)).
@@ -132,11 +137,11 @@ pub fn check_data_dir(
     held: Option<&crate::instance_lock::InstanceLock>,
 ) -> Result<DataDirCheck, DataDirFault> {
     let opened;
-    let directory = match held {
-        Some(lock) => lock.directory(),
+    let (directory, through_a_link) = match held {
+        Some(lock) => (lock.directory(), lock.through_a_link()),
         None => {
             opened = match crate::instance_lock::open(dir.path()) {
-                Ok(directory) => directory,
+                Ok(opened) => opened,
                 Err(e) => {
                     return match entry_cause(&e) {
                         Some(cause) => Err(DataDirFault::Entry(cause)),
@@ -147,18 +152,18 @@ pub fn check_data_dir(
                     }
                 }
             };
-            &opened
+            (&opened.directory, opened.through_a_link)
         }
     };
     // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
     let me = unsafe { libc::geteuid() };
-    check_opened(dir.path(), directory, me)
+    check_opened(directory, through_a_link, me)
 }
 
 #[cfg(target_os = "macos")]
 pub(crate) fn check_opened(
-    dir: &Path,
     directory: &std::fs::File,
+    through_a_link: bool,
     me: u32,
 ) -> Result<DataDirCheck, DataDirFault> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -169,12 +174,7 @@ pub(crate) fn check_opened(
         return Err(DataDirFault::OtherOwner);
     }
     let open_to_others = held.mode() & 0o077 != 0;
-    let at_its_own_name = std::fs::symlink_metadata(dir).is_ok_and(|named| {
-        !named.file_type().is_symlink()
-            && named.is_dir()
-            && (named.dev(), named.ino()) == (held.dev(), held.ino())
-    });
-    if at_its_own_name {
+    if !through_a_link {
         if open_to_others {
             directory
                 .set_permissions(std::fs::Permissions::from_mode(0o700))
@@ -1379,8 +1379,171 @@ mod tests {
     #[cfg(target_os = "macos")]
     mod st36_check {
         use super::super::*;
-        use crate::instance_lock::InstanceLock;
+        use crate::instance_lock::{read, InstanceLock, LockRead};
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        #[test]
+        fn a_directory_reached_through_a_link_is_never_narrowed_even_after_the_name_is_swapped_after_the_take(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let target = root.path().join("moved");
+            std::fs::create_dir(&target).unwrap();
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let name = root.path().join("d");
+            std::os::unix::fs::symlink(&target, &name).unwrap();
+            let data = DataDir::from_flag(&name).unwrap();
+            // The lock's descriptor is opened through the link.
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            // Swap: the link goes and the folder it led to now stands at the name itself.
+            std::fs::remove_file(&name).unwrap();
+            std::fs::rename(&target, &name).unwrap();
+            let result = check_data_dir(&data, Some(&lock));
+            let mode = std::fs::metadata(&name).unwrap().mode() & 0o7777;
+            assert_eq!(
+                mode, 0o755,
+                "the directory reached through a link was narrowed; check gave {result:?}"
+            );
+            assert_eq!(result, Err(DataDirFault::LinkedAndOpenToOthers));
+        }
+
+        #[test]
+        fn a_directory_never_reached_through_a_link_is_never_answered_as_linked_after_the_name_is_swapped(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let name = root.path().join("d");
+            std::fs::create_dir(&name).unwrap();
+            std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let data = DataDir::from_flag(&name).unwrap();
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            // No link is made: the locked directory moves and a new real directory takes the name.
+            std::fs::rename(&name, root.path().join("old")).unwrap();
+            std::fs::create_dir(&name).unwrap();
+            std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let result = check_data_dir(&data, Some(&lock));
+            assert!(
+                !matches!(result, Ok(DataDirCheck::Linked { .. })),
+                "no link stands anywhere, yet the check answered {result:?}"
+            );
+            if let Ok(check) = &result {
+                assert_eq!(check.resolved_line(), None);
+            }
+        }
+
+        #[test]
+        fn the_resolved_folder_is_read_from_the_descriptor_and_not_from_a_link_pointed_elsewhere_after_the_take(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let first = root.path().join("first");
+            let second = root.path().join("second");
+            for dir in [&first, &second] {
+                std::fs::create_dir(dir).unwrap();
+                std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+            }
+            let name = root.path().join("d");
+            std::os::unix::fs::symlink(&first, &name).unwrap();
+            let data = DataDir::from_flag(&name).unwrap();
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            std::fs::remove_file(&name).unwrap();
+            std::os::unix::fs::symlink(&second, &name).unwrap();
+            assert_eq!(
+                check_data_dir(&data, Some(&lock)),
+                Ok(DataDirCheck::Linked {
+                    resolved: first.canonicalize().unwrap()
+                })
+            );
+        }
+
+        fn leads_nowhere(path: &Path) {
+            let data = DataDir::from_flag(path).unwrap();
+            assert_eq!(
+                data.is_provisioned(),
+                Err(EntryAtDataDir::LinkLeadsNowhere),
+                "{path:?}"
+            );
+            assert_eq!(
+                check_data_dir(&data, None),
+                Err(DataDirFault::Entry(EntryAtDataDir::LinkLeadsNowhere)),
+                "{path:?}"
+            );
+            match read(path) {
+                Ok(LockRead::NoDirectory) => panic!("read gave NoDirectory for {path:?}"),
+                Ok(_) => panic!("read succeeded for {path:?}"),
+                Err(e) => assert_eq!(
+                    entry_cause(&e),
+                    Some(EntryAtDataDir::LinkLeadsNowhere),
+                    "{path:?}: {e}"
+                ),
+            }
+            let taken = InstanceLock::try_take(path);
+            assert!(
+                matches!(&taken, Err(e) if entry_cause(e) == Some(EntryAtDataDir::LinkLeadsNowhere)),
+                "{path:?}"
+            );
+        }
+
+        #[test]
+        fn a_link_loop_and_a_chain_of_links_that_ends_away_lead_nowhere() {
+            let root = tempfile::tempdir().unwrap();
+            let own = root.path().join("own");
+            std::os::unix::fs::symlink(&own, &own).unwrap();
+            leads_nowhere(&own);
+            let a = root.path().join("a");
+            let b = root.path().join("b");
+            std::os::unix::fs::symlink(&b, &a).unwrap();
+            std::os::unix::fs::symlink(&a, &b).unwrap();
+            leads_nowhere(&a);
+            let c = root.path().join("c");
+            let e = root.path().join("e");
+            std::os::unix::fs::symlink(root.path().join("unplugged"), &e).unwrap();
+            std::os::unix::fs::symlink(&e, &c).unwrap();
+            leads_nowhere(&c);
+        }
+
+        #[test]
+        fn a_chain_of_links_to_a_folder_is_followed_and_never_narrowed() {
+            let root = tempfile::tempdir().unwrap();
+            for (bits, ok) in [(0o700, true), (0o755, false)] {
+                let target = root.path().join(format!("t{bits:o}"));
+                std::fs::create_dir(&target).unwrap();
+                std::fs::set_permissions(&target, std::fs::Permissions::from_mode(bits)).unwrap();
+                let middle = root.path().join(format!("m{bits:o}"));
+                std::os::unix::fs::symlink(&target, &middle).unwrap();
+                let name = root.path().join(format!("d{bits:o}"));
+                std::os::unix::fs::symlink(&middle, &name).unwrap();
+                let data = DataDir::from_flag(&name).unwrap();
+                assert_eq!(data.is_provisioned(), Ok(false));
+                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                let want = if ok {
+                    Ok(DataDirCheck::Linked {
+                        resolved: target.canonicalize().unwrap(),
+                    })
+                } else {
+                    Err(DataDirFault::LinkedAndOpenToOthers)
+                };
+                assert_eq!(check_data_dir(&data, Some(&lock)), want, "{bits:o}");
+                assert_eq!(
+                    std::fs::metadata(&target).unwrap().mode() & 0o7777,
+                    bits,
+                    "{bits:o}"
+                );
+            }
+        }
+
+        #[test]
+        fn a_data_directory_behind_a_parent_link_that_leads_nowhere_is_never_a_first_run() {
+            let root = tempfile::tempdir().unwrap();
+            let volume = root.path().join("Volume");
+            std::os::unix::fs::symlink(root.path().join("unplugged"), &volume).unwrap();
+            let data = DataDir::from_flag(volume.join("halvo")).unwrap();
+            let provisioned = data.is_provisioned();
+            let check = check_data_dir(&data, None);
+            assert_ne!(
+                provisioned,
+                Ok(false),
+                "is_provisioned answers a first run; check gave {check:?}"
+            );
+            assert_ne!(check, Ok(DataDirCheck::Missing));
+        }
 
         fn mode(path: &Path) -> u32 {
             std::fs::metadata(path).unwrap().mode() & 0o7777
@@ -1465,7 +1628,7 @@ mod tests {
             let lock = InstanceLock::take(&path).unwrap().unwrap();
             let me = std::fs::metadata(&path).unwrap().uid();
             assert_eq!(
-                check_opened(&path, lock.directory(), me.wrapping_add(1)),
+                check_opened(lock.directory(), lock.through_a_link(), me.wrapping_add(1)),
                 Err(DataDirFault::OtherOwner)
             );
             assert_eq!(mode(&path), 0o755);
@@ -1474,7 +1637,7 @@ mod tests {
             let linked = link(&target, &root.path().join("l"));
             let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
             assert_eq!(
-                check_opened(linked.path(), lock.directory(), me.wrapping_add(1)),
+                check_opened(lock.directory(), lock.through_a_link(), me.wrapping_add(1)),
                 Err(DataDirFault::OtherOwner)
             );
         }
