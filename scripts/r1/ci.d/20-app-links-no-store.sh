@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: the app reaches capture data only through halvo-control and the daemon
+# rule: the normal dependency tree of halvo, on every target and with all features, holds halvo-control and none of halvo-capture, halvo-sqlcipher, rusqlite, libsqlite3-sys
 set -u
 name=20-app-links-no-store
 required='halvo-control'
