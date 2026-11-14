@@ -1496,6 +1496,33 @@ own_self_test() {
   own_case alone-line-with-a-carriage-return-names-the-alone-part 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$lone$nl# lane: free" "$pass_a"
   own_case lane-lines-alone-and-free 1 "FAIL 10-a (its first 10 lines hold more than one '# lane:' line)" macos
+  new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; [ -e \"\$CI_D_REPO/end.30-c\" ] || { printf 'FAIL %s (it started beside the free script 30-c)\\n' \"\$me\"; exit 1; }; $check_passes" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; : >\"\$CI_D_REPO/start.\$me\"; w start.30-c || exit 1; : >\"\$CI_D_REPO/end.\$me\"; $check_passes" &&
+    add_script r1 30-c.sh "$free" "$prelude_any; : >\"\$CI_D_REPO/start.\$me\"; w end.20-b || exit 1; sleep 2; : >\"\$CI_D_REPO/end.\$me\"; $check_passes"
+  own_case alone-part-waits-for-a-free-script-that-outlasts-the-cargo-lane 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$free" "$pass_a" && add_script r1 20-b.sh "$free" "$pass_b" &&
+    mkdir -p "$fixture/target/ci-artifacts" && printf 'a file\n' >"$fixture/target/ci-artifacts/10-a"
+  case_check_jobs=1
+  case_first='FAIL 10-a (its artifacts directory cannot be made)'
+  case_then='PASS 20-b'
+  own_case free-check-that-cannot-start-gives-its-place-to-the-next 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$lone" "$pass_a" && add_script r1 20-b.sh "$lone" "$pass_b" &&
+    mkdir -p "$fixture/target/ci-artifacts" && printf 'a file\n' >"$fixture/target/ci-artifacts/10-a"
+  case_first='FAIL 10-a (its artifacts directory cannot be made)'
+  case_then='PASS 20-b'
+  own_case alone-check-that-cannot-start-lets-the-next-alone-check-run 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" "perl -e 'setpgrp(0, 0); exec @ARGV' sh -c 'sleep 2; printf \"late detail of 10-a on stderr\\\\n\" >&2' >/dev/null & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$good" "sleep 4; printf 'PASS 20-b\\n'"
+  case_witness=yes
+  case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
+  case_then='ci.d macos: 2 passed, 0 failed, 0 skipped'
+  own_case standard-error-written-after-the-print-in-the-step-ci.d 0 'late detail of 10-a on stderr' macos
+  move_head='r=$CI_D_REPO; t=$(git -C "$r" write-tree); p=$(git -C "$r" rev-parse HEAD); c=$(printf "tree %s\nparent %s\nauthor f <f@example.invalid> 1 +0000\ncommitter f <f@example.invalid> 1 +0000\n\nf\n" "$t" "$p" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref HEAD "$c"'
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w moved || exit 1; printf '%s\\n' \"\$TMPDIR\" >\"\$CI_D_REPO/tmpdir.10-a\"; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $move_head; : >\"\$CI_D_REPO/moved\"; w tmpdir.10-a || exit 1; read -r t <\"\$CI_D_REPO/tmpdir.10-a\"; n=0; while [ -e \"\$t\" ] && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; $check_passes"
+  own_case head-moved-beside-another-check-names-both 1 'FAIL run-ci-d (one of 10-a, 20-b moved HEAD)' macos
+  new_repo && add_script r1 10-a.sh "$good$nl# lane: free " "$pass_a"
+  own_case lane-line-with-a-blank-after-its-value 1 "FAIL 10-a ($lane_refusal)" macos
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free$cr" "$prelude_any; meet || $check_alone; $check_passes"
   own_case lane-line-with-a-carriage-return-names-the-free-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
