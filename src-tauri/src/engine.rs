@@ -91,6 +91,9 @@ pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Se
     }
 }
 
+#[cfg(target_os = "macos")]
+pub use platform::configuration_at_creation;
+
 #[cfg(test)]
 pub fn installed_for_tests() -> GuardInstalled {
     GuardInstalled(())
@@ -223,7 +226,7 @@ mod platform {
     use objc2_foundation::{NSArray, NSError, NSString, NSURL};
     use objc2_web_kit::{
         WKContentRuleList, WKContentRuleListStore, WKNavigationAction, WKNavigationActionPolicy,
-        WKNavigationDelegate, WKPreferences, WKWebView,
+        WKNavigationDelegate, WKPreferences, WKWebView, WKWebViewConfiguration, WKWebsiteDataStore,
     };
     use tauri::webview::PlatformWebview;
 
@@ -297,6 +300,54 @@ mod platform {
             }
         }
     );
+
+    pub fn configuration_at_creation() -> Option<Retained<WKWebViewConfiguration>> {
+        let mtm = MainThreadMarker::new()?;
+        // SAFETY: on the main thread, which `mtm` proves; both come back retained.
+        let config = unsafe { WKWebViewConfiguration::new(mtm) };
+        // SAFETY: on the main thread; the store that keeps nothing comes back retained and the
+        // configuration retains it.
+        unsafe { config.setWebsiteDataStore(&WKWebsiteDataStore::nonPersistentDataStore(mtm)) };
+        if answers(&config, sel!(_setAllowedNetworkHosts:)) {
+            // SAFETY: +[NSSet set] takes nothing and returns an autoreleased empty set, which
+            // Retained retains.
+            let none: Option<Retained<AnyObject>> = unsafe { msg_send![objc2::class!(NSSet), set] };
+            if let Some(none) = none {
+                // SAFETY: the configuration answers _setAllowedNetworkHosts: (checked above),
+                // which takes an NSSet of NSString and returns void; the configuration copies it.
+                let _: () = unsafe { msg_send![&*config, _setAllowedNetworkHosts: &*none] };
+            }
+        }
+        Some(config)
+    }
+
+    fn read_the_store_and_the_hosts(view: &WKWebView) -> Result<(), String> {
+        // SAFETY: on the main thread with `view` retained; the copy of the configuration shares
+        // the page's data store and carries its allowed hosts, and both come back retained.
+        let config = unsafe { view.configuration() };
+        // SAFETY: the same, for the data store of that configuration.
+        let store = unsafe { config.websiteDataStore() };
+        // SAFETY: a property read of the retained store on the main thread.
+        if unsafe { store.isPersistent() } {
+            return Err("the window's data store keeps data between starts".to_string());
+        }
+        if !answers(&config, sel!(_allowedNetworkHosts)) {
+            return Err(
+                "the configuration of this system has no allowed-hosts setting".to_string(),
+            );
+        }
+        // SAFETY: the configuration answers _allowedNetworkHosts (checked above), which takes
+        // nothing and returns an NSSet or nil, retained here.
+        let hosts: Option<Retained<AnyObject>> =
+            unsafe { msg_send![&*config, _allowedNetworkHosts] };
+        let hosts = hosts.ok_or("the window allows every network host")?;
+        // SAFETY: an NSSet answers count, which takes nothing and returns NSUInteger.
+        let count: usize = unsafe { msg_send![&*hosts, count] };
+        if count != 0 {
+            return Err(format!("the window allows {count} network hosts"));
+        }
+        Ok(())
+    }
 
     fn put_delegate_in_front(view: &WKWebView, mtm: MainThreadMarker) -> Result<(), String> {
         // SAFETY: `view` is retained and this runs on the main thread, which `mtm` proves and
@@ -443,6 +494,7 @@ mod platform {
         if let Err(e) = put_delegate_in_front(&view, mtm)
             .and_then(|()| set_the_store_proxy(&view))
             .and_then(|()| turn_off_engine_features(&view))
+            .and_then(|()| read_the_store_and_the_hosts(&view))
         {
             let _ = answer.send(Err(e));
             return;
@@ -672,9 +724,16 @@ mod tests {
                 1,
             ),
             (
-                "put_delegate_in_front(&view, mtm)\n            .and_then(|()| set_the_store_proxy(&view))\n            .and_then(|()| turn_off_engine_features(&view))\n",
+                "put_delegate_in_front(&view, mtm)\n            .and_then(|()| set_the_store_proxy(&view))\n            .and_then(|()| turn_off_engine_features(&view))\n            .and_then(|()| read_the_store_and_the_hosts(&view))\n",
                 1,
             ),
+            ("answers(&config, sel!(_setAllowedNetworkHosts:))", 1),
+            ("msg_send![&*config, _setAllowedNetworkHosts: &*none]", 1),
+            ("WKWebsiteDataStore::nonPersistentDataStore(mtm)", 1),
+            ("answers(&config, sel!(_allowedNetworkHosts))", 1),
+            ("msg_send![&*config, _allowedNetworkHosts]", 1),
+            ("if unsafe { store.isPersistent() } {", 1),
+            ("if count != 0 {", 1),
             ("msg_send![&*prefs, _setPeerConnectionEnabled: false]", 1),
             ("msg_send![&*prefs, _peerConnectionEnabled]", 1),
             ("msg_send![class, _features]", 1),

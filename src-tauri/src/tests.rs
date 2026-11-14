@@ -1297,6 +1297,11 @@ fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_lo
             1,
         ),
         ("initialization_script", 1),
+        (
+            "    #[cfg(target_os = \"macos\")]\n    let builder = match crate::engine::configuration_at_creation() {\n        Some(configuration) => builder.with_webview_configuration(configuration),\n        None => builder,\n    };\n",
+            1,
+        ),
+        ("with_webview_configuration", 1),
         ("app.manage(installed);", 1),
     ] {
         assert_eq!(app.matches(text).count(), count, "{text}");

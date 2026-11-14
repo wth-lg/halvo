@@ -233,6 +233,11 @@ fn main_window<R: Runtime>(
         .on_download(|_, _| false)
         .initialization_script_for_all_frames(NO_PEER_SCRIPT)
         .visible(false);
+    #[cfg(target_os = "macos")]
+    let builder = match crate::engine::configuration_at_creation() {
+        Some(configuration) => builder.with_webview_configuration(configuration),
+        None => builder,
+    };
     #[cfg(windows)]
     let builder = builder.additional_browser_args(ENGINE_ARGS);
     #[cfg(windows)]
