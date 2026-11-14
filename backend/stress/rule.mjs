@@ -37,7 +37,7 @@ const bodyOf = (request) => {
   }
 };
 const sentMoreThanOnce = (request) => request.lost.length > 0;
-const firstSentAt = (request) => request.lost[0]?.sentAt ?? request.sentAt;
+const firstSentAt = (request) => Math.min(request.sentAt, ...request.lost.map((attempt) => attempt.sentAt).filter(Number.isFinite));
 const settlesOf = (row) => (row.state === "settled" ? 1 : 0) + (row.late_at !== null ? 1 : 0);
 const fitsTheRow = (body, row) =>
   body.dispatched === (row.dispatched === 1) && (body.state === "open" ? body.dispatched === true : body.state === row.state);
