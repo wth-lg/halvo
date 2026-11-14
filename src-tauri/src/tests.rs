@@ -1338,3 +1338,16 @@ fn the_script_of_every_frame_takes_the_peer_connection_constructors_away() {
         "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();"
     );
 }
+
+/// wry 0.57.1 refuses every request for a new window when the app sets no handler
+/// (src/webview2/mod.rs lines 861 to 863, src/wkwebview/class/wry_web_view_ui_delegate.rs
+/// lines 288 to 290; tauri-runtime-wry 2.12.3 src/lib.rs line 4829), so no handler stands.
+#[test]
+fn no_handler_for_a_new_window_stands_so_the_runtime_refuses_every_new_window() {
+    let sources = sources_of_the_app();
+    let handlers: usize = sources
+        .iter()
+        .map(|(_, text)| text.matches(".on_new_window(").count())
+        .sum();
+    assert_eq!(handlers, 0, "new-window handlers under src-tauri/src");
+}
