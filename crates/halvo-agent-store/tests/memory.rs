@@ -66,7 +66,7 @@ fn run_line(w: u32, run: u32) -> TypedRecord {
     TypedRecord {
         kind: "agent_run",
         json: format!(
-            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{run:031x}","day":20770,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null}}"#,
+            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{run:031x}","day":20770,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}}"#,
             wf(w),
             agent(1)
         ),
@@ -190,7 +190,7 @@ fn commit_checks_a_record_against_its_entry() {
     let mut extra = run_line(1, 1);
     extra.json = extra
         .json
-        .replace(r#""model":null}"#, r#""model":null,"x":1}"#);
+        .replace(r#""earlier_page":null}"#, r#""earlier_page":null,"x":1}"#);
     assert_eq!(store.typed_commit(vec![extra]), Err(CommitRefused::Record));
     let mut not_json = log_line(1, 1);
     not_json.json = "[1]".to_owned();

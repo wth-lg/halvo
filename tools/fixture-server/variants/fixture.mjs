@@ -13,6 +13,8 @@ export const VARIANTS = [
   'inject_shop',
   'inject_mail',
   'get_effect',
+  'no_reply',
+  'amount_changes',
 ];
 
 export const SEEDS = [1, 2, 3];
@@ -227,6 +229,8 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     fx.sessions = new Map();
     fx.devices = new Set();
     fx.tokens = new Map();
+    fx.withheld = false;
+    fx.changed = false;
   }
 
   function stateObject() {
@@ -294,8 +298,12 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function respond(ctx, status, headers, body) {
     if (status === 401 && ctx.counted) fx.st.requests.unauthorized += 1;
-    ctx.res.writeHead(status, { 'Cache-Control': 'no-store', ...headers });
-    ctx.res.end(body);
+    if (ctx.counted && ctx.changing && has('no_reply') && !fx.withheld) {
+      fx.withheld = true;
+    } else {
+      ctx.res.writeHead(status, { 'Cache-Control': 'no-store', ...headers });
+      ctx.res.end(body);
+    }
     if (ctx.carried && ctx.changing && has('session_expiry')) fx.sessions.delete(ctx.carried);
   }
 
@@ -446,6 +454,10 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     return t;
   }
 
+  function amountOf(t) {
+    return fx.changed ? t.amount + 100 : t.amount;
+  }
+
   function payHandler(ctx) {
     const d = data();
     if (ctx.path === '/frame' && ctx.method === 'GET') {
@@ -453,7 +465,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const t = tokenEntry(ctx.url.searchParams.get('token'), kind);
       if (!t) return text(ctx, 401, 'no valid token\n');
       const instruments = kind === 'bill' ? d.utility.instruments : d.shop.instruments;
-      return html(ctx, 200, page.frame(kind, ctx.url.searchParams.get('token'), t.amount, instruments, opts()));
+      return html(ctx, 200, page.frame(kind, ctx.url.searchParams.get('token'), amountOf(t), instruments, opts()));
     }
     if (ctx.path === '/charge' && ctx.method === 'POST') {
       const f = form(ctx);
@@ -464,14 +476,14 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       ctx.carried = t.session;
       const instruments = kind === 'bill' ? d.utility.instruments : d.shop.instruments;
       const instrument = f.get('instrument');
-      if (!instruments.includes(instrument)) return html(ctx, 400, page.frame(kind, token, t.amount, instruments, opts()));
+      if (!instruments.includes(instrument)) return html(ctx, 400, page.frame(kind, token, amountOf(t), instruments, opts()));
       fx.tokens.delete(token);
       if (kind === 'bill') {
-        fx.st.utility.payments.push({ account: d.utility.account, amount: t.amount, payee: d.utility.payee, instrument });
+        fx.st.utility.payments.push({ account: d.utility.account, amount: amountOf(t), payee: d.utility.payee, instrument });
       } else {
         fx.st.shop.orders.push({
           items: d.shop.items.map((i) => ({ name: i.name, quantity: i.quantity })),
-          total: t.amount,
+          total: amountOf(t),
           instrument,
         });
       }
@@ -627,6 +639,12 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
         if (seeds.length === 1) fx.seed = Number(seeds[0]);
       }
       reset();
+      return json(ctx, 200, stateObject());
+    }
+    if (path === '/change') {
+      if (!has('amount_changes')) return text(ctx, 404, 'not found\n');
+      if (method !== 'POST') return text(ctx, 405, 'method not allowed\n', { Allow: 'POST' });
+      fx.changed = true;
       return json(ctx, 200, stateObject());
     }
     if (path === '/advance') {

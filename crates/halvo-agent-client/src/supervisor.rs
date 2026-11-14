@@ -333,6 +333,9 @@ pub(crate) enum Flow {
     Lost,
 }
 
+/// Runs one started run until the end of its runner's output, the runner's exit, a lost flow, or `link_end` after
+/// its stored `finish` while its runner has neither exited nor ended its output; then `finish_run` closes the link
+/// and ends the run.
 fn drive(
     inner: Arc<Inner>,
     slot: Arc<Slot>,
@@ -363,6 +366,7 @@ fn drive(
         return;
     }
     let _ = started.send(Ok(()));
+    let mut finished: Option<Instant> = None;
     loop {
         let flow = match rx.recv_timeout(TICK) {
             Ok(Event::Frame(frame)) => run.on_frame(*frame),
@@ -387,9 +391,22 @@ fn drive(
             slot.with_proc(RunProc::end_all);
             break;
         }
+        if finished.is_none() && run.ending.finish.is_some() {
+            finished = Some(Instant::now());
+        }
+        if finish_over(finished, Instant::now(), inner.config.link_end) {
+            break;
+        }
     }
     let ending = run.ending;
     finish_run(&inner, &slot, ending);
+}
+
+/// Whether a run whose `finish` was stored at `finished`, as the loop of `drive` first saw it, is over at `now`:
+/// `link_end` after its stored `finish` a runner that has neither exited nor ended its output gets its link closed,
+/// as at the end of its output. A run with no stored `finish` is never over by this clock.
+fn finish_over(finished: Option<Instant>, now: Instant, link_end: Duration) -> bool {
+    finished.is_some_and(|at| now.saturating_duration_since(at) >= link_end)
 }
 
 pub(crate) struct Running<'a> {
@@ -539,7 +556,8 @@ impl Running<'_> {
 }
 
 /// Closes the link, gives the runner `link_end` (`LINK_END` by default) to end by itself and then ends what is
-/// left, and reports the end.
+/// left, and reports the end. For a runner that outlived its stored `finish` this close comes `link_end` after the
+/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`.
 fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     slot.close_link();
     let deadline = Instant::now() + inner.config.link_end;
@@ -606,4 +624,39 @@ fn send_end_run(inner: &Inner, spec: &RunSpec) -> bool {
         run: spec.run.clone(),
     });
     owner::acknowledged(inner, &id, call)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_run_with_no_finish_is_never_over_and_one_with_a_finish_is_over_at_link_end_and_after_it() {
+        let link_end = Duration::from_secs(4);
+        let t0 = Instant::now();
+        let later = |d: Duration| t0 + d;
+        assert!(!finish_over(
+            None,
+            later(Duration::from_secs(3600)),
+            link_end
+        ));
+        assert!(!finish_over(None, t0, Duration::ZERO));
+        assert!(!finish_over(Some(t0), t0, link_end), "at the finish");
+        assert!(
+            !finish_over(Some(t0), later(link_end - TICK), link_end),
+            "one tick before link_end"
+        );
+        assert!(
+            finish_over(Some(t0), later(link_end), link_end),
+            "at link_end"
+        );
+        assert!(
+            finish_over(Some(t0), later(link_end + TICK), link_end),
+            "a tick after link_end"
+        );
+        assert!(
+            finish_over(Some(t0), later(Duration::from_secs(3600)), link_end),
+            "long after link_end"
+        );
+    }
 }

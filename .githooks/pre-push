@@ -1,26 +1,28 @@
 #!/bin/sh
 pushed=$(cat) || exit 1
 hooks=$(dirname "$0")
+for file in scripts/check-home-paths.sh scripts/home-path-allow.txt; do
+  if [ ! -f "$hooks/../$file" ]; then
+    printf 'pre-push: %s is missing beside this hook, so the push cannot be scanned for home paths and is refused. Restore the file (git checkout HEAD -- %s; in a sparse checkout without scripts/, git sparse-checkout add scripts) and push again.\n' "$file" "$file" >&2
+    exit 1
+  fi
+done
 messages=0
 printf '%s' "${pushed:+$pushed
 }" | sh "$hooks/../scripts/check-commit-messages.sh" --pre-push "$1" || messages=$?
 home_paths=0
-if [ -f "$hooks/../scripts/check-home-paths.sh" ]; then
-  said=$(printf '%s' "${pushed:+$pushed
+said=$(printf '%s' "${pushed:+$pushed
 }" | sh "$hooks/../scripts/check-home-paths.sh" --pre-push "$1") || home_paths=$?
-  [ -z "$said" ] || printf '%s\n' "$said"
-  case ${said##*"
+[ -z "$said" ] || printf '%s\n' "$said"
+case ${said##*"
 "} in
-    "check-home-paths: PASS: the push to "*) ;;
-    *)
-      if [ "$home_paths" = 0 ]; then
-        printf 'pre-push: the scan for home paths exited 0 without its PASS line, so the push is refused.\n' >&2
-        home_paths=1
-      fi
-      ;;
-  esac
-else
-  printf 'pre-push: the scan for home paths did not run, because %s is missing beside this hook.\n' "$hooks/../scripts/check-home-paths.sh" >&2
-fi
+  "check-home-paths: PASS: the push to "*) ;;
+  *)
+    if [ "$home_paths" = 0 ]; then
+      printf 'pre-push: the scan for home paths exited 0 without its PASS line, so the push is refused. Restore the scanner (git checkout HEAD -- scripts/check-home-paths.sh), run its self-test (sh scripts/check-home-paths.sh --self-test), and push again.\n' >&2
+      home_paths=1
+    fi
+    ;;
+esac
 [ "$messages" = 0 ] || exit "$messages"
 exit "$home_paths"

@@ -49,12 +49,14 @@ object_type! {
 }
 
 object_type! {
-    /// A confirmation request: one or more effects, each once; an effect of a request of the browser stands alone.
+    /// A confirmation request: whether the run's list was cut, `yes` or `no`, or null where the run made no list; and
+    /// one or more effects, each once; an effect of a request of the browser stands alone.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ConfirmRequest {
         pub v: V1 = "v" => from_json,
         pub run: RunId = "run" => from_json,
         pub agent: AgentId = "agent" => json::agent_id,
+        pub cut: Option<YesNo> = "cut" => opt(from_json),
         pub effects: Vec<ConfirmEffect> = "effects" => list(ConfirmEffect::from_raw),
     }
     rules(r) {

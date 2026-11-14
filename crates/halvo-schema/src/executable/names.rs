@@ -200,7 +200,11 @@ impl EffectState {
 
 names! {
     /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`. `secret` ends a run whose token
-    /// store could not be read, with the outcome `failed`.
+    /// store could not be read, with the outcome `failed`. `unauthorized` stands in a `step_failed` line, the line of
+    /// a step whose adapter call the service answered with 401; `not_selected` stands in a `stopped` line, the line of
+    /// a send whose message the reply rule no longer selects at the load before its `begin`; `no_start` stands in a
+    /// `stopped` line, the line of the list step of a run whose load holds no start row. None of the three stands in
+    /// a row of an effect while the states of an effect have no `not_made` (A7.4).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -226,6 +230,26 @@ names! {
         Ended = "ended",
         Changed = "changed",
         Secret = "secret",
+        Unauthorized = "unauthorized",
+        NotSelected = "not_selected",
+        NoStart = "no_start",
+    }
+}
+
+names! {
+    /// The state of a row of `agent_reply`, one state of the reply to one message: `drafted` when its draft is made,
+    /// `begun` when its send begins, `committed` when the send is committed, `unknown` when the outcome of the send is
+    /// not known, `lost` when a later PATCH of the draft answers 404 or fails its checks, and `withheld` when the
+    /// draft that the mail service made in the same call is not a plain reply to the sender alone: its one recipient
+    /// is not, byte for byte, the sender, it has no recipient or more than one, it holds a copy or blind-copy address,
+    /// or it stands in another conversation.
+    pub enum ReplyState {
+        Drafted = "drafted",
+        Begun = "begun",
+        Committed = "committed",
+        Unknown = "unknown",
+        Lost = "lost",
+        Withheld = "withheld",
     }
 }
 
@@ -253,8 +277,10 @@ names! {
 }
 
 names! {
-    /// The events of a line of a run's log.
+    /// The events of a line of a run's log. `start_accepted` is the line that A7.4 gives the handler of `start_run` to
+    /// build, line 1 of its run, with no step, cause, model or figure; it says that the store accepted the start.
     pub enum LogEvent {
+        StartAccepted = "start_accepted",
         StepOk = "step_ok",
         StepFailed = "step_failed",
         Recovered = "recovered",

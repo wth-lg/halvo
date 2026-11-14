@@ -9,7 +9,6 @@ crates/halvo-control/src/paths.rs	/Users/a	a made-up account name, a, in the tes
 crates/halvo-control/src/paths.rs	\Users\a	a made-up account name, a, in the tests of the data directory and the login item
 crates/halvo-control/src/service.rs	C:\Users\a b	a made-up account name, a, in the tests of the data directory and the login item
 crates/halvo-control/src/service.rs	/Users/a b	a made-up account name, a, in the tests of the data directory and the login item
-crates/halvo-control/src/service.rs	/Users/a	a made-up account name, a, in the tests of the data directory and the login item
 crates/halvo-agent-store/tests/bindings.rs	/Users/p	a made-up account name, p, in the tests of the agent store's bindings
 crates/halvo-agent-store/tests/bindings.rs	C:\\Users\\p	a made-up account name, p, in the tests of the agent store's bindings
 crates/halvo-agent-store/tests/bindings.rs	c:/Users/p	a made-up account name, p, in the tests of the agent store's bindings

@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 //! `learn-gate`, the gate host of the learning run (contracts.md L10): it opens a store, links the agent store's
 //! handlers and, by the arm, `LearnHandlers`, and plays the scripted cases of L9 occurrence by occurrence through
-//! its stub runner against its own page model, on a clock that the command sets. Commands: `drift` and `delete`;
-//! `privacy`, `routine`, `soak`, `model` and the product link of `drift` answer the refusal `usage` until their
+//! its stub runner against its own page model, on a clock that the command sets. Commands: `drift`, `delete` and
+//! `routine`; `privacy`, `soak`, `model` and the product link of `drift` answer the refusal `usage` until their
 //! units fill their modules. Exit status by L0.3: 0 done, 1 a check missed, 2 a refusal with one line
 //! `REFUSED <cause>: <detail>` on standard error and nothing on standard output.
 

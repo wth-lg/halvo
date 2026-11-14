@@ -20,11 +20,17 @@ check-home-paths: refuse a home path in the lines that commits add.
 
   sh scripts/check-home-paths.sh [--allow <file>] <revision>...
       Read every commit that git rev-list <revision>... lists, for example
-      52a4687e..HEAD or origin/main, and the lines that each of them adds.
+      52a4687e..HEAD or origin/main, but the exempt commits, and the lines
+      that each of them adds.
   sh scripts/check-home-paths.sh [--allow <file>] --pre-push <remote>
       Read the commits that a push would add to <remote>, from the lines that
       git writes to the standard input of a pre-push hook. .githooks/pre-push
       runs this after its check of the commit messages.
+  sh scripts/check-home-paths.sh [--allow <file>] --stale
+      Name each entry of the list in HEAD (or of the list that --allow
+      names) that allows nothing in HEAD: its file is not in HEAD, or no line
+      of the file, and not its name, holds the path of the entry as the scan
+      matches it. Exit 1 when it names one. 19-home-paths runs it.
   sh scripts/check-home-paths.sh --self-test
       Prove the grammar on its fixtures, the reading of commits in throwaway
       repositories, and .githooks/pre-push with pushes to a local bare remote.
@@ -145,7 +151,8 @@ when git quotes the name of such a file, the commits count as refused.
 Every file is read: a file that git calls binary, a
 lock file and a generated file by their bytes (git log --text, with no
 textconv and no external diff), split at each newline, with every NUL byte
-taken out first, so that UTF-16 text reads as ASCII; the target of a symbolic
+taken out first, so that UTF-16 and UTF-32 text of ASCII characters reads as
+ASCII, in either byte order; the target of a symbolic
 link; and the name of a file that a commit adds, as line 0. A renamed file
 counts as added in full. A line that a later commit removes again still
 counts, because the commit that holds it is pushed. A carriage return at the
@@ -153,13 +160,46 @@ end of a line changes no answer. A line is read in pieces of 1,000
 characters, each with the 320 before it and the 1,000 after it in view, so
 the time grows with the length of a line and with the count of its matches,
 and a path that goes on for more than 1,000 characters past the start of its
-piece is cut there.
+piece is cut there. A run of separators counts as one, so a path behind a run
+of more than about 1,000 separators is cut there too (a run of 2,500 passes,
+a run of 900 is caught): a part of the named limit K14.
 The settings of a clone that change what git
 log prints (colour, prefixes, a relative diff, renames, submodule logs,
 ignored submodules, blank context lines, quoted names) are set for the call.
+The scan also reads messages, with the same forms: the message of each
+commit that it reads, as git stores it below the header of the commit, and
+the message of each annotated tag that a push carries and that the remote
+does not hold already, or in the range mode of each annotated tag that a
+revision names (<base>..<tag>), and of each tag that such a tag names in
+turn. A line of a message with a home path counts as a line with a home
+path, and the list does not apply to a message: write a placeholder there.
+On a run that a pushed tag started, 19-home-paths reads the commits of the
+head and, beside them, the message of the tag (tag=read when the checkout's
+ref names the tag object). When the checkout wrote the tag's ref as its
+commit, it asks origin for that one ref with git ls-remote. If origin names
+this checkout's commit, there is no message (tag=remote-holds-a-commit). If
+origin names a tag object of this commit, it fetches it under
+refs/ci-d/19-home-paths/tag-of-the-run, a ref that nothing else writes and
+that no configured refspec moves, has this script read it, and deletes that
+ref again (tag=fetched-and-read). It fails when origin's tag names another
+commit (tag=remote-holds-another-commit: the tag moved, and the run of the
+newer push reads it), when origin holds no such ref
+(tag=remote-holds-no-such-ref: no rerun can read it), and when the ask or
+the fetch fails (tag=remote-could-not-be-asked: run the job again). A run
+that no tag started asks nobody (tag=not-a-tag-run).
 
-The commits of a push are the ones that the hook's check of commit messages
-reads (sh scripts/check-commit-messages.sh --help, layer 2): for each pushed
+Both checks of the hook take the commits of a push and of a range from one
+function, in scripts/commit-range.sh beside this script, so they read the
+same commits. In the range mode that is every commit that git rev-list
+<revision>... lists, but the newest exempt commit of
+scripts/check-commit-messages.sh and the commits that it reaches, when the
+default branch as this clone last fetched it (refs/remotes/origin/HEAD, or
+refs/remotes/origin/main) holds that commit; a commit that the default
+branch does not hold is never exempt, so a later commit cannot name an
+earlier one of its own branch. A clone that knows no default branch leaves
+the exempt commit out whenever it holds it: a named limit. The commits of a push are the ones that the hook's check of
+commit messages reads (sh scripts/check-commit-messages.sh --help, layer 2):
+for each pushed
 ref the commits that are on neither the remote's copy of that ref nor the
 default branch as this clone last fetched it, and not the newest exempt
 commit of that script or a commit below it. A deleted ref adds none. A tag
@@ -174,7 +214,8 @@ yourself before a push to another remote.
 The list. scripts/home-path-allow.txt as the scanned commit holds it: in the
 pre-push mode the pushed commit of each ref (for a tag, the commit that it
 names), in the range mode the first commit that git rev-list <revision>...
-prints (for <base>..<head>, <head>), and never the work tree or the index. A
+prints, the exempt commits left out (for <base>..<head>, <head>), and never
+the work tree or the index. A
 commit without the file has an empty list, and a range that names no commit
 reads none. --allow <file> names a file in its place, to try an entry before
 it is committed; the hook passes no --allow. The list holds one entry per
@@ -209,7 +250,9 @@ branch holds no list, every added entry is read. The range mode does not
 apply the rule, because the account of a hosted runner in CI is no person's.
 
 Output and exit. A hit prints the commit, the file, the line number and the
-form, and never the text of the line. Exit 0 when no added line holds a home
+form, and never the text of the line; a hit in a message prints the commit
+or the tag, the line number in the message and the form. Exit 0 when no
+added line and no message holds a home
 path that the list does not allow, 1 when one does, 2 when the check could
 not run (git failed, a range or a line that git wrote cannot be read, the
 list of the commit is malformed or a list that --allow names is missing, git
@@ -232,7 +275,7 @@ scheme), /var/home/<name>, /usr/home/<name>, /export/home/<name> and
 address (:8080/Users/<name>), the listing of an archive without its first
 slash, the short form DOCUME~1, a name whose first character is
 percent-encoded, an HTML entity or a \u escape for a separator, base64, a
-compressed file (zip, gzip, a PNG chunk), UTF-32, and a path that a person
+compressed file (zip, gzip, a PNG chunk), and a path that a person
 spells so that it does not read as one: a path broken over two lines, a join
 of strings, a letter of the root as a percent code, /./ or /Shared/../, a
 quoted name. It does not find a path after an escape sequence in a spelling
@@ -260,10 +303,10 @@ sign as a percent code (/%40fs/). It matches a name of three or more words,
 or of two words that end at another character than a separator, a quotation
 mark or the end of the line, up to its first blank, so an entry for the
 first word allows that line. It does not find an account name outside a
-path, such as an email address or a host name. It reads no commit message,
-no tag message, no author or committer, no blob or tree that a tag names
-without a commit, and no commit of a submodule, which is another
-repository's. It refuses lines that hold no home path and that the grammar
+path, such as an email address or a host name. It reads no author or
+committer, no blob or tree that a tag names (it reads the message of such a
+tag), no lightweight tag, which has no message, and no commit of a
+submodule, which is another repository's. It refuses lines that hold no home path and that the grammar
 reads as one: a relative path through a directory called home or Users
 (../home/<page>), a route at the root of a site (/home/<page>), the home of a
 container's or a runner's account (/home/<service>), and -home-<word> after
@@ -272,18 +315,21 @@ a blank; give each an entry of the third kind. A placeholder that is a word
 file whose name holds a tab, a line break, a quote or a backslash is listed
 by the name that git prints, in quotes and with its escapes ("a\tb.txt").
 The name of the exempt commit is read from the copy of
-scripts/check-commit-messages.sh that runs, not from the pushed commits. The
+scripts/check-commit-messages.sh beside this script, not from the pushed
+commits; it counts only when the default branch holds that commit, or when
+the clone knows no default branch. The
 hook does not run for git push --no-verify, or in a clone where
-sh scripts/prerequisites.sh has not set core.hooksPath, and when this script
-is not beside .githooks/pre-push the hook says that the scan did not run and
-lets the push go on: run the scanner of a checkout of main on the range,
+sh scripts/prerequisites.sh has not set core.hooksPath. When this script or
+the list is missing beside .githooks, .githooks/pre-push refuses the push
+and .githooks/commit-msg refuses the commit, each naming the file: restore
+it, or run the scanner of a checkout of main on the range,
 sh <checkout of main>/scripts/check-home-paths.sh origin/main..HEAD.
 EOF
 }
 
 usage() {
   printf '%s: %s\n' "$NAME" "$1" >&2
-  printf 'Usage: sh scripts/check-home-paths.sh [--allow <file>] (<revision>... | --pre-push <remote>) | --self-test | --help\n' >&2
+  printf 'Usage: sh scripts/check-home-paths.sh [--allow <file>] (<revision>... | --pre-push <remote> | --stale) | --self-test | --help\n' >&2
   exit 64
 }
 
@@ -439,8 +485,8 @@ function scan_text(text, file, use_list,   lowered, size, first, own_end, base, 
             last_match = m
             last_name = substr(nm, 1, k)
             if (kind_of[i] == "word") sub(/-.*/, "", last_name)
-            if (!use_list || !((file SUBSEP m) in allowed))
-              if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
+            if (use_list && ((file SUBSEP m) in allowed)) used[file SUBSEP m] = 1
+            else if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
           }
         }
         off += adv
@@ -451,7 +497,7 @@ function scan_text(text, file, use_list,   lowered, size, first, own_end, base, 
   return out
 }
 function malformed(n, why) {
-  print "ERROR " list ": line " n ": " why
+  print "ERROR " list_name ": line " n ": " why "; correct that line of scripts/home-path-allow.txt (an entry is a file, a tab, the home path as the scan matches it, a tab and a reason) and commit it"
   failed = 1
   exit 2
 }
@@ -476,6 +522,10 @@ function load_list(   n, rc, rec, k, rest, file, path, reason) {
     if (nmatch != 1 || last_match != path) malformed(n, "the path is not one home path of the grammar as a whole")
     allowed[file SUBSEP path] = 1
     allowed[list_path SUBSEP path] = 1
+    entries++
+    entry_line[entries] = n
+    entry_file[entries] = file
+    entry_key[entries] = file SUBSEP path
   }
   if (rc < 0) malformed(0, "the list cannot be read")
   close(list)
@@ -547,6 +597,14 @@ function check(n, text,   forms) {
   }
   if (own_check && n > 0 && file == list_path) added_entry(n, text)
 }
+function check_message(text,   forms) {
+  message_line++
+  forms = scan_text(text, "", 0)
+  if (forms != "") {
+    hits++
+    print "MESSAGE " substr(message_of, 1, 12) " " message_line " " forms " " message_kind
+  }
+}
 function start_hunk(h,   n, t) {
   n = 0
   while (substr(h, n + 1, 1) == "@") n++
@@ -591,7 +649,23 @@ BEGIN {
     if (c == "\\") next
     in_hunk = 0
   }
+  if (in_message) {
+    if (substr(line, 1, 1) == "+") {
+      check_message(substr(line, 2))
+      next
+    }
+    in_message = 0
+  }
   if (substr(line, 1, 1) == "\001") {
+    if (substr(line, 2, 8) == "message ") {
+      message_of = substr(line, 10)
+      message_kind = message_of
+      sub(/ .*/, "", message_of)
+      sub(/^[^ ]* /, "", message_kind)
+      message_line = 0
+      in_message = 1
+      next
+    }
     if (substr(line, 2, 6) == "again ") {
       commit = substr(line, 8)
     } else {
@@ -618,20 +692,27 @@ BEGIN {
 }
 END {
   if (failed) exit 2
+  if (stale) {
+    for (e = 1; e <= entries; e++)
+      if (!(entry_key[e] in used)) print "STALE " entry_line[e] " " entry_file[e]
+    print "ENTRIES " entries + 0
+  }
   if (!list_forms) print "READ " commits + 0 " " hits + 0
 }
 EOF
 }
 
 run_scan() {
-  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" \
+  awk -v list="$1" -v list_name="$scan_list_name" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" -v stale="$stale" \
     -v own_full="$own_full" -v own_unknown="$own_unknown" -v base_list="$base_list" -f "$work/scan.awk" "$2"
 }
 
 list_of_commit() {
   scan_list=$allow
+  scan_list_name=$allow
   [ -z "$allow_given" ] || return 0
   scan_list=$work/list-of-commit
+  scan_list_name="$LIST_IN_THE_REPOSITORY of commit $1"
   : >"$scan_list"
   [ -n "$1" ] || return 0
   if git cat-file -e "$1:$LIST_IN_THE_REPOSITORY" 2>/dev/null </dev/null; then
@@ -649,6 +730,25 @@ scan_stream() {
   [ -n "$read_line" ] || die "awk printed no count for $label"
   stream_commits=${read_line% *}
   stream_found=${read_line#* }
+}
+
+message_of_object() {
+  git cat-file "$2" "$1" >"$work/object" </dev/null || die "git cannot read the $2 $1"
+  printf '\001message %s %s\n' "$1" "$2"
+  sed -e '1,/^$/d' -e 's/^/+/' "$work/object" || die "sed could not read the message of the $2 $1"
+  printf '\n'
+}
+
+messages() {
+  while read -r commit; do
+    message_of_object "$commit" commit
+  done <"$1"
+  while read -r object; do
+    while [ "$(git cat-file -t "$object" 2>/dev/null </dev/null)" = tag ]; do
+      message_of_object "$object" tag
+      object=$(sed -n '1s/^object //p' "$work/object") || die 'sed could not read a tag'
+    done
+  done <"$2"
 }
 
 lines_of_a_merge_in_a_binary_file() {
@@ -671,16 +771,19 @@ lines_of_a_merge_in_a_binary_file() {
 
 scan() {
   label=$1
-  shift
-  git -c core.quotepath=off -c diff.suppressBlankEmpty=false -c diff.noprefix=false \
-    -c diff.mnemonicPrefix=false -c diff.relative=false -c diff.submodule=short -c diff.ignoreSubmodules=none \
-    -c color.ui=never -c log.showSignature=false \
-    log --no-color --format='%x01commit %H' -p --cc -U0 --root --no-renames --text \
-    --no-ext-diff --no-textconv --no-relative --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ \
-    --reverse --end-of-options "$@" -- >"$work/log" 2>"$work/log-error" </dev/null || {
-    first_error=$(sed -n 1p "$work/log-error") || first_error=
-    die "git log could not read the commits of $label: $first_error"
-  }
+  : >"$work/log"
+  if [ -s "$2" ]; then
+    git -c core.quotepath=off -c diff.suppressBlankEmpty=false -c diff.noprefix=false \
+      -c diff.mnemonicPrefix=false -c diff.relative=false -c diff.submodule=short -c diff.ignoreSubmodules=none \
+      -c color.ui=never -c log.showSignature=false \
+      log --no-color --format='%x01commit %H' -p --cc -U0 --root --no-renames --text \
+      --no-ext-diff --no-textconv --no-relative --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ \
+      --no-walk=unsorted --stdin -- <"$2" >"$work/log" 2>"$work/log-error" || {
+      first_error=$(sed -n 1p "$work/log-error") || first_error=
+      die "git log could not read the commits of $label: $first_error"
+    }
+  fi
+  messages "$2" "$3" >>"$work/log"
   tr -d '\000' <"$work/log" >"$work/log.text" || die 'tr could not read the output of git log'
   scan_stream "$work/log.text" "$work/hits"
   commits=$stream_commits
@@ -696,9 +799,14 @@ scan() {
     cat "$work/hits-of-merges" >>"$work/hits" || die 'cat failed'
   fi
   own_entries=0
+  in_messages=0
   while read -r tag commit number forms file; do
     case $tag in
       HIT) printf '%s: %s %s:%s: a home path (%s)\n' "$NAME" "$commit" "$file" "$number" "$forms" >&2 ;;
+      MESSAGE)
+        in_messages=$((in_messages + 1))
+        printf '%s: %s the message of the %s, line %s: a home path (%s)\n' "$NAME" "$commit" "$file" "$number" "$forms" >&2
+        ;;
       OWN-UNKNOWN) die "commit $commit adds an entry to $LIST_IN_THE_REPOSITORY at line $number, and HOME is unset or empty, so the scan cannot tell whether the entry names the home directory of the account that pushes" ;;
       OWN)
         own_entries=$((own_entries + 1))
@@ -714,6 +822,7 @@ scan() {
   {
     printf '%s: FAIL: %s: commits read %s, lines with a home path %s.\n' "$NAME" "$label" "$commits" "$found"
     [ "$own_entries" = 0 ] || printf '%s: FAIL: %s: added entries of the list that name the home directory of the account that pushes: %s.\n' "$NAME" "$label" "$own_entries"
+    [ "$in_messages" = 0 ] || printf 'Fix for a message: write the path as a placeholder (/Users/<name>) or leave it out: git commit --amend for the newest commit, git rebase -i with "reword" for an older one, and for a tag, delete it and make it again (git tag -d <tag>, git tag -a <tag>). The list does not apply to a message. Lines in messages: %s of the %s above.\n' "$in_messages" "$found"
     printf 'Fix: take each listed line out of the commit that added it: git commit --amend for the newest commit, git rebase -i with "edit" for an older one. A later commit that removes the line does not help, because the commit that holds it is pushed. Write a location relative to the repository, take it from an environment variable, or write the name as a placeholder (/Users/<name>). If the path is made up for a fixture, is the public account of a hosting service'"'"'s runner, or is no home path but reads as one (a route at the root of a site, a relative path through a directory called home), add the file, the exact path and a reason that says which to %s and commit it: the list is read from the commit that is pushed or scanned, never from the work tree; to try an entry first, run the range mode with --allow <file> (sh scripts/check-home-paths.sh --help, The list).\n' "$LIST_IN_THE_REPOSITORY"
   } >&2
 }
@@ -723,20 +832,12 @@ exempt_commit() {
   if [ -f "$script_dir/check-commit-messages.sh" ]; then
     exempt=$(sed -n 's/^NEWEST_EXEMPT_COMMIT=\([0-9a-f][0-9a-f]*\)$/\1/p' "$script_dir/check-commit-messages.sh") || exempt=
   fi
-  if [ -n "$exempt" ] && ! git cat-file -e "$exempt^{commit}" 2>/dev/null; then
-    exempt=
-  fi
 }
 
-is_object_id() {
-  case $1 in
-    '' | *[!0-9a-f]*) return 1 ;;
-  esac
-  [ ${#1} = 40 ] || [ ${#1} = 64 ]
-}
-
-verified() {
-  git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1
+load_commit_range() {
+  [ -f "$script_dir/commit-range.sh" ] || die "scripts/commit-range.sh, which lists the commits of a range or a push, is missing beside $0; restore it (git checkout HEAD -- scripts/commit-range.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts) and run the check again"
+  # shellcheck source=scripts/commit-range.sh
+  . "$script_dir/commit-range.sh"
 }
 
 account_that_pushes() {
@@ -759,13 +860,8 @@ check_push() {
   remote=$1
   git rev-parse --git-dir >/dev/null 2>&1 || die "$PWD is in no git repository"
   exempt_commit
-  default_ref=$(git symbolic-ref -q refs/remotes/origin/HEAD) || default_ref=
-  if [ -z "$default_ref" ] && verified refs/remotes/origin/main; then
-    default_ref=refs/remotes/origin/main
-  fi
-  default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
-  verified "$default_ref_of_remote" || default_ref_of_remote=$default_ref
-  [ -n "$default_ref_of_remote" ] && verified "$default_ref_of_remote" || default_ref_of_remote=
+  load_commit_range
+  default_ref_of_remote=$(commit_range_default_of_remote "$remote" "$(commit_range_default_ref)")
   base_list=$work/list-of-the-default-branch
   : >"$base_list"
   if [ -n "$default_ref_of_remote" ] && git cat-file -e "$default_ref_of_remote:$LIST_IN_THE_REPOSITORY" 2>/dev/null </dev/null; then
@@ -773,33 +869,18 @@ check_push() {
   fi
   account_that_pushes
   while IFS= read -r pushed_ref; do
-    remote_object=${pushed_ref##* }
-    rest=${pushed_ref% *}
-    remote_ref=${rest##* }
-    rest=${rest% *}
-    local_object=${rest##* }
-    local_ref=${rest% *}
-    if ! { is_object_id "$local_object" && is_object_id "$remote_object"; }; then
-      die "cannot read this line that git wrote to the pre-push hook: $pushed_ref"
-    fi
-    case $local_object in
-      *[!0]*) ;;
-      *) continue ;;
+    commit_range_read_push_line "$pushed_ref" || die "cannot read this line that git wrote to the pre-push hook: $pushed_ref. Each line holds a local ref, a local object id, a remote ref and a remote object id of 40 or 64 lower-case hexadecimal characters; scan the commits by hand with sh scripts/check-home-paths.sh <remote>/<branch>..<local branch>, and push again with a git that writes such lines"
+    range_status=0
+    commit_range_of_push "$exempt" "$default_ref_of_remote" >"$work/commits" 2>"$work/log-error" || range_status=$?
+    case $range_status in
+      0) ;;
+      3) die "git cannot resolve the object $push_local_object that the push names for $push_local_ref" ;;
+      *) die "git could not list the commits of the push of $push_local_ref" ;;
     esac
-    if ! verified "$local_object"; then
-      git cat-file -e "$local_object" 2>/dev/null || die "git cannot resolve the object $local_object that the push names for $local_ref"
-      continue
-    fi
-    set -- "$local_object"
-    [ -z "$exempt" ] || set -- "$@" "^$exempt"
-    case $remote_object in
-      *[!0]*)
-        if git cat-file -e "$remote_object^{commit}" 2>/dev/null; then set -- "$@" "^$remote_object"; fi
-        ;;
-    esac
-    [ -z "$default_ref_of_remote" ] || set -- "$@" "^$default_ref_of_remote"
-    list_of_commit "$local_object^{commit}"
-    scan "push of $local_ref to $remote_ref" "$@"
+    : >"$work/tags"
+    [ "$push_local_object" = "$push_remote_object" ] || printf '%s\n' "$push_local_object" >"$work/tags"
+    list_of_commit "$push_local_object^{commit}"
+    scan "$(commit_range_push_label)" "$work/commits" "$work/tags"
   done
   [ "$any_failed" = 0 ] || return 1
   printf '%s: PASS: the push to %s adds no line with a home path that the list does not allow.\n' "$NAME" "$remote"
@@ -807,11 +888,75 @@ check_push() {
 
 check_range() {
   git rev-parse --git-dir >/dev/null 2>&1 || die "$PWD is in no git repository"
+  exempt_commit
+  load_commit_range
   label=$*
-  first=$(git rev-list -n 1 --end-of-options "$@" -- 2>/dev/null </dev/null) || first=
-  list_of_commit "$first"
-  scan "$label" "$@"
+  commit_range "$exempt" "$(commit_range_default_ref)" "$@" >"$work/commits" 2>"$work/log-error" || {
+    first_error=$(sed -n 1p "$work/log-error") || first_error=
+    die "git could not list the commits of $label: $first_error"
+  }
+  git rev-parse --revs-only --end-of-options "$@" >"$work/revisions" 2>/dev/null </dev/null || die "git rev-parse could not read the revisions of $label"
+  sed '/^\^/d' "$work/revisions" >"$work/tags" || die 'sed could not read the revisions'
+  list_of_commit "$(sed -n '$p' "$work/commits")"
+  scan "$label" "$work/commits" "$work/tags"
   [ "$any_failed" = 0 ]
+}
+
+files_of_the_list() {
+  awk -F "$TAB" 'FNR == 1 { sub(/^\357\273\277/, "") } { sub(/\r$/, "") } $0 == "" || /^#/ || NF < 3 { next } { print $1 }' "$1" | sort -u
+}
+
+file_as_added_lines() {
+  case $1 in
+    '"'*) inner=${1#?} && inner=${inner%?} && printf 'diff --git "a/%s" "b/%s"\n' "$inner" "$inner" ;;
+    *) printf 'diff --git a/%s b/%s\n' "$1" "$1" ;;
+  esac
+  printf 'new file mode 100644\n@@ -0,0 +1 @@\n'
+  git cat-file blob "$2" </dev/null | tr -d '\000' | sed 's/^/+/' || die "git cannot read $1 in HEAD"
+  printf '\n'
+}
+
+check_stale() {
+  git rev-parse --git-dir >/dev/null 2>&1 || die "$PWD is in no git repository"
+  head=$(git rev-parse -q --verify 'HEAD^{commit}' </dev/null) || die 'HEAD names no commit'
+  list_of_commit "$head"
+  label="the entries of $LIST_IN_THE_REPOSITORY in HEAD"
+  [ -z "$allow_given" ] || label="the entries of $allow"
+  git -c core.quotepath=off ls-tree -r --full-tree "$head" >"$work/tree" </dev/null || die 'git ls-tree could not list the files of HEAD'
+  [ ! -f "$scan_list" ] || files_of_the_list "$scan_list" >"$work/listed-files" || die 'awk could not read the list'
+  : >"$work/gone"
+  {
+    printf '\001commit %s\n' "$head"
+    while IFS= read -r listed; do
+      object=$(LISTED=$listed awk -F "$TAB" '$2 == ENVIRON["LISTED"] { split($1, m, " "); print m[3]; exit }' "$work/tree") || die 'awk could not read the tree'
+      if [ -z "$object" ]; then
+        printf '%s\n' "$listed" >>"$work/gone"
+      else
+        file_as_added_lines "$listed" "$object"
+      fi
+    done <"$work/listed-files"
+  } >"$work/listed.diff"
+  stale=1
+  scan_stream "$work/listed.diff" "$work/stale-hits"
+  entries=$(sed -n 's/^ENTRIES //p' "$work/stale-hits") || entries=
+  [ -n "$entries" ] || die 'awk printed no count of entries'
+  named=0
+  while read -r tag line file; do
+    [ "$tag" = STALE ] || continue
+    named=$((named + 1))
+    if grep -qxF -- "$file" "$work/gone"; then
+      printf '%s: stale entry: %s:%s: %s: the file is not in HEAD\n' "$NAME" "$LIST_IN_THE_REPOSITORY" "$line" "$file"
+    else
+      printf '%s: stale entry: %s:%s: %s: no line of the file, and not its name, holds the path of the entry as the scan matches it\n' "$NAME" "$LIST_IN_THE_REPOSITORY" "$line" "$file"
+    fi
+  done <"$work/stale-hits"
+  if [ "$named" = 0 ]; then
+    printf '%s: PASS: --stale: %s: entries read %s, stale 0.\n' "$NAME" "$label" "$entries"
+    return 0
+  fi
+  printf '%s: FAIL: --stale: %s: entries read %s, stale %s.\n' "$NAME" "$label" "$entries" "$named"
+  printf 'Fix: take each stale entry out of %s and say why in the commit message: the file is gone, or no longer holds the path. An entry allows its path only in its file, so a stale entry allows nothing.\n' "$LIST_IN_THE_REPOSITORY"
+  return 1
 }
 
 grammar_fixtures() {
@@ -1254,7 +1399,7 @@ self_test_commits() {
   expand_fixture "x.txt$tab/{U}/ada/notes${tab}more than the path" >"$work/list-bad"
   scan_case list-path-with-more-than-the-name 2 'line 1: the path is not one home path' --allow "$work/list-bad" "$root_commit"
   scan_case list-missing 2 'the list cannot be read' --allow "$work/no-such-list" "$c^!"
-  scan_case range-unreadable 2 'git log could not read' --allow "$list" no-such-revision
+  scan_case range-unreadable 2 'git could not list the commits of' --allow "$list" no-such-revision
   scan_case usage-without-a-range 64 'Usage:' --allow "$list"
 
   new_case_repo twin
@@ -1320,7 +1465,7 @@ self_test_commits() {
 
   new_case_repo list-of-the-commit
   mkdir -p "$case_repo/scripts" || die 'mkdir failed'
-  cp "$self" "$case_repo/scripts/check-home-paths.sh" || die 'cp failed'
+  copy_scanner "$case_repo/scripts"
   expand_fixture 'see /{U}/wendy' >"$case_repo/w.txt"
   in_case_repo add w.txt || die 'git add failed'
   in_case_repo commit -q -m 'a line' || die 'commit failed'
@@ -1381,6 +1526,112 @@ self_test_commits() {
   verdict root-commit-in-a-clone-with-show-root-off 1 "$got"
   [ -n "$root_of_replaced" ] || die 'no root commit'
 
+  same_commits_for_both_checks
+
+  new_case_repo exempt-commit-that-the-default-branch-holds
+  tools_of_the_default_branch=$work/tools-of-the-exempt-case
+  mkdir -p "$tools_of_the_default_branch" || die 'mkdir failed'
+  copy_scanner "$tools_of_the_default_branch"
+  expand_fixture 'see /{U}/ida' >"$case_repo/held.txt"
+  held=$(commit_case 'a line in the exempt commit') || die 'commit failed'
+  printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$held" >"$tools_of_the_default_branch/check-commit-messages.sh"
+  in_case_repo update-ref refs/remotes/origin/main "$held" || die 'git update-ref failed'
+  printf 'plain\n' >"$case_repo/later.txt"
+  commit_case 'a later commit' >/dev/null || die 'commit failed'
+  (cd "$case_repo" && HOME=$work/homes/nobody sh "$tools_of_the_default_branch/check-home-paths.sh" --allow "$work/empty-list" HEAD) >"$work/out-exempt-held" 2>&1
+  code=$?
+  case $(cat "$work/out-exempt-held") in
+    *'commits read 1, lines with a home path 0.'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict range-leaves-out-an-exempt-commit-that-the-default-branch-holds 0 "$got"
+
+  new_case_repo exempt-commit-not-held
+  printf 'plain\n' >"$case_repo/a.txt"
+  commit_case 'first' >/dev/null || die 'commit failed'
+  printf 'plain\n' >"$case_repo/b.txt"
+  commit_case 'second' >/dev/null || die 'commit failed'
+  case_scan range-read-whole-when-the-clone-lacks-the-exempt-commit 0 'commits read 2, lines with a home path 0.' --allow "$work/empty-list" HEAD
+  # shellcheck source=scripts/commit-range.sh
+  printed=$(cd "$case_repo" && . "$self_dir/commit-range.sh" && commit_range '' '' HEAD) || printed=
+  short_lines=$(printf '%s\n' "$printed" | grep -cvE '^([0-9a-f]{40}|[0-9a-f]{64})$') || short_lines=0
+  full_lines=$(printf '%s\n' "$printed" | grep -cE '^([0-9a-f]{40}|[0-9a-f]{64})$') || full_lines=0
+  verdict range-function-prints-one-full-id-on-each-line 2-0 "$full_lines-$short_lines"
+
+  new_case_repo stale
+  mkdir -p "$case_repo/scripts" || die 'mkdir failed'
+  expand_fixture 'see /{U}/una and C:\{U}\Una Bee' >"$case_repo/kept.txt"
+  dashed=$(expand_fixture '-{U}-vic-project') || die 'expand failed'
+  mkdir -p "$case_repo/$dashed" || die 'mkdir failed'
+  printf 'plain\n' >"$case_repo/$dashed/x.txt"
+  {
+    expand_fixture "kept.txt${tab}/{U}/una${tab}made up"
+    expand_fixture "kept.txt${tab}C:\\{U}\\Una Bee${tab}made up"
+    expand_fixture "kept.txt${tab}C:\\{U}\\Una${tab}made up, and the file holds only the longer name"
+    expand_fixture "gone.txt${tab}/{U}/una${tab}made up, and the file is gone"
+    printf '%s/x.txt\t%s\tmade up, in the name of a directory\n' "$dashed" "$dashed"
+  } >"$case_repo/$LIST_IN_THE_REPOSITORY"
+  commit_case 'a list with two stale entries' >/dev/null || die 'commit failed'
+  case_scan stale-entry-whose-file-holds-another-path 1 "$LIST_IN_THE_REPOSITORY:3: kept.txt: no line of the file" --stale
+  case_scan stale-entry-for-a-file-that-is-gone 1 "$LIST_IN_THE_REPOSITORY:4: gone.txt: the file is not in HEAD" --stale
+  case_scan stale-entries-counted 1 'entries read 5, stale 2.' --stale
+  sed -e '3,4d' "$case_repo/$LIST_IN_THE_REPOSITORY" >"$work/list-live"
+  case_scan live-entries-pass-the-stale-check 0 'entries read 3, stale 0.' --allow "$work/list-live" --stale
+  case_scan stale-check-of-a-malformed-list 2 'cannot use the list' --allow "$work/list-bad" --stale
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*)
+      for not_run in stale-check-of-a-file-listed-by-its-quoted-name stale-check-of-a-file-named-with-a-double-quote stale-check-names-a-quoted-file-that-lost-its-path; do
+        printf 'case %s/%s not run: this system has no such file name\n' "$NAME" "$not_run"
+      done
+      ;;
+    *)
+      expand_fixture 'see /{U}/una' >"$case_repo/a${tab}b.txt"
+      commit_case 'a file whose name holds a tab' >/dev/null || die 'commit failed'
+      expand_fixture "\"a\\tb.txt\"${tab}/{U}/una${tab}made up" >"$work/list-quoted-name"
+      case_scan stale-check-of-a-file-listed-by-its-quoted-name 0 'entries read 1, stale 0.' --allow "$work/list-quoted-name" --stale
+      expand_fixture 'see /{U}/una' >"$case_repo/q\"x.txt"
+      commit_case 'a file whose name holds a double quote' >/dev/null || die 'commit failed'
+      expand_fixture "\"q\\\"x.txt\"${tab}/{U}/una${tab}made up" >"$work/list-double-quote"
+      case_scan stale-check-of-a-file-named-with-a-double-quote 0 'entries read 1, stale 0.' --allow "$work/list-double-quote" --stale
+      printf 'plain\n' >"$case_repo/q\"x.txt"
+      commit_case 'the path leaves the file with a double quote in its name' >/dev/null || die 'commit failed'
+      case_scan stale-check-names-a-quoted-file-that-lost-its-path 1 'stale entry: scripts/home-path-allow.txt:1: "q\"x.txt": no line of the file' --allow "$work/list-double-quote" --stale
+      ;;
+  esac
+
+  printf 'see /%s/una' Users >"$case_repo/no-final-newline.txt"
+  expand_fixture 'see /{U}/una' >"$case_repo/zz.txt"
+  commit_case 'a listed file without a final newline before another listed file' >/dev/null || die 'commit failed'
+  {
+    expand_fixture "no-final-newline.txt${tab}/{U}/una${tab}made up"
+    expand_fixture "zz.txt${tab}/{U}/una${tab}made up"
+  } >"$work/list-no-final-newline"
+  case_scan stale-check-of-a-file-after-one-without-a-final-newline 0 'entries read 2, stale 0.' --allow "$work/list-no-final-newline" --stale
+
+  new_case_repo list-of-the-newest-commit
+  mkdir -p "$case_repo/scripts" || die 'mkdir failed'
+  expand_fixture 'see /{U}/xia' >"$case_repo/x.txt"
+  commit_case 'a line' >/dev/null || die 'commit failed'
+  expand_fixture "x.txt${tab}/{U}/xia${tab}made up" >"$case_repo/$LIST_IN_THE_REPOSITORY"
+  newest_of_range=$(commit_case 'its entry, in a later commit') || die 'commit failed'
+  case_scan range-reads-the-list-of-its-newest-commit 0 'commits read 2, lines with a home path 0.' "$newest_of_range"
+
+  new_case_repo messages
+  printf 'plain\n' >"$case_repo/m.txt"
+  in_case_repo add -A . || die 'git add failed'
+  in_case_repo commit -q -m "$(expand_fixture 'Seen in /{H}/rhea/x')" || die 'commit failed'
+  message_commit=$(in_case_repo rev-parse HEAD) || die 'git rev-parse failed'
+  case_scan range-reads-the-message-of-a-commit 1 'the message of the commit, line 1: a home path (linux)' --allow "$work/empty-list" "$message_commit"
+  printf 'plain\n' >"$case_repo/n.txt"
+  clean_commit=$(commit_case 'Name the place /Users/<name> of a profile') || die 'commit failed'
+  case_scan range-passes-a-message-with-a-placeholder 0 'commits read 1, lines with a home path 0.' --allow "$work/empty-list" "$message_commit..$clean_commit"
+  in_case_repo tag -a -m "$(expand_fixture 'Built in /{U}/rhea')" t-rhea "$clean_commit" || die 'git tag failed'
+  case_scan range-reads-the-message-of-a-tag-that-it-names 1 'the message of the tag, line 1: a home path (macos)' --allow "$work/empty-list" "$message_commit..t-rhea"
+  case_scan range-reads-no-tag-that-it-does-not-name 0 'commits read 1, lines with a home path 0.' --allow "$work/empty-list" "$message_commit..$clean_commit"
+  in_case_repo tag -a -m "$(expand_fixture 'Built from /{U}/irma')" t-inner-of-a-range "$clean_commit" || die 'git tag failed'
+  in_case_repo tag -a -m 'An outer tag with a plain message' t-outer-of-a-range t-inner-of-a-range >/dev/null 2>&1 || die 'git tag failed'
+  case_scan range-reads-the-message-of-an-inner-tag 1 'the message of the tag, line 1: a home path (macos)' --allow "$work/empty-list" "$message_commit..t-outer-of-a-range"
+
   new_case_repo wide
   awk 'BEGIN { for (i = 0; i < 20000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$case_repo/wide.txt" || die 'awk failed'
   wide=$(commit_case 'one line with 20000 paths') || die 'commit failed'
@@ -1390,8 +1641,56 @@ self_test_commits() {
   timed_case 8000-lines-with-a-path 'lines with a home path 8000.' "$tall^!"
 }
 
+copy_scanner() {
+  cp "$self" "$1/check-home-paths.sh" || die 'cp failed'
+  cp "$self_dir/commit-range.sh" "$1/commit-range.sh" || die 'cp failed'
+}
+
 short_id() {
   printf '%s' "$1" | cut -c1-12
+}
+
+commits_named_in() {
+  sed -n "$2" "$1" | while read -r named; do
+    in_case_repo rev-parse --verify "$named^{commit}" || printf 'unknown\n'
+  done | sort -u
+}
+
+same_commits_for_both_checks() {
+  new_case_repo merge-of-an-exempt-parent
+  tools=$work/tools-of-the-merge-case
+  mkdir -p "$tools" || die 'mkdir failed'
+  nl='
+'
+  trailer='Co-Authored-By: Fixture <fixture@example.invalid>'
+  printf 'plain\n' >"$case_repo/r.txt"
+  merge_case_root=$(commit_case 'root') || die 'commit failed'
+  in_case_repo checkout -q -b exempt-side || die 'git checkout failed'
+  expand_fixture '/{U}/eve' >"$case_repo/e.txt"
+  merge_case_exempt=$(commit_case "eve$nl$nl$trailer") || die 'commit failed'
+  in_case_repo checkout -q -b trunk "$merge_case_root" || die 'git checkout failed'
+  expand_fixture '/{U}/tom' >"$case_repo/t.txt"
+  commit_case "tom$nl$nl$trailer" >/dev/null || die 'commit failed'
+  in_case_repo merge -q --no-ff --no-commit exempt-side >/dev/null 2>&1
+  expand_fixture '/{U}/max' >"$case_repo/m.txt"
+  merge_case_merge=$(commit_case "max$nl$nl$trailer") || die 'commit failed'
+  sed "s/^NEWEST_EXEMPT_COMMIT=.*/NEWEST_EXEMPT_COMMIT=$merge_case_exempt/" "$self_dir/check-commit-messages.sh" >"$tools/check-commit-messages.sh" || die 'sed failed'
+  copy_scanner "$tools"
+  (cd "$case_repo" && sh "$tools/check-commit-messages.sh" "$merge_case_root..$merge_case_merge") >"$work/out-merge-range-messages" 2>&1
+  messages_code=$?
+  (cd "$case_repo" && HOME=$work/homes/nobody sh "$tools/check-home-paths.sh" --allow "$work/empty-list" "$merge_case_root..$merge_case_merge") >"$work/out-merge-range-home-paths" 2>&1
+  home_paths_code=$?
+  commits_named_in "$work/out-merge-range-messages" 's/^check-commit-messages: \([0-9a-f]\{7,\}\) .*/\1/p' >"$work/merge-range-messages"
+  commits_named_in "$work/out-merge-range-home-paths" 's/^check-home-paths: \([0-9a-f]\{12\}\) .*/\1/p' >"$work/merge-range-home-paths"
+  messages_read=$(grep -c . "$work/merge-range-messages")
+  if [ "$messages_code:$home_paths_code" != 1:1 ]; then
+    got="exits-$messages_code-and-$home_paths_code"
+  elif cmp -s "$work/merge-range-messages" "$work/merge-range-home-paths"; then
+    got="same-$messages_read"
+  else
+    got=different
+  fi
+  verdict range-with-a-merge-of-an-exempt-parent-gives-both-checks-the-same-commits same-2 "$got"
 }
 
 timed_case() {
@@ -1483,7 +1782,7 @@ self_test_hook() {
   mkdir -p "$hook_home/.githooks" "$hook_home/scripts" || die 'mkdir failed'
   cp "$hook" "$hook_home/.githooks/pre-push" || die 'cp failed'
   chmod +x "$hook_home/.githooks/pre-push" || die 'chmod failed'
-  cp "$self" "$hook_home/scripts/check-home-paths.sh" || die 'cp failed'
+  copy_scanner "$hook_home/scripts"
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
   stub_messages_check >"$hook_home/scripts/check-commit-messages.sh" || die 'cannot write the stub'
   STUB_RECORD=$work/stub-record
@@ -1516,6 +1815,7 @@ self_test_hook() {
   printf 'plain\n' >"$repo/clean.txt"
   commit_all 'clean' >/dev/null || die 'commit failed'
   push_case clean-branch pushed 'push of refs/heads/clean to refs/heads/clean: commits read 1, lines with a home path 0' proof clean
+  push_case push-of-one-ref-to-another-name pushed 'push of refs/heads/clean to refs/heads/elsewhere: commits read 1, lines with a home path 0' proof clean:refs/heads/elsewhere
 
   in_repo checkout -q -b clean2 trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/clean2.txt"
@@ -1523,6 +1823,9 @@ self_test_hook() {
   push_case two-refs-one-with-a-home-path refused 'bad.txt:1' proof clean2 bad
   push_case force-push-over-main refused 'bad.txt:1' proof +bad:refs/heads/main
   push_case delete-a-branch pushed '' proof :refs/heads/clean
+  in_repo push -q --no-verify proof trunk:refs/heads/to-delete >/dev/null 2>&1 || die 'the push without the hook failed'
+  in_repo checkout -q bad || die 'git checkout failed'
+  push_case delete-a-branch-while-head-holds-a-home-path pushed 'the push to proof adds no line' proof :refs/heads/to-delete
 
   in_repo push -q --no-verify proof bad:refs/heads/old-bad >/dev/null 2>&1 || die 'the push without the hook failed'
   in_repo checkout -q -b over-old-bad bad || die 'git checkout failed'
@@ -1544,6 +1847,26 @@ self_test_hook() {
   expand_fixture 'and /{U}/ada' >>"$repo/fixtures/made-up.txt"
   commit_all 'listed' >/dev/null || die 'commit failed'
   push_case listed-fixture-line pushed 'lines with a home path 0' proof listed
+
+  in_repo checkout -q -b in-a-message trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/in-a-message.txt"
+  in_repo add -A . || die 'git add failed'
+  in_repo commit -q -m "$(expand_fixture 'Fix the gate, as seen in /{U}/quinn/notes')" || die 'commit failed'
+  push_case commit-message-with-a-home-path refused 'the message of the commit, line 1: a home path (macos)' proof in-a-message
+  in_repo checkout -q -b listed-in-a-message trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/listed-in-a-message.txt"
+  in_repo add -A . || die 'git add failed'
+  in_repo commit -q -m "$(printf 'Name the fixture\n\nIt holds /%s/ada, which the list allows in its file.' "$u")" || die 'commit failed'
+  push_case path-of-an-entry-in-a-commit-message refused 'the message of the commit, line 3: a home path (macos)' proof listed-in-a-message
+  in_repo tag -a -m "$(expand_fixture 'Release, built in C:\{U}\quinn')" t-message trunk || die 'git tag failed'
+  push_case tag-message-with-a-home-path refused 'the message of the tag, line 1: a home path (windows-drive)' proof refs/tags/t-message
+  in_repo tag -a -m 'Release, built from <name>' t-plain trunk || die 'git tag failed'
+  push_case tag-message-without-a-home-path pushed 'the push to proof adds no line' proof refs/tags/t-plain
+  in_repo tag -a -m "$(expand_fixture 'Release of /{H}/quinn')" t-of-a-tag t-plain || die 'git tag failed'
+  push_case message-of-a-tag-that-names-a-tag refused 'the message of the tag, line 1: a home path (linux)' proof refs/tags/t-of-a-tag
+  in_repo tag -a -m "$(expand_fixture 'Built from /{U}/inga')" t-inner-with-a-path trunk || die 'git tag failed'
+  in_repo tag -a -m 'An outer tag with a plain message' t-outer-of-a-path t-inner-with-a-path >/dev/null 2>&1 || die 'git tag failed'
+  push_case message-of-an-inner-tag-that-the-push-carries refused 'the message of the tag, line 1: a home path (macos)' proof refs/tags/t-outer-of-a-path
 
   in_repo checkout -q -b messages trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/messages.txt"
@@ -1677,7 +2000,7 @@ self_test_hook() {
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
   : >"$hook_home/scripts/check-home-paths.sh"
-  push_case scanner-with-no-bytes-beside-the-hook refused 'without its PASS line' proof messages
+  push_case scanner-with-no-bytes-beside-the-hook refused 'without its PASS line, so the push is refused. Restore the scanner (git checkout HEAD -- scripts/check-home-paths.sh)' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
   (cd "$repo" && printf 'refs/heads/x %s refs/heads/x %s\n' 1234567890123456789012345678901234567890 0000000000000000000000000000000000000000 |
     HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unresolvable-object" 2>&1
@@ -1687,18 +2010,31 @@ self_test_hook() {
     *) got="$code-without-the-text" ;;
   esac
   verdict pushed-object-that-git-cannot-resolve 2 "$got"
+  orphan=$(printf 'tree %s\nparent %s\nauthor A U Thor <author@example.invalid> 0 +0000\ncommitter A U Thor <author@example.invalid> 0 +0000\n\nA commit whose parent object is missing\n' \
+    "$(in_repo rev-parse 'HEAD^{tree}')" 1111111111111111111111111111111111111111 | in_repo hash-object -t commit -w --stdin) || die 'git hash-object failed'
+  (cd "$repo" && printf 'refs/heads/x %s refs/heads/x %s\n' "$orphan" 0000000000000000000000000000000000000000 |
+    HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-commits-git-cannot-list" 2>&1
+  code=$?
+  case $(cat "$work/out-commits-git-cannot-list") in
+    *'git could not list the commits of the push of refs/heads/x'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict pushed-commit-whose-parent-is-missing 2 "$got"
 
   exempt_home=$work/exempt-home/scripts
   mkdir -p "$exempt_home" || die 'mkdir failed'
-  cp "$self" "$exempt_home/check-home-paths.sh" || die 'cp failed'
+  copy_scanner "$exempt_home"
   in_repo checkout -q -b exempt trunk || die 'git checkout failed'
   expand_fixture '/{H}/ezra' >"$repo/exempt.txt"
   exempt_commit=$(commit_all 'the exempt commit') || die 'commit failed'
   expand_fixture '/{H}/lena' >"$repo/later.txt"
   later_commit=$(commit_all 'a later commit') || die 'commit failed'
   printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$exempt_commit" >"$exempt_home/check-commit-messages.sh"
+  default_of_proof=$(in_repo rev-parse refs/remotes/proof/main) || die 'git rev-parse failed'
+  in_repo update-ref refs/remotes/proof/main "$exempt_commit" || die 'git update-ref failed'
   (cd "$repo" && printf 'refs/heads/exempt %s refs/heads/exempt %s\n' "$later_commit" 0000000000000000000000000000000000000000 |
     HOME=$work/homes/nobody sh "$exempt_home/check-home-paths.sh" --allow "$list" --pre-push proof) >"$work/out-exempt" 2>&1
+  in_repo update-ref refs/remotes/proof/main "$default_of_proof" || die 'git update-ref failed'
   case $(cat "$work/out-exempt") in
     *exempt.txt*) got=the-exempt-commit-read ;;
     *'later.txt:1: a home path (linux)'*) got=the-later-commit-alone ;;
@@ -1728,8 +2064,11 @@ self_test_hook() {
   esac
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
-  push_case scanner-missing-beside-the-hook pushed 'the scan for home paths did not run' proof messages
+  push_case scanner-missing-beside-the-hook refused 'git checkout HEAD -- scripts/check-home-paths.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
+  mv "$hook_home/$LIST_IN_THE_REPOSITORY" "$work/list-aside" || die 'mv failed'
+  push_case list-missing-beside-the-hook refused "git checkout HEAD -- $LIST_IN_THE_REPOSITORY; in a sparse checkout without scripts/, git sparse-checkout add scripts" proof messages
+  mv "$work/list-aside" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'mv failed'
 
   (cd "$repo" && printf 'not a line that git writes\n' | HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
   code=$?
@@ -1764,6 +2103,8 @@ own_full=
 own_unknown=
 base_list=
 scan_list=
+scan_list_name=
+stale=
 allow_given=
 while [ $# -gt 0 ]; do
   case $1 in
@@ -1780,6 +2121,10 @@ while [ $# -gt 0 ]; do
       allow=$2
       allow_given=1
       shift 2
+      ;;
+    --stale)
+      mode=stale
+      shift
       ;;
     --pre-push)
       [ $# -ge 2 ] || usage '--pre-push needs the name or the URL of the remote'
@@ -1802,6 +2147,10 @@ case $mode in
   self-test)
     [ $# = 0 ] || usage '--self-test takes no argument'
     self_test
+    ;;
+  stale)
+    [ $# = 0 ] || usage '--stale takes no range'
+    check_stale
     ;;
   pre-push)
     [ $# = 0 ] || usage '--pre-push takes the remote and no range'
