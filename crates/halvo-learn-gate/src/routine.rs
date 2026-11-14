@@ -131,6 +131,14 @@ const MISS_PCTS: [&str; 3] = ["0", "10", "20"];
 /// The highest train number of a cell (L7.2: each cell has 200 trains).
 const TRAIN_MAX: u64 = 200;
 
+fn kind_of(train: u64) -> &'static str {
+    match train {
+        1..=100 => "same",
+        101..=150 => "stop",
+        _ => "shift",
+    }
+}
+
 fn in_grid(cell: &str) -> bool {
     let parts: Vec<&str> = cell.split('-').collect();
     matches!(parts[..], [cadence, jitter, miss]
@@ -167,9 +175,7 @@ fn read_train(line: &str) -> Option<Train> {
     let train = value["train"]
         .as_u64()
         .filter(|n| (1..=TRAIN_MAX).contains(n))?;
-    let kind = value["kind"]
-        .as_str()
-        .filter(|k| matches!(*k, "same" | "stop" | "shift"))?;
+    let kind = value["kind"].as_str().filter(|k| *k == kind_of(train))?;
     let days: Vec<u32> = value["days"]
         .as_array()?
         .iter()
@@ -190,7 +196,8 @@ fn read_train(line: &str) -> Option<Train> {
 }
 
 /// The trains of a sample file: one line per train, each ending in LF alone and each the line of L7.2 byte for byte:
-/// the keys in L7.2's order and each once, no white space, a cell of L7.2's grid and a train number from 1 to 200.
+/// the keys in L7.2's order and each once, no white space, a cell of L7.2's grid, a train number from 1 to 200 and the
+/// kind of that number.
 pub fn read_sample(bytes: &[u8]) -> Result<Vec<Train>, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| "the sample is not UTF-8".to_owned())?;
     let body = text

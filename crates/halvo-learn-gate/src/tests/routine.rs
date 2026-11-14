@@ -414,7 +414,10 @@ fn routine_reader_refuses_each_line_that_is_not_l7_2s_form_byte_for_byte() {
         format!("{TRAIN}\n"),
         with("\"7-0-0\"", "\"30-3-20\""),
         with("\"7-0-0\"", "\"14-1-10\""),
-        with("\"train\":1,", "\"train\":200,"),
+        with(
+            "\"train\":1,\"kind\":\"same\"",
+            "\"train\":200,\"kind\":\"shift\"",
+        ),
     ] {
         assert!(one(taken.clone()).is_ok(), "{taken}");
     }
@@ -480,6 +483,38 @@ fn routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1() {
         read_sample(&changed),
         Err("line 1 of the sample is no train".to_owned())
     );
+}
+
+#[test]
+fn routine_reader_refuses_a_kind_that_is_not_the_kind_of_the_trains_number() {
+    let line = |train: u32, kind: &str| {
+        format!(
+            "{}\n",
+            TRAIN
+                .replacen("\"train\":1,", &format!("\"train\":{train},"), 1)
+                .replacen("\"kind\":\"same\"", &format!("\"kind\":\"{kind}\""), 1)
+        )
+    };
+    for (train, kind) in [(101, "same"), (151, "stop"), (100, "shift")] {
+        assert_eq!(
+            read_sample(line(train, kind).as_bytes()),
+            Err("line 1 of the sample is no train".to_owned()),
+            "{kind} {train}"
+        );
+    }
+    for (train, kind) in [
+        (1, "same"),
+        (100, "same"),
+        (101, "stop"),
+        (150, "stop"),
+        (151, "shift"),
+        (200, "shift"),
+    ] {
+        assert!(
+            read_sample(line(train, kind).as_bytes()).is_ok(),
+            "{kind} {train}"
+        );
+    }
 }
 
 fn marked_trains() -> Vec<Train> {
