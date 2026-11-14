@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,52 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 19-control-links-no-store 21-tree-bans 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 19-control-links-no-store 21-tree-bans 19-home-paths
+      - name: control-2c tests 200 times
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp="${RUNNER_TEMP:-/tmp}"
+          found=0
+          bad=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            "$bin" --list >"$tmp/control-2c-list.txt" 2>&1
+            tr -d '\r' <"$tmp/control-2c-list.txt" | sed -n 's/: test$//p' >"$tmp/control-2c-held.txt"
+            want=""
+            n=0
+            for name in paths::tests::st36_check::a_data_directory_below_a_file_as_the_nearest_standing_part_is_never_a_first_run testing::tests::ct13_the_scripted_daemon_s_own_timed_out_pause_and_its_own_stop_leave_its_life_as_it_was; do
+              if grep -qxF "$name" "$tmp/control-2c-held.txt"; then
+                want="$want $name"
+                n=$((n + 1))
+              fi
+            done
+            [ "$n" -gt 0 ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              "$bin" --exact --test-threads 4 $want >"$tmp/control-2c-loop.txt" 2>&1
+              code=$?
+              ok=$(tr -d '\r' <"$tmp/control-2c-loop.txt" | grep -c "^test result: ok. $n passed; 0 failed")
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "$tmp/control-2c-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2c loop (macos): binary $(basename "$bin"): tests $n, runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || bad=1
+          done
+          echo "control-2c loop (macos): binaries run: $found"
+          [ "$found" -gt 0 ] && [ "$bad" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +164,52 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 19-control-links-no-store 21-tree-bans 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 19-control-links-no-store 21-tree-bans 19-home-paths
+      - name: control-2c tests 200 times
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp="${RUNNER_TEMP:-/tmp}"
+          found=0
+          bad=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            "$bin" --list >"$tmp/control-2c-list.txt" 2>&1
+            tr -d '\r' <"$tmp/control-2c-list.txt" | sed -n 's/: test$//p' >"$tmp/control-2c-held.txt"
+            want=""
+            n=0
+            for name in paths::tests::st36_check::a_data_directory_below_a_file_as_the_nearest_standing_part_is_never_a_first_run testing::tests::ct13_the_scripted_daemon_s_own_timed_out_pause_and_its_own_stop_leave_its_life_as_it_was; do
+              if grep -qxF "$name" "$tmp/control-2c-held.txt"; then
+                want="$want $name"
+                n=$((n + 1))
+              fi
+            done
+            [ "$n" -gt 0 ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              "$bin" --exact --test-threads 4 $want >"$tmp/control-2c-loop.txt" 2>&1
+              code=$?
+              ok=$(tr -d '\r' <"$tmp/control-2c-loop.txt" | grep -c "^test result: ok. $n passed; 0 failed")
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "$tmp/control-2c-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2c loop (windows): binary $(basename "$bin"): tests $n, runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || bad=1
+          done
+          echo "control-2c loop (windows): binaries run: $found"
+          [ "$found" -gt 0 ] && [ "$bad" = 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
