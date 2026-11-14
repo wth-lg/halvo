@@ -141,13 +141,13 @@ fn stream_of(line: &Line) -> Option<&str> {
 /// Runs `split` and returns the lines it prints.
 pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
     let mut names = BTreeSet::new();
-    for p in &args.scripts {
+    for (k, p) in args.scripts.iter().enumerate() {
         let name = p
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| Refusal::new("script", p.display().to_string()))?;
+            .ok_or_else(|| Refusal::new("script", format!("SCRIPT {}", k + 1)))?;
         if !names.insert(name.to_owned()) {
-            return Err(Refusal::new("script", p.display().to_string()));
+            return Err(Refusal::new("script", format!("SCRIPT {}", k + 1)));
         }
     }
     let script = Script::read(&args.scripts)?;
@@ -184,7 +184,7 @@ pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
         side_steps.push(steps);
     }
     let header = Line::Header(script.header.clone()).write();
-    let mut outputs: Vec<(PathBuf, String)> = Vec::new();
+    let mut outputs: Vec<(&str, usize, PathBuf, String)> = Vec::new();
     for (k, (sites, streams)) in side_streams.iter().enumerate() {
         for (file, path) in args.scripts.iter().enumerate() {
             let mut text = format!("{header}\n");
@@ -211,17 +211,27 @@ pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
                 text.push('\n');
             }
             let name = path.file_name().map(PathBuf::from).unwrap_or_default();
-            outputs.push((PathBuf::from(sites.as_str()).join(name), text));
+            outputs.push((
+                sites.as_str(),
+                file,
+                PathBuf::from(sites.as_str()).join(name),
+                text,
+            ));
         }
     }
     create_out_dir(&args.out)?;
-    for (rel, text) in &outputs {
+    for (side, file, rel, text) in &outputs {
         let path = args.out.join(rel);
-        let fault = || Refusal::new("output", path.display().to_string());
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|_| fault())?;
+            fs::create_dir_all(parent)
+                .map_err(|_| Refusal::new("output", args.out.join(side).display().to_string()))?;
         }
-        write_new(&path, text.as_bytes()).map_err(|_| fault())?;
+        write_new(&path, text.as_bytes()).map_err(|_| {
+            Refusal::new(
+                "output",
+                format!("{}: SCRIPT {}", args.out.display(), file + 1),
+            )
+        })?;
     }
     let mut lines = vec![format!("groups {}", groups.len())];
     for (sites, streams) in side_streams {
