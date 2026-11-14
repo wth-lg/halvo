@@ -474,6 +474,53 @@ pub mod seam {
         });
     }
 
+    /// One mark that reached a keyboard source's gate, in the order of their
+    /// arrival: what it is (an event, an own read, a latch, a start, a stop),
+    /// its state, whether an own read's element moved, its ticks and what the
+    /// reading saw of its element (framework, window class, file name and
+    /// kind: fixed strings of the programs, never a title or a text).
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct MarkSeen {
+        pub what: &'static str,
+        pub state: Option<crate::secure_input::windows::FieldState>,
+        pub moved: Option<bool>,
+        pub at: Option<u32>,
+        pub began: u32,
+        pub element: Option<String>,
+    }
+
+    static MARKS: Mutex<std::collections::VecDeque<MarkSeen>> =
+        Mutex::new(std::collections::VecDeque::new());
+
+    pub(crate) fn note_mark(
+        what: &'static str,
+        state: Option<crate::secure_input::windows::FieldState>,
+        moved: Option<bool>,
+        at: Option<u32>,
+        began: u32,
+        element: Option<String>,
+    ) {
+        let mut marks = MARKS.lock().unwrap_or_else(PoisonError::into_inner);
+        if marks.len() == KEPT {
+            marks.pop_front();
+        }
+        marks.push_back(MarkSeen {
+            what,
+            state,
+            moved,
+            at,
+            began,
+            element,
+        });
+    }
+
+    /// The marks since the last call, oldest first, at most [`KEPT`].
+    pub fn take_marks() -> Vec<MarkSeen> {
+        std::mem::take(&mut *MARKS.lock().unwrap_or_else(PoisonError::into_inner))
+            .into_iter()
+            .collect()
+    }
+
     /// The keys decided since the last call, oldest first, at most
     /// [`KEPT`] of them. Nothing of the gate reads them: the seam is read
     /// by a test alone and printed by nothing of the crate.

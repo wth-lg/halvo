@@ -2769,24 +2769,49 @@ fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInpu
     clear
 }
 
-/// Prints how many keys each rule of the gate decided since the last read of
-/// the seam, as numbers alone.
-fn rules_of_the_gate(test: &str) {
-    let decided = seam::take();
-    let mut by_rule: BTreeMap<String, usize> = BTreeMap::new();
-    for key in &decided {
-        *by_rule
-            .entry(format!("{:?}_{:?}", key.verdict, key.rule))
-            .or_default() += 1;
+/// Prints the gate's trail since the last read of the seam: each key that
+/// it decided, with its class, verdict, rule and ticks, and each mark from
+/// 1.5 s before the first key to 0.5 s after the last, with what its reading
+/// saw of its element. Ticks are relative to the first key's OS tick.
+fn gate_trail(test: &str) {
+    let keys = seam::take();
+    let marks = seam::take_marks();
+    let Some(base) = keys.first().map(|key| key.os_tick) else {
+        say(test, format!("trail keys=0 marks={}", marks.len()));
+        return;
+    };
+    let rel = |tick: u32| i64::from(tick.wrapping_sub(base) as i32);
+    let last = keys.iter().map(|key| rel(key.os_tick)).max().unwrap_or(0);
+    for key in &keys {
+        say(
+            test,
+            format!(
+                "trail key class={:?} verdict={:?} rule={:?} at={} decided={}",
+                key.class,
+                key.verdict,
+                key.rule,
+                rel(key.os_tick),
+                rel(key.decided_tick)
+            ),
+        );
     }
-    say(
-        test,
-        format!(
-            "keys_decided={} by_verdict_and_rule={}",
-            decided.len(),
-            format!("{by_rule:?}").replace(' ', "")
-        ),
-    );
+    for mark in marks.iter().filter(|mark| {
+        let at = rel(mark.at.unwrap_or(mark.began));
+        (-1500..=last + 500).contains(&at)
+    }) {
+        say(
+            test,
+            format!(
+                "trail mark what={} state={:?} moved={:?} at={} began={} {}",
+                mark.what,
+                mark.state,
+                mark.moved,
+                mark.at.map_or(i64::MIN, rel),
+                rel(mark.began),
+                mark.element.as_deref().unwrap_or("element=none")
+            ),
+        );
+    }
 }
 
 #[test]
@@ -3323,7 +3348,7 @@ fn x3_attribution_before_the_first_foreground_change() {
                 .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
                 .count()
         };
-        rules_of_the_gate("x3");
+        gate_trail("x3");
         let child_app = |events: &[CaptureStreamEvent]| {
             events
                 .iter()

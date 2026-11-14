@@ -517,13 +517,29 @@ impl Shared {
 
     /// A focus event's reading: it arms an own read and closes no latch.
     fn field(&self, at: u32, state: FieldState) {
+        self.field_seen(at, state, None);
+    }
+
+    /// As [`Shared::field`], with what the test seam is told of the element.
+    fn field_seen(&self, at: u32, state: FieldState, seen: Option<String>) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
         marks.moves += 1;
         marks.ask_read(at);
+        note_mark("event", Some(state), None, Some(at), at, seen);
     }
 
-    fn read(&self, began: u32, at: u32, state: FieldState, moved: Option<bool>) {
+    /// An own read of the detector, with what the test seam is told of the
+    /// element.
+    fn read_seen(
+        &self,
+        began: u32,
+        at: u32,
+        state: FieldState,
+        moved: Option<bool>,
+        seen: Option<String>,
+    ) {
+        note_mark("read", Some(state), moved, Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
@@ -535,6 +551,11 @@ impl Shared {
     }
 
     fn latch(&self, tick: u32, from: LatchFrom) {
+        let what = match from {
+            LatchFrom::TheInputThread => "latch-input",
+            LatchFrom::AnotherThread => "latch-other",
+        };
+        note_mark(what, None, None, Some(tick), tick, None);
         let mut marks = self.lock();
         marks.push(Some(tick), tick, Mark::Latch(from));
         marks.moves += 1;
@@ -542,6 +563,7 @@ impl Shared {
     }
 
     fn started(&self, at: u32) {
+        note_mark("start", Some(FieldState::Unknown), None, Some(at), at, None);
         let mut marks = self.lock();
         *marks = Marks::default();
         marks.push(Some(at), at, Mark::Started);
@@ -551,6 +573,20 @@ impl Shared {
         self.field(tick, FieldState::Unknown);
         self.latch(tick, LatchFrom::AnotherThread);
     }
+}
+
+/// Tells the test seam of a mark; nothing in a build without the feature.
+#[allow(unused_variables)]
+fn note_mark(
+    what: &'static str,
+    state: Option<FieldState>,
+    moved: Option<bool>,
+    at: Option<u32>,
+    began: u32,
+    seen: Option<String>,
+) {
+    #[cfg(all(feature = "test-seam", target_os = "windows"))]
+    crate::windows::input::seam::note_mark(what, state, moved, at, began, seen);
 }
 
 pub(crate) fn unreadable_state() -> FieldState {
@@ -671,7 +707,7 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Option<bool>) {
-        self.shared.read(began, began, state, moved);
+        self.shared.read_seen(began, began, state, moved, None);
     }
 
     #[cfg(test)]
@@ -913,6 +949,7 @@ mod detector {
             marks.stopping = false;
             let at = tick();
             marks.push(Some(at), at, super::Mark::Field(FieldState::Unknown));
+            super::note_mark("stop", Some(FieldState::Unknown), None, Some(at), at, None);
             ended
         }
     }
@@ -938,6 +975,9 @@ mod detector {
         kept: std::sync::Mutex<Option<(IUIAutomationElement, u64)>>,
         /// The element of the detector's last own read.
         last_read: std::sync::Mutex<Option<IUIAutomationElement>>,
+        /// What the last reading saw of its element, for the test seam.
+        #[cfg(feature = "test-seam")]
+        seen: std::sync::Mutex<Option<String>>,
     }
 
     // SAFETY: the objects of the system's UI Automation client are free
@@ -1033,6 +1073,15 @@ mod detector {
             let file = process_file(unsafe { element.CachedProcessId() }.ok());
             let class = focus_window_class();
             let kind = kind_of(framework.as_deref(), class.as_deref(), file.as_deref());
+            #[cfg(feature = "test-seam")]
+            self.saw(format!(
+                "framework={} window_class={} file={} kind={kind:?} is_password={} protected={}",
+                framework.as_deref().unwrap_or("none"),
+                class.as_deref().unwrap_or("none"),
+                file.as_deref().unwrap_or("none"),
+                is_password.map_or("none", |p| if p { "1" } else { "0" }),
+                u8::from(protected),
+            ));
             match is_password {
                 Some(is_password) => FocusRead::Answered {
                     is_password,
@@ -1041,6 +1090,26 @@ mod detector {
                 },
                 None => FocusRead::NoAnswer { protected },
             }
+        }
+
+        #[cfg(feature = "test-seam")]
+        fn saw(&self, what: String) {
+            *self
+                .seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(what);
+        }
+
+        /// What the last reading saw, taken; none in a build without the seam.
+        fn seen(&self) -> Option<String> {
+            #[cfg(feature = "test-seam")]
+            return self
+                .seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+            #[cfg(not(feature = "test-seam"))]
+            None
         }
 
         /// The state of an element. An element that read Password keeps
@@ -1054,6 +1123,8 @@ mod detector {
             moves: u64,
         ) -> FieldState {
             let Some(element) = element else {
+                #[cfg(feature = "test-seam")]
+                self.saw("no_element".to_string());
                 return super::unreadable_state();
             };
             let mut kept = self
@@ -1066,6 +1137,8 @@ mod detector {
                     .is_ok_and(|same| same.as_bool())
             });
             let read = if same {
+                #[cfg(feature = "test-seam")]
+                self.saw("the_kept_password_element".to_string());
                 FieldState::Password
             } else {
                 super::state_of(self.read(element), false)
@@ -1191,7 +1264,9 @@ mod detector {
         };
         let moves = handler.shared.lock().moves;
         let state = handler.reader.state(element, false, moves);
-        handler.shared.field(tick(), state);
+        handler
+            .shared
+            .field_seen(tick(), state, handler.reader.seen());
         handler.wake.set();
         S_OK
     }
@@ -1260,6 +1335,8 @@ mod detector {
             cache,
             kept: std::sync::Mutex::new(None),
             last_read: std::sync::Mutex::new(None),
+            #[cfg(feature = "test-seam")]
+            seen: std::sync::Mutex::new(None),
         });
         let handler = FocusHandler {
             vtable: &HANDLER_VTABLE,
@@ -1285,7 +1362,7 @@ mod detector {
         let began = tick();
         let moves = shared.lock().moves;
         let (state, moved) = reader.own(moves);
-        shared.read(began, tick(), state, moved);
+        shared.read_seen(began, tick(), state, moved, reader.seen());
     }
 
     fn run(
