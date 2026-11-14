@@ -1468,3 +1468,48 @@ fn the_tail_runs_no_sweep_on_a_roots_path_with_a_parent_part() {
         report_line(&answer)
     );
 }
+
+/// The adversary's p3_c (ruling ST-46 K3, the verifier's copy L44): the tail
+/// on a store that a live handle of this process holds answers Locked and
+/// changes nothing: the root file's bytes, store.key's bytes and the listing
+/// of the roots directory are equal before and after. After the handle is
+/// dropped an open answers Ok and reads a segment.
+#[test]
+fn p3_c_the_tail_on_a_store_that_a_handle_holds_answers_locked_and_touches_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment) = file_root_store(dir.path());
+    put_a_root(&roots_dir);
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let before = (
+        std::fs::read(&root_file).unwrap(),
+        std::fs::read(KeyFile::path(&store_dir)).unwrap(),
+        names(&roots_dir),
+    );
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let after = (
+        std::fs::read(&root_file).unwrap_or_default(),
+        std::fs::read(KeyFile::path(&store_dir)).unwrap_or_default(),
+        names(&roots_dir),
+    );
+    drop(store);
+    let reads = copy_reads(&store_dir, &roots_dir, root_id, segment);
+    println!(
+        "ST46 K3 tail={} unchanged={} after_the_handle: {reads}",
+        answer_text(&answer),
+        before == after
+    );
+    assert_eq!(
+        answer_text(&answer),
+        "Locked",
+        "the tail went on beside a live handle"
+    );
+    assert!(
+        before == after,
+        "the tail beside a live handle changed the root, store.key or the roots"
+    );
+    assert!(
+        reads.starts_with("open=Ok segment_plaintext_equal=true"),
+        "{reads}"
+    );
+}
