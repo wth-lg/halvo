@@ -1,0 +1,18 @@
+{
+  "identifier": "widened-by-the-macro",
+  "windows": [
+    "helper",
+    "zq-label-of-this-test"
+  ],
+  "permissions": [
+    "allow-capture-status",
+    "allow-inventory",
+    "allow-set-capture-state",
+    "allow-delete-all",
+    "allow-set-storage-cap",
+    "allow-onboarding-state",
+    "allow-request-permission",
+    "allow-open-permission-pane",
+    "core:app:allow-version"
+  ]
+}

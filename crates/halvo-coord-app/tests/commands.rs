@@ -645,3 +645,23 @@ fn before_its_first_tick_the_hub_hands_every_other_command_to_the_coordinator() 
         stand_in()
     );
 }
+
+#[test]
+fn the_day_is_the_day_of_one_read_of_now_and_follows_the_memory_clock() {
+    use halvo_coord::ports::Clock;
+    let hub = hub(1);
+    let ports = hub.coordinator().ports();
+    assert_ne!(
+        u64::from(support::DAY),
+        support::T0 / 86_400_000,
+        "the world's day is not the UTC day of its instant"
+    );
+    assert_eq!(ports.day(support::T0), Ok(support::DAY));
+    assert_eq!(ports.today(), Ok(support::DAY));
+    ports.inner().with(|p| p.set_now(support::T0 + 86_400_000));
+    assert_eq!(
+        ports.today(),
+        Ok(support::DAY + 1),
+        "the day follows the instant"
+    );
+}

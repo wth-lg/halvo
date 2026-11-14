@@ -1,0 +1,53 @@
+{
+  "all_granted": false,
+  "lost_grants": [],
+  "permissions": [
+    {
+      "asked": false,
+      "grant": "granted",
+      "lost": false,
+      "pane_name": "Screen & System Audio Recording",
+      "permission": "screen_and_system_audio_recording",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+      "why": "Screen activity is not recorded."
+    },
+    {
+      "asked": false,
+      "grant": "granted",
+      "lost": false,
+      "pane_name": "Accessibility",
+      "permission": "accessibility",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      "why": "lets Halvo record the text of the title of the window in front"
+    },
+    {
+      "asked": false,
+      "grant": "not_determined",
+      "lost": false,
+      "pane_name": "Input Monitoring",
+      "permission": "input_monitoring",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+      "why": "lets Halvo record a class for each key you press, never the character, and pointer actions with no position"
+    }
+  ],
+  "walkback": [
+    {
+      "action": "request_from_system",
+      "permission": "input_monitoring",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+      "text": "Click Ask now, then click Open System Settings in the message from macOS, and turn on Halvo under Input Monitoring."
+    },
+    {
+      "action": "open_settings_pane",
+      "permission": "input_monitoring",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+      "text": "Open System Settings > Privacy & Security > Input Monitoring and turn on Halvo. If Halvo is already listed and still not working, remove it with the minus button and add it again."
+    },
+    {
+      "action": "restart_capture",
+      "permission": "input_monitoring",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+      "text": "Halvo restarts its recorder so that macOS applies the Input Monitoring permission."
+    }
+  ]
+}

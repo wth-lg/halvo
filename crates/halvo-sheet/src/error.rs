@@ -1,6 +1,8 @@
 use std::fmt;
 use std::io;
 
+use halvo_checkpoint::LockError;
+
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner.
 /// Two errors have a cause of their own; every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,8 +44,15 @@ pub enum PathRefusal {
     /// A part of the path holds a colon, which on Windows names a stream of a file.
     Name,
     /// The file name is one that this crate gives a checkpoint or a prepared copy: it holds
-    /// `.halvo-checkpoint-` or `.halvo-prepared-`. `prepare` takes no such file as a workbook.
+    /// `.halvo-checkpoint-` or `.halvo-prepared-` in any letter case, because a volume that folds
+    /// case answers for such a name with a copy of the crate's. `prepare` takes no such file
+    /// as a workbook.
     OwnFile,
+    /// The file name is so long that a name that `prepare` or the removal of a checkpoint
+    /// builds for it would hold more than [`halvo_checkpoint::NAME_MAX`] units as the crate
+    /// counts them (bytes on macOS, UTF-16 code units on Windows). `prepare` refuses it before
+    /// it writes anything.
+    TooLong,
 }
 
 /// Why a source file is not of the form of contracts.md A1.2: one row per line, ended by LF,
@@ -78,13 +87,17 @@ pub enum Refusal {
     /// or `c` other than those rows and cells, nor a second element named `sheetData`, since
     /// the reader would take it as one.
     Part,
-    /// A relationship inside the package does not name a part the way the package format names
-    /// parts; a relationship whose target mode is `External` (a hyperlink) is never one. Its target
-    /// does not decode: a percent sign is not followed by two hex digits, a `/` or a `\` is
-    /// percent-encoded, or the bytes are not UTF-8. Or a relationship of a type that the crate
-    /// or its reader reads names no entry, or its type equals such a type only when ASCII case
-    /// is ignored. Or the package's office document is not `xl/workbook.xml`, or the crate and
-    /// the reader would find the named sheet in two different parts.
+    /// A relationship of a type that the crate or its reader reads as a part (a worksheet, a
+    /// chart or dialog sheet, a macro sheet, a table, a macro project, a pivot part, the office
+    /// document), its type compared without ASCII case, is marked `External`; a relationship of
+    /// another type marked `External`, a hyperlink among them, is skipped and never a reason to
+    /// refuse. Or a relationship inside the package does not name a part the way the package
+    /// format names parts: its target does not decode (a percent sign is not followed by two hex
+    /// digits, a `/` or a `\` is percent-encoded, or the bytes are not UTF-8). Or a relationship
+    /// of a type that the crate or its reader reads names no entry, or its type equals such a
+    /// type only when ASCII case is ignored. Or the package's office document is not
+    /// `xl/workbook.xml`, or the crate and the reader would find the named sheet in two
+    /// different parts.
     Relationship,
     /// Over a bound: the file holds more than 64 MiB; an entry declares or holds more than
     /// 32 MiB uncompressed, or the entries more than 128 MiB in all; or the rectangle of the
@@ -110,6 +123,9 @@ pub enum Kept {
     Copy,
     /// The system refused the rename with an error of this kind.
     Rename(io::ErrorKind),
+    /// The call could not take the lock of the workbook's directory, which another call held
+    /// for the whole wait ([`LockError::Busy`]) or which could not be opened.
+    Lock(LockError),
 }
 
 /// An error of a call. No error holds the content of a cell, of a source row or of a part of
@@ -147,10 +163,11 @@ pub enum Error {
     /// would hold a sheet part or another entry of more than 32 MiB, entries of more than
     /// 128 MiB in all, or more than 64 MiB as a file. Refused before any write.
     FillSize,
-    /// The text is not a run id of the form of contracts.md A0.6.
-    RunId,
     /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
     Checkpoint,
+    /// `prepare` could not take the lock of the workbook's directory, which another call held
+    /// for the whole wait ([`LockError::Busy`]) or which could not be opened; it wrote nothing.
+    Lock(LockError),
     /// The check of `prepare` found the prepared copy different from what the write allows, or
     /// the named cells did not read back with their new values, with the cause `sheet`.
     Sheet,
@@ -178,8 +195,8 @@ impl Error {
             | Error::RangeSize
             | Error::ReadOnly
             | Error::FillSize
-            | Error::RunId
             | Error::Checkpoint
+            | Error::Lock(_)
             | Error::NotReplaced(_)
             | Error::CopyLeft(_) => Cause::StepFailed,
         }
@@ -207,8 +224,8 @@ impl fmt::Display for Error {
             Error::RangeSize => f.write_str("the range holds more than 100,000 cells"),
             Error::ReadOnly => f.write_str("the workbook cannot be written"),
             Error::FillSize => f.write_str("the write would make a copy over the bounds of a read"),
-            Error::RunId => f.write_str("the text is not a run id"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
+            Error::Lock(why) => write!(f, "the lock of the workbook's folder: {why:?}"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
             Error::NotReplaced(why) => write!(f, "the workbook was not replaced: {why:?}"),
             Error::CopyLeft(why) => write!(

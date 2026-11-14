@@ -397,6 +397,7 @@ object_type! {
         pub reply: StoreReply = "reply" => from_json,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -406,6 +407,7 @@ object_type! {
         pub decision: ConfirmDecision = "decision" => ConfirmDecision::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -415,6 +417,7 @@ object_type! {
         pub result: HandbackResult = "result" => HandbackResult::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 /// `secret_reply`, one of the three answers of `Secrets::read`: `{"t":"secret_reply","answer":"stored","value":"<text>"}`,
@@ -428,7 +431,7 @@ object_type! {
 /// ```compile_fail
 /// use halvo_schema::executable::frame::SecretReply;
 /// use halvo_schema::executable::text::SecretText;
-/// let _ = SecretReply::None(SecretText::new("tok"));
+/// let _ = SecretReply::None(SecretText::parse("tok").unwrap());
 /// ```
 ///
 /// ```compile_fail
@@ -442,7 +445,7 @@ object_type! {
 /// ```
 /// use halvo_schema::executable::frame::SecretReply;
 /// use halvo_schema::executable::text::SecretText;
-/// let _ = SecretReply::Stored(SecretText::new("tok"));
+/// let _ = SecretReply::Stored(SecretText::parse("tok").unwrap());
 /// ```
 ///
 /// ```
@@ -455,6 +458,10 @@ pub enum SecretReply {
     Stored(SecretText),
     None,
     Unreadable(Unreadable),
+}
+
+impl json::Arrives for SecretReply {
+    const MAX: usize = FRAME_JSON_MAX;
 }
 
 impl SecretReply {
@@ -499,8 +506,13 @@ impl SecretReply {
         }
     }
 
-    /// Reads one JSON value of this type and refuses every other input.
+    /// Reads one JSON value of this type and refuses every other input. An input of more than `FRAME_JSON_MAX`
+    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
+    /// `frame_length`.
     pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        if bytes.len() > FRAME_JSON_MAX {
+            return Err(Refusal::length("SecretReply", "frame_length"));
+        }
         Self::from_raw(json::whole("SecretReply", bytes)?)
     }
 
@@ -529,6 +541,7 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Cancel [t = "cancel"] {}
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -562,6 +575,7 @@ object_type! {
         pub bound: YesNo = "bound" => from_json,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -569,9 +583,24 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct BrowserReply [t = "browser_reply"] {}
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 macro_rules! frame_enum {
+    (
+        bounded($max:expr)
+        $(#[$meta:meta])*
+        pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
+    ) => {
+        frame_enum! {
+            $(#[$meta])*
+            pub enum $name { $( $variant($ty) = $t ),+ }
+        }
+
+        const _: () = {
+            $( assert!(<$ty as json::Arrives>::MAX == $max); )+
+        };
+    };
     (
         $(#[$meta:meta])*
         pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
@@ -629,7 +658,9 @@ frame_enum! {
 }
 
 frame_enum! {
-    /// A frame from the supervisor to the runner.
+    bounded(FRAME_JSON_MAX)
+    /// A frame from the supervisor to the runner. Each variant's type has a bound of `FRAME_JSON_MAX` bytes as they
+    /// arrive in its own `parse`, or the crate does not compile.
     pub enum ToRunner {
         StoreReply(StoreReplyFrame) = "store_reply",
         ConfirmReply(ConfirmReply) = "confirm_reply",

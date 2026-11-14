@@ -5,7 +5,7 @@ use halvo_sheet::{Cause, Error, Folder, SourceRefusal, Value};
 
 fn read(scratch: &Scratch, bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     scratch.write("source.csv", bytes);
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     folder.read_source(std::path::Path::new("source.csv"))
 }
 

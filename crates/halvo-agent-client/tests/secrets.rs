@@ -29,10 +29,14 @@ fn reply_for(answer: SecretReply) -> String {
     replies[0].clone()
 }
 
+fn stored(value: &str) -> SecretReply {
+    SecretReply::Stored(SecretText::parse(value).expect("the fixture secret parses"))
+}
+
 #[test]
 fn a_stored_secret_reaches_the_runner_as_stored_with_its_value() {
     assert_eq!(
-        reply_for(SecretReply::Stored(SecretText::new("tok_fixture"))),
+        reply_for(stored("tok_fixture")),
         r#"{"t":"secret_reply","answer":"stored","value":"tok_fixture"}"#
     );
 }
@@ -58,10 +62,11 @@ fn a_secrets_that_answers_unreadable_reaches_the_runner_as_unreadable_and_never_
 }
 
 #[test]
-fn an_empty_secret_reaches_the_runner_as_unreadable_with_fault() {
+fn an_empty_secret_cannot_reach_the_runner_because_its_parse_is_refused_with_empty_secret() {
+    let refusal = SecretText::parse("").expect_err("an empty secret parses");
     assert_eq!(
-        reply_for(SecretReply::Stored(SecretText::new(""))),
-        r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#
+        (refusal.type_name(), refusal.rule()),
+        ("SecretText", "empty_secret")
     );
 }
 
@@ -70,12 +75,12 @@ fn a_secret_longer_than_1024_bytes_passes_and_one_that_no_frame_can_carry_is_unr
 {
     let long = "t".repeat(4096);
     assert_eq!(
-        reply_for(SecretReply::Stored(SecretText::new(&long))),
+        reply_for(stored(&long)),
         format!(r#"{{"t":"secret_reply","answer":"stored","value":"{long}"}}"#)
     );
     let over = "t".repeat(FRAME_MAX);
     assert_eq!(
-        reply_for(SecretReply::Stored(SecretText::new(&over))),
+        reply_for(stored(&over)),
         r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#
     );
 }

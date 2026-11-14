@@ -91,6 +91,8 @@ pub enum DaemonError {
     Store(String),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
+    #[error("the system refused the secure-input hold (status {0})")]
+    SecureInputRefused(i32),
 }
 
 #[cfg(test)]

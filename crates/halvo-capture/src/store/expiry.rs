@@ -6,20 +6,29 @@ use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
 use super::db::{db_error, unix_secs_now, Db, EncryptedStore, KeyFile};
-use super::segment::{self, SegmentFile};
+use super::segment;
 use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
+
+/// What one sweep of the keyless segment files did: the files it removed,
+/// and the entries at the two walked levels of segments/ that the walk does
+/// not take as files of the store (a link or a directory with a store name
+/// among them, nothing below the two levels, and no live segment that the
+/// sweep keeps), which it leaves in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sweep {
+    pub removed: u64,
+    pub not_store_files: u64,
+}
 
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
     row.get(0)
 }
 
 fn parse_segment_id(text: &str) -> StoreResult<Uuid> {
-    Uuid::parse_str(text).map_err(|e| {
-        StoreError::Corrupt(format!(
-            "segment_keys holds a corrupt segment id {text}: {e}"
-        ))
+    Uuid::parse_str(text).map_err(|_| {
+        StoreError::Corrupt("segment_keys holds a segment id that does not parse".to_string())
     })
 }
 
@@ -73,24 +82,16 @@ impl EncryptedStore {
         Ok(())
     }
 
-    pub(crate) fn remove_keyless_files(&self) -> StoreResult<u64> {
+    pub(crate) fn remove_keyless_files(&self) -> StoreResult<Sweep> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
-        let mut removed = 0u64;
-        let mut failures = Vec::new();
-        for file in segment::segment_files(self.dir())? {
-            if let SegmentFile::Segment { id, .. } = &file {
-                if live.contains(id) {
-                    continue;
-                }
-            }
-            match segment::remove_segment_file(file.path()) {
-                Ok(()) => removed += 1,
-                Err(e) => failures.push(e),
-            }
-        }
-        match failures.into_iter().next() {
+        let swept =
+            segment::sweep_segment_files(self.handle(), self.fs(), &|id| live.contains(&id))?;
+        match swept.first_failure {
             Some(first) => Err(first),
-            None => Ok(removed),
+            None => Ok(Sweep {
+                removed: swept.removed,
+                not_store_files: swept.not_store_files,
+            }),
         }
     }
 

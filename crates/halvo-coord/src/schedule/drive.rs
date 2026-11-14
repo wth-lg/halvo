@@ -3,7 +3,7 @@ use super::{
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
-use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs};
+use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
     Doing, Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised,
@@ -143,10 +143,12 @@ fn port_cause(error: &PortError) -> Cause {
     }
 }
 
+/// What a move works with: the ports, the limits, and the one read of the clock that the move
+/// made first, whose instant and day stamp every row of the move (I7.1).
 struct Cx<'a, P> {
     ports: &'a P,
     limits: &'a crate::types::Limits,
-    now: u64,
+    stamp: Stamp,
 }
 
 fn ids(workflows: &[Workflow]) -> Vec<WorkflowId> {
@@ -224,20 +226,13 @@ fn listing<P: Owner, C>(
     Ok(ids(&list))
 }
 
-fn instant(now: u64) -> i64 {
-    i64::try_from(now)
-        .unwrap_or(i64::MAX)
-        .saturating_mul(1_000_000)
-}
-
 fn store<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,
     whats: Vec<What>,
 ) -> Result<(), PortError> {
-    let day = board.day;
-    store_at(cx, board, i, whats, day, instant(cx.now))
+    store_at(cx, board, i, whats, cx.stamp.day(), cx.stamp.at())
 }
 
 fn store_at<P: Owner, C: ConfigView>(
@@ -492,7 +487,7 @@ fn finish<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &Run
 where
     C: ConfigView,
 {
-    let (day, at) = (board.day, instant(cx.now));
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
     match log_end(cx, board, i, run, cause, (day, at), false) {
         Ok(()) => {}
         Err(e) if gone_refusal(&e) => {}
@@ -591,7 +586,7 @@ where
         answer,
         run,
     };
-    let _ = cx.ports.defer(cx.now.saturating_add(go.defer_ms));
+    let _ = cx.ports.defer(cx.stamp.now().saturating_add(go.defer_ms));
     let run = match minted(cx).map(|h| RunId::parse(&h)) {
         Ok(Ok(run)) => run,
         Ok(Err(_)) => return served(Err(Cause::NoService), None),
@@ -609,8 +604,8 @@ where
         trigger,
         slot: go.slot,
     });
-    let day = board.day;
-    match store_read(cx, board, i, whats, day, instant(cx.now), Some(decide)) {
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
+    match store_read(cx, board, i, whats, day, at, Some(decide)) {
         Ok(Stored::Logged) => {}
         Ok(Stored::LostStart) => return served(Err(Cause::State), None),
         Ok(Stored::Decided(cause)) => return served(Err(cause), None),
@@ -699,8 +694,8 @@ where
     C: ConfigView,
 {
     let agent = board.members[i].facts.agent.clone();
-    let day = board.day;
-    close_lost_starts(cx, board, i, 0, day, instant(cx.now));
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
+    close_lost_starts(cx, board, i, 0, day, at);
     let around = Around {
         listed: listed.contains(&board.members[i].facts.workflow.id),
         live: u32::try_from(board.runs.len()).unwrap_or(u32::MAX),
@@ -772,7 +767,6 @@ where
                     item: ready,
                     answer: Answered::Ready(ReadyAnswer::Start),
                 };
-                let at = instant(cx.now);
                 match store_read(cx, board, i, vec![answered], day, at, Some(&decide)) {
                     Ok(Stored::Decided(cause)) => return served(Err(cause)),
                     Ok(_) => item = None,
@@ -1077,13 +1071,13 @@ fn raise<P: Owner + Rng, C: ConfigView>(
     Ok(())
 }
 
-fn read_day<P: Clock, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Result<(), PortError> {
-    let day = cx.ports.today()?;
+/// Takes the day of the move's read of the clock as the coordinator's day (I5.9).
+fn read_day<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) {
+    let day = cx.stamp.day();
     board.day = day;
     for m in &mut board.members {
         m.facts.today = day;
     }
-    Ok(())
 }
 
 fn tick<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Report
@@ -1091,19 +1085,17 @@ where
     P: Owner<Config = C> + Runs + Analysis + Clock + Rng,
     C: ConfigView + Clone,
 {
-    if let Err(e) = read_day(cx, board) {
-        return refused(port_cause(&e));
-    }
+    read_day(cx, board);
     let listed = listing(cx, board, None).ok();
     let starts = listed.is_some() && fresh(cx, board, None).is_ok();
     let seen = listed.clone().unwrap_or_else(|| known(board));
-    let plan = tick_plan(board, &seen, cx.now, cx.limits);
+    let plan = tick_plan(board, &seen, cx.stamp.now(), cx.limits);
     let mut report = Report::default();
     if let Some(ms) = plan.defer_ms {
-        let _ = cx.ports.defer(cx.now.saturating_add(ms));
+        let _ = cx.ports.defer(cx.stamp.now().saturating_add(ms));
     }
     for run in &plan.stop {
-        stop_run(board, run, cx.now, RunEnd::Deleted);
+        stop_run(board, run, cx.stamp.now(), RunEnd::Deleted);
         let _ = cx.ports.cancel(run);
         report.stopped.push(run.clone());
     }
@@ -1430,7 +1422,7 @@ where
                 .find(|r| r.agent == agent && r.stop.is_none())
                 .map(|r| r.run.clone());
             if let Some(run) = live {
-                stop_run(board, &run, cx.now, RunEnd::Cancelled);
+                stop_run(board, &run, cx.stamp.now(), RunEnd::Cancelled);
                 let _ = cx.ports.cancel(&run);
                 report.stopped.push(run);
             }
@@ -1491,15 +1483,17 @@ where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
 {
-    let now = match ports.now() {
-        Ok(now) => now,
+    let stamp = match Stamp::read(ports) {
+        Ok(stamp) => stamp,
         Err(e) => return refused(port_cause(&e)),
     };
-    let cx = Cx { ports, limits, now };
+    let cx = Cx {
+        ports,
+        limits,
+        stamp,
+    };
     if matches!(mv, Move::Start { .. } | Move::End { .. }) {
-        if let Err(e) = read_day(&cx, board) {
-            return refused(port_cause(&e));
-        }
+        read_day(&cx, board);
     }
     match mv {
         Move::Tick => tick(&cx, board),

@@ -1,11 +1,10 @@
 //! Store and deletion verification the gate drives through `--verify-store` and
-//! `--verify-deletion`. Every field the gate reads is a measurement of the
-//! store under test; nothing here prints a constant it did not observe.
+//! `--verify-deletion`.
 
 use std::fmt::{self, Write as _};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::engine::GeneralPurpose;
@@ -38,13 +37,17 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-struct StoreDir {
+pub(crate) struct StoreDir {
     path: PathBuf,
     owned: bool,
 }
 
 impl StoreDir {
-    fn from_env() -> Self {
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(crate) fn from_env() -> Self {
         match std::env::var("HALVO_STORE_DIR") {
             Ok(d) => Self {
                 path: PathBuf::from(d),
@@ -91,7 +94,7 @@ pub struct StoreCheck {
     pub fts_secure_delete: i64,
     pub cipher_provider: String,
     pub segment_roundtrip: bool,
-    /// Wall time of the owner's store-key unwrap through the recorded custody.
+    /// Wall time of the store-key unwrap of the `open` that reopened the store.
     pub unwrap_ms: u128,
 }
 
@@ -119,12 +122,8 @@ impl fmt::Display for StoreCheck {
     }
 }
 
-/// Implements `--verify-store`.
-pub fn run_store_check() -> StoreResult<StoreCheck> {
-    let dir = StoreDir::from_env();
-    let marker =
-        std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string());
-    run_store_check_in(&dir.path, &marker)
+pub(crate) fn marker_from_env() -> String {
+    std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string())
 }
 
 pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreCheck> {
@@ -174,15 +173,8 @@ pub(crate) fn check_store(
     };
     drop(store);
 
-    let unwrap_ms = {
-        let key_file = KeyFile::read(dir)?;
-        let custody = rebuild(key_file.custody_kind, key_file.root_id)?;
-        let started = Instant::now();
-        custody.unwrap_store_key(&key_file.wrapped_store_key()?)?;
-        started.elapsed().as_millis()
-    };
-
     let reopened = EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild)?;
+    let unwrap_ms = reopened.unwrap_time().as_millis();
     let db = reopened.db()?;
     let rows: i64 = db
         .connection()
@@ -344,8 +336,8 @@ pub struct DeletionCheck {
     /// Bytes left in the WAL after the shred pass.
     pub wal_bytes: u64,
     pub delete_all_keys: u64,
-    /// The store key retained from before delete-all no longer unwraps through
-    /// the custody that wrapped it.
+    /// The custody answers RootMissing for the wrap retained from before
+    /// delete-all, and that wrap does not open under an all-zero root.
     pub root_destroyed: bool,
     /// `open` on the directory after delete-all returns `Sealed`.
     pub store_sealed: bool,
@@ -368,12 +360,6 @@ impl fmt::Display for DeletionCheck {
             yes_no(self.store_sealed),
         )
     }
-}
-
-/// Implements `--verify-deletion`.
-pub fn run_deletion_check() -> StoreResult<DeletionCheck> {
-    let dir = StoreDir::from_env();
-    run_deletion_check_in(&dir.path)
 }
 
 pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
@@ -648,6 +634,59 @@ mod tests {
         assert!(
             matches!(&leaky, Err(StoreError::Corrupt(why)) if why.contains("raw store key")),
             "a store.key that holds the raw store key passed the check: {leaky:?}"
+        );
+    }
+
+    struct SlowUnwrap(FileRootCustody<TestProtector>);
+
+    const SLOW_UNWRAP_MS: u64 = 1100;
+
+    impl KeyCustody for SlowUnwrap {
+        fn kind(&self) -> CustodyKind {
+            self.0.kind()
+        }
+        fn root_id(&self) -> RootId {
+            self.0.root_id()
+        }
+        fn wrap_store_key(
+            &self,
+            key: &crate::custody::StoreKey,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.0.wrap_store_key(key)
+        }
+        fn create_root(&self) -> Result<(), CustodyError> {
+            self.0.create_root()
+        }
+        fn unwrap_store_key(
+            &self,
+            wrapped: &WrappedKey,
+        ) -> Result<crate::custody::StoreKey, CustodyError> {
+            std::thread::sleep(std::time::Duration::from_millis(SLOW_UNWRAP_MS));
+            self.0.unwrap_store_key(wrapped)
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            self.0.destroy_root()
+        }
+    }
+
+    #[test]
+    fn the_store_check_prints_the_time_of_the_unwrap_that_opened_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, roots_dir, root_id) = file_root_store(dir.path());
+        let rebuild =
+            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+                Ok(Box::new(SlowUnwrap(file_root_custody(&roots_dir, root_id))))
+            };
+        let check = check_store(store, "MARKER-OF-A-SLOW-UNWRAP", &rebuild).unwrap();
+        assert!(
+            check.unwrap_ms >= u128::from(SLOW_UNWRAP_MS),
+            "an unwrap of {SLOW_UNWRAP_MS} ms printed unwrap_ms={}",
+            check.unwrap_ms
+        );
+        let line = check.to_string();
+        assert!(
+            line.contains(&format!(" unwrap=ok unwrap_ms={} ", check.unwrap_ms)),
+            "{line}"
         );
     }
 
@@ -1002,6 +1041,62 @@ mod tests {
         let line = check.to_string();
         assert!(line.contains(" segment_roundtrip=ok "), "{line}");
         assert!(line.contains(" prompt=none"), "{line}");
+    }
+
+    #[test]
+    fn measure_for_parent() {
+        let Ok(dir) = std::env::var("HALVO_TEST_MEASURE_DIR") else {
+            println!("measure_for_parent: HALVO_TEST_MEASURE_DIR is not set, so no parent asked for a measure");
+            return;
+        };
+        let dir = PathBuf::from(dir);
+        let store = crate::store::measure_store(&dir.join("store"), "MARKER-OF-THE-MEASURE-ENTRY");
+        let deletion = crate::store::measure_deletion(&dir.join("deletion"));
+        println!();
+        println!("MEASURED {}", store.unwrap().trim_end());
+        println!("MEASURED {}", deletion.unwrap().trim_end());
+    }
+
+    #[test]
+    fn the_measure_entries_take_their_directory_and_read_no_environment() {
+        let dir = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "store::verify::tests::measure_for_parent",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("HALVO_TEST_MEASURE_DIR", dir.path())
+            .env("HALVO_STORE_DIR", elsewhere.path())
+            .env("HALVO_GATE_MARKER", "MARKER-FROM-THE-ENVIRONMENT")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "the child failed: {text}");
+        let measured: Vec<&str> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("MEASURED "))
+            .collect();
+        assert_eq!(measured.len(), 2, "{text}");
+        assert!(
+            measured[0].starts_with("store rows=2000 ") && measured[0].contains(" unwrap=ok "),
+            "{}",
+            measured[0]
+        );
+        assert!(
+            measured[1].starts_with("segment=") && measured[1].ends_with(" store_sealed=yes"),
+            "{}",
+            measured[1]
+        );
+        assert!(KeyFile::path(&dir.path().join("store")).exists());
+        assert!(dir.path().join("deletion").is_dir());
+        assert_eq!(
+            std::fs::read_dir(elsewhere.path()).unwrap().count(),
+            0,
+            "a measure entry wrote into the directory that HALVO_STORE_DIR names"
+        );
     }
 
     #[test]

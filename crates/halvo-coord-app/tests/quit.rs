@@ -6,7 +6,7 @@ use halvo_coord_app::{Core, Hub};
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
-use support::{agent, calls_since, events, mark, started, world, Counts, Dialogs, Shared, DAY, T0};
+use support::{agent, calls_since, events, mark, started, world, Counts, Dialogs, Shared, T0};
 
 fn ms(n: u64) -> Duration {
     Duration::from_millis(n)
@@ -142,7 +142,7 @@ fn for_a_run_stopped_before_the_quit_the_grace_counts_from_its_stop() {
     hub.coordinator()
         .ports()
         .inner()
-        .with(|p| p.set_clock(T0 + 1_700, DAY));
+        .with(|p| p.set_now(T0 + 1_700));
     let m = mark(&hub);
     let took = quit(&hub, None).join().unwrap();
     assert!(took >= ms(250) && took < ms(1_200), "{took:?}");

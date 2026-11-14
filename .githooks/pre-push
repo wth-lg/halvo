@@ -1,2 +1,26 @@
 #!/bin/sh
-exec sh "$(dirname "$0")/../scripts/check-commit-messages.sh" --pre-push "$1"
+pushed=$(cat) || exit 1
+hooks=$(dirname "$0")
+messages=0
+printf '%s' "${pushed:+$pushed
+}" | sh "$hooks/../scripts/check-commit-messages.sh" --pre-push "$1" || messages=$?
+home_paths=0
+if [ -f "$hooks/../scripts/check-home-paths.sh" ]; then
+  said=$(printf '%s' "${pushed:+$pushed
+}" | sh "$hooks/../scripts/check-home-paths.sh" --pre-push "$1") || home_paths=$?
+  [ -z "$said" ] || printf '%s\n' "$said"
+  case ${said##*"
+"} in
+    "check-home-paths: PASS: the push to "*) ;;
+    *)
+      if [ "$home_paths" = 0 ]; then
+        printf 'pre-push: the scan for home paths exited 0 without its PASS line, so the push is refused.\n' >&2
+        home_paths=1
+      fi
+      ;;
+  esac
+else
+  printf 'pre-push: the scan for home paths did not run, because %s is missing beside this hook.\n' "$hooks/../scripts/check-home-paths.sh" >&2
+fi
+[ "$messages" = 0 ] || exit "$messages"
+exit "$home_paths"

@@ -32,11 +32,11 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: the coordinator's ruling of 2026-11-11 08:25Z, after the
-# macos job took 1159 s at cdde6c8, the head of pull request #13, which main
-# holds as its squash commit 007ad973; the first value 30 was RD-45, 1.45 times
-# 1243 s. The workflow lint compares each job's timeout-minutes with it.
-ci_job_timeout_min=60
+# ci_job_timeout_min: 90 by ruling JB-6 (2) of 2026-11-13: by measured parts
+# the windows job of main, with its cache save, comes to about 3,346 to 3,623 s
+# after land-34 and 3,509 to 3,896 s after land-36. Before it: 60 (2026-11-11
+# 08:25Z), 30 (RD-45). The workflow lint compares each job's timeout with it.
+ci_job_timeout_min=90
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
 # this many seconds before the gate ends it and prints FAIL: each timed run,

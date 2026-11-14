@@ -1,10 +1,9 @@
-//! Microphone capture source: present, but off by default in R1.
+//! Microphone capture source.
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
-/// Microphone capture. Off by default; R1 does not wire the capture.
 pub struct MicrophoneSource;
 
 impl MicrophoneSource {
@@ -31,11 +30,13 @@ mod tests {
     use crate::sink;
 
     #[test]
-    fn disabled_by_default_and_start_is_a_no_op() {
-        let (handle, _writer) = sink::channel(1);
+    fn the_off_source_emits_no_event_between_start_and_stop() {
+        let (handle, writer) = sink::channel(1);
         let mut source = MicrophoneSource::disabled();
-        assert!(source.start(handle).is_ok());
+        let _ = source.start(handle.clone());
         source.stop();
+        drop(handle);
+        assert!(writer.recv().is_none(), "the off source emitted an event");
     }
 
     #[test]

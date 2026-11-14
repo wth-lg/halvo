@@ -45,8 +45,11 @@ const PATH_MAX: usize = 1024;
 /// system's own lookup. The next one answers a fault with ELOOP, so a loop of links ends.
 const MAX_LINKS: usize = 32;
 
+const F_GETPATH: c_int = 50;
+
 extern "C" {
     fn geteuid() -> u32;
+    fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
     fn openat(fd: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
     fn mkdirat(fd: c_int, path: *const c_char, mode: u16) -> c_int;
     fn unlinkat(fd: c_int, path: *const c_char, flags: c_int) -> c_int;
@@ -529,5 +532,26 @@ impl Fs for UnixFs {
 
     fn sync_dir(&self, dir: &File) -> io::Result<()> {
         dir.sync_all()
+    }
+
+    fn names(&self, dir: &File) -> io::Result<Vec<String>> {
+        let mut path = vec![0u8; PATH_MAX];
+        // SAFETY: `dir` stays open through the call, and F_GETPATH writes at most MAXPATHLEN
+        // bytes, its NUL included, into the buffer, which holds PATH_MAX (MAXPATHLEN) bytes.
+        if unsafe { fcntl(dir.as_raw_fd(), F_GETPATH, path.as_mut_ptr()) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let len = path
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(path.len());
+        path.truncate(len);
+        let mut names = Vec::new();
+        for entry in std::fs::read_dir(PathBuf::from(OsString::from_vec(path)))? {
+            if let Ok(name) = entry?.file_name().into_string() {
+                names.push(name);
+            }
+        }
+        Ok(names)
     }
 }

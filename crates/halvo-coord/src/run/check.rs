@@ -1,4 +1,4 @@
-use crate::ports::{Clock, Owner, Rng};
+use crate::ports::{Clock, Owner, Rng, Stamp};
 use crate::schedule::{holds, read_after_seq, seq_refusal, Board, Hold};
 use crate::types::{
     hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, OwnItem, OwnItemKind, Raised, What,
@@ -31,13 +31,10 @@ where
     P: Owner + Rng + Clock,
     C: ConfigView,
 {
-    let Ok(now) = ports.now() else {
+    let Ok(stamp) = Stamp::read(ports) else {
         return Vec::new();
     };
-    let at = i64::try_from(now)
-        .unwrap_or(i64::MAX)
-        .saturating_mul(1_000_000);
-    let day = board.day;
+    let (day, at) = (stamp.day(), stamp.at());
     let mut raised = Vec::new();
     for i in 0..board.members.len() {
         let gone = board.gone.contains(&board.members[i].facts.workflow.id);

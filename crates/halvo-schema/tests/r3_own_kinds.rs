@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use halvo_schema::executable::{
-    self, AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
+    self, AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
@@ -26,9 +26,7 @@ const CLASSES: [(&str, RetentionClass); 6] = [
     ("agent_checkpoint", RetentionClass::Bounded { days: 93 }),
 ];
 
-const WITHOUT_STRICT_READER: [&str; 1] = ["agent_checkpoint"];
-
-const KIND_NAMES_THAT_NAMES_LACKS: [&str; 6] = OWN;
+const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
 
 fn entry(name: &str) -> &'static KindEntry {
     executable::KINDS
@@ -37,7 +35,7 @@ fn entry(name: &str) -> &'static KindEntry {
         .unwrap_or_else(|| panic!("no kind {name}"))
 }
 
-fn strict(name: &str, text: &str) -> Option<Result<String, String>> {
+fn strict(name: &str, text: &str) -> Result<String, String> {
     let b = text.as_bytes();
     let read = match name {
         "agent_playbook" => AgentPlaybook::parse(b).and_then(|v| v.to_json()),
@@ -45,9 +43,10 @@ fn strict(name: &str, text: &str) -> Option<Result<String, String>> {
         "agent_effect" => AgentEffect::parse(b).and_then(|v| v.to_json()),
         "agent_log" => AgentLog::parse(b).and_then(|v| v.to_json()),
         "agent_session" => AgentSession::parse(b).and_then(|v| v.to_json()),
-        _ => return None,
+        "agent_checkpoint" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
+        _ => panic!("the kind {name} has no strict reader"),
     };
-    Some(read.map_err(|e| e.to_string()))
+    read.map_err(|e| e.to_string())
 }
 
 fn swap(text: &str, from: &str, to: &str) -> String {
@@ -78,13 +77,11 @@ fn each_example_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_whe
     for name in OWN {
         let kind = entry(name);
         assert_eq!(check_record(kind, kind.example), Ok(()), "{name}");
-        match strict(name, kind.example) {
-            Some(read) => {
-                assert!(!WITHOUT_STRICT_READER.contains(&name), "{name}");
-                assert_eq!(read.as_deref(), Ok(kind.example), "{name}");
-            }
-            None => assert!(WITHOUT_STRICT_READER.contains(&name), "{name}"),
-        }
+        assert_eq!(
+            strict(name, kind.example).as_deref(),
+            Ok(kind.example),
+            "{name}"
+        );
     }
 }
 
@@ -103,9 +100,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             )),
             "{name}"
         );
-        if let Some(read) = strict(name, &extra) {
-            assert!(read.is_err(), "{name}");
-        }
+        assert!(strict(name, &extra).is_err(), "{name}");
     }
     let cases = [
         (
@@ -183,9 +178,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             Err(format!("{name}: {rule}")),
             "{to}"
         );
-        if let Some(read) = strict(name, &text) {
-            assert!(read.is_err(), "{to}");
-        }
+        assert!(strict(name, &text).is_err(), "{to}");
     }
     for name in OWN {
         assert!(cases.iter().any(|(n, ..)| *n == name), "{name}");
@@ -216,9 +209,7 @@ fn a_row_without_its_workflow_or_its_day_is_refused_so_none_escapes_the_delete_o
             check_record(kind, &without),
             Err(format!("{name}: workflow: missing_key"))
         );
-        if let Some(read) = strict(name, &without) {
-            assert!(read.is_err(), "{name}");
-        }
+        assert!(strict(name, &without).is_err(), "{name}");
         if let RetentionClass::Bounded { .. } = kind.class {
             let day = r#""day":20768"#;
             assert_eq!(
@@ -258,13 +249,32 @@ fn a_piece_of_own_text_longer_than_1024_bytes_is_refused() {
 }
 
 #[test]
-fn the_names_list_of_the_file_lacks_exactly_the_six_kind_names_of_origin_own() {
-    let lacking: Vec<&str> = executable::KINDS
-        .iter()
-        .map(|k| k.name)
-        .filter(|name| !executable::NAMES.contains(name))
+fn every_kind_name_family_and_field_key_of_kinds_stands_in_names_and_names_holds_no_other_kind() {
+    let mut wanted = BTreeSet::new();
+    for kind in executable::KINDS {
+        wanted.insert(kind.name);
+        wanted.insert(kind.family);
+        wanted.extend(kind.fields.iter().map(|(key, _)| *key));
+    }
+    let lacking: Vec<&str> = wanted
+        .into_iter()
+        .filter(|name| !LEFT_OUT.contains(name) && !executable::NAMES.contains(name))
         .collect();
-    assert_eq!(lacking, KIND_NAMES_THAT_NAMES_LACKS);
+    assert_eq!(lacking, Vec::<&str>::new());
+    for name in LEFT_OUT {
+        assert!(!executable::NAMES.contains(&name), "{name}");
+    }
+    let kinds: BTreeSet<&str> = executable::KINDS.iter().map(|k| k.name).collect();
+    let prefixes: BTreeSet<String> = executable::KINDS
+        .iter()
+        .map(|k| format!("{}_", k.family))
+        .collect();
+    let named: BTreeSet<&str> = executable::NAMES
+        .iter()
+        .copied()
+        .filter(|name| prefixes.iter().any(|p| name.starts_with(p.as_str())))
+        .collect();
+    assert_eq!(named, kinds);
 }
 
 fn own_dir() -> PathBuf {
@@ -302,10 +312,7 @@ fn every_own_row_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_wh
         assert_eq!(distinct.len(), lines.len(), "{name}");
         for line in &lines {
             assert_eq!(check_record(kind, line), Ok(()), "{name}: {line}");
-            match strict(name, line) {
-                Some(read) => assert_eq!(read.as_ref(), Ok(line), "{name}"),
-                None => assert!(WITHOUT_STRICT_READER.contains(&name), "{name}"),
-            }
+            assert_eq!(strict(name, line).as_ref(), Ok(line), "{name}");
         }
     }
 }

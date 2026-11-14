@@ -1,0 +1,10 @@
+{
+  "state": "paused",
+  "store_backend": "stand-in store: the encrypted store is wired in at phase P6",
+  "store_bytes": 370,
+  "store_cap_bytes": 10737418240,
+  "window": {
+    "first_report_day": 7,
+    "rolling_days": 14
+  }
+}

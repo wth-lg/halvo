@@ -31,7 +31,7 @@ fn the_count_of_agents_under_needs_you_reaches_the_trays_sink_at_each_change() {
     c.on_screen(&item);
     c.ports()
         .inner()
-        .with(|p| p.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY));
+        .with(|p| p.set_now(T0 + Limits::PRODUCT.arm_ms));
     c.tick();
     assert_eq!(c.answer_native(&item, ConfirmAnswer::Allow), Ok(()));
     assert_eq!(counts.all().last(), Some(&0));

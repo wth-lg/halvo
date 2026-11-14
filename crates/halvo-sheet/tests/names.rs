@@ -17,7 +17,7 @@ fn refused(scratch: &Scratch, label: &str, sheet: &str, cell: &str, want: Refusa
     let path = scratch.path("book.xlsx");
     let before = fs::read(&path).expect("read");
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse(cell).expect("a range");
     let values = [vec![Value::Number(1.0)]];
@@ -306,7 +306,7 @@ fn a_sheet_target_or_an_entry_in_another_case_is_written_where_the_reader_reads_
             each,
             &[],
         );
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let range = Range::parse("B5").expect("a range");
         let prepared = folder
@@ -334,7 +334,7 @@ fn a_sheet_target_or_an_entry_in_another_case_is_written_where_the_reader_reads_
 fn a_sheet_name_is_compared_byte_for_byte() {
     let scratch = Scratch::new("names-sheet");
     fs::copy(corpus("formulas.xlsx"), scratch.path("formulas.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse("B2").expect("a range");
     let values = vec![vec![Value::Number(1.0)]];
@@ -347,87 +347,148 @@ fn a_sheet_name_is_compared_byte_for_byte() {
     assert_eq!(scratch.names(""), vec!["formulas.xlsx".to_string()]);
 }
 
+fn external(kind: &str, target: &str) -> String {
+    format!(r#"<Relationship Id="rId9" Type="{kind}" Target="{target}" TargetMode="External"/>"#)
+}
+
 #[test]
-fn an_external_table_or_sheet_relationship_is_never_a_reason_to_refuse() {
-    let table = format!(
-        r#"<Relationship Id="rId8" Type="{OD}/table" Target="https://example.com/%2Ftable" TargetMode="External"/></Relationships>"#
+fn a_table_relationship_marked_external_refuses_the_workbook_before_any_write() {
+    let marked = in_part(
+        SHEET_RELS,
+        TABLE_TARGET,
+        r#"Target="../tables/table1.xml" TargetMode="External""#,
     );
-    let with_table = move |name: &str, bytes: Vec<u8>| {
+    let address = format!(
+        "{}</Relationships>",
+        external(&format!("{OD}/table"), "https://example.com/%2Ftable")
+    );
+    let far = move |name: &str, bytes: Vec<u8>| {
         let bytes = if name == SHEET_RELS {
-            replaced(bytes, "</Relationships>", &table)
+            replaced(bytes, "</Relationships>", &address)
         } else {
             bytes
         };
         Some((name.to_string(), bytes))
     };
-    let scratch = Scratch::new("names-external-table");
-    repack(
-        &corpus("chart.xlsx"),
-        &scratch.path("book.xlsx"),
-        &with_table,
-        &[],
+    let cases: [(&str, Repack<'_>); 2] = [
+        ("the sheet's own table, marked External", &marked),
+        ("a table at an address outside the package", &far),
+    ];
+    for (label, each) in cases {
+        let scratch = Scratch::new("names-external-table");
+        repack(&corpus("chart.xlsx"), &scratch.path("book.xlsx"), each, &[]);
+        for cell in ["A1", "B3"] {
+            refused(&scratch, label, "Sales", cell, Refusal::Relationship);
+        }
+    }
+}
+
+#[test]
+fn a_worksheet_macro_pivot_or_package_relationship_marked_external_refuses_the_workbook() {
+    let cases = [
+        (
+            "a worksheet",
+            format!("{OD}/worksheet"),
+            "worksheets/sheet1.xml",
+        ),
+        (
+            "a worksheet at an address",
+            format!("{OD}/worksheet"),
+            "https://example.com/50%off",
+        ),
+        ("a chart sheet", format!("{OD}/chartsheet"), "other/c.xml"),
+        ("a dialog sheet", format!("{OD}/dialogsheet"), "other/d.xml"),
+        ("a macro project", format!("{MS}/vbaProject"), "code.bin"),
+        ("a macro sheet", format!("{MS}/xlMacrosheet"), "other/m.xml"),
+        (
+            "an international macro sheet",
+            format!("{MS}/xlIntlMacrosheet"),
+            "other/m.xml",
+        ),
+        ("a pivot table", format!("{OD}/pivotTable"), "other/p.xml"),
+        (
+            "a pivot cache",
+            format!("{OD}/pivotCacheDefinition"),
+            "other/p.xml",
+        ),
+        (
+            "pivot records",
+            format!("{OD}/pivotCacheRecords"),
+            "other/p.xml",
+        ),
+        (
+            "a table type in another case",
+            format!("{OD}/Table"),
+            "tables/t.xml",
+        ),
+        (
+            "an office document",
+            format!("{OD}/officeDocument"),
+            "workbook.xml",
+        ),
+    ];
+    for (label, kind, target) in cases {
+        let scratch = Scratch::new("names-external-part");
+        let parts: &[(&str, &[u8])] = &[
+            ("xl/code.bin", b"x"),
+            ("xl/other/c.xml", b"<x/>"),
+            ("xl/other/d.xml", b"<x/>"),
+            ("xl/other/m.xml", b"<x/>"),
+            ("xl/other/p.xml", b"<x/>"),
+            ("xl/tables/t.xml", b"<x/>"),
+        ];
+        values_with(&scratch, &external(&kind, target), parts);
+        refused(&scratch, label, "Values", "B5", Refusal::Relationship);
+    }
+    let scratch = Scratch::new("names-external-root");
+    let root = in_part(
+        "_rels/.rels",
+        r#"Target="xl/workbook.xml""#,
+        r#"Target="xl/workbook.xml" TargetMode="External""#,
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
-    let run = RunId::parse(RUN).expect("a run id");
-    let b3 = Range::parse("B3").expect("a range");
-    let got = folder.prepare(
-        Path::new("book.xlsx"),
-        &run,
-        "Sales",
-        b3,
-        &[vec![Value::Number(1.0)]],
-    );
-    assert!(got.is_ok(), "an external table: {:?}", got.err());
-    drop(got);
-    let far = format!(
-        r#"<Relationship Id="rId9" Type="{OD}/worksheet" Target="https://example.com/50%off" TargetMode="External"/></Relationships>"#
-    );
-    let with_sheet = move |name: &str, bytes: Vec<u8>| {
-        let bytes = match name {
-            BOOK_RELS => replaced(bytes, "</Relationships>", &far),
-            "xl/workbook.xml" => replaced(
-                bytes,
-                "</sheets>",
-                r#"<sheet name="Far" sheetId="9" r:id="rId9"/></sheets>"#,
-            ),
-            _ => bytes,
-        };
-        Some((name.to_string(), bytes))
-    };
-    let scratch = Scratch::new("names-external-sheet");
     repack(
         &corpus("values.xlsx"),
         &scratch.path("book.xlsx"),
-        &with_sheet,
+        &root,
         &[],
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
-    let b5 = Range::parse("B5").expect("a range");
-    let got = folder.prepare(
-        Path::new("book.xlsx"),
-        &run,
-        "Values",
-        b5,
-        &[vec![Value::Number(1.0)]],
-    );
-    assert!(
-        got.is_ok(),
-        "another sheet with an external target: {:?}",
-        got.err()
-    );
-    drop(got);
-    let named = folder.prepare(
-        Path::new("book.xlsx"),
-        &run,
-        "Far",
-        b5,
-        &[vec![Value::Number(1.0)]],
-    );
-    assert_eq!(
-        named.err(),
-        Some(Error::Workbook(Refusal::Relationship)),
-        "the named sheet has no part in the package"
-    );
+    let label = "the package's office document, marked External";
+    refused(&scratch, label, "Values", "B5", Refusal::Relationship);
+}
+
+#[test]
+fn a_hyperlink_or_another_type_that_is_no_part_of_the_reader_stays_skipped_when_external() {
+    let cases = [
+        (format!("{OD}/hyperlink"), "https://example.com/%2Fhome"),
+        (format!("{OD}/hyperlink"), "../tables/table1.xml"),
+        (format!("{OD}/oleObject"), "file:///C:/Budget%20Q1.xlsx"),
+        (format!("{OD}/externalLinkPath"), "other.xlsx"),
+        (format!("{OD}/image"), "https://example.com/a.png"),
+    ];
+    for (kind, target) in cases {
+        let scratch = Scratch::new("names-external-skipped");
+        let link = format!("{}</Relationships>", external(&kind, target));
+        let with_link = move |name: &str, bytes: Vec<u8>| {
+            let bytes = if name == SHEET_RELS {
+                replaced(bytes, "</Relationships>", &link)
+            } else {
+                bytes
+            };
+            Some((name.to_string(), bytes))
+        };
+        repack(
+            &corpus("chart.xlsx"),
+            &scratch.path("book.xlsx"),
+            &with_link,
+            &[],
+        );
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+        let run = RunId::parse(RUN).expect("a run id");
+        let b3 = Range::parse("B3").expect("a range");
+        let values = [vec![Value::Number(1.0)]];
+        let got = folder.prepare(Path::new("book.xlsx"), &run, "Sales", b3, &values);
+        assert!(got.is_ok(), "{kind} {target}: {:?}", got.err());
+    }
 }
 
 #[test]
@@ -458,7 +519,7 @@ fn an_address_outside_the_package_is_no_part_name_and_its_link_is_carried_as_it_
             &[],
         );
         let source_rels = common::entry(&scratch.path("book.xlsx"), SHEET_RELS);
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let b3 = Range::parse("B3").expect("a range");
         let values = [vec![Value::Number(640.0)]];
