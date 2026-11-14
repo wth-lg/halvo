@@ -110,7 +110,7 @@ What the check asks of the table and of the files, each with the cause that ends
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,269,649 | 16 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,947,808 | 70,204,799 | 17 |
 | `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 269,042 | 6,560,845 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
@@ -133,7 +133,7 @@ What the check asks of the table and of the files, each with the cause that ends
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
 it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
-from its run at commit 66d8c08, and the rows `days` and `holds`, which hold the switch-off
+from its run on 2026-11-14 with the model of unit U1.2c, and the rows `days` and `holds`, which hold the switch-off
 whose `hold_set` lost its acknowledgement (`OffPorts`) and are from the model as unit U1.2c
 left it; at that model the runs of `queue`, `store`, `left` and `reap`, which hold no
 switch-off, found the distinct states of this table again, and for `Confirm4.tla` as the second step of a sign-in left it (unit U1.2c). `apart` holds no
@@ -154,7 +154,7 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | 3354.29 s, four workers, on 2026-11-12 at commit 66d8c08, on the lane for timed runs | 1,617,788,928 bytes | 95.29 | not run | not run |
+| `Schedule` | `full` | 3367.18 s, four workers, on 2026-11-14 with the model of unit U1.2c, on the lane for timed runs | 2,051,145,728 bytes | 53.66 | not run | not run |
 | `Schedule` | `days` | 475.60 s, three workers, on 2026-11-14 (U1.2c) | 1,878,720,512 bytes | 50.98 | not run yet | not run yet |
 | `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
 | `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
