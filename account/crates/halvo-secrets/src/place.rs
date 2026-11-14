@@ -1,4 +1,4 @@
-use crate::answer::{Delete, Fault, Locked, Read, Write};
+use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, Write};
 use crate::secret::Buffer;
 use crate::{Name, Secret, MAX_SECRET_LEN};
 use std::ffi::OsStr;
@@ -249,7 +249,7 @@ pub(crate) fn fault_with(code: i32) -> io::Error {
     io::Error::other(Code(code))
 }
 
-enum Stop {
+pub(crate) enum Stop {
     Locked(Locked),
     Fault(Fault),
 }
@@ -298,6 +298,15 @@ impl From<Stop> for Delete {
         match stop {
             Stop::Locked(locked) => Delete::Locked(locked),
             Stop::Fault(fault) => Delete::Fault(fault),
+        }
+    }
+}
+
+impl From<Stop> for DeleteIfHolds {
+    fn from(stop: Stop) -> DeleteIfHolds {
+        match stop {
+            Stop::Locked(locked) => DeleteIfHolds::Locked(locked),
+            Stop::Fault(fault) => DeleteIfHolds::Fault(fault),
         }
     }
 }
@@ -512,6 +521,63 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
     }
 
+    pub(crate) fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+        self.take_if_holds(held, true)
+    }
+
+    fn take_if_holds(&self, held: &[u8], again: bool) -> DeleteIfHolds {
+        let dir = match self.place() {
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return DeleteIfHolds::NotStored,
+            Err(stop) => return stop.into(),
+        };
+        match self.open(&dir) {
+            Ok(Some(_)) => {}
+            Ok(None) => return DeleteIfHolds::NotStored,
+            Err(stop) => return stop.into(),
+        }
+        let private = match self.claim(&dir) {
+            Ok(Some(private)) => private,
+            Ok(None) => return DeleteIfHolds::NotStored,
+            Err(stop) => return stop.into(),
+        };
+        let kept = |answer: DeleteIfHolds| {
+            if self.put_back(&dir, &private) {
+                answer
+            } else {
+                DeleteIfHolds::Fault(Fault { code: -1 })
+            }
+        };
+        match self.read_at(&dir, &private) {
+            Read::Found(stands) if stands.expose() == held => {
+                match self.fs.remove(&dir, &private) {
+                    Ok(()) => match self.fs.sync_dir(&dir) {
+                        Ok(()) => DeleteIfHolds::Deleted,
+                        Err(error) => DeleteIfHolds::Fault(Stop::fault(&error)),
+                    },
+                    Err(error) => kept(Stop::of(&error).into()),
+                }
+            }
+            Read::Found(stands) => kept(DeleteIfHolds::Other(stands)),
+            Read::NotStored if again => self.take_if_holds(held, false),
+            Read::NotStored => DeleteIfHolds::Fault(Fault { code: -1 }),
+            Read::Locked(locked) => kept(DeleteIfHolds::Locked(locked)),
+            Read::Fault(fault) => kept(DeleteIfHolds::Fault(fault)),
+        }
+    }
+
+    /// Ends each claim that a stopped operation left in the store directory by putting it
+    /// back under the store's name, then runs `op`; a claim that cannot be read or put back
+    /// is the answer. This is the order of every operation of a store that keeps its file
+    /// alone.
+    pub(crate) fn after_claims<T: From<Stop>>(&self, op: impl FnOnce(&Self) -> T) -> T {
+        match self.settle_claimed(None) {
+            Ok(()) => op(self),
+            Err(Ok(locked)) => Stop::Locked(locked).into(),
+            Err(Err(fault)) => Stop::Fault(fault).into(),
+        }
+    }
+
     #[cfg_attr(windows, allow(dead_code))]
     fn claim(&self, dir: &F::Dir) -> Result<Option<String>, Stop> {
         let name = self.name.as_str();
@@ -530,10 +596,18 @@ impl<F: Fs, C: Codec> Item<F, C> {
 
     #[cfg_attr(windows, allow(dead_code))]
     fn name_back(&self, dir: &F::Dir, private: &str, answer: Claim) -> Claim {
-        match self.fs.publish(dir, private, self.name.as_str()) {
-            Ok(Published::Done) => answer,
-            Ok(Published::Exists) | Err(_) => Claim::Stranded,
+        if self.put_back(dir, private) {
+            answer
+        } else {
+            Claim::Stranded
         }
+    }
+
+    fn put_back(&self, dir: &F::Dir, private: &str) -> bool {
+        matches!(
+            self.fs.publish(dir, private, self.name.as_str()),
+            Ok(Published::Done)
+        )
     }
 
     #[cfg_attr(windows, allow(dead_code))]

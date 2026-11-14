@@ -1,6 +1,6 @@
 use super::*;
 use crate::answer::{Fault, Locked};
-use crate::keychain::{AUTH_FAILED, DUPLICATE_ITEM, ITEM_NOT_FOUND};
+use crate::keychain::{ItemRef, AUTH_FAILED, DUPLICATE_ITEM, ITEM_NOT_FOUND};
 use crate::Name;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -40,6 +40,16 @@ impl Keychain for SharedKeys {
         self.items.borrow_mut().clear();
         Ok(())
     }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        Ok((self.data(service, account)?, ItemRef::Fake(0)))
+    }
+
+    fn delete_item(&self, _item: ItemRef) {
+        if !self.items.borrow().is_empty() {
+            self.items.borrow_mut().remove(0);
+        }
+    }
 }
 
 struct MovedUnderTheRead {
@@ -61,6 +71,10 @@ impl FileSide for MovedUnderTheRead {
 
     fn delete(&self) -> Delete {
         Delete::NotStored
+    }
+
+    fn delete_if_holds(&self, _held: &[u8]) -> DeleteIfHolds {
+        DeleteIfHolds::NotStored
     }
 
     fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
@@ -105,6 +119,7 @@ struct File {
     delete_fails: Option<Fails>,
     claim_fails: Option<Fails>,
     settle_fails: Option<Fails>,
+    after_read: RefCell<Option<Vec<u8>>>,
     log: RefCell<Vec<&'static str>>,
 }
 
@@ -116,8 +131,14 @@ impl File {
             delete_fails: None,
             claim_fails: None,
             settle_fails: None,
+            after_read: RefCell::new(None),
             log: RefCell::new(Vec::new()),
         }
+    }
+
+    fn replaced_after_its_read(self, with: &[u8]) -> File {
+        *self.after_read.borrow_mut() = Some(with.to_vec());
+        self
     }
 
     fn failing_settle(mut self, fails: Fails) -> File {
@@ -164,10 +185,14 @@ impl FileSide for File {
             Some(Fails::Absent | Fails::Stranded) => return Read::NotStored,
             None => {}
         }
-        match self.bytes() {
+        let read = match self.bytes() {
             Some(bytes) => Read::Found(Secret::new(bytes).expect("a secret")),
             None => Read::NotStored,
+        };
+        if let Some(with) = self.after_read.borrow_mut().take() {
+            *self.bytes.borrow_mut() = Some(with);
         }
+        read
     }
 
     fn write(&self, secret: &Secret) -> Write {
@@ -191,6 +216,26 @@ impl FileSide for File {
         match self.bytes.borrow_mut().take() {
             Some(_) => Delete::Deleted,
             None => Delete::NotStored,
+        }
+    }
+
+    fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+        self.log.borrow_mut().push("delete_if_holds");
+        match self.delete_fails {
+            Some(Fails::Locked(locked)) => return DeleteIfHolds::Locked(locked),
+            Some(Fails::Fault(fault)) => return DeleteIfHolds::Fault(fault),
+            Some(Fails::Absent) => return DeleteIfHolds::NotStored,
+            Some(Fails::Stranded) => return DeleteIfHolds::Fault(Fault { code: -1 }),
+            None => {}
+        }
+        let mut bytes = self.bytes.borrow_mut();
+        match bytes.as_deref() {
+            Some(stored) if stored == held => {
+                *bytes = None;
+                DeleteIfHolds::Deleted
+            }
+            Some(stored) => DeleteIfHolds::Other(secret(stored)),
+            None => DeleteIfHolds::NotStored,
         }
     }
 
@@ -229,6 +274,7 @@ struct Keys {
     gives_back_other_bytes: bool,
     drops_adds: bool,
     racing: Option<Vec<u8>>,
+    after_data: RefCell<Option<Vec<u8>>>,
     log: RefCell<Vec<&'static str>>,
 }
 
@@ -240,8 +286,14 @@ impl Keys {
             gives_back_other_bytes: false,
             drops_adds: false,
             racing: None,
+            after_data: RefCell::new(None),
             log: RefCell::new(Vec::new()),
         }
+    }
+
+    fn replaced_after_its_read(self, with: &[u8]) -> Keys {
+        *self.after_data.borrow_mut() = Some(with.to_vec());
+        self
     }
 
     fn racing(mut self, bytes: &[u8]) -> Keys {
@@ -311,6 +363,9 @@ impl Keychain for Keys {
                 *last ^= 1;
             }
         }
+        if let Some(with) = self.after_data.borrow_mut().take() {
+            *self.items.borrow_mut() = vec![with];
+        }
         Ok(bytes)
     }
 
@@ -335,6 +390,19 @@ impl Keychain for Keys {
         }
         self.items.borrow_mut().clear();
         Ok(())
+    }
+
+    fn find(&self, _service: &str, _account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        self.check("find")?;
+        let bytes = self.items.borrow().first().cloned().ok_or(ITEM_NOT_FOUND)?;
+        Ok((bytes, ItemRef::Fake(0)))
+    }
+
+    fn delete_item(&self, _item: ItemRef) {
+        self.log.borrow_mut().push("delete_item");
+        if !self.items.borrow().is_empty() {
+            self.items.borrow_mut().remove(0);
+        }
     }
 }
 
@@ -944,6 +1012,10 @@ impl FileSide for MovedUnderTheDelete {
         }
     }
 
+    fn delete_if_holds(&self, _held: &[u8]) -> DeleteIfHolds {
+        self.delete().into()
+    }
+
     fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
         Ok(())
     }
@@ -1204,6 +1276,183 @@ fn a_settling_that_answers_a_fault_is_the_answer_of_read_write_and_delete() {
     assert_a_failed_settling_is_the_answer(Fails::Fault(Fault { code: -1 }));
 }
 
+const HELD: &[u8] = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn held_one_byte_off(at: usize) -> Vec<u8> {
+    let mut other = HELD.to_vec();
+    other[at] ^= 1;
+    other
+}
+
+fn other_bytes(answer: DeleteIfHolds) -> Vec<u8> {
+    match answer {
+        DeleteIfHolds::Other(secret) => secret.expose().to_vec(),
+        answer => panic!("the delete answered {answer:?}"),
+    }
+}
+
+fn shown(answer: DeleteIfHolds) -> String {
+    format!("{answer:?}")
+}
+
+#[test]
+fn a_delete_if_holds_removes_the_bytes_read_from_the_store_that_the_build_keeps() {
+    let store = mac(Keeps::File, File::holding(HELD), Keys::empty());
+    assert_eq!(shown(store.delete_if_holds(HELD)), "Deleted");
+    assert_eq!(store.file.bytes(), None);
+    assert!(!store.keychain.keychain.ops().contains(&"delete_item"));
+
+    let store = mac(Keeps::Keychain, File::empty(), Keys::holding(&[HELD]));
+    assert_eq!(shown(store.delete_if_holds(HELD)), "Deleted");
+    assert!(store.keychain.keychain.items().is_empty());
+    assert!(!store.file.ops().contains(&"delete_if_holds"));
+
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::empty(), Keys::empty());
+        assert_eq!(shown(store.delete_if_holds(HELD)), "NotStored", "{keeps:?}");
+    }
+}
+
+#[test]
+fn a_delete_if_holds_keeps_other_bytes_of_the_same_length_and_gives_them() {
+    for at in [0, HELD.len() - 1] {
+        let other = held_one_byte_off(at);
+        let store = mac(Keeps::File, File::holding(&other), Keys::empty());
+        assert_eq!(other_bytes(store.delete_if_holds(HELD)), other);
+        assert_eq!(store.file.bytes(), Some(other.clone()));
+        assert!(!store.file.ops().contains(&"delete_if_holds"));
+
+        let store = mac(Keeps::Keychain, File::empty(), Keys::holding(&[&other]));
+        assert_eq!(other_bytes(store.delete_if_holds(HELD)), other);
+        assert_eq!(
+            store.keychain.keychain.items(),
+            std::slice::from_ref(&other)
+        );
+        assert!(!store.keychain.keychain.ops().contains(&"delete_item"));
+    }
+}
+
+#[test]
+fn a_delete_if_holds_never_removes_what_another_process_put_in_place_after_its_read() {
+    let later = held_one_byte_off(9);
+    let store = mac(
+        Keeps::File,
+        File::holding(HELD).replaced_after_its_read(&later),
+        Keys::empty(),
+    );
+    assert_eq!(other_bytes(store.delete_if_holds(HELD)), later);
+    assert_eq!(store.file.bytes(), Some(later.clone()));
+    assert!(!store.file.ops().contains(&"delete"));
+
+    let store = mac(
+        Keeps::Keychain,
+        File::empty(),
+        Keys::holding(&[HELD]).replaced_after_its_read(&later),
+    );
+    assert_eq!(other_bytes(store.delete_if_holds(HELD)), later);
+    assert_eq!(
+        store.keychain.keychain.items(),
+        std::slice::from_ref(&later)
+    );
+    assert!(!store.keychain.keychain.ops().contains(&"delete"));
+}
+
+#[test]
+fn a_delete_if_holds_answers_from_both_places() {
+    let (store, items) = moved_under_the_delete(true);
+    assert_eq!(
+        shown(store.delete_if_holds(FILE)),
+        "Fault(Fault { code: -1 })"
+    );
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
+    let (store, items) = moved_under_the_delete(false);
+    assert_eq!(shown(store.delete_if_holds(FILE)), "Locked(OtherStore)");
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
+
+    for (code, answer) in [
+        (AUTH_FAILED, "Fault(Fault { code: -25293 })"),
+        (NOT_AVAILABLE, "Fault(Fault { code: -25291 })"),
+    ] {
+        let store = mac(
+            Keeps::File,
+            File::holding(HELD),
+            Keys::empty().failing_from("count", 2, code),
+        );
+        assert_eq!(shown(store.delete_if_holds(HELD)), answer);
+        assert_eq!(store.file.bytes(), None);
+    }
+    for (code, answer) in [
+        (AUTH_FAILED, "Locked(Refused { code: -25293 })"),
+        (NOT_AVAILABLE, "Fault(Fault { code: -25291 })"),
+    ] {
+        let store = mac(
+            Keeps::File,
+            File::empty(),
+            Keys::empty().failing_from("count", 3, code),
+        );
+        assert_eq!(shown(store.delete_if_holds(HELD)), answer);
+    }
+    for (fails, answer) in [
+        (Fails::Locked(refused(13)), "Fault(Fault { code: 13 })"),
+        (Fails::Locked(Locked::Ancestor), "Fault(Fault { code: -1 })"),
+        (Fails::Fault(Fault { code: 5 }), "Fault(Fault { code: 5 })"),
+    ] {
+        let store = mac(
+            Keeps::Keychain,
+            File::holding(HELD).failing_read(fails),
+            Keys::holding(&[HELD]),
+        );
+        assert_eq!(shown(store.delete_if_holds(HELD)), answer);
+        assert!(store.keychain.keychain.items().is_empty());
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+    }
+}
+
+#[test]
+fn a_delete_if_holds_passes_on_the_answer_of_its_read_and_of_its_own_step() {
+    let other = held_one_byte_off(31);
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::holding(HELD), Keys::holding(&[&other]));
+        assert_eq!(shown(store.delete_if_holds(HELD)), "Locked(OtherStore)");
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+        assert_eq!(
+            store.keychain.keychain.items(),
+            std::slice::from_ref(&other)
+        );
+    }
+    let store = mac(
+        Keeps::File,
+        File::holding(HELD).failing_read(Fails::Fault(Fault { code: 5 })),
+        Keys::empty(),
+    );
+    assert_eq!(
+        shown(store.delete_if_holds(HELD)),
+        "Fault(Fault { code: 5 })"
+    );
+    for (fails, answer) in [
+        (Fails::Locked(refused(13)), "Locked(Refused { code: 13 })"),
+        (Fails::Fault(Fault { code: 5 }), "Fault(Fault { code: 5 })"),
+    ] {
+        let store = mac(
+            Keeps::File,
+            File::holding(HELD).failing_delete(fails),
+            Keys::empty(),
+        );
+        assert_eq!(shown(store.delete_if_holds(HELD)), answer);
+        assert_eq!(store.file.bytes(), Some(HELD.to_vec()));
+    }
+    let store = mac(
+        Keeps::Keychain,
+        File::empty(),
+        Keys::holding(&[HELD]).failing("find", AUTH_FAILED),
+    );
+    assert_eq!(
+        shown(store.delete_if_holds(HELD)),
+        "Locked(Refused { code: -25293 })"
+    );
+    assert_eq!(store.keychain.keychain.items(), [HELD.to_vec()]);
+}
+
 #[cfg(target_os = "macos")]
 mod real_files {
     use super::*;
@@ -1235,6 +1484,14 @@ mod real_files {
 
         fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
             self.inner.delete(service, account)
+        }
+
+        fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+            self.inner.find(service, account)
+        }
+
+        fn delete_item(&self, item: ItemRef) {
+            self.inner.delete_item(item)
         }
     }
 
@@ -1294,6 +1551,10 @@ mod real_files {
 
         fn delete(&self) -> Delete {
             self.inner.delete()
+        }
+
+        fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+            self.inner.delete_if_holds(held)
         }
 
         fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
@@ -1515,5 +1776,76 @@ mod real_files {
         assert_eq!(store.keychain.keychain.items(), [other]);
         assert_eq!(names_in(label), ["account"]);
         assert_eq!(found(file_item(label).read()), X);
+    }
+
+    struct AfterRead {
+        inner: Item<UnixFs, Plain>,
+        hook: Hook,
+    }
+
+    impl FileSide for AfterRead {
+        fn read(&self) -> Read {
+            let read = self.inner.read();
+            if let Some(hook) = self.hook.borrow_mut().take() {
+                hook();
+            }
+            read
+        }
+
+        fn write(&self, secret: &Secret) -> Write {
+            self.inner.write(secret)
+        }
+
+        fn delete(&self) -> Delete {
+            self.inner.delete()
+        }
+
+        fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+            self.inner.delete_if_holds(held)
+        }
+
+        fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+            self.inner.settle_claimed(keychain)
+        }
+
+        fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+            self.inner.remove_if_holds(bytes)
+        }
+    }
+
+    #[test]
+    fn an_unsigned_delete_if_holds_keeps_a_file_that_another_process_wrote_after_its_read() {
+        let label = "replaced-after-the-read";
+        let y: &[u8] = b"credential Y of an earlier build";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let hook_label = label.to_string();
+        let later = y.to_vec();
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            assert_eq!(file_item(&hook_label).delete(), Delete::Deleted);
+            assert_eq!(file_item(&hook_label).write(&secret(&later)), Write::Stored);
+        });
+        let unsigned = Mac {
+            keeps: Keeps::File,
+            file: AfterRead {
+                inner: file_item(label),
+                hook: RefCell::new(Some(hook)),
+            },
+            keychain: keys(Keys::empty()),
+        };
+        assert_eq!(other_bytes(unsigned.delete_if_holds(X)), y);
+        assert_eq!(found(file_item(label).read()), y);
+        assert_eq!(names_in(label), ["account"]);
+        assert_eq!(shown(unsigned.delete_if_holds(y)), "Deleted");
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    #[test]
+    fn a_delete_if_holds_ends_a_claim_that_a_killed_move_left() {
+        let label = "claim-delete-if-holds";
+        stopped_after_the_claim(label, X, 4243);
+        let store = signed(label, Keys::holding(&[X]));
+        assert_eq!(shown(store.delete_if_holds(X)), "Deleted");
+        assert!(store.keychain.keychain.items().is_empty());
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
     }
 }

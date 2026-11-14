@@ -1,4 +1,4 @@
-use crate::answer::{Delete, Read, StoreKind, Write};
+use crate::answer::{Delete, DeleteIfHolds, Read, StoreKind, Write};
 #[cfg(windows)]
 use crate::dpapi::{Dpapi, WindowsFs};
 #[cfg(target_os = "macos")]
@@ -16,7 +16,22 @@ use crate::{Directory, Name, Secret};
 /// `service` and `name`. On Windows it is the file `<dir>/<name>` that holds the secret
 /// sealed by DPAPI in the scope of the user. A read that fails answers `Locked` or `Fault`
 /// and never `NotStored`; a write only creates; a delete removes the one item that a read
-/// gives.
+/// gives; and `delete_if_holds` removes it only while it holds the bytes that its caller
+/// read.
+///
+/// The removal by `delete_if_holds` from a file, on both systems: it claims the file by one
+/// rename, which never replaces a name, to the claim's private name in the store
+/// directory, reads what it claimed, and removes it only when it holds the caller's bytes,
+/// byte for byte; another file, or one that cannot be read or removed, is named back. So a
+/// file that another process puts under the name after the claim stays. When the claimed
+/// file is gone before it is read, because another operation put it back, the removal
+/// starts again once and then answers `Fault`. A file that cannot be named back because
+/// the name was taken again stays under its private name and the answer is `Fault`. From
+/// the Keychain it finds the item with its bytes and a reference to it, compares the
+/// bytes, removes that item by its reference and no other, and then looks again: no item
+/// answers `Deleted`, an item with other bytes answers `Other`, and the same bytes, or a
+/// look that fails, answer `Fault`, because the system gives no code for a removal by
+/// reference.
 ///
 /// The place on macOS: every call walks the caller's path as given, from `/`, each step
 /// opened for search alone, relative to the step above and never through a link. A step
@@ -40,7 +55,10 @@ use crate::{Directory, Name, Secret};
 /// bytes of the Keychain item is removed, which ends the move; one beside no item or other
 /// bytes is put back under the store's name; one that cannot be read, removed or put back
 /// makes the operation answer as for a file place that cannot be looked at. No other name
-/// in the directory is touched.
+/// in the directory is touched. A store that keeps its file alone, the one of
+/// `Store::in_directory` and the DPAPI store of Windows, does the same before every
+/// operation and puts each such file back under the store's name, so that a
+/// `delete_if_holds` that was stopped after its claim never hides a credential.
 ///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
@@ -68,14 +86,17 @@ use crate::{Directory, Name, Secret};
 /// then finds; a second one answers `Locked::Move`. A removal that finds the file gone
 /// answers what the Keychain holds. When the Keychain item and the file stand with equal
 /// bytes, a read removes the file and answers `Found`: it finishes a move that stopped
-/// there. When they stand with other bytes, every read and delete of both builds answers
-/// `Locked::OtherStore` and changes nothing, and no operation of this crate leaves that
-/// state. When the Keychain item stands and the file cannot be read, a read gives the item.
+/// there. When they stand with other bytes, every read, write and delete of both builds
+/// answers `Locked::OtherStore` and changes nothing, and no operation of this crate leaves
+/// that state. When the Keychain item stands and the file cannot be read, a read gives the
+/// item.
 ///
 /// A write of either build first reads as above, the move included. On `NotStored` it makes
 /// the only-create write in the store that the build keeps; on `Found` it answers
 /// `Occupied`; on `Locked` or `Fault` it answers that and stores nothing. What this does not
 /// close: two first sign-ins on the two builds at one moment can still store one each.
+/// The tests that call `Store::new` on a Mac reach its login keychain; tests use
+/// `Store::in_directory`.
 ///
 /// A delete of either build first reads as above, the move included, and answers the
 /// read's `Locked` or `Fault`. When the read gives the item, the delete removes it from the
@@ -90,10 +111,19 @@ use crate::{Directory, Name, Secret};
 /// - nothing removed, and the other store holds an item: `Locked::OtherStore`;
 /// - nothing removed, and the other store cannot be looked at: its `Locked` or `Fault`.
 ///
-/// One limit stays: a delete of a build without the feature whose two steps both fall
-/// between a move's read of the file and its add answers `Deleted`, and the move then adds
-/// the credential that it read. No order of steps closes this without one lock over the
-/// operations of both builds.
+/// `delete_if_holds` of either build reads in the same way and answers the read's `Locked`
+/// or `Fault`. When the read gives other bytes than the caller's, it answers `Other` with
+/// them and removes nothing. When it gives the caller's bytes, it removes them from the
+/// store that the build keeps only while that store still holds them, as above, and
+/// passes on its `Other`, `Locked` or `Fault`. After a removal, or when the read answered
+/// `NotStored`, it answers by the table above.
+///
+/// Two limits stay. A delete or a `delete_if_holds` of a build without the feature whose
+/// two steps both fall between a move's read of the file and its add answers `Deleted`,
+/// and the move then adds the credential that it read. Two first sign-ins on the two
+/// builds at one moment can store one each, which leaves both stores with other bytes.
+/// No order of steps closes either without one lock over the operations
+/// of both builds.
 ///
 /// `Store::in_directory` reads and writes the file alone and never searches the Keychain.
 ///
@@ -207,11 +237,11 @@ impl Store {
     pub fn read(&self) -> Read {
         match &self.place {
             #[cfg(target_os = "macos")]
-            Place::File(item) => item.read(),
+            Place::File(item) => item.after_claims(Item::read),
             #[cfg(target_os = "macos")]
             Place::Mac(mac) => mac.read(),
             #[cfg(windows)]
-            Place::Dpapi(item) => item.read(),
+            Place::Dpapi(item) => item.after_claims(Item::read),
         }
     }
 
@@ -221,11 +251,11 @@ impl Store {
     pub fn write(&self, secret: &Secret) -> Write {
         match &self.place {
             #[cfg(target_os = "macos")]
-            Place::File(item) => item.write(secret),
+            Place::File(item) => item.after_claims(|item| item.write(secret)),
             #[cfg(target_os = "macos")]
             Place::Mac(mac) => mac.write(secret),
             #[cfg(windows)]
-            Place::Dpapi(item) => item.write(secret),
+            Place::Dpapi(item) => item.after_claims(|item| item.write(secret)),
         }
     }
 
@@ -235,11 +265,27 @@ impl Store {
     pub fn delete(&self) -> Delete {
         match &self.place {
             #[cfg(target_os = "macos")]
-            Place::File(item) => item.delete(),
+            Place::File(item) => item.after_claims(Item::delete),
             #[cfg(target_os = "macos")]
             Place::Mac(mac) => mac.delete(),
             #[cfg(windows)]
-            Place::Dpapi(item) => item.delete(),
+            Place::Dpapi(item) => item.after_claims(Item::delete),
+        }
+    }
+
+    /// Removes the item only while it holds `held`, the bytes that the caller read, byte
+    /// for byte, and keeps any other item, whose bytes `Other` gives. On macOS a delete of
+    /// the store that `Store::new` made first reads, the move included, and answers from
+    /// both stores as `delete` does; see the type.
+    pub fn delete_if_holds(&self, held: &Secret) -> DeleteIfHolds {
+        let held = held.expose();
+        match &self.place {
+            #[cfg(target_os = "macos")]
+            Place::File(item) => item.after_claims(|item| item.delete_if_holds(held)),
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => mac.delete_if_holds(held),
+            #[cfg(windows)]
+            Place::Dpapi(item) => item.after_claims(|item| item.delete_if_holds(held)),
         }
     }
 }

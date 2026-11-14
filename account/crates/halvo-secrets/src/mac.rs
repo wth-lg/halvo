@@ -1,4 +1,4 @@
-use crate::answer::{Delete, Fault, Locked, Read, Write};
+use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, Write};
 use crate::keychain::{Keychain, KeychainItem};
 use crate::place::{Claim, Codec, Fs, Item};
 use crate::Secret;
@@ -13,6 +13,7 @@ pub(crate) trait FileSide {
     fn read(&self) -> Read;
     fn write(&self, secret: &Secret) -> Write;
     fn delete(&self) -> Delete;
+    fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds;
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>>;
 }
@@ -36,6 +37,10 @@ impl<F: Fs, C: Codec> FileSide for Item<F, C> {
 
     fn delete(&self) -> Delete {
         Item::delete(self)
+    }
+
+    fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+        Item::delete_if_holds(self, held)
     }
 }
 
@@ -152,6 +157,28 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             Read::Locked(locked) => return Delete::Locked(locked),
             Read::Fault(fault) => return Delete::Fault(fault),
         };
+        self.answer_from_both(own)
+    }
+
+    pub(crate) fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+        let step = match self.read() {
+            Read::Found(stands) if stands.expose() == held => match self.keeps {
+                Keeps::File => self.file.delete_if_holds(held),
+                Keeps::Keychain => self.keychain.delete_if_holds(held),
+            },
+            Read::Found(stands) => return DeleteIfHolds::Other(stands),
+            Read::NotStored => DeleteIfHolds::NotStored,
+            Read::Locked(locked) => return DeleteIfHolds::Locked(locked),
+            Read::Fault(fault) => return DeleteIfHolds::Fault(fault),
+        };
+        match step {
+            DeleteIfHolds::Deleted => self.answer_from_both(Delete::Deleted).into(),
+            DeleteIfHolds::NotStored => self.answer_from_both(Delete::NotStored).into(),
+            answer => answer,
+        }
+    }
+
+    fn answer_from_both(&self, own: Delete) -> Delete {
         match own {
             Delete::Deleted => match self.other_place() {
                 Other::Empty => Delete::Deleted,

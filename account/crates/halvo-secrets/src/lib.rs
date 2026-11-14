@@ -31,7 +31,7 @@ mod unix;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod windows_place;
 
-pub use answer::{Delete, Fault, Locked, Read, StoreKind, Write};
+pub use answer::{Delete, DeleteIfHolds, Fault, Locked, Read, StoreKind, Write};
 pub use directory::Directory;
 #[cfg(all(
     target_os = "macos",

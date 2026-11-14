@@ -79,6 +79,45 @@ pub enum Delete {
     Fault(Fault),
 }
 
+/// What a delete of the bytes that its caller read answers: one of these five and nothing
+/// else. It removes the item only while the item holds those bytes, byte for byte.
+#[must_use]
+pub enum DeleteIfHolds {
+    /// The item held the bytes and is removed.
+    Deleted,
+    /// No item stood under the name.
+    NotStored,
+    /// An item with other bytes stands under the name, and it is kept; these are its bytes.
+    Other(Secret),
+    /// Something stands under the name that this store does not remove.
+    Locked(Locked),
+    /// The system failed with its code; whether the item is removed is not known.
+    Fault(Fault),
+}
+
+impl fmt::Debug for DeleteIfHolds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DeleteIfHolds::Deleted => f.write_str("Deleted"),
+            DeleteIfHolds::NotStored => f.write_str("NotStored"),
+            DeleteIfHolds::Other(_) => f.write_str("Other(..)"),
+            DeleteIfHolds::Locked(locked) => f.debug_tuple("Locked").field(locked).finish(),
+            DeleteIfHolds::Fault(fault) => f.debug_tuple("Fault").field(fault).finish(),
+        }
+    }
+}
+
+impl From<Delete> for DeleteIfHolds {
+    fn from(delete: Delete) -> DeleteIfHolds {
+        match delete {
+            Delete::Deleted => DeleteIfHolds::Deleted,
+            Delete::NotStored => DeleteIfHolds::NotStored,
+            Delete::Locked(locked) => DeleteIfHolds::Locked(locked),
+            Delete::Fault(fault) => DeleteIfHolds::Fault(fault),
+        }
+    }
+}
+
 /// Why a store does not give, take or remove what stands under a name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Locked {

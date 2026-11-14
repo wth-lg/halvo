@@ -1,4 +1,4 @@
-use crate::answer::{Delete, Fault, Locked, Read, Write};
+use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, Write};
 use crate::{Name, Secret};
 
 #[cfg(all(
@@ -16,11 +16,22 @@ pub(crate) const AUTH_FAILED: i32 = -25293;
 pub(crate) const INTERACTION_NOT_ALLOWED: i32 = -25308;
 pub(crate) const USER_CANCELED: i32 = -128;
 
+pub(crate) enum ItemRef {
+    #[cfg(target_os = "macos")]
+    System(security_framework::os::macos::keychain_item::SecKeychainItem),
+    #[cfg(test)]
+    Fake(u64),
+}
+
 pub(crate) trait Keychain {
     fn count(&self, service: &str, account: &str) -> Result<usize, i32>;
     fn data(&self, service: &str, account: &str) -> Result<Vec<u8>, i32>;
     fn add(&self, service: &str, account: &str, bytes: &[u8]) -> Result<(), i32>;
     fn delete(&self, service: &str, account: &str) -> Result<(), i32>;
+    /// The bytes of the first item of `service` and `account`, with a reference to that item.
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32>;
+    /// Removes the item that `item` refers to, and no other item; the system gives no code.
+    fn delete_item(&self, item: ItemRef);
 }
 
 impl<K: Keychain + ?Sized> Keychain for Box<K> {
@@ -38,6 +49,14 @@ impl<K: Keychain + ?Sized> Keychain for Box<K> {
 
     fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
         (**self).delete(service, account)
+    }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        (**self).find(service, account)
+    }
+
+    fn delete_item(&self, item: ItemRef) {
+        (**self).delete_item(item)
     }
 }
 
@@ -144,6 +163,44 @@ impl<K: Keychain> KeychainItem<K> {
                 Class::Refused(locked) => Delete::Locked(locked),
                 Class::Duplicate | Class::Fault => Delete::Fault(fault(code)),
             },
+        }
+    }
+
+    pub(crate) fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+        match self.count() {
+            Ok(0) => return DeleteIfHolds::NotStored,
+            Ok(1) => {}
+            Ok(_) => return DeleteIfHolds::Locked(Locked::Duplicate),
+            Err(Ok(locked)) => return DeleteIfHolds::Locked(locked),
+            Err(Err(fault)) => return DeleteIfHolds::Fault(fault),
+        }
+        let (service, account) = self.names();
+        let (bytes, item) = match self.keychain.find(service, account) {
+            Ok(found) => found,
+            Err(code) => {
+                return match class(code) {
+                    Class::Absent => DeleteIfHolds::NotStored,
+                    Class::Refused(locked) => DeleteIfHolds::Locked(locked),
+                    Class::Duplicate | Class::Fault => DeleteIfHolds::Fault(fault(code)),
+                }
+            }
+        };
+        let Some(stands) = Secret::new(bytes) else {
+            return DeleteIfHolds::Locked(Locked::Size);
+        };
+        if stands.expose() != held {
+            return DeleteIfHolds::Other(stands);
+        }
+        self.keychain.delete_item(item);
+        match self.read() {
+            Read::NotStored => DeleteIfHolds::Deleted,
+            Read::Found(after) if after.expose() == held => {
+                DeleteIfHolds::Fault(Fault { code: -1 })
+            }
+            Read::Found(after) => DeleteIfHolds::Other(after),
+            Read::Locked(Locked::Refused { code }) => DeleteIfHolds::Fault(Fault { code }),
+            Read::Locked(_) => DeleteIfHolds::Fault(Fault { code: -1 }),
+            Read::Fault(fault) => DeleteIfHolds::Fault(fault),
         }
     }
 }

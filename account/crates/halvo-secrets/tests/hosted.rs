@@ -77,6 +77,112 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
     println!("\nstore={}", kind.as_str());
 }
 
+const HELD: &[u8] = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn held_one_byte_off(at: usize) -> Vec<u8> {
+    let mut other = HELD.to_vec();
+    other[at] ^= 1;
+    other
+}
+
+fn other_bytes(answer: halvo_secrets::DeleteIfHolds) -> Vec<u8> {
+    match answer {
+        halvo_secrets::DeleteIfHolds::Other(secret) => secret.expose().to_vec(),
+        answer => panic!("the delete answered {answer:?}"),
+    }
+}
+
+#[test]
+fn the_store_of_this_build_deletes_only_the_bytes_that_its_caller_read() {
+    on_a_hosted_runner();
+    let store = store("holds");
+    let other = held_one_byte_off(63);
+    assert_eq!(other.len(), HELD.len());
+    assert!(matches!(
+        store.delete_if_holds(&secret(HELD)),
+        halvo_secrets::DeleteIfHolds::NotStored
+    ));
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    assert_eq!(other_bytes(store.delete_if_holds(&secret(&other))), HELD);
+    assert_eq!(found(store.read()), HELD);
+    let deleted = store.delete_if_holds(&secret(HELD));
+    assert!(
+        matches!(deleted, halvo_secrets::DeleteIfHolds::Deleted),
+        "{deleted:?}"
+    );
+    assert!(matches!(store.read(), Read::NotStored));
+    println!(
+        "\ndelete-if-holds store={} kept other bytes of 64 and answered {deleted:?} for the bytes read",
+        store.kind().as_str()
+    );
+}
+
+#[cfg(target_os = "macos")]
+mod by_reference {
+    use super::*;
+    use security_framework::item::{ItemClass, ItemSearchOptions, Limit, SearchResult};
+    use security_framework::os::macos::keychain::SecKeychain;
+    use security_framework::os::macos::passwords::find_generic_password;
+
+    fn search(account: &str) -> ItemSearchOptions {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account);
+        options
+    }
+
+    fn datas(account: &str) -> Vec<Vec<u8>> {
+        let mut options = search(account);
+        options.load_data(true).limit(Limit::All);
+        match options.search() {
+            Ok(found) => found
+                .into_iter()
+                .map(|result| match result {
+                    SearchResult::Data(bytes) => bytes,
+                    _ => panic!("a search for data gave another kind"),
+                })
+                .collect(),
+            Err(error) if error.code() == -25300 => Vec::new(),
+            Err(error) => panic!("the search failed with {}", error.code()),
+        }
+    }
+
+    #[test]
+    fn a_keychain_item_removed_by_its_reference_after_it_was_replaced_keeps_the_new_item() {
+        on_a_hosted_runner();
+        let account = name("by-reference");
+        let later = held_one_byte_off(0);
+        let keychain = SecKeychain::default().expect("the default keychain");
+        keychain
+            .add_generic_password(SERVICE, account.as_str(), HELD)
+            .expect("an item is added");
+        let (password, item) =
+            find_generic_password(None, SERVICE, account.as_str()).expect("the item is found");
+        assert_eq!(&*password, HELD);
+        search(account.as_str())
+            .delete()
+            .expect("the item is deleted");
+        keychain
+            .add_generic_password(SERVICE, account.as_str(), &later)
+            .expect("a new item is added");
+        item.delete();
+        let left = datas(account.as_str());
+        let kept = left == [later.clone()];
+        search(account.as_str())
+            .delete()
+            .expect("the new item is deleted");
+        assert!(
+            kept,
+            "a removal by the reference of a replaced item removed the new one"
+        );
+        println!(
+            "\na removal by the reference of a replaced keychain item kept the new item: {kept}"
+        );
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod keychain_items {
     use super::*;
