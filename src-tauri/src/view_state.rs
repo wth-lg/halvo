@@ -227,11 +227,12 @@ impl ActionError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
     pub service: Service,
-    pub action: Option<ActionError>,
+    pub command_error: Option<ActionError>,
 }
 
+#[deny(clippy::wildcard_enum_match_arm)]
 pub fn read_error(error: &ClientError) -> Reading {
-    let (service, action) = match error {
+    let (service, command_error) = match error {
         ClientError::Unsupported => (Service::Unsupported, None),
         ClientError::Unreachable { .. } => (Service::NotRunning, None),
         ClientError::DataDirInUse { .. } => (Service::HeldUnreachable, None),
@@ -272,7 +273,10 @@ pub fn read_error(error: &ClientError) -> Reading {
             }),
         ),
     };
-    Reading { service, action }
+    Reading {
+        service,
+        command_error,
+    }
 }
 
 pub fn view_of(answer: &Result<DaemonStatus, ClientError>) -> StatusView {
@@ -287,7 +291,7 @@ pub fn command_view(answer: Result<DaemonStatus, ClientError>) -> Result<StatusV
         Ok(status) => Ok(StatusView::of(&status)),
         Err(error) => {
             let reading = read_error(&error);
-            match reading.action {
+            match reading.command_error {
                 Some(action) => Err(action),
                 None => Ok(StatusView::without_status(reading.service)),
             }
@@ -381,7 +385,7 @@ pub fn inventory_view(
 ) -> Result<InventoryView, ActionError> {
     match answer {
         Ok(reply) => Ok(InventoryView::of(&reply)),
-        Err(error) => match read_error(&error).action {
+        Err(error) => match read_error(&error).command_error {
             None | Some(ActionError::StoreUnavailable) => Ok(InventoryView::unavailable()),
             Some(action) => Err(action),
         },
@@ -464,7 +468,7 @@ pub fn delete_view(
         Ok(outcome) => Ok(DeleteView::of(&outcome, roots_dir)),
         Err(error) => {
             let reading = read_error(&error);
-            Err(reading.action.unwrap_or(ActionError::NotAnswering {
+            Err(reading.command_error.unwrap_or(ActionError::NotAnswering {
                 service: reading.service,
             }))
         }

@@ -201,7 +201,7 @@ pub async fn request_permission(
         .await?
         .map_err(|error| {
             let reading = read_error(&error);
-            reading.action.unwrap_or(ActionError::NotAnswering {
+            reading.command_error.unwrap_or(ActionError::NotAnswering {
                 service: reading.service,
             })
         })
