@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
+# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
 set -u
 name=20-r4-core
 
@@ -391,6 +391,33 @@ lint_allows() {
   esac
 }
 
+tauri_features() {
+  cargo tree -e normal --workspace --target all -i tauri --depth 0 --format '{f}' --locked \
+    >"$artifacts/tauri-features.txt" 2>"$artifacts/tauri-tree.txt"
+  code=$?
+  [ "$code" -eq 0 ] || fail tree
+  features=$(tr '\r\n' ',,' <"$artifacts/tauri-features.txt") || fail setup
+  count=0
+  unstable=no
+  testf=no
+  old_ifs=$IFS
+  IFS=,
+  for feature in $features; do
+    [ -n "$feature" ] || continue
+    count=$((count + 1))
+    case $feature in
+      unstable) unstable=yes ;;
+      test) testf=yes ;;
+      *) ;;
+    esac
+  done
+  IFS=$old_ifs
+  printf 'tauri normal features=%s unstable=%s test=%s\n' "$count" "$unstable" "$testf"
+  if [ "$unstable" = yes ] || [ "$testf" = yes ]; then
+    fail tauri
+  fi
+}
+
 measure() {
   cd "$repo" 2>/dev/null || fail setup
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
@@ -400,6 +427,7 @@ measure() {
   scan=$artifacts/scan.pl
   scanner >"$scan" || fail setup
   lint_allows
+  tauri_features
   : >"$log" 2>/dev/null || fail setup
   app=no
   if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -449,7 +477,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT
     "$@" 2>&1
   )
   code=$?
@@ -471,6 +499,8 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_EXIT=0
+  STUB_TREE_EXIT=0
+  STUB_TAURI=default,wry
 }
 
 put() {
@@ -538,6 +568,13 @@ case " $* " in
   *' --locked '*) ;;
   *) exit 97 ;;
 esac
+case $* in
+  'tree -e normal --workspace --target all -i tauri --depth 0 --format {f} --locked')
+    printf '%s\n' "$STUB_TAURI"
+    exit "$STUB_TREE_EXIT"
+    ;;
+  tree*) exit 94 ;;
+esac
 if [ -f crates/halvo-coord-app/Cargo.toml ]; then
   [ "$*" = 'test -p halvo-coord -p halvo-coord-app --locked' ] || exit 96
 else
@@ -549,6 +586,8 @@ EOF
   chmod +x "$work/bin/cargo" || exit 2
   STUB_ARGS=$work/args
   STUB_EXIT=0
+  STUB_TREE_EXIT=0
+  STUB_TAURI=default,wry
   rejected=0
   wrong=
   fixture one
@@ -570,6 +609,8 @@ EOF
   check app-crate-in-the-tree PASS 'halvo-coord-app=yes' \
     env CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-app" sh "$here/$name.sh"
   check allows-in-test-code-only PASS 'allow crates=1 rust_files=6 test_files=4 product_files=2 manifests=1 found=0' run_one
+  STUB_TAURI=default,test-util,wry,unstable-x
+  check tauri-features-that-only-hold-the-words PASS 'tauri normal features=4 unstable=no test=no' run_one
   check usage FAIL "FAIL $name (usage)" sh "$here/$name.sh" --bogus
   check setup FAIL "FAIL $name (setup)" \
     env CI_D_REPO="$work/one" CI_D_ARTIFACTS="$work/plain-file/artifacts" sh "$here/$name.sh"
@@ -604,6 +645,13 @@ EOF
   check a-clippy-toml-without-spawn FAIL "FAIL $name (allow)" run_in allow-short
   variant allow-dot crates/halvo-coord/.clippy.toml 'disallowed-methods = []\n'
   check a-second-clippy-toml-that-clippy-reads-first FAIL "FAIL $name (allow)" run_in allow-dot
+
+  STUB_TAURI=default,test,wry
+  check tauri-with-test FAIL "FAIL $name (tauri)" run_one
+  STUB_TAURI=unstable
+  check tauri-with-unstable FAIL "FAIL $name (tauri)" run_one
+  STUB_TREE_EXIT=101
+  check cargo-tree-fails FAIL "FAIL $name (tree)" run_one
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
