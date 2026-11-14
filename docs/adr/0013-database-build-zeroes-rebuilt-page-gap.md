@@ -73,11 +73,19 @@ in the draws of the tests", with the limits below.
   stored row's places and read every row back against a model.
 - The structural check reads every page of the file by the database's own
   layout after each round and requires zero in every byte that holds no cell,
-  no header and no pointer. Its allowances are its limit: a run of stale
-  2-byte offsets inside the page right after the pointer array, and 4-byte
-  values no larger than the page count in the tail of an overflow page and in
-  a freelist trunk past its count. A leftover made only of such values is not
-  seen.
+  no header and no pointer, a cell of fewer than 4 bytes included. Its rules
+  stand in tests/page_gap/rules.rs, which uses rusqlite alone so that another
+  crate's tests can include it; its `plants` function plants a byte in each
+  place that it reads in a copy of a caller's own image. Its allowances are
+  its limit: a run of stale 2-byte offsets right after the pointer array whose
+  values are below the usable size, and 4-byte values no larger than the page
+  count in the tail of an overflow page and in a freelist trunk past its
+  count. A leftover made only of such values is not seen. Because a larger
+  page lets more text pass as offsets, the check stops by name on a page size
+  above 4,096 bytes, which both stores use.
+- The keyed draws get no byte search and no structural check: they read the
+  rows back against the model and run the integrity check alone. The stores'
+  own checks read the keyed layout (rulings ST-42 (2) and S-83 7 (b)).
 - A database of this build has no auto-vacuum: the test
   `page_gap::pins::a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table`
   requires `PRAGMA auto_vacuum` to read 0 on a new file after its first table,

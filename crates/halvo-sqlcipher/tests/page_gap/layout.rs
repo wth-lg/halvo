@@ -104,3 +104,76 @@ fn the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads() {
     let misses = rules::plants(&conn, &db);
     assert!(misses.is_empty(), "{}", misses.join("\n"));
 }
+
+fn checkpoint(conn: &rusqlite::Connection) {
+    let busy: i64 = conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(busy, 0);
+}
+
+#[test]
+fn a_record_at_the_largest_local_payload_and_one_byte_above_passes_the_check() {
+    crate::initialize().unwrap();
+    let scratch = Scratch::new(17, Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    conn.execute_batch("CREATE TABLE t(id INTEGER PRIMARY KEY, body TEXT NOT NULL);")
+        .unwrap();
+    for (id, length, overflow) in [(1, 4057, 0), (2, 4058, 1)] {
+        conn.execute(
+            "INSERT INTO t(id, body) VALUES (?1, ?2)",
+            params![id, "b".repeat(length)],
+        )
+        .unwrap();
+        checkpoint(&conn);
+        let pages: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM dbstat WHERE name = 't' AND pagetype = 'overflow'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            pages, overflow,
+            "overflow pages after a body of {length} bytes"
+        );
+        let read = rules::check(&conn, &std::fs::read(scratch.db()).unwrap());
+        assert_eq!(
+            read.problems,
+            Vec::<String>::new(),
+            "a body of {length} bytes"
+        );
+    }
+}
+
+#[test]
+fn cells_of_three_bytes_in_a_one_column_table_without_rowid_pass_the_check() {
+    crate::initialize().unwrap();
+    let scratch = Scratch::new(16, Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    conn.execute_batch(
+        "CREATE TABLE big(id INTEGER PRIMARY KEY, body TEXT NOT NULL);
+         CREATE TABLE k(key PRIMARY KEY) WITHOUT ROWID;",
+    )
+    .unwrap();
+    for id in 0..20 {
+        conn.execute(
+            "INSERT INTO big(id, body) VALUES (?1, ?2)",
+            params![id, "x".repeat(3000)],
+        )
+        .unwrap();
+    }
+    conn.execute_batch("INSERT INTO k(key) VALUES (0), (1), (''), (X'');")
+        .unwrap();
+    checkpoint(&conn);
+    let (cells, payload): (i64, i64) = conn
+        .query_row(
+            "SELECT sum(ncell), sum(payload) FROM dbstat WHERE name = 'k'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((cells, payload), (4, 8), "four cells of 2 payload bytes");
+    let read = rules::check(&conn, &std::fs::read(scratch.db()).unwrap());
+    assert_eq!(read.problems, Vec::<String>::new());
+}

@@ -78,7 +78,7 @@ fn cell_size(page: &[u8], at: usize, kind: u8, usable: usize) -> (usize, Option<
     let (local, spills) = local_size(payload as usize, usable, kind == 13);
     size += local;
     if !spills {
-        return (size.max(4), None);
+        return (size, None);
     }
     let first = read4(page, at + size);
     (size + 4, Some((first, payload as usize - local)))
@@ -143,7 +143,7 @@ fn btree_page(
     let mut at = pointers_end;
     while at + 1 < content && (page[at] != 0 || page[at + 1] != 0) {
         let stale = read2(page, at);
-        if stale >= page.len() {
+        if stale >= usable {
             problems.push(format!(
                 "page {number}: the gap's slot at {at} holds {stale:#06x}, no offset inside the page"
             ));
@@ -179,6 +179,21 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
     let (mut btree, mut overflow, mut trunks, mut leaves_read) = (0, 0, 0, 0);
     let mut problems = Vec::new();
     let mut chains = Vec::new();
+    if size > 4096 {
+        problems.push(format!(
+            "page 1: page size {size} above 4,096: the check reads no page of such a file"
+        ));
+        let checked = Checked {
+            problems,
+            pages: count,
+            btree,
+            overflow,
+            trunks,
+            leaves: leaves_read,
+            overflow_tails: 0,
+        };
+        return (checked, Vec::new());
+    }
     if let Some(at) = (52..56).find(|&at| db[at] != 0) {
         problems.push(format!("page 1: header byte {at} is {:#04x}", db[at]));
     }
@@ -203,7 +218,7 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
                 continue;
             }
             leaves_read += 1;
-            let bytes = &db[(leaf - 1) * size..leaf * size];
+            let bytes = &db[(leaf - 1) * size..(leaf - 1) * size + usable];
             if let Some(at) = bytes.iter().position(|byte| *byte != 0) {
                 problems.push(format!(
                     "page {leaf}: byte {at} of a freelist leaf is {:#04x}",
@@ -350,5 +365,89 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         }
         None => misses.push("the image has no leaf with a gap of 8 bytes".to_owned()),
     }
+    let usable = size - usize::from(db[20]);
+    if trunk != 0 && read4(db, page(trunk) + 4) != 0 {
+        let leaf = read4(db, page(trunk) + 8);
+        misses.extend(planted(
+            db,
+            conn,
+            page(leaf) + usable - 1,
+            &[1],
+            "of a freelist leaf",
+        ));
+    }
+    match (2..=db.len() / size).find_map(|number| {
+        let at = page(number);
+        let free = read2(db, at + 1);
+        (leaf_kinds(at) && free != 0 && read2(db, at + free + 2) >= 8).then_some((at, free))
+    }) {
+        Some((at, free)) => {
+            let mut copy = db.to_vec();
+            let length = read2(db, at + free + 2);
+            copy[at + free + 2..at + free + 4]
+                .copy_from_slice(&((length - 4) as u16).to_be_bytes());
+            misses.extend(planted(
+                &copy,
+                conn,
+                at + free + length - 4,
+                b"text",
+                "of the content area, in no cell and no freeblock",
+            ));
+        }
+        None => misses.push("the image has no freeblock of 8 bytes".to_owned()),
+    }
+    let gap = (2..=db.len() / size).find_map(|number| {
+        let at = page(number);
+        let content = read2(db, at + 5);
+        let mut run = 8 + 2 * read2(db, at + 3);
+        while run + 1 < content && (db[at + run] != 0 || db[at + run + 1] != 0) {
+            run += 2;
+        }
+        (matches!(db[at], 10 | 13) && content >= run + 8).then_some((
+            at,
+            8 + 2 * read2(db, at + 3),
+            run,
+            content,
+        ))
+    });
+    match gap {
+        Some((at, pointers_end, run, content)) => {
+            misses.extend(planted(
+                db,
+                conn,
+                at + pointers_end,
+                &(size as u16).to_be_bytes(),
+                &format!("the gap's slot at {pointers_end} holds {size:#06x}"),
+            ));
+            let offset = (content as u16).to_be_bytes();
+            misses.extend(planted(
+                db,
+                conn,
+                at + run,
+                &[0, 0, offset[0], offset[1]],
+                "past its run of stale pointers",
+            ));
+            let mut reserved = db.to_vec();
+            reserved[20] = 32;
+            let inside_the_page = (size - 16) as u16;
+            misses.extend(planted(
+                &reserved,
+                conn,
+                at + pointers_end,
+                &inside_the_page.to_be_bytes(),
+                &format!("the gap's slot at {pointers_end} holds {inside_the_page:#06x}"),
+            ));
+        }
+        None => {
+            misses.push("the image has no leaf with 8 bytes of gap past its stale run".to_owned())
+        }
+    }
+    misses.extend(planted(
+        db,
+        conn,
+        16,
+        &[0x20, 0x00],
+        "page size 8192 above 4,096",
+    ));
     misses
 }
