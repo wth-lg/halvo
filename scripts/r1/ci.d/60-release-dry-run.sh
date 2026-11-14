@@ -51,6 +51,7 @@ snapshot() {
 }
 
 measure() {
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
   cd "$CI_D_REPO" || exit 2
   pin=$(git show HEAD:scripts/prerequisites.sh | sed -n 's/^cargo_release_version=\([0-9.]*\)$/\1/p')
   [ -n "$pin" ] || fail "scripts/prerequisites.sh at HEAD holds no line cargo_release_version="
@@ -327,6 +328,24 @@ $typed"
 ### Fixed
 
 - Mend the second fault"
+  section_case heading-twice-in-order FAIL "## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+### Added
+
+- Add the feature
+
+### Added
+
+- Mend the first fault
+- Mend the second fault"
+  released_part=$(printf '%s\n' "$grouped_out" | sed -n '/^## \[1.2.4\]/,$p')
+  section_case entry-also-left-in-unreleased FAIL "## [Unreleased]
+
+- Added: Add the feature
+
+$released_part"
   section_case headings-out-of-order FAIL "## [Unreleased]
 
 ## [1.2.4] - 2026-11-14

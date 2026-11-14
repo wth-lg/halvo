@@ -95,7 +95,7 @@ tar_defect() {
 untracked_configuration_defect() {
   for path in "$@"; do
     case $path in
-      src-tauri/tauri*.conf*|src-tauri/Tauri*.toml|src-tauri/tauri*.json*)
+      src-tauri/tauri*.json*|src-tauri/Tauri*.toml)
         printf 'the untracked file %s is a tauri configuration that the build reads\n' "$path"
         return 1
         ;;
@@ -142,6 +142,12 @@ EOF
     exit 77
   fi
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  ruled=$(sh scripts/r1/ci.d/61-version.sh)
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    cause=$(printf '%s\n' "$ruled" | sed -n 's/^FAIL 61-version (\(.*\))$/\1/p')
+    fail "before the build: ${cause:-61-version exited $status}"
+  fi
   build_root=$(build_root_for "${GITHUB_REF_TYPE:-}")
   if [ "$build_root" = fresh ]; then
     CARGO_TARGET_DIR=$work/target

@@ -35,7 +35,7 @@ version_from() {
 
 literal_compares() {
   for file in "$@"; do
-    grep -n -E -e '--version[^#]*(=|!=|==|-eq|-ne)[[:space:]]*["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+' "$file" | sed "s|^\([0-9]*\):.*|$file:\1|"
+    grep -n -E -e '--version[^#]*(=|-eq|-ne)[[:space:]]*["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+' "$file" | sed "s|^\([0-9]*\):.*|$file:\1|"
   done
 }
 

@@ -109,6 +109,11 @@ jobs:
       - name: Lockfile unchanged
         shell: bash
         run: |
+          head=$(git rev-parse HEAD)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
+            exit 1
+          fi
           changed=$(git status --porcelain)
           if [ -n "$changed" ]; then
             echo "$changed"
@@ -190,6 +195,11 @@ jobs:
       - name: Lockfile unchanged
         shell: bash
         run: |
+          head=$(git rev-parse HEAD)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
+            exit 1
+          fi
           changed=$(git status --porcelain)
           if [ -n "$changed" ]; then
             echo "$changed"
