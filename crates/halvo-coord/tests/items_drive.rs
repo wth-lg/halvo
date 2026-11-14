@@ -813,8 +813,10 @@ fn an_item_arms_only_arm_ms_after_its_first_report_on_screen() {
     assert!(due(&held, late - 1, &LIMITS).is_some_and(|m| matches!(m, ConfirmMove::Arm)));
 }
 
+/// Turned by ruling RD-83 from `a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run`:
+/// the stop and the cancel come before the decision, and the row last.
 #[test]
-fn a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run() {
+fn a_lapse_with_wait_limit_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
     let first = ask(PAGE);
@@ -849,8 +851,8 @@ fn a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run() {
         .collect();
     assert_eq!(
         tail,
-        ["cancel", "log", "answer_confirm"],
-        "the decision, the lapse, the stop"
+        ["log", "answer_confirm", "cancel"],
+        "the stop, the decision, the lapse"
     );
     assert!(t.is_stopped(&run_id(1)));
     assert!(
@@ -873,8 +875,10 @@ fn a_lapse_of_a_run_that_ended_sends_nothing() {
     }
 }
 
+/// Turned by ruling RD-83 from `a_lapse_with_cancelled_answers_reject_and_stops_the_run`: the
+/// cancel comes before the decision, and the row last.
 #[test]
-fn a_lapse_with_cancelled_answers_reject_and_stops_the_run() {
+fn a_lapse_with_cancelled_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
     let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
@@ -888,7 +892,7 @@ fn a_lapse_with_cancelled_answers_reject_and_stops_the_run() {
     )
     .unwrap();
     let methods: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
-    assert_eq!(methods, ["log", "answer_confirm", "log", "cancel"]);
+    assert_eq!(methods, ["log", "cancel", "answer_confirm", "log"]);
     assert!(t.is_stopped(&run_id(1)));
 }
 

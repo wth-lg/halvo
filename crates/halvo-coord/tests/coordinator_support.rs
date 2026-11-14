@@ -23,7 +23,7 @@ pub const PERSON: A = A {
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
-/// make `start` or `cancel` panic.
+/// make `start`, `cancel` or `answer_confirm` panic.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -175,6 +175,9 @@ impl Runs for Both {
         answers: &[Answer],
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError> {
+        if self.panics.get() == Some("answer_confirm") {
+            panic!("the port answer_confirm panics");
+        }
         if self.drop_decision.replace(false) {
             let mut kept = Ok(());
             let _ = self.ports.answer_confirm(run, answers, &mut |d| {

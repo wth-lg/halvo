@@ -489,13 +489,19 @@ fn store_at<P: Owner>(
     whats: Vec<What>,
     at: Stamp,
 ) -> Result<(), PortError> {
+    queue_at(ledger, whats, at);
+    flush(ports, ledger, limits)
+}
+
+/// Puts the events after the waiting ones at the instant and on the day of `at`, with no port
+/// call, leaving out a row that closes an item whose closing row the ledger already holds.
+fn queue_at(ledger: &mut Ledger, whats: Vec<What>, at: Stamp) {
     let whats: Vec<What> = whats
         .into_iter()
         .filter(|w| closed_item(w).is_none_or(|item| ledger.closing(item).is_none()))
         .collect();
     let events = ledger.number(whats, at);
     ledger.waiting.extend(events);
-    flush(ports, ledger, limits)
 }
 
 /// One read of the clock, or the cause of its failure.
@@ -920,11 +926,21 @@ pub fn answer<P: Owner + Runs + Clock>(
 }
 
 /// A lapse of a held confirmation with `cause` (I4.5): `confirm_step` refuses it with `state`.
-/// For a lapse from `shown` or `armed` of a run that lives, every cause but `run_ended` and
-/// `app_ended`, the port answers `reject` for every effect with a record that writes no row;
-/// then `item_lapsed` is stored and the item's rows leave the guard's table; a lapse with
-/// `wait_limit` or `cancelled` then stops the run in the guard's table and through
-/// `Runs::cancel`.
+/// The decision of the lapse is `reject` for every effect, with a record that writes no row,
+/// sent for a lapse from `shown` or `armed` of a run that lives, every cause but `run_ended` and
+/// `app_ended`.
+///
+/// A lapse with `wait_limit` or `cancelled`, also where the person's stop made it, goes in four
+/// steps (ruling RD-83): first, in memory and before any port call, the item `lapsed`, its rows
+/// out of the guard's table, the run stopped in the guard's table (the caller holds the stop on
+/// the board before it, ruling RD-48 (a)), and the `item_lapsed` row, at a time read then,
+/// waiting in the ledger; second, `Runs::cancel` once; third, the decision, only where the
+/// cancel answered success or `ended`, so that the runner holds the cancel when the decision
+/// comes; fourth, the row to the owner. After a cancel that answered another error no decision
+/// is sent, and the kill of I5.7 ends the run.
+///
+/// Every other lapse first sends the decision, then lapses the item, takes its rows out of the
+/// guard's table and stores `item_lapsed`, and stops no run.
 pub fn lapse<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -936,28 +952,42 @@ pub fn lapse<P: Owner + Runs + Clock>(
     let next = confirm_step(Some(&held.confirmation), ConfirmMove::Lapse(cause))?;
     let run = held.ask.run().clone();
     let lives = !matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded);
-    if lives && held.confirmation.state().waits_for_person() {
-        let answers = held.confirmation.answers(ConfirmAnswer::Reject);
-        let _ = ports.answer_confirm(&run, &answers, &mut |_| Ok(()));
-    }
-    held.confirmation = next;
-    *table = table.lapse(&held.item);
+    let decides = lives && held.confirmation.state().waits_for_person();
+    let answers = held.confirmation.answers(ConfirmAnswer::Reject);
     let lapsed = What::ItemLapsed {
         item: held.item.clone(),
         lapsed: Lapsed::Confirm(cause),
     };
-    let _ = store(ports, ledger, limits, vec![lapsed]);
     if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
-        *table = table.stop(&run);
-        let _ = ports.cancel(&run);
+        held.confirmation = next;
+        *table = table.lapse(&held.item).stop(&run);
+        if let Ok(stamp) = Stamp::read(ports) {
+            queue_at(ledger, vec![lapsed], stamp);
+        }
+        let cancelled = ports.cancel(&run);
+        if decides
+            && cancelled
+                .as_ref()
+                .map_or_else(|e| refused_with(e, "ended"), |()| true)
+        {
+            let _ = ports.answer_confirm(&run, &answers, &mut |_| Ok(()));
+        }
+        let _ = flush(ports, ledger, limits);
+        return Ok(());
     }
+    if decides {
+        let _ = ports.answer_confirm(&run, &answers, &mut |_| Ok(()));
+    }
+    held.confirmation = next;
+    *table = table.lapse(&held.item);
+    let _ = store(ports, ledger, limits, vec![lapsed]);
     Ok(())
 }
 
-/// The person's stop of the run of a held confirmation (I5.7, ruling RD-6): the lapse with
-/// `cancelled` where the machine takes it; else, for an item that is `recorded`, the run is
-/// stopped in the guard's table and `Runs::cancel` is sent, the fact that `Act::Stop` reads,
-/// and the item stays to the end of its run.
+/// The person's stop of the run of a held confirmation (I5.7, rulings RD-6 and RD-83): the lapse
+/// with `cancelled` where the machine takes it, whose cancel comes before its decision; else, for
+/// an item that is `recorded`, the run is stopped in the guard's table and `Runs::cancel` is
+/// sent, the fact that `Act::Stop` reads, and the item stays to the end of its run.
 pub fn stop_confirm<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1008,9 +1038,10 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
 }
 
 /// The wait limit of an open item that a live run waits on, of a kind other than `confirm`
-/// (I4.2, I5.7, ruling RD-34 (a)): answers the run's handback with `timeout`, as every such kind
-/// but `show` comes from a handback, and lapses the item with `wait_limit`, which stops the run
-/// in the guard's table and sends `Runs::cancel`.
+/// (I4.2, I5.7, rulings RD-34 (a) and RD-83 item 4): holds the run's stop in the guard's table
+/// before any port call, then answers the run's handback with `timeout`, as every such kind but
+/// `show` comes from a handback, and lapses the item with `wait_limit`, which stores the row and
+/// then sends `Runs::cancel`.
 pub fn time_out<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1022,6 +1053,7 @@ pub fn time_out<P: Owner + Runs + Clock>(
     if open.kind == RunItemKind::Confirm {
         return Err(Cause::Malformed);
     }
+    *table = table.stop(run);
     if open.kind != RunItemKind::Show {
         let _ = ports.answer_handback(run, HandbackResult::Timeout);
     }
@@ -1382,11 +1414,11 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
 /// A lapse of a second step with `cause` (I3.1, ruling IG-18), as a confirmation lapses, of an
 /// open step and of one whose acknowledged answer the run did not take alike (ruling RD-46 (2)
 /// e): `stale` for a closed step. For `wait_limit` and for `cancelled`, the person's stop of the
-/// run (ruling RD-6), the run lives: the waiting call is answered `decline` through
+/// run (ruling RD-6), the run lives: the run is stopped in the guard's table before any port
+/// call (ruling RD-83 item 4); then the waiting call is answered `decline` through
 /// `Runs::answer_bind`, whose refusal is dropped, so that a stored `allow` is never sent; then
-/// `item_lapsed` is stored; then the run is stopped in the guard's table and through
-/// `Runs::cancel`, the fact that `Act::Stop` reads. For `run_ended` and `app_ended` only
-/// `item_lapsed` is stored. The step closes in each case.
+/// `item_lapsed` is stored; then `Runs::cancel` is sent, the fact that `Act::Stop` reads. For
+/// `run_ended` and `app_ended` only `item_lapsed` is stored. The step closes in each case.
 pub fn lapse_bind<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1404,6 +1436,7 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
         OtherLapse::RunEnded | OtherLapse::AppEnded | OtherLapse::Check => false,
     };
     if lives {
+        *table = table.stop(&run);
         let _ = ports.answer_bind(&run, BindResult::Decline);
     }
     held.state = BindState::Closed;
@@ -1413,7 +1446,6 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
     };
     let _ = store(ports, ledger, limits, vec![lapsed]);
     if lives {
-        *table = table.stop(&run);
         let _ = ports.cancel(&run);
     }
     Ok(())

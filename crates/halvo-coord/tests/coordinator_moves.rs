@@ -5071,6 +5071,78 @@ fn rd48a_a_stop_whose_cancel_panics_leaves_the_board_holding_it_at_each_lapse() 
     }
 }
 
+/// RD-83 item 7, in the coordinator: at the person's Stop, at the switch-off and at the wait
+/// limit of a run that waits on a confirmation, a `Runs::cancel` that panics, and an
+/// `answer_confirm` that panics after the cancel, each leave the guard's table and the board
+/// holding the stop, the item lapsed with no card in the next state, no decision sent, and the
+/// row `item_lapsed` owed in the ledger and sent by the next tick, once.
+#[test]
+fn rd83_a_cancel_or_a_decision_that_panics_at_a_confirmations_stop_leaves_its_row_owed() {
+    let limits = Limits::PRODUCT;
+    for by in ["stop", "switch_off", "wait_limit"] {
+        for panics in ["cancel", "answer_confirm"] {
+            let case = format!("{by} {panics}");
+            let (c, run, item) = confirming(false);
+            let at = if by == "wait_limit" {
+                T0 + limits.wait_limit_s * 1000
+            } else {
+                T0
+            };
+            c.ports().ports.set_clock(at, DAY);
+            let m = mark(&c);
+            c.ports().panics.set(Some(panics));
+            let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match by {
+                "stop" => {
+                    let _ = c.control(&agent(0), Action::Stop);
+                }
+                "switch_off" => {
+                    let _ = c.control(&agent(0), Action::SwitchOff);
+                }
+                _ => c.tick(),
+            }));
+            c.ports().panics.set(None);
+            assert!(out.is_err(), "{case}: the port panicked");
+            let cancels = usize::from(panics == "answer_confirm");
+            assert_eq!(cancels_of(&c, m, &run), cancels, "{case}: the cancel first");
+            let decided = calls_since(&c, m)
+                .iter()
+                .any(|call| matches!(call, Call::AnswerConfirm(..)));
+            assert!(!decided, "{case}: no decision");
+            assert_eq!(closing_rows(&c, &item), 0, "{case}: the row is owed");
+            let record = halvo_coord::guard::EffectRecord {
+                run: run.clone(),
+                agent: agent(0),
+                effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe1)).unwrap(),
+                state: halvo_coord::guard::EffectState::Approved,
+                class: Class::Send,
+                digest: halvo_coord::types::Digest::parse(&"ab".repeat(32)).unwrap(),
+                approval: None,
+            };
+            assert_eq!(
+                c.check_record(&record),
+                Err(halvo_coord::guard::Refusal::Approval),
+                "{case}: the table holds the stop"
+            );
+            c.tick();
+            assert_eq!(closing_rows(&c, &item), 1, "{case}: the next tick sends it");
+            let s = c.snapshot();
+            assert!(s.items.is_empty(), "{case}: no card of the lapsed item");
+            let line = if by == "switch_off" {
+                "line.off.person"
+            } else {
+                "line.working.stopping"
+            };
+            assert_eq!(
+                row_line(&s, 0),
+                text(line),
+                "{case}: the board holds the stop"
+            );
+            c.tick();
+            assert_eq!(closing_rows(&c, &item), 1, "{case}: once");
+        }
+    }
+}
+
 fn is_hold(what: &What) -> bool {
     matches!(what, What::HoldSet { .. } | What::HoldCleared { .. })
 }
@@ -5104,10 +5176,13 @@ fn places(c: &Coordinator<Both>, m: usize, pick: impl Fn(&Call) -> bool) -> Vec<
 
 /// RD-52 (b) rule 2 with rule 1: a switch-off of a run that waits on an item, whose `hold_set`
 /// the owner stored with the reply lost and the read showing it, for a handback kind and a
-/// confirmation: one `hold_set` row, the item lapsed `cancelled`, then the one cancel, then
-/// `set_state` `paused` once, the answer ok, and `run_ended` `cancelled` at the runner's end.
+/// confirmation: one `hold_set` row, the item lapsed `cancelled` and the one cancel in the order
+/// of each lapse, then `set_state` `paused` once, the answer ok, and `run_ended` `cancelled` at
+/// the runner's end. The handback kind stores its row before the cancel (`lapse_item`); the
+/// confirmation sends the cancel before its row (ruling RD-83). Turned by RD-83 from
+/// `rd52b_a_switch_off_whose_hold_the_read_shows_lapses_stops_and_pauses_in_order`.
 #[test]
-fn rd52b_a_switch_off_whose_hold_the_read_shows_lapses_stops_and_pauses_in_order() {
+fn rd52b_a_switch_off_whose_hold_the_read_shows_stops_and_pauses_in_the_order_of_each_lapse() {
     use halvo_coord::types::AgentState;
     for way in ["stuck", "confirm"] {
         let (c, run, item) = waiting(way);
@@ -5137,8 +5212,13 @@ fn rd52b_a_switch_off_whose_hold_the_read_shows_lapses_stops_and_pauses_in_order
         });
         assert_eq!(cancel.len(), 1, "{way}: one cancel");
         assert_eq!(paused.len(), 1, "{way}: paused once");
+        let (first, second) = if way == "confirm" {
+            (cancel[0], lapse[0])
+        } else {
+            (lapse[0], cancel[0])
+        };
         assert!(
-            lapse[0] < cancel[0] && cancel[0] < paused[0],
+            first < second && second < paused[0],
             "{way}: {lapse:?} {cancel:?} {paused:?}"
         );
         assert!(c.snapshot().items.is_empty(), "{way}");
