@@ -111,10 +111,10 @@ What the check asks of the table and of the files, each with the cause that ends
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
 | `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,269,649 | 16 |
-| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 195,498 | 4,740,279 | 12 |
+| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 269,042 | 6,560,845 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
-| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 19,877 | 469,681 | 11 |
+| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 27,904 | 665,764 | 11 |
 | `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,776 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests, each a confirmation or the run's `Bind` of a second step of a sign-in, so at most two of each; two effects | 29,464 | 4,215,671 | 25 |
@@ -133,7 +133,10 @@ What the check asks of the table and of the files, each with the cause that ends
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
 it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
-from its run at commit 66d8c08, and for `Confirm4.tla` as the second step of a sign-in left it (unit U1.2c). `apart` holds no
+from its run at commit 66d8c08, and the rows `days` and `holds`, which hold the switch-off
+whose `hold_set` lost its acknowledgement (`OffPorts`) and are from the model as unit U1.2c
+left it; at that model the runs of `queue`, `store`, `left` and `reap`, which hold no
+switch-off, found the distinct states of this table again, and for `Confirm4.tla` as the second step of a sign-in left it (unit U1.2c). `apart` holds no
 second step, and its count grew only because the model offers the kill in every run.
 At 66d8c08 the check's runs of the six small configurations of `Schedule` found the
 distinct states of this table again: the change of that commit touches `ready` alone,
@@ -152,14 +155,14 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
 | `Schedule` | `full` | 3354.29 s, four workers, on 2026-11-12 at commit 66d8c08, on the lane for timed runs | 1,617,788,928 bytes | 95.29 | not run | not run |
-| `Schedule` | `days` | 688.26 s, three workers | 1,250,279,424 bytes | 341.34 | 114 s | 151 s |
+| `Schedule` | `days` | 475.60 s, three workers, on 2026-11-14 (U1.2c) | 1,878,720,512 bytes | 50.98 | not run yet | not run yet |
 | `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
 | `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
-| `Schedule` | `holds` | 61.04 s, three workers | 797,802,496 bytes | 234.23 | 13 s | 16 s |
+| `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | not run yet | not run yet |
 | `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 6 s | 6 s |
 | `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 5 s | 4 s |
-| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 15 s | 15 s |
-| `Confirm4` | `apart` | 31.88 s, one worker | 423,051,264 bytes | 474.76 | 6 s | 5 s |
+| `Confirm4` | `full` | 161.10 s, one worker, on 2026-11-14 (U1.2c) | 1,218,527,232 bytes | 43.13 | not run yet | not run yet |
+| `Confirm4` | `apart` | 14.67 s, one worker, on 2026-11-14 (U1.2c) | 490,209,280 bytes | 44.39 | not run yet | not run yet |
 
 In that run the check took 203 s and its self-test 25 s in the
 `macos` job, and 238 s and 66 s in the `windows` job; the
@@ -242,7 +245,7 @@ that reads its input, and under a relative `TMPDIR`) and one run that the stand-
 ends with the signal TERM, after which the temporary directory is empty as well.
 
 At the commit of this section the self-test of every push held 27 failing fixtures and
-the two controls, and the record 78 lines: 65 failing fixtures and controls, five
+the two controls, and the record 79 lines: 66 failing fixtures and controls, five
 passing runs and eight held rules.
 
 ## What a property is read from
@@ -897,8 +900,9 @@ cause `traces`. A run with no job name set, outside the driver, compares the exp
 export compared in jobs: macos windows
 ```
 
-One export of both files took 24.31 s on the Mac under a load of 59.33,
-with a largest resident size of 570,408,960 bytes.
+One export of both files took 44.55 s on the Mac under a load of 42.82, on 2026-11-14 with
+the models of unit U1.2c, with a largest resident size of 565,903,360 bytes, and gave the
+committed bytes again.
 
 The first line of a file is `{"seed":<n>,"count":<n>,"stamp":"<digest>"}`. The stamp is
 the SHA-256, as 64 hex digits, of the bytes of `Schedule.tla`, `Schedule.cfg`,
