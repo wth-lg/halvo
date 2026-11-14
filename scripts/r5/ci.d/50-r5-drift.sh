@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate and plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
+# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -76,7 +76,7 @@ tree_same() {
 }
 
 run_gate() {
-  "$gate" "$@"
+  cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- "$@"
 }
 
 run_trial() {
@@ -252,12 +252,6 @@ measure() {
   command -v cargo >/dev/null 2>&1 || finish cargo
   cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
   tree_same build
-  target=${CARGO_TARGET_DIR:-target}
-  gate=$target/debug/learn-gate
-  if [ -x "$gate.exe" ]; then
-    gate=$gate.exe
-  fi
-  [ -x "$gate" ] || finish build
   trial_script=tools/r5-trials/drift/run.sh
   status=pass
   for set_name in $sets; do
@@ -386,17 +380,32 @@ stand_in_git() {
 }
 
 stand_in_cargo() {
-  printf 'cargo %s\n' "$*" >>"$FX/calls"
   case $* in
     'build --locked -p halvo-learn-gate --bin learn-gate')
+      printf 'cargo %s\n' "$*" >>"$FX/calls"
       [ -e "$FX/build-fails" ] && return 101
       if [ -e "$FX/change-at-build" ]; then
         cat "$FX/change-at-build" >>"$FX/$(cat "$FX/change-file")"
       fi
-      mkdir -p target/debug && cp "$FX/gate.sh" target/debug/learn-gate && chmod +x target/debug/learn-gate
       ;;
-    *) return 97 ;;
+    'run --locked -q -p halvo-learn-gate --bin learn-gate -- '*)
+      shift 8
+      sh "$FX/gate.sh" "$@"
+      ;;
+    *)
+      printf 'cargo %s\n' "$*" >>"$FX/calls"
+      return 97
+      ;;
   esac
+}
+
+# old_gate: an old learn-gate under target/debug, which records that it ran and fails every play.
+old_gate() {
+  cat <<'EOF'
+#!/bin/sh
+printf 'old %s\n' "$*" >>"$FX/calls"
+exit 3
+EOF
 }
 
 # fixture NAME [heldout]: a fixture tree with one development case, and with one held-out case when asked.
@@ -514,6 +523,16 @@ self_test() {
   build='cargo build --locked -p halvo-learn-gate --bin learn-gate'
 
   fixture good
+  check PASS 'readers same=2 of=2'
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+    "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+
+  fixture old-files-under-target
+  mkdir -p "$fx_repo/target/debug" || broken
+  for old in learn-gate learn-gate.exe; do
+    old_gate >"$fx_repo/target/debug/$old" || broken
+    chmod +x "$fx_repo/target/debug/$old" || broken
+  done
   check PASS 'readers same=2 of=2'
   calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
