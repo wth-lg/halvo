@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,38 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: U5.3 loop of the tests that round 1 adds or changes
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          names="routine::tests::refused::a_key_that_only_begins_with_the_workflow_key_is_not_the_key_and_stops_every_workflow routine::tests::refused::a_workflow_value_with_a_blank_or_a_newline_around_it_is_no_workflow_id_and_stops_every_workflow routine::tests::newest::of_two_rows_of_one_rev_the_step_and_the_function_go_on_from_the_same_row routine::tests::newest::of_two_rows_of_one_rev_read_with_the_later_day_first_the_step_and_the_function_go_on_from_the_later_day"
+          cargo test --locked -p halvo-learn-store --lib --no-run 2>"$RUNNER_TEMP/u53-build.txt"
+          code=$?
+          exe=$(sed -n 's/^ *Executable unittests src[\\/]lib\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u53-build.txt" | tail -n 1)
+          exe=${exe//\\//}
+          if [ -n "$exe" ]; then found=yes; else found=no; fi
+          echo "loop build=$code binary_found=$found"
+          if [ "$code" -ne 0 ] || [ "$found" = no ]; then exit 1; fi
+          bad=0
+          count=0
+          start=$(date +%s)
+          for name in $names; do
+            count=$((count + 1))
+            ok=0
+            for i in $(seq 1 200); do
+              out=$("$exe" --exact "$name" 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+              esac
+            done
+            echo "loop test=$name passed=$ok of=200"
+            if [ "$ok" -ne 200 ]; then bad=1; fi
+          done
+          echo "loop tests=$count seconds=$(( $(date +%s) - start )) failed_any=$bad"
+          exit $bad
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +132,38 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: U5.3 loop of the tests that round 1 adds or changes
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          names="routine::tests::refused::a_key_that_only_begins_with_the_workflow_key_is_not_the_key_and_stops_every_workflow routine::tests::refused::a_workflow_value_with_a_blank_or_a_newline_around_it_is_no_workflow_id_and_stops_every_workflow routine::tests::newest::of_two_rows_of_one_rev_the_step_and_the_function_go_on_from_the_same_row routine::tests::newest::of_two_rows_of_one_rev_read_with_the_later_day_first_the_step_and_the_function_go_on_from_the_later_day"
+          cargo test --locked -p halvo-learn-store --lib --no-run 2>"$RUNNER_TEMP/u53-build.txt"
+          code=$?
+          exe=$(sed -n 's/^ *Executable unittests src[\\/]lib\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u53-build.txt" | tail -n 1)
+          exe=${exe//\\//}
+          if [ -n "$exe" ]; then found=yes; else found=no; fi
+          echo "loop build=$code binary_found=$found"
+          if [ "$code" -ne 0 ] || [ "$found" = no ]; then exit 1; fi
+          bad=0
+          count=0
+          start=$(date +%s)
+          for name in $names; do
+            count=$((count + 1))
+            ok=0
+            for i in $(seq 1 200); do
+              out=$("$exe" --exact "$name" 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+              esac
+            done
+            echo "loop test=$name passed=$ok of=200"
+            if [ "$ok" -ne 200 ]; then bad=1; fi
+          done
+          echo "loop tests=$count seconds=$(( $(date +%s) - start )) failed_any=$bad"
+          exit $bad
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
