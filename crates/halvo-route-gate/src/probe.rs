@@ -634,6 +634,14 @@ mod tests {
         }
     }
 
+    fn outside_the_commit<'a>(present: &'a [String], listed: &[&str]) -> Vec<&'a str> {
+        present
+            .iter()
+            .map(String::as_str)
+            .filter(|path| !listed.contains(path))
+            .collect()
+    }
+
     #[test]
     fn the_probe_names_no_process() {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -688,13 +696,11 @@ mod tests {
             );
             let mut present = Vec::new();
             rust_files_below(dir, dir, &mut present);
-            for path in present {
-                if !names.contains(&path.as_str()) {
-                    misses.push(format!(
-                        "{}: {path}: not covered, not in the commit",
-                        dir.display()
-                    ));
-                }
+            for path in outside_the_commit(&present, &names) {
+                misses.push(format!(
+                    "{}: {path}: not covered, not in the commit",
+                    dir.display()
+                ));
             }
         }
         assert!(misses.is_empty(), "{misses:#?}");
@@ -788,6 +794,25 @@ mod tests {
         let early = "#[cfg(test)]\nconst A: [u8; 1] = [\nfn go() {}\n";
         assert!(
             read_crate(&one_file("src/lib.rs", early)).1[0].starts_with("src/lib.rs: not covered")
+        );
+    }
+
+    #[test]
+    fn a_rust_file_that_the_commit_does_not_hold_is_not_covered() {
+        let present = vec!["src/lib.rs".to_owned(), "src/new.rs".to_owned()];
+        assert_eq!(
+            outside_the_commit(&present, &["src/lib.rs"]),
+            vec!["src/new.rs"]
+        );
+        assert!(outside_the_commit(&present, &["src/lib.rs", "src/new.rs"]).is_empty());
+    }
+
+    #[test]
+    fn the_read_goes_on_after_an_item_that_a_bracket_or_a_parenthesis_ends() {
+        let text = "#[cfg(test)]\nconst A: [u8; 1] = [\n    1,\n];\n#[cfg(test)]\nfn f(\n    a: u8,\n) -> u8 {\n    a\n}\nfn go() {\n    fork();\n}\n";
+        assert_eq!(
+            read_crate(&one_file("src/lib.rs", text)).1,
+            vec!["src/lib.rs: names fork"]
         );
     }
 
