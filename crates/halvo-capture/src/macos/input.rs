@@ -153,9 +153,10 @@ impl InputCounters {
         self.0.stalled.load(Ordering::Relaxed)
     }
 
-    /// Key presses that came in time and were read while secure input was on; each
-    /// was suppressed and never emitted. A late or untimed press under secure input
-    /// is not counted here: it is withheld and counted as a drop of its cause.
+    /// Key downs that came in time and were read while secure input was on; each
+    /// was suppressed and never emitted. A modifier press after a reading of on is
+    /// a reading alone and is not counted, and a late or untimed press under
+    /// secure input is withheld and counted as a drop of its cause.
     pub fn suppressed_keys(&self) -> u64 {
         self.0.suppressed_keys.load(Ordering::Relaxed)
     }
@@ -425,12 +426,14 @@ fn lock(hold: &SharedHold) -> MutexGuard<'_, HoldState> {
 struct OwnTake {
     hold: SharedHold,
     counters: InputCounters,
+    stop: Arc<AtomicBool>,
 }
 
 impl OwnTake {
     fn taken(&self) {
+        let stopped = self.stop.load(Ordering::SeqCst);
         let dropped = lock(&self.hold).keys.drop_all();
-        if dropped > 0 {
+        if dropped > 0 && !stopped {
             self.counters.withhold();
         }
     }
@@ -786,6 +789,9 @@ impl TapContext {
             }
             drops.reading(reading, Stamps { before, after }, state.keys.len());
         }
+        if reading != Reading::Off || woke {
+            state.flags = None;
+        }
         if woke {
             let keys = state.keys.drop_all();
             self.dropped(keys, Cause::Sleep);
@@ -801,6 +807,11 @@ impl TapContext {
     }
 
     fn dropped(&self, keys: usize, cause: Cause) {
+        let cause = if self.stop.load(Ordering::SeqCst) {
+            Cause::Stop
+        } else {
+            cause
+        };
         #[cfg(feature = "stall-seam")]
         if keys > 0 {
             if let Some(drops) = &self.drops {
@@ -875,6 +886,11 @@ impl TapContext {
             if state.keys.is_empty() {
                 return;
             }
+            if self.stop.load(Ordering::SeqCst) {
+                let keys = state.keys.drop_all();
+                self.dropped(keys, Cause::Stop);
+                return;
+            }
             #[cfg(feature = "stall-seam")]
             self.mark(Caller::ReleaseLoop);
             let (reading, at) = self.reading(state, false);
@@ -911,11 +927,15 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
     if is_tap_disabled(event.etype) {
+        let stopped = ctx.stop.load(Ordering::SeqCst);
+        state.flags = None;
         let keys = state.keys.drop_all();
         ctx.dropped(keys, Cause::TapSwitchedOff);
         ctx.settle_timer(&mut state);
         drop(state);
-        ctx.port.reenable();
+        if !stopped {
+            ctx.port.reenable();
+        }
         return;
     }
     let kind = kind_of(event.etype, event.flags, state.flags);
@@ -946,7 +966,10 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
             drops.late_at_entry();
         }
         let step = match (kind, at_reading.refusal()) {
-            (Kind::Key | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
+            (Kind::Key | Kind::Reading, Some(_)) => {
+                state.flags = None;
+                state.keys.late_reading(at, at_reading)
+            }
             _ => state.keys.reading(reading, at),
         };
         if kind == Kind::Key {
@@ -1466,6 +1489,7 @@ impl InputSource {
         let own_take = OwnTake {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
+            stop: stop.clone(),
         };
         let started = TapThread::spawn(
             move || install_tap(ctx, settings, maker),
@@ -2117,6 +2141,171 @@ mod tests {
         assert_eq!((drops.of("untimed"), drops.of("late")), (1, 0));
     }
 
+    type DoubtRow = (&'static str, fn(&Held));
+
+    fn held_after_a_shift_press_that_follows(clear: fn(&Held)) -> usize {
+        let held = held(100);
+        let shift = CGEventFlags::CGEventFlagShift.bits();
+        advance(1);
+        on_tap_event(&held.ctx, with_flags(CGEventType::KeyUp, 0));
+        clear(&held);
+        advance(1);
+        on_tap_event(&held.ctx, with_flags(CGEventType::FlagsChanged, shift));
+        held_now(&held.ctx)
+    }
+
+    #[test]
+    fn a_flags_change_after_a_doubt_is_a_reading_alone_and_is_never_held() {
+        let rows: [DoubtRow; 7] = [
+            ("a tap notice", |held| {
+                on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+            }),
+            ("an event's own reading of on", |held| {
+                answer(Reading::On);
+                on_tap_event(&held.ctx, event(CGEventType::MouseMoved));
+                answer(Reading::Off);
+            }),
+            ("a tick's reading of on", |held| {
+                answer(Reading::On);
+                tick(&held.ctx);
+                answer(Reading::Off);
+            }),
+            ("a reading of unknown", |held| {
+                answer(Reading::Unknown);
+                tick(&held.ctx);
+                answer(Reading::Off);
+            }),
+            ("a wake", |held| {
+                sleep_of_the_mac(60_000);
+                tick(&held.ctx);
+            }),
+            ("a late event", |held| {
+                on_tap_event(
+                    &held.ctx,
+                    timed(
+                        CGEventType::KeyUp,
+                        Timing::Late {
+                            lag: Duration::from_millis(40),
+                        },
+                    ),
+                );
+            }),
+            ("an untimed event", |held| {
+                on_tap_event(&held.ctx, timed(CGEventType::KeyUp, Timing::Untimed));
+            }),
+        ];
+        for (what, clear) in rows {
+            assert_eq!(
+                held_after_a_shift_press_that_follows(clear),
+                0,
+                "after {what}"
+            );
+        }
+        assert_eq!(
+            held_after_a_shift_press_that_follows(|_| {}),
+            1,
+            "the control: with the event before known, the press is held"
+        );
+    }
+
+    #[test]
+    fn a_flags_change_after_the_release_loops_reading_of_on_is_never_held() {
+        let held = held(100);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 90);
+        ANSWERS.with(|answers| *answers.borrow_mut() = vec![Reading::Off, Reading::On]);
+        tick(&held.ctx);
+        assert_eq!(keystrokes(&held.writer), 1, "the first key was released");
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            with_flags(
+                CGEventType::FlagsChanged,
+                CGEventFlags::CGEventFlagShift.bits(),
+            ),
+        );
+        assert_eq!(held_now(&held.ctx), 0);
+    }
+
+    #[test]
+    fn a_modifier_release_after_the_tap_was_switched_off_is_not_held() {
+        let held = held(100);
+        advance(1);
+        on_tap_event(&held.ctx, with_flags(CGEventType::KeyUp, 0x100));
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+        advance(1);
+        on_tap_event(&held.ctx, with_flags(CGEventType::FlagsChanged, 0x2_0102));
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 120);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_tap_notice_after_a_stop_moves_no_flag_and_does_not_switch_the_tap_on() {
+        ENABLE_CALLS.with(|calls| calls.borrow_mut().clear());
+        let mut held = held(100);
+        held.ctx.port = TapPort::with_enable(record_enable);
+        let tap = std::ptr::NonNull::<c_void>::dangling().as_ptr();
+        held.ctx.port.store(tap);
+        key_down(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+        assert_eq!(held_now(&held.ctx), 0);
+        assert_eq!(
+            (
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (false, false)
+        );
+        ENABLE_CALLS.with(|calls| assert!(calls.borrow().is_empty()));
+    }
+
+    #[test]
+    fn a_stop_asked_during_the_release_loops_reading_moves_no_flag() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 990);
+        let stop = held.ctx.stop.clone();
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 2, stop)));
+        JUMP_AT_ASK.with(|jump| jump.set(Some(asked() + 2)));
+        tick(&held.ctx);
+        assert_eq!(
+            (
+                keystrokes(&held.writer),
+                held_now(&held.ctx),
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (1, 0, false, false)
+        );
+    }
+
+    #[test]
+    fn the_daemons_own_take_after_a_stop_drops_the_keys_and_moves_no_flag() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        let mut slot = HoldSlot {
+            hold: || crate::secure_input_macos::hold_with(|| 0, || 0),
+            held: None,
+            refusal: Arc::new(Mutex::new(None)),
+            own_take: Some(OwnTake {
+                hold: held.ctx.hold.clone(),
+                counters: held.counters.clone(),
+                stop: held.ctx.stop.clone(),
+            }),
+        };
+        slot.take();
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(!held.counters.figures().keys_withheld);
+        drop(slot);
+    }
+
     #[test]
     fn a_stand_in_that_moves_the_monotonic_clock_alone_by_more_than_the_bound_is_a_wake() {
         let (held, drops) = seam_held(1_000);
@@ -2653,6 +2842,7 @@ mod tests {
             own_take: Some(OwnTake {
                 hold: held.ctx.hold.clone(),
                 counters: held.counters.clone(),
+                stop: held.ctx.stop.clone(),
             }),
         };
         slot.take();
@@ -5072,8 +5262,8 @@ mod secure_input_invariant {
         on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
         assert_eq!(
             ctx.counters.suppressed_keys(),
-            2,
-            "a key down and a shift press"
+            1,
+            "a key down; a shift press after a reading of on is a reading alone (MA-22 L2)"
         );
         drop(ctx);
         assert_eq!(
