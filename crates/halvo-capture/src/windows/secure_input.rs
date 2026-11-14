@@ -2308,6 +2308,29 @@ mod tests {
         assert_eq!(reading(&gate, &after, 2_200), Some(Err(Withheld::Unknown)));
     }
 
+    /// W3-7 L7: a key whose hold meets a time with no click route is
+    /// withheld, while that time is open and after it has ended; a key whose
+    /// hold ends before it and a key after it are decided as before.
+    #[test]
+    fn a_key_whose_hold_meets_a_time_with_no_click_route_is_withheld() {
+        let gate = plain();
+        let before = key(&gate, 1_800);
+        let edge = key(&gate, 1_900);
+        gate.read_at(1_925, FieldState::Clear, Some(false));
+        gate.clicks_lost(2_000);
+        let inside = key(&gate, 2_050);
+        let while_open = rule(&gate, &inside, 2_060);
+        gate.clicks_back(2_100);
+        let after = key(&gate, 2_101);
+        gate.read_at(2_221, FieldState::Clear, Some(false));
+        assert_eq!(reading(&gate, &before, 1_930), Some(Ok(())));
+        assert_eq!(while_open, Some(Rule::NoClickRoute));
+        assert_eq!(rule(&gate, &edge, 2_030), Some(Rule::NoClickRoute));
+        assert_eq!(rule(&gate, &inside, 2_230), Some(Rule::NoClickRoute));
+        assert_eq!(reading(&gate, &after, 2_230), Some(Ok(())));
+        assert_eq!(rule(&gate, &after, 2_230), Some(Rule::ReadAfterTheHold));
+    }
+
     #[test]
     fn the_hold_is_read_across_the_wrap_of_the_tick_count() {
         let gate = PasswordGate::new();
