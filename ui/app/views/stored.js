@@ -115,7 +115,7 @@
     );
   }
 
-  function dayStart() {
+  function localTimeOfUtcMidnight() {
     var offset = new Date(0).getTimezoneOffset();
     var minutes = (((-offset) % 1440) + 1440) % 1440;
     var hh = Math.floor(minutes / 60);
@@ -152,7 +152,7 @@
       custody = Halvo.el("p", { id: "custody", class: "muted" });
       unavailable = Halvo.el("div", { id: "inventory-unavailable", class: "muted hidden", text: w.INVENTORY_UNAVAILABLE });
       empty = Halvo.el("div", { id: "empty", class: "muted hidden", text: w.NOTHING_STORED });
-      dayLine = Halvo.el("p", { id: "day-start", class: "muted", text: w.DAY_STARTS.replace("{hour}", dayStart()) });
+      dayLine = Halvo.el("p", { id: "day-start", class: "muted", text: w.DAY_STARTS.replace("{hour}", localTimeOfUtcMidnight()) });
       body = Halvo.el("tbody");
       table = Halvo.el("table", { id: "inventory", class: "hidden" }, [
         Halvo.el("thead", {}, [Halvo.el("tr", {}, [heading(w.DAY_UTC), heading("What"), heading("Events", "num"), heading("Size", "num")])]),

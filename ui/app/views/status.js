@@ -17,7 +17,7 @@
   var heldUntil = 0;
   var sent = 0;
   var last = {};
-  var droppedBefore = 0;
+  var readsSentBeforeTheLastMutation = 0;
 
   var SERVICE = {
     connecting: w.CONNECTING,
@@ -55,8 +55,8 @@
     return shownService;
   };
 
-  Halvo.mutated = function (view) {
-    droppedBefore = sent;
+  Halvo.takeMutationReply = function (view) {
+    readsSentBeforeTheLastMutation = sent;
     status.set(view);
   };
 
@@ -114,7 +114,7 @@
       .call("capture_status")
       .then(function (s) {
         Halvo.showConnection("");
-        if (mine <= droppedBefore) return;
+        if (mine <= readsSentBeforeTheLastMutation) return;
         status.set(s);
       })
       .catch(function () {
@@ -135,7 +135,7 @@
       .call("set_capture_state", { capture: asked })
       .then(function (reply) {
         pending = null;
-        Halvo.mutated(reply);
+        Halvo.takeMutationReply(reply);
         if (reply.service === "running" && reply.reached !== true) {
           Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : w.RESUME_NOT_REACHED);
         }

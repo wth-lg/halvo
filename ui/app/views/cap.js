@@ -43,7 +43,7 @@
       .call("set_storage_cap", { capBytes: bytes })
       .then(function (s) {
         dirty = false;
-        Halvo.mutated(s);
+        Halvo.takeMutationReply(s);
         field.value = capField(s);
         evicting.textContent = s.evicting === true ? w.CAP_EVICTING : "";
         return Halvo.feed("inventory").refresh();
