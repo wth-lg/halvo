@@ -654,3 +654,94 @@ fn a_kind_of_a_new_family_beside_the_registry_gets_its_revision_its_place_in_the
         .unwrap();
     assert_eq!(stored, 1);
 }
+
+/// The stored day and day of going of every row of `kind`, in the order of their ids.
+fn days_of(scratch: &Scratch, kind: &str) -> Vec<(Option<i64>, Option<i64>)> {
+    let conn = raw(scratch);
+    let mut statement = conn
+        .prepare("SELECT day, gone FROM rows WHERE kind = ?1 ORDER BY id")
+        .unwrap();
+    statement
+        .query_map([kind], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// S-74, P2 (U5.1d, part 4; the verifier's test v37_i2 as the failing case): a bounded row with a day and no day of
+/// going gets its day of going from its day and the bound of its entry at the open, so that it stays while that day
+/// lies after the clock's day and goes at the open on that day, with the read and the report following it. A bounded
+/// row with a day and no day of going of a kind that no entry of the open names keeps its stored columns (C3.9, DS-1
+/// D3), as the test of the open's sweep in tests/open.rs holds for a row with no day of going: the limit stays named.
+#[test]
+fn a_bounded_row_with_a_day_and_no_day_of_going_gets_it_at_the_open_or_is_due() {
+    let scratch = Scratch::new("no-day-of-going");
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })),
+    )
+    .unwrap();
+    let out = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!((out.summaries, out.proposals.stored), (1, 1));
+    drop(store);
+    let unset = "UPDATE rows SET gone = NULL WHERE kind = 'summary'";
+    assert_eq!(raw(&scratch).execute(unset, []).unwrap(), 1);
+    clock.set_day(DAY + 92);
+    let store = open_host(&scratch, plain(&clock)).unwrap();
+    let report = store.report().unwrap();
+    drop(store);
+    let gone = i64::from(DAY) + 93;
+    assert_eq!(
+        (days_of(&scratch, "summary"), report.counts.bounded),
+        (vec![(Some(i64::from(DAY)), Some(gone))], 2),
+        "on the bound's last day: (day and day of going of the summary, bounded rows)"
+    );
+    assert_eq!(
+        report.expiry,
+        Some(Instant(gone * DAY_NS)),
+        "the report's deadline is the day of going that the open gave"
+    );
+    assert_eq!(raw(&scratch).execute(unset, []).unwrap(), 1);
+    clock.set_day(DAY + 200);
+    let mut store = open_host(&scratch, plain(&clock)).unwrap();
+    let report = store.report().unwrap();
+    let removed = store.expire().unwrap();
+    drop(store);
+    assert_eq!(
+        (
+            days_of(&scratch, "summary"),
+            days_of(&scratch, "support").len(),
+            report.counts.bounded,
+            removed
+        ),
+        (vec![], 0, 0, 0),
+        "200 days later: (summaries, support rows, bounded rows, rows that a further expiry removes)"
+    );
+
+    let scratch = Scratch::new("no-day-of-going-unnamed");
+    drop(open_host(&scratch, plain(&clock)).unwrap());
+    raw(&scratch)
+        .execute(
+            "INSERT INTO rows (kind, family, class, day, body) VALUES ('test_unnamed', 'test', 1, ?1, '{\"v\":1}'), \
+             ('test_unnamed', 'test', 1, ?2, '{\"v\":2}')",
+            [i64::from(DAY + 200), i64::from(DAY + 201)],
+        )
+        .unwrap();
+    drop(open_host(&scratch, plain(&clock)).unwrap());
+    assert_eq!(
+        days_of(&scratch, "test_unnamed"),
+        vec![
+            (Some(i64::from(DAY + 200)), None),
+            (Some(i64::from(DAY + 201)), None)
+        ],
+        "rows of a kind that no entry names keep their stored columns"
+    );
+}

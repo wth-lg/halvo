@@ -244,10 +244,13 @@ impl Tx<'_> {
 
     /// Brings `gone` of every stored bounded row of a kind of `entries` to the bound that its entry gives now, where
     /// that bound is the shorter: a row goes on the earlier of the day from the bound that was stored with it and the
-    /// day from the bound in force. A lengthened bound leaves `gone` as it was.
+    /// day from the bound in force. A lengthened bound leaves `gone` as it was. A bounded row of a kind of `entries`
+    /// with a day and no `gone` gets its day plus the days of its entry. A row of a kind that no entry names keeps its
+    /// stored columns.
     pub(crate) fn bound_gone(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
         for entry in entries {
             if let RetentionClass::Bounded { days } = entry.class {
+                self.exec(sql::GONE_FILL, rusqlite::params![entry.name, days])?;
                 self.exec(sql::BOUND_GONE, rusqlite::params![entry.name, days])?;
             }
         }

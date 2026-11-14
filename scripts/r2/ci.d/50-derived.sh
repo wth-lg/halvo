@@ -119,6 +119,7 @@ esac
 #= tests/expiry.rs a_bounded_row_with_no_day_goes_at_the_next_expiry_and_a_kept_or_window_row_with_none_stays
 #= tests/expiry.rs a_kind_of_a_new_family_beside_the_registry_gets_its_revision_its_place_in_the_report_and_its_count
 #= tests/expiry.rs expire_runs_the_expiry_of_an_open_on_the_clock_of_the_store
+#= tests/expiry.rs a_bounded_row_with_a_day_and_no_day_of_going_gets_it_at_the_open_or_is_due
 #= tests/read.rs a_page_of_261120_bytes_passes_and_a_page_one_byte_longer_is_refused
 #= tests/read.rs a_page_holds_whole_items_while_the_reply_stays_inside_its_bound
 #= tests/read.rs a_page_counts_the_id_under_next_against_the_bound
