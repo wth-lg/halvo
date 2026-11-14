@@ -1624,3 +1624,50 @@ fn the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_
         "the time to a destroyed root grows with the store: 250={small:.2} ms, 2000={large:.2} ms"
     );
 }
+
+/// The verifier's point 1 (ruling ST-46 Addition 1 S3, copy L47): a create in
+/// a directory that holds a store whose store.key cannot be read for a
+/// moment, beside a pending mark that reads made and names that store's root.
+/// The create answers AlreadyExists, destroys no root file and leaves the
+/// mark, and the store opens once its key file can be read again.
+#[test]
+fn a_create_beside_a_made_mark_and_an_unreadable_key_file_keeps_the_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let before = root_files_in(&roots_dir);
+    write_mark(&store_dir, root_id, "made");
+    let key = KeyFile::path(&store_dir);
+    set_mode(&key, 0o000);
+    let answer = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh().unwrap(),
+        )),
+        DEFAULT_RETENTION,
+    );
+    set_mode(&key, 0o600);
+    let created = answer_text(&answer);
+    drop(answer);
+    let after = root_files_in(&roots_dir);
+    let mark_stays = store_dir.join("create.pending").exists();
+    let opens = open_over_file_root(&store_dir, &roots_dir, root_id).is_ok();
+    println!(
+        "ST46A1 L47 create={created} root_files_unchanged={} mark_stays={mark_stays} the_store_opens_after={opens}",
+        after == before
+    );
+    assert_eq!(created, "AlreadyExists");
+    assert_eq!(
+        after, before,
+        "a create beside an unreadable key file destroyed the root that the made mark names"
+    );
+    assert!(
+        mark_stays,
+        "the create removed the mark beside a key file that it cannot read"
+    );
+    assert!(
+        opens,
+        "the store no longer opens once its key file can be read again"
+    );
+}
