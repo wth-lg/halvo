@@ -6,7 +6,7 @@ use halvo_schema_core::kinds;
 use halvo_schema_core::record::{Instant, Proposal, RecurrenceStep, SummaryRead};
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 
-use crate::db::{due_now, require, Now, Progress, Tx};
+use crate::db::{due_now, require, Checkpointed, Now, Progress, Removes, Tx};
 use crate::error::OpenError;
 use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
@@ -105,7 +105,8 @@ fn expire_removes_and_counts_a_bounded_row_with_no_day_which_the_report_reads_as
         ("window", 0, None, Some(i64::MAX)),
     ]);
     assert!(due_now(&conn, NOW).unwrap());
-    let tx = Tx::new(&conn);
+    let plain = Tx::new(&conn);
+    let tx = Checkpointed::for_test(&plain);
     assert_eq!(tx.expire(NOW).unwrap(), 1);
     assert_eq!(kinds(&conn), ["kept", "window"]);
     assert!(!due_now(&conn, NOW).unwrap());
@@ -118,7 +119,10 @@ fn a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it
     assert!(!due_now(&conn, NOW).unwrap());
     let conn = hand_rows(&[("three", 1, Some(TODAY + 3), None)]);
     assert!(due_now(&conn, NOW).unwrap());
-    assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 1);
+    assert_eq!(
+        Checkpointed::for_test(&Tx::new(&conn)).expire(NOW).unwrap(),
+        1
+    );
     assert!(!due_now(&conn, NOW).unwrap());
 }
 
@@ -375,7 +379,10 @@ fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_wi
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(read, ["bounded inside", "kept", "window inside"]);
-    assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 3);
+    assert_eq!(
+        Checkpointed::for_test(&Tx::new(&conn)).expire(NOW).unwrap(),
+        3
+    );
     let left: Vec<String> = conn
         .prepare("SELECT body FROM rows ORDER BY body")
         .unwrap()
@@ -619,7 +626,10 @@ fn rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alon
             "window inside"
         ]
     );
-    assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 4);
+    assert_eq!(
+        Checkpointed::for_test(&Tx::new(&conn)).expire(NOW).unwrap(),
+        4
+    );
     assert_eq!(
         read(sql::ROWS_READ_UNDER, w1),
         ["bounded inside", "kept", "window inside"],
@@ -807,5 +817,139 @@ fn the_unit_leaf_name_differs_for_two_readings_of_the_clock() {
     assert_ne!(
         unit_leaf_name("same", 4242, 1_000, 7),
         unit_leaf_name("same", 4242, 1_001, 7)
+    );
+}
+
+/// What the text check of the crate's sources found: each line that names ANALYZE or the pragma optimize, each
+/// declaration of `fn remove` with the trait or impl that holds it, each construction of the checkpointed writer with
+/// the function that holds it, and the order of the commit and the truncating checkpoint in the checkpointed write.
+#[derive(Debug, PartialEq, Eq)]
+struct SourceText {
+    statistics: Vec<String>,
+    removes: Vec<(String, String)>,
+    writers: Vec<(String, String)>,
+    commit_then_checkpoint: bool,
+    checkpoint_truncates: bool,
+}
+
+/// Reads every source file of the crate under `src/` but this file of tests, line by line, comment lines left out.
+fn source_text() -> SourceText {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files: Vec<String> = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".rs") && name != "tests.rs")
+        .collect();
+    files.sort();
+    assert!(files.len() >= 15, "the crate's source files: {files:?}");
+    let mut found = SourceText {
+        statistics: Vec::new(),
+        removes: Vec::new(),
+        writers: Vec::new(),
+        commit_then_checkpoint: false,
+        checkpoint_truncates: false,
+    };
+    for file in files {
+        let text = std::fs::read_to_string(root.join(&file)).unwrap();
+        let (mut block, mut function) = (String::new(), String::new());
+        let (mut committed, mut checkpointed) = (false, false);
+        for line in text.lines() {
+            let code = line.trim_start();
+            if code.starts_with("//") {
+                continue;
+            }
+            let lower = code.to_ascii_lowercase();
+            if lower.contains("analyze") || lower.contains("optimize") {
+                found.statistics.push(format!("src/{file}: {code}"));
+            }
+            if code.starts_with("impl") || code.starts_with("pub(crate) trait") {
+                block = code.to_owned();
+            }
+            if let Some(rest) = code.split("fn ").nth(1).filter(|_| code.contains("fn ")) {
+                function = rest
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned();
+                if function == "remove" {
+                    found.removes.push((format!("src/{file}"), block.clone()));
+                }
+            }
+            for (at, _) in code.match_indices("Checkpointed(") {
+                let before = &code[..at];
+                if !before.ends_with("struct ") && !before.ends_with('_') {
+                    found
+                        .writers
+                        .push((format!("src/{file}"), function.clone()));
+                }
+            }
+            if function == "write_checkpointed" {
+                committed |= code.contains("self.commit(");
+                checkpointed |= committed && code.contains("self.checkpoint()?");
+            }
+            if function == "checkpoint" && code.contains("wal_checkpoint(TRUNCATE)") {
+                found.checkpoint_truncates = true;
+            }
+        }
+        found.commit_then_checkpoint |= checkpointed;
+    }
+    found
+}
+
+/// S-83, item 4, S-82 6 (e) and C2.4 (U5.1d, part 8), by the crate's text: no source of the store runs ANALYZE or
+/// PRAGMA optimize; `remove` is declared in the trait `Removes` and in its one impl, for the writer that the
+/// checkpointed write hands out; that writer is made in the checkpointed write alone (and by the constructor of the
+/// unit tests); and the checkpointed write commits and then runs the truncating checkpoint. Its limit: it reads text,
+/// so a statement built from parts or a removal through `exec` of a statement that begins with `DELETE` is not seen
+/// here; the second is the test of S-81, F2 in tests/privacy.rs.
+#[test]
+fn no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint() {
+    let found = source_text();
+    assert_eq!(
+        found,
+        SourceText {
+            statistics: Vec::new(),
+            removes: vec![
+                (
+                    "src/db.rs".to_owned(),
+                    "pub(crate) trait Removes {".to_owned()
+                ),
+                (
+                    "src/db.rs".to_owned(),
+                    "impl Removes for Checkpointed<'_, '_> {".to_owned()
+                ),
+            ],
+            writers: vec![
+                ("src/db.rs".to_owned(), "for_test".to_owned()),
+                ("src/db.rs".to_owned(), "write_checkpointed".to_owned()),
+            ],
+            commit_then_checkpoint: true,
+            checkpoint_truncates: true,
+        }
+    );
+}
+
+/// Whether a writer type has the removal of rows: the inherent constant where the type implements `Removes`, the
+/// trait's constant of `false` where it does not.
+struct Probe<T>(std::marker::PhantomData<T>);
+
+trait NoRemoval {
+    const REMOVES: bool = false;
+}
+
+impl<T> NoRemoval for Probe<T> {}
+
+impl<T: Removes> Probe<T> {
+    const REMOVES: bool = true;
+}
+
+/// S-82 6 (g) and S-83, item 4 (U5.1d, part 8): the writer of a plain write has no removal of rows, so that a call of
+/// `remove` under `Db::write` does not compile, and the writer that the checkpointed write hands out has it.
+#[test]
+fn a_removal_compiles_under_the_checkpointed_write_alone() {
+    assert!(!Probe::<Tx<'static>>::REMOVES, "the plain writer removes");
+    assert!(
+        Probe::<Checkpointed<'static, 'static>>::REMOVES,
+        "the checkpointed writer removes"
     );
 }

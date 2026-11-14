@@ -179,6 +179,8 @@ esac
 #= src/lib.rs tests::the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold
 #= src/lib.rs tests::the_store_s_own_connection_reads_each_setting_of_the_open_after_a_first_and_a_second_open
 #= src/lib.rs tests::the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise
+#= src/lib.rs tests::no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint
+#= src/lib.rs tests::a_removal_compiles_under_the_checkpointed_write_alone
 #= tests/sync.rs each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag
 
 fail() {

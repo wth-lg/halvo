@@ -125,17 +125,27 @@ impl<'c> Tx<'c> {
     }
 }
 
-impl Tx<'_> {
-    pub(crate) fn exec<P: Params>(&self, sql: Sql, params: P) -> Result<usize, Fault> {
-        exec(self.conn, sql, params)
-    }
+/// The writer that `Db::write_checkpointed` hands out to its closure: the writer of the transaction, with the removal
+/// of rows, which no other writer has, so that a removal under a plain write does not compile and every removal ends
+/// with the truncating checkpoint that follows the commit.
+pub(crate) struct Checkpointed<'t, 'c>(&'t Tx<'c>);
 
-    pub(crate) fn changed(&self, family: &str) {
-        self.changed.borrow_mut().insert(family.to_owned());
-    }
+impl<'c> std::ops::Deref for Checkpointed<'_, 'c> {
+    type Target = Tx<'c>;
 
+    fn deref(&self) -> &Tx<'c> {
+        self.0
+    }
+}
+
+/// The removal of rows, which the checkpointed writer alone implements.
+pub(crate) trait Removes {
     /// Removes the rows that `select` names by their id and family, and returns how many went.
-    pub(crate) fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault> {
+    fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault>;
+}
+
+impl Removes for Checkpointed<'_, '_> {
+    fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault> {
         let doomed: Vec<(i64, String)> =
             rows(self.conn, select, params, |r| Ok((r.get(0)?, r.get(1)?)))?;
         let mut removed = 0;
@@ -146,6 +156,16 @@ impl Tx<'_> {
             }
         }
         Ok(removed)
+    }
+}
+
+impl Tx<'_> {
+    pub(crate) fn exec<P: Params>(&self, sql: Sql, params: P) -> Result<usize, Fault> {
+        exec(self.conn, sql, params)
+    }
+
+    pub(crate) fn changed(&self, family: &str) {
+        self.changed.borrow_mut().insert(family.to_owned());
     }
 
     /// The high-water mark of purges: every ordinal below it is purged.
@@ -219,29 +239,6 @@ impl Tx<'_> {
         Ok(id)
     }
 
-    /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local day
-    /// of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window row
-    /// whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored. A
-    /// row whose day lies one or two days after the clock's day stays and goes on its own day of `gone`. A bounded row
-    /// with no day comes only from a fault or another build, since the store gives each bounded row its day; it was
-    /// promised to go, so it goes. A window row and a kept row with no day are left to their own rules. It returns the
-    /// number of rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads
-    /// too, and the report reads a row too far ahead by the same statement and the same limit.
-    pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
-        let removed = self.remove(
-            sql::EXPIRE_GONE,
-            rusqlite::named_params! {":today": now.today},
-        )? + self.remove(
-            sql::EXPIRE_AHEAD,
-            rusqlite::named_params! {":ahead": now.ahead_limit()},
-        )? + self.remove(sql::EXPIRE_NO_DAY, [])?
-            + self.remove(
-                sql::EXPIRE_WINDOW,
-                rusqlite::named_params! {":now": now.now},
-            )?;
-        Ok(removed + self.sweep()?)
-    }
-
     /// Brings `gone` of every stored bounded row of a kind of `entries` to the bound that its entry gives now, where
     /// that bound is the shorter: a row goes on the earlier of the day from the bound that was stored with it and the
     /// day from the bound in force. A lengthened bound leaves `gone` as it was. A bounded row of a kind of `entries`
@@ -269,6 +266,37 @@ impl Tx<'_> {
             }
         }
         Ok(())
+    }
+}
+
+impl<'t, 'c> Checkpointed<'t, 'c> {
+    /// The checkpointed writer over `tx`, for the unit tests' own connections.
+    #[cfg(test)]
+    pub(crate) fn for_test(tx: &'t Tx<'c>) -> Checkpointed<'t, 'c> {
+        Checkpointed(tx)
+    }
+
+    /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local day
+    /// of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window row
+    /// whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored. A
+    /// row whose day lies one or two days after the clock's day stays and goes on its own day of `gone`. A bounded row
+    /// with no day comes only from a fault or another build, since the store gives each bounded row its day; it was
+    /// promised to go, so it goes. A window row and a kept row with no day are left to their own rules. It returns the
+    /// number of rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads
+    /// too, and the report reads a row too far ahead by the same statement and the same limit.
+    pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
+        let removed = self.remove(
+            sql::EXPIRE_GONE,
+            rusqlite::named_params! {":today": now.today},
+        )? + self.remove(
+            sql::EXPIRE_AHEAD,
+            rusqlite::named_params! {":ahead": now.ahead_limit()},
+        )? + self.remove(sql::EXPIRE_NO_DAY, [])?
+            + self.remove(
+                sql::EXPIRE_WINDOW,
+                rusqlite::named_params! {":now": now.now},
+            )?;
+        Ok(removed + self.sweep()?)
     }
 
     /// Removes every evidence or support row whose summary is not stored and every row of another kind than
@@ -643,12 +671,13 @@ impl Db {
         Ok(out)
     }
 
-    /// `write`, with the truncating checkpoint after the commit and before the report.
+    /// `write`, with the truncating checkpoint after the commit and before the report. Its closure gets the
+    /// checkpointed writer, the one writer that removes rows.
     pub(crate) fn write_checkpointed<T, E: From<Fault>>(
         &self,
-        f: impl FnOnce(&Tx<'_>) -> Result<T, E>,
+        f: impl FnOnce(&Checkpointed<'_, '_>) -> Result<T, E>,
     ) -> Result<T, E> {
-        let out = self.commit(f)?;
+        let out = self.commit(|tx| f(&Checkpointed(tx)))?;
         self.checkpoint()?;
         self.give_report()?;
         Ok(out)
