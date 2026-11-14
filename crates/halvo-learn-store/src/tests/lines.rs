@@ -30,7 +30,7 @@ fn lines(total: usize) -> Vec<Sent> {
 }
 
 /// Run 2 learns an edit of step 2; run 3 is served it, proposes a target for step 3, sends `total` lines in bodies
-/// of 2,048, then the first body again `again` times, and finishes completed.
+/// of 2,048, then the first body again `again` times.
 fn play(total: usize, again: usize) -> World {
     let mut w = active_world();
     w.learn(
@@ -53,6 +53,10 @@ fn play(total: usize, again: usize) -> World {
     for _ in 0..again {
         w.log(3, &sent[..2048]);
     }
+    w
+}
+
+fn finished(mut w: World) -> World {
     assert!(w.finish(3, "replay", "completed").is_ok());
     w
 }
@@ -92,7 +96,7 @@ fn learned_as_today(w: &World) {
 
 #[test]
 fn a_run_that_sends_exactly_lines_held_max_lines_finishes_as_today() {
-    let w = play(LINES_HELD_MAX, 0);
+    let w = finished(play(LINES_HELD_MAX, 0));
     learned_as_today(&w);
 }
 
@@ -102,6 +106,9 @@ fn a_run_one_line_past_lines_held_max_is_a_lost_run_and_the_next_run_learns_as_t
     let id = RunId::parse(&run(3)).expect("a run id");
     assert!(!w.handlers.facts.contains_key(&id));
     assert!(!w.handlers.starts.contains_key(&id));
+    w.load(3);
+    assert!(!w.handlers.facts.contains_key(&id));
+    let mut w = finished(w);
     assert_eq!(revs_of_run(&w, 3), [1]);
     let step_2 = of_step(&w, 2);
     assert_eq!(step_2.len(), 1);
@@ -116,12 +123,13 @@ fn a_run_one_line_past_lines_held_max_is_a_lost_run_and_the_next_run_learns_as_t
 
 #[test]
 fn a_log_body_that_arrives_twice_counts_its_lines_once() {
-    let w = play(LINES_HELD_MAX, 1);
+    let w = finished(play(LINES_HELD_MAX, 1));
     learned_as_today(&w);
 }
 
 #[test]
 fn the_lines_that_one_run_holds_at_the_bound_take_at_most_65_536_bytes() {
+    assert_eq!(LINES_HELD_MAX, 4_096);
     let one = std::mem::size_of::<(NonZeroU32, Line)>();
     assert!(one <= 16, "one held line takes {one} bytes");
     assert!(LINES_HELD_MAX * one <= 65_536);
