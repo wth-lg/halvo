@@ -224,7 +224,8 @@ function serveControl(app, stop) {
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
  * Resolves to `{app, control, stopped, close, connections}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`, which ends every served connection, waits for
+ * through `close()` or the control route `POST /stop`, and `close()`, which from its begin accepts no new connection on
+ * either port and writes no 100 Continue, ends every served connection, waits for
  * them no longer than `idleMs` and then closes what is left; a connection that holds part of a request, or requests
  * read and not judged, at that moment gets the record line `incomplete` for each, with no answer. A connection
  * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
