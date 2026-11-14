@@ -93,14 +93,9 @@ mod packet {
     }
 
     impl Packet {
-        /// Outside the crate no packet can be named, so none can be made:
-        ///
         /// ```compile_fail,E0603
         /// use halvo_capture::windows::Packet;
         /// ```
-        ///
-        /// A public item of the same module can be named:
-        ///
         /// ```
         /// use halvo_capture::windows::EventPlacement;
         /// let _ = EventPlacement::unpersisted(2);

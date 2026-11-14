@@ -1,11 +1,3 @@
-//! W3-7 L4, O11 and Q3 (e), (f): the phases of a fixture page in Chrome and
-//! in Edge (the stall phases of W3-5 C7, the type swaps of Q2 (h) and (i),
-//! the cold and warm orders of Q3 (e)), and renamed copies of Firefox and of
-//! Chrome (Q3 (f), O9). The page counts each key by the type of the input
-//! when its character went in, and each Tab by the type of the input that
-//! took its key-down; the gate's decisions come through the test seam. Every
-//! line prints numbers, flags and fixed names alone.
-
 use super::*;
 use halvo_capture::secure_input::windows::FieldState;
 use halvo_capture::source::Started;
@@ -17,8 +9,6 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F22, VK_F24, VK_TAB,
 };
 
-/// The page of the phases. `phase` names what the page does after each
-/// reset (the key F24), `hold` how long its main thread is held.
 const PHASE_PAGE: &str = r#"<!doctype html>
 <html><head><meta charset="utf-8"><title>halvo-phase</title>
 <style>body{margin:0} input,button{display:block;width:320px;height:40px;margin:24px;font-size:20px}</style>
@@ -104,7 +94,6 @@ reset();
 </body></html>
 "#;
 
-/// The page's own counts, read from its title.
 #[derive(Debug, Default, Clone)]
 struct PageRead {
     text: i64,
@@ -138,7 +127,6 @@ fn page_read(hwnd: HWND) -> Option<PageRead> {
     })
 }
 
-/// What the gate decided for the keys since the seam was read last.
 #[derive(Debug, Default, Clone, Copy)]
 struct Decisions {
     letters: usize,
@@ -189,7 +177,6 @@ fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
     }
 }
 
-/// One click of the left button at a point of the screen.
 fn click_at(x: i64, y: i64) {
     let (cx, cy) = screen_size();
     let to = |v: i64, span: i32| (v * 65_535 / i64::from(span - 1)) as i32;
@@ -209,7 +196,6 @@ fn key(vkey: VIRTUAL_KEY) -> u32 {
     send(&[key_input(vkey, false), key_input(vkey, true)])
 }
 
-/// Sends a letter every `every` for `span`, and answers how many it sent.
 fn letters_for(span: Duration, every: Duration) -> i64 {
     let began = Instant::now();
     let mut sent = 0;
@@ -221,15 +207,6 @@ fn letters_for(span: Duration, every: Duration) -> i64 {
     sent
 }
 
-/// Brings `hwnd` to the front with no key of the test's own: the Alt key
-/// that the other fixtures send takes the focus to a browser's menu. Answers
-/// whether it is there, with the code of the call (1 SetForegroundWindow,
-/// 2 a click on the window's caption, 3 joined input, 4 minimize and
-/// restore, 0 none). With `click` the click comes before joined input: with
-/// joined input the window that lost the front sent a focus event after the
-/// browser's, and that stale event was the gate's newest mark (round B, run
-/// 43539765203). The click's latch stays open until a read shows a move, so
-/// it is used only where no key is to be recorded next.
 fn bring_to_front(hwnd: HWND, click: bool) -> (bool, u8) {
     use windows::Win32::Foundation::RECT;
     use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
@@ -285,7 +262,6 @@ fn bring_to_front(hwnd: HWND, click: bool) -> (bool, u8) {
     (there, if there { 4 } else { 0 })
 }
 
-/// A browser with a profile of its own and the phase page.
 struct PhaseBrowser {
     name: &'static str,
     exe: PathBuf,
@@ -342,12 +318,10 @@ impl PhaseBrowser {
         std::thread::sleep(Duration::from_millis(700));
     }
 
-    /// Opens the page of `phase` and brings its window to the front.
     fn open(&mut self, test: &str, phase: &str, hold: u64) -> Option<HWND> {
         self.open_with(test, phase, hold, false)
     }
 
-    /// As `open`, with a click on the caption among the ways to the front.
     fn open_with(&mut self, test: &str, phase: &str, hold: u64, click: bool) -> Option<HWND> {
         self.runs += 1;
         let url = format!("{}?phase={phase}&hold={hold}&run={}", self.page, self.runs);
@@ -407,7 +381,6 @@ impl Drop for PhaseBrowser {
     }
 }
 
-/// The keyboard source of a test, with its events.
 struct Keyboard {
     source: RawInputSource,
     events: Events,
@@ -430,7 +403,6 @@ impl Keyboard {
         stop_counted(&mut self.source, "keyboard")
     }
 
-    /// The gate's state, read until it reads `wanted` or `limit` passes.
     fn state_within(&self, wanted: FieldState, limit: Duration) -> Option<FieldState> {
         let began = Instant::now();
         loop {
@@ -446,19 +418,15 @@ impl Keyboard {
         let _ = self.events.drain_for(span);
     }
 
-    /// The keystroke events that reach the sink within `span`.
     fn keystrokes_for(&self, span: Duration) -> usize {
         count(&self.events.drain_for(span), Modality::Keystroke)
     }
 }
 
-/// The element that the gate's last reading of a browser's process saw.
 fn element_seen(file: &str) -> String {
     marks_seen(file).0
 }
 
-/// The element that the gate's last reading of `file`'s process saw, and
-/// the gate's three newest marks with the file of each mark's element.
 fn marks_seen(file: &str) -> (String, String) {
     let marks = seam::take_marks();
     let element = marks
@@ -488,8 +456,6 @@ fn marks_seen(file: &str) -> (String, String) {
     (element, newest.join(","))
 }
 
-/// Starts a round: the reset key, then the page's start state, with the
-/// seam emptied of the reset's own key.
 fn reset(keyboard: &Keyboard, hwnd: HWND) -> Option<PageRead> {
     key(VK_F24);
     keyboard.settle(Duration::from_millis(450));
@@ -497,7 +463,6 @@ fn reset(keyboard: &Keyboard, hwnd: HWND) -> Option<PageRead> {
     page_read(hwnd)
 }
 
-/// One round's numbers, printed on one line.
 #[derive(Debug, Default, Clone)]
 struct Round {
     counted: bool,
@@ -507,8 +472,6 @@ struct Round {
 }
 
 impl Round {
-    /// Letters recorded beyond the letters that landed as text by the
-    /// page's own count: each is a letter of a password field.
     fn password_letters_recorded(&self) -> i64 {
         (self.keys.letters as i64 - self.page.text).max(0)
     }
@@ -536,7 +499,6 @@ impl Round {
     }
 }
 
-/// The ending of every round: the keys' decisions and the page's counts.
 fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -> Round {
     keyboard.settle(Duration::from_millis(800));
     let keys = decisions();
@@ -556,10 +518,6 @@ pub(super) enum StallKind {
     SelfMove,
 }
 
-/// The stall phases of W3-5 C7 for one browser: the page holds its main
-/// thread for `hold` ms at the Tab, at a button-down in the password input,
-/// or before a focus move that it makes itself. Answers, per round, the
-/// letters of a password field that the gate recorded.
 fn stall_rounds(
     test: &str,
     browser: &mut PhaseBrowser,
@@ -635,10 +593,6 @@ fn stall_rounds(
     out
 }
 
-/// The verdict of the stall phases of W3-5 C7 and W3-7 (3): in a counted
-/// round no letter is recorded and no event but the Tab's; a recorded
-/// letter that did not land as text fails in any round. Answers the counted
-/// rounds.
 fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usize {
     let counted = rounds.iter().filter(|r| r.counted).count();
     let failing = rounds
@@ -686,8 +640,6 @@ fn open_browser(test: &str, name: &str) -> PhaseBrowser {
     browser
 }
 
-/// W3-5 C7 and W3-7 O11, in one browser: a Tab and a button-down into the
-/// password input while the page holds its main thread for 150 and 300 ms.
 pub(super) fn stall_phases(test: &'static str, name: &'static str) {
     with_deadline(test, Duration::from_secs(420), move || {
         env_report(test);
@@ -714,9 +666,6 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
     });
 }
 
-/// W3-5 C7's third phase, a known defect: the page holds its main thread and
-/// then moves the focus into the password input by itself. Answers the
-/// letters of the password input that the gate recorded.
 pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
@@ -747,10 +696,6 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
     total.load(Ordering::SeqCst)
 }
 
-/// One round of a type swap or of a shown password field (Q2 (h)): the
-/// letters typed after the page's change, by the page's own count and the
-/// gate's decisions, with the letters typed while the field was shown kept
-/// apart for `show-control`.
 fn swap_round(
     test: &str,
     browser_name: &str,
@@ -816,11 +761,6 @@ fn swap_round(
     (r, shown)
 }
 
-/// Q2 (h): the swaps of an input's type while it has the focus, and a
-/// password field that is shown and hidden while the cursor stays in it, in
-/// one browser. Each reads 0 recorded letters among the letters that the
-/// page counted as letters of a password field; `show-hide` reads 0 for
-/// every letter, since the field first read Password.
 pub(super) fn swap_phases(test: &'static str, name: &'static str) {
     with_deadline(test, Duration::from_secs(420), move || {
         env_report(test);
@@ -880,9 +820,6 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
     });
 }
 
-/// Q2 (i), the swaps against a page that holds its main thread for 150 and
-/// for 300 ms around them: a known defect. Answers the letters of a password
-/// field that the gate recorded.
 pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
@@ -935,8 +872,6 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
     total.load(Ordering::SeqCst)
 }
 
-/// Q2 (i), five letters in one burst of which the first makes the swap: a
-/// known defect until the looped hosted proof reads 0 for it.
 pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
@@ -953,8 +888,6 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         for round in 0..5 {
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
-            // W3-10 T5: the control shows the gate open on the text input
-            // before the burst: its letters reach the sink.
             let control_sent = i64::from(type_letters_slowly(3) / 2);
             let control = keyboard.keystrokes_for(Duration::from_millis(600));
             let _ = seam::take();
@@ -1002,10 +935,6 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
     total.load(Ordering::SeqCst)
 }
 
-/// W3-7 correction (5): a letter and a Tab 50 ms later, out of an input that
-/// a timer made a password input with no key before the letter; the Tab
-/// goes to the page's button. A known defect. Answers the letters and Tabs
-/// that landed in the password-type input and were recorded.
 pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
@@ -1059,12 +988,6 @@ pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'
     total.load(Ordering::SeqCst)
 }
 
-/// Q3 (e): the cold order (a fresh program and a fresh client; the first
-/// focus move after the client attaches goes into the password input, which
-/// the page focuses itself, and the gate reads Password before the first key
-/// of that input is decided) and the warm order, with a control that the
-/// same source recorded the letters of the plain input. The element that
-/// the gate read is printed, so that the values rest on the input itself.
 pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
     with_deadline(test, Duration::from_secs(300), move || {
         env_report(test);
@@ -1176,7 +1099,6 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
     });
 }
 
-/// A copy of a browser's directory with its executable renamed.
 fn renamed_copy(source_exe: &Path, into: &Path, name: &str) -> Option<PathBuf> {
     let source = source_exe.parent()?;
     let copied = Command::new("robocopy.exe")
@@ -1199,8 +1121,6 @@ fn renamed_copy(source_exe: &Path, into: &Path, name: &str) -> Option<PathBuf> {
     Some(renamed)
 }
 
-/// Q3 (f) and O9: a renamed copy of a browser reads Unknown from the gate,
-/// and no letter of its plain input or of its password input is recorded.
 pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser) {
     with_deadline(test, Duration::from_secs(420), move || {
         env_report(test);
@@ -1260,11 +1180,6 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
                 show(&stopped)
             ),
         );
-        // A renamed copy of Firefox on the hosted runner keeps the keys in
-        // its own frame and not in the page (adversary 2's run, L2 lines 498
-        // to 501, page counts 0): for it the round needs the window in front
-        // and the gate's reading of the copy's own process; the landing is
-        // printed.
         let landed = plain.page.text == 5 && password.page.password == 5;
         let read_the_copy = plain_element.contains("file=renamed-browser.exe");
         assert!(
@@ -1315,9 +1230,6 @@ fn swap_phases_of_the_page_in_edge() {
     swap_phases("browser-swap-edge", "edge");
 }
 
-/// W3-7 Q2 (i): the burst of five letters of which the first makes the swap
-/// read 0 in the first hosted run of round B, and the looped proof decides
-/// whether it stays an ordinary phase.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop and Chrome"]
 fn a_burst_whose_first_letter_swaps_records_nothing_in_chrome() {

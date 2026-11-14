@@ -1,9 +1,5 @@
 #![cfg(target_os = "windows")]
 #![deny(clippy::undocumented_unsafe_blocks)]
-//! The prints of ruling W3-7 Q2 (g) and Q3 (d), made at the head before the
-//! form is built. They assert nothing and hold nothing back; every line holds
-//! numbers and fixed strings of the programs (frameworks, window classes,
-//! control types and file names) alone, and no key, title or text.
 
 use core::ffi::c_void;
 use std::io::{BufRead, BufReader};
@@ -141,7 +137,6 @@ fn text(value: windows::core::Result<BSTR>) -> String {
     }
 }
 
-/// What the prints read of one element.
 #[derive(Debug, Clone)]
 struct Props {
     framework: String,
@@ -207,9 +202,6 @@ fn current_props(element: &IUIAutomationElement) -> Props {
     }
 }
 
-// ------------------------------------------------------------ the two sinks
-
-/// A note from a sink: a focus event's element props, or a property event.
 enum Note {
     Focus(Props),
     Password(u128, i32, &'static str),
@@ -397,7 +389,6 @@ fn property_sink(
     unsafe { IUIAutomationPropertyChangedEventHandler::from_raw(raw) }
 }
 
-/// A fresh client of UI Automation with a cache of the printed properties.
 struct Client {
     automation: IUIAutomation,
     cache: IUIAutomationCacheRequest,
@@ -435,8 +426,6 @@ impl Client {
     }
 }
 
-// --------------------------------------------------------------- the targets
-
 const NATIVE_ENV: &str = "HALVO_PRINT_NATIVE";
 const NATIVE_TEST: &str = "print_helper_native_window";
 
@@ -466,10 +455,6 @@ fn pump_for(span: Duration) {
     }
 }
 
-/// The native target: a window with a plain edit and a password edit, the
-/// focus in the field that the environment names; with "swap", the plain
-/// edit becomes a password edit while it has the focus, after 1.5 s, and
-/// back after 3.5 s, with the thread held for the milliseconds named.
 #[test]
 #[ignore = "helper: the native target of the prints; does nothing unless a print starts it"]
 fn print_helper_native_window() {
@@ -774,8 +759,6 @@ impl Launch {
     }
 }
 
-/// A copy of the Firefox directory with the executable renamed, for the
-/// renamed copy of Q3 (d).
 fn renamed_firefox(into: &Path) -> Option<PathBuf> {
     let source = Path::new(BROWSERS[2].paths.iter().find(|p| Path::new(p).is_file())?).parent()?;
     let copied = Command::new("robocopy.exe")
@@ -797,8 +780,6 @@ fn renamed_firefox(into: &Path) -> Option<PathBuf> {
     Some(renamed)
 }
 
-/// The first focus event of the target's process after a fresh client
-/// attached, then the warm read 1.5 s later.
 fn cold_and_warm(target: &str, field: &str, launch: u32, file: &str, open: impl FnOnce() -> bool) {
     let client = Client::new();
     let (tx, rx) = mpsc::channel();
@@ -898,8 +879,6 @@ fn print_q3_the_kinds_of_the_fixture_targets() {
     }
 }
 
-/// Polls the focused element's IsPassword every 10 ms and answers the first
-/// unix ms at which it read `wanted`, with the element read then.
 fn first_reading(
     client: &Client,
     wanted: bool,
@@ -925,10 +904,6 @@ fn delay(at: Option<u128>, from: Option<u128>) -> String {
     }
 }
 
-/// One swap of a field that has the focus: the property events from the
-/// focused element and from the root, the first read that answers password
-/// and the first after the swap back, and whether the element compares equal.
-/// The page's or the program's own stamps of the swap and of the swap back.
 type SwapMarks = Box<dyn Fn() -> (Option<u128>, Option<u128>)>;
 
 fn one_swap(target: &str, hold: u64, round: u32, open: impl FnOnce() -> Option<SwapMarks>) {

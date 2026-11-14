@@ -143,8 +143,6 @@ fn clicks() -> std::sync::MutexGuard<'static, ClickRoute> {
 
 const WM_TAKE_MOUSE: u32 = WM_APP + 1;
 
-/// A test's message that holds the pump in its dispatch for the
-/// milliseconds that it carries (W3-7 O4).
 #[cfg(test)]
 const WM_HOLD_FOR_TEST: u32 = WM_APP + 2;
 
@@ -157,10 +155,6 @@ fn mouse_registration(hwnd: HWND) -> RAWINPUTDEVICE {
     }
 }
 
-/// The keyboard's window registers the mouse when no source has it, and
-/// ends the time with no click route that the pointer's removal began. While
-/// the registration fails that time stays open, so the gate withholds every
-/// key (W3-7 L7), and the gate's poll tries again until the call stands.
 fn keyboard_takes_mouse(hwnd: HWND, register: RegisterCall) -> windows::core::Result<()> {
     let mut route = clicks();
     if route.owner.is_some() {
@@ -174,8 +168,6 @@ fn keyboard_takes_mouse(hwnd: HWND, register: RegisterCall) -> windows::core::Re
     Ok(())
 }
 
-/// The keyboard's window takes the mouse again when no source has it, with
-/// the register call of its start.
 fn keyboard_takes_mouse_again() {
     let (window, register) = {
         let route = clicks();
@@ -201,11 +193,6 @@ fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
     remove(&removal_of(RawDevice::Pointer))
 }
 
-/// The pointer source gives the mouse up, with the route's lock held since
-/// before its registration was removed: the gate withholds keys from the
-/// removal until the keyboard's window has the mouse (W3-7 L7, O4), and no
-/// other start or stop comes between the removal and the change of the
-/// owner (O6). A pointer that no longer owns the mouse changes nothing.
 fn pointer_lets_mouse_go(mut route: std::sync::MutexGuard<'static, ClickRoute>, removed_at: u32) {
     if route.owner != Some(RawDevice::Pointer) {
         return;
@@ -356,12 +343,8 @@ struct GateState {
 
 #[derive(Debug, Default)]
 struct GateCounts {
-    /// Whether a key reached the source's handler more than LATE_KEY_MAX
-    /// after its OS time: a yes or no that says the source ran behind, kept as
-    /// `withheld` is (W3-7 Q1 (b)).
     late: AtomicBool,
     withheld: AtomicBool,
-    /// The largest lag from a key's OS time to its handler, in ms.
     max_lag_ms: AtomicU64,
 }
 
@@ -381,9 +364,6 @@ fn ms_of(duration: std::time::Duration) -> u32 {
 
 const GATE_POLL_MS: u32 = 15;
 
-/// Hands on the held keys that the gate has decided, oldest first. A key that
-/// is still undecided at a stop is withheld like a key that the gate withheld,
-/// and no number counts it (W3-7 Q1 (c)).
 fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
     release_held_at(
         gate,
@@ -394,9 +374,6 @@ fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
     );
 }
 
-/// [`release_held`] at the tick and with the thread in front that `at`
-/// gives, reading the style of the native edit under the focus through
-/// `password_edit_now`.
 fn release_held_at(
     gate: &mut GateState,
     producer: &Producer,
@@ -436,10 +413,7 @@ fn foreground_thread() -> u32 {
     unsafe { GetWindowThreadProcessId(GetForegroundWindow(), None) }
 }
 
-/// What a test build reads of the keys that a keyboard source decided. Only
-/// the feature `test-seam` builds it, and only the crate's dev-dependency on
-/// itself turns that feature on, so no product build has it. It holds the
-/// class of each key and never its virtual-key code.
+/// What a test build reads of the keys that a keyboard source decided.
 #[cfg(feature = "test-seam")]
 pub mod seam {
     use std::sync::{Mutex, PoisonError};
@@ -479,7 +453,7 @@ pub mod seam {
     static DECIDED: Mutex<std::collections::VecDeque<Decided>> =
         Mutex::new(std::collections::VecDeque::new());
 
-    /// The marker of a build with the seam (ruling W3-8 (b) (3)): a byte
+    /// The marker of a build with the seam: a byte
     /// string that stands in a build with the feature test-seam and in no
     /// build without it, so that a check can read a built file for it.
     pub static MARKER: [u8; 42] = *b"halvo-capture:test-seam:this-build-has-it!";
@@ -559,8 +533,7 @@ pub mod seam {
     }
 
     /// The keys decided since the last call, oldest first, at most
-    /// [`KEPT`] of them. Nothing of the gate reads them: the seam is read
-    /// by a test alone and printed by nothing of the crate.
+    /// [`KEPT`] of them.
     pub fn take() -> Vec<Decided> {
         std::mem::take(&mut *DECIDED.lock().unwrap_or_else(PoisonError::into_inner))
             .into_iter()
@@ -623,11 +596,7 @@ struct StartCalls {
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
     register_device: RegisterCall,
     remove_device: RemoveCall,
-    /// Makes the keyboard pump's poll timer; 0 when it fails.
     set_timer: fn() -> usize,
-    /// Called by a stopping pointer pump after the route has changed and
-    /// before its claim is let go, so that a test can start a second
-    /// pointer source there (W3-9 (2)).
     #[cfg(test)]
     after_hand_over: fn(),
 }
@@ -1048,9 +1017,6 @@ impl CaptureSource for RawInputSource {
                 let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
                 let _ = keyboard_lets_mouse_go(self.calls.remove_device);
             } else {
-                // W3-7 O4: the pump that did not stop in time still owns
-                // the mouse; its registration is removed here and the
-                // keyboard's window is told to take the mouse.
                 let route = clicks();
                 let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
                 pointer_lets_mouse_go(route, super::now_tick());
@@ -1091,7 +1057,6 @@ struct DeviceGuard<'a> {
     removed: Removed,
     remove: RemoveCall,
     signal: &'a super::StopSignal,
-    /// Let go after the click route has changed (W3-7 O6).
     claim: Option<DeviceClaim>,
 }
 
@@ -1162,9 +1127,6 @@ fn run_raw_input(
         dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
-    // The pointer's registration replaces the keyboard's mouse
-    // registration, so it is made with the owner's change under the route's
-    // lock (W3-7 O6).
     let registered = if device == RawDevice::Pointer {
         let mut route = clicks();
         let registered = (calls.register_device)(&dev);
@@ -1208,7 +1170,6 @@ fn run_raw_input(
         let poll = (calls.set_timer)();
         if poll == 0 {
             let error = super::last_os_error("SetTimer");
-            // W3-7 O5: a start that fails here leaves no click route set.
             let _ = keyboard_lets_mouse_go(calls.remove_device);
             ready.report(Err(error));
             return;
@@ -1424,8 +1385,6 @@ mod tests {
             .collect()
     }
 
-    /// Whether the seam recorded the mouse for `window` after the last
-    /// removal of the mouse.
     fn mouse_registered_again_for(window: usize) -> bool {
         let calls = REGISTERED.lock().unwrap_or_else(PoisonError::into_inner);
         let mouse = RawDevice::Pointer.hid_usage();
@@ -1504,9 +1463,6 @@ mod tests {
         assert_eq!(keyboard_stopped, Ok(()));
     }
 
-    /// A mouse registration call that fails while `FAIL_MOUSE` is set, and
-    /// one that holds its thread for `HOLD_AFTER_MOUSE_MS` after a mouse
-    /// registration that it made; both are counted.
     static FAIL_MOUSE: AtomicBool = AtomicBool::new(false);
     static HOLD_AFTER_MOUSE_MS: AtomicU64 = AtomicU64::new(0);
 
@@ -1538,7 +1494,6 @@ mod tests {
         }
     }
 
-    /// The rule that decides a key typed at `tick`, at 300 ms after it.
     fn rule_for_a_key_at(gate: &PasswordGate, tick: u32) -> Option<Rule> {
         let key = gate.hold(tick, false, 0);
         gate.decide(&key, tick.wrapping_add(300), 0, false)
@@ -1558,9 +1513,6 @@ mod tests {
         }
     }
 
-    /// W3-7 L7: a mouse registration that fails at the hand-over holds the
-    /// gate closed, and the keyboard's window registers the mouse when the
-    /// call stands again.
     #[test]
     fn a_failed_mouse_registration_at_the_hand_over_holds_the_gate_closed_until_it_stands() {
         let _serial = crate::windows::tests::serial();
@@ -1602,8 +1554,6 @@ mod tests {
         assert_eq!(keyboard_stopped, Ok(()));
     }
 
-    /// W3-7 O4: a pointer whose pump does not stop in time gives the mouse
-    /// to the keyboard's window, and the gate withholds the keys between.
     #[test]
     fn a_pointer_stop_that_times_out_hands_the_mouse_to_the_keyboard() {
         use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, PostMessageW};
@@ -1666,8 +1616,6 @@ mod tests {
         0
     }
 
-    /// W3-7 O5: a keyboard start that fails at its timer leaves no click
-    /// route, so that the next start registers the mouse for its window.
     #[test]
     fn a_keyboard_start_that_fails_at_its_timer_leaves_no_click_route() {
         let _serial = crate::windows::tests::serial();
@@ -1706,9 +1654,6 @@ mod tests {
         assert_eq!(stopped, Ok(()));
     }
 
-    /// W3-7 O6: the pointer's registration and the change of the owner are
-    /// one step, so a keyboard stop between them does not remove the
-    /// pointer's registration.
     #[test]
     fn a_keyboard_stop_during_the_pointers_registration_leaves_the_pointers_mouse() {
         let _serial = crate::windows::tests::serial();
@@ -1749,9 +1694,6 @@ mod tests {
         assert_eq!(pointer_stopped, Ok(()));
     }
 
-    /// W3-7 O6, the second order: a keyboard start between the pointer's
-    /// registration and the change of the owner does not take the mouse
-    /// from the pointer.
     #[test]
     fn a_keyboard_start_during_the_pointers_registration_leaves_the_pointers_mouse() {
         let _serial = crate::windows::tests::serial();
@@ -1796,14 +1738,9 @@ mod tests {
         assert_eq!(pointer_stopped, Ok(()));
     }
 
-    /// What the call after the hand-over saw, for O6's third order.
     static AT_THE_HAND_OVER: Mutex<Option<(Option<RawDevice>, bool)>> = Mutex::new(None);
-    /// A second pointer source that the call started, if the start was not
-    /// refused; the test stops it.
     static SECOND_POINTER: Mutex<Option<RawInputSource>> = Mutex::new(None);
 
-    /// The seam's call after the hand-over: reads the route's owner and
-    /// starts a second pointer source there, once.
     fn start_a_second_pointer() {
         let mut seen = AT_THE_HAND_OVER
             .lock()
@@ -1824,10 +1761,6 @@ mod tests {
         *seen = Some((owner, refused));
     }
 
-    /// W3-9 (2), O6's third order: a second pointer source started after
-    /// the stopping pointer has changed the route and before it lets its
-    /// claim go is refused; started after that, it keeps the mouse, and the
-    /// route names it as the owner.
     #[test]
     fn a_second_pointer_start_is_refused_until_the_route_has_changed() {
         use windows::Win32::UI::WindowsAndMessaging::FindWindowExW;
@@ -2051,7 +1984,6 @@ mod tests {
         assert!(state.counts.withheld.load(Ordering::Relaxed));
     }
 
-    /// A gate state with a hand-off, as the keyboard pump holds them.
     fn lag_rig() -> (GateState, super::super::HandOff, crate::sink::SinkWriter) {
         let (sink, writer) = crate::sink::channel(64);
         let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
@@ -2064,7 +1996,6 @@ mod tests {
         (state, handoff, writer)
     }
 
-    /// One key as the pump handles it: its lag noted, held, then released.
     fn handled(state: &mut GateState, producer: &Producer, os_tick: u32) {
         let now = super::super::now_tick();
         state.counts.note_lag(now.wrapping_sub(os_tick));
@@ -2080,8 +2011,6 @@ mod tests {
         release_held(state, producer, false);
     }
 
-    /// Every number of the source: the late value, the largest lag, the
-    /// withheld flag and the hand-off's counts.
     fn numbers(state: &GateState, handoff: &super::super::HandOff) -> (bool, u64, bool, String) {
         (
             state.counts.late.load(Ordering::Relaxed),
@@ -2102,11 +2031,6 @@ mod tests {
         sent
     }
 
-    /// W3-10 T6: a key of a native password edit that the gate decides
-    /// after 250 ms comes back from the shared check as Late and not as a
-    /// key of a password field. It is withheld either way, and no count, no
-    /// late value and no withheld reading differs from the same key decided
-    /// at 100 ms. A pump that took the key at once notes no lag for it.
     #[test]
     fn a_password_edit_key_decided_at_300_ms_moves_no_number_that_one_at_100_ms_does_not() {
         let front = 7;
@@ -2300,8 +2224,6 @@ mod tests {
     static HOLD_THE_REGISTER_MS: AtomicU64 = AtomicU64::new(0);
     static REGISTER_HELD: AtomicBool = AtomicBool::new(false);
 
-    /// The seam's register call, which holds the keyboard's pump for the
-    /// milliseconds that the test stores, so that the pump takes keys late.
     fn register_held(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
         let hold = HOLD_THE_REGISTER_MS.swap(0, Ordering::SeqCst);
         if hold > 0 {
@@ -2312,9 +2234,6 @@ mod tests {
         register_raw_input_device(device)
     }
 
-    /// A visible window of the test's own on a thread of its own that pumps
-    /// its messages, brought to the front so that the keys that a test sends
-    /// go to it; a window that nobody pumps would hold the detector's read.
     struct OwnWindow {
         hwnd: usize,
         stop: Arc<AtomicBool>,
@@ -2336,8 +2255,6 @@ mod tests {
             let (tx, rx) = std::sync::mpsc::channel();
             let thread_stop = Arc::clone(&stop);
             let thread = std::thread::spawn(move || {
-                // An edit of the native kind, so that the gate reads it Clear
-                // and only the rule under test withholds a key (W3-10 T3).
                 let class = windows::core::HSTRING::from("EDIT");
                 // SAFETY: the class name is a live HSTRING; the window belongs
                 // to this thread, which destroys it before it ends.
@@ -2388,9 +2305,6 @@ mod tests {
                         }
                     }
                 };
-                // The order of the detector test's own edit, which came to
-                // the front in 20 of 20 runs: SetForegroundWindow first, the
-                // Alt key only when that fails, then joined input.
                 // SAFETY: the calls take this thread's window handle.
                 unsafe {
                     let _ = ShowWindow(hwnd, SW_SHOW);
@@ -2449,8 +2363,6 @@ mod tests {
                 let _ = tx.send((hwnd.0 as usize, in_front));
                 while !thread_stop.load(Ordering::SeqCst) {
                     pump();
-                    // Wait on the queue, so that a read of the edit by the
-                    // detector is answered at once.
                     // SAFETY: no handle is passed; the call waits for this
                     // thread's queue or the time.
                     let _ = unsafe {
@@ -2499,14 +2411,6 @@ mod tests {
         }
     }
 
-    /// K6 of W3-7, from the verify step's probe: a key of a password field
-    /// and a click of the same tick from the pointer pump, with both sources
-    /// running, leave the key withheld, as a click one tick period later does.
-    /// And a key after a click of the same tick through the pointer pump's
-    /// route waits for a read that shows a move (W3-10 T3; the route's gate
-    /// is one with no detector for that case, so that no read of the window
-    /// in front comes between). It sends no input, so no window of its own
-    /// is asked for; 12-test runs it with the library.
     #[test]
     fn a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld() {
         use crate::secure_input::windows::FieldState;
@@ -2579,14 +2483,6 @@ mod tests {
         );
     }
 
-    /// K5 and Q1 (d) of W3-7, from the verify step's probe: a real key that
-    /// the keyboard's own pump takes late, because the pump is held in the
-    /// register call of the mouse handover, while the gate read Password at
-    /// the key and a focus mark of a later move reaches the gate. No key is
-    /// recorded, and a key taken 300 ms late moves no count. The keys go to
-    /// an edit of the test's own in front, which the gate reads Clear, so
-    /// that the order rule alone withholds them; a round counts only while
-    /// that edit is in front (W3-10 T3). 12-test runs it with the library.
     #[test]
     fn a_key_that_a_held_pump_takes_late_is_not_recorded_and_moves_no_count() {
         use crate::secure_input::windows::FieldState;
@@ -2739,10 +2635,6 @@ mod tests {
         assert!(late_300.1, "keys_withheld did not read yes");
     }
 
-    /// Runs a drawn sequence of marks and keys through a gate with the
-    /// release of the keyboard pump and answers the apps of the keys that it
-    /// recorded and the withheld flag. With `read_the_seam` a reader takes
-    /// the seam after every release.
     fn drawn_sequence(seed: u64, read_the_seam: bool) -> (Vec<String>, bool) {
         use crate::secure_input::windows::FieldState;
         let (mut state, handoff, writer) = lag_rig();

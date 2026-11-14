@@ -732,10 +732,6 @@ fn pump_thread(window: Duration) {
     }
 }
 
-/// Serves this thread's messages until `window` has passed, waking for each
-/// message as it arrives, as a program's own message loop does: a read of
-/// the focused field that another process makes is answered at once and not
-/// at the next turn of a timer (W3-7 round B, x3).
 fn pump_answering(window: Duration) {
     use windows::Win32::UI::WindowsAndMessaging::{
         MsgWaitForMultipleObjectsEx, MWMO_INPUTAVAILABLE, QS_ALLINPUT,
@@ -935,9 +931,6 @@ impl TestWindow {
         self.activate_with(true)
     }
 
-    /// Brings the window to the front, with the Alt key among the ways
-    /// tried only when `keys` is set: a key here reaches every keyboard
-    /// source that runs (W3-7 O3).
     fn activate_with(&self, keys: bool) -> (bool, &'static str) {
         // SAFETY: the three calls take this thread's window handle by value.
         unsafe {
@@ -2051,8 +2044,6 @@ fn unix_millis(time: SystemTime) -> u128 {
         .unwrap_or(0)
 }
 
-/// The tick period in ms and where it came from: the interval between the
-/// system's clock interrupts, or the fallback where the system gives none.
 fn tick_period() -> (u128, &'static str) {
     let (mut adjustment, mut increment, mut disabled) = (0u32, 0u32, 0i32);
     // SAFETY: the three pointers are live locals of the types that the call
@@ -2290,8 +2281,6 @@ fn helper_limited_listener() {
     let deadline = Instant::now() + Duration::from_secs(secs);
     let mut stamps = Vec::new();
     let mut recorded = 0usize;
-    // The source's withheld and late values, with the wall time of each
-    // change (W3-7 O3).
     let mut values = Vec::new();
     let mut last_values = None;
     let _ = seam::take();
@@ -2306,8 +2295,6 @@ fn helper_limited_listener() {
             &events.drain_for(Duration::from_millis(20)),
             Modality::Keystroke,
         );
-        // Every key that reached this source, whatever the gate decided: its
-        // wall time is now less its age by the tick counter.
         // SAFETY: GetTickCount takes no argument and reads a counter.
         let tick = unsafe { GetTickCount() };
         let now = unix_millis(SystemTime::now());
@@ -2407,7 +2394,6 @@ fn x8_raw_input_across_the_integrity_boundary() {
             .split(',')
             .filter_map(|stamp| stamp.parse().ok())
             .collect();
-        // The listener's withheld and late values as they stood at a time.
         let values: Vec<(u128, u8, u64)> = lines
             .next()
             .unwrap_or("")
@@ -2829,13 +2815,6 @@ fn pointer_moves_coalesce() {
     });
 }
 
-/// The precondition of a test that types right after its keyboard source
-/// starts (W3-7 (4)): a fresh detector can read Unknown at its start, and a key
-/// typed before its next read is withheld. The fixture moves the focus to its
-/// password field and back, and the test waits, at most 3 s, until the gate
-/// reads the plain field as Clear, and at least 1 s from the source's start,
-/// as c1 does: a key typed in the first few hundred ms after a start has been
-/// withheld on the hosted runner.
 fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInputSource) -> bool {
     use halvo_capture::secure_input::windows::FieldState;
     let started = Instant::now();
@@ -2869,10 +2848,6 @@ fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInpu
     clear
 }
 
-/// Prints the gate's trail since the last read of the seam: each key that
-/// it decided, with its class, verdict, rule and ticks, and each mark from
-/// 1.5 s before the first key to 0.5 s after the last, with what its reading
-/// saw of its element. Ticks are relative to the first key's OS tick.
 fn gate_trail(test: &str) {
     let keys = seam::take();
     let marks = seam::take_marks();
@@ -2914,10 +2889,6 @@ fn gate_trail(test: &str) {
     }
 }
 
-/// W3-7 K9 and L8: the detector's first own read after a start is a read of
-/// the focused field. The fixture's password field has the focus before the
-/// source starts, so that read reads Password, and the start's own mark,
-/// before it, reads Unknown.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn the_first_own_read_after_a_start_reads_the_focused_password_field() {
@@ -4109,8 +4080,6 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         let _ = events.drain_for(Duration::from_millis(300));
         let revealed = fields.reveal();
         let _ = events.drain_for(Duration::from_millis(300));
-        // A click inside the revealed field makes the gate read it again
-        // (W3-7 K12); the field keeps Password, since the focus never left.
         let clicked_d = fields.click(Field::Password);
         let _ = events.drain_for(Duration::from_millis(300));
         let gate_d = keyboard.field_state();
@@ -4222,9 +4191,6 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
             e.letters_recorded, 0,
             "phase E: a key typed right after Tab into the password field was recorded"
         );
-        // W3-10 T1: on the masked edit, with the program acting at once, every
-        // letter and the Tab of a counted round are withheld with a Password
-        // reading, and none by NotClearedInTime or as Unknown.
         assert!(
             e_masked,
             "INCONCLUSIVE: phase E's password edit was not masked at its start"
@@ -4569,9 +4535,6 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let unknown_class = !browser.chromium;
-        // W3-7 K10: for a kind that reads Unknown, a control in the same run
-        // that the same source records the letters of a plain field of a
-        // kind that reads Clear, before the browser's phases and after.
         let control = |which: &str| -> usize {
             let fields = FieldWindow::open(test, Field::Plain);
             let focused = fields.focus(Field::Plain);
@@ -4627,7 +4590,6 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             Vec::new()
         });
         let e_decided = seam::take();
-        // W3-7 O10: each round of phase E, with the decision of each key.
         let mut sorted: Vec<&seam::Decided> = e_decided.iter().collect();
         sorted.sort_by_key(|key| key.os_tick);
         let mut round = 0;

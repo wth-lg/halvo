@@ -8,8 +8,6 @@ publish = false
 [features]
 secure-enclave = []
 r2 = []
-# A seam that the functional tests read: a test build alone turns it on,
-# through the dev-dependency on this crate below.
 test-seam = []
 
 [dependencies]

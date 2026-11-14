@@ -18,25 +18,15 @@ pub enum FieldState {
     Unknown,
 }
 
-/// The kind of program that an element belongs to, told by two things that
-/// the gate reads itself (W3-7 Q3). Only an element of a kind on the closed
-/// list can read Clear; every other kind reads Unknown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kind {
-    /// The framework Win32 and the window class Edit.
     NativeEdit,
-    /// The framework Chrome and a process file named chrome.exe.
     Chrome,
-    /// The framework Chrome and a process file named msedge.exe.
     Edge,
-    /// A process file named firefox.exe, whatever the element reports.
     Firefox,
-    /// Any other framework, class or file name, or one that cannot be read.
     Other,
 }
 
-/// The kind of an element from its framework, the class of its window and
-/// the file name of its process; a value that could not be read is `None`.
 pub(crate) fn kind_of(framework: Option<&str>, class: Option<&str>, file: Option<&str>) -> Kind {
     let is =
         |value: Option<&str>, wanted: &str| value.is_some_and(|v| v.eq_ignore_ascii_case(wanted));
@@ -84,24 +74,13 @@ pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -
     }
 }
 
-/// What a reading does to the kept password element (W3-7 Q2 (d)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kept {
-    /// Keep it as it is.
     Leave,
-    /// Keep this element, which read Password.
     Set,
-    /// Let it go: an own read shows another element after a focus move.
     Drop,
 }
 
-/// The state of a reading with the kept password element: `kept` is the count
-/// of focus moves that the gate had seen when the kept element read Password,
-/// `same` whether the reading is of that element, `read` the reading's own
-/// state, `own` whether it is an own read of the detector and `moves` the
-/// count of focus moves seen now. A field that read Password keeps Password
-/// until an own read shows another element after a focus move that the gate
-/// saw since that reading; a focus event never lets it go.
 pub(crate) fn with_kept(
     kept: Option<u64>,
     same: bool,
@@ -142,17 +121,12 @@ const MARKS_KEPT: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
-    /// The reading of a focus event. Its Clear decides nothing.
     Field(FieldState),
-    /// A read of the detector's own; `moved` says whether its element is
-    /// another than the element of the own read before it, when both could be
-    /// read and compared.
     Read {
         state: FieldState,
         moved: Option<bool>,
     },
     Latch(LatchFrom),
-    /// The detector started: Unknown until its first own read.
     Started,
 }
 
@@ -169,10 +143,7 @@ impl Mark {
 #[derive(Debug, Clone, Copy)]
 struct Entry {
     seq: u64,
-    /// The tick at which the mark reached the gate, and for a latch the time
-    /// of its key or click; `None` when it is not known.
     at: Option<u32>,
-    /// For an own read, the tick at which it began.
     began: u32,
     mark: Mark,
 }
@@ -182,7 +153,6 @@ pub(crate) struct HeldKey {
     tick: u32,
     seen: u64,
     password_edit: bool,
-    /// The thread in front when the key reached the keyboard source.
     front: u32,
 }
 
@@ -208,13 +178,12 @@ pub enum Rule {
     /// An own read after the key's hold read Clear, with every mark between.
     ReadAfterTheHold,
     /// No mouse registration routed the clicks to the gate during the key's
-    /// hold (W3-4 (f), W3-7 L7).
+    /// hold.
     NoClickRoute,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Judgment {
-    /// Undecided; an own read that begins at the tick given would help.
     Wait(u32),
     Decided(SecureInputReading, Rule),
 }
@@ -223,13 +192,11 @@ fn ms(duration: Duration) -> u32 {
     u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
 }
 
-/// Whether tick `a` is strictly before tick `b`, across the wrap.
 fn before(a: u32, b: u32) -> bool {
     let d = b.wrapping_sub(a);
     d != 0 && d <= i32::MAX as u32
 }
 
-/// Whether tick `a` is not after tick `b`, across the wrap.
 fn not_after(a: u32, b: u32) -> bool {
     b.wrapping_sub(a) <= i32::MAX as u32
 }
@@ -250,7 +217,6 @@ fn most_restrictive(a: FieldState, b: FieldState) -> FieldState {
     }
 }
 
-/// One latch with the own read that closed it, if one has.
 #[derive(Debug, Clone, Copy)]
 struct LatchState {
     seq: u64,
@@ -259,12 +225,6 @@ struct LatchState {
     closed_by: Option<Entry>,
 }
 
-/// The latches in order, each with the own read that closed it (W3-5 B1 to
-/// B3). A latch's base is the first own read after it that began no earlier
-/// than its settle time, or the first own read after a start of the detector
-/// for a latch made before that read (W3-6 (c)); it closes on the first own
-/// read after its base whose element is another. Each move closes at most the
-/// oldest open latch and is the earliest base of every later one.
 fn latch_states(marks: &VecDeque<Entry>, first_read_after_start: Option<u64>) -> Vec<LatchState> {
     let reads: Vec<&Entry> = marks
         .iter()
@@ -325,12 +285,6 @@ fn latch_states(marks: &VecDeque<Entry>, first_read_after_start: Option<u64>) ->
     states
 }
 
-/// The gate's answer for a held key (W3-5 B1 to B8 with W3-7 Q1, Q2 and the
-/// correction of Q2 (a)). A key is cleared only when the state at its input
-/// time reads Clear, no latch before it is open, an own read that began after
-/// its hold (and after the hold that follows the read that closed the last
-/// latch before it) reads Clear, every mark between the key and that read
-/// reads Clear, and the key is not older than [`super::LATE_KEY_MAX`].
 fn judge(
     marks: &VecDeque<Entry>,
     key: &HeldKey,
@@ -478,22 +432,14 @@ struct Marks {
     entries: VecDeque<Entry>,
     next_seq: u64,
     settle_due: Option<u32>,
-    /// The tick from which an own read helps a held key or follows a focus
-    /// event; `None` while no read is asked for.
     read_due: Option<u32>,
-    /// Focus events and latches seen, for the kept password element.
     moves: u64,
     stopping: bool,
-    /// The tick from which no mouse registration has routed the clicks to
-    /// the gate, while none stands (W3-7 L7).
     clicks_lost: Option<u32>,
-    /// The last time with no click route, from its start to its end.
     clicks_gap: Option<(u32, u32)>,
 }
 
 impl Marks {
-    /// Whether the key's hold, from its OS time to the end of its hold,
-    /// meets a time with no click route.
     fn clicks_unseen_for(&self, key: u32) -> bool {
         let end = key.wrapping_add(ms(KEY_HOLD));
         self.clicks_lost.is_some_and(|lost| not_after(lost, end))
@@ -533,12 +479,10 @@ impl Shared {
         self.marks.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// A focus event's reading: it arms an own read and closes no latch.
     fn field(&self, at: u32, state: FieldState) {
         self.field_seen(at, state, None);
     }
 
-    /// As [`Shared::field`], with what the test seam is told of the element.
     fn field_seen(&self, at: u32, state: FieldState, seen: Option<String>) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
@@ -547,8 +491,6 @@ impl Shared {
         note_mark("event", Some(state), None, Some(at), at, seen);
     }
 
-    /// An own read of the detector, with what the test seam is told of the
-    /// element.
     fn read_seen(
         &self,
         began: u32,
@@ -593,7 +535,6 @@ impl Shared {
     }
 }
 
-/// Tells the test seam of a mark; nothing in a build without the feature.
 #[allow(unused_variables)]
 fn note_mark(
     what: &'static str,
@@ -617,7 +558,6 @@ pub struct PasswordGate {
     shared: Arc<Shared>,
     #[cfg(target_os = "windows")]
     detector: Mutex<Option<detector::Running>>,
-    /// The thread of a detector whose stop timed out (W3-7 O8).
     #[cfg(target_os = "windows")]
     stale: Mutex<Option<std::thread::JoinHandle<Result<(), crate::source::CaptureError>>>>,
     #[cfg(target_os = "windows")]
@@ -630,8 +570,6 @@ impl PasswordGate {
         PasswordGate::default()
     }
 
-    /// Holds a key of OS time `tick` that reached the source while the thread
-    /// `front` was in front.
     pub(crate) fn hold(&self, tick: u32, password_edit: bool, front: u32) -> HeldKey {
         HeldKey {
             tick,
@@ -641,9 +579,6 @@ impl PasswordGate {
         }
     }
 
-    /// From `tick` no mouse registration routes the clicks to the gate:
-    /// every key whose hold meets that time is withheld until the route
-    /// stands again (W3-7 L7).
     pub(crate) fn clicks_lost(&self, tick: u32) {
         note_mark(
             "clicks-lost",
@@ -659,7 +594,6 @@ impl PasswordGate {
         }
     }
 
-    /// The click route stands again from `tick`.
     pub(crate) fn clicks_back(&self, tick: u32) {
         note_mark("clicks-back", None, None, Some(tick), tick, None);
         let mut marks = self.shared.lock();
@@ -693,10 +627,6 @@ impl PasswordGate {
         }
     }
 
-    /// The answer for a held key at tick `now`, while the thread `front` is
-    /// in front and the native edit under the focus reads as a password edit
-    /// or not (`password_edit_now`), with the rule that decided it. An
-    /// undecided key asks the detector for an own read.
     pub(crate) fn decide(
         &self,
         key: &HeldKey,
@@ -873,8 +803,6 @@ mod detector {
     pub(super) struct Removals {
         pub(super) handler: HandlerRemover,
         pub(super) desktop_hook: DesktopHookRemover,
-        /// Called before each own read of the detector's loop, so that a
-        /// test can hold the detector in a read (W3-7 O8).
         #[cfg(test)]
         pub(super) before_read: fn(),
     }
@@ -978,9 +906,6 @@ mod detector {
             }
         }
 
-        /// A start after a stop that timed out waits for the earlier
-        /// detector's thread for the stop's deadline, and is refused while
-        /// that thread runs: a new start would let it run on (W3-7 O8).
         fn wait_for_the_stale_detector(&self) -> Result<(), CaptureError> {
             let mut stale = self
                 .stale
@@ -1059,12 +984,8 @@ mod detector {
     struct Reader {
         automation: IUIAutomation,
         cache: IUIAutomationCacheRequest,
-        /// The element that read Password, with the count of focus moves
-        /// that the gate had seen when it did (W3-7 Q2 (d)).
         kept: std::sync::Mutex<Option<(IUIAutomationElement, u64)>>,
-        /// The element of the detector's last own read.
         last_read: std::sync::Mutex<Option<IUIAutomationElement>>,
-        /// What the last reading saw of its element, for the test seam.
         #[cfg(feature = "test-seam")]
         seen: std::sync::Mutex<Option<String>>,
     }
@@ -1100,14 +1021,11 @@ mod detector {
 
     const DEFAULT_IS_NO_ANSWER: bool = true;
 
-    /// The file name of a process's executable, or `None` when the id or the
-    /// path cannot be read.
     pub(super) fn process_file(pid: Option<i32>) -> Option<String> {
         let path = crate::windows::foreground::process_path(u32::try_from(pid?).ok()?)?;
         path.rsplit(['/', '\\']).next().map(str::to_string)
     }
 
-    /// The class of the focus window of the thread in front, or `None`.
     fn focus_window_class() -> Option<String> {
         let mut info = GUITHREADINFO {
             cbSize: core::mem::size_of::<GUITHREADINFO>() as u32,
@@ -1189,7 +1107,6 @@ mod detector {
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(what);
         }
 
-        /// What the last reading saw, taken; none in a build without the seam.
         fn seen(&self) -> Option<String> {
             #[cfg(feature = "test-seam")]
             return self
@@ -1201,10 +1118,6 @@ mod detector {
             None
         }
 
-        /// The state of an element. An element that read Password keeps
-        /// Password until an own read (`own`) shows another element after a
-        /// focus move that the gate saw since that reading; a focus event
-        /// never clears it.
         fn state(
             &self,
             element: Option<&IUIAutomationElement>,
@@ -1242,9 +1155,6 @@ mod detector {
             state
         }
 
-        /// The detector's own read of the focused element: its state, and
-        /// whether its element is another than the element of the own read
-        /// before it, when both could be read and compared.
         fn own(&self, moves: u64) -> (FieldState, Option<bool>) {
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
@@ -1390,8 +1300,6 @@ mod detector {
         }
     }
 
-    /// The detector's reader: the system's UI Automation object with the
-    /// cache request of every property that a reading takes.
     fn new_reader() -> Result<Reader, CaptureError> {
         // SAFETY: CoCreateInstance makes the system's UI Automation object for
         // this MTA thread.
@@ -1451,8 +1359,6 @@ mod detector {
         Ok((reader, handler))
     }
 
-    /// One own read of the detector: its mark carries the tick at which it
-    /// began, and it ends every request for a read due by then.
     fn own_read(shared: &Shared, reader: &Reader) {
         let began = tick();
         let moves = shared.lock().moves;
@@ -1654,9 +1560,6 @@ mod detector {
             assert_eq!(detached, Ok(()));
         }
 
-        /// W3-7 K9: the reader of the detector, made as the detector makes
-        /// it, reads Unknown for a reading with no element, from an own read
-        /// and from an event.
         #[test]
         fn a_reading_with_no_element_reads_unknown_through_the_detectors_reader() {
             let _serial = crate::windows::tests::serial();
@@ -1678,8 +1581,6 @@ mod detector {
             assert_eq!(seen, None);
         }
 
-        /// W3-7 K9: the callback that the detector registers for a desktop
-        /// switch closes the gate of the thread that registered it.
         #[test]
         fn the_desktop_hook_callback_reads_unknown_and_closes_the_gate() {
             let gate = PasswordGate::new();
@@ -1712,8 +1613,6 @@ mod detector {
             assert_eq!(decided(&after), Some(Err(Withheld::Unknown)));
         }
 
-        /// A top-level edit of the test's own in front, with the focus, on a
-        /// thread of its own that answers its messages at once.
         struct EditInFront {
             hwnd: usize,
             stop: Arc<std::sync::atomic::AtomicBool>,
@@ -1881,12 +1780,6 @@ mod detector {
             }
         }
 
-        /// W3-9 (3), O1 through the callback's own path: with the gate at
-        /// Password, the focus callback that the detector registers is called
-        /// with an element that reads Clear (an edit of the native kind),
-        /// then a key is held, and the callback is called again after the
-        /// key's hold. A focus event's Clear never clears a key: the key waits
-        /// for an own read, and with none it is withheld at 250 ms.
         #[test]
         fn a_focus_events_clear_from_the_callback_clears_no_key() {
             let _serial = crate::windows::tests::serial();
@@ -1925,8 +1818,6 @@ mod detector {
             // the call, which borrows both.
             let first_answer = unsafe { handler_focus(handler.as_raw(), element.as_raw()) };
             let after_the_event = gate.field_now();
-            // The key comes a tick period or more after the event, so that
-            // the event is the newest mark before the key's OS time.
             std::thread::sleep(Duration::from_millis(50));
             let key = gate.hold(tick(), false, 0);
             std::thread::sleep(Duration::from_millis(150));
@@ -2006,9 +1897,6 @@ mod detector {
             }
         }
 
-        /// W3-7 O8: a detector held in a read past the stop's deadline, then
-        /// a second attach: the attach waits for the old thread and is
-        /// refused while it runs; once it has ended an attach starts one.
         #[test]
         fn an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs() {
             use std::sync::atomic::Ordering;
@@ -2247,7 +2135,6 @@ mod tests {
         gate.decide(key, now, FRONT, false).map(|(_, rule)| rule)
     }
 
-    /// A gate whose last own read, at 1_000, found a plain field.
     fn plain() -> PasswordGate {
         let gate = PasswordGate::new();
         gate.read_at(1_000, FieldState::Clear, None);
@@ -2276,10 +2163,6 @@ mod tests {
         assert_eq!(reading(&gate, &key, 2_251), Some(Err(Withheld::Unknown)));
     }
 
-    /// W3-10 T4, the correction's point (2): a Tab pressed in a plain field
-    /// sets its own latch, and a Password or an Unknown mark that reaches
-    /// the gate while the Tab is held withholds the Tab itself, although an
-    /// own read after its hold reads Clear.
     #[test]
     fn a_focus_key_is_withheld_when_a_password_or_unknown_mark_comes_while_it_is_held() {
         let cases = [
@@ -2463,8 +2346,6 @@ mod tests {
         );
     }
 
-    /// A key typed while the gate read Password, handled after a focus move
-    /// to a plain field that reached the gate after the key's input time.
     fn handled_late(behind: u32) -> Option<Result<(), Withheld>> {
         let gate = PasswordGate::new();
         gate.read_at(1_000, FieldState::Password, None);
@@ -2575,9 +2456,6 @@ mod tests {
         assert_eq!(reading(&gate, &after, 2_200), Some(Err(Withheld::Unknown)));
     }
 
-    /// W3-7 L7: a key whose hold meets a time with no click route is
-    /// withheld, while that time is open and after it has ended; a key whose
-    /// hold ends before it and a key after it are decided as before.
     #[test]
     fn a_key_whose_hold_meets_a_time_with_no_click_route_is_withheld() {
         let gate = plain();

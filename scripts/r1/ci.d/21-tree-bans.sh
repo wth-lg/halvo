@@ -21,9 +21,6 @@ judge() {
     fail "$1: ${cause:-predicate_tree_lines of scripts/r1-gate/lib.sh gave no cause}"
 }
 
-# The feature test-seam builds a seam that only a test build may have: the
-# crate's own dev-dependency on itself turns it on, and no other manifest
-# names it (ruling W3-8 (b) (2)).
 seam_manifests() {
   own=crates/halvo-capture/Cargo.toml
   manifests=$(git ls-files --cached --others --exclude-standard -- '*Cargo.toml') ||

@@ -1,8 +1,3 @@
-//! The stall phases (W3-5 C3, W3-7 L1 and L3): the native fixture as a
-//! process of its own with an ordinary message loop, whose thread waits while
-//! the keys are typed ahead of it. Each phase gives its verdict by round and
-//! prints numbers alone.
-
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -63,23 +58,16 @@ const ARG_SERVE_SENT: usize = 0x4_0000;
 const ARG_STALL_AFTER_A_TAB: usize = 0x8_0000;
 const ARG_OTHER_FRONT: usize = 0x10_0000;
 const ARG_TWO_STEP: usize = 0x20_0000;
-/// Reset flags: enable the second plain edit; start with the focus in the
-/// password edit.
 const ARG_SECOND: usize = 0x1;
 const ARG_START_IN_PASSWORD: usize = 0x2;
-/// The fixture thread's wait between its two focus moves (W3-5 C6).
 const TWO_STEP_MS: u64 = 200;
 
-/// The step between the letters that are typed through a wait.
 const LETTER_STEP: Duration = Duration::from_millis(60);
-/// Letters typed in the plain field for each control of a test.
 const CONTROL_LETTERS: u32 = 5;
 
 fn flag(value: bool) -> u8 {
     u8::from(value)
 }
-
-// ---------------------------------------------------------------- the fixture
 
 unsafe extern "system" fn fixture_wnd_proc(
     hwnd: HWND,
@@ -176,9 +164,6 @@ impl FixtureWindow {
         foreground_window() == self.hwnd
     }
 
-    /// Brings the window to the front and answers whether it is there, with
-    /// the code of the call that put it there (1 SetForegroundWindow, 2 the
-    /// Alt key, 3 joined input, 4 minimize and restore, 0 none).
     fn activate(&self) -> (bool, u8) {
         // SAFETY: the three calls take this thread's window handle by value.
         unsafe {
@@ -275,7 +260,6 @@ fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
     }
 }
 
-/// Puts the pointer over the middle of `target` and says whether it is there.
 fn aim_at(target: HWND) -> bool {
     let mut rect = RECT::default();
     // SAFETY: `rect` is a live RECT that the call fills.
@@ -314,8 +298,6 @@ fn post(window: usize, code: usize, arg: usize) {
     }
 }
 
-/// The wait of the fixture's thread: one that serves nothing, or one that
-/// answers sent messages while posted messages and input stay queued.
 fn stall(stall_ms: u64, serve_sent: bool) {
     if stall_ms == 0 {
         return;
@@ -347,22 +329,13 @@ fn stall(stall_ms: u64, serve_sent: bool) {
     }
 }
 
-/// A wander of the focus: its start, its span, the next move, the seed of the
-/// waits and the password field's intervals in unix ms.
 type Wander = (Instant, Duration, Instant, u64, Vec<(u128, u128)>);
 
-/// The field that a command names: 0 the plain edit, 1 the password edit,
-/// 2 the second plain edit, which is disabled until a round of order (8).
 const FIELD_PLAIN: usize = 0;
 const FIELD_PASSWORD: usize = 1;
 const FIELD_SECOND: usize = 2;
 const WANDER_TIMER: usize = 1;
 
-/// The fixture process: a window with a plain edit, a second plain edit and a
-/// password edit, the dialog's own message loop on GetMessageW, commands as
-/// posted messages. It counts the key-downs of the letter and of Tab by the
-/// control that each was addressed to, and prints counts, lengths, flags and
-/// times alone.
 fn fixture_main() {
     use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
     use windows::Win32::UI::WindowsAndMessaging::{KillTimer, SendMessageW, SetTimer, WM_TIMER};
@@ -376,8 +349,6 @@ fn fixture_main() {
     let second = window.edit(WS_TABSTOP, 78);
     let password = window.edit(WS_TABSTOP | WINDOW_STYLE(ES_PASSWORD as u32), 44);
     const EM_GETPASSWORDCHAR: u32 = 0x00D2;
-    // The password edit's own mask character, set again at each reset, so
-    // that a phase after phase D's reveal runs on a masked edit (W3-10 T1).
     // SAFETY: SendMessageW passes plain values to this thread's edit control.
     let mask = unsafe { SendMessageW(password, EM_GETPASSWORDCHAR, None, None) }.0 as usize;
     let masked = |hwnd: HWND| {
@@ -485,8 +456,7 @@ fn fixture_main() {
                         window.activate();
                     }
                     // SAFETY: SendMessageW passes a plain value to this
-                    // thread's edit controls; 0 takes the plain edit's mask
-                    // away, and the password edit gets its own mask again.
+                    // thread's edit controls.
                     unsafe {
                         let _ = SendMessageW(plain, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
                         let _ =
@@ -548,8 +518,7 @@ fn fixture_main() {
                 }
                 CMD_MASK => {
                     // SAFETY: SendMessageW passes a plain value to this
-                    // thread's edit control; a mask character sets
-                    // ES_PASSWORD on the edit while it keeps the focus.
+                    // thread's edit control.
                     unsafe {
                         let _ =
                             SendMessageW(field(arg), EM_SETPASSWORDCHAR, Some(WPARAM(0x2A)), None);
@@ -651,7 +620,6 @@ fn unix_ms() -> u128 {
         .unwrap_or(0)
 }
 
-/// Counts a key-down of the letter or of Tab by the control it was sent to.
 fn count_key(msg: &MSG, letters: &mut [u32; 4], tabs: &mut [u32; 4], fields: [HWND; 3]) {
     if msg.message != WM_KEYDOWN {
         return;
@@ -665,9 +633,6 @@ fn count_key(msg: &MSG, letters: &mut [u32; 4], tabs: &mut [u32; 4], fields: [HW
     }
 }
 
-/// Takes and dispatches the window's messages until the first Tab has moved
-/// the focus, for at most one second (order (8): the program stalls after the
-/// first Tab).
 fn dispatch_until_a_tab(dialog: HWND, tabs: &mut [u32; 4], fields: [HWND; 3]) {
     let end = Instant::now() + Duration::from_secs(1);
     let mut letters = [0u32; 4];
@@ -704,8 +669,6 @@ fn dispatch_until_a_tab(dialog: HWND, tabs: &mut [u32; 4], fields: [HWND; 3]) {
     }
 }
 
-/// Order (9): a window of another thread of this process comes to the front
-/// halfway through the wait, and gives the front back when it closes.
 fn other_window_in_front(stall_ms: u64) -> std::thread::JoinHandle<()> {
     let back = foreground_window().0 as usize;
     std::thread::spawn(move || {
@@ -715,8 +678,7 @@ fn other_window_in_front(stall_ms: u64) -> std::thread::JoinHandle<()> {
         other.activate();
         pump_thread(Duration::from_millis(stall_ms / 2 + 300));
         drop(other);
-        // SAFETY: SetForegroundWindow takes a handle value; this process owns
-        // the foreground, so it may give it to its own window.
+        // SAFETY: SetForegroundWindow takes a handle value.
         unsafe {
             let _ = SetForegroundWindow(HWND(back as *mut core::ffi::c_void));
         }
@@ -862,9 +824,6 @@ impl Drop for Fixture {
     }
 }
 
-/// The two-field window of the functional tests, as a process of its own
-/// (W3-7 Q2 (f)): in the test's own process the detector's read of the
-/// focused field takes 221 to 829 ms, so the gate would withhold every key.
 pub(super) struct FieldWindow {
     fixture: Mutex<Fixture>,
     pub(super) foreground: bool,
@@ -911,9 +870,6 @@ impl FieldWindow {
         focused
     }
 
-    /// Puts the pointer over the middle of the field and sends one click
-    /// of the left button there (W3-7 K12); says whether the pointer was
-    /// over the field.
     pub(super) fn click(&self, field: Field) -> bool {
         let index = match field {
             Field::Plain => FIELD_PLAIN,
@@ -974,34 +930,21 @@ impl FieldWindow {
     }
 }
 
-// ----------------------------------------------------------------- the phases
-
-/// What comes before the first letter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Lead {
     Tab,
     Click,
-    /// Tab, Tab and the letter 30 ms apart, across the second plain edit, and
-    /// the program waits after the first Tab (order (8)).
     TabTab,
-    /// Enter in the plain field, which moves no focus (W3-5 C5).
     Enter,
-    /// No focus key and no click: the program moves the focus by itself
-    /// (W3-5 C6).
     Nothing,
 }
 
-/// The fixture thread's wait.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Wait {
-    /// A wait that serves nothing.
     Sleeps,
-    /// A wait that answers sent messages while posted messages and input stay
-    /// queued.
     ServesSent,
 }
 
-/// Where the letters of a round land when the fixture works as it should.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Landing {
     Password,
@@ -1016,9 +959,7 @@ struct Phase {
     wait: Wait,
     stall_ms: u64,
     rounds: u32,
-    /// Further letters typed through the wait at steps of 60 ms.
     letters_through_the_wait: bool,
-    /// Letters typed after the lead when no wait follows (W3-5 C5).
     letters_after: u32,
     start_in_password: bool,
     self_focus: bool,
@@ -1051,11 +992,8 @@ const fn phase(
     }
 }
 
-/// Rounds of a click phase with no wait, before its stalled rounds: the
-/// control that the button-down reached the latch (W3-5 C4).
 const CLICK_ROUNDS_WITHOUT_WAIT: u32 = 5;
 
-/// What the source did with the keys of one span, from the test seam.
 #[derive(Debug, Default, Clone, Copy)]
 struct Decisions {
     letters_recorded: u32,
@@ -1064,13 +1002,10 @@ struct Decisions {
     letters_late: u32,
     letters_withheld: u32,
     tabs_withheld: u32,
-    /// Letters and Tabs withheld with a Password reading (W3-10 T1).
     letters_withheld_password: u32,
     tabs_withheld_password: u32,
     lost_at_stop: u32,
-    /// The rule that decided the first letter, as its index in `RULES`.
     first_letter_rule: i64,
-    /// The rule that decided the first Tab, as its index in `RULES`.
     first_tab_rule: i64,
 }
 
@@ -1129,16 +1064,8 @@ impl Decisions {
     }
 }
 
-/// The control of W3-7's correction (3): five letters in the plain field after
-/// a focus move by the fixture itself, with no focus key and no click since.
-/// It answers how many of them the source recorded.
 fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u32 {
     let reset = fixture.ask(CMD_RESET, 0, "reset");
-    // Three moves of the fixture's own there and back, each 250 ms after
-    // the one before, so that an own read sees each move apart and closes a
-    // latch that the keys of the rounds left open (each move closes at most
-    // one). The last move is the fixture's, with no focus key and no click
-    // after it (W3-7's correction (3)).
     for _ in 0..3 {
         std::thread::sleep(Duration::from_millis(250));
         let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
@@ -1155,9 +1082,6 @@ fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u
     let seen = events.drain_for(Duration::from_millis(900));
     let decided = Decisions::of(&seam::take());
     let state = fixture.ask(CMD_STATE, 0, "state");
-    // W3-10 T2: the control counts the keystroke events that reached the
-    // sink, not the seam's verdicts, so a source that clears keys and pushes
-    // none fails it.
     let reached = seen
         .iter()
         .filter(|e| e.modality == Modality::Keystroke)
@@ -1188,8 +1112,6 @@ pub(super) struct Totals {
     pub(super) late_moved: u64,
     pub(super) withheld_set: u32,
     pub(super) rounds_with_a_recorded_letter: u32,
-    /// Counted rounds in which a letter or the Tab was not withheld with a
-    /// Password reading (W3-10 T1; asserted by phase E alone).
     pub(super) rounds_not_withheld_by_the_password_field: u32,
 }
 
@@ -1214,7 +1136,6 @@ fn key_pair(key: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> [I
     [key_input(key, false), key_input(key, true)]
 }
 
-/// Runs the rounds of one phase and answers its totals.
 fn run_rounds(
     test: &str,
     fixture: &mut Fixture,
@@ -1234,8 +1155,6 @@ fn run_rounds(
         }
         let reset = fixture.ask(CMD_RESET, reset_arg, "reset");
         if phase.lead == Lead::Enter {
-            // Enter moves no focus, so its latch stays open until a move:
-            // the fixture's own move closes the latch of the round before.
             let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
             std::thread::sleep(Duration::from_millis(250));
             let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
@@ -1415,10 +1334,6 @@ fn run_rounds(
     totals
 }
 
-/// One stall test: the fixture process, the keyboard source, the control
-/// before the first round, the rounds, the control after the last. A recorded
-/// letter in a counted round fails it, and so does a recorded key of a class
-/// other than Tab, a moved late value, or a control that recorded no letter.
 fn stall_test(phase: Phase) {
     let test = phase.test;
     with_deadline(test, Duration::from_secs(300), move || {
@@ -1442,7 +1357,6 @@ fn stall_test(phase: Phase) {
     });
 }
 
-/// The body of a stall phase; it panics when a control records no letter.
 fn stall_phase(phase: Phase) -> Totals {
     let test = phase.test;
     source_built_by_test(test, "keyboard");
@@ -1504,9 +1418,6 @@ fn stall_phase(phase: Phase) -> Totals {
 }
 
 impl FieldWindow {
-    /// Phase E of the native fixture on its own process (K11, W3-5 C2): a Tab
-    /// and a letter in one burst from the plain field, 20 rounds, a verdict by
-    /// round, with the two controls of W3-7's correction (3).
     pub(super) fn phase_e(
         &self,
         test: &str,
@@ -1515,8 +1426,6 @@ impl FieldWindow {
     ) -> (Totals, u32, u32, bool) {
         let mut fixture = self.fixture();
         let first = control(test, "before", &mut fixture, events);
-        // W3-10 T1: phase E runs on the masked password edit; the reset of
-        // the control has masked it again after phase D's reveal.
         let masked = get(&fixture.ask(CMD_STATE, 0, "state"), "password_masked") == 1;
         say(
             test,
@@ -1882,7 +1791,6 @@ fn five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorde
     });
 }
 
-/// Five letters at the step of a person's typing, sent one by one.
 fn five_letters() -> u32 {
     let mut accepted = 0;
     for _ in 0..5 {
@@ -1892,10 +1800,6 @@ fn five_letters() -> u32 {
     accepted
 }
 
-/// One round of a phase on the native fixture: the fixture's own focus
-/// move to `start`, then `act`, then five letters; it answers whether the
-/// round counted (the window in front, the focus in `landing` at the end
-/// and the five letters in that field) and the letters recorded.
 fn native_round(
     (test, phase): (&str, &str),
     round: u32,
@@ -1943,8 +1847,6 @@ fn native_round(
     (counted, decided.letters_recorded)
 }
 
-/// The phase of a native fixture: the controls before and after, `rounds`
-/// rounds, and the asserts that no letter of a counted round is recorded.
 fn native_phase(
     test: &'static str,
     phase: &'static str,
@@ -2003,8 +1905,6 @@ fn native_phase(
     });
 }
 
-/// W3-7 Q2 (h), native: the plain edit is masked while it has the focus,
-/// and none of the five letters typed into it after the mask is recorded.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
@@ -2013,14 +1913,6 @@ fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
     });
 }
 
-/// W3-7 O1 with W3-9 (3): with the password field focused, the program
-/// raises a focus notice for the plain edit, which does not take the focus.
-/// On the hosted runner the system delivers the gate no event for it (no
-/// mark after the notice, round B), so the phase shows that a notice the
-/// system does not deliver changes nothing: none of the five letters typed
-/// into the password field after it is recorded. The rule that an event's
-/// Clear clears no key is held through the focus callback by the library
-/// test `a_focus_events_clear_from_the_callback_clears_no_key`.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
@@ -2035,10 +1927,6 @@ fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
                 "ok",
             ) == 1;
             std::thread::sleep(Duration::from_millis(150));
-            // Every mark after the notice is printed, with what its reading
-            // saw of its element's password property, and whether a focus
-            // event that read Clear reached the gate. A round of the hosted
-            // runner of round B saw none (W3-7 O1).
             let marks = seam::take_marks();
             let seen = marks.iter().any(|mark| {
                 mark.what == "event"
@@ -2068,10 +1956,6 @@ fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
     );
 }
 
-/// W3-5 C6 with K2: a letter with no focus key and no click before it, and
-/// the program moves the focus to the password field by itself after its
-/// wait. It answers the letters recorded among those that landed in the
-/// password field in counted rounds, and how far the late value moved.
 pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64) {
     let test = "stall-self-focus";
     let mut recorded = 0;
@@ -2093,9 +1977,6 @@ pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64
     (recorded, late)
 }
 
-/// W3-5 C6, closed by the form: the program moves the focus to a plain
-/// element, waits 200 ms without taking messages, moves it to the password
-/// field and then takes the keys. No letter is recorded.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded() {
