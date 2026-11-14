@@ -66,8 +66,10 @@ pub const PROBE_PORT: u16 = 80;
 pub const PROBE_WAIT: Duration = Duration::from_secs(10);
 
 /// A start that failed (A11.1, CP-165 (9) and (10)): the cause, a detail of the step for the
-/// record, whether both directories that the start made are gone, and what the end of the run's
-/// own processes found before it ended any and left after. The cause carries no words for a
+/// record, whether both directories that the start made are gone, what the end of the run's
+/// own processes found before it ended any and left after, and what the end of a start with no
+/// first reply left because it did not bear the run's mark: its count and its programs' file names
+/// (CP-189 G5). The cause carries no words for a
 /// person: the interface run words them. `no_channel` is a browser that lived and gave no first
 /// reply within `FIRST_REPLY_WAIT`; `browser_start` one that could not start or ended before it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,7 +79,13 @@ pub struct StartFailure {
     pub removed: bool,
     pub left_before: usize,
     pub left_after: usize,
+    pub left_unmarked: usize,
+    pub left_unmarked_programs: Vec<String>,
 }
+
+/// What a failed launch gives its start: the fault, what the end of the run's own processes found
+/// and left, and what the end of a start with no first reply left without the mark.
+type LaunchFailure = (Fault, crate::checks::Ended, (usize, Vec<String>));
 
 pub type Res<T> = Result<T, Fault>;
 
@@ -420,6 +428,8 @@ impl Executor {
             removed: true,
             left_before: 0,
             left_after: 0,
+            left_unmarked: 0,
+            left_unmarked_programs: Vec::new(),
         };
         if !opts.browser.is_absolute() || !opts.profile.is_absolute() {
             return Err(refuse(Fault::new("start", "relative_path")));
@@ -427,12 +437,13 @@ impl Executor {
         let (profile, temp) = session::make_dirs(&opts.profile).map_err(refuse)?;
         let made = session::RemoveOnDrop::new(&profile, &temp);
         let launched = async {
-            write_agent_settings(&profile).map_err(|f| (f, Default::default()))?;
+            write_agent_settings(&profile)
+                .map_err(|f| (f, Default::default(), Default::default()))?;
             let ex = Executor::launch(opts, &temp).await?;
             let deny = SetDownloadBehaviorParams::new(SetDownloadBehaviorBehavior::Deny);
             if let Err(f) = ex.wire.call(None, deny).await {
                 let (_, ended) = ex.stop().await;
-                return Err((Fault::new("start", f.1), ended));
+                return Err((Fault::new("start", f.1), ended, Default::default()));
             }
             Ok(ex)
         }
@@ -444,7 +455,7 @@ impl Executor {
                 started.temp = Some(temp);
                 Ok(started)
             }
-            Err((f, ended)) => {
+            Err((f, ended, left)) => {
                 let removed = session::remove_dirs(&profile, &temp).await;
                 made.disarm();
                 Err(StartFailure {
@@ -453,16 +464,15 @@ impl Executor {
                     removed,
                     left_before: ended.before,
                     left_after: ended.after,
+                    left_unmarked: left.0,
+                    left_unmarked_programs: left.1,
                 })
             }
         }
     }
 
-    async fn launch(
-        opts: &StartOptions,
-        temp: &Path,
-    ) -> Result<Executor, (Fault, crate::checks::Ended)> {
-        let early = |f: Fault| (f, crate::checks::Ended::default());
+    async fn launch(opts: &StartOptions, temp: &Path) -> Result<Executor, LaunchFailure> {
+        let early = |f: Fault| (f, crate::checks::Ended::default(), Default::default());
         let args: Vec<std::ffi::OsString> = launch_args(opts).into_iter().map(Into::into).collect();
         let env =
             start::browser_env(temp).ok_or(early(Fault::new("browser_start", "environment")))?;
@@ -494,7 +504,7 @@ impl Executor {
             .and_then(|t| t.into_iter().find(|p| p.pid == child.pid()));
         let fail_early = |child: &mut start::Started, f: Fault| {
             child.kill();
-            (f, crate::checks::end_runs_own(&mark))
+            (f, crate::checks::end_runs_own(&mark), Default::default())
         };
         let Some(root) = root else {
             return Err(fail_early(&mut child, Fault::new("browser_start", "table")));
@@ -519,7 +529,7 @@ impl Executor {
             guard.kill();
             child.kill();
             task.abort();
-            (f, crate::checks::end_runs_own(&mark))
+            (f, crate::checks::end_runs_own(&mark), Default::default())
         };
         if wire
             .call_within(None, GetVersionParams::default(), FIRST_REPLY_WAIT)
@@ -536,13 +546,16 @@ impl Executor {
             }
             let tree = root.clone();
             let run = crate::checks::Mark::new(&opts.profile, &opts.browser, root.started_us);
-            let _ =
-                tokio::task::spawn_blocking(move || crate::guard::end_tree_now(&tree, &run)).await;
-            return Err(fail(
+            let act = tokio::task::spawn_blocking(move || crate::guard::end_tree_now(&tree, &run))
+                .await
+                .unwrap_or_default();
+            let left = (act.left, act.left_programs);
+            let (f, ended, _) = fail(
                 &mut child,
                 &wire_task,
                 Fault::new("no_channel", "no first reply within the bound"),
-            ));
+            );
+            return Err((f, ended, left));
         }
         let first_reply = started_at.elapsed();
         let home = async {
@@ -2013,10 +2026,12 @@ pub(crate) mod tests {
         assert_eq!(left.len(), 0);
     }
 
-    /// CP-158 (1), CP-165 (9): a browser that lives and gives no first reply within the bound is
-    /// `no_channel`, and its tree is ended by the guard's rule; nothing that names the profile is
-    /// left, nor its helper, which names no profile. The stand-in holds the pipe and answers
-    /// nothing.
+    /// CP-158 (1), CP-165 (9), CP-189 G5: a browser that lives and gives no first reply within the
+    /// bound is `no_channel`, and its tree is ended by the guard's rule: nothing that bears the
+    /// run's mark is left. Its helper, which names no profile and outlives the test's wait, does
+    /// not bear the mark: it is left, and the start's failure counts and names it. The test then
+    /// ends it itself, inside its own fence (a program of the test's bundle). The stand-in holds
+    /// the pipe and answers nothing.
     #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn a_start_with_no_first_reply_ends_its_tree_and_is_no_channel() {
@@ -2035,7 +2050,12 @@ pub(crate) mod tests {
         assert_eq!(failed.cause, "no_channel", "{failed:?}");
         assert!(failed.removed);
         assert_eq!(left.len(), 0);
-        assert_eq!(helpers.len(), 0, "a helper of the tree was left");
+        assert_eq!(helpers.len(), 1, "the helper without the mark: {helpers:?}");
+        assert_eq!(
+            (failed.left_unmarked, failed.left_unmarked_programs.clone()),
+            (1, vec!["stand-in".to_string()]),
+            "{failed:?}"
+        );
     }
 
     /// CP-176 A1 (d): the start returns an executor whose rule is armed with no origin in the mode

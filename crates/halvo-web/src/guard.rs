@@ -407,6 +407,8 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let mut last_marked_at: Option<u128> = None;
     let mut first_member_at: Option<u128> = None;
     let mut after_unread = false;
+    // CP-189 G5: the read of the first forced pass of `Trigger::Now`.
+    let mut forced_at: Option<u128> = None;
     let (grace, margin) = match trigger {
         Trigger::ExecutorGone { .. } => (GRACE.as_millis(), PORT_MARGIN.as_millis()),
         Trigger::Now => (0, 0),
@@ -466,6 +468,36 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
         // writes its last line and exits, which closes its copy of the listener.
         first_member_at.get_or_insert(now);
         let spell_just_ended = std::mem::take(&mut after_unread);
+        // CP-189 G5: the executor's end of a start with no first reply returns at the first read
+        // at or after its forced end at which no member bears the mark and no member's program or
+        // arguments are unread; a member that stays unread, or a marked member that does not end,
+        // ends the wait at a bound of its own.
+        if let (Trigger::Now, Some(at)) = (trigger, forced_at) {
+            let unread = running
+                .iter()
+                .any(|p| p.exe.is_none() || args(p.pid).is_none());
+            let marked = running.iter().any(&bears);
+            let cause = if !marked && !unread {
+                Some("now_left")
+            } else if marked && now.saturating_sub(at) >= NOW_MARKED_BOUND.as_millis() {
+                Some("now_marked")
+            } else if unread && now.saturating_sub(at) >= NOW_UNREAD_BOUND.as_millis() {
+                Some("now_unread")
+            } else {
+                None
+            };
+            if let Some(cause) = cause {
+                for p in running.iter().filter(|p| !bears(p)) {
+                    leave(&mut act, &mut left_ids, p);
+                }
+                act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
+                act.asked = asked;
+                act.forced = forced;
+                act.cause = cause;
+                record(&act);
+                return if cause == "now_left" { 0 } else { 5 };
+            }
+        }
         if running.iter().any(&bears) {
             last_marked_at = Some(now);
         } else {
@@ -525,6 +557,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                         record(&act);
                     }
                     Some(at) if now.saturating_sub(at) >= TERM_WAIT.as_millis() => {
+                        forced_at.get_or_insert(now);
                         for p in &running {
                             if !bears(p) {
                                 leave(&mut act, &mut left_ids, p);
@@ -629,7 +662,10 @@ fn note(act: &mut GuardAct, p: &Proc, root: &Proc) {
 }
 
 /// Ends the tree of `root` by the guard's rule at once (`Trigger::Now`), with the system's table,
-/// ask and forced end and the run's `mark`: the executor's end of a start that gave no first reply (CP-158 (1)).
+/// ask and forced end and the run's `mark`: the executor's end of a start that gave no first reply
+/// (CP-158 (1)). It returns once no member bears the mark and none is unread, or at one of its two
+/// bounds (`NOW_UNREAD_BOUND`, `NOW_MARKED_BOUND`), and gives what it did and what it left
+/// (CP-189 G5).
 pub fn end_tree_now(root: &Proc, mark: &crate::checks::Mark) -> GuardAct {
     let start = std::time::Instant::now();
     let mut done = GuardAct::default();
@@ -638,12 +674,7 @@ pub fn end_tree_now(root: &Proc, mark: &crate::checks::Mark) -> GuardAct {
         root.started_us,
         Trigger::Now,
         GuardIo {
-            read: &mut || {
-                if start.elapsed() > UNREAD_CAP {
-                    return Some(Vec::new());
-                }
-                procs::table().ok()
-            },
+            read: &mut || procs::table().ok(),
             args: &crate::checks::command_args,
             mark: Some(mark),
             own_name: None,
