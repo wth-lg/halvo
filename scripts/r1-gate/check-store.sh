@@ -39,7 +39,13 @@ hup_leaves_no_child() {
   mkfifo "$hup_root/ready" || return 1
   cat > "$hup_root/standin" <<'WRAPPER'
 #!/bin/sh
-printf '%s\n' "$3" >&3
+store_dir=''
+flag=''
+for word in "$@"; do
+  [ "$flag" != --store-dir ] || store_dir=$word
+  flag=$word
+done
+printf '%s %s\n' "$$" "$store_dir" >&3
 exec "$HUP_STANDIN" "$@"
 WRAPPER
   chmod 755 "$hup_root/standin" || return 1
@@ -47,12 +53,19 @@ WRAPPER
     "$1" -c "hup_wrapper=\$1; set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; standin=\$hup_wrapper; against_the_standin hang none" \
     "$DIR/check-$name.sh" "$hup_root/standin" > "$hup_root/check.out" 2>&1 3> "$hup_root/ready" &
   hup_pid=$!
-  hup_store=''
-  IFS= read -r hup_store < "$hup_root/ready"
-  if [ -z "$hup_store" ]; then
+  hup_line=''
+  IFS= read -r hup_line < "$hup_root/ready"
+  if [ -z "$hup_line" ]; then
     wait "$hup_pid"
     hup_status=$?
     printf 'the check ended with exit %s before its child started\n' "$hup_status"
+    return 1
+  fi
+  hup_child=${hup_line%% *}
+  hup_store=${hup_line#* }
+  if [ ! -d "$hup_store" ]; then
+    wait "$hup_pid"
+    printf 'the child of the check names no store directory after --store-dir\n'
     return 1
   fi
   until check_is_past_its_fork "$hup_pid"; do
@@ -69,6 +82,7 @@ WRAPPER
     1) hup_left='' ;;
     *) printf 'pgrep could not read the processes after the check ended with exit %s\n' "$hup_status"; return 1 ;;
   esac
+  ! kill -0 "$hup_child" 2> /dev/null || hup_left="$hup_left $hup_child"
   if [ -n "$hup_left" ]; then
     for hup_one in $hup_left; do kill -TERM "$hup_one" 2> /dev/null; done
     printf 'the child of the check is left after the check ended with exit %s\n' "$hup_status"
