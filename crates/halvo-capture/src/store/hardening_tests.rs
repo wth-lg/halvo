@@ -7987,7 +7987,22 @@ fn kill_table_child(
 }
 
 #[cfg(target_os = "macos")]
-fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> [bool; 3] {
+#[derive(Debug, PartialEq, Eq)]
+struct EndStates {
+    no_shredded_decrypts: bool,
+    no_unnamed_root: bool,
+    no_keyless_file: bool,
+}
+
+#[cfg(target_os = "macos")]
+impl EndStates {
+    fn all_true(&self) -> bool {
+        self.no_shredded_decrypts && self.no_unnamed_root && self.no_keyless_file
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates {
     let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
     let named: Vec<RootId> = [
         std::fs::read(KeyFile::path(&store_dir))
@@ -8052,7 +8067,11 @@ fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> [bool; 3] 
             });
         }
     }
-    [no_shredded_decrypts, no_unnamed_root, no_keyless_file]
+    EndStates {
+        no_shredded_decrypts,
+        no_unnamed_root,
+        no_keyless_file,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -8101,7 +8120,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
             let states = end_states_after_a_kill(dir.path(), op, &expired);
             rows += 1;
             println!("KILL op={op} before_call={at} exit={code} states={states:?}");
-            if code != CRASHPOINT_EXIT || states != [true, true, true] {
+            if code != CRASHPOINT_EXIT || !states.all_true() {
                 wrong.push(format!("{op} at call {at}: exit {code}, states {states:?}"));
             }
         }
