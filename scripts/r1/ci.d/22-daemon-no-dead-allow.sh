@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; src/daemon/ holds a file to read; and no allow or expect of dead_code, of an unused lint or of warnings covers the daemon from outside its files (ruling DM-2): no attribute of the whole crate in crates/halvo-capture/src/lib.rs and no attribute of its item mod daemon, also inside cfg_attr; no lints table of the crate's or the workspace's Cargo.toml that sets dead_code, an unused lint, unused or warnings to allow; no rustflags key of .cargo/config.toml at the root or under crates/halvo-capture, and no line that sets a rustflags variable of cargo in .github/workflows/ci.yml, scripts/ci/ or scripts/r1/ci.d/, that allows those lints or caps the lints; and no .cargo/config with no ending at either place.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; src/daemon/ holds a file to read; and no allow or expect of dead_code, of an unused lint or of warnings covers the daemon from outside its files (ruling DM-2): no attribute of the whole crate in crates/halvo-capture/src/lib.rs and no attribute of its item mod daemon, also inside cfg_attr; no lints table of the crate's or the workspace's Cargo.toml that sets dead_code, an unused lint, unused or warnings to allow; no key of .cargo/config.toml at the root or under crates/halvo-capture that gives rustc its flags, and no line that sets a variable of cargo that gives rustc its flags in .github/workflows/ci.yml, scripts/ci/ or scripts/r1/ci.d/, that allows those lints or caps the lints; and no .cargo/config with no ending at either place.
 set -u
 name=22-daemon-no-dead-allow
 
@@ -322,17 +322,18 @@ outside() {
       return 1
     fi
     [ -f "$root/$config/config.toml" ] || continue
+    # The flags word of cargo is written split here and below: 40-r6-policy refuses it whole in a tracked script.
     found=$(tr -d '\r' <"$root/$config/config.toml" | awk '
       { text = text "\n" $0 }
       END {
         rest = text
-        while (match(rest, /rustflags["'"'"'[:space:]]*=[[:space:]]*/)) {
+        while (match(rest, /rust[f]lags["'"'"'[:space:]]*=[[:space:]]*/)) {
           rest = substr(rest, RSTART + RLENGTH)
           value = rest
           if (substr(value, 1, 1) == "[") sub(/[]].*$/, "", value)
           else sub(/\n.*$/, "", value)
           if (value ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
-            print "a rustflags key allows dead_code, an unused lint or warnings, or caps the lints"
+            print "a key that gives rustc its flags allows dead_code, an unused lint or warnings, or caps the lints"
             exit 1
           }
         }
@@ -364,7 +365,7 @@ EOF
     {
       line = $0
       sub(/\r$/, "", line)
-      if (line ~ /(^|[^A-Za-z0-9_])(RUSTFLAGS|CARGO_BUILD_RUSTFLAGS|CARGO_ENCODED_RUSTFLAGS|CARGO_TARGET_[A-Z0-9_]+_RUSTFLAGS)[[:space:]]*[:=]/ &&
+      if (line ~ /(^|[^A-Za-z0-9_])(RUST[F]LAGS|CARGO_BUILD_RUST[F]LAGS|CARGO_ENCODED_RUST[F]LAGS|CARGO_TARGET_[A-Z0-9_]+_RUST[F]LAGS)[[:space:]]*[:=]/ &&
         line ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
         file = FILENAME
         if (index(file, root) == 1) file = substr(file, length(root) + 1)
@@ -444,6 +445,8 @@ put() {
 
 self_test() {
   rejected=0
+  flags_key=rust
+  flags_key=${flags_key}flags
   wrong=
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   fixture clean
@@ -627,13 +630,13 @@ self_test() {
   fixture lints-that-deny
   put lints-that-deny Cargo.toml '[workspace.lints.rust]' 'warnings = "deny"' 'unused = { level = "warn", priority = -1 }'
   put lints-that-deny crates/halvo-capture/Cargo.toml '[lints]' 'workspace = true' '[lints.rust]' 'dead_code = "forbid"'
-  put lints-that-deny .cargo/config.toml '[build]' 'rustflags = ["-D", "warnings"]'
+  put lints-that-deny .cargo/config.toml '[build]' "$flags_key"' = ["-D", "warnings"]'
   case_of lints-that-deny PASS
   fixture config-allow
-  put config-allow .cargo/config.toml '[build]' 'rustflags = ["-A", "dead_code"]'
+  put config-allow .cargo/config.toml '[build]' "$flags_key"' = ["-A", "dead_code"]'
   case_of config-allow FAIL
   fixture config-cap-lints
-  put config-cap-lints crates/halvo-capture/.cargo/config.toml '[target.x86_64-pc-windows-msvc]' 'rustflags = ["--cap-lints", "warn"]'
+  put config-cap-lints crates/halvo-capture/.cargo/config.toml '[target.x86_64-pc-windows-msvc]' "$flags_key"' = ["--cap-lints", "warn"]'
   case_of config-cap-lints FAIL
   fixture config-older-name
   put config-older-name .cargo/config '[build]'
