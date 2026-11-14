@@ -189,7 +189,11 @@ fn answer(w: &mut World, n: usize, answer: CheckAnswer) -> Result<Answer, Cause>
     schedule_drive(&w.ports, &mut w.board, &w.limits, mv).answer
 }
 
-fn bodies(w: &World, n: usize, from: usize) -> Vec<Vec<halvo_coord::types::Event>> {
+fn acknowledged_bodies_from(
+    w: &World,
+    n: usize,
+    from: usize,
+) -> Vec<Vec<halvo_coord::types::Event>> {
     w.ports.tried.borrow()[from..]
         .iter()
         .filter_map(|t| match (&t.call, &t.refused) {
@@ -208,7 +212,7 @@ fn the_answer_to_a_check_lapses_an_open_ready_item_and_answers_its_check_in_one_
     let from = w.ports.tried.borrow().len();
     assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
     assert_eq!(w.facts(0).doing, Doing::Idle(None), "no item stays open");
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "one body: {logged:?}");
     let checked = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
     match logged[0].iter().map(|e| &e.what).collect::<Vec<_>>()[..] {
@@ -252,7 +256,7 @@ fn the_answer_went_through_over_an_open_ready_item_stores_its_slot_skipped_last(
     ready_beside_an_unread_check(&mut w, 0);
     let from = w.ports.tried.borrow().len();
     assert_eq!(answer(&mut w, 0, CheckAnswer::WentThrough), Ok(Answer::Ok));
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
     assert_eq!(logged[0].len(), 5, "{logged:?}");
     assert!(matches!(logged[0][0].what, What::ItemLapsed { .. }));
@@ -759,7 +763,7 @@ fn one_body_lapses_the_ready_item_before_it_raises_the_check() {
     let ready = ready_beside_an_unread_check(&mut w, 0);
     let from = w.ports.tried.borrow().len();
     w.act(Act::Tick);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(
         logged.len(),
         1,
@@ -1148,7 +1152,7 @@ fn the_end_of_a_run_reads_the_check_of_every_agent() {
     let from = w.ports.tried.borrow().len();
     let end = w.act(Act::End { run, outcome: None });
     assert_eq!(end.checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
     assert!(
         matches!(&logged[0][0].what, What::ItemLapsed { item, lapsed: Lapsed::Ready(OtherLapse::Check) } if *item == ready),
@@ -1292,7 +1296,7 @@ impl<P: Rng> Rng for Late<'_, P> {
     }
 }
 
-fn relife(w: &mut World, turns: Vec<Turn>) -> Vec<AgentId> {
+fn new_life_returning_checked_agents(w: &mut World, turns: Vec<Turn>) -> Vec<AgentId> {
     w.ports.new_life();
     w.forget();
     let late = Late {
@@ -1380,11 +1384,11 @@ fn never_ready_beside_check(w: &World) {
 
 fn ready_into_a_new_life(w: &mut World, turns: Vec<Turn>) -> (ItemId, Vec<AgentId>) {
     let ready = ready_beside_an_unread_check(w, 0);
-    let checked = relife(w, turns);
+    let checked = new_life_returning_checked_agents(w, turns);
     (ready, checked)
 }
 
-fn lapse_then_raise(body: &[Event], item: &ItemId) -> bool {
+fn body_is_lapse_then_raise_only(body: &[Event], item: &ItemId) -> bool {
     matches!(
         body.iter().map(|e| &e.what).collect::<Vec<_>>()[..],
         [What::ItemLapsed { item: i, lapsed: Lapsed::Ready(OtherLapse::Check) }, What::ItemRaised { raised: Raised::Check(None), .. }] if i == item
@@ -1406,9 +1410,12 @@ fn review_seq_3_a_start_lapses_the_owed_ready_item_with_the_check() {
     let start = w.act(Act::Start { agent: agent(0) });
     assert_eq!(start.report.answer, Err(Cause::Hold));
     assert_eq!(start.checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
-    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
     assert_eq!(owed_ready(&w, 0), vec![ready.clone()], "the debt stays");
     never_ready_beside_check(&w);
     let from = w.ports.tried.borrow().len();
@@ -1416,10 +1423,13 @@ fn review_seq_3_a_start_lapses_the_owed_ready_item_with_the_check() {
     w.act(Act::Tick);
     assert!(owed_ready(&w, 0).is_empty(), "the tick drops the debt");
     assert!(
-        bodies(&w, 0, from).iter().flatten().all(|e| !matches!(
-            &e.what,
-            What::ItemLapsed { item, .. } if *item == ready
-        )),
+        acknowledged_bodies_from(&w, 0, from)
+            .iter()
+            .flatten()
+            .all(|e| !matches!(
+                &e.what,
+                What::ItemLapsed { item, .. } if *item == ready
+            )),
         "with no send"
     );
     assert_eq!(closes(&w, &ready).len(), 1, "one closing row");
@@ -1434,11 +1444,15 @@ fn recoverys_own_raise_after_its_refused_body_lapses_the_owed_ready_item() {
     let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
     w.store_end(0, &run, Outcome::EffectUnknown, 1);
     let from = w.ports.tried.borrow().len();
-    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    let checked =
+        new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
     assert_eq!(checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
-    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
     assert_eq!(owed_ready(&w, 0), vec![ready]);
     never_ready_beside_check(&w);
 }
@@ -1450,7 +1464,7 @@ fn a_recovery_body_stored_with_a_lost_acknowledgement_lets_the_check_go_alone() 
     let ready = ready_item(&w, 0);
     let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
     w.store_end(0, &run, Outcome::EffectUnknown, 1);
-    let checked = relife(&mut w, vec![Turn::Lose]);
+    let checked = new_life_returning_checked_agents(&mut w, vec![Turn::Lose]);
     assert_eq!(checked, vec![agent(0)]);
     assert_eq!(
         closes(&w, &ready),
@@ -1475,9 +1489,12 @@ fn a_raise_that_meets_seq_for_another_writer_still_lapses_the_owed_ready_item() 
     let from = w.ports.tried.borrow().len();
     let start = w.act(Act::Start { agent: agent(0) });
     assert_eq!(start.checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
-    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
     let refused_seq = w.ports.tried.borrow()[from..]
         .iter()
         .filter(|t| matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq"))
@@ -1500,9 +1517,12 @@ fn a_tick_whose_list_does_not_answer_still_lapses_the_owed_ready_item() {
     let tick = w.act(Act::Tick);
     w.ports.clear_refusals();
     assert_eq!(tick.checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     assert_eq!(logged.len(), 1, "{logged:?}");
-    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
     never_ready_beside_check(&w);
 }
 
@@ -1535,7 +1555,7 @@ fn the_answer_over_an_owed_ready_item_lapses_it_in_its_body() {
         let late = stored == Some(true);
         let from = w.ports.tried.borrow().len();
         assert_eq!(answer(&mut w, 0, answer_is), Ok(Answer::Ok), "{answer_is}");
-        let logged = bodies(&w, 0, from);
+        let logged = acknowledged_bodies_from(&w, 0, from);
         assert_eq!(logged.len(), 1, "{answer_is} {stored:?}: {logged:?}");
         let whats: Vec<&What> = logged[0].iter().map(|e| &e.what).collect();
         if late {
@@ -1580,14 +1600,15 @@ fn of_two_agents_only_the_one_that_owes_lapses_its_ready_item() {
         w.store_end(n, &run, Outcome::EffectUnknown, 1);
     }
     let from = w.ports.tried.borrow().len();
-    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    let checked =
+        new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
     assert_eq!(checked, vec![agent(0), agent(1)]);
-    let of_first = bodies(&w, 0, from);
+    let of_first = acknowledged_bodies_from(&w, 0, from);
     assert!(
-        lapse_then_raise(of_first.last().unwrap(), &first),
+        body_is_lapse_then_raise_only(of_first.last().unwrap(), &first),
         "{of_first:?}"
     );
-    let of_second = bodies(&w, 1, from);
+    let of_second = acknowledged_bodies_from(&w, 1, from);
     let raise = of_second.last().unwrap();
     assert!(
         matches!(
@@ -1617,9 +1638,10 @@ fn the_raise_writes_no_owed_lapse_of_a_check_item() {
         other => panic!("{other:?}"),
     };
     let from = w.ports.tried.borrow().len();
-    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    let checked =
+        new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
     assert_eq!(checked, vec![agent(0)]);
-    let logged = bodies(&w, 0, from);
+    let logged = acknowledged_bodies_from(&w, 0, from);
     let raise = logged.last().unwrap();
     assert!(
         raise
