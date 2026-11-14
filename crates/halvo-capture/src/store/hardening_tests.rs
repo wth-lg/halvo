@@ -7142,7 +7142,10 @@ fn delete_all_with_a_blocked_shard_destroys_the_root_and_the_key_file_and_the_ta
     let (root_left, key_left) =
         root_and_key_file_after_the_first_call(&store_dir, &roots_dir, root_id);
     assert!(!root_left && !key_left, "{report:?}");
-    assert_eq!(report.files_left, 1, "{report:?}");
+    assert_eq!(
+        report.files_left, 3,
+        "the segment file, its shard and segments/ stay, each counted: {report:?}"
+    );
     assert!(store.write_segment(&mut Cursor::new(b"x")).is_err());
     drop(store);
     let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
@@ -9518,6 +9521,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         root: super::RootReading::Left(Some(left)),
         roots: super::RootsLeft {
             left: vec![left],
+            names: vec![format!("{left}.root")],
             listed: true,
         },
         root_not_handled: Some(not_handled),

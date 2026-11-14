@@ -383,7 +383,8 @@ impl KeyFilePlace {
         };
         let _ = zero_and_remove(&self.dir, &self.name);
         let _ = self.dir.sync();
-        let gone = matches!(self.dir.entry(&self.name), Err(e) if e.kind() == ErrorKind::NotFound);
+        let absent = |name: &OsStr| matches!(self.dir.entry(name), Err(e) if e.kind() == ErrorKind::NotFound);
+        let gone = absent(&self.name) && absent(&self.temp);
         Removal { gone, not_followed }
     }
 }
@@ -2140,6 +2141,7 @@ impl EncryptedStore {
                 },
                 RootsLeft {
                     left: Vec::new(),
+                    names: Vec::new(),
                     listed: true,
                 },
             ),
@@ -2153,6 +2155,7 @@ impl EncryptedStore {
             root: RootReading::Left(Some(self.custody.root_id())),
             roots: RootsLeft {
                 left: Vec::new(),
+                names: Vec::new(),
                 listed: true,
             },
             root_not_handled: None,
@@ -2221,6 +2224,7 @@ impl EncryptedStore {
                     root: RootReading::Unnamed,
                     roots: RootsLeft {
                         left: Vec::new(),
+                        names: Vec::new(),
                         listed: true,
                     },
                     root_not_handled: None,
@@ -2233,10 +2237,27 @@ impl EncryptedStore {
             Err(e) if durable::refusal(&e).is_some() => {
                 return finished(remove_what_stands_at(store_dir))
             }
-            Err(e) => return Err(io_error(e)),
+            #[cfg(windows)]
+            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                return Err(StoreError::Locked)
+            }
+            Err(_) => {
+                return finished(not_opened(
+                    RootReading::Left(None),
+                    RootsLeft {
+                        left: Vec::new(),
+                        names: Vec::new(),
+                        listed: false,
+                    },
+                ))
+            }
         };
-        let _writer_lock = DirLock::take(&store)?;
         let place = KeyFile::of_store(&store)?;
+        let _writer_lock = match DirLock::take(&store) {
+            Ok(lock) => Some(lock),
+            Err(StoreError::Locked) => return Err(StoreError::Locked),
+            Err(_) => None,
+        };
         let (named, root_not_handled) = match place.what_it_names() {
             KeyFileNames::Destroys(root_id) => (Some(root_id), None),
             KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
@@ -2252,11 +2273,17 @@ impl EncryptedStore {
                 RootReading::Left(Some(root_id)),
                 RootsLeft {
                     left: Vec::new(),
+                    names: Vec::new(),
                     listed: true,
                 },
             ),
             None => file_root::destroy_roots_in(roots, named, false),
         };
+        if _writer_lock.is_none() {
+            let mut report = not_opened(reading, roots);
+            report.root_not_handled = root_not_handled;
+            return finished(report);
+        }
         let mut report = remove_the_store_files(&store, None, reading, roots);
         report.root_not_handled = root_not_handled;
         finished(report)
@@ -2268,6 +2295,22 @@ fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {
         Ok(report)
     } else {
         Err(StoreError::DeleteIncomplete(Box::new(report)))
+    }
+}
+
+/// The report of a tail that could not open the store directory, or could not
+/// take its lock for a reason other than a holder: the root step as it went,
+/// and the store's files as left.
+fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
+    DeleteReport {
+        keyed_segments: None,
+        root,
+        roots,
+        root_not_handled: None,
+        key_file_gone: false,
+        database_left: true,
+        files_left: 1,
+        not_followed: 0,
     }
 }
 
@@ -2286,6 +2329,7 @@ fn remove_what_stands_at(store_dir: &Path) -> DeleteReport {
         root: RootReading::Unnamed,
         roots: RootsLeft {
             left: Vec::new(),
+            names: Vec::new(),
             listed: true,
         },
         root_not_handled: None,

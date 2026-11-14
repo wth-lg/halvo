@@ -903,6 +903,9 @@ fn fill_and_publish<T, E>(
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[cfg(windows)]
+pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
+
+#[cfg(windows)]
 pub(crate) use windows_dir::file_link_count;
 
 #[cfg(unix)]

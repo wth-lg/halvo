@@ -46,6 +46,9 @@ impl DirLock {
                     name: StoreName::WriterLock,
                     met: Met::OtherKind,
                 },
+                None if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                    StoreError::Locked
+                }
                 None => StoreError::Io(e.kind()),
             })
     }

@@ -1185,6 +1185,26 @@ What the code does since store-3, each sentence with the test that shows it.
   `a_create_whose_key_name_is_taken_after_its_root_leaves_what_stands_there`,
   `a_create_whose_key_name_is_taken_by_a_plain_file_after_its_root_removes_that_file`,
   `a_create_removes_a_hard_link_at_store_key_tmp_without_writing_through_it`.
+- The root step destroys, and its last reading counts, every entry of the
+  roots directory whose name, with its ASCII letters lowered, is a root name
+  or a partial name of a root, on every volume; the report names a file that
+  stays by the name it has. The removal of `store.key.tmp` is counted:
+  `key_file_gone` reads no while it stays. A directory of the store that
+  cannot be removed is counted in `files_left`. The tail on a store
+  directory that it cannot open, or whose lock it cannot take for a reason
+  other than a holder, runs the root step without the lock and answers
+  `DeleteIncomplete` with `key_file_gone` no and the store's files as left;
+  its root reads destroyed only when the step itself found and destroyed
+  it. `Locked` stays `Locked` with nothing done, and on Windows a sharing
+  violation at the open of the store directory or of `writer.lock` is
+  `Locked` (ruling ST-44 F2, ST-41 (3)). Tests:
+  `a_partial_root_file_with_the_root_bytes_that_stays_leaves_delete_all_ok`,
+  `a_store_key_temp_with_the_wrapped_key_that_stays_leaves_delete_all_ok`,
+  `the_tail_answers_ok_while_a_partial_root_and_a_store_key_temp_stay`,
+  `a_second_name_of_a_root_file_of_mode_0400_is_zeroed_before_delete_all_answers_ok`,
+  `the_tail_on_a_store_directory_of_mode_000_destroys_the_root_or_reports_it`,
+  `delete_all_with_segments_at_0500_answers_ok_only_when_nothing_of_the_store_is_left`,
+  `the_tail_destroys_a_root_file_whose_name_stands_in_upper_case_on_a_volume_that_folds_case`.
 - An open that is refused destroys no root file, writes nothing under the
   roots directory and leaves `create.pending` as it found it (ruling
   ST-43). Tests, each with a `create.pending` of a killed create that names
@@ -1305,7 +1325,15 @@ set, and the root's own volume name answers the root.
   (`delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it`);
   a file of another program that a process of the same user hard-links at
   a root file's name is zeroed with it (found by the review of store-3 and
-  left so).
+  left so). Before the zero-fill the root step opens the root file, keeps
+  that handle and makes the file writable (the mode on unix, the read-only
+  attribute on Windows). If the zero-fill still fails: with one name, the
+  count read through the kept handle, the name is removed, and the root
+  reads destroyed only when the count read through that handle after the
+  removal is 0; with more than one name, or a count that cannot be read, the
+  name is kept, the root is left under its real name, and the next call
+  tries again (ruling ST-44 F2 (c)). A name made after the count is read
+  stays this limit.
 - What the review of store-3 found and left as it is, each by its reason. A
   link at a root file's name under the roots directory is removed and not
   followed, and it is not counted in `not_followed`, which counts the store's

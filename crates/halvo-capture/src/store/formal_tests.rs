@@ -874,7 +874,8 @@ impl Harness {
                     report.root_destroyed() != on_disk.root
                         && report.key_file_gone != on_disk.key_file
                         && report.database_left == on_disk.database
-                        && report.files_left == on_disk.segment_files,
+                        && report.files_left >= on_disk.segment_files
+                        && (report.files_left == 0) == (on_disk.segment_files == 0),
                     "a delete-all that returned an error reported {:?}, and a look at the disk finds {:?}",
                     report,
                     on_disk

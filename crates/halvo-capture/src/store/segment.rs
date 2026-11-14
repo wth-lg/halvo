@@ -191,7 +191,6 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
     match parent.remove_entry(name) {
         Ok(()) => {}
         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-        Err(_) if entry.kind == EntryKind::Dir => {}
         Err(_) => removal.entries_left += 1,
     }
     let _ = parent.sync();

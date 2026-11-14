@@ -72,6 +72,13 @@ impl RootFile {
         }
     }
 
+    /// The root file that a name of any case names: the name with its ASCII
+    /// letters lowered, read as [`RootFile::named`] reads it.
+    pub(crate) fn named_in_any_case(name: &OsStr) -> Option<Self> {
+        let lowered = name.to_str()?.to_ascii_lowercase();
+        Self::named(OsStr::new(&lowered))
+    }
+
     fn id(self) -> RootId {
         match self {
             RootFile::Root(id) | RootFile::Partial(id) => id,
@@ -79,35 +86,21 @@ impl RootFile {
     }
 }
 
-pub(crate) struct Scrubbed {
-    pub(crate) zeros_durable: bool,
-    pub(crate) removed: std::io::Result<()>,
-}
-
-pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> Scrubbed {
-    let zeros_durable = match dir.entry(name) {
-        Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
-        Ok(_) => false,
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            return Scrubbed {
-                zeros_durable: true,
-                removed: Ok(()),
-            }
+/// Zeroes the entry `name` of `dir` when it is a regular file and removes it,
+/// a link or an entry of another kind as the entry that it is, never opened:
+/// answers the removal's result.
+pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+    match dir.entry(name) {
+        Ok(entry) if entry.kind == EntryKind::File => {
+            let _ = zero_fill(dir, name);
         }
-        Err(e) => {
-            return Scrubbed {
-                zeros_durable: false,
-                removed: Err(e),
-            }
-        }
-    };
-    let removed = match dir.remove_entry(name) {
+        Ok(_) => {}
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    }
+    match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         other => other,
-    };
-    Scrubbed {
-        zeros_durable,
-        removed,
     }
 }
 
@@ -130,10 +123,12 @@ fn seal(
 }
 
 /// What the destruction of every root file under a roots directory left: the
-/// ids of the root files that stay, and whether the directory could be listed.
+/// ids of the root files and partial root files that stay, their names as
+/// they stand, and whether the directory could be listed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsLeft {
     pub left: Vec<RootId>,
+    pub names: Vec<String>,
     pub listed: bool,
 }
 
@@ -159,6 +154,7 @@ pub(crate) fn destroy_roots_in(
 ) -> (RootReading, RootsLeft) {
     let none_counted = |listed: bool| RootsLeft {
         left: Vec::new(),
+        names: Vec::new(),
         listed,
     };
     let Some(named) = named else {
@@ -171,37 +167,134 @@ pub(crate) fn destroy_roots_in(
     let Ok(entries) = dir.entries() else {
         return left_unread;
     };
-    let mut names: Vec<(RootFile, OsString)> = entries
+    let mut found: Vec<(RootFile, OsString)> = entries
         .into_iter()
-        .filter_map(|entry| RootFile::named(&entry.name).map(|file| (file, entry.name)))
+        .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.name)))
         .collect();
-    let holds_named = names.iter().any(|(file, _)| file.id() == named);
+    let holds_named = found.iter().any(|(file, _)| file.id() == named);
     if !holds_named && !removed_before {
         return (RootReading::Left(Some(named)), none_counted(true));
     }
-    names.sort_by_key(|(file, _)| file.id() != named);
-    for (_, name) in &names {
-        let _ = scrub_and_remove(&dir, name);
+    found.sort_by_key(|(file, _)| file.id() != named);
+    let mut every_named_entry_destroyed = true;
+    for (file, name) in &found {
+        let fate = destroy_root_entry(&dir, name);
+        if file.id() == named && fate != EntryFate::Gone {
+            every_named_entry_destroyed = false;
+        }
     }
     let _ = dir.sync();
     match dir.entries() {
         Ok(entries) => {
-            let mut left: Vec<RootId> = entries
+            let mut stays: Vec<(RootId, String)> = entries
                 .iter()
-                .filter_map(|entry| match RootFile::named(&entry.name) {
-                    Some(RootFile::Root(id)) => Some(id),
-                    _ => None,
+                .filter_map(|entry| {
+                    RootFile::named_in_any_case(&entry.name)
+                        .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
                 })
                 .collect();
-            left.sort_by_key(|id| id.to_string());
-            let reading = if left.contains(&named) {
-                RootReading::Left(Some(named))
-            } else {
-                RootReading::Destroyed
-            };
-            (reading, RootsLeft { left, listed: true })
+            stays.sort_by(|a, b| a.1.cmp(&b.1));
+            let reading =
+                if every_named_entry_destroyed && !stays.iter().any(|(id, _)| *id == named) {
+                    RootReading::Destroyed
+                } else {
+                    RootReading::Left(Some(named))
+                };
+            let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
+            left.dedup();
+            let names = stays.into_iter().map(|(_, name)| name).collect();
+            (
+                reading,
+                RootsLeft {
+                    left,
+                    names,
+                    listed: true,
+                },
+            )
         }
         Err(_) => (RootReading::Left(Some(named)), none_counted(false)),
+    }
+}
+
+/// What the destruction of one entry of a roots directory left.
+#[derive(Debug)]
+enum EntryFate {
+    /// The name is gone, and no name of the file keeps the key.
+    Gone,
+    /// The zero-fill reached every name of the file, and the name stays.
+    ZeroedAndNamed,
+    /// A key may stay behind the name: the removal's error when there is one.
+    KeyMayStay(Option<std::io::Error>),
+}
+
+impl PartialEq for EntryFate {
+    fn eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+}
+
+/// Destroys one entry of a roots directory. An entry that is no regular file
+/// is removed as the entry that it is. For a regular file the store opens the
+/// file, keeps that handle and makes the file writable, then zero-fills it
+/// through its name, which reaches every name of the file, and removes the
+/// name. If the zero-fill still fails: with one name (the count read through
+/// the kept handle) the name is removed, and the entry is gone only when the
+/// count read through that handle after the removal is 0; with more than one
+/// name, or a count that cannot be read, the name is kept and a key may stay.
+fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
+    let remove = |dir: &Dir| match dir.remove_entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        other => other,
+    };
+    match dir.entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Gone,
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+        Ok(entry) if entry.kind != EntryKind::File => {
+            return match remove(dir) {
+                Ok(()) => EntryFate::Gone,
+                Err(e) => EntryFate::KeyMayStay(Some(e)),
+            }
+        }
+        Ok(_) => {}
+    }
+    let kept = match dir.open_file(name) {
+        Ok(kept) => kept,
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+    };
+    make_writable(dir, name, &kept);
+    let zeroed = matches!(dir.names_file(name, &kept), Ok(true)) && zero_fill(dir, name).is_ok();
+    if zeroed {
+        return match remove(dir) {
+            Ok(()) => EntryFate::Gone,
+            Err(_) => EntryFate::ZeroedAndNamed,
+        };
+    }
+    match durable::file_link_count(&kept) {
+        Ok(1) => match remove(dir) {
+            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
+            Ok(()) => EntryFate::KeyMayStay(None),
+            Err(e) => EntryFate::KeyMayStay(Some(e)),
+        },
+        _ => EntryFate::KeyMayStay(None),
+    }
+}
+
+#[cfg(unix)]
+fn make_writable(_dir: &Dir, _name: &OsStr, kept: &std::fs::File) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = kept.set_permissions(std::fs::Permissions::from_mode(0o600));
+}
+
+#[cfg(windows)]
+fn make_writable(dir: &Dir, name: &OsStr, kept: &std::fs::File) {
+    if let Ok(metadata) = kept.metadata() {
+        let mut permissions = metadata.permissions();
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "a root file that the store destroys has to be writable for its zero-fill"
+        )]
+        permissions.set_readonly(false);
+        let _ = std::fs::set_permissions(dir.path().join(name), permissions);
     }
 }
 
@@ -221,20 +314,30 @@ pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), Custo
         Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
         Err(e) => return Err(root_io(e)),
     };
+    let mut fates = Vec::new();
     if let Ok(entries) = dir.entries() {
         for entry in entries {
-            if RootFile::named(&entry.name) == Some(RootFile::Partial(root_id)) {
-                let _ = scrub_and_remove(&dir, &entry.name);
+            match RootFile::named_in_any_case(&entry.name) {
+                Some(RootFile::Partial(id)) if id == root_id => {
+                    let _ = destroy_root_entry(&dir, &entry.name);
+                }
+                Some(RootFile::Root(id)) if id == root_id && entry.name != root_name(root_id) => {
+                    fates.push(destroy_root_entry(&dir, &entry.name));
+                }
+                _ => {}
             }
         }
     }
-    let scrubbed = scrub_and_remove(&dir, &root_name(root_id));
+    fates.push(destroy_root_entry(&dir, &root_name(root_id)));
     let _ = dir.sync();
-    match scrubbed.removed {
-        Ok(()) => Ok(()),
-        Err(_) if scrubbed.zeros_durable => Ok(()),
-        Err(e) => Err(root_io(e)),
+    for fate in fates {
+        match fate {
+            EntryFate::Gone | EntryFate::ZeroedAndNamed => {}
+            EntryFate::KeyMayStay(Some(e)) => return Err(root_io(e)),
+            EntryFate::KeyMayStay(None) => return Err(CustodyError::RootDenied),
+        }
     }
+    Ok(())
 }
 
 impl<P: Protector> FileRoots<P> {
@@ -315,7 +418,7 @@ impl<P: Protector> FileRoots<P> {
         });
         let discarded = match published {
             Ok(()) => dir.remove_file(&partial),
-            Err(_) => scrub_and_remove(&dir, &partial).removed,
+            Err(_) => scrub_and_remove(&dir, &partial),
         };
         published?;
         #[cfg(test)]
@@ -330,7 +433,7 @@ impl<P: Protector> FileRoots<P> {
             let published_root = scrub_and_remove(&dir, &root_name(root_id));
             let _ = scrub_and_remove(&dir, &partial);
             let _ = dir.sync();
-            return Err(root_io(published_root.removed.err().unwrap_or(e)));
+            return Err(root_io(published_root.err().unwrap_or(e)));
         }
         Ok(root)
     }
