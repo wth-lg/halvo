@@ -680,7 +680,14 @@ mod windows_dir {
         }
     }
 
+    /// The canonical path without its verbatim prefix, so that it reads as
+    /// the path that the caller gave, except where a part ends in a dot or a
+    /// space: Win32 trims that end on a path that is not verbatim, so such a
+    /// path keeps its prefix and names the entry that the handle holds.
     fn without_verbatim_prefix(full: PathBuf) -> PathBuf {
+        if super::has_a_part_that_windows_trims(&full) {
+            return full;
+        }
         let Some(text) = full.to_str() else {
             return full;
         };
