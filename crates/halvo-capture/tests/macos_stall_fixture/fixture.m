@@ -7,6 +7,9 @@
 //   plain | secure   moves the focus, with the insertion point after the field's
 //                    text; answers focus=<field> at=<uptime ns>
 //   clear            empties both fields; answers cleared
+//   which <c>...     answers which=<w>, one letter of <w> for each character
+//                    <c>: p when only the plain field holds it, s when only
+//                    the secure field holds it, b when both do, - when neither
 //   where            answers x=<n> y=<n>: the centre of the secure field in
 //                    display points, origin at the top left of the main display
 //   stall <ms> [self]  answers waiting at=<ns>, sleeps on the main thread, then,
@@ -131,6 +134,17 @@ static void handle(NSString *line) {
         focus(plainField, @"plain");
     } else if ([verb isEqualToString:@"secure"]) {
         focus(secureField, @"secure");
+    } else if ([verb isEqualToString:@"which"] && words.count >= 2) {
+        NSMutableString *where = [NSMutableString string];
+        NSString *plain = plainField.stringValue;
+        NSString *secure = secureField.stringValue;
+        for (NSUInteger i = 0; i < words[1].length; i++) {
+            NSString *one = [words[1] substringWithRange:NSMakeRange(i, 1)];
+            BOOL inPlain = [plain containsString:one];
+            BOOL inSecure = [secure containsString:one];
+            [where appendString:inPlain ? (inSecure ? @"b" : @"p") : (inSecure ? @"s" : @"-")];
+        }
+        say([NSString stringWithFormat:@"which=%@", where]);
     } else if ([verb isEqualToString:@"clear"]) {
         plainField.stringValue = @"";
         secureField.stringValue = @"";

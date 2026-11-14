@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, 12-test ran none of these tests, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key or reads not shown when no round of it counted, 12-test ran the launch-path test of the stand-ins for open and passed it and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
 set -u
 name=51-macos-stall
 test_limit_s=${MS_TEST_LIMIT_S:-900}
 fixture_source=crates/halvo-capture/tests/macos_stall_fixture/fixture.m
 leak='recorded keys beside the markers in rounds that counted'
+not_counted='not counted on this fixture'
 LC_ALL=C
 export LC_ALL
 
@@ -27,6 +28,8 @@ at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_
 the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
 known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded known-fault
 known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded known-fault
+a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded phase
+the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out twelve
 EOF
 }
 
@@ -88,6 +91,10 @@ judge() {
   esac
   case $out in
     *"$leak"*) verdict='known-fault' ;;
+    *"$not_counted"*)
+      verdict=notshown
+      cause='not shown: no round of the listed known fault counted on this fixture, so it reads neither as listed nor as fixed'
+      ;;
     *) cause='the listed known fault failed without its assertion of a recorded key' ;;
   esac
 }
@@ -113,14 +120,25 @@ twelve_test() {
     printf '12-test: no list of tests in this job\n'
     return 0
   fi
-  awk '
+  : >"$work/twelve-ran" || fail "the list of 12-test cannot be read"
+  awk -v ran_file="$work/twelve-ran" '
     /^ *Running / { inside = index($0, "tests/macos_stall_fixture.rs") > 0; next }
     /^ *Doc-tests / { inside = 0; next }
-    inside && /^test / { if ($0 ~ / \.\.\. ignored(,|$)/) ignored++; else ran++ }
+    inside && /^test / {
+      if ($0 ~ / \.\.\. ignored(,|$)/) ignored++
+      else { ran++; print $2, $NF > ran_file }
+    }
     END { printf "%d %d\n", ignored, ran }' "$list" >"$work/twelve" || fail "the list of 12-test cannot be read"
   read -r ignored ran <"$work/twelve" || fail "the list of 12-test cannot be read"
+  sed -n 's/ twelve$//p' "$work/expected" | sort >"$work/twelve-want" || fail "the expected list cannot be read"
+  cut -d ' ' -f 1 "$work/twelve-ran" | sort >"$work/twelve-got" || fail "the list of 12-test cannot be read"
   printf '12-test: tests of macos_stall_fixture ignored=%s ran=%s\n' "$ignored" "$ran"
-  [ "$ran" -eq 0 ] || fail "12-test ran $ran tests of tests/macos_stall_fixture.rs"
+  other=$(comm -13 "$work/twelve-want" "$work/twelve-got" | tr '\n' ' ')
+  [ -z "$other" ] || fail "12-test ran tests of tests/macos_stall_fixture.rs that are not the launch-path test: ${other% }"
+  absent=$(comm -23 "$work/twelve-want" "$work/twelve-got" | tr '\n' ' ')
+  [ -z "$absent" ] || fail "12-test did not run the launch-path test of tests/macos_stall_fixture.rs: ${absent% }"
+  failed_here=$(grep -v ' ok$' "$work/twelve-ran" | cut -d ' ' -f 1 | tr '\n' ' ')
+  [ -z "$failed_here" ] || fail "12-test ran the launch-path test and it did not pass: ${failed_here% }"
   [ "$ignored" -gt 0 ] || fail "12-test listed no test of tests/macos_stall_fixture.rs as ignored"
 }
 
@@ -187,9 +205,10 @@ measure() {
   failed=0
   not_driven=0
   not_kept=0
+  not_shown=0
   index=0
   while read -r test kind; do
-    [ "$kind" != not-run ] || continue
+    case $kind in not-run | twelve) continue ;; esac
     index=$((index + 1))
     log=$work/test-$index.log
     started=$(date +%s)
@@ -214,6 +233,7 @@ measure() {
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       known-fault) known=$((known + 1)) ;;
+      notshown) not_shown=$((not_shown + 1)) ;;
       FIXED-BUT-LISTED) fixed=$((fixed + 1)) ;;
       *) failed=$((failed + 1)) ;;
     esac
@@ -225,7 +245,7 @@ measure() {
 
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
-  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
+  line="MS total=$index pass=$passed known_fault=$known notshown=$not_shown notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
@@ -308,7 +328,7 @@ EOF
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 if [ "$*" = --list ]; then
-  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\n'
+  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\nlaunch_one: test\n'
   spec extra-test && printf 'unlisted: test\n'
   exit 0
 fi
@@ -331,6 +351,7 @@ case $test in
     ;;
   known_*)
     spec "pass-$test" && { printf 'test result: ok. 1 passed; 0 failed; 0 ignored\n'; exit 0; }
+    spec "notcounted-$test" && { printf "%s verdict=notcounted counted=0 rounds=5\nthread 'x' panicked at y:\n%s: not counted on this fixture: no round counted: the letters did not land in the secure field\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
     printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 1500 ms: 9\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"
     exit 101
     ;;
@@ -348,7 +369,7 @@ self_test() {
   }
   mkdir -p "$work/bin" "$work/repo/target/ci-artifacts/12-test" || exit 2
   write_stubs
-  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\n' >"$work/expected-small"
+  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nlaunch_one twelve\n' >"$work/expected-small"
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
@@ -359,13 +380,15 @@ self_test() {
   ignored='     Running tests/macos_stall_fixture.rs (target/debug/deps/macos_stall_fixture-0)
 test a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ignored, posts keys and shows a window: the hosted step alone runs it
 test the_probe_reports_what_the_stall_phases_rest_on ... ignored
+test launch_one ... ok
      Running tests/source_rules.rs (target/debug/deps/source_rules-0)
 test a_rule ... ok'
   printf '%s\n' "$ignored" >"$twelve"
   wrong=
   rejected=0
   limit=
-  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
+  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notshown=0 notdriven=0 notkept=0 fail=0' ''
+  check known-fault-not-counted PASS 'MS known_one result=notshown' 'notcounted-known_one'
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
   check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
@@ -385,9 +408,13 @@ test a_rule ... ok'
   git -C "$work/repo" checkout -q -- tracked.txt 2>/dev/null || printf 'tracked\n' >"$work/repo/tracked.txt"
   limit=1
   check time-limit FAIL 'phase_one: exit 142' 'hang-phase_one'
-  printf '     Running tests/macos_stall_fixture.rs (x)\ntest a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ok\ntest the_probe_reports_what_the_stall_phases_rest_on ... ignored\n' >"$twelve"
-  check twelve-test-ran-one FAIL '12-test ran 1 tests of tests/macos_stall_fixture.rs' ''
-  printf '     Running tests/source_rules.rs (x)\ntest a_rule ... ok\n' >"$twelve"
+  printf '     Running tests/macos_stall_fixture.rs (x)\ntest a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ok\ntest launch_one ... ok\ntest the_probe_reports_what_the_stall_phases_rest_on ... ignored\n' >"$twelve"
+  check twelve-test-ran-a-phase FAIL 'that are not the launch-path test: a_key_typed_ahead_into_a_secure_field_is_not_recorded' ''
+  printf '     Running tests/macos_stall_fixture.rs (x)\ntest the_probe_reports_what_the_stall_phases_rest_on ... ignored\n' >"$twelve"
+  check twelve-test-ran-no-launch FAIL 'did not run the launch-path test of tests/macos_stall_fixture.rs: launch_one' ''
+  printf '     Running tests/macos_stall_fixture.rs (x)\ntest launch_one ... FAILED\ntest the_probe_reports_what_the_stall_phases_rest_on ... ignored\n' >"$twelve"
+  check twelve-test-launch-failed FAIL 'ran the launch-path test and it did not pass: launch_one' ''
+  printf '     Running tests/macos_stall_fixture.rs (x)\ntest launch_one ... ok\n' >"$twelve"
   check twelve-test-listed-none FAIL '12-test listed no test of tests/macos_stall_fixture.rs as ignored' ''
   mv "$twelve" "$work/twelve-moved" || exit 2
   check twelve-test-absent PASS '12-test: no list of tests in this job' ''

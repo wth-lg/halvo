@@ -1,13 +1,16 @@
 //! The stall phases of the macOS keyboard source against a fixture program
 //! with a secure field whose main thread waits before it takes events. Every
-//! test here posts keys and shows a window: each is ignored by default and
+//! test here that posts keys or shows a window is ignored by default and
 //! refuses to run unless the hosted step of a GitHub-hosted runner has set
 //! `HALVO_STALL_FIXTURE` to the fixture's path and the fixture's window is in
-//! front before the first key is posted. Every printed line holds names and
-//! numbers alone.
+//! front before the first key is posted. The one test that runs by default
+//! drives the launch path with stand-ins for `open`, which open no window and
+//! post no input. Every printed line holds names and numbers alone.
 #![cfg(target_os = "macos")]
 
 use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
@@ -48,6 +51,9 @@ const JUST_UNDER: u64 = 850;
 const ROUNDS: usize = 3;
 const FAULT_ROUNDS: usize = 5;
 const MARGIN: Duration = Duration::from_millis(750);
+const LAUNCH_WAIT: Duration = Duration::from_secs(20);
+const BURST_STEP: Duration = Duration::from_millis(2);
+const LETTER_TEXT: &str = "asdfhgzx";
 
 fn uptime_ns() -> u64 {
     // SAFETY: clock_gettime_nsec_np takes a clock id by value and returns a
@@ -55,7 +61,7 @@ fn uptime_ns() -> u64 {
     unsafe { clock_gettime_nsec_np(libc::CLOCK_UPTIME_RAW) }
 }
 
-fn hosted_fixture() -> std::path::PathBuf {
+fn hosted_fixture() -> PathBuf {
     let hosted = std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true")
         && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted");
     let path = std::env::var_os(FIXTURE);
@@ -170,16 +176,19 @@ fn lines_of(output: impl std::io::Read + Send + 'static) -> Receiver<String> {
     lines
 }
 
-fn ready_pid(lines: &Receiver<String>) -> Option<i32> {
-    lines
-        .recv_timeout(Duration::from_secs(20))
-        .ok()?
-        .strip_prefix("ready pid=")?
-        .parse()
-        .ok()
+fn ready_pid(lines: &Receiver<String>, wait: Duration) -> Result<i32, String> {
+    let line = lines.recv_timeout(wait).map_err(|_| {
+        format!(
+            "the wait for the fixture's ready line ran out after {} ms",
+            wait.as_millis()
+        )
+    })?;
+    line.strip_prefix("ready pid=")
+        .and_then(|pid| pid.parse().ok())
+        .ok_or_else(|| "the fixture's first line was not its ready line".to_owned())
 }
 
-fn fifo(name: &str) -> std::path::PathBuf {
+fn fifo(name: &str) -> PathBuf {
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(format!("stall-fixture-{}-{name}", std::process::id()));
     let text = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path");
@@ -192,7 +201,7 @@ fn fifo(name: &str) -> std::path::PathBuf {
     path
 }
 
-fn bundle_of(binary: &std::path::Path) -> std::path::PathBuf {
+fn bundle_of(binary: &Path) -> PathBuf {
     let bundle = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("StallFixture.app");
     let macos = bundle.join("Contents").join("MacOS");
     std::fs::create_dir_all(&macos).expect("the bundle's directory");
@@ -209,71 +218,162 @@ fn bundle_of(binary: &std::path::Path) -> std::path::PathBuf {
     bundle
 }
 
+fn fifo_opened<T: Send + 'static>(
+    path: PathBuf,
+    open: impl FnOnce(&Path) -> std::io::Result<T> + Send + 'static,
+) -> Receiver<std::io::Result<T>> {
+    let (tx, rx) = channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(open(&path));
+    });
+    rx
+}
+
+fn free_a_blocked_open(path: &Path, write: bool) {
+    let _ = std::fs::OpenOptions::new()
+        .read(!write)
+        .write(write)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path);
+}
+
+fn wait_for<T>(
+    rx: &Receiver<std::io::Result<T>>,
+    opener: &mut Child,
+    wait: Duration,
+    what: &str,
+) -> Result<T, String> {
+    let deadline = Instant::now() + wait;
+    loop {
+        match rx.recv_timeout(Duration::from_millis(5)) {
+            Ok(Ok(opened)) => return Ok(opened),
+            Ok(Err(error)) => return Err(format!("{what} did not open: {:?}", error.kind())),
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(format!("the thread that opens {what} ended"))
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+        if let Ok(Some(status)) = opener.try_wait() {
+            if !status.success() {
+                return Err(format!("open ended with {status} before {what} opened"));
+            }
+        }
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "the wait for {what} to open ran out after {} ms",
+                wait.as_millis()
+            ));
+        }
+    }
+}
+
+fn launched(opener: &Path, bundle: &Path, tag: &str, wait: Duration) -> Result<Fixture, String> {
+    let to_fixture = fifo(&format!("{tag}in"));
+    let from_fixture = fifo(&format!("{tag}out"));
+    let output = fifo_opened(from_fixture.clone(), |path| std::fs::File::open(path));
+    let input = fifo_opened(to_fixture.clone(), |path| {
+        std::fs::OpenOptions::new().write(true).open(path)
+    });
+    let mut opener = Command::new(opener)
+        .arg("-n")
+        .arg("--stdin")
+        .arg(&to_fixture)
+        .arg("--stdout")
+        .arg(&from_fixture)
+        .arg(bundle)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("open did not start: {:?}", error.kind()))?;
+    let opened =
+        wait_for(&output, &mut opener, wait, "the fixture's output fifo").and_then(|output| {
+            wait_for(&input, &mut opener, wait, "the fixture's input fifo")
+                .map(|input| (output, input))
+        });
+    let ended = opened.and_then(|files| {
+        if until(wait, || matches!(opener.try_wait(), Ok(Some(_)))) {
+            Ok(files)
+        } else {
+            Err(format!(
+                "the wait for open to end ran out after {} ms",
+                wait.as_millis()
+            ))
+        }
+    });
+    let _ = opener.kill();
+    let status = opener
+        .wait()
+        .map_err(|error| format!("open could not be waited for: {:?}", error.kind()))?;
+    let (output, input) = match ended {
+        Ok(files) => files,
+        Err(why) => {
+            free_a_blocked_open(&from_fixture, true);
+            free_a_blocked_open(&to_fixture, false);
+            return Err(why);
+        }
+    };
+    if !status.success() {
+        return Err(format!("open ended with {status}"));
+    }
+    let lines = lines_of(output);
+    let pid = ready_pid(&lines, wait)?;
+    Ok(Fixture {
+        child: None,
+        input: Box::new(input),
+        lines,
+        pid,
+        notes: Vec::new(),
+        by: "opened",
+    })
+}
+
 impl Fixture {
-    fn spawned() -> Self {
+    fn spawned() -> Result<Self, String> {
         let mut child = Command::new(hosted_fixture())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .expect("the fixture starts");
+            .map_err(|error| format!("the fixture did not start: {:?}", error.kind()))?;
         let input = child.stdin.take().expect("the fixture's input");
         let lines = lines_of(child.stdout.take().expect("the fixture's output"));
-        let pid = ready_pid(&lines).expect("the fixture says that it is ready within 20 s");
-        Self {
+        let pid = match ready_pid(&lines, LAUNCH_WAIT) {
+            Ok(pid) => pid,
+            Err(why) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(why);
+            }
+        };
+        Ok(Self {
             child: Some(child),
             input: Box::new(input),
             lines,
             pid,
             notes: Vec::new(),
             by: "spawned",
-        }
+        })
     }
 
-    fn opened() -> Self {
-        let bundle = bundle_of(&hosted_fixture());
-        let to_fixture = fifo("in");
-        let from_fixture = fifo("out");
-        let status = Command::new("/usr/bin/open")
-            .arg("-n")
-            .arg("--stdin")
-            .arg(&to_fixture)
-            .arg("--stdout")
-            .arg(&from_fixture)
-            .arg(&bundle)
-            .status()
-            .expect("open runs");
-        assert!(status.success(), "open launched the fixture's bundle");
-        let (tx, rx) = channel();
-        std::thread::spawn(move || {
-            let output = std::fs::File::open(&from_fixture);
-            let input = std::fs::OpenOptions::new().write(true).open(&to_fixture);
-            let _ = tx.send((output, input));
-        });
-        let (output, input) = rx
-            .recv_timeout(Duration::from_secs(20))
-            .expect("the fixture opens its fifos within 20 s");
-        let lines = lines_of(output.expect("the fixture's output fifo"));
-        let pid = ready_pid(&lines).expect("the fixture says that it is ready within 20 s");
-        Self {
-            child: None,
-            input: Box::new(input.expect("the fixture's input fifo")),
-            lines,
-            pid,
-            notes: Vec::new(),
-            by: "opened",
-        }
+    fn opened() -> Result<Self, String> {
+        launched(
+            Path::new("/usr/bin/open"),
+            &bundle_of(&hosted_fixture()),
+            "",
+            LAUNCH_WAIT,
+        )
     }
 
-    fn start() -> (Self, Option<&'static str>) {
-        let mut fixture = Self::spawned();
+    fn start() -> Result<(Self, Option<&'static str>), String> {
+        let mut fixture = Self::spawned()?;
         if let Some(how) = fixture.bring_to_front(Duration::from_secs(5)) {
-            return (fixture, Some(how));
+            return Ok((fixture, Some(how)));
         }
         drop(fixture);
-        let mut fixture = Self::opened();
+        let mut fixture = Self::opened()?;
         let how = fixture.bring_to_front(Duration::from_secs(5));
-        (fixture, how)
+        Ok((fixture, how))
     }
 
     fn send(&mut self, command: &str) {
@@ -531,6 +631,7 @@ enum Move {
     Return,
     LeavingKeyUp,
     WholePassword,
+    WholePasswordBurst,
 }
 
 #[derive(Debug)]
@@ -542,6 +643,7 @@ struct Round {
     markers: usize,
     plain: usize,
     secure: usize,
+    which: String,
 }
 
 fn letter_step(wait_ms: u64) -> Duration {
@@ -563,6 +665,7 @@ fn round(
         markers: 0,
         plain: 0,
         secure: 0,
+        which: String::from("-"),
     };
     fixture.ask("clear", "cleared");
     if how == Move::Return {
@@ -593,7 +696,12 @@ fn round(
         }
     }
     let centre = matches!(how, Move::Click | Move::Return).then(|| secure_field_centre(fixture));
-    let step = letter_step(wait_ms);
+    let whole = matches!(how, Move::WholePassword | Move::WholePasswordBurst);
+    let step = if how == Move::WholePasswordBurst {
+        BURST_STEP
+    } else {
+        letter_step(wait_ms)
+    };
     let ahead_from = SystemTime::now();
     let command = if how == Move::Itself {
         format!("stall {wait_ms} self")
@@ -605,7 +713,9 @@ fn round(
     let letters = codes(&LETTERS);
     match how {
         Move::Tab | Move::LeavingKeyUp => fixture.keys(step, &format!("{TAB} {letters}")),
-        Move::WholePassword => fixture.keys(step, &format!("{TAB} {letters} {RETURN}")),
+        Move::WholePassword | Move::WholePasswordBurst => {
+            fixture.keys(step, &format!("{TAB} {letters} {RETURN}"));
+        }
         Move::Click => {
             fixture.click(&centre.expect("the centre of the secure field"));
             fixture.keys(step, &letters);
@@ -624,10 +734,16 @@ fn round(
         let state = fixture.state();
         round.secure = state.secure;
         state.secure == LETTERS.len()
-            && (how == Move::WholePassword || state.focus == "secure")
+            && (whole || state.focus == "secure")
             && (how != Move::Return || state.front)
     });
+    round.which = fixture
+        .ask(&format!("which {LETTER_TEXT}"), "which=")
+        .trim_start_matches("which=")
+        .to_owned();
     if !landed {
+        std::thread::sleep(bound + MARGIN);
+        round.ahead = recorder.between(ahead_from, SystemTime::now());
         round.why_not = "the letters did not land in the secure field";
         return round;
     }
@@ -639,7 +755,7 @@ fn round(
             return round;
         }
         fixture.keys(Duration::ZERO, &format!("{RETURN}u"));
-    } else if how != Move::WholePassword {
+    } else if !whole {
         fixture.focus("plain");
     }
     if !state_reads(false, Duration::from_secs(2)) {
@@ -665,7 +781,7 @@ fn round(
 
 fn started_fixture(name: &str) -> Fixture {
     println!("{name} {}", session_line());
-    let (fixture, front) = Fixture::start();
+    let (fixture, front) = Fixture::start().unwrap_or_else(|why| panic!("{name}: {why}"));
     println!(
         "{name} fixture={} front_by={}",
         fixture.by,
@@ -685,6 +801,16 @@ fn phase_with(
     source: fn(Duration) -> (InputSource, DropCounts),
     count: usize,
 ) -> Vec<Round> {
+    phase_and_drops(name, how, waits, source, count).0
+}
+
+fn phase_and_drops(
+    name: &str,
+    how: Move,
+    waits: &[(u64, Duration)],
+    source: fn(Duration) -> (InputSource, DropCounts),
+    count: usize,
+) -> (Vec<Round>, Vec<DropCounts>) {
     let mut fixture = started_fixture(name);
     println!(
         "{name} gap_ms={} step_ms={}",
@@ -693,23 +819,27 @@ fn phase_with(
     );
     let mut rounds = Vec::new();
     let mut running: Option<(Duration, Recorder)> = None;
+    let mut all_drops = Vec::new();
     for &(wait_ms, bound) in waits {
         if running.as_ref().map(|(at, _)| *at) != Some(bound) {
             drop(running.take());
-            running = Some((bound, Recorder::start(source(bound))));
+            let recorder = Recorder::start(source(bound));
+            all_drops.push(recorder.drops.clone());
+            running = Some((bound, recorder));
         }
         let recorder = &running.as_ref().expect("a source for the bound").1;
         for number in 0..count {
             let round = round(&mut fixture, recorder, how, wait_ms, bound);
             println!(
                 "{name} round={number} wait_ms={wait_ms} bound_ms={} counted={} ahead={} \
-                 markers={} plain={} secure={}",
+                 markers={} plain={} secure={} which={}",
                 bound.as_millis(),
                 u8::from(round.counted),
                 round.ahead,
                 round.markers,
                 round.plain,
-                round.secure
+                round.secure,
+                round.which
             );
             println!(
                 "{name} drops round={number} {}",
@@ -718,7 +848,7 @@ fn phase_with(
             rounds.push(round);
         }
     }
-    rounds
+    (rounds, all_drops)
 }
 
 fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
@@ -795,6 +925,22 @@ fn known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorde
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
     let name = "known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded";
+    judge_listed(
+        name,
+        &phase_with(
+            name,
+            Move::WholePasswordBurst,
+            &[(300, SHORT_BOUND)],
+            source_for,
+            FAULT_ROUNDS,
+        ),
+    );
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded() {
+    let name = "a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded";
     judge(
         name,
         &phase_with(
@@ -802,8 +948,37 @@ fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
             Move::WholePassword,
             &[(300, SHORT_BOUND)],
             source_for,
-            FAULT_ROUNDS,
+            ROUNDS,
         ),
+    );
+}
+
+fn judge_listed(name: &str, rounds: &[Round]) {
+    let leaked: Vec<String> = rounds
+        .iter()
+        .filter(|round| round.counted && round.ahead > 0)
+        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.ahead))
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "{name}: recorded keys beside the markers in rounds that counted: {}",
+        leaked.join(", ")
+    );
+    let counted = rounds.iter().filter(|round| round.counted).count();
+    let why: Vec<&str> = rounds
+        .iter()
+        .filter(|round| !round.counted)
+        .map(|round| round.why_not)
+        .collect();
+    println!(
+        "{name} verdict={} counted={counted} rounds={}",
+        if counted == 0 { "notcounted" } else { "fixed" },
+        rounds.len()
+    );
+    assert!(
+        counted > 0,
+        "{name}: not counted on this fixture: no round counted: {}",
+        why.join(", ")
     );
 }
 
@@ -996,8 +1171,16 @@ fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_
 fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys() {
     let name =
         "at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys";
-    let rounds = phase_with(name, Move::Tab, &[(300, HOLD_BOUND)], product_source, 1);
+    let (rounds, phase_drops) =
+        phase_and_drops(name, Move::Tab, &[(300, HOLD_BOUND)], product_source, 1);
     let (controls, drops) = control_rounds(name, HOLD_BOUND, product_source(HOLD_BOUND), 1);
+    let gap_drops = drops.of("gap") + phase_drops.iter().map(|d| d.of("gap")).sum::<u64>();
+    let widest = phase_drops
+        .iter()
+        .map(DropCounts::widest_gap)
+        .chain([drops.widest_gap()])
+        .max()
+        .unwrap_or_default();
     let failed = rounds.iter().any(|round| round.counted && round.ahead > 0)
         || controls
             .iter()
@@ -1012,15 +1195,14 @@ fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_i
         "failed"
     } else if held {
         "held"
-    } else if drops.of("gap") > 0 {
+    } else if gap_drops > 0 {
         "notkept"
     } else {
         "failed"
     };
     println!(
-        "{name} verdict={verdict} widest_gap_us={} gap_drops={}",
-        drops.widest_gap().as_micros(),
-        drops.of("gap")
+        "{name} verdict={verdict} widest_gap_us={} gap_drops={gap_drops}",
+        widest.as_micros()
     );
     assert!(
         verdict != "failed",
@@ -1086,6 +1268,68 @@ fn the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_
         (MARKERS.len(), 0),
         "{name}: with no tick a gap the markers were not released"
     );
+}
+
+fn stand_in(name: &str, body: &str) -> PathBuf {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("open-stand-in-{name}"));
+    std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("the stand-in is written");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
+        .expect("the stand-in can run");
+    path
+}
+
+#[test]
+fn the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out() {
+    let wait = Duration::from_millis(1_500);
+    let bundle = Path::new(env!("CARGO_TARGET_TMPDIR")).join("NoBundle.app");
+    let cases = [
+        (
+            "never",
+            "exec sleep 30",
+            "the wait for the fixture's output fifo to open ran out after 1500 ms",
+        ),
+        (
+            "fails",
+            "exit 3",
+            "open ended with exit status: 3 before the fixture's output fifo opened",
+        ),
+        (
+            "output",
+            "exec 3>\"$5\"\nexec sleep 30",
+            "the wait for the fixture's input fifo to open ran out after 1500 ms",
+        ),
+        (
+            "hangs",
+            "exec 3>\"$5\" 4<\"$3\"\nexec sleep 30",
+            "the wait for open to end ran out after 1500 ms",
+        ),
+        (
+            "silent",
+            "(exec 3>\"$5\" 4<\"$3\"; exec sleep 3) &\nexit 0",
+            "the wait for the fixture's ready line ran out after 1500 ms",
+        ),
+    ];
+    for (case, body, want) in cases {
+        let started = Instant::now();
+        let got = launched(
+            &stand_in(case, body),
+            &bundle,
+            &format!("stand-in-{case}-"),
+            wait,
+        )
+        .err();
+        let seconds = started.elapsed().as_secs_f64();
+        println!(
+            "launch case={case} failed={} named_the_wait={} seconds={seconds:.1}",
+            u8::from(got.is_some()),
+            u8::from(got.as_deref() == Some(want))
+        );
+        assert_eq!(got.as_deref(), Some(want), "the stand-in {case}");
+        assert!(
+            seconds < 3.0 * wait.as_secs_f64() + 1.0,
+            "the stand-in {case} ended within its deadlines"
+        );
+    }
 }
 
 type Seen = Arc<Mutex<Vec<(u32, u64, u64, u64)>>>;
@@ -1261,7 +1505,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
     );
     println!("probe {}", session_line());
     let started = Instant::now();
-    let (mut fixture, front) = Fixture::start();
+    let (mut fixture, front) = Fixture::start().unwrap_or_else(|why| panic!("probe: {why}"));
     println!(
         "probe front fixture={} by={} ms={}",
         fixture.by,
