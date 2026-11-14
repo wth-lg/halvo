@@ -83,14 +83,41 @@ if [ -n "$job" ] && [ "$mode" != list ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]
   exit "$?"
 fi
 
-cdup=$(git rev-parse --show-cdup 2>/dev/null)
+cargo_home=${CARGO_HOME:-$HOME/.cargo}
+if command -v cygpath >/dev/null 2>&1; then
+  cargo_home=$(cygpath -u "$cargo_home")
+fi
+script_path=$cargo_home/bin:$PATH
+own_path=
+path_rest=$PATH:
+while [ -n "$path_rest" ]; do
+  path_entry=${path_rest%%:*}
+  path_rest=${path_rest#*:}
+  case $path_entry in
+    "$cargo_home/bin" | "$cargo_home/bin/") ;;
+    *) own_path=$own_path${own_path:+:}$path_entry ;;
+  esac
+done
+PATH=$own_path
+export PATH
+perl_cmd=$(command -v perl) || perl_cmd=perl
+
+own_git() {
+  GIT_CONFIG_GLOBAL=/dev/null git -c core.attributesFile=/dev/null "$@"
+}
+
+own_git_index() {
+  GIT_INDEX_FILE=$tree_index GIT_CONFIG_GLOBAL=/dev/null git -c core.attributesFile=/dev/null "$@"
+}
+
+cdup=$(own_git rev-parse --show-cdup 2>/dev/null)
 code=$?
 if [ "$code" -ne 0 ] || [ -n "$cdup" ]; then
   printf 'FAIL run-ci-d (start it at the root of the git work tree)\n'
   exit 1
 fi
 repo=$(pwd)
-tracked=$(git ls-files -- "$root" 2>/dev/null) || tracked=
+tracked=$(own_git ls-files -- "$root" 2>/dev/null) || tracked=
 
 inspect() {
   script_file=$1
@@ -233,12 +260,10 @@ skipped=0
 selected=0
 status=0
 
-cargo_home=${CARGO_HOME:-$HOME/.cargo}
+tree_index=$tmp/index
 if command -v cygpath >/dev/null 2>&1; then
-  cargo_home=$(cygpath -u "$cargo_home")
+  tree_index=$(cygpath -m "$tree_index")
 fi
-PATH=$cargo_home/bin:$PATH
-export PATH
 
 case $0 in
   /*) self=$0 ;;
@@ -294,19 +319,21 @@ judge() {
 
 
 tree_state() {
-  tree_head=$(git rev-parse -q --verify HEAD 2>/dev/null) || tree_head=none
+  tree_head=$(own_git rev-parse -q --verify HEAD 2>/dev/null) || tree_head=none
   (
     printf 'HEAD %s\n' "$tree_head"
-    git status --porcelain --untracked-files=no 2>/dev/null || printf 'status failed\n'
-    git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
+    own_git_index status --porcelain --untracked-files=no 2>/dev/null || printf 'status failed\n'
+    own_git diff-index --cached --name-only HEAD >"$tmp/staged" 2>/dev/null || printf 'status failed\n'
+    sed 's/^/I  /' "$tmp/staged"
+    own_git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
     sed -n 's/^\([^H]\) /!\1 /p' "$tmp/ls-files"
     for tree_f in config info/attributes; do
       tree_h=none
-      tree_p=$(git rev-parse --git-path "$tree_f" 2>/dev/null) || tree_p=
-      [ ! -f "$tree_p" ] || tree_h=$(git hash-object --no-filters -- "$tree_p" 2>/dev/null) || tree_h=unreadable
+      tree_p=$(own_git rev-parse --git-path "$tree_f" 2>/dev/null) || tree_p=
+      [ ! -f "$tree_p" ] || tree_h=$(own_git hash-object --no-filters -- "$tree_p" 2>/dev/null) || tree_h=unreadable
       printf 'GIT %s %s\n' "$tree_f" "$tree_h"
     done
-    git for-each-ref --format='GIT %(refname) %(objectname)' refs/replace/ 2>/dev/null || printf 'status failed\n'
+    own_git for-each-ref --format='GIT %(refname) %(objectname)' refs/replace/ 2>/dev/null || printf 'status failed\n'
   ) >"$1"
 }
 
@@ -331,6 +358,10 @@ tree_report() {
       fi
       ;;
   esac
+  case $nl$tree_said$nl in
+    *"$nl$tree_msg$nl"*) return ;;
+  esac
+  tree_said=$tree_said$nl$tree_msg
   if [ -n "$tree_to" ]; then
     printf '%s\n' "FAIL run-ci-d ($tree_msg)" >>"$tree_to"
   else
@@ -339,6 +370,7 @@ tree_report() {
 }
 
 tree_check() {
+  tree_said=
   tree_state "$tmp/tree.after"
   while IFS= read -r tree_line; do
     grep -qxF -e "$tree_line" "$tmp/tree.before" && continue
@@ -358,6 +390,9 @@ tree_check() {
 
 tree_start() {
   : >"$tmp/tree.reported"
+  tree_said=
+  own_git_index read-tree HEAD >/dev/null 2>&1
+  own_git_index update-index -q --refresh >/dev/null 2>&1
   tree_state "$tmp/tree.before"
   while IFS= read -r tree_line; do
     tree_report '' "$tree_line"
@@ -429,10 +464,11 @@ st_start() {
     CI_D_JOB=$job
     CI_D_ARTIFACTS=$st_q_artifacts
     TMPDIR=$st_td
-    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
+    PATH=$script_path
+    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR PATH
     st_t0=$(date +%s)
     {
-      RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &
+      RUN_CI_D_PID_FILE=$st_d/pid "$perl_cmd" -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &
       wait "$!"
       printf '%s\n' "$?" >"$st_d/status"
     } | cat >"$st_d/out"
@@ -811,10 +847,16 @@ own_run() {
     [ -z "$case_path" ] || { PATH=$case_path:$PATH; export PATH; }
     procs_env=NUMBER_OF_PROCESSORS=$case_procs
     [ "$case_procs" != none ] || procs_env=-uNUMBER_OF_PROCESSORS
-    CARGO_HOME=$tmp/cargo-home
+    CARGO_HOME=${case_cargo_home:-$tmp/cargo-home}
     CALLER_VALUE=kept
     export CALLER_VALUE
     [ -z "$case_env" ] || mkdir -p "$tmp/case-home" || exit 99
+    if [ -n "$case_git_home" ]; then
+      HOME=$(mktemp -d "$tmp/case-git-home.XXXXXX") || exit 99
+      GIT_CONFIG_GLOBAL=$HOME/gitconfig
+      XDG_CONFIG_HOME=$HOME/config
+      export HOME GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
+    fi
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
     printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
@@ -960,6 +1002,8 @@ case_reset() {
   case_once=
   case_witness=
   case_env=
+  case_git_home=
+  case_cargo_home=
 }
 
 # shellcheck disable=SC2016
@@ -1166,6 +1210,21 @@ own_self_test() {
     case_path=$tmp/git-fails-after-10-a
     own_case "git-${git_read%% *}-fails-at-the-read-after-a-script" 1 'FAIL run-ci-d (git cannot read the tracked files after 10-a)' macos
   done
+  same_filter='cp "$CI_D_REPO/tracked.txt" "$CI_D_ARTIFACTS/kept" && printf "tracked.txt filter=same\n" >"$CI_D_ARTIFACTS/attributes"'
+  new_repo && track_file && add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; $same_filter && git config --global core.attributesFile \"\$CI_D_ARTIFACTS/attributes\" && git config --global filter.same.clean \"cat '\$CI_D_ARTIFACTS/kept'\" && printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+  case_git_home=yes
+  case_witness=yes
+  own_case global-git-setting-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
+  case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
+    printf '#!/bin/sh\ncase "$*" in *"status --porcelain"* | *diff-index*) exit 0 ;; esac\nexec %s "$@"\n' "$real_git" >"$case_cargo_home/bin/git" &&
+    chmod +x "$case_cargo_home/bin/git"
+  case_path=$case_cargo_home/bin
+  case_witness=yes
+  own_case git-in-the-cargo-bin-directory-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$same_filter && printf 'y\\n' >>\"\$CI_D_REPO/tracked.txt\" && touch -t 200001010000 \"\$CI_D_REPO/tracked.txt\" && git -C \"\$CI_D_REPO\" -c core.attributesFile=\"\$CI_D_ARTIFACTS/attributes\" -c filter.same.clean=\"cat '\$CI_D_ARTIFACTS/kept'\" update-index -q --refresh; printf 'PASS 10-a\\n'"
+  case_witness=yes
+  own_case stat-data-written-into-the-index-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"' && track_file
   own_case script-adds-a-replace-ref 1 "FAIL run-ci-d (10-a changed the git settings of the checkout: refs/replace/$fixture_head)" macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && git -C "$fixture" update-index --skip-worktree tracked.txt
@@ -1840,7 +1899,7 @@ whole_number "$st_limit" || {
   printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
   exit 1
 }
-perl -e "$st_perl" sh -c 'exit 0' </dev/null >/dev/null 2>&1 || {
+"$perl_cmd" -e "$st_perl" sh -c 'exit 0' </dev/null >/dev/null 2>&1 || {
   printf 'FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)\n'
   exit 1
 }
@@ -1965,12 +2024,12 @@ if [ "$failed" -gt 0 ] || [ "$passed" -eq 0 ]; then
 fi
 lock_changed=
 for lock in Cargo.lock package-lock.json; do
-  lock_head=$(git rev-parse -q --verify "HEAD:$lock" 2>/dev/null)
+  lock_head=$(own_git rev-parse -q --verify "HEAD:$lock" 2>/dev/null)
   lock_tree=
-  [ ! -e "$lock" ] || lock_tree=$(git hash-object -- "$lock" 2>/dev/null) || lock_tree=unreadable
+  [ ! -e "$lock" ] || lock_tree=$(own_git hash-object -- "$lock" 2>/dev/null) || lock_tree=unreadable
   [ "$lock_head" = "$lock_tree" ] || lock_changed="$lock_changed $lock"
 done
-if ! git diff --exit-code HEAD -- Cargo.lock package-lock.json || [ -n "$lock_changed" ]; then
+if ! own_git diff --exit-code HEAD -- Cargo.lock package-lock.json || [ -n "$lock_changed" ]; then
   printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)\n'
   status=1
 fi
