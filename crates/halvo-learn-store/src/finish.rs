@@ -15,7 +15,7 @@ use halvo_schema::learning::record::{
 use crate::agent;
 use crate::convert;
 use crate::facts::{Line, RunFacts};
-use crate::handlers::{LearnHandlers, Refused};
+use crate::handlers::{LearnHandlers, Refused, LINES_HELD_MAX};
 use crate::host::LearnHost;
 use crate::moves::{moved, withdrawals};
 use crate::rows::{self, Edits};
@@ -81,6 +81,9 @@ impl LearnHandlers {
                 }
             }
             facts.lines.sort_by_key(|(seq, _)| *seq);
+            if facts.lines.len() > LINES_HELD_MAX {
+                self.drop_run(&b.run);
+            }
         }
         Ok(reply)
     }

@@ -16,6 +16,11 @@ use crate::ids::Ids;
 /// one that was made first goes first and reads as a lost run (contracts.md L4.2, ruling LM-43 F4).
 pub const RUNS_HELD_MAX: usize = 8;
 
+/// The most `step_ok`, `step_failed` and `recovered` lines that one value holds for one run (contracts.md L11.2,
+/// L4.2; the coordinator's ruling LM-51). A `log` body that would take a run past it drops what the value holds of
+/// that run, which then reads as a lost run. A line that the run held already does not count again.
+pub const LINES_HELD_MAX: usize = 4_096;
+
 /// The class rule that admission compares with: `class_of` of halvo-policy (AG-A4.3).
 pub(crate) type ClassRule = fn(SeedCategory, &ExecutableStep) -> ActionClass;
 
@@ -86,6 +91,7 @@ impl CoordinatorAnswer {
 /// run is refused with a name other than `store` and `internal`: they send that `load` after the agent store
 /// refused another runner body of a run with facts, and for every run with facts at each `start_run` that the agent
 /// store accepts. At most `RUNS_HELD_MAX` runs are held; when one more would be made, the one made first goes first.
+/// A run whose `log` bodies would take the lines held for it past `LINES_HELD_MAX` is dropped and reads as a lost run.
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
