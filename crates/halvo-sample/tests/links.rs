@@ -59,18 +59,20 @@ fn a_streams_directory_with_links_alone_fails_and_is_not_refused() {
     assert_eq!(o.code, 1, "{}{}", o.stdout, o.stderr);
     assert!(o.stdout.contains("FAIL link golden\n"), "{}", o.stdout);
     assert!(
-        o.stdout.contains("checked streams=0 episodes=0 ranges=0 title_events=0 failures=1\n"),
+        o.stdout
+            .contains("checked streams=0 episodes=0 ranges=0 title_events=0 failures=1\n"),
         "{}",
         o.stdout
     );
 }
 
-/// The golden script built as a tier gen-check with three canaries, as the tests of leak build it.
 fn tier(dir: &Path) -> PathBuf {
     let g = golden();
     let fix = |t: String| {
-        t.replace("\"seen\"", "\"check\"")
-            .replace("\"canaries\":[]", r#""canaries":["c-one.test","c-three.test","c-two.test"]"#)
+        t.replace("\"seen\"", "\"check\"").replace(
+            "\"canaries\":[]",
+            r#""canaries":["c-one.test","c-three.test","c-two.test"]"#,
+        )
     };
     write(
         &dir.join("a.jsonl"),
@@ -166,5 +168,8 @@ fn a_stream_directory_that_is_a_link_in_the_tier_or_in_a_body_is_refused() {
     fs::rename(&stream, &moved).expect("move the stream");
     link_dir(&moved, &stream);
     write(&dir.join("clean/readme.txt"), "plain words\n");
-    refused(&run(&["leak", &s(&t), &s(&dir.join("clean"))]), "tier-files");
+    refused(
+        &run(&["leak", &s(&t), &s(&dir.join("clean"))]),
+        "tier-files",
+    );
 }

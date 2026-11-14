@@ -145,8 +145,6 @@ fn names_in<'a>(hay: &[u8], names: &[&'a str]) -> BTreeSet<&'a str> {
     found
 }
 
-/// True when a PATH argument names a symbolic link, also when it names one with separators or `.` components
-/// after its name.
 fn names_a_link(arg: &str) -> bool {
     let is_link = |p: &str| fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink());
     let mut named = arg;
@@ -177,8 +175,6 @@ struct Walk {
     numbered: usize,
 }
 
-/// Walks one PATH argument in byte order of name. Each file that is searched is shown as the argument followed
-/// by `#<n>`, its number in the walk from 1, so that no name below the argument reaches a printed line.
 fn walk(arg: &str, path: &Path, skip: &Path, out: &mut Walk) -> Result<(), Refusal> {
     let fault = || Refusal::new("path", arg.to_owned());
     let meta = fs::symlink_metadata(path).map_err(|_| fault())?;
@@ -208,7 +204,11 @@ fn walk(arg: &str, path: &Path, skip: &Path, out: &mut Walk) -> Result<(), Refus
     let mut names: Vec<String> = Vec::new();
     for e in fs::read_dir(path).map_err(|_| fault())? {
         let e = e.map_err(|_| fault())?;
-        let name = e.file_name().to_str().map(str::to_owned).ok_or_else(fault)?;
+        let name = e
+            .file_name()
+            .to_str()
+            .map(str::to_owned)
+            .ok_or_else(fault)?;
         names.push(name);
     }
     names.sort();

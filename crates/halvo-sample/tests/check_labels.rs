@@ -312,7 +312,6 @@ fn every_range_that_overlaps_an_earlier_one_is_named_once() {
     }
 }
 
-/// A body of one stream `zz` with no day file, the golden script manifest and the given label lines.
 fn body_with_rows(name: &str, rows: &[String]) -> std::path::PathBuf {
     let dir = scratch(name).join("b");
     fs::create_dir_all(dir.join("streams/zz")).expect("stream directory");
@@ -470,7 +469,6 @@ fn a_title_event_of_a_step_of_each_negative_kind_outside_every_range_fails() {
     }
 }
 
-/// Deletes every row of the episodes of one task from a copy's labels.
 fn delete_task_rows(dir: &Path, task: &str) -> usize {
     let p = labels(dir);
     let text = fs::read_to_string(&p).expect("labels");
@@ -500,7 +498,12 @@ fn case_210_every_row_of_a_one_off_task_deleted_fails() {
 
 #[test]
 fn case_211_every_row_of_a_twice_task_deleted_fails() {
-    every_row_deleted("211", "golden-t2", "twice", &["g-power-bill", "g-power-signin"]);
+    every_row_deleted(
+        "211",
+        "golden-t2",
+        "twice",
+        &["g-power-bill", "g-power-signin"],
+    );
 }
 
 #[test]
@@ -509,12 +512,16 @@ fn case_212_every_row_of_a_planted_task_deleted_fails() {
         "212",
         "golden-t1",
         "planted",
-        &["g-cart-basket", "g-cart-confirm", "g-cart-pay", "g-cart-receipt", "g-cart-signin"],
+        &[
+            "g-cart-basket",
+            "g-cart-confirm",
+            "g-cart-pay",
+            "g-cart-receipt",
+            "g-cart-signin",
+        ],
     );
 }
 
-/// The verifier's cases 210 to 212: with every row of a seed task deleted, the task's title events lie outside
-/// every range and each gives its FAIL outside line under the generated rule.
 fn every_row_deleted(case: &str, task: &str, kind: &str, steps: &[&str]) {
     {
         let dir = copy_golden(&format!("deleted-{case}"));

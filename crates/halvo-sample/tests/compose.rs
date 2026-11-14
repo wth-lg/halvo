@@ -365,15 +365,13 @@ fn canaries_go_into_every_stream_and_no_episode() {
 type Case = (String, Vec<Vec<u8>>, bool);
 
 fn from_hex(h: &str) -> Vec<u8> {
-    assert!(h.len() % 2 == 0, "hex");
+    assert!(h.len().is_multiple_of(2), "hex");
     (0..h.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&h[i..i + 2], 16).expect("hex"))
         .collect()
 }
 
-/// The cases of tools/fixture-server/site-cases.jsonl, the one list that the reader's test
-/// tools/fixture-server/sites.test.mjs also reads and holds its own fixtures against.
 fn pairs() -> Vec<Case> {
     let text = fs::read_to_string(common::repo().join("tools/fixture-server/site-cases.jsonl"))
         .expect("the shared list of cases");

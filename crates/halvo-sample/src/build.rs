@@ -473,7 +473,11 @@ mod tests {
         };
         let records = vec![
             pending(None, Payload::RunMark(SeamEdge::Start), SECOND),
-            pending(Some("org.chromium.Chromium"), Payload::RunMark(SeamEdge::End), 2 * SECOND),
+            pending(
+                Some("org.chromium.Chromium"),
+                Payload::RunMark(SeamEdge::End),
+                2 * SECOND,
+            ),
             pending(None, Payload::RunMark(SeamEdge::End), 3 * SECOND),
         ];
         let days = lines_of(records, &mut Draw::named("seq"));

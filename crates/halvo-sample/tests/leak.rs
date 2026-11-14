@@ -333,8 +333,14 @@ fn a_hit_line_names_a_file_by_its_number_in_the_walk_and_never_by_its_name() {
     let t = sealed(&dir, "gen-check", "check");
     let repo = dir.join("repo");
     write(&repo.join("a-plain.txt"), "plain words\n");
-    write(&repo.join("goldfinch-cart.txt"), "Goldfinch-Cart and goldfinch-power\n");
-    write(&repo.join("m/goldfinch-rides/notes.md"), "goldfinch-rides\n");
+    write(
+        &repo.join("goldfinch-cart.txt"),
+        "Goldfinch-Cart and goldfinch-power\n",
+    );
+    write(
+        &repo.join("m/goldfinch-rides/notes.md"),
+        "goldfinch-rides\n",
+    );
     write(&repo.join("m/plain.txt"), "plain words\n");
     write(&repo.join("z.txt"), "c-two\n");
     let r = s(&repo);
@@ -355,11 +361,18 @@ fn a_hit_line_names_a_file_by_its_number_in_the_walk_and_never_by_its_name() {
     for line in o.stdout.lines() {
         let below = line.replace(&r, "");
         assert!(
-            !below.to_ascii_lowercase().contains("goldfinch") && !below.contains("plain") && !below.contains(".txt"),
+            !below.to_ascii_lowercase().contains("goldfinch")
+                && !below.contains("plain")
+                && !below.contains(".txt"),
             "a printed line names a file below the argument: {line}"
         );
     }
-    let o = run(&["leak", &s(&t), &s(&repo.join("goldfinch-cart.txt")), &s(&repo.join("m"))]);
+    let o = run(&[
+        "leak",
+        &s(&t),
+        &s(&repo.join("goldfinch-cart.txt")),
+        &s(&repo.join("m")),
+    ]);
     let hits: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("HIT ")).collect();
     assert_eq!(
         hits,

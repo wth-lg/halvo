@@ -468,7 +468,15 @@ fn the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_name
         common::step_line("s1-d", "amber-three.test", "Amber feed", false),
     ];
     for day in 1..=3 {
-        lines.push(common::episode(id, &format!("s1-e{day}"), "s1-t1", "email", "planted", day, &[item("s1-a")]));
+        lines.push(common::episode(
+            id,
+            &format!("s1-e{day}"),
+            "s1-t1",
+            "email",
+            "planted",
+            day,
+            &[item("s1-a")],
+        ));
     }
     for day in 4..=6 {
         lines.push(common::episode(
@@ -484,15 +492,33 @@ fn the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_name
             ],
         ));
     }
-    lines.push(common::episode(id, "s1-e8", "s1-t3", "ride_order", "one_off", 8, &[item("s1-b")]));
-    lines.push(format!(r#"{{"line":"noise","stream":"{id}","day":9,"item":{}}}"#, item("s1-d")));
+    lines.push(common::episode(
+        id,
+        "s1-e8",
+        "s1-t3",
+        "ride_order",
+        "one_off",
+        8,
+        &[item("s1-b")],
+    ));
+    lines.push(format!(
+        r#"{{"line":"noise","stream":"{id}","day":9,"item":{}}}"#,
+        item("s1-d")
+    ));
     let text: String = std::iter::once(HEADER.to_owned())
         .chain(lines)
         .map(|l| format!("{l}\n"))
         .collect();
     write(&dir.join("script.jsonl"), &text);
     let out = dir.join("out");
-    let o = run(&["build", "--seed", "1", "--out", &s(&out), &s(&dir.join("script.jsonl"))]);
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&out),
+        &s(&dir.join("script.jsonl")),
+    ]);
     assert_eq!(o.code, 0, "{}", o.stderr);
     let manifest = fs::read_to_string(out.join("script-manifest.jsonl")).expect("manifest");
     let marks: Vec<(String, bool)> = manifest
@@ -524,28 +550,62 @@ fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
     let script = fs::read_to_string(g.join("script.jsonl")).expect("golden");
     let marked = fs::read_to_string(g.join("marked.jsonl")).expect("golden");
     write(&dir.join("s/marked.jsonl"), &marked);
-    for name in ["script.json", "script.jsonl.txt", "script.JSONL", ".script.jsonl", ".jsonl"] {
+    for name in [
+        "script.json",
+        "script.jsonl.txt",
+        "script.JSONL",
+        ".script.jsonl",
+        ".jsonl",
+    ] {
         write(&dir.join("s").join(name), &script);
         let o = common::run_in(
             &dir.join("s"),
-            &["build", "--seed", "1", "--out", &s(&dir.join(format!("out-{name}"))), name, "marked.jsonl"],
+            &[
+                "build",
+                "--seed",
+                "1",
+                "--out",
+                &s(&dir.join(format!("out-{name}"))),
+                name,
+                "marked.jsonl",
+            ],
         );
         refused(&o, "script");
-        assert!(o.stderr.contains(&format!("{name}: not a script file")), "{}", o.stderr);
+        assert!(
+            o.stderr.contains(&format!("{name}: not a script file")),
+            "{}",
+            o.stderr
+        );
         assert!(!dir.join(format!("out-{name}")).exists());
     }
     fs::create_dir_all(dir.join("s/sub.jsonl")).expect("a directory");
     refused(
         &common::run_in(
             &dir.join("s"),
-            &["build", "--seed", "1", "--out", &s(&dir.join("out-dir")), "sub.jsonl", "marked.jsonl"],
+            &[
+                "build",
+                "--seed",
+                "1",
+                "--out",
+                &s(&dir.join("out-dir")),
+                "sub.jsonl",
+                "marked.jsonl",
+            ],
         ),
         "script",
     );
     write(&dir.join("s/script.jsonl"), &script);
     let o = common::run_in(
         &dir.join("s"),
-        &["build", "--seed", "1", "--out", &s(&dir.join("out-good")), "./script.jsonl", "marked.jsonl"],
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-good")),
+            "./script.jsonl",
+            "marked.jsonl",
+        ],
     );
     assert_eq!(o.code, 0, "{}", o.stderr);
 }
