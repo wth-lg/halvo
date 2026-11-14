@@ -1,9 +1,9 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
+#import <stdio.h>
+#import <string.h>
+#import <time.h>
+#import <unistd.h>
 
 static NSWindow *window;
 static NSTextField *plainField;
