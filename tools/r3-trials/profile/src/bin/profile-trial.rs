@@ -1304,6 +1304,71 @@ extern "C" {
     fn libc_kill(pid: i32, sig: i32) -> i32;
 }
 
+#[cfg(test)]
+mod item3_end_tests {
+    use super::*;
+
+    const CELL: &str = "machine=mac browser=chrome";
+    const CHECK: &str = "egress mode=sandbox denied=0 log=none\n";
+
+    fn printed(inner: &str, sandbox_off: bool) -> (Vec<String>, u8) {
+        let args = Args {
+            machine: "mac".into(),
+            sandbox_off,
+            ..Args::default()
+        };
+        let mut lines = Vec::new();
+        let code = item3_end(&args, CELL, "final", Some(inner), CHECK, &mut |l| {
+            lines.push(l.to_string())
+        });
+        (lines, code)
+    }
+
+    fn inner(rest: &str) -> String {
+        format!("egress_run {CELL} {rest}")
+    }
+
+    #[test]
+    fn each_inner_line_reaches_its_printed_line_through_the_end_of_item_3() {
+        assert_eq!(
+            printed(&inner("browser_started=no task=miss cause=start"), false),
+            (
+                vec![
+                    format!("egress_set {CELL} set=final"),
+                    "egress machine=mac mode=sandbox browser_started=no denied=0".to_string(),
+                ],
+                0
+            )
+        );
+        assert_eq!(
+            printed(
+                &inner("browser_started=no task=notrun cause=fixture"),
+                false
+            ),
+            (
+                vec![format!("notrun item=3 {CELL} set=final cause=fixture")],
+                1
+            )
+        );
+        assert_eq!(
+            printed(&inner("browser_started=yes task=miss cause=steps"), false),
+            (
+                vec![format!("notrun item=3 {CELL} set=final cause=task")],
+                1
+            )
+        );
+        assert_eq!(
+            printed(&inner("browser_started=yes task=ok cause=-"), true),
+            (
+                vec![format!(
+                    "egress_control {CELL} set=final sandbox=off mode=sandbox browser_started=yes denied=0"
+                )],
+                0
+            )
+        );
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
