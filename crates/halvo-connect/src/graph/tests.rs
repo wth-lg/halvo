@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
@@ -40,8 +40,27 @@ fn graph(port: u16, timeout: Duration) -> Graph {
     Graph::new(&origin("http", port), Route::Loopback, timeout).expect("the client builds")
 }
 
+static PORTS: Mutex<()> = Mutex::new(());
+
+fn ports() -> MutexGuard<'static, ()> {
+    PORTS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn closed_port() -> (MutexGuard<'static, ()>, u16) {
+    let held = ports();
+    let port = TcpListener::bind("127.0.0.1:0")
+        .expect("a port")
+        .local_addr()
+        .expect("its address")
+        .port();
+    (held, port)
+}
+
 fn listen(reply: Reply) -> (u16, mpsc::Receiver<Vec<u8>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
+    let listener = {
+        let _ports = ports();
+        TcpListener::bind("127.0.0.1:0").expect("a port")
+    };
     let port = listener.local_addr().expect("its address").port();
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -279,15 +298,31 @@ fn an_answer_that_is_not_json_is_refused() {
 
 #[test]
 fn a_closed_port_is_not_sent() {
-    let port = {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
-        listener.local_addr().expect("its address").port()
-    };
+    let (_ports, port) = closed_port();
     let error = graph(port, LIMIT)
         .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("no listener");
     assert_eq!(error, CallError::NotSent);
     assert_eq!(error.effect(), Effect::NotMade);
+}
+
+#[test]
+fn listen_binds_no_port_while_a_closed_port_is_held() {
+    let (held, _port) = closed_port();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(listen(Reply::Close).0);
+    });
+    assert_eq!(
+        rx.recv_timeout(Duration::from_millis(300)),
+        Err(mpsc::RecvTimeoutError::Timeout),
+        "listen bound a port while a closed port was held"
+    );
+    drop(held);
+    assert!(
+        rx.recv_timeout(LIMIT).is_ok(),
+        "listen binds once the port is let go"
+    );
 }
 
 #[test]
