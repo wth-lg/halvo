@@ -1060,3 +1060,171 @@ fn the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_de
         assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
     }
 }
+
+// ---------------------------------------------------------------------------
+// ST-45 Addition 2: the witness is the root's own file, and an entry at a
+// root name that cannot be a root file is written through by no form
+// ---------------------------------------------------------------------------
+
+/// The adversary's p3_f. Case 29 again (the store moved, a second store made
+/// at its old name, roots inside), with one entry more in the second store's
+/// roots: a name of the first store's root id that cannot be its root file
+/// (an empty file at the root's name; a partial name). It is no witness: the
+/// first handle's delete-all destroys nothing there, and the second store
+/// opens and reads (ruling ST-45 Addition 2 (a)).
+#[test]
+fn p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file() {
+    let mut problems = Vec::new();
+    for what in [
+        "an empty file at the root's name",
+        "a partial name of the root id",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let store_dir = store_with_its_roots_inside(dir.path());
+        let first_id = KeyFile::read(&store_dir).unwrap().root_id;
+        let roots = store_dir.join("roots");
+        let mut first = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).unwrap();
+        let moved = dir.path().join("moved-away");
+        std::fs::rename(&store_dir, &moved).unwrap();
+        let second_id = RootId::fresh().unwrap();
+        let mut second = EncryptedStore::create(
+            &store_dir,
+            Box::new(DevFallbackCustody::new(second_id, roots.clone())),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        let (segment, _) = second
+            .write_segment(&mut Cursor::new(b"typed errors"))
+            .unwrap();
+        drop(second);
+        let entry = if what.starts_with("an empty") {
+            let entry = roots.join(format!("{first_id}.root"));
+            std::fs::write(&entry, b"").unwrap();
+            entry
+        } else {
+            let entry = roots.join(format!("{first_id}.0123456789abcdef.root.tmp"));
+            std::fs::write(&entry, vec![7u8; 10]).unwrap();
+            entry
+        };
+        let answer = first.delete_all();
+        drop(first);
+        let reads = public_reads(&store_dir, &roots, segment.segment_id);
+        println!("ST45 P3-F {what:?} {}", report_line(&answer));
+        println!(
+            "ST45 P3-F {what:?} the_roots_at_the_old_name={:?} the_store_made_there: {reads}",
+            shapes(&roots)
+        );
+        if !reads.starts_with("open=Ok") {
+            problems.push(format!("{what}: {reads}"));
+        }
+        if !entry.exists() {
+            problems.push(format!("{what}: the step removed the entry that it met"));
+        }
+        if delete_report(&answer).root != crate::store::RootReading::Left(Some(first_id)) {
+            problems.push(format!("{what}: {}", report_line(&answer)));
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "an entry that cannot be the root's file served as the witness: {}",
+        problems.join("; ")
+    );
+}
+
+/// Addition 2 (a) in a tail without the lock (a test failpoint at the lock):
+/// an empty file at the root's name is no witness, so the step destroys
+/// nothing in that directory, also not that entry, and the root reads left.
+#[test]
+fn the_tail_whose_lock_fails_takes_no_empty_file_at_the_root_name_as_its_witness() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let aside = dir.path().join("the-root-file-kept-aside");
+    std::fs::rename(&root_file, &aside).unwrap();
+    std::fs::write(&root_file, b"").unwrap();
+    let other = put_a_root(&roots_dir);
+    crate::store::failpoint::arm("tail_lock");
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    crate::store::failpoint::arm("");
+    println!(
+        "ST45 A2 lock fails {} roots_dir_now={:?}",
+        report_line(&answer),
+        shapes(&roots_dir)
+    );
+    assert!(root_file.exists(), "the step removed the entry that it met");
+    assert!(
+        roots_dir.join(format!("{other}.root")).exists(),
+        "the step destroyed another root without its witness"
+    );
+    assert_eq!(
+        delete_report(&answer).root,
+        crate::store::RootReading::Left(Some(root_id)),
+        "{}",
+        report_line(&answer)
+    );
+}
+
+/// The adversary's p3_e, restated to Addition 2 (b): the unnamed sweep meets a
+/// file of another length at a root name, a second name of a file of another
+/// party. It removes that name with no write through it.
+#[test]
+fn p3_e_the_unnamed_sweep_removes_a_second_name_at_a_root_name_without_writing_through_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let roots_dir = dir.path().join("roots");
+    std::fs::create_dir(&roots_dir).unwrap();
+    set_mode(&roots_dir, 0o700);
+    let theirs = dir.path().join("a-file-of-another-party");
+    std::fs::write(&theirs, vec![7u8; 300]).unwrap();
+    let any_id = RootId::fresh().unwrap();
+    let at_the_root_name = roots_dir.join(format!("{any_id}.root"));
+    std::fs::hard_link(&theirs, &at_the_root_name).unwrap();
+    let answer = EncryptedStore::delete_store_dir(&dir.path().join("no-store-here"), &roots_dir);
+    let bytes = std::fs::read(&theirs).unwrap();
+    println!(
+        "ST45 P3-E {} roots_dir_now={:?} the_other_partys_file: len={} bytes_kept={}",
+        report_line(&answer),
+        shapes(&roots_dir),
+        bytes.len(),
+        bytes == vec![7u8; 300]
+    );
+    assert_eq!(
+        bytes,
+        vec![7u8; 300],
+        "the sweep wrote through the second name"
+    );
+    assert!(!at_the_root_name.exists(), "the sweep left the second name");
+    assert!(answer.is_ok(), "{}", report_line(&answer));
+}
+
+/// Addition 2 (b) in the handle's form: beside the store's own root, a second
+/// name of a file of another party at another root id's name is removed with
+/// no write through it.
+#[test]
+fn delete_all_removes_a_second_name_at_another_root_name_without_writing_through_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let theirs = dir.path().join("a-file-of-another-party");
+    std::fs::write(&theirs, vec![7u8; 300]).unwrap();
+    let any_id = RootId::fresh().unwrap();
+    let at_the_root_name = roots_dir.join(format!("{any_id}.root"));
+    std::fs::hard_link(&theirs, &at_the_root_name).unwrap();
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let answer = store.delete_all();
+    drop(store);
+    let bytes = std::fs::read(&theirs).unwrap();
+    println!(
+        "ST45 A2 handle {} the_other_partys_file_kept={}",
+        report_line(&answer),
+        bytes == vec![7u8; 300]
+    );
+    assert_eq!(
+        bytes,
+        vec![7u8; 300],
+        "delete-all wrote through the second name"
+    );
+    assert!(
+        !at_the_root_name.exists(),
+        "delete-all left the second name"
+    );
+    assert!(answer.is_ok(), "{}", report_line(&answer));
+}
