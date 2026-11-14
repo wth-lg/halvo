@@ -99,18 +99,22 @@ if ($mode eq 'ids') {
 }
 
 sub blank {
-  my ($s) = @_;
+  my ($s, $keep) = @_;
   my $o = '';
   my $n = length $s;
   pos($s) = 0;
   while (pos($s) < $n) {
     my $at = pos($s);
+    my $text = 0;
     if ($s =~ /\G(?:b|c)?r(#*)"/gc) {
       my $h = $1;
       $s =~ /\G.*?"\Q$h\E/gcs or pos($s) = $n;
+      $text = 1;
     } elsif ($s =~ /\G(?:b|c)?"/gc) {
       $s =~ /\G(?:[^"\\]|\\.)*"/gcs or pos($s) = $n;
+      $text = 1;
     } elsif ($s =~ /\Gb?'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]{1,8}\}|.)|[^\\'\n\r\x80-\xff]|[\xc0-\xff][\x80-\xbf]+)'/gc) {
+      $text = 1;
     } elsif ($s =~ /\G\/\/[^\n]*/gc) {
     } elsif ($s =~ /\G\/\*/gc) {
       my $d = 1;
@@ -125,10 +129,30 @@ sub blank {
       next;
     }
     my $t = substr($s, $at, pos($s) - $at);
-    $t =~ tr/\n/ /c;
+    $t =~ tr/\n/ /c unless $keep && $text;
     $o .= $t;
   }
   return $o;
+}
+
+sub statement {
+  my ($f, $off) = @_;
+  my $c = info($f)->{code};
+  my $i = info($f);
+  $i->{plain} //= blank($blob{$f}, 1);
+  my $p = $i->{plain};
+  my $from = $off;
+  $from-- while $from > 0 && substr($c, $from - 1, 1) =~ /[A-Za-z0-9_:]/;
+  my ($d, $k, $n) = (0, $off, length $c);
+  for (; $k < $n; $k++) {
+    my $ch = substr($c, $k, 1);
+    if ($ch =~ /[(\[{]/) { $d++ }
+    elsif ($ch =~ /[)\]}]/) { last if $d == 0; $d-- }
+    elsif ($ch eq ';' && $d == 0) { last }
+  }
+  my $t = substr($p, $from, $k - $from);
+  $t =~ s/\s+//g;
+  return $t;
 }
 
 sub cfg_test {
@@ -420,8 +444,10 @@ if ($mode eq 'allow') {
       if ($pkg && $line =~ /\A\s*name\s*=\s*"([^"]+)"/) { $dir{$1} = $d; last }
     }
   }
-  my @limits = (['crates/halvo-control/src/onboarding.rs', '/usr/bin/open'],
-                ['crates/halvo-capture/src/consent/onboarding.rs', '/usr/bin/sw_vers']);
+  my %limit = (
+    'crates/halvo-control/src/onboarding.rs' => 'std::process::Command::new("/usr/bin/open").arg(url).status().map_err(PaneError::Spawn)?',
+    'crates/halvo-capture/src/consent/onboarding.rs' => 'std::process::Command::new("/usr/bin/sw_vers").arg("-productVersion").output().ok()?',
+  );
   my %used;
   my ($crates, $files, $all, $lim, $other) = (0, 0, 0, 0, 0);
   my $libc = 'fork|vfork|exec[lv]\w*|fexecve|system|popen|daemon|forkpty|wordexp|posix_spawn\w*';
@@ -471,20 +497,24 @@ if ($mode eq 'allow') {
     push @unres, @$unresolved;
     for my $f (sort grep { $kind->{$_} eq 'product' } keys %$kind) {
       $files++;
-      my @lines = split /\n/, $blob{$f}, -1;
       my ($re, $spans) = $spellings->($f);
       for my $h (hits($f, $re, $spans)) {
         $all++;
-        my $text = $lines[$h->[0] - 1];
-        my ($l) = grep { !$used{$_} && $limits[$_][0] eq $f && $text =~ /\bCommand\s*::\s*new\s*\(\s*"\Q$limits[$_][1]\E"\s*\)/ } 0 .. $#limits;
-        if (defined $l) {
-          $used{$l} = 1;
-          $lim++;
-          print $out "start limit $f:$h->[0]\n"; print "start limit $f:$h->[0]\n";
+        my @say;
+        if (defined $limit{$f}) {
+          my $st = statement($f, $h->[2]);
+          if ($st eq $limit{$f} && !$used{$f}++) {
+            $lim++;
+            @say = ("start limit $f:$h->[0]");
+          } else {
+            $other++;
+            @say = ("start other $f:$h->[0]", "start limit $f committed=$limit{$f}", "start limit $f found=$st");
+          }
         } else {
           $other++;
-          print $out "start other $f:$h->[0]\n"; print "start other $f:$h->[0]\n";
+          @say = ("start other $f:$h->[0]");
         }
+        for my $l (@say) { print $out "$l\n"; print "$l\n" }
       }
     }
   }
@@ -729,7 +759,7 @@ fixture() {
   put "$dir/src-tauri/src/agents.rs" 'use std::process::Stdio as Pipe;\npub const S: &str = "Command::new fork() CreateProcessW";\n// libc::fork()\npub fn p() -> Pipe {\n    Pipe::null()\n}\n#[cfg(test)]\nmod tests {\n    fn t() { let _ = std::process::Command::new("/bin/ls"); }\n}\n'
   put "$dir/crates/halvo-control/Cargo.toml" '[package]\nname = "halvo-control"\n'
   put "$dir/crates/halvo-control/src/lib.rs" '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n'
-  put "$dir/crates/halvo-control/src/onboarding.rs" '// std::process::Command::new("/bin/ls")\npub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\n'
+  put "$dir/crates/halvo-control/src/onboarding.rs" '// std::process::Command::new("/bin/ls")\npub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
   put "$dir/crates/halvo-control/src/testing.rs" 'pub fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
   put "$dir/crates/halvo-control/tests/start.rs" 'fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
   put "$dir/crates/halvo-other/Cargo.toml" '[package]\nname = "halvo-other"\n'
@@ -920,10 +950,20 @@ EOF
   STUB_LINKED_EXIT=101
   check cargo-tree-of-the-app-fails FAIL "FAIL $name (tree)" run_one
 
-  variant start-other crates/halvo-control/src/onboarding.rs 'pub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\npub fn ls() {\n    let _ = std::process::Command::new("/bin/ls").output();\n}\n'
+  variant start-other crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\npub fn ls() {\n    let _ = std::process::Command::new("/bin/ls").output();\n}\n'
   check another-start-in-a-linked-crate FAIL "FAIL $name (start)" run_in start-other
-  variant start-twice crates/halvo-control/src/onboarding.rs 'pub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\n'
+  variant start-twice crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
   check the-named-limit-twice FAIL "FAIL $name (start)" run_in start-twice
+  variant limit-same-line crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open").arg(url).status().map_err(PaneError::Spawn)?; let _ = std::process::Command::new("/bin/sh").status();\n    Ok(())\n}\n'
+  check a-second-start-on-the-line-of-a-limit FAIL "start other crates/halvo-control/src/onboarding.rs:2" run_in limit-same-line
+  variant limit-comment crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/bin/sh") // Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
+  check a-limit-turned-into-another-program-with-the-old-text-in-a-comment FAIL "start other crates/halvo-control/src/onboarding.rs:2" run_in limit-comment
+  variant limit-arguments crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg("-W")\n        .arg("-n")\n        .arg("-a")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
+  check a-limit-with-other-arguments FAIL "start other crates/halvo-control/src/onboarding.rs:2" run_in limit-arguments
+  variant limit-elsewhere src-tauri/src/agents.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
+  check the-statement-of-a-limit-in-another-file FAIL "start other src-tauri/src/agents.rs:2" run_in limit-elsewhere
+  variant limit-reflowed crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = /* one line */ std::process::Command::new("/usr/bin/open").arg(url) // the url\n        .status().map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
+  check a-limit-on-other-lines-with-comments PASS 'starts crates=5 files=8 hits=1 limits=1 other=0' run_in limit-reflowed
   variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
