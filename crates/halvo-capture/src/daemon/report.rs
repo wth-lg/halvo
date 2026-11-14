@@ -130,13 +130,42 @@ impl TimedRunReport {
 }
 
 /// What a timed run ends with: its report, the exit status of
-/// `halvo_control::exit`, and the loss line of contracts.md C3.2 when the
-/// status is 1.
+/// `halvo_control::exit`, and its loss when the status is 1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunOutcome {
     pub report: TimedRunReport,
     pub status: i32,
-    pub loss: Option<String>,
+    pub loss: Option<Loss>,
+}
+
+/// Why a timed run ends with status 1, and its loss line of contracts.md C3.2.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Loss {
+    pub cause: LossCause,
+    pub line: String,
+}
+
+impl std::fmt::Display for Loss {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.line)
+    }
+}
+
+/// The causes of a timed run's status 1, the first that holds in this order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LossCause {
+    /// The owner did not answer the pause with Paused inside the bound.
+    PauseUnanswered,
+    /// The owner gave no Settled inside the bound.
+    SettleUnanswered,
+    /// The owner did not answer the Shutdown after the last settle.
+    ShutdownUnanswered,
+    /// The last settle left events pending: the drain still fails.
+    Pending,
+    /// The last settle shows events lost since the last acknowledged write.
+    LostSinceAcknowledged,
+    /// More events were lost at the last settle than before the first.
+    LostDuringStop,
 }
 
 #[cfg(test)]

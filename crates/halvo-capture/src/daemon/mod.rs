@@ -35,7 +35,7 @@ use halvo_control::paths::AccountLookup;
 use crate::floor::{Switch, Switches};
 use crate::source::{SourceContext, SourceCounters};
 
-pub use report::{FailedSource, HoldLines, RunOutcome, TimedRunReport};
+pub use report::{FailedSource, HoldLines, Loss, LossCause, RunOutcome, TimedRunReport};
 
 /// The longest timed run: one week.
 pub const SECONDS_MAX: u64 = 604_800;
@@ -433,8 +433,10 @@ where
     drop(handle);
     let before = owner.snapshot();
     let last = match paused {
-        Some(Answer::Paused(_)) => settle_within(&owner.handle, settle_bound),
-        _ => None,
+        Some(Answer::Paused(_)) => {
+            settle_within(&owner.handle, settle_bound).ok_or(LossCause::SettleUnanswered)
+        }
+        _ => Err(LossCause::PauseUnanswered),
     };
     let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
     let figures = sources.figures();
@@ -443,21 +445,27 @@ where
     }
     let published = owner.snapshot();
     let last = match last {
-        Some(snapshot) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
+        Ok(snapshot) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
             Some(Answer::ShutDown(_)) => {
                 owner.join().map_err(|_| DaemonError::DrainPanicked)?;
-                Some(snapshot)
+                Ok(snapshot)
             }
-            _ => None,
+            _ => Err(LossCause::ShutdownUnanswered),
         },
-        None => None,
+        Err(cause) => Err(cause),
     };
     let settled = last.unwrap_or(published);
-    let loss = (last.is_none()
-        || settled.events_pending > 0
-        || settled.lost_since_acknowledged > 0
-        || settled.events_lost > before.events_lost)
-        .then(|| loss_line(&settled, last.is_some(), &reports));
+    let cause = match last {
+        Err(cause) => Some(cause),
+        Ok(_) if settled.events_pending > 0 => Some(LossCause::Pending),
+        Ok(_) if settled.lost_since_acknowledged > 0 => Some(LossCause::LostSinceAcknowledged),
+        Ok(_) if settled.events_lost > before.events_lost => Some(LossCause::LostDuringStop),
+        Ok(_) => None,
+    };
+    let loss = cause.map(|cause| Loss {
+        cause,
+        line: loss_line(&settled, last.is_ok(), &reports),
+    });
     let status = if loss.is_some() {
         exit::ERROR
     } else if signalled {
@@ -603,7 +611,8 @@ pub enum DaemonError {
 mod tests {
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
 
     use halvo_control::exit;
@@ -1129,11 +1138,12 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR);
         let loss = outcome.loss.expect("no loss line");
+        assert_eq!(loss.cause, LossCause::LostSinceAcknowledged);
         assert!(
-            loss.starts_with("halvo-capture: lost events=4 first="),
+            loss.line.starts_with("halvo-capture: lost events=4 first="),
             "{loss}"
         );
-        assert!(loss.ends_with(" error=-"), "{loss}");
+        assert!(loss.line.ends_with(" error=-"), "{loss}");
     }
 
     #[test]
@@ -1150,8 +1160,12 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR);
         let loss = outcome.loss.expect("no loss line");
-        assert!(loss.starts_with("halvo-capture: lost events=4 "), "{loss}");
-        assert!(loss.ends_with(" error=io"), "{loss}");
+        assert_eq!(loss.cause, LossCause::Pending);
+        assert!(
+            loss.line.starts_with("halvo-capture: lost events=4 "),
+            "{loss}"
+        );
+        assert!(loss.line.ends_with(" error=io"), "{loss}");
     }
 
     #[test]
@@ -1173,7 +1187,10 @@ mod tests {
             exit::ERROR,
             "a drop with no write since: {outcome:?}"
         );
-        assert!(outcome.loss.is_some());
+        assert_eq!(
+            outcome.loss.map(|loss| loss.cause),
+            Some(LossCause::LostSinceAcknowledged)
+        );
 
         let clocks = ManualClocks::at(noon());
         let mut scripted = sources();
@@ -1245,7 +1262,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR);
-        assert!(outcome.loss.is_some());
+        assert_eq!(
+            outcome.loss.map(|loss| loss.cause),
+            Some(LossCause::SettleUnanswered)
+        );
     }
 
     #[test]
@@ -1379,9 +1399,118 @@ mod tests {
         assert_eq!(outcome.report.events_persisted, 101);
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
         let loss = outcome.loss.expect("no loss line");
+        assert_eq!(loss.cause, LossCause::LostDuringStop);
         assert!(
-            loss.starts_with("halvo-capture: lost events=512 "),
+            loss.line.starts_with("halvo-capture: lost events=512 "),
             "{loss}"
+        );
+    }
+
+    struct ExpiryThatBlocksOnceArmed {
+        inner: ModelStore,
+        armed: Arc<AtomicBool>,
+        entered: Arc<AtomicBool>,
+    }
+
+    impl MaintainStore for ExpiryThatBlocksOnceArmed {
+        fn expire_due(
+            &mut self,
+            now: std::time::SystemTime,
+            max: usize,
+        ) -> Result<Pass, MaintFault> {
+            if self.armed.load(Ordering::SeqCst) {
+                self.entered.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            self.inner.expire_due(now, max)
+        }
+
+        fn evict_to(
+            &mut self,
+            bound: super::port::ByteBound,
+            max: usize,
+        ) -> Result<Pass, MaintFault> {
+            self.inner.evict_to(bound, max)
+        }
+
+        fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+            self.inner.usage()
+        }
+    }
+
+    impl CaptureStore for ExpiryThatBlocksOnceArmed {
+        fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+            self.inner.write_batch(write)
+        }
+
+        fn volume_free_bytes(&self) -> std::io::Result<u64> {
+            self.inner.volume_free_bytes()
+        }
+    }
+
+    /// Pin of the coordinator's answer msg_3e2afe836f9b (a): a Shutdown that is
+    /// not answered after a last settle that answered clean gives status 1, a
+    /// cause that ruling DM-4 item 5 does not list.
+    #[test]
+    fn a_shutdown_unanswered_after_a_clean_settle_gives_exit_1() {
+        let clocks = ManualClocks::at(noon());
+        let armed = Arc::new(AtomicBool::new(false));
+        let entered = Arc::new(AtomicBool::new(false));
+        let store = ExpiryThatBlocksOnceArmed {
+            inner: ModelStore::new(),
+            armed: Arc::clone(&armed),
+            entered: Arc::clone(&entered),
+        };
+        let mut scripted = sources();
+        let hook_clocks = clocks.clone();
+        scripted.on_figures = Some(Box::new(move || {
+            armed.store(true, Ordering::SeqCst);
+            hook_clocks.advance(Duration::from_secs(61));
+            let until = std::time::Instant::now() + Duration::from_secs(5);
+            while !entered.load(Ordering::SeqCst) && std::time::Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(entered.load(Ordering::SeqCst), "the owner ran no expiry");
+        }));
+        let stop = AtomicBool::new(false);
+        let outcome = run_timed(
+            &run_of(5, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            store,
+            clocks,
+            &stop,
+            Duration::from_millis(300),
+        )
+        .unwrap();
+        assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        let loss = outcome.loss.expect("no loss line");
+        assert_eq!(loss.cause, LossCause::ShutdownUnanswered);
+        assert_eq!(
+            outcome.report.events_persisted, 4,
+            "the last settle was clean"
+        );
+    }
+
+    /// Pin of the coordinator's answer msg_3e2afe836f9b (b): a signalled run
+    /// with a loss gives status 1, because the loss is taken first, where
+    /// contracts.md C4 item 6 says that a signalled run exits 2.
+    #[test]
+    fn a_signalled_run_with_a_loss_gives_exit_1_and_not_2() {
+        let clocks = ManualClocks::at(noon());
+        let mut scripted = sources();
+        scripted.signal = true;
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Refused));
+        let outcome = run_scripted(
+            &run_of(600, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            store,
+            clocks,
+        );
+        assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        assert_eq!(
+            outcome.loss.map(|loss| loss.cause),
+            Some(LossCause::LostSinceAcknowledged)
         );
     }
 
@@ -1444,6 +1573,10 @@ mod tests {
         .unwrap();
         let took = started.elapsed();
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        assert_eq!(
+            outcome.loss.as_ref().map(|loss| loss.cause),
+            Some(LossCause::PauseUnanswered)
+        );
         assert!(
             took < DRAIN_BOUND + settle_bound + Duration::from_secs(1),
             "the run took {took:?}, more than DRAIN_BOUND {DRAIN_BOUND:?} + settle bound \

@@ -63,6 +63,7 @@ pub(crate) struct ScriptedRun {
     pub(crate) asked: Vec<SourceName>,
     pub(crate) hold_after: Option<Duration>,
     pub(crate) waited: Option<Duration>,
+    pub(crate) on_figures: Option<Box<dyn Fn()>>,
     sink: Option<SinkHandle>,
 }
 
@@ -77,6 +78,7 @@ impl ScriptedRun {
             asked: Vec::new(),
             hold_after: None,
             waited: None,
+            on_figures: None,
             sink: None,
         }
     }
@@ -133,6 +135,9 @@ impl RunSources for ScriptedRun {
     }
 
     fn figures(&self) -> SourceCounters {
+        if let Some(hook) = &self.on_figures {
+            hook();
+        }
         self.figures
     }
 
