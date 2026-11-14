@@ -2539,6 +2539,177 @@ mod tests {
         );
     }
 
+    extern "C" {
+        fn CFRunLoopTimerGetInterval(timer: CFRunLoopTimerRef) -> f64;
+        fn CFRunLoopTimerGetNextFireDate(timer: CFRunLoopTimerRef) -> f64;
+    }
+
+    const FIRST_FIRE_MARGIN_S: f64 = 0.25;
+
+    #[test]
+    fn the_products_timer_first_fires_one_step_after_a_held_key_and_repeats_at_the_step() {
+        reset_stand_ins();
+        let (handle, writer) = sink::channel(64);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let ctx = Box::new(tap_context(
+            handle,
+            reader,
+            InputCounters::new(),
+            &stand_in_settings(),
+            Bounds::PRODUCT,
+            Arc::new(AtomicBool::new(false)),
+        ));
+        assert!(
+            std::ptr::fn_addr_eq(
+                ctx.timers.make,
+                reading_timer as fn(*mut c_void, Duration) -> CFRunLoopTimer
+            ),
+            "the product's maker of the context makes its timer with the product's timer maker"
+        );
+        assert_eq!(ctx.step, READING_STEP);
+        ctx.read_session(&mut lock(&ctx.hold));
+        let before = CFDate::now().abs_time();
+        key_down(&ctx);
+        let after = CFDate::now().abs_time();
+        let (interval, first) = {
+            let state = lock(&ctx.hold);
+            assert_eq!(state.keys.len(), 1, "the key is held");
+            let Some(ReadingTimer(timer)) = &state.timer else {
+                panic!("settle_timer made no timer for a held key");
+            };
+            // SAFETY: both calls read a field of a timer that the context owns
+            // and that stays valid while its lock is held; the run loop of this
+            // thread never runs, so the timer never fires.
+            unsafe {
+                (
+                    CFRunLoopTimerGetInterval(timer.as_concrete_TypeRef()),
+                    CFRunLoopTimerGetNextFireDate(timer.as_concrete_TypeRef()),
+                )
+            }
+        };
+        let step = READING_STEP.as_secs_f64();
+        assert!(
+            (interval - step).abs() < 1e-9,
+            "the timer repeats at the step: interval {interval} s, step {step} s"
+        );
+        assert!(
+            first > before && first <= after + step + FIRST_FIRE_MARGIN_S,
+            "the first tick comes later than the make and no later than a step and {FIRST_FIRE_MARGIN_S} s \
+             after it: {} s after the make",
+            first - before
+        );
+        drop(ctx);
+        drop(writer);
+    }
+
+    #[test]
+    fn an_untimed_key_up_drops_every_held_key_and_reads_withheld_and_stalled() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        on_tap_event(&held.ctx, timed(CGEventType::KeyUp, Timing::Untimed));
+        assert_eq!(
+            (
+                held_now(&held.ctx),
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (0, true, true)
+        );
+    }
+
+    #[test]
+    fn a_key_up_whose_flags_hold_a_new_modifier_bit_is_not_held() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            with_flags(CGEventType::KeyUp, CGEventFlags::CGEventFlagShift.bits()),
+        );
+        assert_eq!(
+            held_now(&held.ctx),
+            1,
+            "a key up is a reading alone, whatever its flags"
+        );
+    }
+
+    #[test]
+    fn a_tap_notice_with_no_key_held_moves_neither_flag() {
+        let held = held(1_000);
+        on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+        assert_eq!(
+            (
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn the_daemons_own_take_with_no_key_held_moves_no_flag() {
+        let held = held(1_000);
+        OwnTake {
+            hold: held.ctx.hold.clone(),
+            counters: held.counters.clone(),
+            stop: held.ctx.stop.clone(),
+            drops: held.ctx.drops.clone(),
+            clock: held.ctx.clocks.monotonic,
+        }
+        .taken();
+        assert!(!held.counters.figures().keys_withheld);
+    }
+
+    #[test]
+    fn a_key_under_unknown_is_withheld_and_does_not_read_as_stalled() {
+        let held = held(1_000);
+        answer(Reading::Unknown);
+        key_down(&held.ctx);
+        assert_eq!(
+            (
+                held_now(&held.ctx),
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (0, true, false)
+        );
+    }
+
+    #[test]
+    fn a_refused_emit_or_a_stop_at_a_release_leaves_the_stalled_flag_as_it_was() {
+        for case in ["refused", "stop"] {
+            let held = held(100);
+            key_down(&held.ctx);
+            on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+            assert!(held.counters.stalled(), "{case}: the tap notice stalls");
+            key_down(&held.ctx);
+            key_down(&held.ctx);
+            let mut writer = Some(held.writer);
+            if case == "refused" {
+                drop(writer.take());
+                ticks(&held.ctx, 100);
+            } else {
+                ticks(&held.ctx, 90);
+                let stop = held.ctx.stop.clone();
+                STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+                tick(&held.ctx);
+            }
+            assert_eq!(
+                held_now(&held.ctx),
+                0,
+                "{case}: the release found the {case}"
+            );
+            if let Some(writer) = &writer {
+                assert_eq!(keystrokes(writer), 0, "{case}");
+            }
+            assert!(
+                held.counters.stalled(),
+                "{case}: a key that was not emitted does not clear the stalled flag"
+            );
+        }
+    }
+
     #[test]
     fn a_stand_in_that_moves_the_monotonic_clock_alone_by_more_than_the_bound_is_a_wake() {
         let (held, drops) = seam_held(1_000);
@@ -3323,6 +3494,8 @@ mod tests {
     #[ignore = "a measurement of MA-12 F3: run it through the timed helper"]
     fn measure_the_readings_of_the_hold() {
         const SECONDS: u64 = 20;
+        const NOTICE_SPACING_US: u64 = 50_000;
+        const NOTICE_READINGS: usize = 300;
         let session = read_session();
         let read_ns = per_call_ns(10_000, || {
             let _ = secure_input_reading(Session::AtConsole);
@@ -3412,17 +3585,20 @@ mod tests {
                 .get(((spacing.len() as f64 - 1.0) * share).round() as usize)
                 .map_or(0, |ns| ns / 1_000)
         };
+        let readings = spacing.len() + 1;
+        let readings_by_the_step = (seconds / READING_STEP.as_secs_f64()) as u64;
+        let p50_us = at(0.5);
         println!(
             "measure dictionary={} on_console={} seconds={seconds:.1} load1={:.2} \
              started_by={started_by} read_ns={read_ns} session_ns={session_ns} readings={} \
-             spacing_p50_us={} spacing_p99_us={} spacing_max_us={} gaps_over_30ms={} \
+             readings_by_the_step={readings_by_the_step} spacing_p50_us={} spacing_p99_us={} spacing_max_us={} gaps_over_30ms={} \
              gaps_over_50ms={} gaps_over_100ms={} gaps_over_250ms={} drops={drops} \
              stalled_at_end={}",
             u8::from(session != Session::NoDictionary),
             u8::from(session == Session::AtConsole),
             loads[0],
-            spacing.len() + 1,
-            at(0.5),
+            readings,
+            p50_us,
             at(0.99),
             spacing.last().map_or(0, |ns| ns / 1_000),
             over_30,
@@ -3431,6 +3607,12 @@ mod tests {
             over_250,
             u8::from(counters.stalled())
         );
+        if p50_us > NOTICE_SPACING_US || readings < NOTICE_READINGS {
+            println!(
+                "measure notice for the coordinator: spacing_p50_us={p50_us} readings={readings} \
+                 (a median above {NOTICE_SPACING_US} us or fewer than {NOTICE_READINGS} readings, ruling MA-22 L4)"
+            );
+        }
     }
 
     #[test]

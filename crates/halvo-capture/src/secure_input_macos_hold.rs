@@ -410,6 +410,60 @@ mod tests {
     }
 
     #[test]
+    fn the_gap_is_judged_to_the_nanosecond() {
+        let previous = at(990);
+        let edge = Monotonic(previous.0 + 30 * MS);
+        assert_eq!(
+            decide(
+                Some(at(500)),
+                Some(previous),
+                Reading::Off,
+                both(edge),
+                &bounds()
+            ),
+            Verdict::Wait,
+            "a gap of the bound is in time"
+        );
+        let past = Monotonic(edge.0 + 1);
+        assert_eq!(
+            decide(
+                Some(at(500)),
+                Some(previous),
+                Reading::Off,
+                both(past),
+                &bounds()
+            ),
+            Verdict::Drop(Cause::Gap),
+            "a gap of the bound and 1 ns is not"
+        );
+    }
+
+    #[test]
+    fn a_key_is_released_at_the_bound_to_the_nanosecond_and_waits_1_ns_before_it() {
+        let bound = Monotonic(1_000 * MS);
+        assert_eq!(
+            decide(
+                Some(at(0)),
+                Some(at(990)),
+                Reading::Off,
+                both(bound),
+                &bounds()
+            ),
+            Verdict::Release
+        );
+        assert_eq!(
+            decide(
+                Some(at(0)),
+                Some(at(990)),
+                Reading::Off,
+                both(Monotonic(bound.0 - 1)),
+                &bounds()
+            ),
+            Verdict::Wait
+        );
+    }
+
+    #[test]
     fn a_key_is_as_old_as_the_bound_by_the_time_before_its_releasing_read() {
         assert_eq!(
             decide(
