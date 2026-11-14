@@ -7485,3 +7485,120 @@ fn an_allow_on_a_second_step_whose_flush_of_its_waiting_raise_reads_a_stored_swi
         );
     }
 }
+
+fn switch_off_stored_unseen(c: &Coordinator<Both>, order: support::Loss, case: &str) {
+    let m = mark(c);
+    lose_the_next_holds_reply(c, order);
+    assert_eq!(
+        c.control(&agent(0), Action::SwitchOff),
+        Err(Cause::NoService),
+        "{case}"
+    );
+    c.ports().loss.set(None);
+    let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+    c.ports().ports.events.borrow_mut().extend(lost);
+    assert!(
+        !calls_since(c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Cancel(_) | Call::Send(Body::SetState { .. }))),
+        "{case}: no cancel and no set_state"
+    );
+    assert_eq!(hold_sets(c, 0), 1, "{case}: the owner holds the hold");
+}
+
+#[test]
+fn a_done_again_after_a_stored_done_that_the_run_did_not_take_reads_first_and_hands_nothing_beside_a_stored_switch_off(
+) {
+    for way in ["stuck", "sign_in"] {
+        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+            let case = format!("{way} {order:?}");
+            let reason = if way == "stuck" {
+                HandbackReason::StepFailed
+            } else {
+                HandbackReason::SignIn
+            };
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            c.on_run(&run, handback(&run, 0, reason)).unwrap();
+            let (item, _) = open_item(&c);
+            c.ports()
+                .ports
+                .refuse(Method::AnswerHandback, PortError::NoService);
+            assert_eq!(
+                c.answer(
+                    &item,
+                    Choice::Done,
+                    None,
+                    shown_step_mark_or_zero(&c, &item)
+                ),
+                Err(Cause::NoService),
+                "{case}"
+            );
+            c.ports().ports.clear_refusals();
+            assert_eq!(closing_rows(&c, &item), 1, "{case}: the done is stored");
+            switch_off_stored_unseen(&c, order, &case);
+            let (m, t, from) = (
+                mark(&c),
+                c.ports().ports.tried.borrow().len(),
+                c.ports().ports.events.borrow().len(),
+            );
+            assert_eq!(
+                c.answer(
+                    &item,
+                    Choice::Done,
+                    None,
+                    shown_step_mark_or_zero(&c, &item)
+                ),
+                Err(Cause::UnknownItem),
+                "{case}: as for an item no longer open"
+            );
+            assert_eq!(
+                runner_answers_tried_since(&c, t),
+                [],
+                "{case}: no answer at the runner"
+            );
+            assert!(
+                !item_rows_since(&c, from, &item).contains(&"answered".to_owned()),
+                "{case}: no second row"
+            );
+            assert_eq!(closing_rows(&c, &item), 1, "{case}: the stored done alone");
+            assert_the_stop_came_first(&c, m, &run, &case);
+        }
+    }
+}
+
+#[test]
+fn an_allow_again_after_a_stored_allow_that_the_run_did_not_take_reads_first_and_sends_decline_alone_beside_a_stored_switch_off(
+) {
+    use halvo_coord::types::BindResult;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Taken);
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow"],
+            "{case}: the allow is stored"
+        );
+        switch_off_stored_unseen(&c, order, &case);
+        let (m, t) = (mark(&c), c.ports().ports.tried.borrow().len());
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Allow,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::UnknownItem),
+            "{case}: as for a step no longer open"
+        );
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [Call::AnswerBind(run.clone(), BindResult::Decline)],
+            "{case}: the lapse's decline alone, never the stored allow"
+        );
+        decline_before_one_cancel(&c, m, &run, &case);
+        assert_eq!(step_rows(&c, &item), ["allow"], "{case}: no second row");
+        assert_the_stop_came_first(&c, m, &run, &case);
+    }
+}
