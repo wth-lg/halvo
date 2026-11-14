@@ -255,3 +255,61 @@ fn a_file_of_a_body_that_is_a_link_is_refused_by_leak_with_the_argument_alone() 
     refused(&o, "tier-files");
     assert_eq!(o.stderr, format!("REFUSED tier-files: {}\n", s(&t)));
 }
+
+#[test]
+fn the_link_lines_stand_in_byte_order_of_the_stream_id() {
+    let dir = copy_golden("link-order");
+    let names: Vec<String> = (0..12).rev().map(|k| format!("golden-l{k:02}")).collect();
+    for n in &names {
+        link_dir(&dir.join("none"), &dir.join("streams").join(n));
+    }
+    let o = run(&["check-labels", &s(&dir)]);
+    let links: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.starts_with("FAIL link"))
+        .collect();
+    let mut want: Vec<String> = names.iter().map(|n| format!("FAIL link {n}")).collect();
+    want.sort();
+    assert_eq!(links, want, "{}", o.stdout);
+}
+
+#[test]
+fn a_tier_manifest_that_is_a_link_is_refused_also_when_it_reads_well() {
+    let dir = scratch("link-tier-manifest");
+    let t = tier(&dir);
+    assert_eq!(run(&["check-labels", &s(&t)]).code, 0);
+    fs::rename(t.join("manifest.toml"), dir.join("manifest.toml")).expect("move the manifest");
+    link_file(&dir.join("manifest.toml"), &t.join("manifest.toml"));
+    refused(&run(&["check-labels", &s(&t)]), "tier-manifest");
+}
+
+#[test]
+fn each_manifest_of_a_walked_body_that_is_a_link_is_refused_alone() {
+    let dir = scratch("link-one-manifest");
+    let t = tier(&dir);
+    let walk = dir.join("walk-sm");
+    fs::create_dir_all(&walk).expect("walk");
+    link_file(
+        &t.join("script-manifest.jsonl"),
+        &walk.join("script-manifest.jsonl"),
+    );
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    refused(&o, "body");
+    let walk = dir.join("walk-mt");
+    fs::create_dir_all(&walk).expect("walk");
+    fs::copy(
+        t.join("script-manifest.jsonl"),
+        walk.join("script-manifest.jsonl"),
+    )
+    .expect("copy");
+    link_file(&t.join("manifest.toml"), &walk.join("manifest.toml"));
+    write(&walk.join("notes.md"), "c-two\n");
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    refused(&o, "body");
+    let walk = dir.join("walk-dangling");
+    fs::create_dir_all(&walk).expect("walk");
+    link_file(&dir.join("gone.jsonl"), &walk.join("script-manifest.jsonl"));
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    refused(&o, "body");
+}

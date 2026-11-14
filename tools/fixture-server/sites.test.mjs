@@ -597,6 +597,9 @@ test('loading: a missing file, a directory and two files that name one service a
   assert.deepEqual(loadSites([dir, one]), { refused: dir });
   assert.deepEqual(loadSites([one, two]), { refused: two });
   assert.deepEqual(loadSites([one, one]), { refused: one });
+  const bad = join(dir, 'bad.json');
+  writeFileSync(bad, changed(shop, (s) => { s.v = 2; }));
+  assert.deepEqual(loadSites([bad, join(dir, 'missing.json')]), { refused: bad });
 });
 
 test('checker: usage and parameters refusals', () => {
