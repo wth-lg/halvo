@@ -156,7 +156,7 @@ impl std::fmt::Display for Loss {
 pub enum LossCause {
     /// The owner did not answer the pause with Paused inside the bound.
     PauseUnanswered,
-    /// The owner gave no Settled inside the bound.
+    /// The owner answered no ask of the settle inside the bound.
     SettleUnanswered,
     /// The owner did not answer the Shutdown after the last settle.
     ShutdownUnanswered,

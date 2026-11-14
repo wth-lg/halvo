@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant, SystemTime};
 
 use halvo_control::exit;
@@ -938,4 +938,167 @@ fn each_named_wait_of_the_stop_path_gives_up_at_its_own_part() {
         Some(LossCause::ShutdownUnanswered),
         "{outcome:?}"
     );
+}
+
+/// What the write number `nth` of an [`NthWrite`] does first.
+enum AtWrite {
+    /// Sleeps; `nth` 0 sleeps at every write.
+    Sleep(Duration),
+    /// Waits until the run's figures hook opens the gate, and at most 10 s.
+    Gate(mpsc::Receiver<()>),
+    /// Panics, which ends the owner.
+    Panic,
+}
+
+/// A model store whose every write answers Io and whose write number `nth`
+/// does what `at` says first.
+struct NthWrite {
+    inner: ModelStore,
+    nth: u64,
+    at: AtWrite,
+    writes: u64,
+}
+
+impl NthWrite {
+    fn new(nth: u64, at: AtWrite) -> NthWrite {
+        let inner = ModelStore::new();
+        inner.fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        NthWrite {
+            inner,
+            nth,
+            at,
+            writes: 0,
+        }
+    }
+}
+
+impl MaintainStore for NthWrite {
+    fn expire_due(&mut self, now: SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for NthWrite {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.writes += 1;
+        if self.writes == self.nth || self.nth == 0 {
+            match &self.at {
+                AtWrite::Sleep(sleep) => std::thread::sleep(*sleep),
+                AtWrite::Gate(gate) => {
+                    let _ = gate.recv_timeout(Duration::from_secs(10));
+                }
+                AtWrite::Panic => panic!("the store's write {} panics", self.writes),
+            }
+        }
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+fn run_over(store: NthWrite, bound: Duration, gate: Option<mpsc::Sender<()>>) -> RunOutcome {
+    let mut scripted = four_events();
+    if let Some(gate) = gate {
+        scripted.on_figures = Some(Box::new(move || {
+            let _ = gate.send(());
+        }));
+    }
+    let stop = AtomicBool::new(false);
+    run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        bound,
+    )
+    .unwrap()
+}
+
+/// Ruling DM-14 (5): the settle's first ask is answered while the drain
+/// fails, and its second is held by a write that waits until the figures
+/// hook, which runs after the settle has given up, opens its gate: the run
+/// goes on to the Shutdown and reports from its answer, with the cause
+/// Pending, the count of that answer's lost and pending events and the kind
+/// read from the reports.
+#[test]
+fn a_late_second_ask_of_the_settle_leaves_the_first_answer_and_the_shutdown_reports() {
+    let (open, gate) = mpsc::channel();
+    let outcome = run_over(
+        NthWrite::new(2, AtWrite::Gate(gate)),
+        Duration::from_secs(2),
+        Some(open),
+    );
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.expect("no loss");
+    assert_eq!(loss.cause, LossCause::Pending, "{}", loss.line);
+    assert!(
+        loss.line.starts_with("halvo-capture: lost events=4 ") && loss.line.ends_with(" error=io"),
+        "{}",
+        loss.line
+    );
+}
+
+/// Ruling DM-14 (4), accepted in words: an owner that is gone after its first
+/// answer gives ShutdownUnanswered, status 1, and a count of at least the
+/// events that no write stored.
+#[test]
+fn an_owner_gone_after_its_first_answer_gives_an_unanswered_shutdown() {
+    let outcome = run_over(
+        NthWrite::new(2, AtWrite::Panic),
+        Duration::from_secs(2),
+        None,
+    );
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    assert_eq!(
+        outcome.loss.as_ref().map(|loss| loss.cause),
+        Some(LossCause::ShutdownUnanswered)
+    );
+    assert!(
+        lost_in_line(&outcome).is_some_and(|count| count >= 4),
+        "{outcome:?}"
+    );
+}
+
+/// Ruling DM-14 (5): a store that takes about 0.6 of the Shutdown's bound for
+/// each write; the test prints what the run gives. Status 1 with Pending or
+/// with ShutdownUnanswered and the upper bound is accepted, and the stop
+/// path's 17 s stand.
+#[test]
+fn a_store_that_takes_most_of_each_bound_for_each_write_still_ends_inside_the_stop_bound() {
+    let bound = Duration::from_secs(2);
+    let started = Instant::now();
+    let outcome = run_over(
+        NthWrite::new(0, AtWrite::Sleep(bound * 6 / 10)),
+        bound,
+        None,
+    );
+    let took = started.elapsed();
+    println!(
+        "slow store: status={} cause={:?} line={:?} took={took:?}",
+        outcome.status,
+        outcome.loss.as_ref().map(|loss| loss.cause),
+        outcome.loss.as_ref().map(|loss| loss.line.clone())
+    );
+    assert_eq!(outcome.status, exit::ERROR);
+    assert!(matches!(
+        outcome.loss.as_ref().map(|loss| loss.cause),
+        Some(LossCause::Pending | LossCause::ShutdownUnanswered)
+    ));
+    assert!(
+        lost_in_line(&outcome).is_some_and(|count| count >= 4),
+        "{outcome:?}"
+    );
+    assert!(took <= stop_bound(bound), "{took:?}");
+    assert_eq!(stop_bound(SETTLE_BOUND), Duration::from_secs(17));
 }

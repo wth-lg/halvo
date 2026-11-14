@@ -576,18 +576,26 @@ fn answer_within(
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+/// Asks Settle until nothing is pending or the bound runs out, and answers the
+/// last snapshot that an ask got: a later ask that is not answered in time
+/// leaves the one before it, and only a settle whose every ask went
+/// unanswered gives `None` (ruling DM-14).
 fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counters::Snapshot> {
     let started = std::time::Instant::now();
+    let mut last = None;
     loop {
-        let pending = handle.ask(owner::Command::Settle).ok()?;
+        let Ok(pending) = handle.ask(owner::Command::Settle) else {
+            return last;
+        };
         let left = bound.saturating_sub(started.elapsed());
-        let owner::Answer::Settled(snapshot) = pending.wait_for(left)? else {
-            return None;
+        let Some(owner::Answer::Settled(snapshot)) = pending.wait_for(left) else {
+            return last;
         };
         let left = bound.saturating_sub(started.elapsed());
         if snapshot.events_pending == 0 || left < 2 * owner::POLL {
             return Some(snapshot);
         }
+        last = Some(snapshot);
         std::thread::sleep(owner::POLL);
     }
 }
