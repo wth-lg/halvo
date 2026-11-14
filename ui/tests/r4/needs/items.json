@@ -2,7 +2,9 @@
   "test_mixed": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "0000000000000000000000000000000a", "workflow": "00000000000000000000000000000001", "name": "Renewing or changing a lease on Site3", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Renewing or changing a lease on Site3” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "0000000000000000000000000000000b",
@@ -10,6 +12,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Renewing or changing a lease on Site3” has a new question for you.",
+          "say_gone": "“Renewing or changing a lease on Site3” no longer has a question for you.",
           "title": "Do these 2 things?",
           "text": "",
           "fields": [
@@ -33,7 +37,9 @@
   "test_setup": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "0000000000000000000000000000000e", "workflow": "00000000000000000000000000000001", "name": "Ordering from a shop on Site7", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Ordering from a shop on Site7” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "0000000000000000000000000000000f",
@@ -41,6 +47,8 @@
           "kind": "setup",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
           "text": "Choose one answer for each question, then choose Use these answers.",
           "fields": [],
@@ -52,10 +60,10 @@
                 { "n": 1, "value": ["Corner Shop"], "from": "records" },
                 { "n": 2, "value": ["Main Street ", "Shop"], "from": "site" }
               ],
-              "typed": "no"
+              "typed": "no", "full": "", "too_long": ""
             },
-            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes" },
-            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes" }
+            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes", "full": "Your answer is full, so the last thing you added was left out. Shorten it to add more.", "too_long": "Something you added was too long to fit, so none of it was added. Read your answer before sending." },
+            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes", "full": "Your answer is full, so the last thing you added was left out. Shorten it to add more.", "too_long": "Something you added was too long to fit, so none of it was added. Read your answer before sending." }
           ],
           "choices": [
             { "choice": "none", "text": "Not now", "safe": "yes" },
@@ -70,7 +78,9 @@
   "test_long": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "00000000000000000000000000000010", "workflow": "00000000000000000000000000000001", "name": "Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "00000000000000000000000000000011",
@@ -78,6 +88,8 @@
           "kind": "ready",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” has a new question for you.",
+          "say_gone": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” no longer has a question for you.",
           "title": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” is ready to start",
           "text": "Start it now, or skip it this time.",
           "fields": [],
@@ -95,7 +107,9 @@
   "test_empty_bound": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "00000000000000000000000000000012", "workflow": "00000000000000000000000000000001", "name": "Reviewing a tenant application on Site4", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Reviewing a tenant application on Site4” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "00000000000000000000000000000013",
@@ -103,6 +117,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Reviewing a tenant application on Site4” has a new question for you.",
+          "say_gone": "“Reviewing a tenant application on Site4” no longer has a question for you.",
           "title": "Send this?",
           "text": "",
           "fields": [
@@ -124,7 +140,9 @@
   "test_changed": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "0000000000000000000000000000000c", "workflow": "00000000000000000000000000000001", "name": "Handling a tenant's rent on Site2", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Handling a tenant's rent on Site2” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "0000000000000000000000000000000d",
@@ -132,6 +150,8 @@
           "kind": "confirm",
           "presenter": "native",
           "armed": "no",
+          "say_new": "“Handling a tenant's rent on Site2” has a new question for you.",
+          "say_gone": "“Handling a tenant's rent on Site2” no longer has a question for you.",
           "title": "Pay this?",
           "text": "",
           "fields": [
@@ -154,7 +174,10 @@
   "test_two_confirms": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "00000000000000000000000000000020", "workflow": "00000000000000000000000000000001", "name": "Writing or answering email on Site6", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Writing or answering email on Site6” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]},
+        {"agent": "00000000000000000000000000000022", "workflow": "00000000000000000000000000000001", "name": "Renewing or changing a lease on Site8", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Renewing or changing a lease on Site8” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "00000000000000000000000000000021",
@@ -162,6 +185,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Writing or answering email on Site6” has a new question for you.",
+          "say_gone": "“Writing or answering email on Site6” no longer has a question for you.",
           "title": "Send this?",
           "text": "",
           "fields": [
@@ -258,6 +283,8 @@
           "kind": "confirm",
           "presenter": "page",
           "armed": "yes",
+          "say_new": "“Renewing or changing a lease on Site8” has a new question for you.",
+          "say_gone": "“Renewing or changing a lease on Site8” no longer has a question for you.",
           "title": "Do these 2 things?",
           "text": "",
           "fields": [
@@ -328,7 +355,12 @@
   "test_many": {
     "snapshot": {
       "seq": 1,
-      "rows": [],
+      "rows": [
+        {"agent": "00000000000000000000000000000030", "workflow": "00000000000000000000000000000001", "name": "Writing or answering email on Site5", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Writing or answering email on Site5” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]},
+        {"agent": "00000000000000000000000000000032", "workflow": "00000000000000000000000000000001", "name": "Paying a utility bill on Site1", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Paying a utility bill on Site1” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]},
+        {"agent": "00000000000000000000000000000034", "workflow": "00000000000000000000000000000001", "name": "Ordering from a shop on Site7", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Ordering from a shop on Site7” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]},
+        {"agent": "00000000000000000000000000000036", "workflow": "00000000000000000000000000000001", "name": "Paying a utility bill on Site9", "status": "needs_you", "word": "Needs you", "line": "It is ready to start when you are.", "say": "“Paying a utility bill on Site9” needs you.", "level": "Standard", "next": null, "controls": [{"control": "run_now", "text": "Start now"}, {"control": "switch_off", "text": "Switch off"}, {"control": "delete", "text": "Delete"}]}
+      ],
       "items": [
         {
           "item": "00000000000000000000000000000031",
@@ -336,6 +368,8 @@
           "kind": "ready",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Writing or answering email on Site5” has a new question for you.",
+          "say_gone": "“Writing or answering email on Site5” no longer has a question for you.",
           "title": "“Writing or answering email on Site5” is ready to start",
           "text": "Start it now, or skip it this time.",
           "fields": [],
@@ -359,6 +393,8 @@
           "kind": "stuck",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Paying a utility bill on Site1” has a new question for you.",
+          "say_gone": "“Paying a utility bill on Site1” no longer has a question for you.",
           "title": "Help “Paying a utility bill on Site1” with one step",
           "text": "Do the next step in its own window and choose Done, or choose Stop this time.",
           "fields": [],
@@ -382,6 +418,8 @@
           "kind": "setup",
           "presenter": null,
           "armed": "no",
+          "say_new": "“Ordering from a shop on Site7” has a new question for you.",
+          "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
           "text": "Choose one answer for each question, then choose Use these answers.",
           "fields": [],
@@ -398,7 +436,7 @@
                   "from": "records"
                 }
               ],
-              "typed": "no"
+              "typed": "no", "full": "", "too_long": ""
             },
             {
               "name": "seller",
@@ -412,13 +450,13 @@
                   "from": "records"
                 }
               ],
-              "typed": "no"
+              "typed": "no", "full": "", "too_long": ""
             },
             {
               "name": "instrument",
               "label": "How to pay",
               "candidates": [],
-              "typed": "yes"
+              "typed": "yes", "full": "Your answer is full, so the last thing you added was left out. Shorten it to add more.", "too_long": "Something you added was too long to fit, so none of it was added. Read your answer before sending."
             }
           ],
           "choices": [
@@ -440,6 +478,8 @@
           "kind": "confirm",
           "presenter": "native",
           "armed": "no",
+          "say_new": "“Paying a utility bill on Site9” has a new question for you.",
+          "say_gone": "“Paying a utility bill on Site9” no longer has a question for you.",
           "title": "Pay this?",
           "text": "",
           "fields": [

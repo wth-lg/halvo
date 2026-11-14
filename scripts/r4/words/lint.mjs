@@ -63,6 +63,10 @@ const FIXTURE_KEYS = [
   'card.runs.*.effects.*.text',
   'card.runs.*.effects.*.fields.*.label',
   'card.runs.*.effects.*.fields.*.from_text',
+  'snapshot.items.*.say_new',
+  'snapshot.items.*.say_gone',
+  'snapshot.items.*.params.*.full',
+  'snapshot.items.*.params.*.too_long',
 ];
 const CONTROL_TEXT = 'snapshot.rows.*.controls.*.text';
 
@@ -1210,6 +1214,23 @@ function selfTest(dir, repo) {
     fixture('allowed-with-a-second-pair', { files: (f) => (f[ALLOWED] = `${copies[ALLOWED]}control.stop\tpaused\n`) }),
     'FAIL:allowed',
   );
+  for (const [spec, state] of [
+    ['snapshot.items.*.say_new', 'needs_ready'],
+    ['snapshot.items.*.say_gone', 'needs_stuck'],
+    ['snapshot.items.*.params.*.full', 'setup_three'],
+    ['snapshot.items.*.params.*.too_long', 'setup_three'],
+  ]) {
+    const place = spec.replaceAll('*', '1');
+    expect(
+      fixture(`the-item-key-${place}-is-read`, {
+        state: (s, doc) => {
+          if (s === state) setAt(doc, spec, NEVER);
+        },
+      }),
+      'FAIL:never_read',
+      { findings: [`finding file=${FIXTURES}/state-${state}.json line=1 rule=never_read class=model key=${place}`], secret: [NEVER] },
+    );
+  }
 
   return { lines, wrong, rejected };
 }

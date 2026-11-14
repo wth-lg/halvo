@@ -420,6 +420,8 @@ pub struct Item {
     step: u32,
     presenter: Option<Presenter>,
     armed: YesNo,
+    say_new: String,
+    say_gone: String,
     title: String,
     text: String,
     fields: Vec<Field>,
@@ -428,6 +430,17 @@ pub struct Item {
 }
 
 impl Item {
+    /// The item with `say_new` and `say_gone`, the sentences of `say.item.new` and
+    /// `say.item.gone` with `{name}`, the agent's name of I2.3, which the needs view adds to its
+    /// status region when a reply brings the item and when a reply drops it (I3.4, I9.2).
+    pub fn said_by(self, name: &str) -> Result<Item, Cause> {
+        Ok(Item {
+            say_new: words::text("say.item.new", &[("name", name)])?,
+            say_gone: words::text("say.item.gone", &[("name", name)])?,
+            ..self
+        })
+    }
+
     fn of_kind(
         kind: ItemKind,
         item: ItemId,
@@ -443,6 +456,8 @@ impl Item {
             step: 0,
             presenter: None,
             armed,
+            say_new: String::new(),
+            say_gone: String::new(),
             title,
             text,
             fields: vec![],
@@ -602,6 +617,16 @@ impl Item {
         self.armed
     }
 
+    /// `say_new`: empty until `said_by` names the agent.
+    pub fn say_new(&self) -> &str {
+        &self.say_new
+    }
+
+    /// `say_gone`: empty until `said_by` names the agent.
+    pub fn say_gone(&self) -> &str {
+        &self.say_gone
+    }
+
     /// `title`.
     pub fn title(&self) -> &str {
         &self.title
@@ -664,6 +689,14 @@ pub struct ParamEntry {
     pub candidates: Vec<Candidate>,
     /// `typed`: `yes` only for a parameter with no candidate.
     pub typed: YesNo,
+    /// `full`: for a parameter with `typed` `yes` the sentence of `param_typed.full`, which the
+    /// card shows below the typed line while the line is at the bound, until a removal (RD-76
+    /// 1.1 and 1.3 (A); I3.5); empty for every other parameter.
+    pub full: String,
+    /// `too_long`: for a parameter with `typed` `yes` the sentence of `param_typed.too_long`,
+    /// which the card shows below the typed line after an input was refused below the bound
+    /// (I3.5); empty for every other parameter.
+    pub too_long: String,
 }
 
 /// A candidate of a parameter (I3.5).

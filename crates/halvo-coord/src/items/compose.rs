@@ -217,7 +217,9 @@ fn halvo_line(key: &str) -> Result<Field, Cause> {
 /// line `confirm.new_site` for a `new_origin`, whose value is the site's name of that origin
 /// (`site_name`, ruling IG-14); `armed` `yes` only while the item is `armed`.
 /// `malformed` for a field that the words table has no label for, or a piece of a value of
-/// more than 1,024 bytes; `state` for a confirmation of another request.
+/// more than 1,024 bytes; `state` for a confirmation of another request. Its `say_new` and
+/// `say_gone` are empty, because the agent's name is not among its inputs: whoever composes
+/// the snapshot names the agent with `Item::said_by`.
 pub fn compose_confirm(
     item: &ItemId,
     ask: &ConfirmAsk,
@@ -292,12 +294,13 @@ pub fn compose_plain(
     let (title, text) = title_and_text(kind.kind(), name)?;
     let choices = two_choices(kind.kind())?;
     let (item, agent) = (item.clone(), agent.clone());
-    Ok(match kind {
+    match kind {
         Plain::SignIn => Item::sign_in(item, agent, title, text, choices),
         Plain::Stuck => Item::stuck(item, agent, title, text, choices),
         Plain::Ready => Item::ready(item, agent, title, text, choices),
         Plain::Show => Item::show(item, agent, title, text, choices),
-    })
+    }
+    .said_by(name)
 }
 
 /// The item of the second step of a `sign_in` item (I3.1, I3.4): the title `item.sign_in.title`
@@ -321,13 +324,7 @@ pub fn compose_bind(
             safe: (i == 0).into(),
         });
     }
-    Ok(Item::sign_in(
-        item.clone(),
-        agent.clone(),
-        title,
-        text,
-        choices,
-    ))
+    Item::sign_in(item.clone(), agent.clone(), title, text, choices).said_by(name)
 }
 
 /// The item `link_account` (I3.4): the plain parts and one field, labelled
@@ -340,14 +337,15 @@ pub fn compose_link_account(
     origin: &Origin,
 ) -> Result<Item, Cause> {
     let (title, text) = title_and_text(ItemKind::LinkAccount, name)?;
-    Ok(Item::link_account(
+    Item::link_account(
         item.clone(),
         agent.clone(),
         title,
         text,
         site_field("item.link_account.origin", origin)?,
         two_choices(ItemKind::LinkAccount)?,
-    ))
+    )
+    .said_by(name)
 }
 
 /// The item `check` (I3.4): the plain parts and the kept fields of the effects of an unknown
@@ -373,14 +371,15 @@ pub fn compose_check(
             )?);
         }
     }
-    Ok(Item::check(
+    Item::check(
         item.clone(),
         agent.clone(),
         title,
         text,
         fields,
         two_choices(ItemKind::Check)?,
-    ))
+    )
+    .said_by(name)
 }
 
 /// The item `setup` (I3.5): the plain parts and one entry per parameter with the label
@@ -415,11 +414,22 @@ pub fn compose_setup(
                 from: *from,
             });
         }
+        let typed = candidates.is_empty();
         entries.push(ParamEntry {
             name: p.param,
             label: say(&format!("param.{}", p.param.name()))?,
-            typed: candidates.is_empty().into(),
+            typed: typed.into(),
             candidates,
+            full: if typed {
+                say("param_typed.full")?
+            } else {
+                String::new()
+            },
+            too_long: if typed {
+                say("param_typed.too_long")?
+            } else {
+                String::new()
+            },
         });
     }
     let line = if not_taken {
@@ -427,7 +437,7 @@ pub fn compose_setup(
     } else {
         None
     };
-    Ok(Item::setup(
+    Item::setup(
         item.clone(),
         agent.clone(),
         title,
@@ -435,5 +445,6 @@ pub fn compose_setup(
         line,
         entries,
         two_choices(ItemKind::Setup)?,
-    ))
+    )
+    .said_by(name)
 }

@@ -110,9 +110,10 @@ export async function read(h) {
     const section = heading.parentNode;
     const units = [];
     const nodes = [];
+    const regions = [...section.querySelectorAll('[role="status"]')];
     const walk = (el) => {
       for (const node of el.children) {
-        if (node === heading || node.tagName === 'STYLE') continue;
+        if (node === heading || node.tagName === 'STYLE' || regions.includes(node)) continue;
         let text = '';
         for (const t of node.childNodes) {
           if (t.nodeType !== 3) continue;
@@ -135,7 +136,11 @@ export async function read(h) {
       modal: d.matches(':modal'),
       item: (d.querySelector('[data-param]') || d).getAttribute('data-param'),
     }));
-    return { units, nodes, controls, dialogs };
+    const region = regions.map((r) => ({
+      live: r.getAttribute('aria-live'),
+      says: [...r.childNodes].map((n) => n.textContent),
+    }));
+    return { units, nodes, controls, dialogs, region };
   });
 }
 

@@ -801,6 +801,30 @@ if (want('ten')) {
       return [elsewhere === 0 && elsewhereName === 0 && same(got, [callOf(B, 'run_now')]), { elsewhere, elsewhereName, got }];
     });
   });
+
+  await test('a_key_click_counts_only_for_a_key_pressed_on_its_own_control', async () => {
+    const out = outDir();
+    return withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
+      const keyClick = (from, to) =>
+        h.page.evaluate(
+          ([f, t]) => {
+            document.querySelector(f).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            document.querySelector(t).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 0 }));
+          },
+          [from, to],
+        );
+      await keyClick(sel('run_now', A.agent), sel('run_now', B.agent));
+      await settleCalls(h);
+      const elsewhere = calls(out).length;
+      await keyClick(sel('open_card', A.agent), sel('open_card', B.agent));
+      await settleCalls(h);
+      const elsewhereName = calls(out).length;
+      await keyClick(sel('run_now', B.agent), sel('run_now', B.agent));
+      await settleCalls(h);
+      const got = calls(out);
+      return [elsewhere === 0 && elsewhereName === 0 && same(got, [callOf(B, 'run_now')]), { elsewhere, elsewhereName, got }];
+    });
+  });
 }
 
 if (want('card')) {

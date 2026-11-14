@@ -207,6 +207,8 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "step",
                     "presenter",
                     "armed",
+                    "say_new",
+                    "say_gone",
                     "title",
                     "text",
                     "fields",
@@ -214,7 +216,7 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "choices",
                 ],
                 Some("label") => &["label", "value", "from", "from_text"],
-                Some("name") => &["name", "label", "candidates", "typed"],
+                Some("name") => &["name", "label", "candidates", "typed", "full", "too_long"],
                 Some("n") => &["n", "value", "from"],
                 Some("choice") => &["choice", "text", "safe"],
                 Some("key") if keys.get(2).map(String::as_str) == Some("fields") => {
@@ -478,4 +480,49 @@ fn the_states_hold_the_counts_of_i9_4() {
         words::text("note.no_service", &[]).unwrap().as_str(),
         "and the note"
     );
+}
+
+/// Every item of every state says that it comes and that it goes with the name of its agent's
+/// row, and each parameter holds the sentence for a full line only where it is typed (I3.4).
+#[test]
+fn every_item_says_its_coming_and_going_with_its_agents_name() {
+    let full = words::text("param_typed.full", &[]).unwrap();
+    let too_long = words::text("param_typed.too_long", &[]).unwrap();
+    let mut items = 0;
+    for state in State::ALL {
+        let snap = snapshot(state.name());
+        for item in snap["items"].as_array().unwrap() {
+            let row = snap["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["agent"] == item["agent"])
+                .unwrap();
+            let name = [("name", row["name"].as_str().unwrap())];
+            assert_eq!(
+                item["say_new"],
+                words::text("say.item.new", &name).unwrap().as_str()
+            );
+            assert_eq!(
+                item["say_gone"],
+                words::text("say.item.gone", &name).unwrap().as_str()
+            );
+            for p in item["params"].as_array().unwrap() {
+                let want = if p["typed"] == "yes" {
+                    full.as_str()
+                } else {
+                    ""
+                };
+                assert_eq!(p["full"], want, "{}", state.name());
+                let want = if p["typed"] == "yes" {
+                    too_long.as_str()
+                } else {
+                    ""
+                };
+                assert_eq!(p["too_long"], want, "{}", state.name());
+            }
+            items += 1;
+        }
+    }
+    assert!(items > 0);
 }
