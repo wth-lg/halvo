@@ -978,6 +978,8 @@ mod tests {
             for line in &mut f.sources {
                 line.state = SourceState::Off;
             }
+            f.capture = Capture::Faulted;
+            f.capture_reason = Some(CaptureReason::NoSource);
         });
         let text = status_text(&status);
         assert!(text.contains("\ncap_bytes=unknown\n"));

@@ -1697,7 +1697,7 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     let running = required.clone().filter(runs).count();
     let all = required.count();
     let fits = match f.capture {
-        Capture::Running => running == all,
+        Capture::Running => all > 0 && running == all,
         Capture::Partial => running > 0 && running < all,
         Capture::Faulted | Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume => {
             running == 0
@@ -3245,6 +3245,48 @@ stopped/kind body
             }
             let built = DaemonStatus::new(fields.clone());
             assert_eq!(built.is_ok(), ok, "{capture:?}: {:?}", fields.sources);
+        }
+    }
+
+    fn every_source_off(platform: Platform) -> StatusFields {
+        let mut f = sample_status(platform).into_fields();
+        f.enabled_sources.clear();
+        for line in &mut f.sources {
+            line.state = SourceState::Off;
+        }
+        f
+    }
+
+    #[test]
+    fn pl18_running_needs_a_required_source_and_an_empty_set_reads_faulted_no_source() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = every_source_off(platform);
+            f.capture = Capture::Running;
+            f.capture_reason = None;
+            assert_eq!(
+                DaemonStatus::new(f.clone()).map_err(|e| e.rule()),
+                Err("the capture value agrees with the states of the required sources"),
+                "{platform:?}: running beside an empty set"
+            );
+            f.capture = Capture::Faulted;
+            f.capture_reason = Some(CaptureReason::NoSource);
+            assert!(
+                DaemonStatus::new(f.clone()).is_ok(),
+                "{platform:?}: faulted"
+            );
+            let mut lapsed = f.clone();
+            lapsed.capture = Capture::NoIndicator;
+            lapsed.capture_reason = None;
+            lapsed.lease = Lease::Lapsed;
+            assert!(
+                DaemonStatus::new(lapsed).is_ok(),
+                "{platform:?}: no_indicator"
+            );
+            let mut paused = f;
+            paused.capture = Capture::Paused;
+            paused.capture_reason = None;
+            paused.desired = CaptureState::Paused;
+            assert!(DaemonStatus::new(paused).is_ok(), "{platform:?}: paused");
         }
     }
 

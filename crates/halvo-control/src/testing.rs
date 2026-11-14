@@ -268,9 +268,9 @@ fn end_the_person_s_stops(f: &mut StatusFields) {
 
 /// Sets capture and its reason from desired, `hold`, the lease and the states of the sources
 /// that are not off: paused when desired is paused; else awaiting_resume under `hold`; else
-/// no_indicator when the lease is not fresh; else running when each of those sources is running
-/// or impaired, partial when some are, and otherwise faulted with the reason that stood, or
-/// no_source when none stood.
+/// no_indicator when the lease is not fresh; else faulted with no_source when no source is
+/// required; else running when each of those sources is running or impaired, partial when some
+/// are, and otherwise faulted with the reason that stood, or no_source when none stood.
 fn settle(f: &mut StatusFields, hold: bool) {
     settle_sources(f, hold);
     if f.sources.iter().any(|s| s.unstopped)
@@ -296,6 +296,8 @@ fn settle_sources(f: &mut StatusFields, hold: bool) {
         (Capture::AwaitingResume, None)
     } else if f.lease != Lease::Fresh {
         (Capture::NoIndicator, None)
+    } else if required.is_empty() {
+        (Capture::Faulted, Some(CaptureReason::NoSource))
     } else if running == required.len() {
         (Capture::Running, None)
     } else if running > 0 {

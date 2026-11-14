@@ -1937,7 +1937,7 @@ mod tests {
     }
 
     #[test]
-    fn with_every_source_off_a_claim_and_a_resume_read_running_as_built() {
+    fn with_every_source_off_a_claim_and_a_resume_read_faulted_no_source() {
         let (client, _) = client(scripted(|f| {
             f.enabled_sources.clear();
             for line in &mut f.sources {
@@ -1946,11 +1946,13 @@ mod tests {
             f.lease = crate::proto::Lease::Lapsed;
             f.capture = crate::proto::Capture::NoIndicator;
         }));
+        let no_source = Some(crate::proto::CaptureReason::NoSource);
         let claimed = client.status_claiming_the_indicator().unwrap();
-        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
-        assert_eq!(claimed.fields().capture_reason, None);
+        assert_eq!(capture(&claimed), crate::proto::Capture::Faulted);
+        assert_eq!(claimed.fields().capture_reason, no_source);
         let resumed = client.resume().unwrap();
-        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+        assert_eq!(capture(&resumed), crate::proto::Capture::Faulted);
+        assert_eq!(resumed.fields().capture_reason, no_source);
     }
 
     #[test]
