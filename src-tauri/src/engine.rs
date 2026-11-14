@@ -100,29 +100,34 @@ pub struct EngineSite {
 pub type GuardInstall<R> = fn(&WebviewWindow<R>, EngineSite, Sender<GuardAnswer>);
 
 /// Installs every engine means of the window main and answers once on `answer`:
-/// `GuardInstalled` only when each means answered Ok, an error otherwise, and no
-/// answer when the runtime drops the closure of with_webview, which the receiver
-/// reads as a closed channel. On Windows the means are a handler of every resource
-/// request that refuses each address but the two of `REQUEST_HOSTS`, and the two
-/// navigation handlers, beside `app::ENGINE_ARGS` at creation; on macOS the
-/// navigation delegate in front of wry's, the data store's proxy at no address,
-/// the engine's peer-connection and link-preconnect preferences turned off and
-/// read back, and the content rule list `RULE_LIST`, compiled into
-/// `site.rules_dir`.
+/// `GuardInstalled` only when each means answered Ok, `NotInstalled` otherwise,
+/// and no answer when the runtime drops the closure of with_webview, which the
+/// receiver reads as a closed channel. On Windows the means are a handler of every
+/// resource request that refuses each address but the two of `REQUEST_HOSTS`, and
+/// the two navigation handlers, beside `app::ENGINE_ARGS` at creation. On macOS
+/// they are the navigation delegate in front of wry's, the data store's proxy at no
+/// address, the engine's peer-connection and link-preconnect preferences turned off
+/// and read back, the content rule list `RULE_LIST` compiled into
+/// `site.rules_dir`, the store that keeps nothing and the empty set of allowed
+/// network hosts of the configuration handed in at creation, read on the built web
+/// view, and a reading in a world of its own that the engine offers no
+/// peer-connection constructor. Every private selector is asked for before it is
+/// sent; a system that lacks one answers not installed.
 ///
-/// Hosted run 43541710304, with these means in and the content policy, the
-/// runtime's rule and the script of every frame out: on Windows (job
-/// 132283525539) and on macOS (job 132283525260) the window opened 0
-/// connections, sent 0 requests, made 0 lookups and sent 0 datagrams for every
-/// step of rulings AP-9 and AP-10 whose control reached the job's listeners. That
-/// holds for a peer connection whose remote description carries a marked fragment
-/// (with no layer 230 datagrams that carried the marker on Windows and 247 on
-/// macOS, log lines 5205 and 11003) and on macOS for a link clicked by script, a
-/// link with a target and a download link to an address in numbers (with no
-/// layer 1 connection each, log lines 10428, 10483 and 10703). Of frames on macOS
-/// the run shows this alone: a frame of each of the three addresses opened 0
-/// connections with these means in and the content policy and the runtime's rule
-/// out (log lines 10636, 10647 and 10658; with no layer 1 each).
+/// Hosted run 43585044597, for scripted steps, with these
+/// means in and the content policy, the runtime's rule and the script of every
+/// frame out, beside a control above 0 in the same job and with every listener
+/// bound. On windows-2025-vs2026 20261103.298.1, to the runner's own IPv4 address or
+/// a name for it, a peer connection whose remote description carries a marked
+/// fragment sent 0 datagrams, where with no layer it sent 230 that carried the
+/// marker (job 132417605871, log line 5616). On macos-15-arm64 20261104.0514.1 the
+/// same step sent 0, where with no layer it sent 247 (job 132417605652, log line
+/// 6601), and a link clicked by script, a link with a target and a download link to
+/// the runner's own IPv4 address opened 0 connections, where with no layer each
+/// opened 1 (log lines 6210, 6245 and 6409). Of frames on macOS the run shows this
+/// alone: a frame of the runner's own IPv4 address opened 0 connections with these
+/// means in and the content policy and the runtime's rule out, and 1 with no layer
+/// (log lines 6366 and 6367). Not measured on macOS 14 or on a macOS newer than 15.
 pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Sender<GuardAnswer>) {
     let unreached = answer.clone();
     let asked = window.with_webview(move |webview| platform::install(&webview, &site, answer));

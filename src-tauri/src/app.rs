@@ -177,13 +177,16 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
 /// the app's own origin that the runtime puts to it. An address that the
 /// runtime's own reader refuses is allowed by the runtime without the rule
 /// (tauri-runtime-wry 2.12.3); it is reached only by script in the page, and
-/// the means of `engine::guard` decide it at the engine. On Windows a navigation
-/// to https://xn--zz.com/p?q#f, a form that the reader refuses, opened 8
-/// connections with no layer, and 0 connections, 0 requests and 0 lookups with
-/// every engine means in (hosted run 43541710304, job 132283525539, log lines
-/// 4839 and 4836). On macOS none of the 70 forms that the reader refuses left
-/// the app or reached a listener with no layer (job 132283525260, log line
-/// 11265).
+/// the means of `engine::guard` decide it at the engine. On windows-2025-vs2026
+/// 20261103.298.1 a navigation to https://xn--zz.com/p?q#f, a form that the reader
+/// refuses, opened 8 connections with no layer and 0 with every engine means in,
+/// and the same form over http with a port of the job opened 2 connections with 2
+/// requests and then 0 (hosted run 43585044597, job 132417605871, log lines 5117,
+/// 5114, 5126 and 5123); the plain http form at port 80 was not measured. On
+/// macos-15-arm64 20261104.0514.1 none of the 70 forms that the reader refuses
+/// left the app or reached a listener with no layer, while two accepted forms at
+/// the same name did (job 132417605652, log line 6769): not measured as closed,
+/// because the refusal there is the engine's own.
 pub fn may_navigate(address: &str) -> bool {
     Url::parse(address).is_ok_and(|url| is_app_url(&url))
 }
