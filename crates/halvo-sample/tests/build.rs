@@ -589,6 +589,34 @@ fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
     );
     refused(&o, "script");
     assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
+    write(&dir.join("s/zz-mill.test.jsonl"), "not json\n");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-bad-line")),
+            "marked.jsonl",
+            "zz-mill.test.jsonl",
+        ],
+    );
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2:1: S15\n");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-missing")),
+            "marked.jsonl",
+            "zz-gone.test.jsonl",
+        ],
+    );
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
     refused(
         &common::run_in(
             &dir.join("s"),

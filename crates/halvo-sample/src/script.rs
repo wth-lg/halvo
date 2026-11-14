@@ -430,16 +430,18 @@ fn broken(at: At, rule: &'static str) -> Broken {
 
 impl Script {
     /// Reads the script files and checks the rules S1 to S15. The refusal has the cause `script` and a detail
-    /// that names the file, the line number and the rule, or the missing file.
+    /// that names the file by its place among the arguments, `SCRIPT <n>` from 1, with the line number and the
+    /// rule, or the file that cannot be read; never by its name, which may be a service's name.
     pub fn read(paths: &[PathBuf]) -> Result<Script, Refusal> {
         let mut texts = Vec::new();
-        for p in paths {
-            let bytes = fs::read(p).map_err(|_| Refusal::new("script", p.display().to_string()))?;
+        for (k, p) in paths.iter().enumerate() {
+            let bytes =
+                fs::read(p).map_err(|_| Refusal::new("script", format!("SCRIPT {}", k + 1)))?;
             texts.push(bytes);
         }
         Script::from_bytes(paths, &texts).map_err(|b| {
             let detail = match b.at {
-                Some(at) => format!("{}:{}: {}", paths[at.file].display(), at.line, b.rule),
+                Some(at) => format!("SCRIPT {}:{}: {}", at.file + 1, at.line, b.rule),
                 None => b.rule.to_owned(),
             };
             Refusal::new("script", detail)

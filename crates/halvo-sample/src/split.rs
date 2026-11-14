@@ -141,13 +141,13 @@ fn stream_of(line: &Line) -> Option<&str> {
 /// Runs `split` and returns the lines it prints.
 pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
     let mut names = BTreeSet::new();
-    for p in &args.scripts {
+    for (k, p) in args.scripts.iter().enumerate() {
         let name = p
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| Refusal::new("script", p.display().to_string()))?;
+            .ok_or_else(|| Refusal::new("script", format!("SCRIPT {}", k + 1)))?;
         if !names.insert(name.to_owned()) {
-            return Err(Refusal::new("script", p.display().to_string()));
+            return Err(Refusal::new("script", format!("SCRIPT {}", k + 1)));
         }
     }
     let script = Script::read(&args.scripts)?;
