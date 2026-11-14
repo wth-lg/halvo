@@ -49,10 +49,10 @@ fn local_size(payload: usize, usable: usize, table_leaf: bool) -> (usize, bool) 
     (if k <= max { k } else { min }, true)
 }
 
-fn cell_size(page: &[u8], at: usize, kind: u8, usable: usize) -> usize {
+fn cell_size(page: &[u8], at: usize, kind: u8, usable: usize) -> (usize, Option<(usize, usize)>) {
     let child = if kind == 2 || kind == 5 { 4 } else { 0 };
     if kind == 5 {
-        return 4 + varint(&page[at + 4..]).1;
+        return (4 + varint(&page[at + 4..]).1, None);
     }
     let (payload, head) = varint(&page[at + child..]);
     let mut size = child + head;
@@ -60,11 +60,21 @@ fn cell_size(page: &[u8], at: usize, kind: u8, usable: usize) -> usize {
         size += varint(&page[at + size..]).1;
     }
     let (local, spills) = local_size(payload as usize, usable, kind == 13);
-    size += local + if spills { 4 } else { 0 };
-    size.max(4)
+    size += local;
+    if !spills {
+        return (size.max(4), None);
+    }
+    let first = read4(page, at + size);
+    (size + 4, Some((first, payload as usize - local)))
 }
 
-fn btree_page(page: &[u8], number: usize, usable: usize, problems: &mut Vec<String>) {
+fn btree_page(
+    page: &[u8],
+    number: usize,
+    usable: usize,
+    chains: &mut Vec<(usize, usize)>,
+    problems: &mut Vec<String>,
+) {
     let header = if number == 1 { 100 } else { 0 };
     let kind = page[header];
     let header_size = match kind {
@@ -86,7 +96,8 @@ fn btree_page(page: &[u8], number: usize, usable: usize, problems: &mut Vec<Stri
     let mut covered = vec![false; usable];
     for at in 0..cells {
         let offset = read2(page, header + header_size + 2 * at);
-        let size = cell_size(page, offset, kind, usable);
+        let (size, chain) = cell_size(page, offset, kind, usable);
+        chains.extend(chain);
         for flag in covered.iter_mut().skip(offset).take(size) {
             *flag = true;
         }
@@ -145,6 +156,10 @@ fn words_no_larger_than(page: &[u8], from: usize, to: usize, count: usize) -> Op
 /// The leftovers of the keyless file `db`, whose pages `conn` names through
 /// the database's page table, one line for each page that breaks a rule.
 pub(super) fn leftovers(conn: &Connection, db: &[u8]) -> Vec<String> {
+    read_pages(conn, db).0
+}
+
+fn read_pages(conn: &Connection, db: &[u8]) -> (Vec<String>, Vec<(usize, usize)>) {
     let size = match read2(db, 16) {
         1 => 65536,
         size => size,
@@ -152,6 +167,7 @@ pub(super) fn leftovers(conn: &Connection, db: &[u8]) -> Vec<String> {
     let usable = size - usize::from(db[20]);
     let count = db.len() / size;
     let mut problems = Vec::new();
+    let mut chains = Vec::new();
     if let Some(at) = (52..56).find(|&at| db[at] != 0) {
         problems.push(format!("page 1: header byte {at} is {:#04x}", db[at]));
     }
@@ -199,21 +215,33 @@ pub(super) fn leftovers(conn: &Connection, db: &[u8]) -> Vec<String> {
         let page = &db[(number - 1) * size..number * size];
         match pages.get(&number) {
             Some((kind, _)) if kind == "internal" || kind == "leaf" => {
-                btree_page(page, number, usable, &mut problems)
+                btree_page(page, number, usable, &mut chains, &mut problems)
             }
-            Some((kind, unused)) if kind == "overflow" => {
-                if let Some(at) = words_no_larger_than(page, usable - unused, usable, count) {
-                    problems.push(format!(
-                        "page {number}: the tail of an overflow page holds at {at} a value above the page count"
-                    ));
-                }
-            }
+            Some((kind, _)) if kind == "overflow" => {}
             Some((kind, _)) => problems.push(format!("page {number}: page type {kind}")),
             None if freelist.contains(&number) => {}
             None => problems.push(format!("page {number}: in no tree and not on the freelist")),
         }
     }
-    problems
+    let mut tails = Vec::new();
+    for (first, mut left) in chains {
+        let mut number = first;
+        while number != 0 && number <= count && left > 0 {
+            let page = &db[(number - 1) * size..number * size];
+            let used = left.min(usable - 4);
+            left -= used;
+            if left == 0 {
+                tails.push((number, 4 + used));
+                if let Some(at) = words_no_larger_than(page, 4 + used, usable, count) {
+                    problems.push(format!(
+                        "page {number}: the tail of an overflow page holds at {at} a value above the page count"
+                    ));
+                }
+            }
+            number = read4(page, 0);
+        }
+    }
+    (problems, tails)
 }
 
 fn small_store(mode: Mode) -> Scratch {
@@ -228,7 +256,11 @@ fn small_store(mode: Mode) -> Scratch {
     for round in 0..4 {
         conn.execute_batch("BEGIN").unwrap();
         for at in 0..200 {
-            let len = 8 + rng.below(300) as usize;
+            let len = if at % 50 == 0 {
+                8180
+            } else {
+                8 + rng.below(300) as usize
+            };
             let body: String = (0..len)
                 .map(|_| char::from(b'b' + rng.below(5) as u8))
                 .collect();
@@ -259,7 +291,9 @@ fn the_structural_check_sees_what_a_delete_leaves_with_secure_delete_off() {
     let conn = connect(&scratch.db(), Mode::Unsecured);
     let found = leftovers(&conn, &std::fs::read(scratch.db()).unwrap());
     assert!(
-        found.iter().any(|line| line.contains("freeblock")),
+        found
+            .iter()
+            .any(|line| line.contains("of the freeblock at")),
         "with secure delete off the structural check sees no freeblock that holds bytes: {found:?}"
     );
 }
@@ -289,4 +323,78 @@ fn the_structural_check_sees_four_bytes_of_text_planted_in_a_gap() {
             .any(|line| line.starts_with(&format!("page {number}: ")) && line.contains("gap")),
         "the structural check does not see 4 bytes planted in the gap of page {number}: {found:?}"
     );
+}
+
+fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -> Option<String> {
+    let mut copy = db.to_vec();
+    copy[at..at + bytes.len()].copy_from_slice(bytes);
+    let found = leftovers(conn, &copy);
+    if found.iter().any(|line| line.contains(named)) {
+        None
+    } else {
+        Some(format!(
+            "{bytes:?} planted at byte {at}: no line names {named:?}: {found:?}"
+        ))
+    }
+}
+
+#[test]
+fn the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads() {
+    crate::initialize().unwrap();
+    let scratch = small_store(Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let db = std::fs::read(scratch.db()).unwrap();
+    assert_eq!(leftovers(&conn, &db), Vec::<String>::new());
+    let size = read2(&db, 16);
+    let page = |number: usize| (number - 1) * size;
+    let mut misses = Vec::new();
+    misses.extend(planted(&db, &conn, 52, &[1], "header byte 52"));
+    let trunk = read4(&db, 32);
+    assert!(trunk != 0, "the store has no freelist");
+    let trunk_page = &db[page(trunk)..page(trunk) + size];
+    let leaves = read4(trunk_page, 4);
+    assert!(leaves > 0, "the freelist trunk names no leaf");
+    let leaf = read4(trunk_page, 8);
+    misses.extend(planted(
+        &db,
+        &conn,
+        page(leaf) + 100,
+        &[1],
+        "of a freelist leaf",
+    ));
+    misses.extend(planted(
+        &db,
+        &conn,
+        page(trunk) + size - 4,
+        &[0xff; 4],
+        "the freelist trunk past its count",
+    ));
+    let (number, _) = read_pages(&conn, &db)
+        .1
+        .into_iter()
+        .find(|(_, tail)| *tail + 4 <= size)
+        .expect("an overflow page with a tail of at least 4 bytes");
+    misses.extend(planted(
+        &db,
+        &conn,
+        page(number) + size - 4,
+        &[0xff; 4],
+        "the tail of an overflow page",
+    ));
+    let (number, free) = (2..=db.len() / size)
+        .find_map(|number| {
+            let at = page(number);
+            let free = read2(&db, at + 1);
+            (matches!(db[at], 2 | 5 | 10 | 13) && free != 0 && read2(&db, at + free + 2) > 4)
+                .then_some((number, free))
+        })
+        .expect("a page with a freeblock longer than its header");
+    misses.extend(planted(
+        &db,
+        &conn,
+        page(number) + free + 4,
+        &[1],
+        "of the freeblock at",
+    ));
+    assert!(misses.is_empty(), "{}", misses.join("\n"));
 }
