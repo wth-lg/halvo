@@ -312,15 +312,15 @@ egress machine=hosted-win mode=wfp browser_started=yes denied=2
 Run 43566221064 prints its two denials by protocol, port and loopback host alone: 2 times `proto=udp
 port=5353 loopback=no`. Runs 43547292129 and 43552018301 printed the count alone, so the kinds of
 their denials are unknown. The count of the first set is what the browser happened to try in a run,
-and no text here gives it as fixed: in every run the first set showed at least one denied connection
-and the final set showed none. The final set adds U0.7b's flags, the two relay flags that close a
-way out (`--disable-quic`, the WebRTC policy) and the agent's settings. So item 3 adds no flag to
-U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that set, stand. The kinds of
-run 43566221064's denials, and of the controls at c9eafc41 and in that run, come from the round's
-step script, which is not in the tree (`.u03r4/item3-extra.sh` of the scratch head cf5bb96a); item
-3's program prints the count alone today. From the next run of item 3 on, the program prints one
-line for each denial with its protocol, port and loopback host alone; that change is the planner's
-to place.
+and no text here gives it as fixed: on `hosted-win` in every run the first set showed at least one
+denied connection and the final set showed none. The final set adds U0.7b's flags, the two relay
+flags that close a way out (`--disable-quic`, the WebRTC policy) and the agent's settings. So item 3
+adds no flag to U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that set, stand.
+The kinds of run 43566221064's denials, and of the controls at c9eafc41 and in that run, come from
+the round's step script, which is not in the tree (`.u03r4/item3-extra.sh` of the scratch head
+cf5bb96a); item 3's program prints the count alone today. From the next run of item 3 on, the
+program prints one line for each denial with its protocol, port and loopback host alone; that change
+is the planner's to place.
 
 What `browser_started=no` covers on `mac` and `hosted-mac`: every call of either set ended with
 `cause=start`, which the executor gives when the browser answered its first call on the pipe
@@ -381,3 +381,6 @@ the kinds of files they change; none changes a value that a cell computes:
   its value.
 - cadf0314: the web trial's kill line is printed by `kill_line_of`, which takes the context, in place
   of the printer at its call; the line of each browser is the same, and two collector cases.
+- 56919992 (after item 3 ran): the end of item 3, from the inner line to the printed lines, is
+  `item3_end`; for six inner lines the program prints the same bytes and exit code as at ba71401c.
+- ffc38432, 796e12f5: tests of `item3_end` and of the inner line that item 3 keeps.
