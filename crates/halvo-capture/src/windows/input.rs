@@ -539,6 +539,54 @@ pub mod seam {
             .into_iter()
             .collect()
     }
+
+    /// What the password detector did since its last start.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DetectorSeen {
+        /// The answer of the keyboard source's last attach of the detector:
+        /// none before the first, else Ok or the error's debug form.
+        pub attach: Option<Result<(), String>>,
+        /// The detector's own reads that ended since its last start.
+        pub own_reads: u64,
+        /// The tick at which the own read that is running began; none when no
+        /// own read runs.
+        pub read_since: Option<u32>,
+    }
+
+    static DETECTOR: Mutex<DetectorSeen> = Mutex::new(DetectorSeen {
+        attach: None,
+        own_reads: 0,
+        read_since: None,
+    });
+
+    fn detector_now() -> std::sync::MutexGuard<'static, DetectorSeen> {
+        DETECTOR.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn detector_started() {
+        let mut seen = detector_now();
+        seen.own_reads = 0;
+        seen.read_since = None;
+    }
+
+    pub(crate) fn detector_attached(answer: Result<(), String>) {
+        detector_now().attach = Some(answer);
+    }
+
+    pub(crate) fn own_read_began(tick: u32) {
+        detector_now().read_since = Some(tick);
+    }
+
+    pub(crate) fn own_read_ended() {
+        let mut seen = detector_now();
+        seen.own_reads += 1;
+        seen.read_since = None;
+    }
+
+    /// What the seam holds of the password detector now.
+    pub fn detector() -> DetectorSeen {
+        detector_now().clone()
+    }
 }
 
 thread_local! {
@@ -980,7 +1028,10 @@ impl CaptureSource for RawInputSource {
         let removed = Removed::default();
         self.removed = Arc::clone(&removed);
         if let Some(gate) = &self.gate {
-            gate.attach()?;
+            let attached = gate.attach();
+            #[cfg(feature = "test-seam")]
+            seam::detector_attached(attached.as_ref().map(|_| ()).map_err(|e| format!("{e:?}")));
+            attached?;
         }
         let gate = self.gate.as_ref().map(|gate| GateState {
             gate: Arc::clone(gate),

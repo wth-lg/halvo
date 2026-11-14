@@ -913,6 +913,9 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             super::control_reads(test, "burst-control", &seam::take_marks(), &seam::take());
             std::thread::sleep(Duration::from_millis(250));
             let gate_before = keyboard.source.field_state();
+            if gate_before == Some(FieldState::Unknown) {
+                super::detector_line(test, &format!("burst-round-{round}"));
+            }
             let mut burst = Vec::new();
             for _ in 0..5 {
                 burst.push(key_input(VK_A, false));
@@ -1058,6 +1061,9 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         let start = reset(&keyboard, warm).unwrap_or_default();
         let warm_front = foreground_window() == warm;
         let plain_state = keyboard.state_within(FieldState::Clear, Duration::from_secs(3));
+        if plain_state == Some(FieldState::Unknown) {
+            super::detector_line(test, "warm-control");
+        }
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(5) / 2);
         keyboard.settle(Duration::from_millis(800));

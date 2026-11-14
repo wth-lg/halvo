@@ -2815,6 +2815,28 @@ fn pointer_moves_coalesce() {
     });
 }
 
+fn detector_line(test: &str, at: &str) {
+    let seen = seam::detector();
+    // SAFETY: GetTickCount takes no argument and reads a counter.
+    let now = unsafe { GetTickCount() };
+    let attach = match &seen.attach {
+        None => "none".to_string(),
+        Some(Ok(())) => "ok".to_string(),
+        Some(Err(error)) => format!("error:{}", error.replace(' ', "_")),
+    };
+    say(
+        test,
+        format!(
+            "detector at={at} attach={attach} own_reads_since_the_start={} read_in_flight={} \
+             read_in_flight_since_ms={}",
+            seen.own_reads,
+            seen.read_since.is_some(),
+            seen.read_since
+                .map_or(-1, |since| i64::from(now.wrapping_sub(since)))
+        ),
+    );
+}
+
 fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInputSource) -> bool {
     use halvo_capture::secure_input::windows::FieldState;
     let started = Instant::now();
@@ -2845,6 +2867,9 @@ fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInpu
             started.elapsed().as_millis()
         ),
     );
+    if !clear {
+        detector_line(test, "gate-reads-clear");
+    }
     clear
 }
 

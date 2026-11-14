@@ -904,6 +904,8 @@ mod detector {
                 return Ok(());
             }
             self.wait_for_the_stale_detector()?;
+            #[cfg(feature = "test-seam")]
+            crate::windows::input::seam::detector_started();
             self.shared.started(tick());
             let wake = Arc::new(Event::new()?);
             let (ready, started) = std::sync::mpsc::channel();
@@ -1407,9 +1409,13 @@ mod detector {
 
     fn own_read(shared: &Shared, reader: &Reader) {
         let began = tick();
+        #[cfg(feature = "test-seam")]
+        crate::windows::input::seam::own_read_began(began);
         let moves = shared.lock().moves;
         let (state, moved) = reader.own(moves);
         shared.read_seen(began, tick(), state, moved, reader.seen());
+        #[cfg(feature = "test-seam")]
+        crate::windows::input::seam::own_read_ended();
     }
 
     fn run(
