@@ -749,6 +749,7 @@ mod tests {
         assert!(deletion.is_err());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn two_switch_flags_parse_to_their_values_with_both_names_set() {
         let dirs = dirs();
@@ -813,6 +814,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn the_verify_modes_take_their_flags_and_nothing_else() {
         let dirs = dirs();
@@ -849,6 +851,7 @@ mod tests {
         assert_eq!(store(&["--version"]), Ok(Mode::Version));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn the_hold_needs_two_seconds_and_is_a_flag_of_macos() {
         let dirs = dirs();
