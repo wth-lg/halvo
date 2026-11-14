@@ -267,9 +267,10 @@ fn calls_on_a_sealed_handle_answer_sealed_and_touch_nothing() {
     println!("ADV1 sealed first {}", adv1_report_line(&first));
     assert!(first.is_ok());
 
-    // A second store under the same roots directory, made after the delete.
     let other_id = RootId::fresh().unwrap();
-    let other_dir = dir.path().join("other-store");
+    let other_dir = dir
+        .path()
+        .join("a-second-store-under-the-same-roots-made-after-the-delete");
     let other = EncryptedStore::create(
         &other_dir,
         Box::new(file_root_custody(
@@ -281,8 +282,12 @@ fn calls_on_a_sealed_handle_answer_sealed_and_touch_nothing() {
     )
     .unwrap();
     drop(other);
-    // Files that the sealed store did not make, put into its directory.
-    std::fs::write(store_dir.join("store.key"), vec![7u8; 100]).unwrap();
+    let made_by_another_party_in_the_sealed_stores_directory = vec![7u8; 100];
+    std::fs::write(
+        store_dir.join("store.key"),
+        &made_by_another_party_in_the_sealed_stores_directory,
+    )
+    .unwrap();
     std::fs::create_dir_all(store_dir.join("segments").join("ab")).unwrap();
     std::fs::write(
         store_dir.join("segments").join("ab").join("x"),
@@ -598,9 +603,12 @@ impl<C: KeyCustody> KeyCustody for Adv1AnotherPartyWritesStoreKey<C> {
         self.inner.roots()
     }
     fn wrap_store_key(&self, key: &StoreKey, label: KeyLabel) -> Result<WrappedKey, CustodyError> {
-        // The instant between the create's look at store.key and its publish:
-        // another party, which holds no lock, puts its own file at the name.
-        std::fs::write(&self.at, vec![7u8; 200]).unwrap();
+        let another_partys_file_put_at_the_name_between_the_look_and_the_publish = vec![7u8; 200];
+        std::fs::write(
+            &self.at,
+            another_partys_file_put_at_the_name_between_the_look_and_the_publish,
+        )
+        .unwrap();
         self.inner.wrap_store_key(key, label)
     }
     fn create_root(&self) -> Result<(), CustodyError> {
@@ -770,18 +778,14 @@ fn delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name(
     );
 }
 
-// Adversary 3: F1, F2 and F3 of its report.
 #[cfg(target_os = "macos")]
 fn adv3_set_immutable(path: &Path, on: bool) {
     use std::os::unix::ffi::OsStrExt;
     let c = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
     let flags = if on { libc::UF_IMMUTABLE } else { 0 };
     // SAFETY: c is NUL-terminated and outlives the call.
-    assert_eq!(
-        unsafe { libc::chflags(c.as_ptr(), flags as _) },
-        0,
-        "chflags"
-    );
+    let answer = unsafe { libc::chflags(c.as_ptr(), flags as _) };
+    assert_eq!(answer, 0, "chflags");
 }
 
 #[cfg(target_os = "macos")]
@@ -811,7 +815,7 @@ fn a_partial_root_file_with_the_root_bytes_that_stays_leaves_delete_all_ok() {
     );
     assert!(
         !(answer.is_ok() && stays && same),
-        "delete_all answered Ok while a partial root file with the root's bytes stays"
+        "adversary 3 of the stress step, F1 to F3 of its report: delete_all answered Ok while a partial root file with the root's bytes stays"
     );
 }
 
@@ -841,7 +845,7 @@ fn a_store_key_temp_with_the_wrapped_key_that_stays_leaves_delete_all_ok() {
     );
     assert!(
         !(answer.is_ok() && stays),
-        "delete_all answered Ok while store.key.tmp stays"
+        "adversary 3 of the stress step, F1 to F3 of its report: delete_all answered Ok while store.key.tmp stays"
     );
 }
 
@@ -877,7 +881,10 @@ fn a_create_whose_key_name_is_taken_after_its_root_leaves_what_stands_there() {
         after.iter().all(|b| *b == 0),
         store_dir.join("store.key").exists()
     );
-    assert_ne!(created, "Ok");
+    assert_ne!(
+        created, "Ok",
+        "adversary 3 of the stress step, F1 to F3 of its report: the create whose key name was taken after its root answered Ok"
+    );
     assert_eq!(
         after, original,
         "the failed create wrote over a file that it did not make"
@@ -910,7 +917,10 @@ fn a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store() {
             wrong.push(format!("{version}: {opened}"));
         }
     }
-    assert!(wrong.is_empty(), "{wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "adversary 3 of the stress step, F1 to F3 of its report: {wrong:?}"
+    );
 }
 
 #[cfg(unix)]
@@ -940,7 +950,10 @@ fn a_create_whose_key_name_is_taken_by_a_plain_file_after_its_root_removes_that_
         left.as_deref() == Some(&planted[..]),
         roots.join(format!("{root_id}.root")).exists()
     );
-    assert_ne!(created, "Ok");
+    assert_ne!(
+        created, "Ok",
+        "adversary 3 of the stress step, F1 to F3 of its report: the create whose key name a plain file took after its root answered Ok"
+    );
     assert_eq!(
         left.as_deref(),
         Some(&planted[..]),
@@ -994,11 +1007,10 @@ fn the_tail_answers_ok_while_a_partial_root_and_a_store_key_temp_stay() {
     println!("ADV3-TAIL the leftover partial root unwraps the wrapped key of the leftover store.key.tmp: {unwraps}");
     assert!(
         !(answer.is_ok() && (partial.exists() || temp.exists())),
-        "the tail answered Ok while files stay"
+        "adversary 3 of the stress step, F1 to F3 of its report: the tail answered Ok while files stay"
     );
 }
 
-// Adversary 2: F1 of its report, the kill at the seam.
 #[cfg(unix)]
 fn adv2_open_at(
     store_dir: &Path,
@@ -1110,7 +1122,7 @@ fn a_stopped_create_under_a_root_id_that_another_create_then_made_keeps_that_liv
     );
     assert!(
         first_open.is_ok(),
-        "A did not open after the child: {first_open:?}"
+        "adversary 2 of the stress step, F1 of its report, the kill at the seam: A did not open after the child: {first_open:?}"
     );
     assert!(
         second_open.is_ok(),
@@ -1118,7 +1130,6 @@ fn a_stopped_create_under_a_root_id_that_another_create_then_made_keeps_that_liv
     );
 }
 
-// The verify step: the roots beside the store.
 fn ver12_shapes(dir: &Path) -> Vec<String> {
     match std::fs::read_dir(dir) {
         Ok(entries) => {
@@ -1189,7 +1200,10 @@ fn delete_all_after_the_data_directory_moved_keeps_the_root_of_a_store_made_at_t
     std::fs::rename(&data, &moved).unwrap();
     std::fs::create_dir(&data).unwrap();
     let (second_dir, second_roots, second_id, segment) = file_root_store(&data);
-    assert_eq!(second_roots, roots_dir);
+    assert_eq!(
+        second_roots, roots_dir,
+        "the verify step, the roots beside the store: the second store's roots are not the first's"
+    );
     let answer = first.delete_all();
     drop(first);
     let first_root =
@@ -1225,8 +1239,6 @@ fn delete_all_after_the_data_directory_moved_keeps_the_root_of_a_store_made_at_t
         ver12_report_line(&answer)
     );
 }
-
-// Tests of ruling ST-44 that no adversary wrote.
 
 /// F4: an entry at store.key.tmp that the create did not make and that has a
 /// second name is removed without a zero-fill, so the file behind the second

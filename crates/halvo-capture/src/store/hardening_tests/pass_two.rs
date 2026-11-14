@@ -141,10 +141,6 @@ fn write_mark(store_dir: &Path, root_id: RootId, reading: &str) {
     .unwrap();
 }
 
-// ---------------------------------------------------------------------------
-// H3: a later call on a handle whose root reads destroyed
-// ---------------------------------------------------------------------------
-
 /// The adversary's p2_a. A first delete-all removes the root and is stopped by
 /// something else (segments/ at 0500). The store directory is then moved and
 /// a second store is made at its old name, in the scratch layout (roots
@@ -238,10 +234,6 @@ fn a_later_delete_all_after_the_root_read_destroyed_does_not_open_the_roots_path
         "the later call destroyed a root in the directory put at the roots path"
     );
 }
-
-// ---------------------------------------------------------------------------
-// H5: an entry at store.key.tmp in the delete
-// ---------------------------------------------------------------------------
 
 /// The adversary's p2_d: the tail and a second name at store.key.tmp of a
 /// file of another party.
@@ -355,10 +347,6 @@ fn an_entry_at_store_key_tmp_that_no_call_can_remove_is_counted_as_not_followed(
         );
     }
 }
-
-// ---------------------------------------------------------------------------
-// H1 with H2: the tail's sweep, the root file that cannot be opened
-// ---------------------------------------------------------------------------
 
 /// The adversary's p2_b: a root file that the root step could not open
 /// (mode 000, the unit's own case; mode 0200), and the tail three times.
@@ -516,10 +504,6 @@ fn a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok()
     }
 }
 
-// ---------------------------------------------------------------------------
-// H4: what counts as the root's own file at its name
-// ---------------------------------------------------------------------------
-
 /// The adversary's p2_c: the root file renamed aside inside the roots
 /// directory, an empty file at its name, the handle's delete-all.
 #[test]
@@ -642,10 +626,6 @@ fn an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_remove
     );
     assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
 }
-
-// ---------------------------------------------------------------------------
-// H1: the table test of the tail
-// ---------------------------------------------------------------------------
 
 /// The arm of `delete_store_dir` that a row reaches.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1060,11 +1040,6 @@ fn the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_de
         assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
     }
 }
-
-// ---------------------------------------------------------------------------
-// ST-45 Addition 2: the witness is the root's own file, and an entry at a
-// root name that cannot be a root file is written through by no form
-// ---------------------------------------------------------------------------
 
 /// The adversary's p3_f. Case 29 again (the store moved, a second store made
 /// at its old name, roots inside), with one entry more in the second store's
