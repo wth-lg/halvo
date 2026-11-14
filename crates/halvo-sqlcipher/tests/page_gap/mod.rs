@@ -7,6 +7,7 @@ use rusqlite::{params, Connection};
 
 mod layout;
 mod pins;
+mod rules;
 mod second_place;
 mod table;
 
@@ -394,7 +395,7 @@ impl Run {
         }
         if let (Mode::Plain, Some(conn)) = (self.mode, self.conn.as_ref()) {
             let db = std::fs::read(self.scratch.db()).unwrap();
-            for line in layout::leftovers(conn, &db) {
+            for line in rules::check(conn, &db).problems {
                 problems.push(format!("structural check: {line}"));
             }
         }

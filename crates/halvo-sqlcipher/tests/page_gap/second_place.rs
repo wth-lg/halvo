@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::{connect, layout, Mode, Rng, Scratch, PAGE};
+use super::{connect, rules, Mode, Rng, Scratch, PAGE};
 
 fn token(rng: &mut Rng) -> String {
     (0..16)
@@ -25,7 +25,8 @@ fn places(conn: &Connection, dir: &Path, removed: &BTreeSet<String>, when: &str)
         .collect();
     names.sort();
     let mut found: Vec<String> =
-        layout::leftovers(conn, &std::fs::read(dir.join("page-gap.db")).unwrap())
+        rules::check(conn, &std::fs::read(dir.join("page-gap.db")).unwrap())
+            .problems
             .into_iter()
             .map(|line| format!("{when}: structural check: {line}"))
             .collect();
