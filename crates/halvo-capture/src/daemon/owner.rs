@@ -2316,7 +2316,17 @@ mod tests {
             ));
             let ready = crate::daemon::signal::peak_rss_bytes().unwrap();
             let started = std::time::Instant::now();
-            for _ in 0..RECORDS {
+            let mut queued_high_water = 0u64;
+            for record in 0..RECORDS {
+                if record % 1024 == 0 {
+                    let counts = sink.counts();
+                    let accepted: u64 = Modality::ALL
+                        .into_iter()
+                        .map(|kind| counts.of(kind).accepted)
+                        .sum();
+                    let received = thread.snapshot().events_received();
+                    queued_high_water = queued_high_water.max(accepted.saturating_sub(received));
+                }
                 assert_eq!(
                     sink.emit_event(title_of(
                         crate::floor::text::TEXT_MAX_BYTES,
@@ -2335,6 +2345,9 @@ mod tests {
                 peak.saturating_sub(ready),
                 started.elapsed().as_millis()
             );
+            println!(
+                "owner_growth_detail peak_before_first_record={ready} peak_after_settle={peak} queued_high_water={queued_high_water} queue_slots={QUEUE_SLOTS}"
+            );
             let _ = thread.handle.call(Command::Shutdown);
             return;
         }
@@ -2350,6 +2363,12 @@ mod tests {
             .find_map(|line| line.find("owner_growth_bytes=").map(|at| &line[at..]))
             .expect("the child printed no growth line");
         println!("{line}");
+        if let Some(detail) = text
+            .lines()
+            .find_map(|line| line.find("owner_growth_detail").map(|at| &line[at..]))
+        {
+            println!("{detail}");
+        }
         let growth: u64 = line["owner_growth_bytes=".len()..]
             .split(' ')
             .next()
