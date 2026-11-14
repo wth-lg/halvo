@@ -1973,14 +1973,36 @@ fn a_focus_notice_for_a_field_that_does_not_take_the_focus_records_no_letter() {
                 &fixture.ask(CMD_NOTIFY_FOCUS, FIELD_PLAIN, "notified"),
                 "ok",
             ) == 1;
-            std::thread::sleep(Duration::from_millis(60));
-            // The round counts only when the gate saw the notice: a focus
-            // event that read Clear, while the password field kept the focus.
-            let seen = seam::take_marks().iter().any(|mark| {
+            std::thread::sleep(Duration::from_millis(150));
+            // Every mark after the notice is printed, with what its reading
+            // saw of its element's password property, and whether a focus
+            // event that read Clear reached the gate. A round of the hosted
+            // runner of round B saw none (W3-7 O1).
+            let marks = seam::take_marks();
+            let seen = marks.iter().any(|mark| {
                 mark.what == "event"
                     && mark.state == Some(halvo_capture::secure_input::windows::FieldState::Clear)
             });
-            notified && seen
+            let listed: Vec<String> = marks
+                .iter()
+                .map(|mark| {
+                    let element = mark.element.as_deref().unwrap_or("");
+                    let password = element
+                        .split(' ')
+                        .find(|part| part.starts_with("is_password="))
+                        .unwrap_or("is_password=none");
+                    format!("{}:{:?}:{password}", mark.what, mark.state)
+                })
+                .collect();
+            say(
+                "stall-stale-focus",
+                format!(
+                    "notified={notified} clear_focus_event_seen={seen} marks_after_the_notice={} [{}]",
+                    marks.len(),
+                    listed.join(",")
+                ),
+            );
+            notified
         },
     );
 }

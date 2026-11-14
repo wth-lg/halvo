@@ -217,8 +217,15 @@ fn letters_for(span: Duration, every: Duration) -> i64 {
 /// Brings `hwnd` to the front with no key of the test's own: the Alt key
 /// that the other fixtures send takes the focus to a browser's menu. Answers
 /// whether it is there, with the code of the call (1 SetForegroundWindow,
-/// 3 joined input, 4 minimize and restore, 0 none).
-fn bring_to_front(hwnd: HWND) -> (bool, u8) {
+/// 2 a click on the window's caption, 3 joined input, 4 minimize and
+/// restore, 0 none). With `click` the click comes before joined input: with
+/// joined input the window that lost the front sent a focus event after the
+/// browser's, and that stale event was the gate's newest mark (round B, run
+/// 43539765203). The click's latch stays open until a read shows a move, so
+/// it is used only where no key is to be recorded next.
+fn bring_to_front(hwnd: HWND, click: bool) -> (bool, u8) {
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
     // SAFETY: the window calls take a window handle by value.
     unsafe {
         let _ = SetForegroundWindow(hwnd);
@@ -226,6 +233,18 @@ fn bring_to_front(hwnd: HWND) -> (bool, u8) {
     std::thread::sleep(Duration::from_millis(200));
     if foreground_window() == hwnd {
         return (true, 1);
+    }
+    let mut rect = RECT::default();
+    // SAFETY: `rect` is a live RECT that the call fills.
+    if click && unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
+        click_at(
+            i64::from((rect.left + rect.right) / 2),
+            i64::from(rect.top + 12),
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        if foreground_window() == hwnd {
+            return (true, 2);
+        }
     }
     // SAFETY: GetWindowThreadProcessId takes a handle and no out pointer
     // here; GetCurrentThreadId takes no argument.
@@ -285,6 +304,7 @@ impl PhaseBrowser {
                          user_pref(\"browser.aboutwelcome.enabled\", false);\n\
                          user_pref(\"datareporting.policy.dataSubmissionEnabled\", false);\n\
                          user_pref(\"browser.startup.homepage_override.mstone\", \"ignore\");\n\
+                         user_pref(\"startup.homepage_welcome_url\", \"\");\n\
                          user_pref(\"trailhead.firstrun.didSeeAboutWelcome\", true);\n";
             std::fs::write(profile.path().join("user.js"), prefs).ok()?;
         }
@@ -317,6 +337,11 @@ impl PhaseBrowser {
 
     /// Opens the page of `phase` and brings its window to the front.
     fn open(&mut self, test: &str, phase: &str, hold: u64) -> Option<HWND> {
+        self.open_with(test, phase, hold, false)
+    }
+
+    /// As `open`, with a click on the caption among the ways to the front.
+    fn open_with(&mut self, test: &str, phase: &str, hold: u64, click: bool) -> Option<HWND> {
         self.runs += 1;
         let url = format!("{}?phase={phase}&hold={hold}&run={}", self.page, self.runs);
         let profile = self.profile.path().to_string_lossy().into_owned();
@@ -348,16 +373,8 @@ impl PhaseBrowser {
         while began.elapsed() < Duration::from_secs(40) {
             if let Some((hwnd, _)) = window_titled(&prefix) {
                 std::thread::sleep(Duration::from_millis(800));
-                let (front, method) = bring_to_front(hwnd);
+                let (front, method) = bring_to_front(hwnd, click);
                 std::thread::sleep(Duration::from_millis(700));
-                // Firefox leaves its content without the focus when its
-                // window comes to the front; a click in the page gives it.
-                if !self.chromium {
-                    if let Some(page) = page_read(hwnd) {
-                        click_at(page.px, page.py);
-                        std::thread::sleep(Duration::from_millis(400));
-                    }
-                }
                 say(
                     test,
                     format!(
@@ -425,7 +442,14 @@ impl Keyboard {
 
 /// The element that the gate's last reading of a browser's process saw.
 fn element_seen(file: &str) -> String {
-    seam::take_marks()
+    marks_seen(file).0
+}
+
+/// The element that the gate's last reading of `file`'s process saw, and
+/// the gate's three newest marks with the file of each mark's element.
+fn marks_seen(file: &str) -> (String, String) {
+    let marks = seam::take_marks();
+    let element = marks
         .iter()
         .rev()
         .filter_map(|mark| mark.element.as_deref())
@@ -435,7 +459,21 @@ fn element_seen(file: &str) -> String {
                 .contains(&format!("file={}", file.to_ascii_lowercase()))
         })
         .unwrap_or("element=none")
-        .to_string()
+        .to_string();
+    let newest: Vec<String> = marks
+        .iter()
+        .rev()
+        .take(3)
+        .map(|mark| {
+            let file = mark
+                .element
+                .as_deref()
+                .and_then(|e| e.split(' ').find(|part| part.starts_with("file=")))
+                .unwrap_or("file=none");
+            format!("{}:{:?}:{file}", mark.what, mark.state)
+        })
+        .collect();
+    (element, newest.join(","))
 }
 
 /// Starts a round: the reset key, then the page's start state, with the
@@ -1001,11 +1039,11 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
         let _ = seam::take_marks();
         let cold = browser
-            .open(test, "cold", 0)
+            .open_with(test, "cold", 0, true)
             .expect("INCONCLUSIVE: no page window");
         let cold_front = foreground_window() == cold;
         let cold_state = keyboard.state_within(FieldState::Password, Duration::from_secs(5));
-        let cold_element = element_seen(&file);
+        let (cold_element, cold_newest) = marks_seen(&file);
         let cold_page = page_read(cold).unwrap_or_default();
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(3) / 2);
@@ -1014,7 +1052,7 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             test,
             format!(
                 "browser={name} order=cold foreground={cold_front} focus_before={} gate_while_focused={cold_state:?} \
-                 {} {cold_element}",
+                 {} newest_marks=[{cold_newest}] {cold_element}",
                 cold_page.focus,
                 cold_round.line()
             ),
@@ -1186,9 +1224,16 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
                 show(&stopped)
             ),
         );
+        // A renamed copy of Firefox on the hosted runner keeps the keys in
+        // its own frame and not in the page (adversary 2's run, L2 lines 498
+        // to 501, page counts 0): for it the round needs the window in front
+        // and the gate's reading of the copy's own process; the landing is
+        // printed.
+        let landed = plain.page.text == 5 && password.page.password == 5;
+        let read_the_copy = plain_element.contains("file=renamed-browser.exe");
         assert!(
-            front && plain.page.text == 5 && password.page.password == 5,
-            "INCONCLUSIVE: the copy's page did not take the letters"
+            front && if browser.chromium { landed } else { read_the_copy },
+            "INCONCLUSIVE: the copy's window was not in front, or the copy did not take the letters"
         );
         assert_eq!(
             plain_state,
