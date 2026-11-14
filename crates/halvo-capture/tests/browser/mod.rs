@@ -80,6 +80,10 @@ function reset() {
   if (phase === 'burst') later(1000, () => { armed = true; });
   if (phase === 'cold' || phase === 'show-hide' || phase === 'show-control') password.focus();
   else if (phase === 'swap-focus') { button.focus(); later(300, () => plain.focus()); }
+  // The burst's page moves its own focus there and back, so that the gate's
+  // newest mark is a focus event of this page and not a stale event of the
+  // window that lost the front (W3-10 T5; run w39-2).
+  else if (phase === 'burst') { button.focus(); later(150, () => plain.focus()); }
   else plain.focus();
   if (phase === 'swap-timer' || phase === 'tab-after') later(400, () => { armed = false; swap(); });
   if (phase === 'show-hide') { later(300, () => { password.type = 'text'; }); later(1300, () => { password.type = 'password'; }); }
