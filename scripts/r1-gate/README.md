@@ -92,19 +92,42 @@ empty, and a line that is empty is skipped.
     that file exists it must hold the name: the gate's copy then prints
     `MOVED mutation:<name> (<file>)`, and otherwise
     `FAIL mutation:<name> (transitional row not taken over by <file>)`.
-  - `control`: the runner's own control. Its mutant must fail to build, and the
-    runner must report it as not built.
+  - `control`: the runner's own control. Its mutant must fail to compile (to
+    build in a full run, to type-check under `--apply-only`), and the runner
+    must report it as not compiled.
   - `pending ITEM`: prints `OPEN mutation:<name> (ITEM)` and is not run.
   - `retired REASON`: the code is gone; REASON names the test that replaced the row.
 - **item**: the id of the plan item that owns the row.
 
-The runner builds every mutant before it judges it. Every path under crates/ or
+A full run builds every mutant before it judges it. Every path under crates/ or
 src-tauri/, and Cargo.toml and Cargo.lock, gets the cargo build, whatever kind of
 file it is: a data file or a `.pl` file there also gets the cargo build, so a row
 on it can apply and build when no build read the file. Outside those paths a `.sh`
 file gets `sh -n`, a `.c` file `cc -fsyntax-only`, a `.pl` file `perl -c` and a
 `.swift` file `swiftc -parse`, and a row on a file of any other kind is refused.
-`FAIL mutation:<name> (the mutant does not build)` is never a caught mutant.
+Under `--apply-only` such a cargo path, and the unmutated copy, get the type
+check in place of the cargo build: `cargo check` of the package and target of
+the build, lib.sh's `gate_type_check` beside `gate_build`. A path under
+crates/halvo-sqlcipher and a build script (`build.rs`) keep the cargo build
+there too, because the link decides such a mutant. The row line of a
+type-checked row reads `PASS mutation:<name> (applies and type-checks)`, and that
+of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
+`(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
+`FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
+
+What the runs prove for a row. On each pull request and each push, the macos
+job's `scripts/r1/ci.d/30-mutants.sh` applies each row and compiles its mutant
+as above, so a cargo row's mutant is type-checked and not built. On a push to
+main it then builds the rows that start within its budget, in an order that the
+commit decides, runs each against its verdict and prints how many it built. The
+whole list is built and run against its verdicts only in a full run on the
+measuring Mac. So a mutant that passes the type check and fails only at the
+link, after monomorphization or in code generation is found on main when the
+budget run reaches its row, which turns main red after the merge and not the
+pull request, or in that full run. For a row on code that the macOS build does
+not compile (a test-only module, or code for Windows), the apply-only phase
+shows that the substitution applies and compiles nothing, under the type check
+as under the build.
 `mutants.expected` lists one name for each mutant that a review applied and
 the name of every row whose state is `required` or `required on <place>`; a
 unit that adds such a row adds its name in the same change. Under `--strict` a
@@ -121,7 +144,8 @@ row.
 A test that a row runs can make a root that its own guard removes when its
 case ends; a test ended in the middle of a case leaves that root behind. So
 TERM, INT or HUP to the runner, to its process group or to every process
-below it does not end the running test, gate check or cargo build of the copy:
+below it does not end the running test, gate check or cargo build or type
+check of the copy:
 
 - A cargo test runs with TERM, INT and HUP ignored, because a Rust test has
   no handler for them and would end before its guard. A gate self-test case
@@ -131,7 +155,8 @@ below it does not end the running test, gate check or cargo build of the copy:
   status and no STOPPED line, from the first signal on the runner starts no
   new step of the run (a row, a test, a build, a gate check, a copy, a read by
   awk, perl, cp, sort, tar or git; it still waits for the running test, gate
-  check or cargo build of the copy as below, and it removes its scratch),
+  check or cargo build or type check of the copy as below, and it removes its
+  scratch),
   prints exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count
   line for a step that the signal ended, and exits with 143 for TERM, 130 for
   INT and 129 for HUP. Exit 0, 1 and 2 never follow a signal that the runner
@@ -144,25 +169,27 @@ below it does not end the running test, gate check or cargo build of the copy:
   HEAD, the read of the rows files and the name check, the `--only`
   selection, and under `--list`:
   `STOPPED mutation (signal <name>; no row had started)`. In a row when no
-  test runs and the running step ends within 60 s (the unmutated build, a gate
-  check, a short step) and in the tail
+  test runs and the running step ends within 60 s (the unmutated build or type
+  check, a gate check, a short step) and in the tail
   (the read of mutants.expected and the count line):
   `STOPPED mutation:<row> (signal <name>; no test was running)`. During a test:
   `STOPPED mutation:<row> (signal <name>; the running case was let end)`, after
   the runner sends the test's process group TERM and waits up to 60 s, a
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
-  case made may be left. During a gate check or the cargo build of the copy
-  that does not end within 60 s of the signal:
+  case made may be left. During a gate check or the cargo build or type check
+  of the copy that does not end within 60 s of the signal:
   `STOPPED mutation:<row> (signal <name>; the running check-<name> did not end within 60 s and was killed)`,
-  or `... the running build of the copy did not end ...`, and what that step
+  or `... the running build of the copy did not end ...`, or
+  `... the running type check of the copy did not end ...`, and what that step
   made may be left. A KILL of the runner itself leaves its scratch, the
   throwaway copy and its build directory, as well. A shielded step or test
   that was running then goes on with TERM, INT and HUP ignored; a step that
   the kill at the bound had already stopped stays stopped while its process
   group has another member and goes on when the group is orphaned; KILL to
   each of its processes ends them.
-- A gate check and the cargo build of the copy, unmutated or of a mutant, run
+- A gate check and the cargo build or type check of the copy, unmutated or of
+  a mutant, run
   with TERM, INT and HUP ignored and with their standard input from /dev/null.
   On the signal the runner starts no next step and waits up to 60 s for the
   running step, then stops and kills it with every process below it and names
@@ -175,18 +202,20 @@ below it does not end the running test, gate check or cargo build of the copy:
   answer: with a signal of the
   runner's own within 2 s the run ends as a stop, and without one it ends with
   exit 2 and `FAIL step:<step> (ended by signal <name>; the runner got no signal)`.
-  A cargo build that a signal ends while the runner got none reads as a mutant
-  that does not build, because lib.sh's gate_build returns 1 whatever ended
-  cargo: a FAIL, never a caught row.
+  A cargo build or type check that a signal ends while the runner got none
+  reads as a mutant that does not build or does not type-check, because lib.sh's
+  gate_build and gate_type_check return 1 whatever ended cargo: a FAIL, never a
+  caught row.
 - A signal that comes after a test or a shielded step has started and before
   the runner waits for it is acted on when that step ends by itself, with its
-  own limit as its bound; a build has none. A runner that was started with a
+  own limit as its bound; a build or a type check has none. A runner that was started with a
   signal ignored, as a shell does for INT in a background job, cannot trap that
   signal.
 - A test that the runner starts has its standard input from /dev/null and QUIT
   ignored. A row's test must not stop a child of its own by TERM, INT or HUP:
   the child of a shielded cargo test ignores them too. A gate check and the
-  cargo build of the copy have their standard input from /dev/null too. A
+  cargo build or type check of the copy have their standard input from
+  /dev/null too. A
   check that ends a child of its own by TERM, INT or HUP gets no such end: a
   verify child past its deadline ends by the check's KILL 5 s later.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM

@@ -1215,8 +1215,10 @@ squash merge would change:
 
 - On each pull request and each push, `scripts/r1/ci.d/30-mutants.sh` runs
   `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies each
-  row, the `formal-` rows among them, and builds each mutant; the control
-  row must not build, and a transitional row whose name another row file
+  row, the `formal-` rows among them, and type-checks each mutant with
+  `cargo check` (a row on a build script or under crates/halvo-sqlcipher is
+  built); the control row must not type-check, and a transitional row whose
+  name another row file
   holds prints MOVED and is not applied. A covered function that changes
   shape under its row fails that run: the substitution no longer applies.
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`

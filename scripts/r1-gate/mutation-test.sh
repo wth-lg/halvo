@@ -36,7 +36,8 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   sh scripts/r1-gate/mutation-test.sh [--strict] [--budget SECONDS] [--only NAME]...
       Apply each row, build the mutant and judge it by the row's one verdict
       source. Once the first row on a file that cargo builds is reached, the
-      runner builds the unmutated copy and, except under --apply-only,
+      runner builds the unmutated copy (under --apply-only it type-checks it)
+      and, except under --apply-only,
       requires PASS from the store, deletion and no-ll-hook checks; a run of
       rows on other files requires no PASS from them. Before a test row it
       requires one passing run of the unmutated test. PASS mutation:<name>
@@ -55,9 +56,18 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       budget of SECONDS s is used) for each row that it did not start, and
       prints seconds mutation:<name> <n> after each row that it started.
   sh scripts/r1-gate/mutation-test.sh --apply-only
-      Apply the substitution of each row that a run would apply here and build
-      its mutant. A pending, a retired and a not-here row is listed and not
-      applied; the gate checks and the tests do not run.
+      Apply the substitution of each row that a run would apply here and
+      compile its mutant: cargo check of the package and target that the build
+      names, for the unmutated copy and for a row on a file that cargo builds;
+      cargo build for a row on a build script or under crates/halvo-sqlcipher;
+      sh -n, cc, perl or swiftc for a row on another file. A type-checked row
+      prints PASS mutation:<name> (applies and type-checks), a built one
+      (applies and builds), and a mutant that does not type-check is
+      FAIL mutation:<name> (the mutant does not type-check). A type check does
+      not show a fault that only the link, monomorphization or code generation
+      finds; the run without --apply-only builds every mutant. A pending, a
+      retired and a not-here row is listed and not applied; the gate checks and
+      the tests do not run.
   sh scripts/r1-gate/mutation-test.sh --list
       Print the rows: name, state, verdict, row file.
   Every mode but --self-test first refuses a tracked path named mutants.rows
@@ -96,6 +106,8 @@ The line by phase:
   the --only selection                          STOPPED mutation (signal S; no row had started)
   a cargo build of the copy, ended in the bound STOPPED mutation:<row> (signal S; no test was running)
   a cargo build of the copy, past the bound     STOPPED mutation:<row> (signal S; the running build of the copy did not end within 60 s and was killed)
+  a type check of the copy, ended in the bound  STOPPED mutation:<row> (signal S; no test was running)
+  a type check of the copy, past the bound      STOPPED mutation:<row> (signal S; the running type check of the copy did not end within 60 s and was killed)
   a gate check, ended in the bound              STOPPED mutation:<row> (signal S; no test was running)
   a gate check, past the bound                  STOPPED mutation:<row> (signal S; the running check-NAME did not end within 60 s and was killed)
   a short step of a row                         STOPPED mutation:<row> (signal S; no test was running)
@@ -103,8 +115,8 @@ The line by phase:
                                                 or (signal S; the running case did not end within 60 s and was killed)
   the tail: the expected list, the count line   STOPPED mutation:<last row> (signal S; no test was running)
 
-A cargo build of the copy is the unmutated build or the build of a mutant on a
-file that cargo builds; either one gives either form.
+A cargo build or type check of the copy is the one of the unmutated copy or of
+a mutant on a file that cargo builds; either one gives either form.
 
 A cargo test runs with TERM, INT and HUP ignored, so that its case runs to its
 end and its own guard removes what it made; a gate self-test case keeps them at
@@ -112,15 +124,15 @@ their defaults and ends its case by its own trap. On the signal the runner
 sends the test's process group TERM and waits up to 60 s for the test to end;
 then it kills the group, and what the case made may be left; so it is under a
 caller that sends KILL sooner. A test runs with its standard input from
-/dev/null and QUIT ignored. A gate check and the cargo build of the copy
-(unmutated or of a mutant) run with TERM, INT and HUP ignored too, and with
+/dev/null and QUIT ignored. A gate check and the cargo build or type check of
+the copy (unmutated or of a mutant) run with TERM, INT and HUP ignored too, and with
 their standard input from /dev/null. TERM and HUP stay ignored for the whole
 step, but a compiler may set its own handler for INT: rustc does, so an INT
 ends a running rustc and leaves nothing but the failed build in the throwaway
 copy. When the runner got the same INT, as it does from its group, it prints
-its STOPPED line (signal INT) and exits 130; when it got none, the build reads
-as failed (FAIL unmutated:build, or the mutant does not build, never a caught
-row). On the signal the runner
+its STOPPED line (signal INT) and exits 130; when it got none, the build or
+type check reads as failed (FAIL unmutated:build or unmutated:type-check, or the
+mutant does not build or does not type-check, never a caught row). On the signal the runner
 starts no next step and waits up to 60 s for that step to end, then stops it
 and every process below it by KILL, and the STOPPED line names it; what the
 step made may be left then, as under a caller that sends KILL sooner. The
@@ -131,7 +143,7 @@ KILL 5 s later.
 Limits: a signal that comes after a test or a shielded step has started and
 before the runner waits for it is acted on when the step ends by itself, with
 its own limit (900 s for a cargo test, 300 s for a gate case, the check's own
-deadlines for a gate check, none for a build) as its bound; a signal that
+deadlines for a gate check, none for a build or a type check) as its bound; a signal that
 comes after the runner has started the process of a shielded step lets the
 step start, because that process reads only the signals recorded before it
 started, and the runner waits for it as for a running step. The helper for
