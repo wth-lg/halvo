@@ -24,9 +24,10 @@ use crate::sink::{Barrier, Received, SinkWriter};
 /// The slots of the sink's queue that the owner drains.
 pub const QUEUE_SLOTS: usize = 2_048;
 
-/// The most events that the owner holds while its drain fails: the 2,048
-/// slots of the sink and one batch.
-pub const HELD_MAX_EVENTS: usize = QUEUE_SLOTS + super::batch::BATCH_MAX_EVENTS;
+/// The most events that the owner holds while its drain fails. It is a count
+/// of its own and does not follow [`QUEUE_SLOTS`]; the spill is also bounded
+/// in bytes by [`HELD_MAX_BYTES`].
+pub const HELD_MAX_EVENTS: usize = 2_560;
 
 /// The most record bytes, with their line ends, that the owner holds while its
 /// drain fails: twice the batch budget.
@@ -1310,6 +1311,14 @@ mod tests {
         assert_eq!(recovered.events_pending, 0);
         assert_eq!(HELD_MAX_EVENTS, 2_560);
         assert_eq!(HELD_MAX_BYTES, 2_097_152);
+    }
+
+    #[test]
+    fn the_held_count_stays_2560_whatever_the_depth_of_the_queue() {
+        assert_eq!(
+            HELD_MAX_EVENTS, 2_560,
+            "the held count follows the queue's {QUEUE_SLOTS} slots"
+        );
     }
 
     #[test]
