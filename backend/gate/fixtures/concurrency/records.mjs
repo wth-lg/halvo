@@ -271,6 +271,7 @@ const refusedFiles = existsSync(REFUSED)
       .sort()
   : [];
 let failed = 0;
+let refusedAsExpected = 0;
 if (refusedFiles.length === 0) {
   failed++;
   console.log("self-test concurrency: refused records: no record under gate/fixtures/concurrency/refused");
@@ -279,13 +280,14 @@ for (const file of refusedFiles) {
   const name = file.slice(0, -".json".length);
   const result = await resultOf(join(REFUSED, file));
   if (result.problems.length > 0 && result.problems.every((problem) => problem.startsWith(REFUSAL))) {
+    refusedAsExpected++;
     console.log(`self-test concurrency: refused record-${name}: refused as expected: ${result.problems.join("; ")}`);
   } else {
     failed++;
     console.log(`self-test concurrency: refused record ${name}: not refused, where it pins nothing${result.problems.length > 0 ? ` (${result.problems.join("; ")})` : ""}`);
   }
 }
-console.log(`concurrency: refused records: ${refusedFiles.length - failed} of ${refusedFiles.length} refused as expected`);
+console.log(`concurrency: refused records: ${refusedAsExpected} of ${refusedFiles.length} refused as expected`);
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
