@@ -22,6 +22,9 @@
 //! and the end of `dialog_hosted`. A case has a bound of 10 s for each show: a show that reaches
 //! it is closed and its case fails. The last line counts the cases that ran.
 
+#[cfg(target_os = "macos")]
+#[path = "hosted/activation.rs"]
+mod activation;
 #[path = "hosted/gate.rs"]
 mod gate;
 #[path = "hosted/schedule.rs"]
@@ -852,13 +855,53 @@ mod cases {
         }
     }
 
+    /// Makes the target's app active once at its start and waits for it before the first case
+    /// (ruling RD-107): asks, and while the app does not read active on the main thread, lets the
+    /// main run loop run for a second and asks again, for at most 20 s. Not active then, the target
+    /// runs no case, prints its inconclusive line with the pair as read and ends as failed.
     fn activate() {
         // SAFETY: this runs on the main thread, before any window of the target exists.
         unsafe {
             let app = app();
             let _: bool = msg_send![app, setActivationPolicy: 0isize];
             let _: () = msg_send![app, finishLaunching];
-            activate_app(app);
+        }
+        let waited = super::activation::wait(
+            // SAFETY: as above.
+            || unsafe { activate_app(app()) },
+            // SAFETY: as above.
+            || unsafe {
+                let active: bool = msg_send![app(), isActive];
+                active
+            },
+            |every| {
+                // SAFETY: the main thread's own run loop, run until a date `every` from now.
+                unsafe {
+                    let date: *mut AnyObject = msg_send![class!(NSDate), dateWithTimeIntervalSinceNow: every.as_secs_f64()];
+                    let run_loop: *mut AnyObject = msg_send![class!(NSRunLoop), currentRunLoop];
+                    let _: () = msg_send![run_loop, runUntilDate: date];
+                }
+            },
+            Duration::from_secs(1),
+            Duration::from_secs(20),
+        );
+        match waited {
+            super::activation::Waited::Active { asks } => {
+                println!("guard_hosted start: the app read active after {asks} asks");
+            }
+            super::activation::Waited::Inactive { asks } => {
+                // SAFETY: as above.
+                let (active, key) = unsafe {
+                    let app = app();
+                    let active: bool = msg_send![app, isActive];
+                    let key: *mut AnyObject = msg_send![app, keyWindow];
+                    (active, !key.is_null())
+                };
+                println!(
+                    "guard_hosted inconclusive: the app did not become active within 20 s; active={active} key_window={key} asks={asks}"
+                );
+                std::process::exit(1);
+            }
         }
     }
 
