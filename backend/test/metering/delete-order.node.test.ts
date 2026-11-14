@@ -171,6 +171,36 @@ describe("the cancel does not wait for the metering (unit 5.6, ruling P7-82 D1 a
 });
 
 describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
+  test("two deletes in flight, the first called for no subscription id and the second for the id that arrived meanwhile: the late answer for no id leaves the answer stored for the row's id, status answers cancelled, and the alarm makes no further cancel call", async () => {
+    const d = await deleting({ testClock: false, always: { kind: "request-lost" }, script: ["nothing-to-cancel", "provider"] });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + MINUTE);
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    d.during = () => held;
+    const first = destroy(w);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START + MINUTE + 500 }));
+    w.at(START + 2 * MINUTE);
+    const second = await destroy(w);
+    w.at(START + 3 * MINUTE);
+    release();
+    expect([await first, second]).toEqual([{ result: "not-finished" }, { result: "not-finished" }]);
+    expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: START + 2 * MINUTE, cancel_answered_for: "sub_1" }));
+    expect(await w.entries().status(HASH)).toEqual({ result: "cancelled" });
+    w.at(START + 4 * MINUTE);
+    await quiet(w.lines, () => w.entries().alarm());
+    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([
+      ["sub_1", "cancelled"],
+      [null, "nothing-to-cancel"],
+    ]);
+    w.close();
+  });
+
   test("a delete called twice: the second call makes no cancel call, because an answer is stored for the row's id", async () => {
     const d = await deleting({ faults: [{ kind: "request-lost" }] });
     const w = d.w;
@@ -407,6 +437,50 @@ describe("the object finishes a begun delete by itself (unit 5.6, ruling P7-82 D
     expect(thrown).toBe("ObjectStoppedError");
     expect(kinds(w.calls).filter((each) => each.startsWith("cancel"))).toEqual(["cancel cancelled"]);
     expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: START + MINUTE }));
+    w.close();
+  });
+
+  test("case 5 with an error: the second run of the seal and send part throws in destroy, and the cancel call is made and its answer stored before the error leaves", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.faults.push({ kind: "request-lost" });
+    w.at(END);
+    await quiet(w.lines, () => w.entries().alarm());
+    w.at(END + SYNC_RETRY_MS - 1000);
+    await w.reserve("r1");
+    w.faults.push({ kind: "during", run: async () => void (await w.settle("r1", 20_000)) });
+    w.faults.push({ kind: "during", run: async () => w.stopNextStep("before") });
+    w.at(END + SYNC_RETRY_MS);
+    const thrown = await destroy(w).then(
+      () => "answered",
+      (error: Error) => error.name,
+    );
+    expect(thrown).toBe("ObjectStoppedError");
+    expect(kinds(w.calls)).toEqual(["send failed", "send recorded", "send recorded", "cancel cancelled"]);
+    expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: END + SYNC_RETRY_MS }));
+    w.close();
+  });
+
+  test("case 5 with an error in the alarm: a hold open at the delete ends during the alarm's send, the second run of the seal and send part throws, and the run makes the owed cancel call and stores its answer", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.faults.push({ kind: "request-lost" });
+    w.at(END);
+    await quiet(w.lines, () => w.entries().alarm());
+    w.at(END + SYNC_RETRY_MS - 1000);
+    await w.reserve("r1");
+    const answer = await destroy(w);
+    w.faults.push({ kind: "during", run: async () => void (await w.settle("r1", 20_000)) });
+    w.faults.push({ kind: "during", run: async () => w.stopNextStep("before") });
+    w.at(END + SYNC_RETRY_MS);
+    await quiet(w.lines, () => w.entries().alarm());
+    expect(answer).toEqual({ result: "not-finished" });
+    expect(kinds(w.calls)).toEqual(["send failed", "send recorded", "send recorded", "cancel cancelled"]);
+    expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: END + SYNC_RETRY_MS, alarm_failures: 1 }));
     w.close();
   });
 

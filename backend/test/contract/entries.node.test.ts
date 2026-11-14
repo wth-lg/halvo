@@ -1100,4 +1100,44 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
     await w.entries.alarm();
     expect([await w.holds(), (await skeletonOf(w))?.row?.cancel_answered_at]).toEqual([true, null]);
   });
+
+  test("a failed cancel during which the account is deleted and made again stores no next try on the new account's row", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => {
+      w.host.step((sql) => sql.exec("UPDATE skeleton SET destroying_since = ?", 60_000));
+      return { kind: "failed" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect((await skeletonOf(w))?.row).toEqual(expect.objectContaining({ destroying_since: 60_000, cancel_next_at: null, cancel_delay: null }));
+  });
+
+  test("a hold that is open at step 6 keeps the storage although the sync is settled", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.host.port.cancelSubscription = async () => {
+      w.answers.openHolds = 1;
+      return { kind: "cancelled" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(await w.holds()).toBe(true);
+  });
+
+  test("an error in the alarm's seal and send part of a run that then deletes the storage logs alarm-error and no alarm-stopped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    w.host.port.cancelSubscription = async () => ({ kind: "cancelled" });
+    w.answers.settled = true;
+    w.answers.throwIn = "metering.send";
+    w.reset();
+    now = 68_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect([await w.holds(), events()]).toEqual([false, ["alarm-error"]]);
+  });
 });

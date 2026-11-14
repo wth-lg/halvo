@@ -373,13 +373,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       thrown = { error };
     }
     if (first.marked) {
-      let finished = NOT_FINISHED;
+      let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
       try {
         finished = await finishDelete(null);
       } catch (error) {
         if (thrown === null) throw error;
       }
-      if (finished.result === "deleted") {
+      thrown = thrown ?? finished.thrown;
+      if (finished.answer.result === "deleted") {
         if (thrown !== null) log({ event: "alarm-error", error: errorName(thrown.error) });
         return;
       }
@@ -474,12 +475,21 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     });
   }
 
-  async function finishDelete(hash: string | null): Promise<DeleteAnswer> {
+  async function finishDelete(hash: string | null): Promise<{ answer: DeleteAnswer; thrown: { error: unknown } | null }> {
+    let thrown: { error: unknown } | null = null;
     let next = fourth(hash, false);
     if (next.kind === "again") {
-      if ((await destroyStepThree(true)) === "gone") return { result: "deleted" };
+      try {
+        if ((await destroyStepThree(true)) === "gone") return { answer: { result: "deleted" }, thrown };
+      } catch (error) {
+        thrown = { error };
+      }
       next = fourth(hash, true);
     }
+    return { answer: await finishFrom(hash, next), thrown };
+  }
+
+  async function finishFrom(hash: string | null, next: Fourth): Promise<DeleteAnswer> {
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
@@ -502,7 +512,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (!holds(open.sql)) return { result: "deleted" };
       const now = open.begin();
       if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
-      if (made !== null && !answeredFor(markOf(open.sql), made.subscriptionId)) {
+      const current = markOf(open.sql);
+      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+      if (made !== null && !answeredFor(current, made.subscriptionId) && !answeredFor(current, subscriptionId)) {
         open.sql.exec(
           "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?",
           now,
@@ -512,7 +524,6 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         );
       }
       const stored = markOf(open.sql);
-      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
       const metered = isMetered(open.sql);
       if (ledger.openHolds(open.sql) === 0 && (!metered || metering.settled(open.sql))) {
@@ -720,9 +731,15 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       } catch (error) {
         thrown = { error };
       }
-      if (thrown === null) return finishDelete(hash);
-      await finishDelete(hash).catch(() => NOT_FINISHED);
-      throw thrown.error;
+      let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
+      try {
+        finished = await finishDelete(hash);
+      } catch (error) {
+        if (thrown === null) throw error;
+      }
+      thrown = thrown ?? finished.thrown;
+      if (thrown !== null) throw thrown.error;
+      return finished.answer;
     },
 
     async reserve(hash, req) {
