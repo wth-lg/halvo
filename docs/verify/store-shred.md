@@ -1502,6 +1502,25 @@ set, and the root's own volume name answers the root.
 - The tail's sweep (ruling ST-45 H1). The roots location that a caller
   gives the tail is that data directory's own (ruling ST-32 (a)), so two
   stores that share one roots directory both lose their root at a tail.
+  Before its sweep the tail walks the parts of the roots path below the
+  deepest directory that the roots path and the store path share, by their
+  parts as given, and looks at each without following it: when a part is
+  a link (on Windows a link or a junction), or the path holds a parent
+  part, the tail runs no sweep, takes the named root alone with its
+  witness, reads the roots as not listed and answers `DeleteIncomplete` on
+  every call; such a roots path is refused. Links above the shared
+  directory stay (a home on another volume, `/var` on macOS): both names
+  are reached through them alike (ruling ST-46 K2; tests
+  `the_tail_runs_no_sweep_through_a_link_in_a_part_of_the_roots_path`,
+  `the_tail_runs_no_sweep_on_a_roots_path_with_a_parent_part`, and on
+  Windows
+  `the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path`).
+  Named and not built: a caller that gives another data directory's roots
+  by a plain path destroys them (the rule of the interface is that the
+  store path and the roots path are built from one data directory value);
+  a link that a second program puts into the path after the walk; the open
+  of the roots from the parent's handle and the tail that takes a data
+  directory with a closed layout are store-3b's.
   A create that makes its directory after the tail read that none stands
   can lose its root; the daemon's instance lock is the guard. After a
   handle's delete that the witness stopped, the tail after a restart sweeps

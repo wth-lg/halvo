@@ -2260,7 +2260,12 @@ impl EncryptedStore {
     /// never as destroyed. Answers as [`EncryptedStore::delete_all`] does,
     /// `Ok` only with no root file or partial root file left under `roots`
     /// or nothing there, and [`StoreError::Locked`] while another process
-    /// holds the directory (ruling ST-45 H1).
+    /// holds the directory (ruling ST-45 H1). A roots path that holds a parent
+    /// part, or a link in a part below the deepest directory that it shares
+    /// with the store path, is refused: the tail runs no sweep there, takes
+    /// the named root alone with its witness, reads the roots as not listed
+    /// and answers [`StoreError::DeleteIncomplete`] on every call (ruling
+    /// ST-46 K2).
     pub fn delete_store_dir(store_dir: &Path, roots: &Path) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
         if durable::has_a_part_that_windows_trims(store_dir) {
@@ -2329,11 +2334,15 @@ impl EncryptedStore {
             Err(StoreError::Locked) => return Err(StoreError::Locked),
             Err(_) => None,
         };
+        let refused = a_roots_path_that_the_sweep_refuses(store_dir, roots);
         let form = match _writer_lock {
-            Some(_) => RootStepForm::Sweep,
-            None => RootStepForm::NamedAlone,
+            Some(_) if !refused => RootStepForm::Sweep,
+            _ => RootStepForm::NamedAlone,
         };
-        let (reading, roots, root_not_handled) = tail_root_step(&store, &place, roots, form);
+        let (reading, mut roots, root_not_handled) = tail_root_step(&store, &place, roots, form);
+        if refused {
+            roots.listed = false;
+        }
         if _writer_lock.is_none() {
             let mut report = not_opened(reading, roots);
             report.root_not_handled = root_not_handled;
@@ -2427,6 +2436,16 @@ fn tail_root_step(
 /// through that store name, at which the tail opened no directory itself:
 /// nothing stands there (ruling ST-45 H1).
 fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, RootsLeft) {
+    if a_roots_path_that_the_sweep_refuses(store_dir, roots) {
+        return (
+            RootReading::Unnamed,
+            RootsLeft {
+                left: Vec::new(),
+                names: Vec::new(),
+                listed: false,
+            },
+        );
+    }
     if roots.starts_with(store_dir) {
         return (
             RootReading::Unnamed,
@@ -2438,6 +2457,34 @@ fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, 
         );
     }
     file_root::destroy_roots_in(roots, None, RootStepForm::Sweep)
+}
+
+/// Whether the tail refuses to sweep `roots` (ruling ST-46 K2): the path holds
+/// a parent part, or a part below the deepest directory that the roots path
+/// and the store path share, by their parts as given, is a link (on Windows a
+/// link or a junction), looked at without following it. A part that does not
+/// stand ends the walk. Links above the shared directory stay: both names are
+/// reached through them alike.
+fn a_roots_path_that_the_sweep_refuses(store_dir: &Path, roots: &Path) -> bool {
+    use std::path::Component;
+    if roots.components().any(|part| part == Component::ParentDir) {
+        return true;
+    }
+    let shared = roots
+        .components()
+        .zip(store_dir.components())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let mut walked: PathBuf = roots.components().take(shared).collect();
+    for part in roots.components().skip(shared) {
+        walked.push(part);
+        match std::fs::symlink_metadata(&walked) {
+            Ok(meta) if meta.file_type().is_symlink() => return true,
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+    }
+    false
 }
 
 /// On Windows a create or an open given a store path or a roots path of which
