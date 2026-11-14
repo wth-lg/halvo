@@ -624,7 +624,14 @@ child_starts() {
   esac
 }
 
+seconds() {
+  now=$(date +%s) || fail setup
+  printf 'part %s seconds=%s\n' "$1" "$((now - mark))"
+  mark=$now
+}
+
 measure() {
+  mark=$(date +%s) || fail setup
   cd "$repo" 2>/dev/null || fail setup
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
   log=$artifacts/cargo-test.txt
@@ -634,14 +641,19 @@ measure() {
   scanner >"$scan" || fail setup
   if [ "$job" = macos ]; then
     forbid_run
+    seconds forbid
     printf 'PASS %s\n' "$name"
     return 0
   fi
   git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   lint_allows
+  seconds text
   forbid_run
+  seconds forbid
   tauri_features
+  seconds tauri
   child_starts
+  seconds starts
   : >"$log" 2>/dev/null || fail setup
   app=no
   if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -652,6 +664,7 @@ measure() {
   fi
   code=$?
   printf 'cargo test exit=%s halvo-coord-app=%s\n' "$code" "$app"
+  seconds tests
   [ "$code" -eq 0 ] || fail cargo
   git diff --binary >"$artifacts/tracked-after.txt" || fail setup
   cmp -s "$artifacts/tracked-before.txt" "$artifacts/tracked-after.txt" || fail changed
@@ -682,6 +695,7 @@ measure() {
   printf 'refusal cases listed=%s in_sources=%s passed=%s missing=%s\n' "$listed" "$held" "$passed" "$missing"
   printf 'refusals=%s\n' "$passed"
   printf 'refusals=%s\n' "$passed" >"$artifacts/result.txt" || fail setup
+  seconds refusals
   [ "$missing" -eq 0 ] || fail missing
   printf 'PASS %s\n' "$name"
 }
@@ -866,6 +880,8 @@ EOF
   check app-crate-in-the-tree PASS 'halvo-coord-app=yes' \
     env -u CI_D_JOB CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-app" sh "$here/$name.sh"
   check macos-job-runs-the-forbid-run-alone PASS 'allow clippy with the lint forbidden: exit=0' run_mac app
+  batch=$out
+  seen seconds-of-the-forbid-run-in-the-macos-job 'part forbid seconds='
   STUB_CLIPPY_EXIT=101
   check macos-job-forbid-run-fails FAIL "FAIL $name (allow)" run_mac app
   check a-job-that-is-neither FAIL "FAIL $name (usage)" \
@@ -874,6 +890,10 @@ EOF
     finish
   fi
   check text-rules-pass-their-controls PASS 'allow crates=2 files=' run_one
+  batch=$out
+  for part in text forbid tauri starts tests refusals; do
+    seen "seconds-of-the-part-$part-in-the-windows-job" "part $part seconds="
+  done
   check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=4 files=7 hits=1 limits=1 other=0 unresolved=1' run_one
   STUB_TAURI=default,test-util,wry,unstable-x
   check tauri-features-that-only-hold-the-words PASS 'tauri normal features=4 unstable=no test=no' run_one
@@ -1043,6 +1063,15 @@ found() {
   else
     wrong="$wrong $1"
   fi
+}
+
+seen() {
+  case $batch in
+    *"$2"*) got=PASS ;;
+    *) got=PASS-without-the-text ;;
+  esac
+  printf 'case %s/%s want=PASS got=%s\n' "$name" "$1" "$got"
+  [ "$got" = PASS ] || wrong="$wrong $1"
 }
 
 finish() {
