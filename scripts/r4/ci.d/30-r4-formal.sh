@@ -218,7 +218,7 @@ declared() {
     *)
       key=confirm
       letter=L
-      count=10
+      count=11
       ;;
   esac
   result=missing
@@ -306,7 +306,7 @@ models() {
   broken_schedule=$(grep -c . "$tmp/violated-schedule.names")
   broken_confirm=$(grep -c . "$tmp/violated-confirm.names")
   printf 'formal schedule states=%s invariants=12 violated=%s\n' "$schedule_states" "$broken_schedule"
-  printf 'formal confirm states=%s invariants=10 violated=%s\n' "$confirm_states" "$broken_confirm"
+  printf 'formal confirm states=%s invariants=11 violated=%s\n' "$confirm_states" "$broken_confirm"
   [ "$bad" -eq 0 ] || fail invariant
   if [ "$ran" -ne "$marked" ]; then
     printf 'formal runs=%s marked=%s\n' "$ran" "$marked"
@@ -900,7 +900,7 @@ for_the_record() {
   for mode in silent killed violated violated-status; do
     expect good "1:FAIL $name (invariant)" "$mode"
   done
-  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=10 violated=1'
+  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=11 violated=1'
   for mode in control-other control-status control-one; do
     expect not-compared "1:FAIL $name (control)" "$mode"
   done
@@ -949,6 +949,11 @@ INVARIANT C7/'
   edit full-without-an-invariant Schedule.cfg '/^INVARIANT C12$/d'
   restamp full-without-an-invariant
   expect full-without-an-invariant "1:FAIL $name (invariant)" good
+  fixture confirm-without-l11
+  edit confirm-without-l11 README.md "$elsewhere"
+  edit confirm-without-l11 Confirm4.cfg '/^INVARIANT L11$/d'
+  restamp confirm-without-l11
+  expect confirm-without-l11 "1:FAIL $name (invariant)" good
   fixture no-schedule-for-ci
   edit no-schedule-for-ci README.md 's/\(| .Schedule-[a-z]*\.cfg. |\) yes |/\1 no |/'
   expect no-schedule-for-ci "1:FAIL $name (invariant)" good

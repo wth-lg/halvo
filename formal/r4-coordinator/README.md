@@ -212,7 +212,7 @@ shows in the diff of its pull request.
 | a line of the table that does not parse | `invariant` | `line-beside-its-copy`, a bad line beside a good line of the same file, so that no other rule refuses it | `two-spaces`, `name-with-a-dash`, `empty-count`, `line-cut-short` |
 | a configuration file that no line names | `invariant` | `unnamed-configuration` | none |
 | marked lines that are not the names in the script | `invariant` | `days-not-for-ci` | `line-deleted`, `apart-not-for-ci`, `no-schedule-for-ci`, `no-confirm-for-ci` |
-| a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant` |
+| a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant`, `confirm-without-l11` (`Confirm4.cfg` without L11, so that the check holds eleven and not at least ten) |
 | a comment in a configuration | `invariant` | `comment-mark` | `comment-in-configuration` |
 | an invariant that a CI configuration replaces | `invariant` | `replaced-invariant` | none |
 | a run in which TLC reports an invariant violated | `invariant` | `violated` | `violated-status`, twice |
