@@ -404,6 +404,17 @@ pub fn resolve_profile(profile: &Path) -> PathBuf {
     }
 }
 
+/// The form of the profile that the start writes into every flag and mark (CP-189 G1, Addition
+/// 1): the caller's path `given` resolved by `resolve_profile`, and never `made`, the form that
+/// `session::make_dirs` gives, which is canonical (`\\?\C:\...` on Windows) and which the start
+/// keeps for the removal alone. Run 43554946669 on Windows showed the fault of taking `made`: the
+/// flags took the `\\?\` form and the row `killed_start`'s mark, built from the given form,
+/// matched nothing.
+pub(crate) fn start_profile_form(given: &Path, made: &Path) -> PathBuf {
+    let _ = made;
+    resolve_profile(given)
+}
+
 /// The browser's command line after its path, every flag the executor's own: the product's flags
 /// (`crate::PRODUCT_FLAGS`), its means against a crash's dump (`crate::CRASH_MEANS`, with the
 /// run's profile), the relay's flags, headless when asked, the profile, the debugging pipe
@@ -463,7 +474,7 @@ impl Executor {
         // CP-189 G1, Addition 1 (3): the caller's path resolved once, here, before any flag
         // (`resolve_profile`: links resolved on macOS, as given on Windows). `make_dirs`' own form,
         // canonical on both systems (`\\?\` on Windows), stays the one that the removal uses.
-        let named = resolve_profile(&opts.profile);
+        let named = start_profile_form(&opts.profile, &profile);
         let resolved = StartOptions {
             browser: opts.browser.clone(),
             profile: named.clone(),
@@ -2354,5 +2365,59 @@ pub(crate) mod tests {
         assert_eq!(before, resolved);
         assert!(stopped.removed);
         assert!(left.is_empty());
+    }
+
+    /// CP-189 G1, the fault of run 43554946669 on Windows, held on every system: with the caller's
+    /// path and the path as `make_dirs` gives it on Windows (`\\?\` form), the start's form is the
+    /// caller's; the flags hold it, and the mark that the row `killed_start` builds from the given
+    /// form (`resolve_profile`) bears a member started with those flags. Before the fix the start
+    /// took `make_dirs`' form, which on this Mac is one path with the caller's and on Windows is
+    /// not, so no test here could see it.
+    #[tokio::test]
+    async fn g1_the_start_s_flags_and_the_row_s_mark_hold_the_caller_s_form() {
+        let (given, made, browser, exe) = if cfg!(windows) {
+            (
+                PathBuf::from(r"C:\Work\SCRATC~1\k\p1"),
+                PathBuf::from(r"\\?\C:\Work\scratch-dir\k\p1"),
+                PathBuf::from(r"C:\B\chrome.exe"),
+                PathBuf::from(r"C:\B\chrome.exe"),
+            )
+        } else {
+            (
+                PathBuf::from("/no-such-root-g1/k/p1"),
+                PathBuf::from("/private/no-such-root-g1/k/p1"),
+                PathBuf::from("/B.app/Contents/MacOS/b"),
+                PathBuf::from("/B.app/Contents/MacOS/b"),
+            )
+        };
+        let form = start_profile_form(&given, &made);
+        assert_eq!(form, given);
+        let relay = crate::relay::Relay::start(crate::relay::Names::Fixture)
+            .await
+            .unwrap();
+        let opts = options_with(browser.clone(), form.clone(), relay.handle());
+        let args = launch_args(&opts);
+        assert!(args.contains(&format!("--user-data-dir={}", given.display())));
+        let mark = crate::checks::Mark::new(&resolve_profile(&given), &browser, 10);
+        let member = crate::procs::Proc {
+            pid: 4_000_000,
+            ppid: 1,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(exe),
+        };
+        let line = vec![args.join(" ")];
+        let read = if cfg!(windows) { line } else { args.clone() };
+        assert!(mark.owns(&member, &|_| Some(read.clone())));
+        let other = launch_args(&options_with(browser, made, relay.handle()));
+        let read = if cfg!(windows) {
+            vec![other.join(" ")]
+        } else {
+            other
+        };
+        assert!(
+            !mark.owns(&member, &|_| Some(read.clone())),
+            "the form of make_dirs bears the given form's mark"
+        );
     }
 }

@@ -2969,4 +2969,41 @@ mod tests {
         assert_eq!(code, 4);
         assert_eq!(at, 900 + LEFT_CAP.as_millis());
     }
+
+    /// CP-189, the coordinator's word on run 16 (CP-185 (1)): a member whose arguments are unread
+    /// at the first reads is not asked while unread; read again, it bears the mark, and the end asks
+    /// and ends it, and it is in no list as left.
+    #[test]
+    fn g1_a_member_unread_at_the_start_read_bears_the_mark_later_and_is_asked_and_ended() {
+        let (code, _, ends, records) = run_timed(
+            executor(50),
+            100,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                if forced(ends, 20).is_none() {
+                    v.push(row(20, ROOT, 10, ROOT));
+                }
+                Some(v)
+            },
+            &|p, t| {
+                if p == 20 && t < 1_000 {
+                    None
+                } else {
+                    every_marked(p)
+                }
+            },
+        );
+        assert_eq!(code, 0);
+        assert!(ends.iter().any(|e| e.0 == 20 && !e.1), "asked: {ends:?}");
+        assert!(ends.iter().all(|e| !(e.0 == 20 && e.2 < 1_000)), "{ends:?}");
+        assert!(forced(&ends, 20).is_some(), "ended: {ends:?}");
+        let last = records.last().expect("a record");
+        assert_eq!(last.left, 0, "{last:?}");
+    }
 }
