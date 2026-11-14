@@ -2463,50 +2463,33 @@ fn a_lapse_of_an_own_item_whose_answer_was_stored_with_a_lost_acknowledgement_st
 fn a_second_answer_after_a_lost_acknowledgement_counts_the_same_choice_and_stores_a_later_decline()
 {
     use halvo_coord::types::HandbackResult;
-    for (second, result, rows) in [
-        (Choice::Done, HandbackResult::Done, 1),
-        (Choice::Decline, HandbackResult::Declined, 2),
-    ] {
-        let c = coordinator(&[MANUAL], Limits::PRODUCT);
-        let run = start(&c, 0);
-        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
-            .unwrap();
-        let (item, _) = open_item(&c);
-        c.ports().ports.refuse(Method::Log, PortError::NoService);
-        assert_eq!(
-            c.answer(
-                &item,
-                Choice::Done,
-                None,
-                shown_step_mark_or_zero(&c, &item)
-            ),
-            Err(Cause::NoService)
-        );
-        lose_the_acknowledgement(&c);
-        let m = mark(&c);
-        assert_eq!(
-            c.answer(&item, second, None, shown_step_mark_or_zero(&c, &item)),
-            Ok(()),
-            "{second:?}"
-        );
-        assert_eq!(
-            closing_rows(&c, &item),
-            rows,
-            "{second:?}: {:?}",
-            events(&c)
-        );
-        let handed: Vec<Call> = calls_since(&c, m)
-            .into_iter()
-            .filter(|call| matches!(call, Call::AnswerHandback(..)))
-            .collect();
-        assert_eq!(
-            handed,
-            [Call::AnswerHandback(run.clone(), result)],
-            "{second:?}: the press's own result, once"
-        );
-        let s = c.snapshot();
-        assert!(s.items.is_empty(), "{second:?}");
-        assert_eq!(row_line(&s, 0), text("line.working.working"), "{second:?}");
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        for (second, result, rows) in [
+            (Choice::Done, HandbackResult::Done, 1),
+            (Choice::Decline, HandbackResult::Declined, 2),
+        ] {
+            let case = format!("{order:?} {second:?}");
+            let (c, run, item) = answered_with_a_lost_reply(order);
+            let m = mark(&c);
+            assert_eq!(
+                c.answer(&item, second, None, shown_step_mark_or_zero(&c, &item)),
+                Ok(()),
+                "{case}"
+            );
+            assert_eq!(closing_rows(&c, &item), rows, "{case}: {:?}", events(&c));
+            let handed: Vec<Call> = calls_since(&c, m)
+                .into_iter()
+                .filter(|call| matches!(call, Call::AnswerHandback(..)))
+                .collect();
+            assert_eq!(
+                handed,
+                [Call::AnswerHandback(run.clone(), result)],
+                "{case}: the press's own result, once"
+            );
+            let s = c.snapshot();
+            assert!(s.items.is_empty(), "{case}");
+            assert_eq!(row_line(&s, 0), text("line.working.working"), "{case}");
+        }
     }
 }
 
@@ -7338,6 +7321,7 @@ fn item_rows_since(c: &Coordinator<Both>, from: usize, item: &ItemId) -> Vec<Str
         .filter_map(|e| match &e.what {
             What::ItemRaised { item: i, .. } if i == item => Some("raised".to_owned()),
             What::ItemAnswered { item: i, .. } if i == item => Some("answered".to_owned()),
+            What::ItemReleased { item: i, .. } if i == item => Some("released".to_owned()),
             What::ItemLapsed { item: i, lapsed } if i == item => {
                 Some(format!("lapsed:{}", lapsed.cause().name()))
             }
@@ -7605,4 +7589,126 @@ fn an_allow_again_after_a_stored_allow_that_the_run_did_not_take_reads_first_and
         );
         assert_the_stop_came_first(&c, m, &run, &case);
     }
+}
+
+#[test]
+fn an_allow_on_a_confirmation_whose_flush_of_its_waiting_raise_reads_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
+) {
+    use halvo_coord::types::AgentState;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = raised_with_no_acknowledgement("confirm");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+        c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+        let (m, from) = (mark(&c), c.ports().ports.events.borrow().len());
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Allow,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Ok(()),
+            "{case}"
+        );
+        let answered = places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
+        let cancels =
+            places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
+        assert_eq!(answered.len(), 1, "{case}: the answer at the runner once");
+        assert_eq!(cancels.len(), 1, "{case}: one cancel");
+        assert!(
+            answered[0] < cancels[0],
+            "{case}: the answer, then the cancel"
+        );
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            ["raised", "answered", "released"],
+            "{case}: the waiting raise, the answer and its release, before the stop"
+        );
+        assert_eq!(
+            states_sent(&c, m),
+            [AgentState::Paused],
+            "{case}: paused once"
+        );
+        assert!(
+            c.off_beside_live().is_empty(),
+            "{case}: no run beside the hold"
+        );
+        for record in &allowed_records(&c, &run, &item) {
+            assert_eq!(
+                c.check_record(record),
+                Err(halvo_coord::guard::Refusal::Approval),
+                "{case}: {:?} after the move",
+                record.state
+            );
+        }
+    }
+}
+
+#[test]
+fn a_ticks_lapse_of_a_confirmation_cancels_right_after_the_log_of_a_waiting_row_with_one_clock_read_between_that_stamps_the_row_and_the_stop(
+) {
+    let limits = Limits::PRODUCT;
+    let (c, run, item) = raised_with_no_acknowledgement("confirm");
+    let waiting = c.ports().ports.events.borrow().len();
+    let past = T0 + limits.wait_limit_s * 1000 + 10_000;
+    c.ports().ports.set_clock(past, DAY);
+    c.ports().loss.set(Some(support::Loss::Nothing));
+    c.ports().next_history_fails.set(true);
+    c.ports().ports.step_reads(1);
+    let t = c.ports().ports.tried.borrow().len();
+    c.tick();
+    c.ports().ports.step_reads(0);
+    c.ports().loss.set(None);
+    c.ports().next_history_fails.set(false);
+    let tried: Vec<halvo_coord::mem::Tried> = c.ports().ports.tried.borrow()[t..].to_vec();
+    let cancel = tried
+        .iter()
+        .position(|x| x.call == Call::Cancel(run.clone()))
+        .expect("the tick cancels the run");
+    let before = &tried[cancel - 1];
+    assert!(
+        matches!(&before.call, Call::Log(rows) if rows.iter().all(|e| !matches!(e.what, What::ItemLapsed { .. })))
+            && before.refused.is_none(),
+        "the call right before the cancel is the acknowledged log of the waiting row: {:?}",
+        before.call
+    );
+    let reading = before.at;
+    assert_eq!(
+        tried[cancel].at - reading,
+        1,
+        "one read of the clock lies between that log and the cancel"
+    );
+    let lapsed_at = c.ports().ports.events.borrow()[waiting..]
+        .iter()
+        .find_map(|e| match &e.what {
+            What::ItemLapsed { item: i, .. } if *i == item => Some(e.at),
+            _ => None,
+        })
+        .expect("the item lapses");
+    assert_eq!(
+        Some(lapsed_at),
+        i64::try_from(reading).ok().map(|ms| ms * 1_000_000),
+        "the row's instant, in nanoseconds, is that reading"
+    );
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(reading + limits.cancel_grace_s * 1000 - 1, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        0,
+        "no kill before the grace of that reading"
+    );
+    c.ports()
+        .ports
+        .set_clock(reading + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        1,
+        "the board's stop is at that reading"
+    );
 }
