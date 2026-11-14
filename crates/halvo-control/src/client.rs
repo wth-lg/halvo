@@ -63,6 +63,13 @@ pub enum ClientError {
     Daemon(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
+    /// A reply of a protocol version other than 1.
+    #[error("the reply could not be read: {}", crate::proto::ReplyError::Version(*version))]
+    ReplyOfAnotherVersion { version: u64 },
+    /// A reply that holds a text outside a closed list of protocol v1 where it reads a value of
+    /// that list; the error names the list.
+    #[error("the reply could not be read: {}", crate::proto::ReplyError::UnknownValue(*.0))]
+    ValueUnknownToV1(crate::model::UnknownSpelling),
     /// A reply whose status breaks a rule of the status type; the text is the rule's.
     #[error("the capture service reported a state that does not hold together: {}", .0.rule())]
     StateDoesNotHoldTogether(crate::proto::StatusError),
@@ -264,6 +271,12 @@ impl<C: Connector> Client<C> {
         let reply = decode_reply(&frame).map_err(|e| match e {
             crate::proto::ReplyError::Status(broken) => {
                 ClientError::StateDoesNotHoldTogether(broken)
+            }
+            crate::proto::ReplyError::Version(version) => {
+                ClientError::ReplyOfAnotherVersion { version }
+            }
+            crate::proto::ReplyError::UnknownValue(outside) => {
+                ClientError::ValueUnknownToV1(outside)
             }
             other => ClientError::Protocol(other.to_string()),
         })?;
@@ -1215,6 +1228,108 @@ mod tests {
         assert!(matches!(client.status(), Err(ClientError::Protocol(_))));
     }
 
+    fn ctl_line_for_status(error: ClientError) -> (String, String, i32) {
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Status { indicator: false },
+            Err(error),
+            &ctl_data_dir(),
+        );
+        (printed.stdout, printed.stderr, printed.status)
+    }
+
+    #[test]
+    fn a_reply_of_another_version_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before()
+    {
+        for (body, version) in [
+            (r#"{"v":2,"body":{"kind":"status"}}"#, 2),
+            (r#"{"v":0,"body":{}}"#, 0),
+            (r#"{"v":18446744073709551615}"#, u64::MAX),
+        ] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(framed(body.as_bytes()));
+            let (client, _) = client(daemon);
+            let error = client.status().unwrap_err();
+            assert!(
+                matches!(error, ClientError::ReplyOfAnotherVersion { version: v } if v == version),
+                "{body}: {error:?}"
+            );
+            assert_eq!(
+                ctl_line_for_status(error),
+                (
+                    String::new(),
+                    format!("halvo-capture: the reply could not be read: the reply is of protocol version {version}, not 1\n"),
+                    1
+                ),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_reply_with_a_value_that_v1_does_not_know_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before(
+    ) {
+        let status = |pointer: &str| {
+            let mut json = serde_json::to_value(Reply::Status(sample_status(Platform::Macos)))
+                .expect("the sample status encodes");
+            *json.pointer_mut(pointer).expect("a field of the status") =
+                serde_json::Value::from("not_in_v1");
+            serde_json::json!({ "v": 1, "body": json }).to_string()
+        };
+        for (body, list) in [
+            (status("/capture"), "capture state"),
+            (status("/store"), "store state"),
+            (status("/sources/0/state"), "source state"),
+            (status("/kinds/1/name"), "kind"),
+            (status("/custody"), "custody"),
+            (
+                r#"{"v":1,"body":{"kind":"error","code":"not_in_v1","message":"x"}}"#.to_string(),
+                "error code",
+            ),
+        ] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(framed(body.as_bytes()));
+            let (client, _) = client(daemon);
+            let error = client.status().unwrap_err();
+            assert!(
+                matches!(&error, ClientError::ValueUnknownToV1(outside) if outside.to_string() == format!("not a spelling of a {list}")),
+                "{list}: {error:?}"
+            );
+            assert_eq!(
+                ctl_line_for_status(error),
+                (
+                    String::new(),
+                    format!("halvo-capture: the reply could not be read: the reply does not fit protocol version 1: not a spelling of a {list}\n"),
+                    1
+                ),
+                "{list}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_broken_reply_stays_a_protocol_error_beside_the_two_typed_errors() {
+        let mut malformed_version =
+            serde_json::to_value(Reply::Status(sample_status(Platform::Macos))).unwrap();
+        malformed_version["daemon_version"] = serde_json::Value::from("1.2");
+        for body in [
+            "{".to_string(),
+            r#"{"v":1,"body":{"kind":"status","pid":1}}"#.to_string(),
+            r#"{"v":1,"body":{"kind":"not_in_v1"}}"#.to_string(),
+            r#"{"v":1,"body":{"kind":"error","code":7,"message":"x"}}"#.to_string(),
+            r#"{"v":"2","body":{"kind":"status"}}"#.to_string(),
+            serde_json::json!({ "v": 1, "body": malformed_version }).to_string(),
+        ] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(framed(body.as_bytes()));
+            let (client, _) = client(daemon);
+            let error = client.status().unwrap_err();
+            assert!(
+                matches!(error, ClientError::Protocol(_)),
+                "{body}: {error:?}"
+            );
+        }
+    }
+
     #[test]
     fn e14_the_scripted_store_shows_obstructed_and_takes_a_delete_with_the_shown_id() {
         let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
@@ -1259,6 +1374,19 @@ mod tests {
             );
             assert_eq!(connector.status(), status);
         }
+    }
+
+    #[test]
+    fn a_delete_with_no_id_while_the_store_opens_with_no_id_answers_busy_and_deletes_nothing() {
+        let opening = with_store(StoreState::Opening, None, None);
+        let (client, connector) = client(ScriptedDaemon::new(opening.clone()));
+        assert_eq!(daemon_error(client.delete_all(None)), ErrorCode::Busy);
+        assert_eq!(connector.status(), opening);
+        assert_eq!(
+            client.delete_all(Some(store_id(5))).unwrap(),
+            DeleteOutcome::Refused
+        );
+        assert_eq!(connector.status(), opening);
     }
 
     #[test]

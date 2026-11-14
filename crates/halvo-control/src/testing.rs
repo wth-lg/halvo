@@ -14,7 +14,7 @@ use crate::proto::{
     Capture, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DeleteDecision,
     DeleteFields, DeleteReport, Deleted, ErrorCode, ErrorReply, Health, IntentState,
     InventoryReply, KindLine, LastStop, Lease, OnOff, Parent, PasswordGuard, PermissionForm,
-    PermissionLine, PermissionRequested, Platform, Reply, Request, RootDestroyed, Section,
+    PermissionLine, PermissionRequested, Platform, Reason, Reply, Request, RootDestroyed, Section,
     SourceLine, SourceName, SourceState, StateFile, StatusFields, Stopped, StoreErrorKind,
     StoreState, SwitchLine, SwitchName, Totals, PERMISSION_FORM,
 };
@@ -69,10 +69,12 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
     let running = |name| SourceLine {
         name,
         state: SourceState::Running,
+        unstopped: false,
     };
     let off = |name| SourceLine {
         name,
         state: SourceState::Off,
+        unstopped: false,
     };
     let (secure, withheld, permissions, sources, enabled, guard, custody) = match platform {
         Platform::Macos => (
@@ -270,6 +272,15 @@ fn end_the_person_s_stops(f: &mut StatusFields) {
 /// or impaired, partial when some are, and otherwise faulted with the reason that stood, or
 /// no_source when none stood.
 fn settle(f: &mut StatusFields, hold: bool) {
+    settle_sources(f, hold);
+    if f.sources.iter().any(|s| s.unstopped)
+        && matches!(f.capture, Capture::Paused | Capture::NoIndicator)
+    {
+        f.capture = Capture::Pausing;
+    }
+}
+
+fn settle_sources(f: &mut StatusFields, hold: bool) {
     let required: Vec<&SourceLine> = f
         .sources
         .iter()
@@ -299,6 +310,36 @@ fn settle(f: &mut StatusFields, hold: bool) {
     f.capture_reason = reason;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StopAnswer {
+    #[default]
+    Ok,
+    ThreadEnded,
+    Timeout,
+    Os,
+}
+
+impl StopAnswer {
+    /// Whether the answer is a stop: Ok and ThreadEnded are, Timeout and the Os error are not.
+    pub const fn is_a_stop(self) -> bool {
+        matches!(self, StopAnswer::Ok | StopAnswer::ThreadEnded)
+    }
+}
+
+fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
+    let failed = |reason| SourceState::Failed {
+        reason,
+        error: None,
+    };
+    (line.state, line.unstopped) = if answer.is_a_stop() {
+        (SourceState::Stopped { by_user: false }, false)
+    } else if answer == StopAnswer::Timeout {
+        (failed(Reason::Timeout), true)
+    } else {
+        (failed(Reason::OsError), true)
+    };
+}
+
 /// A daemon in memory that answers requests through the real decoder, the delete rule, the
 /// permission form and one mutation at a time. It records every request that reached its
 /// handlers.
@@ -318,6 +359,7 @@ pub struct ScriptedDaemon {
     /// The hold of ruling PL-3: set when the status given reads awaiting_resume, kept through a
     /// claim and a pause, and cleared by a Resume.
     hold: bool,
+    stop_answers: Vec<(SourceName, StopAnswer)>,
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -345,7 +387,13 @@ impl ScriptedDaemon {
             next_store: 0x11,
             requests: Vec::new(),
             refused_change: false,
+            stop_answers: Vec::new(),
         }
+    }
+
+    pub fn set_stop_answer(&mut self, source: SourceName, answer: StopAnswer) {
+        self.stop_answers.retain(|(name, _)| *name != source);
+        self.stop_answers.push((source, answer));
     }
 
     pub fn status(&self) -> &DaemonStatus {
@@ -503,18 +551,33 @@ impl ScriptedDaemon {
                 }
             }
             Request::Pause => {
-                if !self.pausing() {
-                    self.edit(|f| {
-                        f.desired = CaptureState::Paused;
-                        f.capture = Capture::Paused;
-                        f.capture_reason = None;
-                        for line in &mut f.sources {
-                            if line.state != SourceState::Off {
-                                line.state = SourceState::Stopped { by_user: false };
-                            }
+                let pausing = self.pausing();
+                let answers = self.stop_answers.clone();
+                self.edit(|f| {
+                    for line in &mut f.sources {
+                        let asked = !matches!(
+                            line.state,
+                            SourceState::Off | SourceState::Stopped { by_user: true }
+                        );
+                        if line.unstopped || (!pausing && asked) {
+                            let answer = answers
+                                .iter()
+                                .find(|(name, _)| *name == line.name)
+                                .map(|(_, answer)| *answer)
+                                .unwrap_or_default();
+                            ask_to_stop(line, answer);
                         }
-                    });
-                }
+                    }
+                    if !pausing {
+                        f.desired = CaptureState::Paused;
+                        f.capture_reason = None;
+                        f.capture = if f.sources.iter().any(|s| s.unstopped) {
+                            Capture::Pausing
+                        } else {
+                            Capture::Paused
+                        };
+                    }
+                });
                 Reply::CaptureChanged(self.status.clone())
             }
             Request::Resume => {
@@ -881,5 +944,256 @@ mod tests {
             daemon.handle(Request::Status { indicator: false }),
             Reply::Status(before)
         );
+    }
+
+    fn line(status: &DaemonStatus, name: SourceName) -> SourceLine {
+        status
+            .fields()
+            .sources
+            .iter()
+            .find(|l| l.name == name)
+            .cloned()
+            .expect("a source line of the platform")
+    }
+
+    fn changed(reply: Reply) -> DaemonStatus {
+        match reply {
+            Reply::CaptureChanged(status) => status,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_stop_answered_with_timeout_or_os_marks_the_source_and_a_later_ok_or_thread_ended_clears_the_mark(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let sample = sample_status(platform);
+            let first = sample.fields().enabled_sources[0];
+            for (no_stop, reason) in [
+                (StopAnswer::Timeout, Reason::Timeout),
+                (StopAnswer::Os, Reason::OsError),
+            ] {
+                for stop in [StopAnswer::Ok, StopAnswer::ThreadEnded] {
+                    let case = format!("{platform:?} {no_stop:?} then {stop:?}");
+                    assert!(stop.is_a_stop() && !no_stop.is_a_stop(), "{case}");
+                    let mut daemon = ScriptedDaemon::new(sample.clone());
+                    daemon.set_stop_answer(first, no_stop);
+                    let status = changed(daemon.handle(Request::Pause));
+                    let f = status.fields();
+                    assert_eq!(
+                        (f.desired, f.capture),
+                        (CaptureState::Paused, Capture::Pausing),
+                        "{case}"
+                    );
+                    assert_eq!(
+                        line(&status, first),
+                        SourceLine {
+                            name: first,
+                            state: SourceState::Failed {
+                                reason,
+                                error: None
+                            },
+                            unstopped: true,
+                        },
+                        "{case}"
+                    );
+                    for other in &f.sources {
+                        if other.name != first {
+                            assert!(!other.unstopped, "{case} {other:?}");
+                        }
+                    }
+                    for request in [Request::Status { indicator: true }, Request::Resume] {
+                        assert_ne!(
+                            daemon.handle(request.clone()),
+                            Reply::Error(ErrorReply {
+                                code: ErrorCode::Internal,
+                                message: "the scripted change does not hold together".into(),
+                            }),
+                            "{case} {request:?}"
+                        );
+                        assert_eq!(daemon.status(), &status, "{case} {request:?}");
+                    }
+                    daemon.handle(Request::Pause);
+                    assert_eq!(daemon.status(), &status, "{case}: asked again, no stop yet");
+                    daemon.set_stop_answer(first, stop);
+                    let cleared = changed(daemon.handle(Request::Pause));
+                    assert_eq!(
+                        line(&cleared, first),
+                        SourceLine {
+                            name: first,
+                            state: SourceState::Stopped { by_user: false },
+                            unstopped: false,
+                        },
+                        "{case}"
+                    );
+                    assert_eq!(cleared.fields().capture, Capture::Pausing, "{case}");
+                }
+            }
+            for stop in [StopAnswer::Ok, StopAnswer::ThreadEnded] {
+                let mut daemon = ScriptedDaemon::new(sample.clone());
+                daemon.set_stop_answer(first, stop);
+                let status = changed(daemon.handle(Request::Pause));
+                assert_eq!(status.fields().capture, Capture::Paused, "{stop:?}");
+                assert!(
+                    status.fields().sources.iter().all(|l| !l.unstopped),
+                    "{stop:?}"
+                );
+            }
+        }
+    }
+
+    fn walk_starts(platform: Platform) -> Vec<DaemonStatus> {
+        let sample = sample_status(platform);
+        let first = sample.fields().enabled_sources[0];
+        let with = |change: &dyn Fn(&mut StatusFields)| {
+            let mut f = sample.clone().into_fields();
+            for line in &mut f.sources {
+                if line.state != SourceState::Off {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            change(&mut f);
+            DaemonStatus::new(f).expect("a start of the walk holds together")
+        };
+        vec![
+            sample.clone(),
+            with(&|f| {
+                f.desired = CaptureState::Paused;
+                f.capture = Capture::Paused;
+            }),
+            with(&|f| {
+                f.lease = Lease::Lapsed;
+                f.capture = Capture::NoIndicator;
+            }),
+            with(&|f| f.capture = Capture::AwaitingResume),
+            with(&|f| {
+                f.desired = CaptureState::Paused;
+                f.lease = Lease::Lapsed;
+                f.capture = Capture::Starting;
+                if let Some(line) = f.sources.iter_mut().find(|l| l.name == first) {
+                    line.state = SourceState::Failed {
+                        reason: Reason::Timeout,
+                        error: None,
+                    };
+                    line.unstopped = true;
+                }
+            }),
+        ]
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum Step {
+        Ask(fn() -> Request),
+        Answer(usize, StopAnswer),
+    }
+
+    #[test]
+    fn every_status_that_the_scripted_daemon_builds_from_its_stop_answers_is_taken() {
+        let steps = [
+            Step::Ask(|| Request::Status { indicator: true }),
+            Step::Ask(|| Request::Pause),
+            Step::Ask(|| Request::Resume),
+            Step::Answer(0, StopAnswer::Timeout),
+            Step::Answer(0, StopAnswer::Ok),
+            Step::Answer(1, StopAnswer::Os),
+            Step::Answer(1, StopAnswer::ThreadEnded),
+        ];
+        let mut walked = 0usize;
+        let mut marked = 0usize;
+        let mut marked_from_an_unmarked_start = 0usize;
+        for platform in [Platform::Macos, Platform::Windows] {
+            let enabled = sample_status(platform).fields().enabled_sources.clone();
+            for start in walk_starts(platform) {
+                let start_carries_a_mark = start.fields().sources.iter().any(|l| l.unstopped);
+                for n in 0..steps.len().pow(4) {
+                    let mut daemon = ScriptedDaemon::new(start.clone());
+                    let mut taken = Vec::new();
+                    for depth in 0..4 {
+                        let step = steps[n / steps.len().pow(depth) % steps.len()];
+                        taken.push(step);
+                        match step {
+                            Step::Answer(at, answer) => daemon.set_stop_answer(enabled[at], answer),
+                            Step::Ask(request) => {
+                                let reply = daemon.handle(request());
+                                assert!(
+                                    !matches!(&reply, Reply::Error(e) if e.code == ErrorCode::Internal),
+                                    "{platform:?} from {:?}, steps {taken:?}: {reply:?}",
+                                    start.fields().capture
+                                );
+                                let f = daemon.status().fields();
+                                if f.sources.iter().any(|l| l.unstopped) {
+                                    marked += 1;
+                                    if !start_carries_a_mark {
+                                        marked_from_an_unmarked_start += 1;
+                                    }
+                                    assert!(
+                                        !matches!(
+                                            f.capture,
+                                            Capture::Paused
+                                                | Capture::NoIndicator
+                                                | Capture::AwaitingResume
+                                        ),
+                                        "{platform:?} steps {taken:?}"
+                                    );
+                                }
+                                walked += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(walked > 0 && marked > 0, "walked {walked}, marked {marked}");
+        assert!(
+            marked_from_an_unmarked_start > 0,
+            "no status beside a mark from a start that carried none: walked {walked}, marked {marked}"
+        );
+        println!(
+            "statuses read: {walked}, of them beside a mark: {marked}, from a start with no mark: {marked_from_an_unmarked_start}"
+        );
+    }
+
+    #[test]
+    fn a_pause_keeps_the_person_s_stop_of_a_source_whatever_the_stop_answers_and_a_resume_ends_it()
+    {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        for line in &mut f.sources {
+            if line.name == SourceName::Screen {
+                line.state = SourceState::Stopped { by_user: true };
+            }
+        }
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Screen,
+            SourceName::Input,
+        ];
+        f.capture = Capture::Partial;
+        let start = DaemonStatus::new(f).expect("a screen stream that the person stopped");
+        for answer in [
+            StopAnswer::Ok,
+            StopAnswer::ThreadEnded,
+            StopAnswer::Timeout,
+            StopAnswer::Os,
+        ] {
+            let mut daemon = ScriptedDaemon::new(start.clone());
+            daemon.set_stop_answer(SourceName::Screen, answer);
+            let paused = changed(daemon.handle(Request::Pause));
+            assert_eq!(
+                line(&paused, SourceName::Screen),
+                SourceLine {
+                    name: SourceName::Screen,
+                    state: SourceState::Stopped { by_user: true },
+                    unstopped: false,
+                },
+                "{answer:?}"
+            );
+            assert_eq!(paused.fields().capture, Capture::Paused, "{answer:?}");
+            let resumed = changed(daemon.handle(Request::Resume));
+            assert_eq!(
+                line(&resumed, SourceName::Screen).state,
+                SourceState::Running,
+                "{answer:?}"
+            );
+        }
     }
 }
