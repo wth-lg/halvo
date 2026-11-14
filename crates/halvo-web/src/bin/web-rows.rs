@@ -356,15 +356,27 @@ fn member_line(
         .collect();
     names.sort();
     names.dedup();
+    // CP-189 G1: the adopted processes of this read (parent 1, inside the browser's bundle, begun
+    // at or after the first process, outside its tree), and those of them that bear the mark.
+    let tree = procs::descendants(&table, std::slice::from_ref(root));
+    let roots: Vec<PathBuf> = root
+        .exe
+        .as_deref()
+        .map(procs::bundle_root)
+        .into_iter()
+        .collect();
+    let adopted = procs::adopted(&table, &tree, root.started_us, &roots);
+    let adopted_marked = adopted.iter().filter(|p| mark.owns(p, &args)).count();
     println!(
-        "{head} members={} unmarked={} unmarked_programs={}",
+        "{head} members={} unmarked={} unmarked_programs={} adopted={} adopted_marked={adopted_marked}",
         running.len(),
         unmarked.len(),
         if names.is_empty() {
             "-".to_string()
         } else {
             names.join(",")
-        }
+        },
+        adopted.len()
     );
     true
 }

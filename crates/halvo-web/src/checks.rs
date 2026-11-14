@@ -36,9 +36,10 @@ pub struct Count {
 }
 
 /// The browser's tree as the process table reads it now: the first process with every descendant
-/// by creation time, and the processes that the stop reports as adopted (A11.1) whose arguments
-/// name the first process's profile directory, as the crash handler's `--database=` does; an
-/// adopted process of another browser of the same app, such as the person's own, is no member.
+/// by creation time, and the processes that the stop reports as adopted (A11.1) that bear the
+/// first process's profile by one of the two exact forms of `bears_profile`, as the crash
+/// handler's `--database=<profile>/Crashpad` does; an adopted process of another browser of the
+/// same app, such as the person's own, is no member.
 pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
     tree_of_with(table, root, &command_args)
 }
@@ -66,8 +67,7 @@ pub fn tree_of_with(
     };
     let adopted = procs::adopted(table, &tree, root.started_us, &roots);
     for a in adopted {
-        let ours =
-            command_args(a.pid).is_some_and(|args| args.iter().any(|x| names_profile(x, &profile)));
+        let ours = command_args(a.pid).is_some_and(|args| bears_profile(&args, &profile));
         if ours && !tree.iter().any(|t| procs::same(t, &a)) {
             tree.push(a);
         }
@@ -75,23 +75,150 @@ pub fn tree_of_with(
     tree
 }
 
-/// Whether `text` names `profile` as a whole path: an occurrence that the end of the text, a path
-/// separator, a quote or a space follows, so a profile whose name begins another's names only its
-/// own processes.
-pub fn names_profile(text: &str, profile: &str) -> bool {
-    !profile.is_empty()
-        && text.match_indices(profile).any(|(i, _)| {
-            matches!(
-                text[i + profile.len()..].chars().next(),
-                None | Some('/' | '\\' | '"' | ' ')
-            )
-        })
+/// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1): one of its
+/// arguments is one of two exact forms, and nothing else does it. `--user-data-dir=` followed by
+/// the profile and nothing more (the value after the first `=`), or `--database=` followed by the
+/// profile's own Crashpad directory and nothing more, the place that the executor's flag
+/// `--breakpad-dump-location` names, so that the run's crash handler stays the run's own. No bare
+/// argument bears it and no occurrence inside an argument does. The value and the profile are
+/// compared as paths (`same_path_on`). On Windows the system gives a process's command line as one
+/// argument (`command_args`), which this function, and no other reader of the arguments, splits
+/// by the system's rule (`split_command_line`).
+pub fn bears_profile(args: &[String], profile: &str) -> bool {
+    bears_profile_on(args, profile, cfg!(windows))
+}
+
+/// `bears_profile` with the system's rules given: `windows` splits each argument as a command line
+/// and compares paths with `/` and `\` as one and the letter case ignored.
+pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
+    if profile.is_empty() {
+        return false;
+    }
+    let crashpad = format!("{profile}/Crashpad");
+    let split: Vec<String> = if windows {
+        args.iter().flat_map(|a| split_command_line(a)).collect()
+    } else {
+        args.to_vec()
+    };
+    split.iter().any(|a| {
+        if let Some(v) = a.strip_prefix("--user-data-dir=") {
+            same_path_on(v, profile, windows)
+        } else if let Some(v) = a.strip_prefix("--database=") {
+            same_path_on(v, &crashpad, windows)
+        } else {
+            false
+        }
+    })
+}
+
+/// Whether two paths are one by the stated rule of CP-189 G1: component by component, a separator
+/// at the end and a repeated separator ignored; on macOS the letters as they stand; on Windows `/`
+/// and `\` as one and the letter case ignored, as `inside` reads paths there. No link is followed
+/// and no `..` is resolved.
+pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
+    let parts = |p: &str| {
+        let p = if windows {
+            p.replace('\\', "/").to_lowercase()
+        } else {
+            p.to_string()
+        };
+        let parts: Vec<String> = p
+            .split('/')
+            .filter(|c| !c.is_empty())
+            .map(str::to_string)
+            .collect();
+        (p.starts_with('/'), parts)
+    };
+    !a.is_empty() && !b.is_empty() && parts(a) == parts(b)
+}
+
+/// The arguments of a Windows command line by the system's rule (`CommandLineToArgvW`): the
+/// program's name runs to the first space or tab outside quotes, its quotes dropped; each later
+/// argument runs to the next space or tab outside quotes; 2n backslashes before a quote give n
+/// backslashes and the quote opens or closes the quoted part, 2n+1 give n backslashes and a
+/// quote; backslashes before any other character stand as they are; `""` inside a quoted part
+/// gives one quote. The mark alone calls it (`bears_profile`); `command_args` and `command_line`
+/// stay as they are for the six rules.
+pub fn split_command_line(line: &str) -> Vec<String> {
+    let chars: Vec<char> = line.chars().collect();
+    let space = |c: char| c == ' ' || c == '\t';
+    let mut out = Vec::new();
+    let mut i = 0;
+    let mut name = String::new();
+    let mut quoted = false;
+    let mut any = false;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '"' {
+            quoted = !quoted;
+            any = true;
+            i += 1;
+            continue;
+        }
+        if !quoted && space(c) {
+            break;
+        }
+        name.push(c);
+        any = true;
+        i += 1;
+    }
+    if any {
+        out.push(name);
+    }
+    loop {
+        while i < chars.len() && space(chars[i]) {
+            i += 1;
+        }
+        if i >= chars.len() {
+            break;
+        }
+        let mut cur = String::new();
+        let mut quoted = false;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '\\' {
+                let mut n = 0;
+                while i < chars.len() && chars[i] == '\\' {
+                    n += 1;
+                    i += 1;
+                }
+                if i < chars.len() && chars[i] == '"' {
+                    cur.extend(std::iter::repeat_n('\\', n / 2));
+                    if n % 2 == 1 {
+                        cur.push('"');
+                        i += 1;
+                    }
+                } else {
+                    cur.extend(std::iter::repeat_n('\\', n));
+                }
+                continue;
+            }
+            if c == '"' {
+                if quoted && chars.get(i + 1) == Some(&'"') {
+                    cur.push('"');
+                    i += 2;
+                    continue;
+                }
+                quoted = !quoted;
+                i += 1;
+                continue;
+            }
+            if !quoted && space(c) {
+                break;
+            }
+            cur.push(c);
+            i += 1;
+        }
+        out.push(cur);
+    }
+    out
 }
 
 /// What makes a process a run's own (CP-126 E1 (b)): it began at or after `since_us`, the run's
 /// start less the margin of the clock; its program lies inside `root`, the app bundle of the
-/// browser that the run started (macOS) or that browser's install directory (Windows); and one of
-/// its arguments names `profile`, the run's profile directory, as a whole path (`names_profile`).
+/// browser that the run started (macOS) or that browser's install directory (Windows); and it
+/// bears `profile`, the run's profile directory, by one of the two exact forms of `bears_profile`
+/// (CP-189 G1): `--user-data-dir=<profile>` or `--database=<profile>/Crashpad`.
 /// The egress check's shell, its runner and its `log stream` run other programs, and a browser of
 /// another worker or of the person names another profile: none of them is the run's own.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,7 +250,7 @@ impl Mark {
         p.started_us >= self.since_us
             && p.pid != std::process::id()
             && p.exe.as_deref().is_some_and(|e| inside(e, &self.root))
-            && args(p.pid).is_some_and(|a| a.iter().any(|x| names_profile(x, &self.profile)))
+            && args(p.pid).is_some_and(|a| bears_profile(&a, &self.profile))
     }
 }
 
@@ -913,24 +1040,64 @@ mod tests {
     }
 
     #[test]
-    fn a_profile_is_named_as_a_whole_path() {
-        assert!(names_profile("--user-data-dir=/t/p-1", "/t/p-1"));
-        assert!(names_profile("--database=/t/p-1/Crashpad", "/t/p-1"));
-        assert!(names_profile(
-            r#"chrome.exe "--user-data-dir=C:\t\p-1" --type=gpu"#,
+    fn a_profile_is_borne_by_the_two_exact_forms_alone() {
+        let mac = |args: &[&str], profile: &str| {
+            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            bears_profile_on(&args, profile, false)
+        };
+        let win = |line: &str, profile: &str| bears_profile_on(&[line.to_string()], profile, true);
+        assert!(mac(&["--user-data-dir=/t/p-1"], "/t/p-1"));
+        assert!(mac(&["--user-data-dir=/t/p-1/"], "/t/p-1"));
+        assert!(mac(&["--database=/t/p-1/Crashpad"], "/t/p-1"));
+        assert!(mac(&["--type=gpu", "--user-data-dir=/t/a=b"], "/t/a=b"));
+        assert!(!mac(&["--user-data-dir=/t/p-10"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/t/p-1x"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/t/p-1 x"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/q/t/p-1"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/T/p-1"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/t/x/../p-1"], "/t/p-1"));
+        assert!(!mac(&["/t/p-1"], "/t/p-1"));
+        assert!(!mac(&["/t/p-1/Downloads/report.pdf"], "/t/p-1"));
+        assert!(!mac(&["--x=/t/p-1"], "/t/p-1"));
+        assert!(!mac(&["--database=/t/p-1"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dirx=/t/p-1"], "/t/p-1"));
+        assert!(!mac(&["--user-data-dir=/t/p-1"], ""));
+        assert!(win(
+            r#"chrome.exe "--user-data-dir=C:\a b\p" --type=gpu"#,
+            r"C:\a b\p"
+        ));
+        assert!(!win(r"chrome.exe --user-data-dir=c:/A B/P", r"C:\a b\p"));
+        assert!(win(
+            r#"chrome.exe "--user-data-dir=c:/A B/P/""#,
+            r"C:\a b\p"
+        ));
+        assert!(win(
+            r"crashpad_handler.exe --database=C:\t\p-1\Crashpad",
             r"C:\t\p-1"
         ));
-        assert!(names_profile(
-            r"chrome.exe --user-data-dir=C:\t\p-1 x",
-            r"C:\t\p-1"
+        assert!(!win(
+            r#"chrome.exe "--user-data-dir=C:\a b\p 2""#,
+            r"C:\a b\p"
         ));
-        assert!(names_profile(
-            "--user-data-dir=/t/p-10 --x=/t/p-1",
-            "/t/p-1"
-        ));
-        assert!(!names_profile("--user-data-dir=/t/p-10", "/t/p-1"));
-        assert!(!names_profile("--user-data-dir=/t/p-1x", "/t/p-1"));
-        assert!(!names_profile("--user-data-dir=/t/p-1", ""));
+        assert!(!win(r"chrome.exe C:\a\p\Downloads\x.pdf", r"C:\a\p"));
+    }
+
+    /// CP-189 G1: the Windows command line is split by the system's rule.
+    #[test]
+    fn g1_a_windows_command_line_is_split_by_the_system_s_rule() {
+        let s = |l: &str| split_command_line(l);
+        assert_eq!(
+            s(r#""C:\Program Files\b.exe" a b"#),
+            vec![r"C:\Program Files\b.exe", "a", "b"]
+        );
+        assert_eq!(s(r#"b.exe "a b" c"#), vec!["b.exe", "a b", "c"]);
+        assert_eq!(s(r#"b.exe a\\"b c" d"#), vec!["b.exe", r"a\b c", "d"]);
+        assert_eq!(s(r#"b.exe a\"b"#), vec!["b.exe", r#"a"b"#]);
+        assert_eq!(s(r"b.exe a\\b"), vec!["b.exe", r"a\\b"]);
+        assert_eq!(s(r#"b.exe "a""b""#), vec!["b.exe", r#"a"b"#]);
+        assert_eq!(s("b.exe\t a  b"), vec!["b.exe", "a", "b"]);
+        assert_eq!(s(r#"b.exe "" "#), vec!["b.exe", ""]);
+        assert_eq!(s(""), Vec::<String>::new());
     }
 
     /// The pr-review-19 test (join-1), as the review wrote it: a failed start ends each process that
