@@ -684,7 +684,23 @@ mod tests {
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
     const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
 
-    fn line_values() -> Vec<(&'static str, crate::proto::SourceState, bool)> {
+    /// One value of a source line with the cells of the three tables of ruling CT-9 beside it:
+    /// the sentence beside the Windows keyboard line, the sentence beside the screen line while
+    /// screen_activity is off, the class of the typing line, and the why of the screen row while
+    /// screen_activity is off.
+    struct LineRow {
+        value: &'static str,
+        state: crate::proto::SourceState,
+        mark: bool,
+        keyboard: Option<&'static str>,
+        screen: Option<&'static str>,
+        class: &'static str,
+        why_off: &'static str,
+    }
+
+    const WHY_ON: &str = "lets Halvo note screen activity, a record that the screen changed with no stored image; system audio stays off";
+
+    fn line_rows() -> Vec<LineRow> {
         use crate::proto::{Reason, SourceState};
         let impaired = SourceState::Impaired {
             reason: Reason::Permission,
@@ -694,31 +710,126 @@ mod tests {
             reason: Reason::Timeout,
             error: None,
         };
+        let stopped = SourceState::Stopped { by_user: false };
+        let by_user = SourceState::Stopped { by_user: true };
+        let row = |value, state, mark, keyboard, screen, class, why_off| LineRow {
+            value,
+            state,
+            mark,
+            keyboard,
+            screen,
+            class,
+            why_off,
+        };
         vec![
-            ("off", SourceState::Off, false),
-            ("off with the mark", SourceState::Off, true),
-            ("running", SourceState::Running, false),
-            ("running with the mark", SourceState::Running, true),
-            ("impaired", impaired.clone(), false),
-            ("impaired with the mark", impaired, true),
-            ("stopped", SourceState::Stopped { by_user: false }, false),
-            (
-                "stopped with the mark",
-                SourceState::Stopped { by_user: false },
-                true,
-            ),
-            (
-                "stopped reason=user",
-                SourceState::Stopped { by_user: true },
+            row(
+                "off",
+                SourceState::Off,
                 false,
+                Some(K0),
+                Some(S0),
+                "off",
+                S0,
             ),
-            (
-                "stopped reason=user with the mark",
-                SourceState::Stopped { by_user: true },
+            row(
+                "off with the mark",
+                SourceState::Off,
                 true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
             ),
-            ("failed", failed.clone(), false),
-            ("failed with the mark", failed, true),
+            row(
+                "running",
+                SourceState::Running,
+                false,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "running with the mark",
+                SourceState::Running,
+                true,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "impaired",
+                impaired.clone(),
+                false,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "impaired with the mark",
+                impaired,
+                true,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "stopped",
+                stopped.clone(),
+                false,
+                None,
+                None,
+                "stopped",
+                WHY_ON,
+            ),
+            row(
+                "stopped with the mark",
+                stopped,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "stopped reason=user",
+                by_user.clone(),
+                false,
+                None,
+                None,
+                "stopped",
+                WHY_ON,
+            ),
+            row(
+                "stopped reason=user with the mark",
+                by_user,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "failed",
+                failed.clone(),
+                false,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "failed with the mark",
+                failed,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
         ]
     }
 
@@ -765,37 +876,17 @@ mod tests {
         use SwitchName::{KeyClass, PointerClass, ScreenActivity, TitleText};
         let default_on = [TitleText, KeyClass, PointerClass];
         let key_class_off = [TitleText, PointerClass];
-        let keyboard = [
-            Some(K0),
-            Some(K2),
-            Some(K1),
-            Some(K1),
-            Some(K1),
-            Some(K1),
-            None,
-            Some(K2),
-            None,
-            Some(K2),
-            Some(K2),
-            Some(K2),
-        ];
-        let screen = [
-            Some(S0),
-            Some(S2),
-            Some(S1),
-            Some(S1),
-            Some(S1),
-            Some(S1),
-            None,
-            Some(S2),
-            None,
-            Some(S2),
-            Some(S2),
-            Some(S2),
-        ];
         let mut wrong = Vec::new();
         let mut rows = 0;
-        for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+        for LineRow {
+            value,
+            state,
+            mark,
+            keyboard,
+            screen,
+            ..
+        } in line_rows()
+        {
             let columns = [
                 (
                     "Windows, key_class on, beside the keyboard line",
@@ -805,7 +896,7 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard[i].map(|t| (KeyClass, t)).into_iter().collect(),
+                            keyboard.map(|t| (KeyClass, t)).into_iter().collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -819,7 +910,7 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard[i].map(|t| (KeyClass, t)).into_iter().collect(),
+                            keyboard.map(|t| (KeyClass, t)).into_iter().collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -837,7 +928,7 @@ mod tests {
                                 (KeyClass, KEY_CLASS_ON),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen[i].map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen.map(|t| (ScreenActivity, t)).into_iter().collect(),
                         ]
                         .concat(),
                     ),
@@ -854,7 +945,7 @@ mod tests {
                                 (KeyClass, K0),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen[i].map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen.map(|t| (ScreenActivity, t)).into_iter().collect(),
                         ]
                         .concat(),
                     ),
@@ -890,10 +981,6 @@ mod tests {
     fn ct9_passwords_and_typed_ahead_for_each_platform_guard_and_value_of_the_typing_line_are_the_tables_of_the_rulings(
     ) {
         use crate::proto::SourceName;
-        let classes = [
-            "off", "may run", "runs", "runs", "runs", "runs", "stopped", "may run", "stopped",
-            "may run", "may run", "may run",
-        ];
         let cell = |platform: Platform, guard: PasswordGuard, class: &str| -> &'static str {
             match (platform, guard, class) {
                 (Platform::Macos, PasswordGuard::Os, _) => PM,
@@ -910,7 +997,14 @@ mod tests {
             (Platform::Windows, SourceName::Keyboard),
         ] {
             for guard in [PasswordGuard::Os, PasswordGuard::None, PasswordGuard::Halvo] {
-                for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+                for LineRow {
+                    value,
+                    state,
+                    mark,
+                    class,
+                    ..
+                } in line_rows()
+                {
                     rows += 1;
                     let status = status_beside(
                         platform,
@@ -924,7 +1018,7 @@ mod tests {
                         ],
                         guard,
                     );
-                    let want = cell(platform, guard, classes[i]);
+                    let want = cell(platform, guard, class);
                     let want_typed_ahead = (want == PM).then_some(TA);
                     let got = texts(&status);
                     if got.passwords != want {
@@ -963,11 +1057,6 @@ mod tests {
     #[test]
     fn ct9_the_why_of_the_screen_row_says_not_recorded_only_where_recorded_says_it() {
         use crate::proto::SourceName;
-        const WHY_ON: &str = "lets Halvo note screen activity, a record that the screen changed with no stored image; system audio stays off";
-        let off_rows = [
-            S0, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON,
-            WHY_ON,
-        ];
         let mut wrong = Vec::new();
         let mut rows = 0;
         for (switch_on, on) in [
@@ -989,7 +1078,14 @@ mod tests {
                 ][..],
             ),
         ] {
-            for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+            for LineRow {
+                value,
+                state,
+                mark,
+                why_off,
+                ..
+            } in line_rows()
+            {
                 rows += 1;
                 let status = status_beside(
                     Platform::Macos,
@@ -999,7 +1095,7 @@ mod tests {
                     on,
                     PasswordGuard::Os,
                 );
-                let want = if switch_on { WHY_ON } else { off_rows[i] };
+                let want = if switch_on { WHY_ON } else { why_off };
                 let held = &status.fields().onboarding.permissions;
                 let got = onboarding_rows(&status);
                 let mut want_rows = held.clone();
