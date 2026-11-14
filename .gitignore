@@ -11,3 +11,4 @@ node_modules/
 
 # macOS
 .DS_Store
+/fixtures/r5/cases/heldout/
