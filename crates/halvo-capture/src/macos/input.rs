@@ -153,8 +153,9 @@ impl InputCounters {
         self.0.stalled.load(Ordering::Relaxed)
     }
 
-    /// Key presses that reached the tap while secure input was active. Each was
-    /// suppressed and never emitted.
+    /// Key presses that came in time and were read while secure input was on; each
+    /// was suppressed and never emitted. A late or untimed press under secure input
+    /// is not counted here: it is withheld and counted as a drop of its cause.
     pub fn suppressed_keys(&self) -> u64 {
         self.0.suppressed_keys.load(Ordering::Relaxed)
     }
