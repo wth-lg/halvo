@@ -425,7 +425,7 @@ mod tests {
 
     use super::*;
     use crate::daemon::model_store::{
-        foreground, frame, key, title_of, Harness, AFTER_MIDNIGHT, AT_NOON, NOON,
+        foreground, foreground_now, frame, key, title_of, Harness, AFTER_MIDNIGHT, AT_NOON, NOON,
     };
     use crate::daemon::owner::Command;
     use crate::daemon::port::PAYLOAD_MAX_BYTES;
@@ -636,12 +636,7 @@ mod tests {
     fn each_kind_with_a_constructor_keeps_its_record_shape_through_a_flush() {
         let mut harness = Harness::new();
         harness.ask(Command::ClosePause);
-        let events = [
-            foreground(&AT_NOON, Duration::ZERO),
-            key(),
-            frame(),
-            title_of(5, 7),
-        ];
+        let events = [foreground_now(), key(), frame(), title_of(5, 7)];
         let ids: Vec<_> = events.iter().map(|event| event.id().uuid()).collect();
         for event in events {
             harness.emit(event);
@@ -675,14 +670,20 @@ mod tests {
             seqs.windows(2).all(|pair| pair[1] == pair[0] + 1),
             "{seqs:?}"
         );
-        let batch = &harness.store.batches()[0];
-        let total: u64 = batch.entries.iter().map(|entry| entry.events).sum();
-        assert_eq!(total, 4);
-        let bytes: u64 = batch.entries.iter().map(|entry| entry.bytes).sum();
-        assert_eq!(bytes, batch.payload.len() as u64);
-        assert!(batch
-            .entries
+        let batches = harness.store.batches();
+        let total: u64 = batches
             .iter()
+            .flat_map(|batch| &batch.entries)
+            .map(|entry| entry.events)
+            .sum();
+        assert_eq!(total, 4);
+        for batch in &batches {
+            let bytes: u64 = batch.entries.iter().map(|entry| entry.bytes).sum();
+            assert_eq!(bytes, batch.payload.len() as u64);
+        }
+        assert!(batches
+            .iter()
+            .flat_map(|batch| &batch.entries)
             .any(|entry| entry.kind == EntryKind::of(Modality::Keystroke)));
     }
 
