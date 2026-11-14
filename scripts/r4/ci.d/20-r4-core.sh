@@ -755,7 +755,7 @@ EOF
   check an-allow-in-a-file-that-no-test-module-declares FAIL "FAIL $name (allow)" run_in allow-orphan
   variant allow-manifest crates/halvo-coord/Cargo.toml '[package]\nname = "halvo-coord"\n\n[lints.clippy]\ndisallowed_methods = "allow"\n'
   check an-allow-in-the-manifest FAIL "FAIL $name (allow)" run_in allow-manifest
-  variant allow-config .cargo/config.toml '[build]\nrustflags = ["-Aclippy::disallowed_methods"]\n'
+  variant allow-config .cargo/config.toml '[env]\nCLIPPY_CONF_DIR = "x"\n'
   check an-allow-in-the-cargo-configuration FAIL "FAIL $name (allow)" run_in allow-config
   variant allow-short crates/halvo-coord-app/clippy.toml 'disallowed-methods = [\n{ path = "std::process::Command::new" },\n]\n'
   check a-clippy-toml-without-spawn FAIL "FAIL $name (allow)" run_in allow-short
