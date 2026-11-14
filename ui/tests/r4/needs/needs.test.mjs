@@ -2493,6 +2493,20 @@ async function again(origin, dir) {
   } finally {
     await h.close();
   }
+  for (const cause of ['malformed', 'busy']) {
+    const o = outDir();
+    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, { ...first, reply: { error: cause } }], views: [VIEW], out: o });
+    try {
+      for (const a of prepare(setup)) await act(k, a);
+      await k.page.locator(sel('choose', setup.item)).click();
+      for (let i = 0; i < 12; i++) await frames(k);
+      if (callsOf(o).length !== 1 || strays(k) !== 0) faults.push('chain_not_stopped_at_' + cause + ':calls=' + callsOf(o).length + ':strays=' + strays(k));
+    } catch {
+      faults.push('throws_at_' + cause);
+    } finally {
+      await k.close();
+    }
+  }
   return faults;
 }
 
