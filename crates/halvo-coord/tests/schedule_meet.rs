@@ -141,3 +141,82 @@ fn meet_c_the_answer_to_the_check_of_a_switched_off_agent_ends_the_check_alone()
         Ok(Answer::Ok)
     );
 }
+
+/// RD-99 item 3, the queued twin of meet_a: a queued agent whose `ready` item the owner stored with
+/// a lost acknowledgement, and whose Switch off the owner refuses with `busy`. The switch-off's read
+/// shows no hold and reveals the item; the agent takes it up and stays queued (`settle`), so its
+/// row offers no Start now, a second start answers `state`, and the other run's end serves its one
+/// start with the item's answer `start` before the one `run_started`.
+#[test]
+fn meet_r13_a_queued_agent_whose_refused_switch_off_reveals_a_ready_item_stays_queued() {
+    let mut w = world(&[MANUAL, PERSON]);
+    let first = w
+        .act(Act::Start { agent: agent(0) })
+        .report
+        .run
+        .expect("agent 0 runs");
+    let ready = ItemId::parse(&format!("{:032x}", 0x7a21)).unwrap();
+    stored_unacknowledged(
+        &w,
+        1,
+        What::ItemRaised {
+            item: ready.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    let starts_before = w
+        .events_of(1)
+        .iter()
+        .filter(|e| *e == "run_started")
+        .count();
+    let queued = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    w.ports.refuse(Method::Log, PortError::Busy);
+    let off = w.act(Act::SwitchOff { agent: agent(1) });
+    assert_eq!(off.report.answer, Err(Cause::Busy));
+    assert_eq!(
+        w.facts(1).doing,
+        Doing::Queued(Some(OwnItem {
+            item: ready.clone(),
+            kind: OwnItemKind::Ready,
+        })),
+        "the agent takes up the item and stays queued"
+    );
+    assert!(!holds(w.facts(1)).contains(&Hold::Off));
+    let waiting = |w: &World| {
+        w.board
+            .queue
+            .entries()
+            .iter()
+            .filter(|e| e.agent == agent(1))
+            .count()
+    };
+    assert_eq!(waiting(&w), 1, "the queue holds the agent once");
+    assert!(!w.events_of(1).iter().any(|e| e == "hold_set person"));
+    assert!(
+        !halvo_coord::roster::controls(w.facts(1)).contains(&halvo_coord::types::Control::RunNow),
+        "the row offers no Start now"
+    );
+    w.ports.clear_refusals();
+    let again = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(again.report.answer, Err(Cause::State), "a second start");
+    assert_eq!(waiting(&w), 1, "the queue still holds the agent once");
+    let end = w.act(Act::End {
+        run: first,
+        outcome: None,
+    });
+    let next = &end.report.ended[0].next;
+    assert_eq!(next.len(), 1);
+    assert_eq!(next[0].agent, agent(1));
+    assert_eq!(next[0].answer, Ok(Answer::Ok));
+    assert!(next[0].run.is_some());
+    let names = w.events_of(1);
+    assert_eq!(
+        names[names.len() - 3..],
+        ["item_raised ready", "item_answered", "run_started"],
+        "{names:?}"
+    );
+    let starts = names.iter().filter(|e| *e == "run_started").count();
+    assert_eq!(starts, starts_before + 1, "one start");
+    assert!(w.board.queue.is_empty());
+}
