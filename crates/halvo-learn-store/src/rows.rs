@@ -52,17 +52,17 @@ pub(crate) fn routines(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<Le
     read(rows, LEARN_ROUTINE, LearnRoutine::parse, workflow)
 }
 
-/// The workflow of a `learn_run` row of the run that its parser takes.
-pub(crate) fn workflow_of_run(rows: &dyn RowRead, run: &str) -> Option<WorkflowId> {
-    let mut found = None;
+/// The newest `learn_run` row of the run among the rows of every workflow that their parser takes.
+pub(crate) fn run_row(rows: &dyn RowRead, run: &str) -> Option<LearnRun> {
+    let mut found: Vec<LearnRun> = Vec::new();
     rows.for_each(LEARN_RUN, &mut |row| {
         if let Ok(parsed) = LearnRun::parse(row.as_bytes()) {
             if parsed.run.as_str() == run {
-                found = Some(parsed.workflow);
+                found.push(parsed);
             }
         }
     });
-    found
+    newest_run(&found, run).cloned()
 }
 
 pub(crate) fn run_record(row: &LearnRun) -> Result<TypedRecord, ErrorName> {

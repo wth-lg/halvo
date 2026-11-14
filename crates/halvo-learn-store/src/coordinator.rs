@@ -160,7 +160,9 @@ impl LearnHandlers {
     /// refused, the start is remembered with no row too, and the run is a lost run.
     fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
         let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
-            self.remember_start(b, false);
+            if !self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent) {
+                self.remember_start(b, false);
+            }
             return Ok(());
         };
         let stands = rows::newest_run(&runs, b.run.as_str()).is_some();

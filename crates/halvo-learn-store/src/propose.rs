@@ -158,23 +158,20 @@ impl LearnHandlers {
     }
 
     /// The mode of a run at its `put_playbook`, its workflow, and whether the run rows of that workflow can be read:
-    /// the mode of the run's `learn_run` row under the body's agent, else that of the start that this value remembers
-    /// for the run under that agent (contracts.md L4.2; the coordinator's ruling LM-58 (a)). None where neither
-    /// stands, which the handler answers `binding`.
+    /// the mode of the run's own `learn_run` row under the body's agent where its parser takes it, else that of the
+    /// start that this value remembers for the run under that agent (contracts.md L4.2; the coordinator's ruling
+    /// LM-58 (a), (g)). None where neither stands, which the handler answers `binding`.
     fn mode_of(&self, host: &dyn LearnHost, b: &PutPlaybook) -> Option<(Mode, WorkflowId, bool)> {
         let start = self.starts.get(&b.run).filter(|s| s.agent == b.agent);
-        let workflow = match start {
-            Some(start) => start.workflow.clone(),
-            None => rows::workflow_of_run(host.rows(), b.run.as_str())?,
+        let row = rows::run_row(host.rows(), b.run.as_str()).filter(|r| r.agent == b.agent);
+        let workflow = match (start, &row) {
+            (Some(start), _) => start.workflow.clone(),
+            (None, Some(row)) => row.workflow.clone(),
+            (None, None) => return None,
         };
-        match rows::runs(host.rows(), &workflow) {
-            Read::Rows(runs) => {
-                let row = rows::newest_run(&runs, b.run.as_str()).filter(|r| r.agent == b.agent);
-                let mode = row.map(|r| r.mode).or(start.map(|s| s.mode))?;
-                Some((mode, workflow, true))
-            }
-            Read::Stopped => start.map(|s| (s.mode, workflow, false)),
-        }
+        let readable = matches!(rows::runs(host.rows(), &workflow), Read::Rows(_));
+        let mode = row.map(|r| r.mode).or(start.map(|s| s.mode))?;
+        Some((mode, workflow, readable))
     }
 
     /// `admit` for each step of the body that differs from the step served to the run on its `n` (contracts.md

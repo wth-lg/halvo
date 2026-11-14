@@ -208,6 +208,7 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
     let mut w = active_world();
     w.add_pair(2);
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
+    w.start(30, "replay");
     w.host.put_raw("learn_run", &refused_run(1));
     let before: Vec<Vec<String>> = ["learn_edit", "learn_run", "learn_routine"]
         .iter()
@@ -216,6 +217,9 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
 
     let served = w.replay(10);
     assert!(of_run(&w, 10).is_empty());
+    let starts = w.handlers.starts.clone();
+    w.start(10, "replay");
+    assert_eq!(w.handlers.starts, starts);
     assert_eq!(names(&served[1]), ["Pay"]);
     let proposal = with_locators(
         served[2].clone(),
@@ -259,6 +263,7 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
         w.put(13, 2, vec![compiled()[1].clone()]),
         Err(Refused::Error(binding))
     );
+    assert_eq!(w.put(30, 2, vec![compiled()[1].clone()]), Ok(stored(0)));
 
     w.pair = 2;
     w.learn(20, 2, "button Pay now", vec![loc("B"), pay()]);
