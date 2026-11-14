@@ -9,15 +9,19 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+mod browser;
+mod stall;
+use stall::FieldWindow;
 mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
+use halvo_capture::secure_input::windows::PasswordGate;
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
-use halvo_capture::source::{CaptureSource, SourceContext};
+use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
-use halvo_capture::windows::input::RawInputSource;
+use halvo_capture::windows::input::{seam, RawInputSource};
 use halvo_capture::windows::screen::ScreenSource;
 use halvo_capture::windows::window_title::WindowTitleSource;
 
@@ -57,6 +61,7 @@ extern "system" {
     ) -> i32;
     fn GetModuleFileNameW(module: *mut core::ffi::c_void, name: *mut u16, size: u32) -> u32;
     fn GetStdHandle(which: u32) -> *mut core::ffi::c_void;
+    fn GetTickCount() -> u32;
     fn GetSystemTimeAdjustment(
         adjustment: *mut u32,
         increment: *mut u32,
@@ -168,7 +173,7 @@ unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
             line.text(&[if c < 128 { c as u8 } else { b'?' }]);
         }
         line.text(b" offset=");
-        line.hex(record.address as usize - module as usize);
+        line.hex((record.address as usize).wrapping_sub(module as usize));
     } else {
         line.text(b" module=<none> offset=");
         line.hex(record.address as usize & 0xFFFF);
@@ -186,7 +191,125 @@ unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
             core::ptr::null_mut(),
         );
     }
+    FAULT_LINES_WRITTEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     0
+}
+
+static FAULT_LINES_WRITTEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+struct CountingAllocator;
+
+thread_local! {
+    static COUNTED_ALLOCATIONS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+fn count_allocation() {
+    let _ = COUNTED_ALLOCATIONS.try_with(|count| {
+        if let Some(n) = count.get() {
+            count.set(Some(n + 1));
+        }
+    });
+}
+
+// SAFETY: every call goes to the system allocator with the same arguments;
+// the count is a thread-local cell with a constant initializer, which takes
+// no allocation.
+unsafe impl std::alloc::GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        count_allocation();
+        // SAFETY: the caller's contract is the system allocator's.
+        unsafe { std::alloc::System.alloc(layout) }
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+        count_allocation();
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.alloc_zeroed(layout) }
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, size: usize) -> *mut u8 {
+        count_allocation();
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.realloc(ptr, layout, size) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        // SAFETY: as for alloc.
+        unsafe { std::alloc::System.dealloc(ptr, layout) }
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+fn allocations_of(body: impl FnOnce()) -> u64 {
+    COUNTED_ALLOCATIONS.with(|count| count.set(Some(0)));
+    body();
+    COUNTED_ALLOCATIONS
+        .with(|count| count.replace(None))
+        .unwrap_or(0)
+}
+
+fn one_fault(address: *mut core::ffi::c_void) -> (u64, u32, i32) {
+    use std::sync::atomic::Ordering::SeqCst;
+    FAULT_LINES.store(0, SeqCst);
+    let mut record = ExceptionRecord {
+        code: 0xC000_0005,
+        flags: 0,
+        record: core::ptr::null_mut(),
+        address,
+        params: 0,
+        info: [0; 15],
+    };
+    let mut pointers = ExceptionPointers {
+        record: &mut record,
+        context: core::ptr::null_mut(),
+    };
+    let before = FAULT_LINES_WRITTEN.load(SeqCst);
+    let mut answer = -1;
+    let allocations = allocations_of(|| {
+        // SAFETY: `pointers` and `record` are live locals shaped as the system
+        // passes them, and the handler reads them only during the call.
+        answer = unsafe { on_fault(&mut pointers) };
+    });
+    (
+        allocations,
+        FAULT_LINES_WRITTEN.load(SeqCst) - before,
+        answer,
+    )
+}
+
+#[test]
+#[ignore = "functional: calls the fault handler of the functional check"]
+fn the_fault_line_allocates_nothing() {
+    let control = allocations_of(|| {
+        std::hint::black_box(Box::new(7u64));
+    });
+    let (in_module, lines, answer) = one_fault(on_fault as *mut core::ffi::c_void);
+    let (at_zero, zero_lines, zero_answer) = one_fault(core::ptr::null_mut());
+    say(
+        "fault-line",
+        format!(
+            "allocations_of_one_box={control} allocations_of_the_handler={in_module} \
+             fault_lines_written={lines} allocations_at_address_zero={at_zero} \
+             fault_lines_written_at_address_zero={zero_lines}"
+        ),
+    );
+    assert_eq!(
+        control, 1,
+        "INCONCLUSIVE: the counting allocator did not count a box"
+    );
+    assert_eq!(
+        (lines, zero_lines),
+        (1, 1),
+        "INCONCLUSIVE: the handler wrote no fault line"
+    );
+    assert_eq!(
+        (answer, zero_answer),
+        (0, 0),
+        "the handler must let the search go on"
+    );
+    assert_eq!((in_module, at_zero), (0, 0), "the fault line allocated");
 }
 
 fn install_fault_line() {
@@ -398,6 +521,14 @@ fn app_class(app: &str, own_exe: &str) -> &'static str {
     }
 }
 
+const SHUTDOWN_LINE: &str = "TF shutdown source=";
+
+fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), CaptureError> {
+    let stopped = source.shutdown();
+    println!("{SHUTDOWN_LINE}{name} ok={}", stopped.is_ok());
+    stopped
+}
+
 fn source_built_by_test(test: &str, source: &str) {
     say(test, format!("source_built_by_test={source}"));
 }
@@ -601,6 +732,38 @@ fn pump_thread(window: Duration) {
     }
 }
 
+/// Serves this thread's messages until `window` has passed, waking for each
+/// message as it arrives, as a program's own message loop does: a read of
+/// the focused field that another process makes is answered at once and not
+/// at the next turn of a timer (W3-7 round B, x3).
+fn pump_answering(window: Duration) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MsgWaitForMultipleObjectsEx, MWMO_INPUTAVAILABLE, QS_ALLINPUT,
+    };
+    let deadline = Instant::now() + window;
+    let mut msg = MSG::default();
+    loop {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value is handed to TranslateMessage and DispatchMessageW.
+        unsafe {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            break;
+        }
+        let left = u32::try_from(left.as_millis()).unwrap_or(u32::MAX).max(1);
+        // SAFETY: no handle is passed; the call waits for this thread's
+        // queue or the time.
+        unsafe {
+            let _ = MsgWaitForMultipleObjectsEx(None, left, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        }
+    }
+}
+
 struct WindowSpec<'a> {
     class: &'a str,
     title: &'a str,
@@ -769,6 +932,13 @@ impl TestWindow {
     }
 
     fn activate(&self) -> (bool, &'static str) {
+        self.activate_with(true)
+    }
+
+    /// Brings the window to the front, with the Alt key among the ways
+    /// tried only when `keys` is set: a key here reaches every keyboard
+    /// source that runs (W3-7 O3).
+    fn activate_with(&self, keys: bool) -> (bool, &'static str) {
         // SAFETY: the three calls take this thread's window handle by value.
         unsafe {
             let _ = ShowWindow(self.hwnd, SW_SHOW);
@@ -780,12 +950,14 @@ impl TestWindow {
             return (true, "SetForegroundWindow");
         }
 
-        send(&[key_input(VK_MENU, false)]);
-        set_foreground(self.hwnd);
-        send(&[key_input(VK_MENU, true)]);
-        pump_thread(Duration::from_millis(200));
-        if self.is_foreground() {
-            return (true, "alt-key-unlock");
+        if keys {
+            send(&[key_input(VK_MENU, false)]);
+            set_foreground(self.hwnd);
+            send(&[key_input(VK_MENU, true)]);
+            pump_thread(Duration::from_millis(200));
+            if self.is_foreground() {
+                return (true, "alt-key-unlock");
+            }
         }
 
         let current_thread = {
@@ -830,6 +1002,34 @@ impl Drop for TestWindow {
         }
         pump_thread(Duration::from_millis(50));
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Field {
+    Plain,
+    Password,
+}
+
+fn focus_on(hwnd: HWND) -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
+    // SAFETY: SetFocus and GetFocus take and return handle values of this
+    // thread's windows.
+    unsafe {
+        let _ = SetFocus(Some(hwnd));
+        GetFocus() == hwnd
+    }
+}
+
+fn type_letters_slowly(letters: u32) -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let mut accepted = 0;
+    for _ in 0..letters {
+        accepted += send(&[key_input(VK_A, false)]);
+        std::thread::sleep(Duration::from_millis(20));
+        accepted += send(&[key_input(VK_A, true)]);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    accepted
 }
 
 fn set_text(hwnd: HWND, text: &str) -> Result<(), String> {
@@ -1001,16 +1201,27 @@ fn child_hold(secs: u64) {
         180,
     ))
     .expect("second window");
-    pump_thread(Duration::from_millis(300));
+    let edit = first
+        .child_control("EDIT", WINDOW_STYLE(0), 10)
+        .expect("the first window's edit");
+    let second_edit = second
+        .child_control("EDIT", WINDOW_STYLE(0), 10)
+        .expect("the second window's edit");
+    pump_answering(Duration::from_millis(300));
     let (foreground, method) = first.activate();
+    let edit_focused = focus_on(edit);
     say(
         "child",
-        format!("mode=hold first_window_foreground={foreground} method={method}"),
+        format!(
+            "mode=hold first_window_foreground={foreground} method={method} \
+             plain_edit_has_focus={edit_focused}"
+        ),
     );
-    pump_thread(Duration::from_secs(secs));
+    pump_answering(Duration::from_secs(secs));
     let held = first.is_foreground();
     set_foreground(second.hwnd);
-    pump_thread(Duration::from_millis(100));
+    focus_on(second_edit);
+    pump_answering(Duration::from_millis(100));
     say(
         "child",
         format!(
@@ -1018,7 +1229,7 @@ fn child_hold(secs: u64) {
             second.is_foreground()
         ),
     );
-    pump_thread(Duration::from_secs(3));
+    pump_answering(Duration::from_secs(3));
 }
 
 struct ChildProcess {
@@ -1166,8 +1377,8 @@ fn window_scenario(test: &'static str) -> WindowScenario {
         }
     };
     child_events.extend(events.drain_for(Duration::from_secs(1)));
-    let _ = foreground.shutdown();
-    let _ = title.shutdown();
+    let _ = stop_counted(&mut foreground, "foreground");
+    let _ = stop_counted(&mut title, "window_title");
     child.print_output();
     say(
         test,
@@ -1202,7 +1413,11 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         source_built_by_test("c1", "keyboard");
         let (sink, events) = capture(4096);
         let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let _fields = FieldWindow::open(
+            "c1_raw_input_delivers_keystrokes_and_pointer_events",
+            Field::Plain,
+        );
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
@@ -1226,8 +1441,8 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_moves = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-pointer-moves", &after_moves);
 
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
         press_keys(3);
         move_pointer(3);
         let after_stop = events.drain_for(Duration::from_millis(700));
@@ -1318,7 +1533,7 @@ fn c2_screen_source_delivers_a_frame() {
         let moving = events.drain_for(Duration::from_millis(700));
         summarize("c2", "moving-window-5s", &moving);
 
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         let after_stop = events.drain_for(Duration::from_millis(1500));
         let frames: Vec<&CaptureStreamEvent> = idle
             .iter()
@@ -1720,7 +1935,11 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let mut foreground = ForegroundAppSource::new();
         let last_app = foreground.last_app();
         let mut title = WindowTitleSource::new();
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let _fields = FieldWindow::open(
+            "c9_peak_working_set_of_sources_1_to_4_for_60_seconds",
+            Field::Plain,
+        );
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
         let mut screen = ScreenSource::new(Arc::clone(&last_app));
         let starts = [
@@ -1732,7 +1951,10 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
                 "window_title",
                 title.begin(SourceContext::new(sink.clone())),
             ),
-            ("keyboard", keyboard.begin(SourceContext::new(sink.clone()))),
+            ("keyboard", {
+                let _ = seam::take();
+                keyboard.begin(SourceContext::new(sink.clone()))
+            }),
             ("pointer", pointer.begin(SourceContext::new(sink.clone()))),
             ("screen", screen.begin(SourceContext::new(sink.clone()))),
         ];
@@ -1766,11 +1988,11 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let end = memory();
         say("c9", memory_line("after-60s-before-stop", &end));
 
-        let _ = foreground.shutdown();
-        let _ = title.shutdown();
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut foreground, "foreground");
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
+        let _ = stop_counted(&mut screen, "screen");
         let child_exit = child.wait();
         child.print_output();
         for event in events.drain_for(Duration::from_millis(500)) {
@@ -1804,13 +2026,13 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
             all_started,
             "INCONCLUSIVE: not every source started, so the number is not for five sources"
         );
-        for kind in [
-            "ForegroundApp",
-            "Keystroke",
-            "Pointer",
-            "ScreenFrame",
-            "WindowTitle",
-        ] {
+        let keys_decided = seam::take().len();
+        say("c9", format!("keys_that_the_gate_decided={keys_decided}"));
+        assert!(
+            keys_decided > 0,
+            "INCONCLUSIVE: the keyboard source decided no key in the run, so it did no work"
+        );
+        for kind in ["ForegroundApp", "Pointer", "ScreenFrame", "WindowTitle"] {
             assert!(
                 counts.get(kind).copied().unwrap_or(0) > 0,
                 "INCONCLUSIVE: no {kind} event in the run, so that source did no work"
@@ -2052,7 +2274,7 @@ fn helper_limited_listener() {
     };
     let secs: u64 = secs.parse().expect("listener seconds");
     let (sink, events) = capture(4096);
-    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
     let start = keyboard.begin(SourceContext::new(sink.clone()));
     let started_ms = unix_millis(SystemTime::now());
     let window = TestWindow::create(&normal_window(
@@ -2061,23 +2283,54 @@ fn helper_limited_listener() {
         320,
         60,
     ));
+    let edit = window
+        .as_ref()
+        .ok()
+        .and_then(|window| window.child_control("EDIT", WINDOW_STYLE(0), 10).ok());
     let deadline = Instant::now() + Duration::from_secs(secs);
     let mut stamps = Vec::new();
+    let mut recorded = 0usize;
+    // The source's withheld and late values, with the wall time of each
+    // change (W3-7 O3).
+    let mut values = Vec::new();
+    let mut last_values = None;
+    let _ = seam::take();
     while Instant::now() < deadline {
         pump_thread(Duration::from_millis(20));
-        for event in events.drain_for(Duration::from_millis(20)) {
-            if event.modality == Modality::Keystroke {
-                stamps.push(unix_millis(event.captured_at.wall_clock).to_string());
+        if let (Ok(window), Some(edit)) = (&window, edit) {
+            if window.is_foreground() {
+                focus_on(edit);
             }
         }
+        recorded += count(
+            &events.drain_for(Duration::from_millis(20)),
+            Modality::Keystroke,
+        );
+        // Every key that reached this source, whatever the gate decided: its
+        // wall time is now less its age by the tick counter.
+        // SAFETY: GetTickCount takes no argument and reads a counter.
+        let tick = unsafe { GetTickCount() };
+        let now = unix_millis(SystemTime::now());
+        for key in seam::take() {
+            let age = u128::from(tick.wrapping_sub(key.os_tick));
+            stamps.push(now.saturating_sub(age).to_string());
+        }
+        let counters = keyboard.health().counters;
+        let read = (u8::from(counters.keys_withheld), counters.late_events);
+        if last_values != Some(read) {
+            values.push(format!("{now}:{}:{}", read.0, read.1));
+            last_values = Some(read);
+        }
     }
-    let _ = keyboard.shutdown();
+    let _ = stop_counted(&mut keyboard, "keyboard");
     let report = format!(
-        "keyboard_start={} window_created={} integrity_is_medium={}\n{started_ms}\n{}",
+        "keyboard_start={} window_created={} integrity_is_medium={} keys_decided={} keys_recorded={recorded}\n{started_ms}\n{}\n{}",
         show(&start),
         window.is_ok(),
         integrity_is_medium(),
-        stamps.join(",")
+        stamps.len(),
+        stamps.join(","),
+        values.join(",")
     );
     std::fs::write(out_path, report).expect("write the listener result");
 }
@@ -2115,7 +2368,7 @@ fn x8_raw_input_across_the_integrity_boundary() {
         ))
         .expect("elevated window");
         pump_thread(Duration::from_millis(2500));
-        let (own_foreground, method) = own.activate();
+        let (own_foreground, method) = own.activate_with(false);
         pump_thread(Duration::from_millis(300));
         let elevated_from = unix_millis(SystemTime::now());
         press_keys(5);
@@ -2154,6 +2407,32 @@ fn x8_raw_input_across_the_integrity_boundary() {
             .split(',')
             .filter_map(|stamp| stamp.parse().ok())
             .collect();
+        // The listener's withheld and late values as they stood at a time.
+        let values: Vec<(u128, u8, u64)> = lines
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .filter_map(|value| {
+                let mut parts = value.split(':');
+                Some((
+                    parts.next()?.parse().ok()?,
+                    parts.next()?.parse().ok()?,
+                    parts.next()?.parse().ok()?,
+                ))
+            })
+            .collect();
+        let value_at = |time: u128| {
+            values
+                .iter()
+                .rev()
+                .find(|(at, _, _)| *at < time)
+                .map(|(_, withheld, late)| (*withheld, *late))
+        };
+        let at_elevated_from = value_at(elevated_from);
+        let at_medium_from = value_at(medium_from);
+        let at_end = values.last().map(|(_, withheld, late)| (*withheld, *late));
+        let set_by_the_elevated_phase =
+            at_medium_from.is_some_and(|(withheld, late)| withheld != 0 || late != 0);
         let (period, period_from) = tick_period();
         let phases: Vec<Phase> = stamps
             .iter()
@@ -2213,6 +2492,14 @@ fn x8_raw_input_across_the_integrity_boundary() {
         say(
             "x8",
             format!(
+                "listener_values (keys_withheld, late) at_elevated_from={at_elevated_from:?} \
+                 at_medium_from={at_medium_from:?} at_end={at_end:?} \
+                 set_by_the_elevated_phase={set_by_the_elevated_phase}"
+            ),
+        );
+        say(
+            "x8",
+            format!(
                 "listener exit_code={exit_code:?} {header} \
                  listener_source_started_before_typing={source_started_before_typing} \
                  keystroke_events_from_the_elevated_phase_to_the_medium_phase={between_the_phases}"
@@ -2257,6 +2544,19 @@ fn x8_raw_input_across_the_integrity_boundary() {
         assert_eq!(
             between_the_phases, 0,
             "keys typed into an elevated window reached a medium-integrity keyboard source"
+        );
+        assert!(
+            at_medium_from.is_some(),
+            "INCONCLUSIVE: the listener wrote no withheld or late value before the medium phase"
+        );
+        assert_eq!(
+            at_elevated_from,
+            Some((0, 0)),
+            "INCONCLUSIVE: the listener's withheld or late value was set before the elevated phase"
+        );
+        assert!(
+            !set_by_the_elevated_phase,
+            "the listener's keys_withheld or late value was set by the end of the elevated phase"
         );
     });
 }
@@ -2316,7 +2616,7 @@ fn x7_capture_border_on_the_screen() {
                 Modality::ScreenFrame,
             );
         let during = yellow_edge_pixels();
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         std::thread::sleep(Duration::from_secs(1));
         let after = yellow_edge_pixels();
         say(
@@ -2382,7 +2682,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         drop(window);
         let after = events.drain_for(Duration::from_secs(2));
         summarize("x9", "after-mode-change", &after);
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         let restored = set_resolution(start_w, start_h);
         let with_new_size = after
             .iter()
@@ -2444,7 +2744,7 @@ fn x13_frames_on_a_static_screen() {
             &events.drain_for(Duration::from_secs(2)),
             Modality::ScreenFrame,
         );
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         say(
             "x13",
             format!(
@@ -2486,7 +2786,7 @@ fn pointer_moves_coalesce() {
             Modality::Pointer,
         );
         let segment_coalesced = pointer.handoff_counts().coalesced - coalesced_before;
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut pointer, "pointer");
         let counts = pointer.handoff_counts();
         let accepted = first + second;
         say(
@@ -2529,6 +2829,163 @@ fn pointer_moves_coalesce() {
     });
 }
 
+/// The precondition of a test that types right after its keyboard source
+/// starts (W3-7 (4)): a fresh detector can read Unknown at its start, and a key
+/// typed before its next read is withheld. The fixture moves the focus to its
+/// password field and back, and the test waits, at most 3 s, until the gate
+/// reads the plain field as Clear, and at least 1 s from the source's start,
+/// as c1 does: a key typed in the first few hundred ms after a start has been
+/// withheld on the hosted runner.
+fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInputSource) -> bool {
+    use halvo_capture::secure_input::windows::FieldState;
+    let started = Instant::now();
+    let at_start = keyboard.field_state();
+    if let Some(fields) = fields {
+        fields.focus(Field::Password);
+        std::thread::sleep(Duration::from_millis(150));
+        fields.focus(Field::Plain);
+    }
+    let began = Instant::now();
+    let mut clear = false;
+    while began.elapsed() < Duration::from_secs(3) {
+        if keyboard.field_state() == Some(FieldState::Clear) {
+            clear = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::thread::sleep(Duration::from_millis(150));
+    if let Some(left) = Duration::from_secs(1).checked_sub(started.elapsed()) {
+        std::thread::sleep(left);
+    }
+    let _ = seam::take();
+    say(
+        test,
+        format!(
+            "gate_at_start={at_start:?} gate_reads_clear_before_typing={clear} waited_ms={}",
+            started.elapsed().as_millis()
+        ),
+    );
+    clear
+}
+
+/// Prints the gate's trail since the last read of the seam: each key that
+/// it decided, with its class, verdict, rule and ticks, and each mark from
+/// 1.5 s before the first key to 0.5 s after the last, with what its reading
+/// saw of its element. Ticks are relative to the first key's OS tick.
+fn gate_trail(test: &str) {
+    let keys = seam::take();
+    let marks = seam::take_marks();
+    let Some(base) = keys.first().map(|key| key.os_tick) else {
+        say(test, format!("trail keys=0 marks={}", marks.len()));
+        return;
+    };
+    let rel = |tick: u32| i64::from(tick.wrapping_sub(base) as i32);
+    let last = keys.iter().map(|key| rel(key.os_tick)).max().unwrap_or(0);
+    for key in &keys {
+        say(
+            test,
+            format!(
+                "trail key class={:?} verdict={:?} rule={:?} at={} decided={}",
+                key.class,
+                key.verdict,
+                key.rule,
+                rel(key.os_tick),
+                rel(key.decided_tick)
+            ),
+        );
+    }
+    for mark in marks.iter().filter(|mark| {
+        let at = rel(mark.at.unwrap_or(mark.began));
+        (-1500..=last + 500).contains(&at)
+    }) {
+        say(
+            test,
+            format!(
+                "trail mark what={} state={:?} moved={:?} at={} began={} {}",
+                mark.what,
+                mark.state,
+                mark.moved,
+                mark.at.map_or(i64::MIN, rel),
+                rel(mark.began),
+                mark.element.as_deref().unwrap_or("element=none")
+            ),
+        );
+    }
+}
+
+/// W3-7 K9 and L8: the detector's first own read after a start is a read of
+/// the focused field. The fixture's password field has the focus before the
+/// source starts, so that read reads Password, and the start's own mark,
+/// before it, reads Unknown.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn the_first_own_read_after_a_start_reads_the_focused_password_field() {
+    with_deadline("first-read", Duration::from_secs(90), || {
+        use halvo_capture::secure_input::windows::FieldState;
+        source_built_by_test("first-read", "keyboard");
+        let fields = FieldWindow::open("first-read", Field::Password);
+        let mut rounds = 0;
+        let mut passed = 0;
+        for round in 0..5 {
+            let focused = fields.focus(Field::Password);
+            std::thread::sleep(Duration::from_millis(300));
+            let _ = seam::take();
+            let _ = seam::take_marks();
+            let (sink, _events) = capture(256);
+            let mut keyboard =
+                RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+            let start = keyboard.begin(SourceContext::new(sink.clone()));
+            let marks = seam::take_marks();
+            let stopped = stop_counted(&mut keyboard, "keyboard");
+            let started = marks.iter().position(|mark| mark.what == "start");
+            let first_read =
+                started.and_then(|at| marks[at..].iter().find(|mark| mark.what == "read"));
+            let start_state = started.map(|at| marks[at].state);
+            let read_state = first_read.and_then(|mark| mark.state);
+            let element = first_read
+                .and_then(|mark| mark.element.as_deref())
+                .unwrap_or("element=none");
+            say(
+                "first-read",
+                format!(
+                    "round={round} foreground={} focused={focused} start={} stop={} \
+                     start_mark={start_state:?} first_read={read_state:?} {element}",
+                    fields.foreground,
+                    show(&start),
+                    show(&stopped)
+                ),
+            );
+            assert!(fields.foreground, "the fixture window is not in front");
+            assert!(
+                focused,
+                "the fixture's password field did not take the focus"
+            );
+            assert!(
+                start.is_ok() && stopped.is_ok(),
+                "the source did not start and stop"
+            );
+            assert_eq!(
+                start_state,
+                Some(Some(FieldState::Unknown)),
+                "the start's mark"
+            );
+            rounds += 1;
+            if read_state == Some(FieldState::Password) && element.contains("is_password=1") {
+                passed += 1;
+            }
+        }
+        say(
+            "first-read",
+            format!("rounds={rounds} first_read_password={passed}"),
+        );
+        assert_eq!(
+            passed, rounds,
+            "a first own read after a start did not read the password field"
+        );
+    });
+}
+
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn capture_times_follow_the_input_order() {
@@ -2538,10 +2995,12 @@ fn capture_times_follow_the_input_order() {
         source_built_by_test("order", "keyboard");
         let (sink, writer) = channel(1);
         let last_app = Arc::new(Mutex::new(None));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let fields = FieldWindow::open("capture_times_follow_the_input_order", Field::Plain);
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(last_app);
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("order", Some(&fields), &keyboard);
         let mut injected = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
@@ -2555,8 +3014,8 @@ fn capture_times_follow_the_input_order() {
         }
         std::thread::sleep(Duration::from_millis(1500));
         let events = forward(writer).drain_for(Duration::from_secs(2));
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
         let mut stamped: Vec<(Modality, SystemTime)> = events
             .iter()
             .map(|e| (e.modality, e.captured_at.wall_clock))
@@ -2612,8 +3071,11 @@ fn stop_with_a_full_sink() {
         env_report("full-sink");
         source_built_by_test("full-sink", "keyboard");
         let (sink, writer) = channel(1);
-        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let fields = FieldWindow::open("stop_with_a_full_sink", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("full-sink", Some(&fields), &keyboard);
         let accepted = press_keys(3);
         std::thread::sleep(Duration::from_millis(500));
         let (done, returned) = mpsc::channel();
@@ -2621,7 +3083,7 @@ fn stop_with_a_full_sink() {
         std::thread::Builder::new()
             .name("tf-full-sink-stop".to_string())
             .spawn(move || {
-                let _ = done.send(keyboard.shutdown());
+                let _ = done.send(stop_counted(&mut keyboard, "keyboard"));
             })
             .expect("spawn the stop thread");
         let stopped = returned.recv_timeout(FULL_SINK_STOP_LIMIT);
@@ -2663,8 +3125,11 @@ fn a_dropped_keyboard_source_stops_capturing() {
         env_report("dropped");
         source_built_by_test("dropped", "keyboard");
         let (sink, events) = capture(4096);
-        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let fields = FieldWindow::open("a_dropped_keyboard_source_stops_capturing", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("dropped", Some(&fields), &keyboard);
         let accepted_before = press_keys(1);
         let before = count(
             &events.drain_for(Duration::from_millis(700)),
@@ -2677,14 +3142,15 @@ fn a_dropped_keyboard_source_stops_capturing() {
             &events.drain_for(Duration::from_secs(1)),
             Modality::Keystroke,
         );
-        let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let next_start = next.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("dropped", Some(&fields), &next);
         let accepted_next = press_keys(1);
         let next_keys = count(
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
         );
-        let next_stop = next.shutdown();
+        let next_stop = stop_counted(&mut next, "keyboard");
         say(
             "dropped",
             format!(
@@ -2725,9 +3191,10 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         source_built_by_test("queued-at-stop", "keyboard");
         let (sink, writer) = channel(64);
         let last_app = Arc::new(Mutex::new(None));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
+        let _ = seam::take();
         let held = last_app.lock().expect("the last-app cell");
         let accepted = press_keys(5);
         std::thread::sleep(Duration::from_millis(300));
@@ -2735,9 +3202,10 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         std::thread::Builder::new()
             .name("tf-queued-at-stop-stop".to_string())
             .spawn(move || {
-                let stopped = keyboard.shutdown();
+                let stopped = stop_counted(&mut keyboard, "keyboard");
                 let lost = keyboard.handoff_counts().lost;
-                let _ = done.send((stopped, lost));
+                let late = keyboard.health().counters.late_events;
+                let _ = done.send((stopped, lost, late));
             })
             .expect("spawn the stop thread");
         std::thread::sleep(Duration::from_millis(200));
@@ -2755,19 +3223,26 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
                 &events.drain_for(Duration::from_secs(1)),
                 Modality::Keystroke,
             ) as u64;
-        let (stopped, lost) = match &outcome {
-            Ok((stopped, lost)) => (format!("{stopped:?}"), *lost),
-            Err(e) => (format!("no answer ({e:?})"), 0),
+        let (stopped, lost, late) = match &outcome {
+            Ok((stopped, lost, late)) => (format!("{stopped:?}"), *lost, *late),
+            Err(e) => (format!("no answer ({e:?})"), 0, 0),
         };
+        let decided = seam::take();
+        let not_recorded = decided
+            .iter()
+            .filter(|key| key.verdict != seam::Verdict::Recorded)
+            .count() as u64;
         say(
             "queued-at-stop",
             format!(
                 "keyboard_start={} presses=5 sendinput_key_events_accepted={accepted} \
                  keystrokes_before_the_release={before_release} \
-                 stop={stopped} keystrokes_delivered={delivered} lost={lost} \
-                 neither_delivered_nor_counted={}",
+                 stop={stopped} keystrokes_delivered={delivered} lost={lost} late_value={late} \
+                 keys_decided_by_the_gate={} keys_withheld_or_undecided_at_the_stop={not_recorded} \
+                 neither_delivered_nor_decided={}",
                 show(&start),
-                5i64 - delivered as i64 - lost as i64,
+                decided.len(),
+                5i64 - delivered as i64 - lost as i64 - not_recorded as i64,
             ),
         );
         drop(sink);
@@ -2781,14 +3256,81 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             "the hold did not take: keystrokes reached the sink before the hold was released, so this run shows nothing about input queued at a stop"
         );
         assert!(
-            matches!(outcome, Ok((Ok(()), _))),
+            matches!(outcome, Ok((Ok(()), _, _))),
             "the stop did not answer Ok: {outcome:?}"
         );
         assert_eq!(
-            delivered + lost,
+            delivered + lost + not_recorded,
             5,
-            "key presses queued before the stop were neither delivered nor counted: \
-             delivered {delivered}, lost {lost}"
+            "key presses queued before the stop were neither delivered nor decided: \
+             delivered {delivered}, lost {lost}, withheld or undecided {not_recorded}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
+    with_deadline("after-timeout", Duration::from_secs(60), || {
+        env_report("after-timeout");
+        source_built_by_test("after-timeout", "keyboard");
+        let (sink, writer) = channel(64);
+        let last_app = Arc::new(Mutex::new(None));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = seam::take();
+        let held = last_app.lock().expect("the last-app cell");
+        let accepted_before = press_keys(1);
+        std::thread::sleep(Duration::from_millis(300));
+        let (done, returned) = mpsc::channel();
+        let stopper = std::thread::Builder::new()
+            .name("tf-after-timeout-stop".to_string())
+            .spawn(move || {
+                let stopped = stop_counted(&mut keyboard, "keyboard");
+                let _ = done.send(stopped);
+                keyboard
+            })
+            .expect("spawn the stop thread");
+        let stopped = returned.recv_timeout(Duration::from_secs(5));
+        let accepted_after = press_keys(5);
+        std::thread::sleep(Duration::from_millis(300));
+        drop(held);
+        let keyboard = stopper.join().expect("the stop thread");
+        std::thread::sleep(Duration::from_secs(1));
+        let lost = keyboard.handoff_counts().lost;
+        let late = keyboard.health().counters.late_events;
+        let events = forward(writer);
+        let delivered = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        ) as u64;
+        let decided = seam::take().len() as u64;
+        say(
+            "after-timeout",
+            format!(
+                "keyboard_start={} presses_before_the_stop=1 presses_after_the_answer=5 \
+                 sendinput_key_events_accepted_before={accepted_before} \
+                 sendinput_key_events_accepted_after={accepted_after} stop={stopped:?} \
+                 keystrokes_delivered={delivered} lost={lost} late_value={late} \
+                 keys_that_the_pump_read={decided}",
+                show(&start),
+            ),
+        );
+        drop(keyboard);
+        drop(sink);
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            accepted_before == 2 && accepted_after == 10,
+            "INCONCLUSIVE: SendInput did not insert every key event"
+        );
+        assert!(
+            matches!(stopped, Ok(Err(CaptureError::Timeout { .. }))),
+            "INCONCLUSIVE: the held pump's stop did not answer Timeout: {stopped:?}"
+        );
+        assert_eq!(
+            decided, 1,
+            "the pump read input posted after the Timeout answer: it decided {decided} keys, delivered {delivered}, lost {lost}"
         );
     });
 }
@@ -2808,11 +3350,11 @@ fn x5_screen_source_stop_and_start_again() {
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
         let first = screen.begin(SourceContext::new(sink.clone()));
         let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
-        let first_stop = screen.shutdown();
+        let first_stop = stop_counted(&mut screen, "screen");
         let _ = events.drain_for(Duration::from_millis(500));
         let second = screen.begin(SourceContext::new(sink.clone()));
         let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
-        let second_stop = screen.shutdown();
+        let second_stop = stop_counted(&mut screen, "screen");
         say(
             "x5",
             format!(
@@ -2855,7 +3397,7 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
                 started += 1;
             }
             frames += screen_frames_within(&events, Duration::from_millis(700));
-            if screen.shutdown().is_ok() {
+            if stop_counted(&mut screen, "screen").is_ok() {
                 stopped += 1;
             }
         }
@@ -2893,7 +3435,7 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
                 pump_thread(Duration::from_millis(50));
                 frames += screen_frames_within(&events, Duration::from_millis(50));
             }
-            let stop = screen.shutdown();
+            let stop = stop_counted(&mut screen, "screen");
             say(
                 "c8b",
                 format!(
@@ -2926,6 +3468,1388 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x3_attribution_before_the_first_foreground_change() {
+    with_deadline("x3", Duration::from_secs(120), || {
+        env_report("x3");
+        source_built_by_test("x3", "keyboard");
+        let mut child = spawn_child("hold", 9);
+        let child_pid = child.id();
+        let waited = Instant::now();
+        while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        std::thread::sleep(Duration::from_secs(2));
+        let child_foreground_at_start = foreground_pid() == child_pid;
+        let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
+
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let last_app = foreground.last_app();
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
+        let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("x3", None, &keyboard);
+        let settle = events.drain_for(Duration::from_secs(1));
+        let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
+        press_keys(5);
+        let before = events.drain_for(Duration::from_millis(700));
+        let still_child_foreground = foreground_pid() == child_pid;
+
+        let mut between = Vec::new();
+        let waited = Instant::now();
+        while !between
+            .iter()
+            .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
+            && waited.elapsed() < Duration::from_secs(15)
+        {
+            between.extend(events.drain_for(Duration::from_millis(100)));
+        }
+        press_keys(5);
+        let after = events.drain_for(Duration::from_millis(700));
+        let exit = child.wait();
+        let _ = stop_counted(&mut foreground, "foreground");
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        child.print_output();
+
+        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+        let empty_app = |events: &[CaptureStreamEvent]| {
+            events
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
+                .count()
+        };
+        gate_trail("x3");
+        let child_app = |events: &[CaptureStreamEvent]| {
+            events
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke && is_child_app(&e.foreground_app))
+                .count()
+        };
+        say(
+            "x3",
+            format!(
+                "foreground_start={} keyboard_start={} \
+                 child_window_foreground_when_sources_started={child_foreground_at_start} \
+                 current_foreground_app_reader_names_child={reader_sees_child} \
+                 foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
+                 child_window_foreground_while_typing={still_child_foreground}",
+                show(&foreground_start),
+                show(&keyboard_start),
+                count(&settle, Modality::ForegroundApp),
+                cell_before_typing.is_none(),
+            ),
+        );
+        say(
+            "x3",
+            format!(
+                "keystrokes_before_first_foreground_change={} attributed_to_child={} \
+                 foreground_events_seen_after={} keystrokes_after_first_change={} \
+                 with_empty_app_after={} attributed_to_child_after={} child_exit_ok={}",
+                keys(&before),
+                child_app(&before),
+                count(&between, Modality::ForegroundApp),
+                keys(&after),
+                empty_app(&after),
+                child_app(&after),
+                exit.success(),
+            ),
+        );
+        assert!(foreground_start.is_ok() && keyboard_start.is_ok());
+        assert!(
+            child_foreground_at_start && still_child_foreground,
+            "INCONCLUSIVE: the child window was not the foreground window while the keys were typed"
+        );
+        assert!(
+            keys(&before) >= 1,
+            "INCONCLUSIVE: no keystroke event to attribute"
+        );
+        let evidence: String = format!(
+            "TF x3 keystrokes_before_first_foreground_change_with_empty_app={} \
+            attributed_to_child={}",
+            empty_app(&before),
+            child_app(&before)
+        );
+        println!("{evidence}");
+        assert!(
+            keys(&before) == 5 && child_app(&before) == 5 && empty_app(&before) == 0,
+            "{evidence}"
+        );
+    });
+}
+
+fn image_name(pid: u32) -> String {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    // SAFETY: OpenProcess takes plain values; the handle is closed once below.
+    let Ok(handle) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
+        return "unreadable".to_string();
+    };
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
+    // SAFETY: `buf` and `len` are live, `len` holds the length of `buf`, and
+    // `handle` is open for the call.
+    let read = unsafe {
+        QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buf.as_mut_ptr()),
+            &mut len,
+        )
+    };
+    // SAFETY: `handle` is the handle that OpenProcess returned above.
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    if read.is_err() {
+        return "unreadable".to_string();
+    }
+    file_name(&String::from_utf16_lossy(&buf[..len as usize])).to_string()
+}
+
+fn class_of_window(hwnd: HWND) -> String {
+    use windows::Win32::UI::WindowsAndMessaging::GetClassNameW;
+    let mut buf = [0u16; 128];
+    // SAFETY: `buf` is a live buffer whose length the call takes.
+    let len = unsafe { GetClassNameW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+}
+
+fn window_sample(hwnd: HWND) -> String {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
+    unsafe extern "system" fn each(child: HWND, found: LPARAM) -> BOOL {
+        // SAFETY: `found` is the address of the vector that the caller holds
+        // across the enumeration on this thread.
+        unsafe { (*(found.0 as *mut Vec<HWND>)).push(child) };
+        BOOL::from(true)
+    }
+    let mut children: Vec<HWND> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `children`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `children` meanwhile.
+    unsafe {
+        let _ = EnumChildWindows(
+            Some(hwnd),
+            Some(each),
+            LPARAM(&mut children as *mut Vec<HWND> as isize),
+        );
+    }
+    let own = window_pid(hwnd);
+    let mut others: Vec<String> = children
+        .iter()
+        .filter(|child| window_pid(**child) != own)
+        .map(|child| {
+            format!(
+                "{}:{}",
+                image_name(window_pid(*child)),
+                class_of_window(*child)
+            )
+        })
+        .collect();
+    others.sort();
+    others.dedup();
+    format!(
+        "sample foreground_class={} foreground_image={} child_windows={} children_of_other_processes={}",
+        class_of_window(hwnd),
+        image_name(own),
+        children.len(),
+        if others.is_empty() { "none".to_string() } else { others.join(",") },
+    )
+}
+
+fn processes_named(image: &str) -> usize {
+    let filter = format!("IMAGENAME eq {image}");
+    let out = Command::new("tasklist.exe")
+        .args(["/FI", &filter, "/FO", "CSV", "/NH"])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        .unwrap_or_default();
+    out.lines()
+        .filter(|line| {
+            line.to_ascii_lowercase()
+                .contains(&image.to_ascii_lowercase())
+        })
+        .count()
+}
+
+fn foreground_without_input(hwnd: HWND, own: bool) -> (bool, &'static str) {
+    // SAFETY: the calls take a window handle by value.
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = BringWindowToTop(hwnd);
+        let _ = SetForegroundWindow(hwnd);
+    }
+    pump_thread(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, "SetForegroundWindow");
+    }
+    let front_thread = {
+        let mut pid = 0u32;
+        // SAFETY: `pid` is a live u32 that the call writes into.
+        unsafe { GetWindowThreadProcessId(foreground_window(), Some(&mut pid)) }
+    };
+    // SAFETY: GetCurrentThreadId takes no argument.
+    let this_thread = unsafe { GetCurrentThreadId() };
+    if front_thread != 0 && front_thread != this_thread {
+        // SAFETY: the input of the two threads is joined only around the two
+        // window calls and detached again before the block ends.
+        unsafe {
+            let _ = AttachThreadInput(this_thread, front_thread, true);
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
+            let _ = AttachThreadInput(this_thread, front_thread, false);
+        }
+    }
+    pump_thread(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, "attach-thread-input");
+    }
+    if own {
+        // SAFETY: ShowWindow takes this thread's window handle by value.
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_MINIMIZE);
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        pump_thread(Duration::from_millis(200));
+    }
+    (foreground_window() == hwnd, "minimize-restore")
+}
+
+fn top_windows() -> Vec<HWND> {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::EnumWindows;
+    unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
+        // SAFETY: `found` is the address of the vector that the caller holds
+        // across the enumeration on this thread.
+        unsafe { (*(found.0 as *mut Vec<HWND>)).push(hwnd) };
+        BOOL::from(true)
+    }
+    let mut all: Vec<HWND> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `all`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `all` meanwhile.
+    unsafe {
+        let _ = EnumWindows(Some(each), LPARAM(&mut all as *mut Vec<HWND> as isize));
+    }
+    all
+}
+
+fn settings_window() -> Option<HWND> {
+    use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+    top_windows().into_iter().find(|hwnd| {
+        // SAFETY: IsWindowVisible reads a handle value.
+        let visible = unsafe { IsWindowVisible(*hwnd) }.as_bool();
+        visible
+            && (image_name(window_pid(*hwnd)).eq_ignore_ascii_case("SystemSettings.exe")
+                || class_of_window(*hwnd) == "ApplicationFrameWindow"
+                    && window_sample(*hwnd).contains("SystemSettings.exe"))
+    })
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x14_foreground_app_of_a_hosted_app() {
+    use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
+    with_deadline("x14", Duration::from_secs(150), || {
+        env_report("x14");
+        let anchor = TestWindow::create(&normal_window(
+            "HalvoVerifyAnchor",
+            "halvo-verify-anchor",
+            60,
+            60,
+        ))
+        .expect("the anchor window");
+        pump_thread(Duration::from_millis(300));
+        let before = window_sample(foreground_window());
+        let (anchor_front, anchor_method) = foreground_without_input(anchor.hwnd, true);
+        // SAFETY: AllowSetForegroundWindow takes a plain value.
+        let allowed = unsafe { AllowSetForegroundWindow(ASFW_ANY) }.is_ok();
+        say(
+            "x14",
+            format!(
+                "before_anchor {before} anchor_foreground={anchor_front} \
+                 anchor_method={anchor_method} allow_set_foreground_any={allowed}"
+            ),
+        );
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let start = foreground.begin(SourceContext::new(sink.clone()));
+        let launched = Command::new("cmd.exe")
+            .args(["/c", "start", "ms-settings:"])
+            .status()
+            .is_ok_and(|status| status.success());
+        let mut seen = Vec::new();
+        let began = Instant::now();
+        let mut sampled = Instant::now();
+        let mut settings_front = false;
+        let mut brought = None;
+        while began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            if let Some(frame) = settings_window() {
+                if foreground_window() == frame {
+                    settings_front = true;
+                } else if brought.is_none() && began.elapsed() >= Duration::from_secs(3) {
+                    brought = Some(foreground_without_input(frame, false));
+                }
+            }
+            if sampled.elapsed() >= Duration::from_secs(1) {
+                sampled = Instant::now();
+                say("x14", window_sample(foreground_window()));
+            }
+        }
+        seen.extend(events.drain_for(Duration::from_millis(500)));
+        let settings_processes = processes_named("SystemSettings.exe");
+        let foreground_now = current_foreground_app().unwrap_or_default();
+        let _ = stop_counted(&mut foreground, "foreground");
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", "SystemSettings.exe", "/F"])
+            .output();
+        drop(anchor);
+        summarize("x14", "after-opening-settings", &seen);
+        let named = |file: &str| {
+            seen.iter()
+                .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
+                .count()
+        };
+        let frame_host = named("ApplicationFrameHost.exe");
+        let settings = named("SystemSettings.exe");
+        say(
+            "x14",
+            format!(
+                "foreground_start={} settings_launched={launched} \
+                 settings_processes_running={settings_processes} \
+                 settings_window_was_foreground={settings_front} \
+                 brought_to_front_by_the_fixture={brought:?} \
+                 foreground_now_is_frame_host={} foreground_now_is_settings={} \
+                 events_naming_applicationframehost={frame_host}",
+                show(&start),
+                file_name(&foreground_now).eq_ignore_ascii_case("ApplicationFrameHost.exe"),
+                file_name(&foreground_now).eq_ignore_ascii_case("SystemSettings.exe"),
+            ),
+        );
+        assert!(start.is_ok(), "the foreground source must start");
+        assert!(
+            settings_processes >= 1,
+            "INCONCLUSIVE: the Settings app did not start on this machine"
+        );
+        assert!(
+            settings_front,
+            "INCONCLUSIVE: the Settings window never came to the front by an allowed call"
+        );
+        let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
+        println!("{evidence}");
+        assert!(settings >= 1, "{evidence}");
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x2_window_title_events_for_other_windows_and_controls() {
+    with_deadline("x2", Duration::from_secs(90), || {
+        env_report("x2");
+        let (sink, events) = capture(8192);
+        let mut title = WindowTitleSource::new();
+        let start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("scope", 0);
+        let mut seen = Vec::new();
+        let exit = loop {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            if let Some(status) = child.try_wait() {
+                break status;
+            }
+        };
+        seen.extend(events.drain_for(Duration::from_secs(1)));
+        let _ = stop_counted(&mut title, "window_title");
+        child.print_output();
+        summarize("x2", "scope", &seen);
+        let with_size = |len: u64| {
+            seen.iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && is_child_app(&e.foreground_app)
+                        && e.segment_ref.byte_len == len
+                })
+                .count()
+        };
+        say(
+            "x2",
+            format!(
+                "title_start={} child_exit_ok={} events_for_foreground_window_title={} \
+                 events_for_child_control_text={}",
+                show(&start),
+                exit.success(),
+                with_size(30),
+                with_size(40),
+            ),
+        );
+        assert!(start.is_ok(), "the window-title source must start");
+        assert!(exit.success(), "the child process must finish");
+        assert!(
+            with_size(30) >= 1,
+            "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
+        );
+        let evidence: String = format!(
+            "TF x2 events_for_child_control_text={} events_for_background_window_title={} \
+            events_for_never_shown_window_title={}",
+            with_size(40),
+            with_size(50),
+            with_size(60),
+        );
+        println!("{evidence}");
+        assert!(
+            with_size(40) == 0 && with_size(50) == 0 && with_size(60) == 0,
+            "{evidence}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
+    with_deadline("fixed-title", Duration::from_secs(90), || {
+        env_report("fixed-title");
+        let (sink, events) = capture(8192);
+        let mut title = WindowTitleSource::new();
+        let start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("cycle", 4);
+        let child_pid = child.id();
+        let fixed_len = FIXED_TITLE.len() as i32;
+        let mut seen = Vec::new();
+        let mut fixed_window_was_foreground = false;
+        let exit = loop {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            let hwnd = foreground_window();
+            fixed_window_was_foreground |=
+                window_pid(hwnd) == child_pid && title_len(hwnd) == fixed_len;
+            if let Some(status) = child.try_wait() {
+                break status;
+            }
+        };
+        seen.extend(events.drain_for(Duration::from_secs(1)));
+        let _ = stop_counted(&mut title, "window_title");
+        child.print_output();
+        summarize("fixed-title", "cycle", &seen);
+        let titles_of = |wanted: &dyn Fn(u64) -> bool| {
+            seen.iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && is_child_app(&e.foreground_app)
+                        && wanted(e.segment_ref.byte_len)
+                })
+                .count()
+        };
+        let scripted = titles_of(&|len| CHILD_TITLE_LENGTHS.contains(&len));
+        let fixed = titles_of(&|len| len == FIXED_TITLE.len() as u64);
+        say(
+            "fixed-title",
+            format!(
+                "title_start={} child_exit_ok={} fixed_title_bytes={fixed_len} \
+                 fixed_title_window_was_foreground={fixed_window_was_foreground} \
+                 title_events_with_a_scripted_title_size={scripted}",
+                show(&start),
+                exit.success(),
+            ),
+        );
+        assert!(start.is_ok(), "the window-title source must start");
+        assert!(exit.success(), "the child process must finish");
+        assert!(
+            fixed_window_was_foreground,
+            "INCONCLUSIVE: the window with the fixed title never came to the front"
+        );
+        assert!(
+            scripted >= 1,
+            "INCONCLUSIVE: no title event for the child's title changes"
+        );
+        let evidence: String = format!("TF fixed-title title_events_for_the_fixed_title={fixed}");
+        println!("{evidence}");
+        assert!(fixed >= 1, "{evidence}");
+    });
+}
+
+fn title_len(hwnd: HWND) -> i32 {
+    // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
+    // handle that is no longer a window gives 0.
+    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW(hwnd) }
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x15_a_held_key() {
+    with_deadline("x15", Duration::from_secs(60), || {
+        const REPEATS: u32 = 6;
+        env_report("x15");
+        source_built_by_test("x15", "keyboard");
+        let (sink, events) = capture(4096);
+        let fields = FieldWindow::open("x15_a_held_key", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        gate_reads_clear("x15", Some(&fields), &keyboard);
+        let mut accepted = 0;
+        for _ in 0..REPEATS {
+            accepted += send(&[key_input(VK_F15, false)]);
+            std::thread::sleep(Duration::from_millis(30));
+        }
+        accepted += send(&[key_input(VK_F15, true)]);
+        let seen = events.drain_for(Duration::from_secs(1));
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let keystrokes = count(&seen, Modality::Keystroke);
+        say(
+            "x15",
+            format!(
+                "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} \
+                 key_up_packets=1 sendinput_events_accepted={accepted}",
+                show(&start),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            accepted,
+            REPEATS + 1,
+            "INCONCLUSIVE: SendInput did not insert every packet"
+        );
+        assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
+        let evidence: String = format!("TF x15 keystroke_events={keystrokes}");
+        println!("{evidence}");
+        assert!(keystrokes == 1, "{evidence}");
+    });
+}
+
+fn unix_millis_of(event: &CaptureStreamEvent) -> u128 {
+    unix_millis(event.captured_at.wall_clock)
+}
+
+fn keystrokes_inside(
+    events: &[CaptureStreamEvent],
+    intervals: &[(u128, u128)],
+    margin: u128,
+) -> usize {
+    events
+        .iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .filter(|e| {
+            let at = unix_millis_of(e);
+            intervals
+                .iter()
+                .any(|(start, end)| at > start + margin && at + margin < *end)
+        })
+        .count()
+}
+
+fn tab_then_letter() -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_TAB};
+    send(&[
+        key_input(VK_TAB, false),
+        key_input(VK_TAB, true),
+        key_input(VK_A, false),
+        key_input(VK_A, true),
+    ])
+}
+
+fn letters_while(span: Duration, every: Duration) -> (u32, Vec<u128>) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let began = Instant::now();
+    let mut accepted = 0;
+    let mut sent = Vec::new();
+    while began.elapsed() < span {
+        sent.push(unix_millis(SystemTime::now()));
+        accepted += send(&[key_input(VK_A, false), key_input(VK_A, true)]);
+        std::thread::sleep(every);
+    }
+    (accepted, sent)
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn password_field_fixture_native_dialog_phases_a_to_f() {
+    with_deadline("fixture-native", Duration::from_secs(200), || {
+        const LETTERS: u32 = 5;
+        env_report("fixture-native");
+        source_built_by_test("fixture-native", "keyboard");
+        let fields = FieldWindow::open("fixture-native", Field::Plain);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+
+        let focused_a = fields.focus(Field::Plain);
+        let _ = events.drain_for(Duration::from_millis(500));
+        type_letters_slowly(LETTERS);
+        let a = keys(&events.drain_for(Duration::from_secs(1)));
+        let gate_a = keyboard.field_state();
+
+        let focused_b = fields.focus(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(500));
+        let password_before_b = fields.text_len(Field::Password);
+        type_letters_slowly(LETTERS);
+        let b = keys(&events.drain_for(Duration::from_secs(1)));
+        let typed_b = fields.text_len(Field::Password) - password_before_b;
+        let gate_b = keyboard.field_state();
+        let withheld_b = keyboard.health().counters.keys_withheld;
+
+        fields.focus(Field::Plain);
+        let _ = events.drain_for(Duration::from_millis(500));
+        let span = Duration::from_secs(6);
+        fields.start_wander(span);
+        let (accepted_c, sent_c) = letters_while(span, Duration::from_millis(60));
+        let intervals = fields.wander_intervals(span);
+        let seen_c = events.drain_for(Duration::from_secs(1));
+        let c = keys(&seen_c);
+        let c_inside = keystrokes_inside(&seen_c, &intervals, 30);
+
+        let focused_d = fields.focus(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(300));
+        let revealed = fields.reveal();
+        let _ = events.drain_for(Duration::from_millis(300));
+        // A click inside the revealed field makes the gate read it again
+        // (W3-7 K12); the field keeps Password, since the focus never left.
+        let clicked_d = fields.click(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(300));
+        let gate_d = keyboard.field_state();
+        let still_focused_d = fields.password_has_focus();
+        type_letters_slowly(LETTERS);
+        let d = keys(&events.drain_for(Duration::from_secs(1)));
+
+        let (e, e_control_before, e_control_after) =
+            fields.phase_e("fixture-native", &events, &keyboard);
+
+        drop(fields);
+        let mut f = 0;
+        for round in 0..10 {
+            let opened = FieldWindow::open("fixture-native-f", Field::Password);
+            type_letters_slowly(1);
+            f += keys(&events.drain_for(Duration::from_millis(500)));
+            if round == 9 {
+                say(
+                    "fixture-native",
+                    format!(
+                        "phase=F password_characters_last_round={}",
+                        opened.text_len(Field::Password)
+                    ),
+                );
+            }
+        }
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        say(
+            "fixture-native",
+            format!(
+                "keyboard_start={} phase=A plain_field_has_focus={focused_a} letters_sent={LETTERS} \
+                 keystroke_events={a} gate={gate_a:?}",
+                show(&start)
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=B password_field_has_focus={focused_b} letters_sent={LETTERS} \
+                 characters_in_password_field={typed_b} keystroke_events={b} gate={gate_b:?} \
+                 keys_withheld={withheld_b}"
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=C letters_sent={} sendinput_events_accepted={accepted_c} focus_moves_to_password={} \
+                 keystroke_events={c} keystroke_events_inside_password_focus={c_inside}",
+                sent_c.len(),
+                intervals.len(),
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=D password_field_has_focus={focused_d} revealed={revealed} \
+                 clicked_inside={clicked_d} focus_stayed={still_focused_d} gate_after_the_click={gate_d:?} \
+                 keystroke_events={d}"
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=E rounds={} counted_rounds={} letters_recorded={} tabs_recorded={} other_recorded={} \
+                 letters_landed_in_the_password_field={} control_before={e_control_before} \
+                 control_after={e_control_after}",
+                e.rounds, e.counted, e.letters_recorded, e.tabs_recorded, e.other_recorded, e.letters_landed,
+            ),
+        );
+        say(
+            "fixture-native",
+            format!("phase=F rounds=10 keystroke_events={f}"),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            focused_a
+                && focused_b
+                && focused_d
+                && revealed
+                && clicked_d
+                && still_focused_d
+                && typed_b == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the fields"
+        );
+        assert!(
+            !intervals.is_empty() && !sent_c.is_empty(),
+            "INCONCLUSIVE: phase C moved no focus or typed nothing"
+        );
+        assert_eq!(a, LETTERS as usize, "phase A: every key of the plain field");
+        assert_eq!(b, 0, "phase B: a key of the password field was recorded");
+        assert!(withheld_b, "phase B: keys_withheld must read yes");
+        assert_eq!(
+            c_inside, 0,
+            "phase C: a key typed while the password field had the focus was recorded"
+        );
+        assert!(c >= 1, "phase C: no key of the plain field was recorded");
+        assert_eq!(
+            d, 0,
+            "phase D: a key of the revealed password field was recorded"
+        );
+        assert_eq!(
+            gate_d,
+            Some(halvo_capture::secure_input::windows::FieldState::Password),
+            "phase D: after a click inside the revealed field the gate did not keep Password"
+        );
+        assert_eq!(
+            e.letters_recorded, 0,
+            "phase E: a key typed right after Tab into the password field was recorded"
+        );
+        assert_eq!(
+            e.other_recorded, 0,
+            "phase E: a key of another class than Tab was recorded"
+        );
+        assert!(
+            e_control_before > 0 && e_control_after > 0,
+            "phase E: a control recorded no letter of the plain field"
+        );
+        assert_eq!(
+            e.counted, e.rounds,
+            "INCONCLUSIVE: phase E: not every round counted"
+        );
+        assert_eq!(
+            f, 0,
+            "phase F: a key typed into a password field that had the focus at open was recorded"
+        );
+    });
+}
+
+const FIXTURE_PAGE: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><title>halvo-fixture</title></head>
+<body>
+<input id="plain" type="text">
+<input id="password" type="password">
+<input id="masked" type="text" style="-webkit-text-security: disc">
+<script>
+const query = new URLSearchParams(location.search);
+const phase = query.get('phase') || 'A';
+const run = query.get('run') || '0';
+const counts = { plain: 0, password: 0, masked: 0 };
+let seq = '';
+function show() {
+  document.title = 'halvo-fixture ' + phase + run + ' plain=' + counts.plain + ' password=' +
+    counts.password + ' masked=' + counts.masked + ' seq=' + seq.slice(-150) + ' end';
+}
+for (const id of ['plain', 'password', 'masked']) {
+  document.getElementById(id).addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    counts[id]++;
+    seq += id === 'password' ? 'P' : (id === 'plain' ? 'T' : 'M');
+    show();
+  });
+}
+const focusOn = (id) => document.getElementById(id).focus();
+if (phase === 'A' || phase === 'C' || phase === 'E') focusOn('plain');
+if (phase === 'B' || phase === 'D' || phase === 'F') focusOn('password');
+if (phase === 'M') focusOn('masked');
+if (phase === 'C') {
+  let x = 7;
+  const hop = () => {
+    x = (x * 1103515245 + 12345) % 2147483648;
+    focusOn(document.activeElement.id === 'plain' ? 'password' : 'plain');
+    setTimeout(hop, 150 + (x % 450));
+  };
+  setTimeout(hop, 1500);
+}
+if (phase === 'D') setTimeout(() => { document.getElementById('password').type = 'text'; }, 800);
+if (phase === 'E') {
+  document.getElementById('password').addEventListener('keyup', (e) => {
+    if (e.key !== 'Tab') setTimeout(() => focusOn('plain'), 250);
+  });
+}
+show();
+</script>
+</body></html>
+"#;
+
+struct Browser {
+    name: &'static str,
+    paths: &'static [&'static str],
+    chromium: bool,
+}
+
+const CHROME: Browser = Browser {
+    name: "chrome",
+    paths: &[
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ],
+    chromium: true,
+};
+
+const EDGE: Browser = Browser {
+    name: "edge",
+    paths: &[
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ],
+    chromium: true,
+};
+
+const FIREFOX: Browser = Browser {
+    name: "firefox",
+    paths: &[
+        r"C:\Program Files\Mozilla Firefox\firefox.exe",
+        r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+    ],
+    chromium: false,
+};
+
+struct PageCounts {
+    plain: u32,
+    password: u32,
+    masked: u32,
+    seq: String,
+}
+
+fn page_counts(title: &str) -> Option<PageCounts> {
+    let field = |key: &str| -> Option<&str> {
+        let at = title.find(key)? + key.len();
+        title[at..].split(' ').next()
+    };
+    Some(PageCounts {
+        plain: field(" plain=")?.parse().ok()?,
+        password: field(" password=")?.parse().ok()?,
+        masked: field(" masked=")?.parse().ok()?,
+        seq: field(" seq=")?.to_string(),
+    })
+}
+
+fn window_titled(prefix: &str) -> Option<(HWND, String)> {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW};
+    unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
+        let mut buf = [0u16; 512];
+        // SAFETY: `buf` is a live buffer whose length the call takes, and
+        // `found` is the address of the vector that the caller holds across
+        // the enumeration on this thread.
+        unsafe {
+            let len = GetWindowTextW(hwnd, &mut buf);
+            let title = String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)]);
+            (*(found.0 as *mut Vec<(HWND, String)>)).push((hwnd, title));
+        }
+        BOOL::from(true)
+    }
+    let mut all: Vec<(HWND, String)> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `all`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `all` meanwhile.
+    unsafe {
+        let _ = EnumWindows(
+            Some(each),
+            LPARAM(&mut all as *mut Vec<(HWND, String)> as isize),
+        );
+    }
+    all.into_iter().find(|(_, title)| title.starts_with(prefix))
+}
+
+fn title_of(hwnd: HWND) -> String {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    let mut buf = [0u16; 512];
+    // SAFETY: `buf` is a live buffer whose length the call takes.
+    let len = unsafe { GetWindowTextW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+}
+
+struct BrowserRun<'a> {
+    browser: &'a Browser,
+    exe: String,
+    profile: tempfile::TempDir,
+    page: String,
+    runs: u32,
+}
+
+impl<'a> BrowserRun<'a> {
+    fn new(browser: &'a Browser) -> Option<BrowserRun<'a>> {
+        let exe = browser
+            .paths
+            .iter()
+            .find(|path| Path::new(path).is_file())?;
+        let profile = scratch_dir();
+        if !browser.chromium {
+            let prefs = "user_pref(\"browser.shell.checkDefaultBrowser\", false);\n\
+                         user_pref(\"browser.aboutwelcome.enabled\", false);\n\
+                         user_pref(\"datareporting.policy.dataSubmissionEnabled\", false);\n\
+                         user_pref(\"browser.startup.homepage_override.mstone\", \"ignore\");\n\
+                         user_pref(\"startup.homepage_welcome_url\", \"\");\n\
+                         user_pref(\"trailhead.firstrun.didSeeAboutWelcome\", true);\n";
+            std::fs::write(profile.path().join("user.js"), prefs).ok()?;
+        }
+        let page_path = profile.path().join("fixture.html");
+        std::fs::write(&page_path, FIXTURE_PAGE).ok()?;
+        let page = format!("file:///{}", page_path.to_string_lossy().replace('\\', "/"));
+        Some(BrowserRun {
+            browser,
+            exe: exe.to_string(),
+            profile,
+            page,
+            runs: 0,
+        })
+    }
+
+    fn open(&mut self, phase: char) -> Option<HWND> {
+        self.runs += 1;
+        let url = format!("{}?phase={phase}&run={}", self.page, self.runs);
+        let profile = self.profile.path().to_string_lossy().into_owned();
+        let args: Vec<String> = if self.browser.chromium {
+            vec![
+                format!("--user-data-dir={profile}"),
+                "--no-first-run".to_string(),
+                "--no-default-browser-check".to_string(),
+                "--disable-features=Translate".to_string(),
+                "--new-window".to_string(),
+                url,
+            ]
+        } else {
+            vec![
+                "-profile".to_string(),
+                profile,
+                "-new-window".to_string(),
+                url,
+            ]
+        };
+        let _ = Command::new(&self.exe)
+            .args(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let prefix = format!("halvo-fixture {phase}{} ", self.runs);
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(30) {
+            if let Some((hwnd, _)) = window_titled(&prefix) {
+                for _ in 0..10 {
+                    if foreground_window() == hwnd {
+                        break;
+                    }
+                    send(&[key_input(VK_MENU, false)]);
+                    set_foreground(hwnd);
+                    send(&[key_input(VK_MENU, true)]);
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+                std::thread::sleep(Duration::from_millis(1200));
+                return Some(hwnd);
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        None
+    }
+}
+
+impl Drop for BrowserRun<'_> {
+    fn drop(&mut self) {
+        let image = Path::new(&self.exe)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", &image, "/F", "/T"])
+            .output();
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
+fn browser_phase(
+    test: &str,
+    run: &mut BrowserRun,
+    keyboard: &RawInputSource,
+    events: &Events,
+    phase: char,
+    typing: impl FnOnce() -> Vec<u128>,
+) -> (
+    usize,
+    Vec<CaptureStreamEvent>,
+    Option<PageCounts>,
+    Vec<u128>,
+) {
+    let hwnd = run.open(phase);
+    let foreground = hwnd.is_some_and(|hwnd| foreground_window() == hwnd);
+    let _ = events.drain_for(Duration::from_millis(300));
+    let sent = typing();
+    let seen = events.drain_for(Duration::from_millis(1500));
+    let counts = hwnd.and_then(|hwnd| page_counts(&title_of(hwnd)));
+    let keystrokes = count(&seen, Modality::Keystroke);
+    say(
+        test,
+        format!(
+            "browser={} phase={phase} page_window_found={} page_window_foreground={foreground} \
+             page_plain={} page_password={} page_masked={} keystroke_events={keystrokes} gate={:?}",
+            run.browser.name,
+            hwnd.is_some(),
+            counts.as_ref().map_or(-1, |c| i64::from(c.plain)),
+            counts.as_ref().map_or(-1, |c| i64::from(c.password)),
+            counts.as_ref().map_or(-1, |c| i64::from(c.masked)),
+            keyboard.field_state(),
+        ),
+    );
+    (keystrokes, seen, counts, sent)
+}
+
+fn letters(n: u32) -> Vec<u128> {
+    let mut sent = Vec::new();
+    for _ in 0..n {
+        sent.push(unix_millis(SystemTime::now()));
+        type_letters_slowly(1);
+    }
+    sent
+}
+
+fn password_key_events(seen: &[CaptureStreamEvent], sent: &[u128], seq: &str) -> usize {
+    let fields: Vec<char> = seq.chars().collect();
+    let offset = sent.len().saturating_sub(fields.len());
+    seen.iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .filter(|e| {
+            let at = unix_millis_of(e);
+            let nearest = sent
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, t)| t.abs_diff(at))
+                .map(|(i, _)| i);
+            nearest
+                .and_then(|i| i.checked_sub(offset))
+                .and_then(|i| fields.get(i))
+                .is_some_and(|field| *field != 'T')
+        })
+        .count()
+}
+
+fn browser_fixture(test: &'static str, browser: &'static Browser) {
+    with_deadline(test, Duration::from_secs(300), || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut run = BrowserRun::new(browser);
+        say(
+            test,
+            format!("browser={} installed={}", browser.name, run.is_some()),
+        );
+        let run = run
+            .as_mut()
+            .expect("the browser is not installed on this runner: FAIL");
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let unknown_class = !browser.chromium;
+        // W3-7 K10: for a kind that reads Unknown, a control in the same run
+        // that the same source records the letters of a plain field of a
+        // kind that reads Clear, before the browser's phases and after.
+        let control = |which: &str| -> usize {
+            let fields = FieldWindow::open(test, Field::Plain);
+            let focused = fields.focus(Field::Plain);
+            let _ = events.drain_for(Duration::from_millis(600));
+            type_letters_slowly(5);
+            let recorded = count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            );
+            say(
+                test,
+                format!(
+                    "control={which} window=native-plain-field foreground={} focused={focused} \
+                     letters_sent=5 keystroke_events={recorded}",
+                    fields.foreground
+                ),
+            );
+            recorded
+        };
+        let control_before = if unknown_class { control("before") } else { 5 };
+
+        let _ = browser_phase(test, run, &keyboard, &events, 'W', Vec::new);
+        let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || letters(5));
+        let gate_a = keyboard.field_state();
+        let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
+        let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
+        let gate_b = keyboard.field_state();
+        let withheld_b = keyboard.health().counters.keys_withheld;
+        let (c, c_seen, c_page, c_sent) = browser_phase(test, run, &keyboard, &events, 'C', || {
+            std::thread::sleep(Duration::from_millis(1000));
+            letters_while(Duration::from_secs(6), Duration::from_millis(60)).1
+        });
+        let c_seq = c_page.as_ref().map(|p| p.seq.clone()).unwrap_or_default();
+        let c_password = password_key_events(&c_seen, &c_sent, &c_seq);
+        let (d, _, d_page, _) = browser_phase(test, run, &keyboard, &events, 'D', || {
+            std::thread::sleep(Duration::from_millis(1200));
+            letters(5)
+        });
+        let _ = seam::take();
+        let (e, _, e_page, _) = browser_phase(test, run, &keyboard, &events, 'E', || {
+            for _ in 0..20 {
+                tab_then_letter();
+                std::thread::sleep(Duration::from_millis(500));
+                send(&[key_input(
+                    windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT,
+                    false,
+                )]);
+                send(&[key_input(
+                    windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT,
+                    true,
+                )]);
+            }
+            Vec::new()
+        });
+        let e_decided = seam::take();
+        // W3-7 O10: each round of phase E, with the decision of each key.
+        let mut sorted: Vec<&seam::Decided> = e_decided.iter().collect();
+        sorted.sort_by_key(|key| key.os_tick);
+        let mut round = 0;
+        let mut last: Option<u32> = None;
+        for key in sorted {
+            if last.is_some_and(|last| key.os_tick.wrapping_sub(last) > 300) {
+                round += 1;
+            }
+            last = Some(key.os_tick);
+            say(
+                test,
+                format!(
+                    "phase=E round={round} class={:?} verdict={:?} rule={:?}",
+                    key.class, key.verdict, key.rule
+                ),
+            );
+        }
+        let recorded = |class: seam::KeyClass| {
+            e_decided
+                .iter()
+                .filter(|key| key.class == class && key.verdict == seam::Verdict::Recorded)
+                .count()
+        };
+        let (e_letters, e_tabs) = (
+            recorded(seam::KeyClass::Printable),
+            recorded(seam::KeyClass::Tab),
+        );
+        let e_other = e.saturating_sub(e_letters + e_tabs);
+        say(
+            test,
+            format!(
+                "phase=E letters_recorded={e_letters} tabs_recorded={e_tabs} other_classes_recorded={e_other} \
+                 keys_decided_by_the_gate={}",
+                e_decided.len()
+            ),
+        );
+        let mut f = 0;
+        let mut f_password = 0;
+        for _ in 0..10 {
+            let (keys, _, page, _) =
+                browser_phase(test, run, &keyboard, &events, 'F', || letters(1));
+            f += keys;
+            f_password += page.map_or(0, |p| p.password);
+        }
+        let control_after = if unknown_class { control("after") } else { 5 };
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let page = |p: &Option<PageCounts>| {
+            p.as_ref()
+                .map_or((0, 0, 0), |p| (p.plain, p.password, p.masked))
+        };
+        say(
+            test,
+            format!(
+                "keyboard_start={} browser={} detector_class={} phase_A_plain_keys={} phase_A_events={a} \
+                 phase_M_masked_keys={} phase_M_events={m} phase_B_password_keys={} phase_B_events={b} \
+                 keys_withheld={withheld_b} phase_C_keys={} phase_C_events={c} phase_C_password_key_events={c_password} \
+                 phase_D_keys={} phase_D_events={d} phase_E_password_keys={} phase_E_events={e} \
+                 phase_F_password_keys={f_password} phase_F_events={f}",
+                show(&start),
+                browser.name,
+                if unknown_class { "unknown" } else { "read" },
+                page(&a_page).0,
+                page(&m_page).2,
+                page(&b_page).1,
+                c_seq.len(),
+                page(&d_page).0 + page(&d_page).1,
+                page(&e_page).1,
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            page(&a_page).0 == 5 && page(&b_page).1 == 5 && page(&m_page).2 == 5,
+            "INCONCLUSIVE: the page did not take the scripted keys"
+        );
+        assert_eq!(b, 0, "phase B: a key of the password input was recorded");
+        assert!(withheld_b, "phase B: keys_withheld must read yes");
+        assert_eq!(
+            c_password, 0,
+            "phase C: a key typed into the password input was recorded"
+        );
+        assert_eq!(
+            d, 0,
+            "phase D: a key of the revealed password input was recorded"
+        );
+        assert!(
+            page(&e_page).1 >= 1,
+            "INCONCLUSIVE: phase E typed nothing into the password input"
+        );
+        assert_eq!(
+            f, 0,
+            "phase F: a key of the autofocus password input was recorded"
+        );
+        if unknown_class {
+            say(
+                test,
+                format!(
+                    "gate_while_the_plain_input_had_the_focus={gate_a:?} \
+                     gate_while_the_password_input_had_the_focus={gate_b:?} \
+                     control_before={control_before} control_after={control_after}"
+                ),
+            );
+            assert!(
+                control_before == 5 && control_after == 5,
+                "the control in a plain field of a kind that reads Clear did not record its letters: \
+                 the source recorded nothing"
+            );
+            {
+                use halvo_capture::secure_input::windows::FieldState;
+                assert_eq!(
+                    gate_a,
+                    Some(FieldState::Unknown),
+                    "the gate did not read Unknown while the page's plain input had the focus"
+                );
+                assert!(
+                    matches!(gate_b, Some(FieldState::Unknown | FieldState::Password)),
+                    "the gate read neither Unknown nor Password while the page's password input had the focus"
+                );
+            }
+            assert_eq!(
+                a + m + c + e,
+                0,
+                "a Firefox focus must read Unknown and give no keystroke event"
+            );
+        } else {
+            assert_eq!(a, 5, "phase A: every key of the text input");
+            assert_eq!(
+                m, 5,
+                "phase M: the CSS-masked text input is recorded, as the consent text says"
+            );
+            assert!(c >= 1, "phase C: no key of the text input was recorded");
+            assert_eq!(
+                e_letters, 0,
+                "phase E: a key after Tab into the password input was recorded"
+            );
+        }
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn password_field_fixture_chrome() {
+    browser_fixture("fixture-chrome", &CHROME);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn password_field_fixture_edge() {
+    browser_fixture("fixture-edge", &EDGE);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Firefox"]
+fn password_field_fixture_firefox() {
+    browser_fixture("fixture-firefox", &FIREFOX);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x1_keystrokes_typed_into_a_password_field() {
+    with_deadline("x1", Duration::from_secs(90), || {
+        const LETTERS: u32 = 5;
+        env_report("x1");
+        source_built_by_test("x1", "keyboard");
+        let fields = FieldWindow::open("x1", Field::Plain);
+        let (sink, events) = capture(4096);
+        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
+        let mut keyboard = RawInputSource::keyboard(last_app, PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+
+        let plain_focused = fields.focus(Field::Plain);
+        let plain_before = events.drain_for(Duration::from_millis(500));
+        let plain_accepted = type_letters_slowly(LETTERS);
+        let plain_typed = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        );
+        let plain_characters = fields.text_len(Field::Plain);
+        let plain_gate = keyboard.field_state();
+        say(
+            "x1",
+            format!(
+                "keyboard_start={} window_foreground={} method={} \
+                 plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
+                 sendinput_key_events_accepted={plain_accepted} \
+                 characters_in_plain_field={plain_characters} gate_in_plain_field={plain_gate:?} \
+                 keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
+                show(&start),
+                fields.foreground,
+                fields.method,
+                count(&plain_before, Modality::Keystroke),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            plain_focused && plain_characters == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the plain field"
+        );
+        assert_eq!(
+            plain_typed, LETTERS as usize,
+            "the keyboard source did not record the keys typed into the plain field"
+        );
+
+        let password_focused = fields.focus(Field::Password);
+        let before = events.drain_for(Duration::from_millis(500));
+        let accepted = type_letters_slowly(LETTERS);
+        let during = events.drain_for(Duration::from_secs(1));
+        let characters = fields.text_len(Field::Password);
+        let password_gate = keyboard.field_state();
+        let withheld = keyboard.health().counters.keys_withheld;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let typed = count(&during, Modality::Keystroke);
+        say(
+            "x1",
+            format!(
+                "password_field_has_focus={password_focused} letters_sent={LETTERS} \
+                 sendinput_key_events_accepted={accepted} \
+                 characters_in_password_field={characters} gate_in_password_field={password_gate:?} \
+                 keys_withheld={withheld} \
+                 keystroke_events_before_typing_into_password_field={}",
+                count(&before, Modality::Keystroke),
+            ),
+        );
+        assert!(
+            password_focused && characters == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the password field"
+        );
+        let evidence: String = format!(
+            "TF x1 keystroke_events_while_typing_into_password_field={typed} \
+            plain_field_keystroke_events={plain_typed}"
+        );
+        println!("{evidence}");
+        assert!(typed == 0 && withheld, "{evidence}");
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -2939,36 +4863,89 @@ macro_rules! defect {
 mod known_defect {
     use super::*;
 
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+    fn browser_self_move_after_a_held_main_thread_in_chrome() {
+        let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
+        defect!(
+            "W3-5-A2",
+            recorded == 0,
+            format!("TF browser-self-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+    fn browser_self_move_after_a_held_main_thread_in_edge() {
+        let recorded = browser::self_move_phases("browser-self-edge", "edge");
+        defect!(
+            "W3-5-A2",
+            recorded == 0,
+            format!("TF browser-self-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+    fn browser_swaps_on_a_held_main_thread_in_chrome() {
+        let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-held-swap-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+    fn browser_swaps_on_a_held_main_thread_in_edge() {
+        let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-held-swap-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
+    fn browser_letter_and_tab_out_of_a_swapped_field_in_chrome() {
+        let recorded =
+            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-chrome", "chrome");
+        defect!(
+            "W3-7-C5",
+            recorded == 0,
+            format!("TF browser-tab-after-chrome password_keys_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
+    fn browser_letter_and_tab_out_of_a_swapped_field_in_edge() {
+        let recorded =
+            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-edge", "edge");
+        defect!(
+            "W3-7-C5",
+            recorded == 0,
+            format!("TF browser-tab-after-edge password_keys_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]
+    fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
+        with_deadline("stall-self-focus", Duration::from_secs(330), || {
+            let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
+            assert_eq!(late, 0, "the source's late value moved");
+            defect!(
+                "W3-5-A2",
+                recorded == 0,
+                format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
+            );
+        });
+    }
+
     use halvo_capture::windows::apps::wait_for_change;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
-    use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
-
-    fn title_len(hwnd: HWND) -> i32 {
-        // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
-        // handle that is no longer a window gives 0.
-        unsafe { GetWindowTextLengthW(hwnd) }
-    }
-
-    fn focus(hwnd: HWND) -> bool {
-        // SAFETY: SetFocus takes a window handle of this thread by value.
-        unsafe {
-            let _ = SetFocus(Some(hwnd));
-        }
-        pump_thread(Duration::from_millis(200));
-        // SAFETY: GetFocus takes no argument and returns a handle value.
-        unsafe { GetFocus() == hwnd }
-    }
-
-    fn type_letters(letters: u32) -> u32 {
-        let mut accepted = 0;
-        for _ in 0..letters {
-            accepted += send(&[key_input(VK_A, false)]);
-            pump_thread(Duration::from_millis(20));
-            accepted += send(&[key_input(VK_A, true)]);
-            pump_thread(Duration::from_millis(20));
-        }
-        accepted
-    }
 
     fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
         let (tx, rx) = mpsc::channel();
@@ -2997,452 +4974,12 @@ mod known_defect {
         }
     }
 
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x1_keystrokes_typed_into_a_password_field() {
-        with_deadline("x1", Duration::from_secs(90), || {
-            const LETTERS: u32 = 5;
-            env_report("x1");
-            source_built_by_test("x1", "keyboard");
-            let (sink, events) = capture(4096);
-            let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-            let mut keyboard = RawInputSource::keyboard(last_app);
-            let start = keyboard.begin(SourceContext::new(sink.clone()));
-            let window = TestWindow::create(&normal_window(
-                "HalvoVerifyPassword",
-                "halvo-verify-password",
-                80,
-                80,
-            ))
-            .expect("window");
-            let plain = window
-                .child_control("EDIT", WINDOW_STYLE(0), 10)
-                .expect("plain edit control");
-            let password = window
-                .child_control("EDIT", WINDOW_STYLE(ES_PASSWORD as u32), 44)
-                .expect("password edit control");
-            pump_thread(Duration::from_millis(300));
-            let (foreground, method) = window.activate();
-
-            let plain_focused = focus(plain);
-            let plain_before = events.drain_for(Duration::from_millis(500));
-            let plain_accepted = type_letters(LETTERS);
-            pump_thread(Duration::from_millis(300));
-            let plain_characters = title_len(plain);
-            let plain_typed = count(
-                &events.drain_for(Duration::from_secs(1)),
-                Modality::Keystroke,
-            );
-            say(
-                "x1",
-                format!(
-                    "keyboard_start={} window_foreground={foreground} method={method} \
-                     plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
-                     sendinput_key_events_accepted={plain_accepted} \
-                     characters_in_plain_field={plain_characters} \
-                     keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
-                    show(&start),
-                    count(&plain_before, Modality::Keystroke),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert!(
-                plain_focused && plain_characters == LETTERS as i32,
-                "INCONCLUSIVE: the scripted keys did not reach the plain field"
-            );
-            assert_eq!(
-                plain_typed, LETTERS as usize,
-                "INCONCLUSIVE: the keyboard source did not record the keys typed into the plain field"
-            );
-
-            let password_focused = focus(password);
-            let before = events.drain_for(Duration::from_millis(500));
-            let accepted = type_letters(LETTERS);
-            pump_thread(Duration::from_millis(300));
-            let characters = title_len(password);
-            let during = events.drain_for(Duration::from_secs(1));
-            let _ = keyboard.shutdown();
-            let typed = count(&during, Modality::Keystroke);
-            say(
-                "x1",
-                format!(
-                    "password_field_has_focus={password_focused} letters_sent={LETTERS} \
-                     sendinput_key_events_accepted={accepted} \
-                     characters_in_password_field={characters} \
-                     keystroke_events_before_typing_into_password_field={}",
-                    count(&before, Modality::Keystroke),
-                ),
-            );
-            assert!(
-                password_focused && characters == LETTERS as i32,
-                "INCONCLUSIVE: the scripted keys did not reach the password field"
-            );
-            defect!(
-                "RR-windows-01",
-                typed == 0,
-                format!("TF x1 keystroke_events_while_typing_into_password_field={typed}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x2_window_title_events_for_other_windows_and_controls() {
-        with_deadline("x2", Duration::from_secs(90), || {
-            env_report("x2");
-            let (sink, events) = capture(8192);
-            let mut title = WindowTitleSource::new();
-            let start = title.begin(SourceContext::new(sink.clone()));
-            let mut child = spawn_child("scope", 0);
-            let mut seen = Vec::new();
-            let exit = loop {
-                seen.extend(events.drain_for(Duration::from_millis(100)));
-                if let Some(status) = child.try_wait() {
-                    break status;
-                }
-            };
-            seen.extend(events.drain_for(Duration::from_secs(1)));
-            let _ = title.shutdown();
-            child.print_output();
-            summarize("x2", "scope", &seen);
-            let with_size = |len: u64| {
-                seen.iter()
-                    .filter(|e| {
-                        e.modality == Modality::WindowTitle
-                            && is_child_app(&e.foreground_app)
-                            && e.segment_ref.byte_len == len
-                    })
-                    .count()
-            };
-            say(
-                "x2",
-                format!(
-                    "title_start={} child_exit_ok={} events_for_foreground_window_title={} \
-                     events_for_child_control_text={}",
-                    show(&start),
-                    exit.success(),
-                    with_size(30),
-                    with_size(40),
-                ),
-            );
-            assert!(start.is_ok(), "the window-title source must start");
-            assert!(exit.success(), "the child process must finish");
-            assert!(
-                with_size(30) >= 1,
-                "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
-            );
-            defect!(
-                "RR-windows-08",
-                with_size(40) == 0 && with_size(50) == 0 && with_size(60) == 0,
-                format!(
-                    "TF x2 events_for_child_control_text={} events_for_background_window_title={} \
-                     events_for_never_shown_window_title={}",
-                    with_size(40),
-                    with_size(50),
-                    with_size(60),
-                )
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
-        with_deadline("fixed-title", Duration::from_secs(90), || {
-            env_report("fixed-title");
-            let (sink, events) = capture(8192);
-            let mut title = WindowTitleSource::new();
-            let start = title.begin(SourceContext::new(sink.clone()));
-            let mut child = spawn_child("cycle", 4);
-            let child_pid = child.id();
-            let fixed_len = FIXED_TITLE.len() as i32;
-            let mut seen = Vec::new();
-            let mut fixed_window_was_foreground = false;
-            let exit = loop {
-                seen.extend(events.drain_for(Duration::from_millis(100)));
-                let hwnd = foreground_window();
-                fixed_window_was_foreground |=
-                    window_pid(hwnd) == child_pid && title_len(hwnd) == fixed_len;
-                if let Some(status) = child.try_wait() {
-                    break status;
-                }
-            };
-            seen.extend(events.drain_for(Duration::from_secs(1)));
-            let _ = title.shutdown();
-            child.print_output();
-            summarize("fixed-title", "cycle", &seen);
-            let titles_of = |wanted: &dyn Fn(u64) -> bool| {
-                seen.iter()
-                    .filter(|e| {
-                        e.modality == Modality::WindowTitle
-                            && is_child_app(&e.foreground_app)
-                            && wanted(e.segment_ref.byte_len)
-                    })
-                    .count()
-            };
-            let scripted = titles_of(&|len| CHILD_TITLE_LENGTHS.contains(&len));
-            let fixed = titles_of(&|len| len == FIXED_TITLE.len() as u64);
-            say(
-                "fixed-title",
-                format!(
-                    "title_start={} child_exit_ok={} fixed_title_bytes={fixed_len} \
-                     fixed_title_window_was_foreground={fixed_window_was_foreground} \
-                     title_events_with_a_scripted_title_size={scripted}",
-                    show(&start),
-                    exit.success(),
-                ),
-            );
-            assert!(start.is_ok(), "the window-title source must start");
-            assert!(exit.success(), "the child process must finish");
-            assert!(
-                fixed_window_was_foreground,
-                "INCONCLUSIVE: the window with the fixed title never came to the front"
-            );
-            assert!(
-                scripted >= 1,
-                "INCONCLUSIVE: no title event for the child's title changes"
-            );
-            defect!(
-                "RR-windows-08",
-                fixed >= 1,
-                format!("TF fixed-title title_events_for_the_fixed_title={fixed}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x3_attribution_before_the_first_foreground_change() {
-        with_deadline("x3", Duration::from_secs(120), || {
-            env_report("x3");
-            source_built_by_test("x3", "keyboard");
-            let mut child = spawn_child("hold", 9);
-            let child_pid = child.id();
-            let waited = Instant::now();
-            while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            std::thread::sleep(Duration::from_secs(2));
-            let child_foreground_at_start = foreground_pid() == child_pid;
-            let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
-
-            let (sink, events) = capture(4096);
-            let mut foreground = ForegroundAppSource::new();
-            let last_app = foreground.last_app();
-            let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
-            let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
-            let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
-            let settle = events.drain_for(Duration::from_secs(1));
-            let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
-            press_keys(5);
-            let before = events.drain_for(Duration::from_millis(700));
-            let still_child_foreground = foreground_pid() == child_pid;
-
-            let mut between = Vec::new();
-            let waited = Instant::now();
-            while !between
-                .iter()
-                .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
-                && waited.elapsed() < Duration::from_secs(15)
-            {
-                between.extend(events.drain_for(Duration::from_millis(100)));
-            }
-            press_keys(5);
-            let after = events.drain_for(Duration::from_millis(700));
-            let exit = child.wait();
-            let _ = foreground.shutdown();
-            let _ = keyboard.shutdown();
-            child.print_output();
-
-            let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
-            let empty_app = |events: &[CaptureStreamEvent]| {
-                events
-                    .iter()
-                    .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
-                    .count()
-            };
-            let child_app = |events: &[CaptureStreamEvent]| {
-                events
-                    .iter()
-                    .filter(|e| {
-                        e.modality == Modality::Keystroke && is_child_app(&e.foreground_app)
-                    })
-                    .count()
-            };
-            say(
-                "x3",
-                format!(
-                    "foreground_start={} keyboard_start={} \
-                     child_window_foreground_when_sources_started={child_foreground_at_start} \
-                     current_foreground_app_reader_names_child={reader_sees_child} \
-                     foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
-                     child_window_foreground_while_typing={still_child_foreground}",
-                    show(&foreground_start),
-                    show(&keyboard_start),
-                    count(&settle, Modality::ForegroundApp),
-                    cell_before_typing.is_none(),
-                ),
-            );
-            say(
-                "x3",
-                format!(
-                    "keystrokes_before_first_foreground_change={} attributed_to_child={} \
-                     foreground_events_seen_after={} keystrokes_after_first_change={} \
-                     with_empty_app_after={} attributed_to_child_after={} child_exit_ok={}",
-                    keys(&before),
-                    child_app(&before),
-                    count(&between, Modality::ForegroundApp),
-                    keys(&after),
-                    empty_app(&after),
-                    child_app(&after),
-                    exit.success(),
-                ),
-            );
-            assert!(foreground_start.is_ok() && keyboard_start.is_ok());
-            assert!(
-                child_foreground_at_start && still_child_foreground,
-                "INCONCLUSIVE: the child window was not the foreground window while the keys were typed"
-            );
-            assert!(
-                keys(&before) >= 1,
-                "INCONCLUSIVE: no keystroke event to attribute"
-            );
-            defect!(
-                "RR-windows-10",
-                child_app(&before) == keys(&before),
-                format!(
-                    "TF x3 keystrokes_before_first_foreground_change_with_empty_app={} \
-                     attributed_to_child={}",
-                    empty_app(&before),
-                    child_app(&before)
-                )
-            );
-        });
-    }
-
     fn powershell_line(script: &str) -> String {
         Command::new("powershell.exe")
             .args(["-NoProfile", "-Command", script])
             .output()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
             .unwrap_or_default()
-    }
-
-    fn processes_named(image: &str) -> usize {
-        let filter = format!("IMAGENAME eq {image}");
-        let out = Command::new("tasklist.exe")
-            .args(["/FI", &filter, "/FO", "CSV", "/NH"])
-            .output()
-            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
-            .unwrap_or_default();
-        out.lines()
-            .filter(|line| {
-                line.to_ascii_lowercase()
-                    .contains(&image.to_ascii_lowercase())
-            })
-            .count()
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x14_foreground_app_of_a_hosted_app() {
-        with_deadline("x14", Duration::from_secs(120), || {
-            env_report("x14");
-            let (sink, events) = capture(4096);
-            let mut foreground = ForegroundAppSource::new();
-            let start = foreground.begin(SourceContext::new(sink.clone()));
-            let launched = Command::new("cmd.exe")
-                .args(["/c", "start", "ms-settings:"])
-                .status()
-                .is_ok_and(|status| status.success());
-            let mut seen = Vec::new();
-            let began = Instant::now();
-            while began.elapsed() < Duration::from_secs(12) {
-                seen.extend(events.drain_for(Duration::from_millis(200)));
-            }
-            let settings_processes = processes_named("SystemSettings.exe");
-            let foreground_now = current_foreground_app().unwrap_or_default();
-            let _ = foreground.shutdown();
-            let _ = Command::new("taskkill.exe")
-                .args(["/IM", "SystemSettings.exe", "/F"])
-                .output();
-            summarize("x14", "after-opening-settings", &seen);
-            let named = |file: &str| {
-                seen.iter()
-                    .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
-                    .count()
-            };
-            let frame_host = named("ApplicationFrameHost.exe");
-            let settings = named("SystemSettings.exe");
-            say(
-                "x14",
-                format!(
-                    "foreground_start={} settings_launched={launched} \
-                     settings_processes_running={settings_processes} \
-                     foreground_now_is_frame_host={} foreground_now_is_settings={} \
-                     events_naming_applicationframehost={frame_host}",
-                    show(&start),
-                    file_name(&foreground_now).eq_ignore_ascii_case("ApplicationFrameHost.exe"),
-                    file_name(&foreground_now).eq_ignore_ascii_case("SystemSettings.exe"),
-                ),
-            );
-            assert!(start.is_ok(), "the foreground source must start");
-            assert!(
-                settings_processes >= 1,
-                "INCONCLUSIVE: the Settings app did not start on this machine"
-            );
-            assert!(
-                frame_host + settings >= 1,
-                "INCONCLUSIVE: no foreground event for the Settings window"
-            );
-            defect!(
-                "RR-windows-10",
-                settings >= 1,
-                format!("TF x14 events_naming_systemsettings={settings}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x15_a_held_key() {
-        with_deadline("x15", Duration::from_secs(60), || {
-            const REPEATS: u32 = 6;
-            env_report("x15");
-            source_built_by_test("x15", "keyboard");
-            let (sink, events) = capture(4096);
-            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-            let start = keyboard.begin(SourceContext::new(sink.clone()));
-            let mut accepted = 0;
-            for _ in 0..REPEATS {
-                accepted += send(&[key_input(VK_F15, false)]);
-                std::thread::sleep(Duration::from_millis(30));
-            }
-            accepted += send(&[key_input(VK_F15, true)]);
-            let seen = events.drain_for(Duration::from_secs(1));
-            let _ = keyboard.shutdown();
-            let keystrokes = count(&seen, Modality::Keystroke);
-            say(
-                "x15",
-                format!(
-                    "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} \
-                     key_up_packets=1 sendinput_events_accepted={accepted}",
-                    show(&start),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert_eq!(
-                accepted,
-                REPEATS + 1,
-                "INCONCLUSIVE: SendInput did not insert every packet"
-            );
-            assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
-            defect!(
-                "RR-windows-16",
-                keystrokes == 1,
-                format!("TF x15 keystroke_events={keystrokes}")
-            );
-        });
     }
 
     #[test]
