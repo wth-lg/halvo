@@ -804,17 +804,18 @@ fn phase_with(
     source: fn(Duration) -> (InputSource, DropCounts),
     count: usize,
 ) -> Vec<Round> {
-    phase_and_drops(name, how, waits, source, count).0
+    let mut fixture = started_fixture(name);
+    phase_on(&mut fixture, name, how, waits, source, count).0
 }
 
-fn phase_and_drops(
+fn phase_on(
+    fixture: &mut Fixture,
     name: &str,
     how: Move,
     waits: &[(u64, Duration)],
     source: fn(Duration) -> (InputSource, DropCounts),
     count: usize,
 ) -> (Vec<Round>, Vec<DropCounts>) {
-    let mut fixture = started_fixture(name);
     println!(
         "{name} gap_ms={} step_ms={}",
         test_gap().as_millis(),
@@ -832,7 +833,7 @@ fn phase_and_drops(
         }
         let recorder = &running.as_ref().expect("a source for the bound").1;
         for number in 0..count {
-            let round = round(&mut fixture, recorder, how, wait_ms, bound);
+            let round = round(fixture, recorder, how, wait_ms, bound);
             println!(
                 "{name} round={number} wait_ms={wait_ms} bound_ms={} counted={} ahead={} \
                  markers={} plain={} secure={} which={}",
@@ -926,9 +927,9 @@ fn known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorde
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
-fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
-    let name = "known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded";
-    judge_listed(
+fn a_password_typed_whole_ahead_at_machine_speed_is_not_recorded() {
+    let name = "a_password_typed_whole_ahead_at_machine_speed_is_not_recorded";
+    judge_counted(
         name,
         &phase_with(
             name,
@@ -937,6 +938,7 @@ fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
             source_for,
             FAULT_ROUNDS,
         ),
+        FAULT_ROUNDS - 1,
     );
 }
 
@@ -956,7 +958,7 @@ fn a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded() {
     );
 }
 
-fn judge_listed(name: &str, rounds: &[Round]) {
+fn judge_counted(name: &str, rounds: &[Round], least: usize) {
     let leaked: Vec<String> = rounds
         .iter()
         .filter(|round| round.counted && round.ahead > 0)
@@ -967,21 +969,23 @@ fn judge_listed(name: &str, rounds: &[Round]) {
         "{name}: recorded keys beside the markers in rounds that counted: {}",
         leaked.join(", ")
     );
+    for round in rounds.iter().filter(|round| !round.counted) {
+        println!(
+            "{name} notcounted wait_ms={} why={}",
+            round.wait_ms,
+            round.why_not.replace(' ', "_")
+        );
+    }
     let counted = rounds.iter().filter(|round| round.counted).count();
-    let why: Vec<&str> = rounds
-        .iter()
-        .filter(|round| !round.counted)
-        .map(|round| round.why_not)
-        .collect();
     println!(
-        "{name} verdict={} counted={counted} rounds={}",
-        if counted == 0 { "notcounted" } else { "fixed" },
+        "{name} verdict={} counted={counted} rounds={} least={least}",
+        if counted >= least { "held" } else { "toofew" },
         rounds.len()
     );
     assert!(
-        counted > 0,
-        "{name}: not counted on this fixture: no round counted: {}",
-        why.join(", ")
+        counted >= least,
+        "{name}: {counted} of {} rounds counted, fewer than {least}",
+        rounds.len()
     );
 }
 
@@ -1108,17 +1112,17 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
     control
 }
 
-fn control_rounds(
+fn control_rounds_on(
+    fixture: &mut Fixture,
     name: &str,
     bound: Duration,
     source: (InputSource, DropCounts),
     count: usize,
 ) -> (Vec<Control>, DropCounts) {
-    let mut fixture = started_fixture(name);
     let recorder = Recorder::start(source);
     let mut rounds = Vec::new();
     for number in 0..count {
-        let control = control_round(&mut fixture, &recorder, bound);
+        let control = control_round(fixture, &recorder, bound);
         println!(
             "{name} control={number} bound_ms={} counted={} landed_plain={} landed_secure={} \
              plain_records={} secure_records={} after_records={}",
@@ -1141,7 +1145,8 @@ fn control_rounds(
 }
 
 fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts), count: usize) {
-    let (rounds, _) = control_rounds(name, bound, source, count);
+    let mut fixture = started_fixture(name);
+    let (rounds, _) = control_rounds_on(&mut fixture, name, bound, source, count);
     let not_counted: Vec<&str> = rounds
         .iter()
         .filter(|control| !control.counted)
@@ -1169,21 +1174,39 @@ fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_
     control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), ROUNDS);
 }
 
-#[test]
-#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
-fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys() {
-    let name =
-        "at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys";
-    let (rounds, phase_drops) =
-        phase_and_drops(name, Move::Tab, &[(300, HOLD_BOUND)], product_source, 1);
-    let (controls, drops) = control_rounds(name, HOLD_BOUND, product_source(HOLD_BOUND), 1);
-    let gap_drops = drops.of("gap") + phase_drops.iter().map(|d| d.of("gap")).sum::<u64>();
-    let widest = phase_drops
-        .iter()
-        .map(DropCounts::widest_gap)
-        .chain([drops.widest_gap()])
-        .max()
-        .unwrap_or_default();
+trait Line {
+    type Fixture;
+    fn start(&mut self, name: &str) -> Self::Fixture;
+    fn phase(&mut self, name: &str, fixture: &mut Self::Fixture) -> (Vec<Round>, Vec<DropCounts>);
+    fn control(&mut self, name: &str, fixture: &mut Self::Fixture) -> (Vec<Control>, DropCounts);
+}
+
+struct HostedLine;
+
+impl Line for HostedLine {
+    type Fixture = Fixture;
+
+    fn start(&mut self, name: &str) -> Fixture {
+        started_fixture(name)
+    }
+
+    fn phase(&mut self, name: &str, fixture: &mut Fixture) -> (Vec<Round>, Vec<DropCounts>) {
+        phase_on(
+            fixture,
+            name,
+            Move::Tab,
+            &[(300, HOLD_BOUND)],
+            product_source,
+            1,
+        )
+    }
+
+    fn control(&mut self, name: &str, fixture: &mut Fixture) -> (Vec<Control>, DropCounts) {
+        control_rounds_on(fixture, name, HOLD_BOUND, product_source(HOLD_BOUND), 1)
+    }
+}
+
+fn product_verdict(rounds: &[Round], controls: &[Control], gap_drops: u64) -> &'static str {
     let failed = rounds.iter().any(|round| round.counted && round.ahead > 0)
         || controls
             .iter()
@@ -1194,7 +1217,7 @@ fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_i
         && controls
             .iter()
             .all(|control| control.counted && (control.plain, control.after) == (5, 3));
-    let verdict = if failed {
+    if failed {
         "failed"
     } else if held {
         "held"
@@ -1202,15 +1225,115 @@ fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_i
         "notkept"
     } else {
         "failed"
-    };
+    }
+}
+
+fn product_line(name: &str, line: &mut impl Line) -> &'static str {
+    let mut fixture = line.start(name);
+    let (rounds, phase_drops) = line.phase(name, &mut fixture);
+    let (controls, drops) = line.control(name, &mut fixture);
+    let gap_drops = drops.of("gap") + phase_drops.iter().map(|d| d.of("gap")).sum::<u64>();
+    let widest = phase_drops
+        .iter()
+        .map(DropCounts::widest_gap)
+        .chain([drops.widest_gap()])
+        .max()
+        .unwrap_or_default();
+    let verdict = product_verdict(&rounds, &controls, gap_drops);
     println!(
         "{name} verdict={verdict} widest_gap_us={} gap_drops={gap_drops}",
         widest.as_micros()
     );
+    verdict
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys() {
+    let name =
+        "at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys";
+    let verdict = product_line(name, &mut HostedLine);
     assert!(
         verdict != "failed",
         "{name}: at the product's constants a key was recorded that the rule forbids, or a round \
          did not count for another cause than a gap"
+    );
+}
+
+fn stand_in_round(counted: bool, ahead: usize) -> Round {
+    Round {
+        wait_ms: 300,
+        counted,
+        why_not: "",
+        ahead,
+        markers: if counted { MARKERS.len() } else { 0 },
+        plain: MARKERS.len(),
+        secure: LETTERS.len(),
+        which: String::from("ssssssss"),
+    }
+}
+
+fn stand_in_control(counted: bool, plain: usize, secure: usize) -> Control {
+    Control {
+        counted,
+        why_not: "",
+        landed_plain: 8,
+        landed_secure: 3,
+        plain,
+        secure,
+        after: 3,
+    }
+}
+
+#[derive(Default)]
+struct CountingLine {
+    starts: usize,
+    calls: Vec<(&'static str, usize)>,
+}
+
+impl Line for CountingLine {
+    type Fixture = usize;
+
+    fn start(&mut self, _name: &str) -> usize {
+        self.starts += 1;
+        self.starts
+    }
+
+    fn phase(&mut self, _name: &str, fixture: &mut usize) -> (Vec<Round>, Vec<DropCounts>) {
+        self.calls.push(("phase", *fixture));
+        (vec![stand_in_round(false, 0)], vec![DropCounts::new()])
+    }
+
+    fn control(&mut self, _name: &str, fixture: &mut usize) -> (Vec<Control>, DropCounts) {
+        self.calls.push(("control", *fixture));
+        (vec![stand_in_control(true, 5, 0)], DropCounts::new())
+    }
+}
+
+#[test]
+fn the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_control() {
+    let mut line = CountingLine::default();
+    let _ = product_line("stand-in", &mut line);
+    println!("launch-count starts={} calls={:?}", line.starts, line.calls);
+    assert_eq!(line.starts, 1, "one fixture started for the whole line");
+    assert_eq!(
+        line.calls,
+        [("phase", 1), ("control", 1)],
+        "the phase and then the control ran on the one fixture"
+    );
+    let counted = [stand_in_round(true, 0)];
+    let not_counted = [stand_in_round(false, 0)];
+    let control = [stand_in_control(true, 5, 0)];
+    assert_eq!(product_verdict(&counted, &control, 0), "held");
+    assert_eq!(product_verdict(&not_counted, &control, 6), "notkept");
+    assert_eq!(product_verdict(&not_counted, &control, 0), "failed");
+    assert_eq!(
+        product_verdict(&[stand_in_round(true, 1)], &control, 6),
+        "failed"
+    );
+    assert_eq!(
+        product_verdict(&not_counted, &[stand_in_control(true, 5, 1)], 6),
+        "failed"
     );
 }
 

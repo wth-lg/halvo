@@ -1,12 +1,11 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key or reads not shown when no round of it counted, 12-test ran the launch-path test of the stand-ins for open and passed it and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, 12-test ran the two tests of the file that drive stand-ins (the launch path, and one fixture for the line at the product's constants) and passed them and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
 set -u
 name=51-macos-stall
 test_limit_s=${MS_TEST_LIMIT_S:-900}
 fixture_source=crates/halvo-capture/tests/macos_stall_fixture/fixture.m
 leak='recorded keys beside the markers in rounds that counted'
-not_counted='not counted on this fixture'
 LC_ALL=C
 export LC_ALL
 
@@ -27,9 +26,20 @@ the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_fie
 at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys three-way
 the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
 known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded known-fault
-known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded known-fault
+a_password_typed_whole_ahead_at_machine_speed_is_not_recorded phase
 a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded phase
 the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out twelve
+the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_control twelve
+EOF
+}
+
+notes() {
+  if [ -n "${MS_NOTES_FILE:-}" ]; then
+    tr -d '\r' <"$MS_NOTES_FILE"
+    return
+  fi
+  cat <<'EOF'
+a_password_typed_whole_ahead_at_machine_speed_is_not_recorded shows that keys posted at 2 ms steps into a field that already reads secure are dropped by the on reading; it does not show a program that fills a field without key events, or one that types before the field reads secure on a Mac where the reading comes late (D2 stays a named limit, ruling MA-18)
 EOF
 }
 
@@ -91,10 +101,6 @@ judge() {
   esac
   case $out in
     *"$leak"*) verdict='known-fault' ;;
-    *"$not_counted"*)
-      verdict=notshown
-      cause='not shown: no round of the listed known fault counted on this fixture, so it reads neither as listed nor as fixed'
-      ;;
     *) cause='the listed known fault failed without its assertion of a recorded key' ;;
   esac
 }
@@ -205,7 +211,6 @@ measure() {
   failed=0
   not_driven=0
   not_kept=0
-  not_shown=0
   index=0
   while read -r test kind; do
     case $kind in not-run | twelve) continue ;; esac
@@ -215,7 +220,7 @@ measure() {
     run_test "$test" "$log"
     code=$?
     seconds=$(($(date +%s) - started))
-    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |drops |side=)" | sed 's/^/    | /'
+    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |drops |side=)" | sed 's/^/    | /'
     judge "$code" "$kind" "$log"
     three=
     if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
@@ -233,7 +238,6 @@ measure() {
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       known-fault) known=$((known + 1)) ;;
-      notshown) not_shown=$((not_shown + 1)) ;;
       FIXED-BUT-LISTED) fixed=$((fixed + 1)) ;;
       *) failed=$((failed + 1)) ;;
     esac
@@ -241,11 +245,13 @@ measure() {
     line="MS $test result=$verdict${three:+ verdict=$three} seconds=$seconds"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
+    note=$(notes | sed -n "s/^$test //p")
+    [ -z "$note" ] || printf 'MS note %s: %s\n' "$test" "$note" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
   done <"$work/expected"
 
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
-  line="MS total=$index pass=$passed known_fault=$known notshown=$not_shown notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
+  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
@@ -267,7 +273,8 @@ check() {
     STUB_EXE=$work/bin/stall-stub
     MS_EXPECTED_FILE=$work/expected-small
     MS_TEST_LIMIT_S=${limit:-30}
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE MS_EXPECTED_FILE MS_TEST_LIMIT_S
+    MS_NOTES_FILE=$work/notes-small
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE
     sh "$0" 2>&1
   )
   code=$?
@@ -351,7 +358,6 @@ case $test in
     ;;
   known_*)
     spec "pass-$test" && { printf 'test result: ok. 1 passed; 0 failed; 0 ignored\n'; exit 0; }
-    spec "notcounted-$test" && { printf "%s verdict=notcounted counted=0 rounds=5\nthread 'x' panicked at y:\n%s: not counted on this fixture: no round counted: the letters did not land in the secure field\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
     printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 1500 ms: 9\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"
     exit 101
     ;;
@@ -370,6 +376,7 @@ self_test() {
   mkdir -p "$work/bin" "$work/repo/target/ci-artifacts/12-test" || exit 2
   write_stubs
   printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nlaunch_one twelve\n' >"$work/expected-small"
+  printf 'phase_two shows what it shows; it does not show the rest\n' >"$work/notes-small"
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
@@ -387,8 +394,8 @@ test a_rule ... ok'
   wrong=
   rejected=0
   limit=
-  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notshown=0 notdriven=0 notkept=0 fail=0' ''
-  check known-fault-not-counted PASS 'MS known_one result=notshown' 'notcounted-known_one'
+  check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
+  check note-line PASS 'MS note phase_two: shows what it shows; it does not show the rest' ''
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
   check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
