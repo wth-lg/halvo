@@ -136,6 +136,33 @@ in the draws of the tests", with the limits below.
   statement out. A narrowing of the editPage statement to the bytes of line
   81461 is caught by the structural check alone: the byte search does not see
   it in the draws.
+- On a file that passes the database's integrity check, every result is as
+  with the pinned source. On a page that is malformed before the edit, the
+  results can differ: when the content-start field of a leaf lies above live
+  cells, the editPage statement zeroes those cells on a delete, where the
+  pinned source keeps them until a row of that page grows or is inserted, and
+  then loses the same rows by its own code (seen by run); pageInsertArray
+  (lines 81324 to 81326) and defragmentPage (line 75289) lose them too (by
+  reading). The integrity check refuses such a page by name: a cell below the
+  content start at line 84530 (`Offset ... out of range`), such a freeblock at
+  line 75689. The test
+  `page_gap::malformed::on_a_leaf_whose_content_start_lies_above_live_cells_the_integrity_check_refuses_it_and_deletes_lose_those_cells`
+  pins what this build does on such a page, beside what the integrity check
+  prints before the first delete. No sequence of this build's writes is known
+  to make such a page. A keyed store refuses a page changed on disk without
+  the key: the test
+  `page_gap::malformed::under_a_key_one_byte_changed_on_disk_in_a_b_tree_page_fails_the_read`
+  changes one byte of a b-tree page and requires that the read fails (by run);
+  that a torn checkpoint write together with lost log frames is what this
+  build's own writes would need is by reading and not run. Not covered by the
+  keyed refusal: a page changed in the process's memory before the codec
+  writes it. The path where the two builds differ, deletes alone on an old
+  page, is how the capture store's expiry treats its pages, so the limit is
+  not nothing. The fall-back, recorded and not built: on the same line, the
+  upper bound of the zeroing becomes the lower of pData and the lowest offset
+  in the new pointer array (one pass over nNew entries); it would need its own
+  three readers and new text in both MENDS lists and in the row
+  edited-page-gap-not-zeroed (ruling S-86 E2).
 - The table below has one row for every line of btree.c in the pinned file
   (between its marker lines "Begin file btree.c" and "End of btree.c", lines
   73561 to 85152, each found exactly once by the test) that holds memcpy,

@@ -7,6 +7,7 @@ use rusqlite::{params, Connection};
 
 mod fts5;
 mod layout;
+mod malformed;
 mod pins;
 mod rewrites;
 mod rules;
