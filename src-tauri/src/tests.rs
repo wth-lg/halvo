@@ -1351,3 +1351,27 @@ fn no_handler_for_a_new_window_stands_so_the_runtime_refuses_every_new_window() 
         .sum();
     assert_eq!(handlers, 0, "new-window handlers under src-tauri/src");
 }
+
+#[test]
+fn the_engine_arguments_of_the_environment_are_taken_out_before_the_window_is_built() {
+    assert_eq!(
+        app::ENGINE_ARGUMENTS_VARIABLE,
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+    );
+    std::env::set_var(app::ENGINE_ARGUMENTS_VARIABLE, "--proxy-server=direct://");
+    app::take_engine_arguments_out_of_the_environment();
+    assert!(std::env::var_os(app::ENGINE_ARGUMENTS_VARIABLE).is_none());
+    let text = std::fs::read_to_string(src_tauri().join("src/app.rs"))
+        .expect("app.rs reads")
+        .replace("\r\n", "\n");
+    let taken = text
+        .find("    take_engine_arguments_out_of_the_environment();\n")
+        .expect("the call in main_window");
+    let built = text.find("    builder.build()\n").expect("the build");
+    assert!(taken < built);
+    assert_eq!(
+        text.matches("take_engine_arguments_out_of_the_environment();")
+            .count(),
+        1
+    );
+}

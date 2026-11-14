@@ -227,6 +227,7 @@ fn main_window<R: Runtime>(
         .find(|window| window.label == "main")
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
+    take_engine_arguments_out_of_the_environment();
     config.url = WebviewUrl::External(blank());
     let builder = WebviewWindowBuilder::from_config(app, &config)?
         .on_navigation(|url| may_navigate(url.as_str()))
@@ -252,6 +253,12 @@ fn main_window<R: Runtime>(
 pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --webrtc-ip-handling-policy=disable_non_proxied_udp";
 
 pub const NO_PEER_SCRIPT: &str = "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
+
+pub const ENGINE_ARGUMENTS_VARIABLE: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+
+pub fn take_engine_arguments_out_of_the_environment() {
+    std::env::remove_var(ENGINE_ARGUMENTS_VARIABLE);
+}
 
 pub fn blank() -> Url {
     Url::parse("about:blank").expect("about:blank is an address")
