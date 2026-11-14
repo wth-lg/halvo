@@ -171,6 +171,9 @@ pub fn kill_line(machine: &str, browser: &str, form: &str, kills: u32, arrived: 
     format!("kill machine={machine} browser={browser} form={form} kills={kills} arrived={arrived}")
 }
 
+/// The key ` majors=<v>:<n>,...` of a cell line: each major version of `sorted`, the sorted majors
+/// of the cell's runs, with the count of its runs, in order; empty when `sorted` holds fewer than
+/// two versions.
 pub fn majors_key(sorted: &[u32]) -> String {
     let mut per: Vec<(u32, usize)> = Vec::new();
     for m in sorted {
