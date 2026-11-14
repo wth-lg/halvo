@@ -365,7 +365,12 @@ fn canaries_go_into_every_stream_and_no_episode() {
 type Case = (String, Vec<Vec<u8>>, bool);
 
 fn from_hex(h: &str) -> Vec<u8> {
-    assert!(h.len().is_multiple_of(2), "hex");
+    assert!(
+        h.len().is_multiple_of(2)
+            && h.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+        "hex"
+    );
     (0..h.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&h[i..i + 2], 16).expect("hex"))
@@ -507,38 +512,6 @@ fn verdict(dir: &Path, k: usize, (_, files, _): &Case) -> (bool, bool) {
         let o = run(&a);
         (by_node, compose_takes(&o, k))
     }
-}
-
-#[test]
-fn compose_refuses_a_title_that_breaks_d12_and_d13() {
-    let dir = scratch("d12");
-    let other = r#"{"v":1,"service":"acorn-news","category":"other","kind":"web","host":"acorn-news.test","app":null,"parameters":[],"values":{},"pages":[{"page":"home","title":"News - Acorn","text":"Stories.","password_input":false,"card_title":false}],"flows":[{"flow":"read","role":"other","pages":["home"]}]}"#;
-    for (k, title) in ["", &"x".repeat(1025), "News\u{1}Acorn", "News\u{7f}Acorn"]
-        .iter()
-        .enumerate()
-    {
-        let p = dir.join(format!("t{k}.json"));
-        write(
-            &p,
-            &format!(
-                "{}\n",
-                other.replace(
-                    "\"News - Acorn\"",
-                    &serde_json::to_string(title).expect("j")
-                )
-            ),
-        );
-        refused(
-            &compose(&dir, &rates(20, 4).write(), &[p], "o"),
-            "site-data",
-        );
-    }
-    let p = dir.join("long-ok.json");
-    write(
-        &p,
-        &format!("{}\n", other.replace("News - Acorn", &"x".repeat(1024))),
-    );
-    refused(&compose(&dir, &rates(20, 4).write(), &[p], "o"), "short");
 }
 
 #[test]

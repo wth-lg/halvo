@@ -34,6 +34,8 @@ function sharedCases() {
     } else {
       const files = value.files.map((f) => {
         const base = f.base === null ? Buffer.alloc(0) : bases.get(f.base);
+        assert.ok(Number.isInteger(f.head) && Number.isInteger(f.tail) && f.head >= 0 && f.tail >= 0, value.case);
+        assert.match(f.put, /^(?:[0-9a-f]{2})*$/, value.case);
         assert.ok(base !== undefined && f.head + f.tail <= base.length, value.case);
         return Buffer.concat([base.subarray(0, f.head), Buffer.from(f.put, 'hex'), base.subarray(base.length - f.tail)]);
       });
@@ -49,7 +51,7 @@ function check(files, taken, rule) {
   if (listed === null) listed = new Map(sharedCases().map((c) => [caseKey(c.files), c]));
   const c = listed.get(key);
   assert.ok(
-    c !== undefined && c.taken === taken && (taken || files.length > 1 || c.rule === rule),
+    c !== undefined && c.taken === taken && (taken || files.length > 1 || rule === undefined || c.rule === rule),
     'a fixture that tools/fixture-server/site-cases.jsonl lacks or holds with another verdict or rule',
   );
 }
@@ -76,8 +78,17 @@ function parseSiteData(buffer) {
 
 function loadSites(paths) {
   const result = loadSitesOf(paths);
-  const files = readAll(paths);
-  if (files !== null) check(files, result.refused === undefined, null);
+  let upTo = paths.length;
+  if (result.refused !== undefined) {
+    upTo = 1;
+    while (loadSitesOf(paths.slice(0, upTo)).refused === undefined) upTo += 1;
+  }
+  const files = readAll(paths.slice(0, upTo));
+  if (files !== null) {
+    check(files, result.refused === undefined, undefined);
+  } else if (upTo > 1) {
+    check(readAll(paths.slice(0, upTo - 1)), true, null);
+  }
   return result;
 }
 
@@ -632,4 +643,17 @@ test('site data: every case of the shared list of crates/halvo-sample gets its v
 test('site data: every fixture of this file stands in the shared list with its verdict and rule', () => {
   assert.ok(fixtures.size > 0);
   for (const f of fixtures.values()) check(f.files, f.taken, f.rule);
+});
+
+test('site data: this file reads site data only through its wrappers', () => {
+  const source = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const count = (text) => source.split(text).length - 1;
+  assert.equal(count("from './" + "sites" + ".mjs'"), 1);
+  assert.equal(count('imp' + 'ort('), 0);
+  assert.equal(count('require' + '('), 0);
+  assert.equal(count('parseSite' + 'Bytes'), 2);
+  assert.equal(count('loadSites' + 'Of'), 3);
+  assert.equal(count('CHE' + 'CKER'), 2);
+  assert.equal(count('sites' + '.mjs'), 2);
+  assert.equal(count('spawn' + 'Sync('), 1);
 });

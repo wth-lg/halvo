@@ -80,3 +80,4 @@ all sites.test.mjs loading: a missing file, a directory and two files that name 
 all sites.test.mjs checker: usage and parameters refusals
 all sites.test.mjs site data: every case of the shared list of crates/halvo-sample gets its verdict and its rule here
 all sites.test.mjs site data: every fixture of this file stands in the shared list with its verdict and rule
+all sites.test.mjs site data: this file reads site data only through its wrappers
