@@ -7314,3 +7314,174 @@ fn a_press_whose_read_shows_a_known_switch_off_beside_a_live_run_stops_that_run(
         );
     }
 }
+
+fn raised_with_no_acknowledgement(way: &str) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let event = match way {
+        "stuck" => handback(&run, 0, HandbackReason::StepFailed),
+        "sign_in" => handback(&run, 0, HandbackReason::SignIn),
+        "confirm" => ask_confirm(&run, 0),
+        _ => bind(&run, 0),
+    };
+    c.ports().loss.set(Some(support::Loss::Nothing));
+    c.on_run(&run, event).unwrap();
+    c.ports().loss.set(None);
+    assert_eq!(items_raised(&c), 0, "{way}: the raise waits in the ledger");
+    let (item, _) = open_item(&c);
+    (c, run, item)
+}
+
+fn item_rows_since(c: &Coordinator<Both>, from: usize, item: &ItemId) -> Vec<String> {
+    c.ports().ports.events.borrow()[from..]
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised { item: i, .. } if i == item => Some("raised".to_owned()),
+            What::ItemAnswered { item: i, .. } if i == item => Some("answered".to_owned()),
+            What::ItemLapsed { item: i, lapsed } if i == item => {
+                Some(format!("lapsed:{}", lapsed.cause().name()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn runner_answers_tried_since(c: &Coordinator<Both>, from: usize) -> Vec<Call> {
+    c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(t.call, Call::AnswerHandback(..) | Call::AnswerBind(..)))
+        .map(|t| t.call.clone())
+        .collect()
+}
+
+fn assert_the_stop_came_first(c: &Coordinator<Both>, m: usize, run: &RunId, case: &str) {
+    use halvo_coord::types::AgentState;
+    assert_eq!(cancels_of(c, m, run), 1, "{case}: one cancel");
+    assert_eq!(
+        states_sent(c, m),
+        [AgentState::Paused],
+        "{case}: paused once"
+    );
+    assert!(
+        c.off_beside_live().is_empty(),
+        "{case}: no run beside the hold"
+    );
+    assert!(c.snapshot().items.is_empty(), "{case}: no card");
+    assert_eq!(
+        row_line(&c.snapshot(), 0),
+        text("line.off.person"),
+        "{case}"
+    );
+}
+
+fn press_under_a_cancel_that_panics(
+    c: &Coordinator<Both>,
+    item: &ItemId,
+    choice: Choice,
+    case: &str,
+) {
+    c.ports().panics.set(Some("cancel"));
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.answer(item, choice, None, shown_step_mark_or_zero(c, item));
+    }));
+    c.ports().panics.set(None);
+    assert!(out.is_err(), "{case}: the cancel panicked");
+    assert!(
+        c.off_beside_live().is_empty(),
+        "{case}: the board's stop came before the cancel"
+    );
+}
+
+#[test]
+fn a_done_whose_flush_of_its_waiting_raise_reads_a_stored_switch_off_hands_nothing_and_lapses_the_item_after_its_raise(
+) {
+    for way in ["stuck", "sign_in"] {
+        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+            let case = format!("{way} {order:?}");
+            let (c, run, item) = raised_with_no_acknowledgement(way);
+            assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+            let (m, t, from) = (
+                mark(&c),
+                c.ports().ports.tried.borrow().len(),
+                c.ports().ports.events.borrow().len(),
+            );
+            assert_eq!(
+                c.answer(
+                    &item,
+                    Choice::Done,
+                    None,
+                    shown_step_mark_or_zero(&c, &item)
+                ),
+                Err(Cause::UnknownItem),
+                "{case}: as for an item no longer open"
+            );
+            assert_eq!(
+                runner_answers_tried_since(&c, t),
+                [],
+                "{case}: no answer at the runner"
+            );
+            assert_eq!(
+                item_rows_since(&c, from, &item),
+                ["raised", "lapsed:cancelled"],
+                "{case}: the raise, then its lapse, and no row of the press"
+            );
+            assert_the_stop_came_first(&c, m, &run, &case);
+            let (c, _run, item) = raised_with_no_acknowledgement(way);
+            assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+            let t = c.ports().ports.tried.borrow().len();
+            press_under_a_cancel_that_panics(&c, &item, Choice::Done, &case);
+            assert_eq!(
+                runner_answers_tried_since(&c, t),
+                [],
+                "{case}: no answer at the runner"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_allow_on_a_second_step_whose_flush_of_its_waiting_raise_reads_a_stored_switch_off_sends_decline_alone_and_lapses_it_after_its_raise(
+) {
+    use halvo_coord::types::BindResult;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = raised_with_no_acknowledgement("second_step");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        let (m, t, from) = (
+            mark(&c),
+            c.ports().ports.tried.borrow().len(),
+            c.ports().ports.events.borrow().len(),
+        );
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Allow,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::UnknownItem),
+            "{case}: as for a step no longer open"
+        );
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [Call::AnswerBind(run.clone(), BindResult::Decline)],
+            "{case}: the lapse's decline alone"
+        );
+        decline_before_one_cancel(&c, m, &run, &case);
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            ["raised", "lapsed:cancelled"],
+            "{case}: the raise, then its lapse, and no row of the press"
+        );
+        assert_the_stop_came_first(&c, m, &run, &case);
+        let (c, run, item) = raised_with_no_acknowledgement("second_step");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        let t = c.ports().ports.tried.borrow().len();
+        press_under_a_cancel_that_panics(&c, &item, Choice::Allow, &case);
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [Call::AnswerBind(run.clone(), BindResult::Decline)],
+            "{case}: the lapse's decline alone"
+        );
+    }
+}
