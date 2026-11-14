@@ -211,6 +211,33 @@ fn a_routine_read_that_fails_leaves_the_agent_stores_reply_and_the_runs_row_and_
 }
 
 #[test]
+fn a_start_run_that_arrives_again_where_the_runs_row_stands_stores_the_missing_routine_row_alone() {
+    let mut w = world_with_no_routine_row();
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "rev": 1, "day": DAY,
+        "mode": "compile", "state": "started", "cause": null, "base": null, "assisted": 0,
+        "kept": 0, "failed_step": null,
+    });
+    w.host
+        .commit(vec![TypedRecord {
+            kind: "learn_run",
+            json: row.to_string(),
+        }])
+        .expect("the row is stored");
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    w.start(1, "compile");
+    assert_eq!(
+        (w.host.count(), w.host.commits.get()),
+        (count + 1, commits + 1)
+    );
+    assert_eq!(run_revs(&w, 1), 1);
+    let rows = routines(&w);
+    assert_eq!(rows.len(), 1);
+    first_of_workflow_1(&rows[0], DAY);
+    assert!(w.handlers.starts.is_empty());
+}
+
+#[test]
 fn a_start_run_that_arrives_again_after_both_rows_stand_changes_nothing() {
     let mut w = world_with_no_routine_row();
     w.start(1, "compile");

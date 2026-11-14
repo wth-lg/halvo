@@ -272,6 +272,27 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
 }
 
 #[test]
+fn a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
+    w.start(10, "replay");
+    w.start(11, "replay");
+    w.load(11);
+    w.host.put_raw("learn_run", &refused_run(1));
+    let runs = rows_of(&w, "learn_run", 1);
+    w.load(10);
+    let id = RunId::parse(&run(10)).expect("a run id");
+    assert!(!w.handlers.facts.contains_key(&id));
+    let served = w.load_steps(11, 1, 1);
+    assert_eq!(names(&served[1]), ["Pay"]);
+    let id = RunId::parse(&run(11)).expect("a run id");
+    assert!(!w.handlers.facts.contains_key(&id));
+    w.log(11, &[(1, "step_ok", 2, None)]);
+    assert_eq!(w.finish(11, "replay", "completed"), Ok(stored(1)));
+    assert_eq!(rows_of(&w, "learn_run", 1), runs);
+}
+
+#[test]
 fn a_refused_learn_routine_row_stops_the_routine_rows_of_its_workflow_and_no_run() {
     let mut w = active_world();
     w.add_pair(2);
