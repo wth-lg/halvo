@@ -43,6 +43,7 @@ test/ledger/money.node.test.ts	2
 test/ledger/rollback.node.test.ts	22
 test/ledger/rollback.test.ts	22
 test/ledger/rule.node.test.ts	12
+test/ledger/stale-rearm.test.ts	1
 test/ledger/test-clock.node.test.ts	2
 test/metering/cancel.node.test.ts	7
 test/metering/closed-list-tests.node.test.ts	4

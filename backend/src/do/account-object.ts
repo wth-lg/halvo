@@ -44,6 +44,7 @@ export function stepOf(storage: DurableObjectStorage): Step {
 }
 
 export class AccountObject extends DurableObject<Env> {
+  private readonly host: Host;
   private readonly entries: Entries;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -55,7 +56,7 @@ export class AccountObject extends DurableObject<Env> {
       publicOrigin: env.PUBLIC_ORIGIN ?? "",
       testClock: env.TEST_CLOCK === "1",
     };
-    const host: Host = {
+    this.host = {
       step: stepOf(ctx.storage),
       clock: () => Date.now(),
       setAlarm(at) {
@@ -70,7 +71,7 @@ export class AccountObject extends DurableObject<Env> {
       port: providerPort(env),
       config,
     };
-    this.entries = makeEntries(host, {
+    this.entries = makeEntries(this.host, {
       accounts: makeAccounts(),
       ledger: makeLedger({ holdLifeMs: config.holdLifeMs }),
       metering: makeMetering({ intervalSeconds: config.intervalSeconds, marginSeconds: config.marginSeconds }),
