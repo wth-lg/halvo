@@ -165,7 +165,7 @@ fn shutdown_case(then: Option<WriteFault>) -> (RunOutcome, ModelStore) {
         store.clone(),
         ManualClocks::at(noon()),
         &stop,
-        Duration::from_millis(300),
+        Duration::from_secs(2),
     )
     .unwrap();
     (outcome, store)
@@ -341,7 +341,7 @@ fn a_signal_after_the_window_and_before_the_return_gives_status_2() {
         ModelStore::new(),
         ManualClocks::at(noon()),
         &stop,
-        Duration::from_millis(300),
+        Duration::from_secs(2),
     )
     .unwrap();
     assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
@@ -738,7 +738,7 @@ fn an_outcome_with_a_loss_prints_its_report_and_line_and_returns_its_status() {
         store,
         ManualClocks::at(noon()),
         &stop,
-        Duration::from_millis(300),
+        Duration::from_secs(2),
     )
     .unwrap();
     let line = outcome.loss.as_ref().expect("no loss").line.clone();

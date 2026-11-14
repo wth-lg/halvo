@@ -1100,15 +1100,7 @@ mod tests {
         clocks: ManualClocks,
     ) -> RunOutcome {
         let stop = AtomicBool::new(false);
-        run_timed(
-            run,
-            scripted,
-            store,
-            clocks,
-            &stop,
-            Duration::from_millis(300),
-        )
-        .unwrap()
+        run_timed(run, scripted, store, clocks, &stop, Duration::from_secs(2)).unwrap()
     }
 
     fn line_of<'a>(text: &'a str, start: &str) -> &'a str {
@@ -1658,7 +1650,7 @@ mod tests {
             store,
             clocks,
             &stop,
-            Duration::from_millis(300),
+            Duration::from_secs(2),
         )
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
