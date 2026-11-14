@@ -291,6 +291,10 @@ fn refuse_leaves_a_show_with_no_report_with_no_start() {
     let t0 = Instant::now();
     let mut guard = Guard::new(ARM);
     assert!(!guard.refuse(t0 + ms(400)));
+    assert!(
+        !answers(guard, t0 + ms(400) + ARM),
+        "no report, so no press answers after a refusal"
+    );
     assert!(guard.active(t0 + ms(450)));
     guard.reported(t0 + ms(500));
     assert!(!answers(guard, t0 + ms(999)));
