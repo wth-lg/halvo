@@ -20,8 +20,8 @@ use tauri::{AppHandle, Runtime};
 /// leaves the dialog open, that a press after the hold answers, that a refused press starts the
 /// hold anew, that a second show holds again, and that the window was the active window at the
 /// report. On macOS it is the alert of AppKit, shown on the main thread, whose buttons send their
-/// action to the hold, which ends the modal session with the button's response when the hold lets
-/// the press through; the report comes from the window's notification that it became the key
+/// action to the hold, which ends the modal session with the button's response when the button's
+/// window is the modal window and the hold lets the press through; the report comes from the window's notification that it became the key
 /// window. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
 /// text with the response 1000 and the allowing text with 1001; that no button is titled Cancel or
 /// holds the Escape key; that its message text is the card's title and its informative text the
@@ -31,7 +31,8 @@ use tauri::{AppHandle, Runtime};
 /// it reads them; where it gives no reading, they rest on the trial's record and on the hand check
 /// of I9.5. On Windows it is the task dialog, whose callback refuses a button's click inside the
 /// hold, and whose window, subclassed at its creation, reports the show at its first activation and
-/// refuses the message WM_CLOSE inside the hold. The same target holds that a click of the allowing
+/// refuses the message WM_CLOSE inside the hold; when that subclass cannot be set, the show
+/// closes at once through its rejecting control and its allowing control answers nothing. The same target holds that a click of the allowing
 /// id 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the
 /// Escape key and the close control give, of an id that no button has, and the message WM_CLOSE
 /// each reject, each after the hold and after one report; its default control and the flag that
@@ -164,8 +165,12 @@ mod macos {
                 let Some(button) = sender else {
                     return;
                 };
-                if lock(&self.ivars().guard).press(Instant::now()) {
-                    NSApplication::sharedApplication(self.mtm()).stopModalWithCode(button.tag());
+                let app = NSApplication::sharedApplication(self.mtm());
+                let modal = app.modalWindow().zip(button.window()).is_some_and(|(modal, own)| {
+                    std::ptr::eq(Retained::as_ptr(&modal), Retained::as_ptr(&own))
+                });
+                if modal && lock(&self.ivars().guard).press(Instant::now()) {
+                    app.stopModalWithCode(button.tag());
                 }
             }
 
@@ -258,11 +263,13 @@ pub(super) mod windows {
     use windows::Win32::UI::Controls::{
         TaskDialogIndirect, TASKDIALOGCONFIG, TASKDIALOG_BUTTON, TASKDIALOG_FLAGS,
         TASKDIALOG_NOTIFICATIONS, TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT,
-        TDN_BUTTON_CLICKED, TDN_CREATED, TDN_DESTROYED,
+        TDM_CLICK_BUTTON, TDN_BUTTON_CLICKED, TDN_CREATED, TDN_DESTROYED,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
     use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
-    use windows::Win32::UI::WindowsAndMessaging::{WA_INACTIVE, WM_ACTIVATE, WM_CLOSE};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        PostMessageW, WA_INACTIVE, WM_ACTIVATE, WM_CLOSE,
+    };
 
     const SUBCLASS: usize = 1;
 
@@ -318,7 +325,7 @@ pub(super) mod windows {
     unsafe extern "system" fn callback(
         window: HWND,
         msg: TASKDIALOG_NOTIFICATIONS,
-        _: WPARAM,
+        wparam: WPARAM,
         _: LPARAM,
         data: isize,
     ) -> HRESULT {
@@ -329,15 +336,28 @@ pub(super) mod windows {
             TDN_CREATED => {
                 // SAFETY: the subclass reads `data` as the same `Show`, and it is removed at
                 // TDN_DESTROYED, before the call returns.
-                let _ =
+                let set =
                     unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };
+                if !set.as_bool() {
+                    show.lose();
+                    // SAFETY: a message to the dialog's own window, which lives for this call.
+                    let _ = unsafe {
+                        PostMessageW(
+                            Some(window),
+                            TDM_CLICK_BUTTON.0 as u32,
+                            WPARAM(TASK_REJECT as usize),
+                            LPARAM(0),
+                        )
+                    };
                 // SAFETY: a read of the active window of this thread.
-                if unsafe { GetActiveWindow() } == window {
+                } else if unsafe { GetActiveWindow() } == window {
                     show.active(&Instant::now);
                 }
                 S_OK
             }
-            TDN_BUTTON_CLICKED if !show.press(Instant::now()) => S_FALSE,
+            TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) => {
+                S_FALSE
+            }
             TDN_DESTROYED => {
                 // SAFETY: the subclass that TDN_CREATED set on this window.
                 let _ = unsafe { RemoveWindowSubclass(window, Some(subclass), SUBCLASS) };

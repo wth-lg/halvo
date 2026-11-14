@@ -61,6 +61,7 @@ impl Guard {
 #[cfg(any(test, windows))]
 pub struct Show<'a> {
     guard: Cell<Guard>,
+    lost: Cell<bool>,
     on_screen: &'a dyn Fn(),
 }
 
@@ -71,6 +72,7 @@ impl<'a> Show<'a> {
     pub fn new(arm: Duration, on_screen: &'a dyn Fn()) -> Show<'a> {
         Show {
             guard: Cell::new(Guard::new(arm)),
+            lost: Cell::new(false),
             on_screen,
         }
     }
@@ -88,6 +90,22 @@ impl<'a> Show<'a> {
     /// A press of any control at `now`: whether it answers.
     pub fn press(&self, now: Instant) -> bool {
         self.with(|guard| guard.press(now))
+    }
+
+    /// The show cannot see its window become the active window again (the subclass of its window
+    /// was not set): from now on the allowing control answers nothing, and any other control
+    /// closes the show at once, so that it answers `reject`.
+    pub fn lose(&self) {
+        self.lost.set(true);
+    }
+
+    /// A press at `now` of the allowing control, for `allows`, or of another control: whether it
+    /// closes the show.
+    pub fn click(&self, allows: bool, now: Instant) -> bool {
+        if self.lost.get() {
+            return !allows;
+        }
+        self.press(now)
     }
 
     fn with<T>(&self, f: impl FnOnce(&mut Guard) -> T) -> T {

@@ -224,3 +224,45 @@ fn show_a_report_that_panics_still_starts_the_hold_and_the_show_goes_on() {
     assert!(!show.press(clock.at(599)));
     assert!(show.press(clock.at(1_099)));
 }
+
+#[test]
+fn show_a_lost_subclass_lets_no_allow_through_and_closes_on_any_other_control() {
+    let clock = Clock::new(&[0, 0]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(
+        show.click(true, clock.at(600)),
+        "a whole show answers an allow after arm"
+    );
+    show.lose();
+    for at in [0, 100, 600, 10_000] {
+        assert!(
+            !show.click(true, clock.at(at)),
+            "the allowing control at {at} ms"
+        );
+        assert!(
+            show.click(false, clock.at(at)),
+            "another control at {at} ms"
+        );
+    }
+    assert_eq!(reports.get(), 1);
+}
+
+#[test]
+fn show_a_whole_show_holds_every_control_alike() {
+    let clock = Clock::new(&[0, 0]);
+    let report = || {};
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(
+        !show.click(false, clock.at(100)),
+        "the rejecting control inside arm"
+    );
+    assert!(
+        !show.click(true, clock.at(599)),
+        "the allowing control inside the restarted hold"
+    );
+    assert!(show.click(false, clock.at(1_099)));
+}
