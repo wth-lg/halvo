@@ -18,7 +18,9 @@ attempt does not leave the machine. The README lists what the profile does not d
 
   sh scripts/outbound-hosts.sh gate            the stack and every check except 90-outbound,
                                                with a browser for the checks; each line of
-                                               those checks is printed as "outbound: inside: ..."
+                                               those checks is printed as "outbound: inside: ..."; check 55
+                                               runs its bounded plan (HALVO_METERING_PLAN=bounded), and a line
+                                               of it that reads another plan cannot be counted
   sh scripts/outbound-hosts.sh control         the stack alone, with the Worker runtime's
                                                geolocation fetch left on: it must count an attempt
   sh scripts/outbound-hosts.sh run CMD...      any command
@@ -46,7 +48,7 @@ if [ "${1:-}" = inside ]; then
     exit 1
   }
   if [ "$2" = gate ]; then
-    sh "$ROOT/scripts/gate.sh" --except 90-outbound > "$OUTBOUND_RUN/nested-gate.txt"
+    HALVO_METERING_PLAN=bounded sh "$ROOT/scripts/gate.sh" --except 90-outbound > "$OUTBOUND_RUN/nested-gate.txt"
     echo $? > "$OUTBOUND_RUN/nested-gate.exit"
   fi
   sh "$ROOT/scripts/stack.sh" status > /dev/null || : > "$OUTBOUND_RUN/stack-failed"
@@ -495,6 +497,8 @@ if [ "$denied" -eq 0 ] && [ "$mode" = gate ]; then
   esac
   broke_its_contract=$(grep '^FAIL [^:]*: the check broke its contract (exit ' "$RUN/nested-gate.txt" | sed -n 1p)
   [ -z "$broke_its_contract" ] || cannot_count "inside the sandbox: $broke_its_contract"
+  unbounded=$(grep -E '^(PASS|FAIL) metering: ' "$RUN/nested-gate.txt" | grep -vE '^(PASS|FAIL) metering: plan=bounded ' | sed -n 1p)
+  [ -z "$unbounded" ] || cannot_count "check 55 ran inside the sandbox with a plan other than bounded: $(printf '%s\n' "$unbounded" | cut -c1-80)"
 fi
 echo "outbound: the next number is the sum of the counts above, so an attempt that two of them hold counts twice"
 echo "outbound: denied=$denied"

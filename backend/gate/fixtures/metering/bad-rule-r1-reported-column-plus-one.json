@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "        reported,\n        a.carry,",
+      "replace": "        reported + 1,\n        a.carry,"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults [",
+    "]: the ledger's reported total ("
+  ]
+}

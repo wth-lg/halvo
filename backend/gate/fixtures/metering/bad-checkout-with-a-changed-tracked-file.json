@@ -1,0 +1,20 @@
+{
+  "checkout": true,
+  "edits": [
+    {
+      "file": "README.md",
+      "find": "# Halvo backend\n",
+      "replace": "# Halvo backend, changed in a checkout\n"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: a tracked file differs from HEAD after the check: backend/README.md"
+  ]
+}

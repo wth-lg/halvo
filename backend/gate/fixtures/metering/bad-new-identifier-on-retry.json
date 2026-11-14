@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "return { kind: \"send\", interval: interval.start, identifier: interval.identifier,",
+      "replace": "return { kind: \"send\", interval: interval.start, identifier: interval.firstAttempt === null ? interval.identifier : `${interval.identifier}-${interval.nextAttempt}`,"
+    }
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 0, faults [{\"kind\":\"request-lost\"},{\"kind\":\"request-lost\"},{\"kind\":\"request-lost\"},{\"kind\":\"response-lost\"}]: the provider-side total passes the reported total"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ]
+}

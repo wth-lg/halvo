@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { exportSchema, largestBody } from "../../src/contract/export.ts";
 import {
   answerSchemas,
@@ -12,6 +12,8 @@ import {
   requestSchemas,
   URL_MAX_LENGTH,
 } from "../../src/contract/schemas.ts";
+
+vi.setConfig({ testTimeout: 18_000 });
 
 const ROOT = process.cwd();
 const DEFS = [

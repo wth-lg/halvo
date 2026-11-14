@@ -1,0 +1,24 @@
+{
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "(c.endedAt ?? event.endedAt) : Math.min(c.endedAt, event.endedAt);",
+      "replace": "(c.endedAt ?? event.endedAt) : Math.max(c.endedAt, event.endedAt);"
+    },
+    {
+      "file": "src/accounts/index.ts",
+      "find": "first: c.first === null ? event.providerTime : Math.min(c.first, event.providerTime)",
+      "replace": "first: c.first === null ? event.providerTime : Math.max(c.first, event.providerTime)"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "28"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 28, faults []: the equation with a remainder under one minor unit"
+  ]
+}

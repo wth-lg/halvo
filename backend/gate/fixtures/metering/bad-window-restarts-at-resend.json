@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "interval.firstAttempt ?? (kind === \"send\" ? now : null),",
+      "replace": "forced === \"send\" ? now : (interval.firstAttempt ?? (kind === \"send\" ? now : null)),"
+    }
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the test \"case 10: a request truly lost, then a refusal that stays: rounds inside the window count nothing"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "5"
+  ]
+}

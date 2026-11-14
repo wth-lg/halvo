@@ -1,0 +1,12 @@
+{
+  "env": {
+    "HALVO_METERING_PLAN": "bounded",
+    "OUTBOUND_RUN": "set-by-the-self-test"
+  },
+  "line": [
+    "PASS metering: plan=bounded fake-checks=",
+    "orderings=100 of 100 ",
+    "sequences=38 ",
+    "settings=38 of 38 "
+  ]
+}

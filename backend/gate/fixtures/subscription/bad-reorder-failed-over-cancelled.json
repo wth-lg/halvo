@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/accounts/index.ts",
-      "find": "  if (event.providerTime !== stored.providerTime) return event.providerTime > stored.providerTime;",
-      "replace": "  if (event.providerTime !== stored.providerTime) return (event.state === \"payment-failed\" && stored.state === \"cancelled\") || event.providerTime > stored.providerTime;"
+      "find": "  if ((event.state === \"cancelled\") !== (stored.state === \"cancelled\")) return event.state === \"cancelled\";",
+      "replace": "  if (event.state === \"payment-failed\" && stored.state === \"cancelled\") return true;\n  if ((event.state === \"cancelled\") !== (stored.state === \"cancelled\")) return event.state === \"cancelled\";"
     }
   ],
   "line": [

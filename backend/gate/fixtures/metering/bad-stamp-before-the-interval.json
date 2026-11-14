@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "Math.max(seconds(interval.start), seconds(interval.end - 1)),",
+      "replace": "seconds(interval.end - 1),"
+    }
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 1, faults []: the equation with a remainder under one minor unit"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "1"
+  ]
+}

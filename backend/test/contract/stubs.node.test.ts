@@ -43,8 +43,8 @@ test("the accounts module keeps a seeded account's id, hash, state and customer 
     expect(accounts.wake(sql, 5)).toBeNull();
     expect(accounts.nextDue(sql)).toBeNull();
     expect(accounts.forget(sql, 5)).toBe(0);
-    expect(accounts.applyEvent(sql, EVENT, 5)).toEqual({ kind: "none" });
-    expect(accounts.complete(sql, { sessionId: "cs", customerId: "cus", subscriptionId: null, payment: "paid" })).toEqual({ kind: "none" });
+    expect(accounts.applyEvent(sql, EVENT, 5)).toEqual({ kind: "none", overrode: false });
+    expect(accounts.complete(sql, { sessionId: "cs", customerId: "cus", subscriptionId: null, payment: "paid" })).toEqual({ kind: "none", overrode: false });
     expect(accounts.record(sql, "cs", "open", 5)).toBe("stale");
     expect(nameOfThrow(() => accounts.keepPending(sql, { accountId: ACCOUNT, credentialHash: HASH, cap: { amount: 1, period: "week" }, sessionId: "cs", url: "u", expiresAt: 1 }, 5))).toBe(
       "ContractBrokenError",

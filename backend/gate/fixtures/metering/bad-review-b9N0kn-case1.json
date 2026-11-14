@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "identifier: interval.identifier, amountMinor",
+      "replace": "identifier: interval.unansweredAt === null ? interval.identifier : `${interval.identifier}:u`, amountMinor"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "21"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 21, faults [",
+    "the provider-side total passes the reported total"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "return accountRow(sql)?.state === \"active\";",
+      "replace": "return accountRow(sql) !== null && accountRow(sql)?.state !== \"payment-failed\";"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "29"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 29, faults [",
+    "]: reserve after the end ("
+  ]
+}

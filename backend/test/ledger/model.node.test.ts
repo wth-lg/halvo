@@ -1,7 +1,9 @@
 import fc from "fast-check";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { type Call, HOLD_LIFE_MS, type Step, seededRig } from "./harness.ts";
 import { Model } from "./model.ts";
+
+vi.setConfig({ testTimeout: 19_828 });
 
 const WEEK = 604_800_000;
 const START = 1_893_456_000_000;

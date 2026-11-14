@@ -66,7 +66,7 @@ describe("one identifier for every attempt (unit 5.1)", () => {
   test("inside the window every retry sends the same identifier again with no read, up to the last retry before the margin", async () => {
     const w = await world({ always: { kind: "request-lost" } });
     await w.use("r1", 30_000);
-    for (const at of [END, END + SYNC_RETRY_MS, END + 2 * SYNC_RETRY_MS, END + UNIQUENESS_WINDOW_MS - MARGIN - 1]) await w.clock(at);
+    for (const at of [END, END + SYNC_RETRY_MS, END + 3 * SYNC_RETRY_MS, END + UNIQUENESS_WINDOW_MS - MARGIN - 1]) await w.clock(at);
     expect(w.calls.map((each) => (each.kind === "send" ? each.identifier : each.kind))).toEqual([IDENTIFIER, IDENTIFIER, IDENTIFIER, IDENTIFIER]);
     w.close();
   });
@@ -177,7 +177,7 @@ describe("a read whose range holds another interval (unit 5.1, S9)", () => {
 });
 
 describe("refusals (unit 5.1)", () => {
-  test("after a read that lacks the amount the attempt counts as answered, so the next refusal is stored with no second read", async () => {
+  test("a refusal after an unanswered attempt stays pending and uncounted through a read before the late point that lacks the amount, and inside the window that read is followed by one send, whose refusal ends the round", async () => {
     const w = await world({
       faults: [{ kind: "request-lost" }, { kind: "refuse", reason: "unknown_account" }, { kind: "none" }, { kind: "refuse", reason: "unknown_account" }],
     });
@@ -186,7 +186,7 @@ describe("refusals (unit 5.1)", () => {
     await w.clock(END + SYNC_RETRY_MS);
     const [row] = await w.intervals();
     expect(kinds(w.calls)).toEqual(["send failed", "send refused unknown_account", "read total 0", "send refused unknown_account"]);
-    expect([row?.refusals, row?.pending_refusal, row?.unanswered, row?.outcome]).toEqual([2, null, 0, null]);
+    expect([row?.refusals, row?.pending_refusal, row?.unanswered, row?.outcome]).toEqual([0, "unknown_account", 1, null]);
     w.close();
   });
 
@@ -201,14 +201,14 @@ describe("refusals (unit 5.1)", () => {
     w.close();
   });
 
-  test("a refusal that follows an unanswered attempt is stored after a read that lacks the amount, and the resend follows in the same chain", async () => {
+  test("a refusal that follows an unanswered attempt is not counted by a read before the late point that lacks the amount, and the send of the round follows in the same chain", async () => {
     const w = await world({ faults: [{ kind: "request-lost" }, { kind: "refuse", reason: "unknown_account" }] });
     await w.use("r1", 30_000);
     await w.clock(END);
     await w.clock(END + SYNC_RETRY_MS);
     const [row] = await w.intervals();
     expect(kinds(w.calls)).toEqual(["send failed", "send refused unknown_account", "read total 0", "send recorded"]);
-    expect([row?.outcome, row?.refusals]).toEqual(["acknowledged", 1]);
+    expect([row?.outcome, row?.refusals]).toEqual(["acknowledged", 0]);
     w.close();
   });
 

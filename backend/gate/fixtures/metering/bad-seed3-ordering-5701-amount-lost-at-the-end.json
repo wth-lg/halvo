@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "    if (refusals >= REFUSAL_LIMIT) {\n      close(sql, interval, \"not-billable\", reason, now);",
+      "replace": "    if (refusals >= REFUSAL_LIMIT) {\n      close(sql, interval, \"written-off\", reason, now);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "34"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 34, faults [",
+    "the equation with a remainder under one minor unit"
+  ]
+}

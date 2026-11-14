@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "const kind = forced ?? (interval.pendingRefusal === null && inWindow ? \"send\" : \"read\");",
+      "replace": "const kind = forced ?? (interval.pendingRefusal === null ? \"send\" : \"read\");"
+    }
+  ],
+  "line": [
+    "FAIL metering: ",
+    "the provider-side total passes the reported total"
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "sql.exec(\"UPDATE metering_account SET carry = ?\", carryOut);",
+      "replace": "sql.exec(\"UPDATE metering_account SET carry = carry + ?\", carryOut);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "4"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 4, faults [",
+    "]: the stored remainder ("
+  ]
+}

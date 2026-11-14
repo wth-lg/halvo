@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "test/billing/servers.ts",
+      "find": "spawn(`${ROOT}.tools/stripe-mock/stripe-mock`,",
+      "replace": "spawn(`${ROOT}.tools/stripe-mock/no-such-binary`,"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the test \"stripe-mock accepts each meter-event request that the mapping sends\" of test/metering/stripe-meter.node.test.ts is "
+  ]
+}

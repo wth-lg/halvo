@@ -115,13 +115,7 @@
       [
         "send after the retry",
         {
-          "call": {
-            "kind": "send",
-            "interval": 1800001817000,
-            "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
-            "amountMinor": 250,
-            "timestamp": 1800005416
-          },
+          "call": null,
           "notBillable": 0
         }
       ],
@@ -192,10 +186,13 @@
           "timestamp": 1800001816,
           "first_attempt": null,
           "next_attempt": 1800001817000,
+          "delay": null,
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,
+          "unanswered_at": null,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "no-call",
           "refusal": null,
@@ -212,11 +209,14 @@
           "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
           "timestamp": 1800005416,
           "first_attempt": 1800005417000,
-          "next_attempt": 1800005597000,
-          "attempts": 4,
-          "refusals": 2,
-          "unanswered": 0,
+          "next_attempt": 1800005717000,
+          "delay": 240000,
+          "attempts": 3,
+          "refusals": 0,
+          "unanswered": 1,
+          "unanswered_at": 1800005417000,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "acknowledged",
           "refusal": null,
@@ -234,10 +234,13 @@
           "timestamp": 1800005656,
           "first_attempt": null,
           "next_attempt": 1800005717000,
+          "delay": null,
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,
+          "unanswered_at": null,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "not-billable",
           "refusal": "send_limit",
@@ -250,19 +253,22 @@
     [
       "kept, a cancel",
       {
-        "kind": "kept"
+        "kind": "kept",
+        "overrode": false
       }
     ],
     [
       "kept, an earlier cancel that is not newer",
       {
-        "kind": "none"
+        "kind": "none",
+        "overrode": false
       }
     ],
     [
       "kept, a newer cancel",
       {
-        "kind": "kept"
+        "kind": "kept",
+        "overrode": false
       }
     ],
     [
@@ -276,7 +282,11 @@
           "provider_time": 1800000017430,
           "kept_order": 0,
           "ended_at": null,
-          "cancel_first": 1800000017410
+          "cancel_first": 1800000017410,
+          "m1_count": 0,
+          "m1_newest": null,
+          "m2_count": 0,
+          "m2_newest": null
         }
       ]
     ],
@@ -311,7 +321,8 @@
     [
       "the same time again",
       {
-        "kind": "none"
+        "kind": "none",
+        "overrode": false
       }
     ],
     [
@@ -344,7 +355,11 @@
           "period_end": null,
           "provider_time": 1800000017440,
           "ended_at": 1800000017402,
-          "cancel_first": 1800000017405
+          "cancel_first": 1800000017405,
+          "m1_count": 0,
+          "m1_newest": null,
+          "m2_count": 0,
+          "m2_newest": null
         }
       ]
     ]
@@ -367,7 +382,11 @@
         "period_end": null,
         "provider_time": null,
         "ended_at": null,
-        "cancel_first": null
+        "cancel_first": null,
+        "m1_count": 0,
+        "m1_newest": null,
+        "m2_count": 0,
+        "m2_newest": null
       }
     ]
   }

@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "        if (answer.kind === \"recorded\" || answer.kind === \"duplicate\") {\n          close(sql, interval, \"acknowledged\", null, now);",
+      "replace": "        if (answer.kind === \"recorded\" || answer.kind === \"duplicate\") {\n          close(sql, interval, \"not-billable\", \"send_limit\", now);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 0, faults []: the record disagrees with the provider"
+  ]
+}

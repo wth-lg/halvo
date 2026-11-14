@@ -467,33 +467,34 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
     async webhookEvent(event) {
       if (event.kind === "ignored") return;
-      const noRecord = step((open) => {
-        if (!holds(open.sql)) return event.kind === "checkout-completed";
+      const after = step((open): { noRecord: boolean; overrode: boolean } => {
+        if (!holds(open.sql)) return { noRecord: event.kind === "checkout-completed", overrode: false };
         const now = open.begin();
         const applied = accounts.applyEvent(open.sql, event, now);
         if (applied.kind === "account-made") {
           accountMade(open.sql, applied, event.accountId, now);
-          return false;
+          return { noRecord: false, overrode: false };
         }
         if (applied.kind === "state") {
-          if (!isMetered(open.sql)) return false;
+          if (!isMetered(open.sql)) return { noRecord: false, overrode: applied.overrode };
           if (applied.period !== null) metering.billingPeriod(open.sql, applied.period, now);
           if (applied.state === "cancelled" && applied.was !== "cancelled") {
             metering.cut(open.sql, "cancel", accounts.subscription(open.sql)?.cancelledAt ?? event.providerTime, now);
           }
-          return false;
+          return { noRecord: false, overrode: applied.overrode };
         }
         if (applied.kind === "cancel-time") {
           if (isMetered(open.sql)) metering.cut(open.sql, "cancel", applied.at, now);
-          return false;
+          return { noRecord: false, overrode: false };
         }
         if (event.kind === "checkout-completed" && applied.kind === "none") {
           const pending = accounts.pending(open.sql);
-          return pending !== null && pending.sessionId !== event.sessionId;
+          return { noRecord: pending !== null && pending.sessionId !== event.sessionId, overrode: false };
         }
-        return false;
+        return { noRecord: false, overrode: applied.overrode };
       });
-      if (noRecord) log({ event: "completed-no-record" });
+      if (after.noRecord) log({ event: "completed-no-record" });
+      if (after.overrode) log({ event: "cancel-overrides-order" });
     },
 
     async status(hash) {

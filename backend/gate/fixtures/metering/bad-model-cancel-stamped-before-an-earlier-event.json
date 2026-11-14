@@ -1,0 +1,22 @@
+{
+  "edits": [
+    {
+      "file": "test-kit/fake-meter/rerun/world.ts",
+      "find": "const first = Math.max(endedAt * 1000, account.lastProviderTime + 1000);",
+      "replace": "const first = endedAt * 1000;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "1",
+    "--orderings",
+    "20",
+    "--settings",
+    ""
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: seed 1 of the generated orderings, ordering 20 (",
+    "): the provider stamps a cancel before an event it sent earlier ("
+  ]
+}

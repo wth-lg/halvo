@@ -85,6 +85,8 @@ P4	formal/r7-ledger/**
 P5	backend/src/metering/sync.ts
 P5	backend/src/metering/stripe-meter.ts
 P5	backend/test/metering/**
+P5	backend/gate/fixtures/metering/**
+P5	backend/docs/baseline/first-fail/metering.txt
 F.1	backend/.shellcheckrc
 F.1	formal/r7-ledger/.gitattributes
 F.4	backend/gate/fixtures/license-lists/**

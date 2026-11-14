@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "sql.exec(\"UPDATE metering_interval SET refusals = ?, pending_refusal = ? WHERE start = ?\", refusals, null, interval.start);",
+      "replace": "sql.exec(\"UPDATE metering_interval SET refusals = ?, pending_refusal = ?, first_attempt = NULL WHERE start = ?\", refusals, null, interval.start);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "33"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "late-read=failed",
+    "first failure: the test \"case 10: a request truly lost, then a refusal that stays"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "control": "wrong-text",
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "Math.max(seconds(interval.start), seconds(interval.end - 1)),",
+      "replace": "seconds(interval.end - 1),"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "1"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "a text that no line of check 55 holds"
+  ]
+}

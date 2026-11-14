@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "if (interval === null || interval.start !== start || interval.end > now) return;",
+      "replace": "if (interval === null || interval.start !== start || interval.end >= now) return;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "0"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 0, faults [",
+    "]: settling ("
+  ]
+}

@@ -266,6 +266,10 @@ fixtures() {
 ^PASS outbound: denied=0 in this run; probes left out=[1-9]' browser sh "$ATTEMPT" browser loopback || failed=1
   fixture_with GATE_CHECKS_DIR "$HERE/checks" good a-check-drives-the-browser 0 '^outbound: inside: PASS browser-page:[ ]
 ^PASS outbound: denied=0 in this run; probes left out=[1-9]' gate || failed=1
+  fixture_with GATE_CHECKS_DIR "$HERE/metering" good check-55-runs-its-bounded-plan-inside 0 '^outbound: inside: (PASS|FAIL) metering: plan=bounded[ ]
+^PASS outbound: denied=0 in this run' gate || failed=1
+  fixture_with GATE_CHECKS_DIR "$HERE/metering-without-the-plan" bad check-55-without-its-bounded-plan-inside 2 '^outbound: inside: (PASS|FAIL) metering: plan=whole[ ]
+^FAIL outbound: cannot count: check 55 ran inside the sandbox with a plan other than bounded: (PASS|FAIL) metering: plan=whole ' gate || failed=1
   fixture_with GATE_CHECKS_DIR "$HERE/checks-with-a-broken-contract" bad a-check-breaks-its-contract-inside 2 '^FAIL outbound: cannot count: inside the sandbox: FAIL no-result-line: the check broke its contract ' gate || failed=1
   fixture_with GATE_CHECKS_DIR "$HERE/main" bad no-check-runs-inside 2 '^FAIL outbound: cannot count: the gate inside the sandbox ended with exit 2, ' gate || failed=1
   fixture bad browser-udp-443-elsewhere 1 "$NO_BROWSER_RECORD_SO_ONLY_THE_NET_LOG_SHOWS_IT

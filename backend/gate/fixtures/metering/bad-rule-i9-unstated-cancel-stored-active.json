@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "      event.state,\n      event.subscriptionId,",
+      "replace": "      event.endedAt === null ? \"active\" : event.state,\n      event.subscriptionId,"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults [",
+    "]: the stored state disagrees with the cancel ("
+  ]
+}
