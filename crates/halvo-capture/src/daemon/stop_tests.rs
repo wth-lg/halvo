@@ -19,7 +19,7 @@ use super::{
     run_timed, stop_bound, DaemonError, FailedSource, LossCause, RunOutcome, RunSources,
     SecureInput, SourceName, SwitchFlags, TimedRun, SETTLE_BOUND,
 };
-use crate::source::{CaptureError, SourceContext, SourceCounters};
+use crate::source::{CaptureError, HeldSamples, SourceContext, SourceCounters, SuppressedKeys};
 
 pub(super) fn run_of(seconds: u64) -> TimedRun {
     TimedRun {
@@ -501,4 +501,82 @@ fn an_event_that_a_source_emits_inside_its_stop_is_discarded_and_not_stored() {
         (4, 1),
         "the event that a source emitted while it stopped"
     );
+}
+
+/// Ruling DM-12 G2: each figure of the report comes from its source: the
+/// sources' counters, and the owner's counts with events_received read apart
+/// from persisted and discarded (a refused store leaves 4 events lost, and an
+/// event emitted inside the stop is discarded).
+#[test]
+fn each_figure_of_the_report_comes_from_its_source() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Refused));
+    let mut inner = four_events();
+    inner.figures = SourceCounters {
+        secure_input_keystrokes: 3,
+        tap_disabled_timeout: 2,
+        tap_disabled_user_input: 1,
+        secure_released_keystrokes: 5,
+        secure_held_keystrokes: 7,
+        secure_held_suppressed: SuppressedKeys {
+            down: 1,
+            up: 2,
+            modifier: 3,
+        },
+        secure_input_held: HeldSamples { held: 4, taken: 6 },
+        secure_window_pointer: 8,
+        secure_window_keys_typed: true,
+        ..SourceCounters::default()
+    };
+    let figures = inner.figures;
+    let mut sources = EmitAtStop { inner, sink: None };
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &TimedRun {
+            secure_input: SecureInput::Hold,
+            ..run_of(5)
+        },
+        &mut sources,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let report = &outcome.report;
+    let counts = report.screen_frame
+        + report.keystroke
+        + report.pointer
+        + report.foreground_app
+        + report.window_title
+        + report.system_audio
+        + report.microphone
+        + report.camera;
+    assert_eq!((report.keystroke, report.foreground_app), (3, 2));
+    assert_eq!(
+        report.events_received, counts,
+        "events_received against the count lines"
+    );
+    assert_eq!(report.events_received, 5);
+    assert_eq!(report.events_persisted, 0);
+    assert_eq!(report.events_discarded, 1);
+    assert_eq!(
+        report.secure_input_keystrokes,
+        figures.secure_input_keystrokes
+    );
+    assert_eq!(report.tap_disabled_timeout, figures.tap_disabled_timeout);
+    assert_eq!(
+        report.tap_disabled_user_input,
+        figures.tap_disabled_user_input
+    );
+    let hold = report
+        .hold
+        .as_ref()
+        .expect("no hold lines in a run that holds");
+    assert_eq!(hold.released_keystrokes, figures.secure_released_keystrokes);
+    assert_eq!(hold.held_keystrokes, figures.secure_held_keystrokes);
+    assert_eq!(hold.suppressed, figures.secure_held_suppressed);
+    assert_eq!(hold.held_samples, figures.secure_input_held);
+    assert_eq!(hold.window_pointer, figures.secure_window_pointer);
+    assert_eq!(hold.keys_typed, figures.secure_window_keys_typed);
 }
