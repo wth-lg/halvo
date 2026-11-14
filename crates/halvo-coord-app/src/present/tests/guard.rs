@@ -198,6 +198,24 @@ fn show_a_later_activation_reports_nothing_and_starts_the_hold_anew() {
 }
 
 #[test]
+fn show_the_hold_starts_at_a_reading_of_the_clock_after_the_report_returned() {
+    let clock = Clock::new(&[0, 100, 300]);
+    let report = || {
+        let _ = clock.read();
+    };
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(!show.press(clock.at(799)), "the hold counts from 300 ms");
+    let clock = Clock::new(&[0, 100, 300]);
+    let report = || {
+        let _ = clock.read();
+    };
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(show.press(clock.at(800)));
+}
+
+#[test]
 fn show_a_report_that_panics_still_starts_the_hold_and_the_show_goes_on() {
     let clock = Clock::new(&[0, 100]);
     let report = || panic!("the report panicked");

@@ -189,6 +189,8 @@ EOF
   check macos-zero-of-zero FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output failed 'dialog_hosted end: cases ran 4 of 4, failed 1' "$mac_guard"
   check macos-a-failed-case FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
+  output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
+  check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output no-guard "$mac_dialog"
   check macos-no-guard-line FAIL 'guard_hosted printed 0 end lines, not one' macos
   output two "$mac_dialog" "$mac_dialog" "$mac_guard"
