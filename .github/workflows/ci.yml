@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,36 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r7-backend-static 21-r7-backend-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r7-backend-static 21-r7-backend-test
+      - name: Loop of unit 4.9's tests, its round included (200 runs each)
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        working-directory: backend
+        run: |
+          cat >"$RUNNER_TEMP/repeat-reporter.mjs" <<'EOF'
+          export default class RepeatReporter {
+            onTestRunEnd(testModules) {
+              for (const module of testModules) {
+                const path = module.moduleId.slice(module.moduleId.indexOf("/test/") + 1);
+                for (const test of module.children.allTests()) {
+                  const d = test.diagnostic();
+                  console.log(`LOOP ${path} state=${test.result().state} repeats=${d?.repeatCount ?? "none"} retries=${d?.retryCount ?? "none"}`);
+                }
+              }
+            }
+          }
+          EOF
+          began=$(date +%s)
+          set +e
+          sh scripts/with-env.sh node_modules/.bin/vitest run --project workerd --repeats 199 -t "unit 4\.9" --reporter=default --reporter="$RUNNER_TEMP/repeat-reporter.mjs" test/ledger/stale-rearm.test.ts test/contract/env.test.ts >"$RUNNER_TEMP/loop.txt" 2>&1
+          code=$?
+          set -e
+          grep -E "^LOOP|Tests  |Duration" "$RUNNER_TEMP/loop.txt" || true
+          passed=$(grep -c -E "^LOOP test/(ledger/stale-rearm|contract/env)\.test\.ts state=passed repeats=199 " "$RUNNER_TEMP/loop.txt" || true)
+          echo "loop: vitest-exit=$code tests-with-200-passing-runs=$passed of 3 seconds=$(( $(date +%s) - began ))"
+          [ "$code" -eq 0 ] && [ "$passed" -eq 3 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +144,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r7-backend-static
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r7-backend-static
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
