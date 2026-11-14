@@ -1,0 +1,10 @@
+{
+  "kind": "receipt",
+  "ruling": "B-37",
+  "about": "the S1 spike's receipt carries no now, and the driver still reads it",
+  "source": "by hand",
+  "header": "{\"requestId\":\"r\",\"amount\":100,\"expiresAt\":4010,\"periodStart\":1000}",
+  "expect": {
+    "now": "missing"
+  }
+}

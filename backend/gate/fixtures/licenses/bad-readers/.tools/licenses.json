@@ -2,30 +2,37 @@
   "absent@1.0.0": null,
   "first-document@1.0.0": {
     "license": "MIT",
+    "licenseList": "AND",
     "integrity": "sha512-first-document"
   },
   "left-the-lockfile@1.0.0": {
     "license": "MIT",
+    "licenseList": "AND",
     "integrity": "sha512-left-the-lockfile"
   },
   "no-integrity@1.0.0": {
     "license": "MIT",
+    "licenseList": "AND",
     "integrity": null
   },
   "no-license-cached@1.0.0": {
     "license": null,
+    "licenseList": "AND",
     "integrity": "sha512-no-license-cached"
   },
   "other-os@1.0.0": {
     "license": "LGPL-3.0-or-later",
+    "licenseList": "AND",
     "integrity": "sha512-other-os"
   },
   "plain@1.0.0": {
     "license": "GPL-3.0-only",
+    "licenseList": "AND",
     "integrity": "sha512-plain"
   },
   "retagged@1.0.0": {
     "license": "MIT",
+    "licenseList": "AND",
     "integrity": "sha512-retagged-old"
   }
 }

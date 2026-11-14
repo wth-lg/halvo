@@ -6,8 +6,9 @@ use super::{
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
-    Doing, Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised,
-    ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId, WorkflowState,
+    Doing, Event, Facts, HoldSetCause, ItemId, Lapsed, Live, OtherLapse, Outcome, OwnItem,
+    OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId,
+    WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -421,45 +422,45 @@ fn covered(events: &[Event], before: usize, what: &What) -> bool {
 }
 
 /// After a read of the owner's events: the agent's own item leaves its facts when those events
-/// close it, and an agent with no item takes the newest own item that the read brought and that
-/// is still open, so that the board holds what the owner's ledger holds.
+/// close it, and an agent that then holds no item takes the newest own item that the read brought
+/// and that is still open, so that the board holds what the owner's ledger holds: a check that a
+/// lost acknowledgement hid, with the lapse of the `ready` item before it, replaces that item
+/// (ruling RD-5).
 fn settle<C>(facts: &mut Facts<C>, before: usize) {
     let open = match &facts.doing {
         Doing::Idle(Some(o)) | Doing::Queued(Some(o)) => Some(o.item.clone()),
         Doing::Idle(None) | Doing::Queued(None) => None,
         Doing::Live(_) => return,
     };
-    match open {
-        Some(item) if item_closed(&facts.events, &item) => {
-            facts.doing = without_item(&facts.doing);
+    if let Some(item) = open {
+        if !item_closed(&facts.events, &item) {
+            return;
         }
-        Some(_) => {}
-        None => {
-            let revealed = facts.events[before.min(facts.events.len())..]
-                .iter()
-                .rev()
-                .find_map(|e| match &e.what {
-                    What::ItemRaised { item, raised } if !item_closed(&facts.events, item) => {
-                        let kind = match raised {
-                            Raised::Check(None) => OwnItemKind::Check,
-                            Raised::Ready => OwnItemKind::Ready,
-                            Raised::Setup => OwnItemKind::Setup,
-                            _ => return None,
-                        };
-                        Some(OwnItem {
-                            item: item.clone(),
-                            kind,
-                        })
-                    }
-                    _ => None,
-                });
-            if let Some(own) = revealed {
-                facts.doing = match facts.doing {
-                    Doing::Queued(_) => Doing::Queued(Some(own)),
-                    _ => Doing::Idle(Some(own)),
+        facts.doing = without_item(&facts.doing);
+    }
+    let revealed = facts.events[before.min(facts.events.len())..]
+        .iter()
+        .rev()
+        .find_map(|e| match &e.what {
+            What::ItemRaised { item, raised } if !item_closed(&facts.events, item) => {
+                let kind = match raised {
+                    Raised::Check(None) => OwnItemKind::Check,
+                    Raised::Ready => OwnItemKind::Ready,
+                    Raised::Setup => OwnItemKind::Setup,
+                    _ => return None,
                 };
+                Some(OwnItem {
+                    item: item.clone(),
+                    kind,
+                })
             }
-        }
+            _ => None,
+        });
+    if let Some(own) = revealed {
+        facts.doing = match facts.doing {
+            Doing::Queued(_) => Doing::Queued(Some(own)),
+            _ => Doing::Idle(Some(own)),
+        };
     }
 }
 
@@ -949,43 +950,40 @@ pub(crate) fn resync<P: Owner>(
     }
 }
 
-/// The newest item of the coordinator's own kinds that an event after `after` raised and no
-/// event closes: the owner stored it with an acknowledgement that was lost (I7.2, XB-31).
-fn revealed(events: &[Event], after: u32) -> Option<OwnItem> {
-    events
-        .iter()
-        .rev()
-        .take_while(|e| e.seq.get() > after)
-        .find_map(|e| match &e.what {
-            What::ItemRaised { item, raised } if !item_closed(events, item) => {
-                let kind = match raised {
-                    Raised::Check(_) => OwnItemKind::Check,
-                    Raised::Ready => OwnItemKind::Ready,
-                    Raised::Setup => OwnItemKind::Setup,
-                    _ => return None,
-                };
-                Some(OwnItem {
-                    item: item.clone(),
-                    kind,
-                })
-            }
-            _ => None,
-        })
-}
-
-/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, ruling RD-12 (b)): the facts
-/// take the owner's events after their last one, and an agent that is idle with no item holds
-/// the newest item of the coordinator's own kinds that those events raised and left open,
-/// whichever log was refused: the check's own or a debt's.
+/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, rulings RD-12 (b) and RD-5):
+/// the facts take the owner's events after their last one, and `settle` makes the board hold the
+/// agent's item that the owner's ledger holds, whichever log was refused: a skip, a start or a
+/// lapse that the owner stored with a lost acknowledgement takes the agent's item off the board,
+/// and an agent that then holds no item takes the newest item of the coordinator's own kinds that
+/// those events raised and left open.
 pub(crate) fn read_after_seq<P: Owner, C>(
     ports: &P,
     facts: &mut Facts<C>,
 ) -> Result<(), PortError> {
-    let after = facts.events.last().map_or(0, |e| e.seq.get());
+    let before = facts.events.len();
     resync(ports, &facts.agent, &mut facts.events)?;
-    if let Some(own) = revealed(&facts.events, after).filter(|_| facts.doing == Doing::Idle(None)) {
-        facts.doing = Doing::Idle(Some(own));
-    }
+    settle(facts, before);
+    Ok(())
+}
+
+/// The read after a refusal `seq` of the raise of a check or of the person's answer to it (I7.2,
+/// rulings RD-12 (b) and RD-34 (b) (5)): `read_after_seq`, and then the close of each start that
+/// the read brought and that no runner took up, as `store_read` does for the other moves.
+pub(crate) fn read_back<P: Owner, C: ConfigView>(
+    ports: &P,
+    limits: &crate::types::Limits,
+    stamp: Stamp,
+    board: &mut Board<C>,
+    i: usize,
+) -> Result<(), PortError> {
+    let before = board.members[i].facts.events.len();
+    read_after_seq(ports, &mut board.members[i].facts)?;
+    let cx = Cx {
+        ports,
+        limits,
+        stamp,
+    };
+    close_lost_starts(&cx, board, i, before, stamp.day(), stamp.at());
     Ok(())
 }
 
@@ -1292,6 +1290,112 @@ where
     report
 }
 
+/// The body of the person's answer to the check of `run`, from the agent's facts (I5.4, rulings
+/// RD-5 and RD-38): with an open item `check`, its `item_answered`; with an open `ready` item and
+/// no item `check`, the lapse of that item with the cause `check`, the `item_raised` of a new item
+/// `check` and its `item_answered`, in that order; then `hold_cleared` with the run and the
+/// answer, and for `went_through` the `slot_skipped` of the slot that the run's `run_started`
+/// names, or of none.
+fn check_body<P: Rng, C>(
+    cx: &Cx<'_, P>,
+    facts: &Facts<C>,
+    run: &RunId,
+    answer: CheckAnswer,
+) -> Result<Vec<What>, PortError> {
+    let mut whats = Vec::new();
+    if let Some(item) = own(&facts.doing, OwnItemKind::Check) {
+        whats.push(What::ItemAnswered {
+            item,
+            answer: Answered::Check(answer),
+        });
+    } else if let Some(ready) = own(&facts.doing, OwnItemKind::Ready) {
+        let check = ItemId::parse(&minted(cx)?).map_err(|_| PortError::NoService)?;
+        whats.push(What::ItemLapsed {
+            item: ready,
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        });
+        whats.push(What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        });
+        whats.push(What::ItemAnswered {
+            item: check,
+            answer: Answered::Check(answer),
+        });
+    }
+    whats.push(What::HoldCleared {
+        cause: Cleared::Check {
+            run: run.clone(),
+            answer,
+        },
+    });
+    if answer == CheckAnswer::WentThrough {
+        let slot = facts.events.iter().find_map(|e| match &e.what {
+            What::RunStarted { run: r, slot, .. } if r == run => *slot,
+            _ => None,
+        });
+        whats.push(What::SlotSkipped { slot });
+    }
+    Ok(whats)
+}
+
+/// The person's answer to the check of `run` (I5.4, I7.2, rulings XB-31, RD-5 and RD-38): it logs
+/// `check_body` of the agent's facts, and the agent then holds no item `check` or `ready`. After
+/// a refusal `seq` it reads the owner's events once and closes the lost starts that they bring
+/// (`read_back`); where the hold `check` of that run still stands it logs once more the body that
+/// the facts as read give. Where it no longer stands, a `hold_cleared` of that run with the same
+/// answer is this answer, stored with a lost acknowledgement, and is taken with nothing logged; one
+/// with the other answer makes this answer `stale`; and with none the answer is `state`.
+fn answer_check<P: Owner + Rng, C: ConfigView>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    run: &RunId,
+    answer: CheckAnswer,
+) -> Report {
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
+    let whats = match check_body(cx, &board.members[i].facts, run, answer) {
+        Ok(whats) => whats,
+        Err(e) => return refused(port_cause(&e)),
+    };
+    let logged = match log_at(cx, board, i, &whats, day, at) {
+        Err(e) if seq_refusal(&e) => {
+            if read_back(cx.ports, cx.limits, cx.stamp, board, i).is_err() {
+                return refused(port_cause(&e));
+            }
+            let facts = &board.members[i].facts;
+            let stands = holds(facts).contains(&Hold::Check)
+                && facts.runs.first().is_some_and(|r| &r.run == run);
+            if !stands {
+                let given = facts.events.iter().rev().find_map(|e| match &e.what {
+                    What::HoldCleared {
+                        cause: Cleared::Check { run: r, answer: a },
+                    } if r == run => Some(*a),
+                    _ => None,
+                });
+                return match given {
+                    Some(a) if a == answer => Report::default(),
+                    Some(_) => refused(Cause::Stale),
+                    None => refused(Cause::State),
+                };
+            }
+            match check_body(cx, facts, run, answer) {
+                Ok(again) => log_at(cx, board, i, &again, day, at),
+                Err(e) => Err(e),
+            }
+        }
+        other => other,
+    };
+    if let Err(e) = logged {
+        return refused(port_cause(&e));
+    }
+    let doing = &board.members[i].facts.doing;
+    if own(doing, OwnItemKind::Check).is_some() || own(doing, OwnItemKind::Ready).is_some() {
+        board.members[i].facts.doing = without_item(doing);
+    }
+    Report::default()
+}
+
 fn member_move<P, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -1318,14 +1422,6 @@ where
     let read = fresh(cx, board, Some(i));
     let facts = &board.members[i].facts;
     let standing = holds(facts);
-    let stored = |cx: &Cx<'_, P>, board: &mut Board<C>, whats| match store(cx, board, i, whats) {
-        Ok(()) => {
-            let doing = without_item(&board.members[i].facts.doing);
-            board.members[i].facts.doing = doing;
-            Ok(())
-        }
-        Err(e) => Err(port_cause(&e)),
-    };
     match mv {
         Move::Start { .. } => {
             let listed = match list {
@@ -1351,17 +1447,36 @@ where
                 .filter(|s| finished(facts) && slot_open(facts, *s));
             let whats = vec![
                 What::ItemAnswered {
-                    item,
+                    item: item.clone(),
                     answer: Answered::Ready(ReadyAnswer::Skip),
                 },
                 What::SlotSkipped { slot },
             ];
-            match stored(cx, board, whats) {
-                Ok(()) => Report::default(),
-                Err(c) => refused(c),
+            let pressed = |facts: &Facts<C>| {
+                let open = own(&facts.doing, OwnItemKind::Ready).as_ref() == Some(&item);
+                let skipped = facts.events.iter().any(|e| {
+                    matches!(&e.what, What::ItemAnswered { item: i, answer: Answered::Ready(ReadyAnswer::Skip) } if *i == item)
+                });
+                (!open && !skipped).then_some(Cause::Stale)
+            };
+            let (day, at) = (cx.stamp.day(), cx.stamp.at());
+            match store_read(cx, board, i, whats, day, at, Some(&pressed)) {
+                Ok(Stored::Decided(c)) => refused(c),
+                Ok(_) => {
+                    let doing = without_item(&board.members[i].facts.doing);
+                    board.members[i].facts.doing = doing;
+                    Report::default()
+                }
+                Err(e) => refused(port_cause(&e)),
             }
         }
         Move::Check { answer, .. } => {
+            if list
+                .as_ref()
+                .is_ok_and(|listed| !listed.contains(&facts.workflow.id))
+            {
+                return refused(Cause::State);
+            }
             if let Err(e) = read {
                 return refused(port_cause(&e));
             }
@@ -1373,37 +1488,7 @@ where
                 return refused(Cause::State);
             };
             let run = newest.run.clone();
-            let mut whats = Vec::new();
-            if let Some(item) = own(&facts.doing, OwnItemKind::Check) {
-                whats.push(What::ItemAnswered {
-                    item,
-                    answer: Answered::Check(answer),
-                });
-            }
-            whats.push(What::HoldCleared {
-                cause: Cleared::Check {
-                    run: run.clone(),
-                    answer,
-                },
-            });
-            if answer == CheckAnswer::WentThrough {
-                let slot = facts.events.iter().find_map(|e| match &e.what {
-                    What::RunStarted { run: r, slot, .. } if *r == run => *slot,
-                    _ => None,
-                });
-                whats.push(What::SlotSkipped { slot });
-            }
-            let checked = own(&board.members[i].facts.doing, OwnItemKind::Check).is_some();
-            match store(cx, board, i, whats) {
-                Ok(()) => {
-                    if checked {
-                        let doing = without_item(&board.members[i].facts.doing);
-                        board.members[i].facts.doing = doing;
-                    }
-                    Report::default()
-                }
-                Err(e) => refused(port_cause(&e)),
-            }
+            answer_check(cx, board, i, &run, answer)
         }
         Move::SwitchOn { .. } => {
             let mut whats = Vec::new();

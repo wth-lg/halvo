@@ -1401,7 +1401,7 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
     let run = held.ask.run.clone();
     let lives = match cause {
         OtherLapse::WaitLimit | OtherLapse::Cancelled => true,
-        OtherLapse::RunEnded | OtherLapse::AppEnded => false,
+        OtherLapse::RunEnded | OtherLapse::AppEnded | OtherLapse::Check => false,
     };
     if lives {
         let _ = ports.answer_bind(&run, BindResult::Decline);

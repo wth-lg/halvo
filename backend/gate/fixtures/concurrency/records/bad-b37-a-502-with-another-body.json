@@ -1,0 +1,21 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a 502 whose body is neither upstream-failed nor no-time-left",
+  "source": "by hand",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"rejected\"}",
+    "headersAt": 4150,
+    "endedAt": 4155
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

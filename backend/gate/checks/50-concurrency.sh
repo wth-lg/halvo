@@ -60,6 +60,7 @@ if [ -z "$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- gate/
   echo "self-test concurrency: the bad fixtures need a git checkout: they copy the files that git lists under $ROOT, and git lists no gate/checks/50-concurrency.sh there"
   exit 1
 fi
+node "$FIXTURES/records.mjs" || failed=1
 want=
 expect good checkout "$ROOT" "$SELF_TEST_CELLS" || failed=1
 for mutant in "$FIXTURES"/bad-*.json; do

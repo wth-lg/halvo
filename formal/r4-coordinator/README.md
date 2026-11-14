@@ -110,7 +110,7 @@ What the check asks of the table and of the files, each with the cause that ends
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,270,661 | 16 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,269,649 | 16 |
 | `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 195,498 | 4,740,279 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
@@ -131,9 +131,12 @@ What the check asks of the table and of the files, each with the cause that ends
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37 and 39 to 45 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
-The counts are TLC's own lines for `Schedule.tla` as it stands since commit
-3fadf1e and `Confirm4.tla` as it stands since commit 6295574, each
-from the run of the next table, with the workers that it names. The heap bound `-Xmx2g` keeps
+The counts are TLC's own lines, each from the run of the next table, with the workers that
+it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
+from its run at commit 66d8c08, and for `Confirm4.tla` as it stands since commit 6295574.
+At 66d8c08 the check's runs of the six small configurations of `Schedule` found the
+distinct states of this table again: the change of that commit touches `ready` alone,
+which `VIEW` takes out of the fingerprint. The heap bound `-Xmx2g` keeps
 a run far below the machine's cap of 8,589,934,592 bytes of resident size. More workers
 find the same distinct states. The depth and, under the `VIEW` of `Schedule`, the number
 of generated states can then differ, so the check compares the distinct states of each
@@ -147,7 +150,7 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | 1625.32 s, four workers | 1,521,221,632 bytes | 90.39 | not run | not run |
+| `Schedule` | `full` | 3354.29 s, four workers, on 2026-11-12 at commit 66d8c08, on the lane for timed runs | 1,617,788,928 bytes | 95.29 | not run | not run |
 | `Schedule` | `days` | 688.26 s, three workers | 1,250,279,424 bytes | 341.34 | 114 s | 151 s |
 | `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
 | `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
@@ -376,7 +379,10 @@ follow these readings.
 1. An agent has a finished run when a run of it ended `completed`. Until then every run of
    it is a first run: the scheduler starts none, and a tick raises `ready`.
 2. A tick raises no `ready` item for an agent that has a live run, a queued start, a hold
-   or an open `ready` item, or whose workflow is gone.
+   or an open `ready` item, or whose workflow is gone. A tick also reads the hold `check`
+   of every agent, and it takes each agent whose `check` stands out of the ready set
+   (reading 11), so that no line after a tick holds an agent in `ready` beside an
+   unanswered `check` (ruling RD-5).
 3. A start by the person names the current slot when that slot is open and the agent has
    a finished run, and no slot otherwise. A start by the scheduler names the slot that is
    current when the start is stored.
@@ -413,8 +419,18 @@ follow these readings.
     no stored event, so recovery finds a `run_started` event with no `run_ended` and stores
     `interrupted` (I5.6, I5.8), whatever `reap` answered for the run. It empties the queue
     and closes every `ready` item, and it takes the day that the new life reads.
-11. A `ready` item closes when a start of its agent is stored or queued. It stays open
-    when the start is refused.
+11. A `ready` item closes when a start of its agent is stored or queued. It also closes
+    at every move that reads the hold `check` of its agent while that hold stands and the
+    agent's workflow is not gone (I5.4, ruling RD-5): a tick and an `end` that is answered
+    `ok` read every agent, as the code's tick and end of a run read every agent's record;
+    a `start` and a `check` that is answered `ok` read their own agent. In the code that
+    move lapses the item with the cause `check` and raises the item `check` in the same
+    body, before anything else of its own, and a `check` then answers that item; the
+    schedule model holds neither item, so a line shows only the agent gone from `ready`.
+    The lapse stores no `slot_skipped`: once the person has answered, the next tick raises
+    `ready` again where reading 2 asks for it. A start that is refused for any other
+    reason leaves the item open, and so do `off`, `delete`, `ack` and the moves of a run's
+    phase, which read no hold `check`. A restart closes every `ready` item (reading 10).
 12. The day changes only at a tick or at a restart. The kill comes at a tick at which
     `cancel_grace_s` have passed since the stop; a run that the same tick stopped is not
     killed by it. The tick calls `Runs::kill` also for a stopped run whose runner ended in
@@ -450,7 +466,11 @@ follow these readings.
     start is answered `state` at step 3, the scheduler's start in a tick among them, which
     stands in `started` with `state`. A tick raises `ready` for such an agent as for any
     other: I5.3's list of the cases without a `ready` item is closed and does not hold
-    this one (ruling XB-24). `Runs::start` is not called.
+    this one (ruling XB-24). `Runs::start` is not called. When the store ends such a run
+    with `unknown` above 0 at its `ack`, the hold `check` stands from that move on
+    (reading 17), and the next move that reads it closes that `ready` item (reading 11).
+    Until that move a line still shows the agent in `ready`, because no move of the
+    coordinator has read the store's record yet.
 17. The key `left` of the move that ended a runner says whether one of the run's requests
     may have left. With `yes`, the store ends the run with `unknown` above 0 at its `ack`,
     and the hold `check` stands from that move on, until the move `check`. A run that
@@ -508,7 +528,10 @@ three alike, and the history holds neither. `VIEW` keeps the cause of a stop, `c
 calls for runs that have ended, which change no history; `ReachKillEnded` reads it and runs
 without the `VIEW` line too. The model has no `skip`, no `switch_on`, no answer
 `went_through` to a `check`, no items budget, no effect and no state of an effect, and no
-time but the grace. An `end_run` that gets no acknowledgement is the time before the move
+time but the grace. So no move ends or stops a run with the cause `kind` or `budget`: a
+run ends so when a request of it asks for an item that the rules of I3.6 refuse, and the
+model holds no request. No trace holds those two ends; the tests `refusal_kind_reason`,
+`refusal_kind_class`, `refusal_kind_frame` and `refusal_items_budget` hold them (I5.13). An `end_run` that gets no acknowledgement is the time before the move
 `ack`; the model does not tell a lost `end_run` from a late one. No property counts a
 start that was refused: a coordinator that holds an agent longer than I5.4 asks, with a
 `check` that the person's answer does not end or that a restart brings back, breaks none

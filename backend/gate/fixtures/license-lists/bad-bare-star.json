@@ -1,0 +1,14 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: an exception does not name one package by its exact name, without *, and its versions: {\"package\":\"*\",\"versions\":[\"1.0.0\"],\"license\":\"MIT-0\",\"reason\":\"A test tool.\"}",
+  "extraExceptions": [
+    {
+      "package": "*",
+      "versions": [
+        "1.0.0"
+      ],
+      "license": "MIT-0",
+      "reason": "A test tool."
+    }
+  ],
+  "packages": []
+}

@@ -1,0 +1,157 @@
+{
+  "kind": "line",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (c)",
+  "about": "the same rig where no attempt admitted any request: the cause says so",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-rollover-at-20-plain-1-try6",
+      "cell": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 2,
+        "settled": 2,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-rollover-at-20-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": null,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-rollover-at-20-plain-1-try2",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": null,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-rollover-at-20-plain-1-try3",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": null,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-rollover-at-20-plain-1-try4",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": null,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-rollover-at-20-plain-1-try5",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": null,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1,
+      "rigUnbuilt": true
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=0 burst-p50-at-200=unmeasured rollover-redrawn=5; first failure: the rollover cell built no crossing: 5 attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was none, as no attempt admitted a request, first ledger-rollover-at-20-plain-1-try6"
+  }
+}

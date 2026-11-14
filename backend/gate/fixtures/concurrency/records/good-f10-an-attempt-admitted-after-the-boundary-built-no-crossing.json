@@ -1,0 +1,114 @@
+{
+  "kind": "judge",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69)",
+  "about": "the first admission of a rollover attempt came 152 ms after the period boundary: the attempt built no crossing and does not count, and it is no violation",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    "requests": [
+      {
+        "id": "new",
+        "index": 0,
+        "status": 200,
+        "body": "",
+        "sentAt": 604801100,
+        "headersAt": 604801200,
+        "endedAt": 604803200,
+        "hold": 100,
+        "receipt": {
+          "requestId": "new",
+          "amount": 100,
+          "now": 604801150,
+          "expiresAt": 604804150
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "mockEvents": [
+      {
+        "t": 604801200,
+        "id": "new",
+        "ev": "request"
+      },
+      {
+        "t": 604801250,
+        "id": "new",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 604801260,
+        "id": "new",
+        "ev": "end",
+        "clean": true
+      }
+    ],
+    "final": {
+      "now": 604821000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 604821000,
+        "seq": 10
+      },
+      "periods": [
+        {
+          "period_start": 604801000,
+          "reported": 19,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "request_id": "new",
+          "period_start": 604801000,
+          "amount": 100,
+          "expires_at": 604804152,
+          "state": "settled",
+          "dispatched": 1,
+          "created_at": 604801152,
+          "created_seq": 1,
+          "ended_at": 604803000,
+          "ended_seq": 2,
+          "ended_by": "settle",
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "crossed": false,
+      "crossingBuilt": false,
+      "firstAdmissionMs": 152
+    }
+  }
+}

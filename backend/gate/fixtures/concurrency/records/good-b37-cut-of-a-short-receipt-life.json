@@ -1,0 +1,38 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a cut of a hold whose receipt lives 1,700 ms, answered at the send plus that life less the margin: the bound is read from the receipt, not from the gateway's hold life",
+  "source": "as good-b37-cut-after-the-gateway-bound; written from the record good-b37-cut-at-the-gateway-bound for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"upstream-failed\",\"why\":\"AbortError\"}",
+    "headersAt": 2300,
+    "endedAt": 2370,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1010,
+      "expiresAt": 2710
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "created_at": 1010,
+    "expires_at": 2710,
+    "ended_at": 2712,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

@@ -7,8 +7,8 @@ use halvo_coord::types::{
 
 use halvo_coord::types::{
     Answered, ApprovalId, CheckAnswer, DecisionEntry, Digest, Doing, DoneAnswer, EffectId, ItemId,
-    Lapsed, LinkAnswer, Live, Origin, OtherLapse, OwnItem, OwnItemKind, Raised, ReadyAnswer, RunId,
-    RunItem, RunItemKind, SetupAnswer, SignInAnswer,
+    ItemLapseCause, Lapsed, LinkAnswer, Live, Origin, OtherLapse, OwnItem, OwnItemKind, Raised,
+    ReadyAnswer, RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer,
 };
 
 fn names<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> Vec<&'static str> {
@@ -439,10 +439,33 @@ fn run_item_kind_names_are_the_kinds_that_a_run_raises_of_i3_1() {
 fn other_lapse_names_are_the_causes_of_an_item_of_another_kind_of_i7_1() {
     assert_eq!(
         names(OtherLapse::ALL, OtherLapse::name),
-        ["run_ended", "app_ended", "wait_limit", "cancelled"]
+        ["run_ended", "app_ended", "wait_limit", "cancelled", "check"]
     );
     for c in OtherLapse::ALL {
         assert_eq!(c.cause().name(), c.name());
+    }
+}
+
+#[test]
+fn item_lapse_cause_names_are_the_seven_causes_of_an_item_lapsed_row_of_i7_1() {
+    assert_eq!(
+        names(ItemLapseCause::ALL, ItemLapseCause::name),
+        [
+            "digest",
+            "run_ended",
+            "wait_limit",
+            "cancelled",
+            "no_record",
+            "app_ended",
+            "check",
+        ]
+    );
+    for c in LapseCause::ALL {
+        assert_eq!(Lapsed::Confirm(*c).cause().name(), c.name());
+    }
+    for o in OtherLapse::ALL {
+        assert_eq!(Lapsed::Ready(*o).cause(), o.cause());
+        assert_eq!(Lapsed::SignIn(*o).cause().name(), o.name());
     }
 }
 

@@ -1,0 +1,10 @@
+{
+  "kind": "receipt",
+  "ruling": "B-37",
+  "about": "the driver keeps the receipt's now, which the life of a hold needs",
+  "source": "by hand",
+  "header": "{\"requestId\":\"r\",\"amount\":100,\"now\":1010,\"expiresAt\":4010}",
+  "expect": {
+    "now": 1010
+  }
+}

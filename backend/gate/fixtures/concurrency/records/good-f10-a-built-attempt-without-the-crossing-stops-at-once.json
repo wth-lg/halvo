@@ -1,0 +1,47 @@
+{
+  "kind": "attempts",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (b)",
+  "about": "an attempt that admitted before the boundary and lacks the crossing is never drawn again: it ends the run and stops the driver",
+  "source": "by hand",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "stopAtFirstViolation": true,
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "crossed": false,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "crossed": true,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {
+    "halted": true,
+    "discarded": [],
+    "runs": [
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": false
+      }
+    ]
+  }
+}
