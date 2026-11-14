@@ -420,15 +420,41 @@ fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     file.sync_all()
 }
 
+/// Zero-fills the regular file at `name` and removes the name. Before the
+/// zero-fill it sets the file's mode to 0600 by its name through the
+/// directory's handle, following no link (on Windows it clears the read-only
+/// attribute), so that the zero-fill reaches every name of the file; if the
+/// zero-fill still fails the name is removed all the same (ruling ST-46 K5
+/// N1).
 fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     if let Ok(entry) = dir.entry(name) {
         if entry.kind == EntryKind::File {
+            make_writable_by_name(dir, name);
             let _ = zero_fill(dir, name);
         }
     }
     match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         other => other,
+    }
+}
+
+#[cfg(unix)]
+fn make_writable_by_name(dir: &Dir, name: &OsStr) {
+    let _ = dir.set_file_mode(name, 0o600);
+}
+
+#[cfg(windows)]
+fn make_writable_by_name(dir: &Dir, name: &OsStr) {
+    let path = dir.path().join(name);
+    if let Ok(metadata) = std::fs::symlink_metadata(&path) {
+        let mut permissions = metadata.permissions();
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "a key file that the store destroys has to be writable for its zero-fill"
+        )]
+        permissions.set_readonly(false);
+        let _ = std::fs::set_permissions(&path, permissions);
     }
 }
 

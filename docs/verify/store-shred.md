@@ -1461,6 +1461,14 @@ set, and the root's own volume name answers the root.
   shared names still opens. The zero-fill of `store.key` and of a root file
   reaches every name of the file, so that no second name keeps a key
   (`delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it`);
+  before the zero-fill the key-file step sets the mode of a regular file at
+  `store.key` to 0600 by its name through the directory's handle, following
+  no link (on Windows it clears the read-only attribute), and if the
+  zero-fill still fails the name is removed as C11.4 step 4 has it, with no
+  report field changed: a second name of `store.key` whose zero-fill failed
+  keeps the wrapped key, which does not unwrap once the root is destroyed
+  (ruling ST-46 K5 N1;
+  `delete_all_zeroes_a_store_key_of_mode_0400_through_every_name`);
   a file of another program that a process of the same user hard-links at
   a root file's name is zeroed with it (found by the review of store-3 and
   left so). Before the open the root step sets the entry's mode to 0600 by
