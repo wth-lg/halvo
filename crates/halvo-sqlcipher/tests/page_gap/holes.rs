@@ -5,15 +5,15 @@ use rusqlite::{params, Connection};
 use super::layout::small_store;
 use super::{connect, rules, Mode, Run, Scratch, MARKER_LEN, PAGE};
 
-fn read2(bytes: &[u8], at: usize) -> usize {
+pub(super) fn read2(bytes: &[u8], at: usize) -> usize {
     usize::from(u16::from_be_bytes([bytes[at], bytes[at + 1]]))
 }
 
-fn read4(bytes: &[u8], at: usize) -> usize {
+pub(super) fn read4(bytes: &[u8], at: usize) -> usize {
     u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) as usize
 }
 
-fn checkpoint(conn: &Connection) {
+pub(super) fn checkpoint(conn: &Connection) {
     let busy: i64 = conn
         .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
         .unwrap();
@@ -35,21 +35,24 @@ fn drawn(seed: u64) -> Run {
 /// A leaf of `db` with 8 bytes of gap past its run of stale slots: its
 /// number and the offset, inside the page, of the first byte past the zero
 /// pair that ends the run.
-fn gap_past_the_stale_run(db: &[u8]) -> (usize, usize) {
+pub(super) fn gap_past_the_stale_run(db: &[u8]) -> (usize, usize) {
     (2..=db.len() / PAGE)
         .find_map(|number| {
             let page = &db[(number - 1) * PAGE..number * PAGE];
             let content = read2(page, 5);
+            if !matches!(page[0], 10 | 13) || content > PAGE {
+                return None;
+            }
             let mut run = 8 + 2 * read2(page, 3);
             while run + 1 < content && (page[run] != 0 || page[run + 1] != 0) {
                 run += 2;
             }
-            (matches!(page[0], 10 | 13) && content >= run + 8).then_some((number, run + 2))
+            (content >= run + 8).then_some((number, run + 2))
         })
         .expect("a leaf with 8 bytes of gap past its stale run")
 }
 
-fn write_at(path: &std::path::Path, at: usize, bytes: &[u8]) {
+pub(super) fn write_at(path: &std::path::Path, at: usize, bytes: &[u8]) {
     let mut file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
     file.seek(SeekFrom::Start(at as u64)).unwrap();
     file.write_all(bytes).unwrap();
@@ -180,7 +183,13 @@ fn a_removed_marker_in_a_file_of_another_name_is_named_by_the_search() {
     );
 }
 
-fn plant(conn: &Connection, db: &[u8], at: usize, bytes: &[u8], named: &str) -> Option<String> {
+pub(super) fn plant(
+    conn: &Connection,
+    db: &[u8],
+    at: usize,
+    bytes: &[u8],
+    named: &str,
+) -> Option<String> {
     let mut copy = db.to_vec();
     copy[at..at + bytes.len()].copy_from_slice(bytes);
     let found = rules::check(conn, &copy).problems;

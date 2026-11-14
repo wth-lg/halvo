@@ -5,9 +5,11 @@ use std::time::Instant;
 
 use rusqlite::{params, Connection};
 
+mod controls;
 mod fts5;
 mod holes;
 mod layout;
+mod lines;
 mod malformed;
 mod pins;
 mod rewrites;
@@ -413,12 +415,9 @@ impl Run {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         names.sort();
-        let mut problems = Vec::new();
+        let mut problems = log_lines(&self.scratch.0);
         for name in names {
             let bytes = std::fs::read(self.scratch.0.join(&name)).unwrap();
-            if name.ends_with("-wal") && !bytes.is_empty() {
-                problems.push(format!("the log {name} holds {} bytes", bytes.len()));
-            }
             for at in memchr::memmem::find_iter(&bytes, MARKER_HEAD) {
                 let Some(marker) = bytes.get(at..at + MARKER_LEN) else {
                     continue;
@@ -640,6 +639,24 @@ fn rows<T: rusqlite::types::FromSql, U: rusqlite::types::FromSql, V: rusqlite::t
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     read
+}
+
+/// The rule of every search on a log: each file of `dir` whose name ends in
+/// -wal and that holds bytes is a line, since a log with frames holds whole
+/// earlier pages that the structural check, which reads the main file, does
+/// not read.
+fn log_lines(dir: &Path) -> Vec<String> {
+    let mut lines = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let length = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        if name.ends_with("-wal") && length > 0 {
+            lines.push(format!("the log {name} holds {length} bytes"));
+        }
+    }
+    lines.sort();
+    lines
 }
 
 fn page_gap(db: &[u8], page: usize) -> Option<(usize, usize)> {

@@ -13,7 +13,7 @@ fn read2(bytes: &[u8], at: usize) -> usize {
     usize::from(u16::from_be_bytes([bytes[at], bytes[at + 1]]))
 }
 
-fn varint(bytes: &[u8]) -> (u64, usize) {
+pub(super) fn varint(bytes: &[u8]) -> (u64, usize) {
     let mut value = 0u64;
     for (at, byte) in bytes.iter().take(9).enumerate() {
         if at == 8 {

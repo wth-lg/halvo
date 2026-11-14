@@ -201,6 +201,12 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
     if let Some(at) = (52..56).find(|&at| db[at] != 0) {
         problems.push(format!("page 1: header byte {at} is {:#04x}", db[at]));
     }
+    if let Some(at) = (72..92).find(|&at| db[at] != 0) {
+        problems.push(format!(
+            "page 1: header byte {at}, reserved for expansion, is {:#04x}",
+            db[at]
+        ));
+    }
     let mut statement = conn.prepare("SELECT pageno, pagetype FROM dbstat").unwrap();
     let kinds: BTreeMap<usize, String> = statement
         .query_map([], |r| {
@@ -250,6 +256,13 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
             None => problems.push(format!("page {number}: in no tree and not on the freelist")),
         }
     }
+    let read = btree + overflow + trunks + leaves_read;
+    if read != count {
+        problems.push(format!(
+            "page 1: the check read {read} of the {count} pages of the file as a b-tree page, an \
+             overflow page, a freelist trunk or a freelist leaf"
+        ));
+    }
     let mut tails = Vec::new();
     let mut walks: BTreeMap<usize, usize> = BTreeMap::new();
     for (first, mut left) in chains {
@@ -293,7 +306,18 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
 /// Reads every page of the keyless image `db`, whose pages `conn` names
 /// through the database's page table (dbstat), by the rules of this file.
 pub fn check(conn: &Connection, db: &[u8]) -> Checked {
-    read_pages(conn, db).0
+    let mut checked = read_pages(conn, db).0;
+    if let Some(path) = conn.path().filter(|path| !path.is_empty()) {
+        let log = format!("{path}-wal");
+        let length = std::fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
+        if length > 0 {
+            checked.problems.push(format!(
+                "the log of the connection's file holds {length} bytes: the check reads the main \
+                 file alone, so checkpoint the log with TRUNCATE first"
+            ));
+        }
+    }
+    checked
 }
 
 fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -> Option<String> {
@@ -342,6 +366,52 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
             &[0xff; 4],
             "the freelist trunk past its count",
         ));
+        let count = db.len() / size;
+        for (named, value) in [(0, 0), (count + 1, count + 1), (trunk, trunk)] {
+            misses.extend(planted(
+                db,
+                conn,
+                page(trunk) + 8,
+                &(value as u32).to_be_bytes(),
+                &format!("page {trunk}: freelist trunk names page {named}"),
+            ));
+        }
+        let leaves = read4(db, page(trunk) + 4);
+        match (2..=count).find(|&number| matches!(db[page(number)], 2 | 5 | 10 | 13)) {
+            Some(tree) if 12 + 4 * leaves <= size => {
+                let mut copy = db.to_vec();
+                copy[page(trunk) + 4..page(trunk) + 8]
+                    .copy_from_slice(&((leaves + 1) as u32).to_be_bytes());
+                misses.extend(planted(
+                    &copy,
+                    conn,
+                    page(trunk) + 8 + 4 * leaves,
+                    &(tree as u32).to_be_bytes(),
+                    &format!("page 1: the check read {} of the {count} pages", count + 1),
+                ));
+            }
+            _ => misses.push("the image has no b-tree page and room in its first trunk".to_owned()),
+        }
+    }
+    let count = db.len() / size;
+    let mut longer = db.to_vec();
+    longer.resize(db.len() + size, 0);
+    let found = check(conn, &longer).problems;
+    let named = format!("page {}: in no tree and not on the freelist", count + 1);
+    if !found.iter().any(|line| line.contains(&named)) {
+        misses.push(format!(
+            "a page appended to the file: no line names {named:?}: {found:?}"
+        ));
+    }
+    match (2..=count).find(|&number| matches!(db[page(number)], 10 | 13)) {
+        Some(number) => misses.extend(planted(
+            db,
+            conn,
+            page(number),
+            &[0],
+            &format!("page {number}: type byte 0 is no b-tree page"),
+        )),
+        None => misses.push("the image has no leaf after page 1".to_owned()),
     }
     match tails.iter().find(|(_, tail)| *tail + 4 <= size) {
         Some((number, _)) => misses.extend(planted(
@@ -367,17 +437,6 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
             "of the freeblock at",
         )),
         None => misses.push("the image has no freeblock longer than its header".to_owned()),
-    }
-    match (2..=db.len() / size).find_map(|number| {
-        let at = page(number);
-        let content = read2(db, at + 5);
-        let pointers_end = 8 + 2 * read2(db, at + 3);
-        (matches!(db[at], 10 | 13) && content >= pointers_end + 8).then_some((number, content - 4))
-    }) {
-        Some((number, at)) => {
-            misses.extend(planted(db, conn, page(number) + at, b"text", "gap"));
-        }
-        None => misses.push("the image has no leaf with a gap of 8 bytes".to_owned()),
     }
     let usable = size - usize::from(db[20]);
     if trunk != 0 && read4(db, page(trunk) + 4) != 0 {

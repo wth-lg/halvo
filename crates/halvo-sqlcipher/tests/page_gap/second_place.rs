@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::{connect, rules, Mode, Rng, Scratch, PAGE};
+use super::{connect, log_lines, rules, Mode, Rng, Scratch, PAGE};
 
 fn token(rng: &mut Rng) -> String {
     (0..16)
@@ -24,12 +24,16 @@ fn places(conn: &Connection, dir: &Path, removed: &BTreeSet<String>, when: &str)
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
-    let mut found: Vec<String> =
+    let mut found: Vec<String> = log_lines(dir)
+        .into_iter()
+        .map(|line| format!("{when}: {line}"))
+        .collect();
+    found.extend(
         rules::check(conn, &std::fs::read(dir.join("page-gap.db")).unwrap())
             .problems
             .into_iter()
-            .map(|line| format!("{when}: structural check: {line}"))
-            .collect();
+            .map(|line| format!("{when}: structural check: {line}")),
+    );
     for name in names {
         let bytes = std::fs::read(dir.join(&name)).unwrap();
         for text in removed {
@@ -208,4 +212,33 @@ fn rows_that_analyze_or_optimize_read_leave_no_text_after_their_removal() {
         }
         assert!(found.is_empty(), "{}", found.join("\n"));
     }
+}
+
+#[test]
+fn with_a_checkpoint_that_does_not_truncate_the_search_of_second_place_names_the_log() {
+    crate::initialize().unwrap();
+    let scratch = Scratch::new(51, Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    conn.execute_batch("CREATE TABLE c(id INTEGER PRIMARY KEY, c0 TEXT NOT NULL);")
+        .unwrap();
+    checkpoint(&conn);
+    let none = BTreeSet::new();
+    assert_eq!(
+        places(&conn, &scratch.0, &none, "clean"),
+        Vec::<String>::new()
+    );
+    conn.execute("INSERT INTO c(id, c0) VALUES (1, 'a row in the log')", [])
+        .unwrap();
+    let busy: i64 = conn
+        .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(busy, 0);
+    let found = places(&conn, &scratch.0, &none, "after a passive checkpoint");
+    assert!(
+        found
+            .iter()
+            .any(|line| line
+                .starts_with("after a passive checkpoint: the log page-gap.db-wal holds ")),
+        "the search of second_place does not name a log that holds frames: {found:?}"
+    );
 }

@@ -68,22 +68,32 @@ fn the_structural_check_sees_four_bytes_of_text_planted_in_a_gap() {
     let mut db = std::fs::read(scratch.db()).unwrap();
     assert_eq!(rules::check(&conn, &db).problems, Vec::<String>::new());
     let size = read2(&db, 16);
-    let (number, at) = (2..=db.len() / size)
+    let (number, pointers_end, run, content) = (2..=db.len() / size)
         .find_map(|number| {
             let page = &db[(number - 1) * size..number * size];
             let content = read2(page, 5);
             let pointers_end = 8 + 2 * read2(page, 3);
-            (matches!(page[0], 10 | 13) && content >= pointers_end + 8)
-                .then_some((number, content - 4))
+            let mut run = pointers_end;
+            while run + 1 < content && (page[run] != 0 || page[run + 1] != 0) {
+                run += 2;
+            }
+            (matches!(page[0], 10 | 13) && content >= run + 8).then_some((
+                number,
+                pointers_end,
+                run,
+                content,
+            ))
         })
-        .expect("a leaf with a gap of at least 8 bytes");
+        .expect("a leaf with 8 bytes of gap past its stale run");
+    let at = content - 4;
     db[(number - 1) * size + at..(number - 1) * size + at + 4].copy_from_slice(b"text");
     let found = rules::check(&conn, &db).problems;
+    let named = format!(
+        "page {number}: byte {at} of the gap {pointers_end}..{content}, past its run of stale pointers that ends at {run}, is 0x74"
+    );
     assert!(
-        found
-            .iter()
-            .any(|line| line.starts_with(&format!("page {number}: ")) && line.contains("gap")),
-        "the structural check does not see 4 bytes planted in the gap of page {number}: {found:?}"
+        found.iter().any(|line| line == &named),
+        "the structural check does not name 4 bytes planted in the gap of page {number} ({named}): {found:?}"
     );
 }
 

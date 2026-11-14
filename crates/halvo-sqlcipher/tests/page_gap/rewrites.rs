@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{params, Connection};
 
-use super::{connect, rules, Mode, Rng, Scratch};
+use super::holes::{gap_past_the_stale_run, write_at};
+use super::{connect, log_lines, rules, Mode, Rng, Scratch, PAGE};
 
 fn checkpoint(conn: &Connection) {
     let busy: i64 = conn
@@ -51,11 +52,10 @@ fn search(
     places: &BTreeMap<String, usize>,
     when: &str,
 ) -> Vec<String> {
-    let mut found = Vec::new();
-    let log = scratch.0.join("page-gap.db-wal");
-    if std::fs::metadata(&log).map(|m| m.len()).unwrap_or(0) > 0 {
-        found.push(format!("{when}: the log is not empty"));
-    }
+    let mut found: Vec<String> = log_lines(&scratch.0)
+        .into_iter()
+        .map(|line| format!("{when}: {line}"))
+        .collect();
     for (marker, count) in markers(scratch) {
         let allowed = places.get(&marker).copied().unwrap_or(0);
         if count > allowed {
@@ -395,5 +395,76 @@ fn with_secure_delete_off_the_search_finds_a_removed_row_beside_zero_blobs() {
             .iter()
             .any(|line| line.contains("where its rows allow")),
         "with secure delete off the search finds no removed text"
+    );
+}
+
+fn rows_of_a(mode: Mode, seed: u64) -> (Scratch, Connection, BTreeMap<String, usize>) {
+    let scratch = Scratch::new(seed, mode);
+    let conn = connect(&scratch.db(), mode);
+    conn.execute_batch("CREATE TABLE a(id INTEGER PRIMARY KEY, body TEXT NOT NULL); BEGIN;")
+        .unwrap();
+    let mut rng = Rng::new(seed);
+    for id in 1..=60i64 {
+        conn.execute(
+            "INSERT INTO a(id, body) VALUES (?1, ?2)",
+            params![id, body(&mut rng, &format!("h{id:06}q"))],
+        )
+        .unwrap();
+    }
+    conn.execute_batch("COMMIT").unwrap();
+    checkpoint(&conn);
+    let places = markers(&scratch);
+    (scratch, conn, places)
+}
+
+#[test]
+fn with_a_checkpoint_that_does_not_truncate_the_search_of_rewrites_names_the_log() {
+    crate::initialize().unwrap();
+    let (scratch, conn, places) = rows_of_a(Mode::Plain, 49);
+    assert_eq!(
+        search(&conn, &scratch, Mode::Plain, &places, "clean"),
+        Vec::<String>::new()
+    );
+    conn.execute(
+        "INSERT INTO a(id, body) VALUES (61, 'a row in the log')",
+        [],
+    )
+    .unwrap();
+    let busy: i64 = conn
+        .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(busy, 0);
+    let found = search(
+        &conn,
+        &scratch,
+        Mode::Plain,
+        &markers(&scratch),
+        "after a passive checkpoint",
+    );
+    assert!(
+        found
+            .iter()
+            .any(|line| line
+                .starts_with("after a passive checkpoint: the log page-gap.db-wal holds ")),
+        "the search of rewrites does not name a log that holds frames: {found:?}"
+    );
+}
+
+#[test]
+fn text_planted_in_a_gap_is_named_by_the_structural_check_inside_the_search_of_rewrites() {
+    crate::initialize().unwrap();
+    let (scratch, conn, places) = rows_of_a(Mode::Plain, 50);
+    assert_eq!(
+        search(&conn, &scratch, Mode::Plain, &places, "clean"),
+        Vec::<String>::new()
+    );
+    let db = std::fs::read(scratch.db()).unwrap();
+    let (number, at) = gap_past_the_stale_run(&db);
+    write_at(&scratch.db(), (number - 1) * PAGE + at, b"text");
+    let found = search(&conn, &scratch, Mode::Plain, &places, "after a plant");
+    let named = format!("after a plant: structural check: page {number}: byte {at} of the gap");
+    assert!(
+        found.iter().any(|line| line.starts_with(&named)),
+        "the search of rewrites does not name text planted at byte {at} of page {number} ({named}): {found:?}"
     );
 }
