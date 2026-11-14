@@ -955,7 +955,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
     total.load(Ordering::SeqCst)
 }
 
-pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str) -> i64 {
+fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
     with_deadline(test, Duration::from_secs(240), move || {
@@ -1292,6 +1292,26 @@ fn a_burst_whose_first_letter_swaps_records_nothing_in_edge() {
     assert_eq!(
         recorded, 0,
         "a letter of the burst that landed in a password field was recorded"
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome() {
+    let recorded = letter_and_tab_out_of_a_swapped_field("browser-tab-after-chrome", "chrome");
+    assert_eq!(
+        recorded, 0,
+        "a letter or a Tab that landed in a password field was recorded"
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge() {
+    let recorded = letter_and_tab_out_of_a_swapped_field("browser-tab-after-edge", "edge");
+    assert_eq!(
+        recorded, 0,
+        "a letter or a Tab that landed in a password field was recorded"
     );
 }
 

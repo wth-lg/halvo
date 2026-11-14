@@ -5009,30 +5009,6 @@ mod known_defect {
     }
 
     #[test]
-    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
-    fn browser_letter_and_tab_out_of_a_swapped_field_in_chrome() {
-        let recorded =
-            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-chrome", "chrome");
-        defect!(
-            "W3-7-C5",
-            recorded == 0,
-            format!("TF browser-tab-after-chrome password_keys_recorded={recorded}")
-        );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
-    fn browser_letter_and_tab_out_of_a_swapped_field_in_edge() {
-        let recorded =
-            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-edge", "edge");
-        defect!(
-            "W3-7-C5",
-            recorded == 0,
-            format!("TF browser-tab-after-edge password_keys_recorded={recorded}")
-        );
-    }
-
-    #[test]
     #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]
     fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
         with_deadline("stall-self-focus", Duration::from_secs(330), || {
