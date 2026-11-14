@@ -563,3 +563,125 @@ fn a_browser_frame_whose_group_neither_the_browser_nor_the_runner_leads_is_refus
     assert_eq!(made.len(), 2, "{}", script.log());
     assert!(wait_until(SHORT, || made.iter().all(|(p, c)| gone(*p, *c))));
 }
+
+fn profiles(rig: &Rig) -> std::path::PathBuf {
+    rig.data().join("agents").join("profiles")
+}
+
+fn link_dir(target: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(target, link);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_dir(target, link);
+    made.unwrap_or_else(|e| panic!("the test could not make its link: {e}"));
+}
+
+/// A profile directory of a run with a file, a folder and the temporary directory beside the profile in it.
+fn profile_tree(dir: &std::path::Path) {
+    fs::create_dir_all(dir.join("profile").join("Default")).unwrap();
+    fs::create_dir_all(dir.join("tmp")).unwrap();
+    fs::write(dir.join("profile").join("Default").join("Cookies"), b"x").unwrap();
+    fs::write(dir.join("tmp").join("scratch"), b"x").unwrap();
+}
+
+#[test]
+fn reap_removes_the_profile_directory_of_each_run_that_no_mark_of_a_live_run_names_and_nothing_else(
+) {
+    let rig = Rig::new("reap-profiles");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let live = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let outside = rig.dir.join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("keep"), b"x").unwrap();
+    let root = profiles(&rig);
+    let left = common::run_id();
+    let with_link = common::run_id();
+    let link_entry = common::run_id();
+    let file_entry = common::run_id();
+    profile_tree(&root.join(live.as_str()));
+    profile_tree(&root.join(left.as_str()));
+    profile_tree(&root.join(with_link.as_str()));
+    link_dir(
+        &outside,
+        &root.join(with_link.as_str()).join("tmp").join("link"),
+    );
+    link_dir(&outside, &root.join(link_entry.as_str()));
+    fs::write(root.join(file_entry.as_str()), b"x").unwrap();
+    profile_tree(&root.join("not-a-run-id"));
+    profile_tree(&root.join(live.as_str().to_uppercase()));
+    let answers = rig.sup.reap().unwrap();
+    assert!(answers
+        .iter()
+        .any(|a| a.run == live && a.answer == Reaped::Alive));
+    assert!(!root.join(left.as_str()).exists(), "the left profile stays");
+    assert!(
+        !root.join(with_link.as_str()).exists(),
+        "the profile with a link in it stays"
+    );
+    assert!(
+        outside.join("keep").exists(),
+        "the removal went through a link"
+    );
+    assert!(
+        root.join(live.as_str())
+            .join("profile")
+            .join("Default")
+            .join("Cookies")
+            .exists(),
+        "the profile of the live run was removed"
+    );
+    assert!(
+        fs::symlink_metadata(root.join(link_entry.as_str())).is_ok(),
+        "an entry that is a link was removed"
+    );
+    assert!(
+        root.join(file_entry.as_str()).is_file(),
+        "a file entry was removed"
+    );
+    assert!(root
+        .join("not-a-run-id")
+        .join("tmp")
+        .join("scratch")
+        .exists());
+    assert!(root
+        .join(live.as_str().to_uppercase())
+        .join("tmp")
+        .join("scratch")
+        .exists());
+    rig.sup.kill(&live).unwrap();
+}
+
+#[test]
+fn reap_removes_nothing_through_a_profiles_folder_or_an_agents_folder_that_is_a_link() {
+    for linked in ["profiles", "agents"] {
+        let rig = Rig::new("reap-profiles-link");
+        let outside = rig.dir.join("outside");
+        let run = common::run_id();
+        let target = if linked == "profiles" {
+            outside.clone()
+        } else {
+            outside.join("agents-target")
+        };
+        let held = if linked == "profiles" {
+            outside.join(run.as_str())
+        } else {
+            target.join("profiles").join(run.as_str())
+        };
+        profile_tree(&held);
+        let agents = rig.data().join("agents");
+        if linked == "profiles" {
+            fs::create_dir_all(&agents).unwrap();
+            link_dir(&target, &agents.join("profiles"));
+        } else {
+            fs::create_dir_all(rig.data()).unwrap();
+            link_dir(&target, &agents);
+        }
+        rig.sup.reap().unwrap();
+        assert!(
+            held.join("tmp").join("scratch").exists(),
+            "{linked}: a profile was removed through a link"
+        );
+    }
+}

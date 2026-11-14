@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::io;
+use std::path::Path;
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -339,7 +341,9 @@ impl Supervisor {
     /// Answers for every mark under the data directory, one answer per run: a run of this life whose runner has
     /// not exited is `alive` and is left alone; for any other the library ends the processes of its mark that it
     /// may end, answers `gone` when its runner is gone, or its mark not complete, and then removes the mark, and
-    /// `alive` when its runner lives and could not be ended.
+    /// `alive` when its runner lives and could not be ended. Then it removes each profile directory that a run left
+    /// under `<data directory>/agents/profiles/` whose run id no mark of a live run names, and that no run of this
+    /// life that has not ended names (contracts.md A8.3).
     pub fn reap(&self) -> io::Result<Vec<ReapAnswer>> {
         let data_dir = &self.inner.config.data_dir;
         let mut answers = Vec::new();
@@ -368,6 +372,18 @@ impl Supervisor {
                 forced,
             });
         }
+        let mut keep: HashSet<RunId> = answers
+            .iter()
+            .filter(|a| a.answer == Reaped::Alive)
+            .map(|a| a.run.clone())
+            .collect();
+        keep.extend(
+            lock(&self.inner.runs)
+                .iter()
+                .filter(|(_, slot)| !slot.ended())
+                .map(|(run, _)| run.clone()),
+        );
+        remove_profiles(data_dir, &keep);
         Ok(answers)
     }
 
@@ -703,6 +719,36 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     };
     slot.ended.store(true, Ordering::SeqCst);
     inner.parts.marks.end(&slot.spec.run, &end);
+}
+
+/// Removes each directory under `<data_dir>/agents/profiles/` whose name is a run id that `keep` does not hold, by
+/// a path under that folder alone: nothing when `agents` or `profiles` is a link or no directory, and an entry that
+/// is a link, that is no directory or whose name is no run id stays. `fs::remove_dir_all` holds the directory by a
+/// handle that it opened without following a link and removes what it holds through that handle, a link in it as a
+/// link. A directory that cannot be removed stays until the next reap.
+fn remove_profiles(data_dir: &Path, keep: &HashSet<RunId>) {
+    let agents = data_dir.join("agents");
+    let profiles = agents.join("profiles");
+    for folder in [data_dir, agents.as_path(), profiles.as_path()] {
+        if !fs::symlink_metadata(folder).is_ok_and(|m| m.file_type().is_dir()) {
+            return;
+        }
+    }
+    let Ok(entries) = fs::read_dir(&profiles) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_type().is_ok_and(|t| t.is_dir()) {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(run) = name.to_str().and_then(|n| RunId::parse(n).ok()) else {
+            continue;
+        };
+        if !keep.contains(&run) {
+            let _ = fs::remove_dir_all(profiles.join(run.as_str()));
+        }
+    }
 }
 
 fn not_started(exit: Option<RunnerExit>) -> StartError {
