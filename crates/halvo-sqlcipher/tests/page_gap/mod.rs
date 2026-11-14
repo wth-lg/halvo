@@ -614,7 +614,7 @@ fn page_gap(db: &[u8], page: usize) -> Option<(usize, usize)> {
 }
 
 #[test]
-fn a_removed_or_replaced_row_leaves_no_byte_in_the_gap_of_a_page_that_the_database_built_again() {
+fn a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_place() {
     crate::initialize().unwrap();
     let mut failed = Vec::new();
     for seed in SEEDS {

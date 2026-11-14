@@ -1,7 +1,7 @@
 //! SQLCipher, compiled by this crate's build script from a copy of the pinned
-//! source with one change of Halvo's own (under secure delete, the gap of a page
-//! that the database builds again is zeroed; docs/adr/0013), and the rusqlite
-//! binding that links it. A crate that opens an encrypted database takes
+//! source with two statements of Halvo's own (under secure delete, the gap of a
+//! page that the database builds again or edits in place is zeroed;
+//! docs/adr/0013), and the rusqlite binding that links it. A crate that opens an encrypted database takes
 //! rusqlite from here, so one manifest holds the pin and the binding.
 
 use std::ffi::c_int;
@@ -35,10 +35,12 @@ pub fn os_entropy_hook_installed() -> bool {
 
 /// Whether the linked SQLCipher is this crate's build, whose copy of the
 /// pinned source zeroes, under secure delete, the gap of a page that the
-/// database builds again. Only that copy defines the function that answers
-/// here, in the same object as the database's code, so a program that calls
-/// this links that object or does not link at all. Each store's open is to
-/// require `true`, as it requires secure delete.
+/// database builds again or edits in place. Only that copy defines the
+/// function that answers 2 here, in the same object as the database's code,
+/// so a program that calls this links that object or does not link at all,
+/// and a library of the earlier build with one statement, which answers 1,
+/// reads `false`. Each store's open is to require `true`, as it requires
+/// secure delete.
 pub fn page_gap_mend_linked() -> bool {
     unsafe { halvo_sqlcipher_page_gap_mend() == 2 }
 }
