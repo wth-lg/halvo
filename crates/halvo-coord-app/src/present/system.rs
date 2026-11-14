@@ -46,7 +46,8 @@ impl<R: Runtime> System<R> {
 }
 
 impl<R: Runtime> Dialog for System<R> {
-    fn show(&self, card: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, card: &Card, arm: std::time::Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
+        let _ = arm;
         #[cfg(target_os = "macos")]
         return macos::show(&self.app, card, on_screen);
         #[cfg(windows)]
