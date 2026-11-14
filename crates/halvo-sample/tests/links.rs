@@ -337,3 +337,45 @@ fn each_manifest_of_a_walked_body_that_is_a_link_is_refused_alone() {
     let o = run(&["leak", &s(&t), &s(&walk)]);
     refused(&o, "body");
 }
+
+#[test]
+fn a_script_argument_that_is_a_link_is_refused_by_build() {
+    let dir = scratch("link-script");
+    let g = golden();
+    write(
+        &dir.join("s/real.jsonl"),
+        &fs::read_to_string(g.join("script.jsonl")).expect("golden"),
+    );
+    write(
+        &dir.join("s/marked.jsonl"),
+        &fs::read_to_string(g.join("marked.jsonl")).expect("golden"),
+    );
+    link_file(&dir.join("s/real.jsonl"), &dir.join("s/linked.jsonl"));
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out")),
+            "linked.jsonl",
+            "marked.jsonl",
+        ],
+    );
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1: not a script file\n");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-real")),
+            "real.jsonl",
+            "marked.jsonl",
+        ],
+    );
+    assert_eq!(o.code, 0, "{}", o.stderr);
+}

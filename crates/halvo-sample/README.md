@@ -44,7 +44,7 @@ that order it draws two words, w1 and w2, for the record's id. The id is a UUID 
 that `build` writes: a record that cannot be made takes no number.
 
 `build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
-any other SCRIPT argument with `script`, a directory among them, so a caller that passes every
+any other SCRIPT argument with `script`, a directory or a symbolic link among them, so a caller that passes every
 entry of a scripts directory skips no file. `build` and `split` name a script file in a refusal
 by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
 
