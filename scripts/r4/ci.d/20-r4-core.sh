@@ -1011,7 +1011,7 @@ EOF
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
   fixture starts-batch app
-  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nmod s26;\nmod s27;\nmod s28;\nmod s29;\nmod s30;\nmod s31;\nmod s32;\nmod s33;\nmod s34;\nmod r#s35;\n#[path = "other/p.rs"]\nmod s36;\nmod s37;\nmod s38;\n#[cfg(test)]\nmod s39;\nfn main() {}\n'
+  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nmod s26;\nmod s27;\nmod s28;\nmod s29;\nmod s30;\nmod s31;\nmod s32;\nmod s33;\nmod s34;\nmod r#s35;\n#[path = "other/p.rs"]\nmod s36;\nmod s37;\nmod s38;\n#[cfg(test)]\nmod s39;\nmod s40;\nmod s41;\nfn main() {}\n'
   put "$work/starts-batch/src-tauri/src/s01.rs" 'use std::process::Command as Run;\npub fn f() {\n    let _ = Run::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s02.rs" 'use std::process::{Command as Run, Stdio};\npub fn f() {\n    let _ = (Run::new("x"), Stdio::null());\n}\n'
   put "$work/starts-batch/src-tauri/src/s03.rs" 'pub fn f() {\n    let _ = std::process::Command::r#new("x");\n}\n'
@@ -1053,6 +1053,9 @@ EOF
   put "$work/starts-batch/src-tauri/src/s37.rs" 'mod inner {\n    #![cfg(test)]\n    fn t() {\n        let _ = std::process::Command::new("x");\n    }\n}\n'
   put "$work/starts-batch/src-tauri/src/s38.rs" '#[cfg(test)]\nfn t() {\n    let _ = std::process::Command::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s39.rs" 'mod y;\n'
+  put "$work/starts-batch/src-tauri/src/s40.rs" '#[cfg(test)]\nmod t {\n    /* a /* b */ } */\n    fn u() {\n        let _ = std::process::Command::new("x");\n    }\n}\n'
+  put "$work/starts-batch/src-tauri/src/s41.rs" 'mod inner {\n    #![cfg(test)]\n    mod kid;\n}\n'
+  put "$work/starts-batch/src-tauri/src/s41/inner/kid.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s39/y.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
   git -C "$work/starts-batch" add -A . >/dev/null 2>&1 || exit 2
   git -C "$work/starts-batch" update-index --chmod=+x src-tauri/src/s28.rs >/dev/null 2>&1 || exit 2
@@ -1099,6 +1102,9 @@ EOF
   found two-starts-on-one-line-count-twice "other=39"
   variant refusal-in-app crates/halvo-coord-app/tests/refusal.rs '#[test]\nfn refusal_hold_start() {}\n'
   check a-refusal-test-of-the-app-crate-that-did-not-run FAIL "FAIL $name (missing)" run_in refusal-in-app
+  fixture dirty
+  printf '// edited\n' >>"$work/dirty/src-tauri/src/main.rs" || exit 2
+  check a-tree-edited-outside-crates-before-the-tests PASS 'refusals=2' run_in dirty
   STUB_WRITE=$work/one/src-tauri/src/main.rs
   check a-test-run-that-changes-a-tracked-file-outside-crates FAIL "FAIL $name (changed)" run_one
   STUB_WRITE=$work/one/crates/halvo-coord/src/words.rs
