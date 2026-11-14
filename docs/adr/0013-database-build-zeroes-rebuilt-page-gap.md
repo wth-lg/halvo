@@ -86,6 +86,19 @@ in the draws of the tests", with the limits below.
 - The keyed draws get no byte search and no structural check: they read the
   rows back against the model and run the integrity check alone. The stores'
   own checks read the keyed layout (rulings ST-42 (2) and S-83 7 (b)).
+- A copy of a table by `INSERT INTO b SELECT * FROM a` takes the transfer path
+  (sqlite3BtreeTransferRow, lines 83309 and 83341, which write the payload
+  into the new cell and its overflow pages). VACUUM attaches an empty file
+  name (line 167703), which in this build is a temporary database held in
+  memory (SQLITE_TEMP_STORE is 2, and the stores set temp_store to MEMORY),
+  with the main database's secure delete (lines 131727 and 131728); it copies
+  each table into it by `INSERT ... SELECT` (line 167806), so line 83341 writes
+  into that database in memory, and then writes its pages into the file by
+  sqlite3BtreeCopyFile (line 167871). The database in memory is freed when
+  VACUUM ends and leaves no file of its own; the file then holds the pages
+  that it built. The tests page_gap::rewrites draw both, each with a control
+  with secure delete off, and search every file after each and after each
+  single removal of the copied or kept rows.
 - A database of this build has no auto-vacuum: the test
   `page_gap::pins::a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table`
   requires `PRAGMA auto_vacuum` to read 0 on a new file after its first table,

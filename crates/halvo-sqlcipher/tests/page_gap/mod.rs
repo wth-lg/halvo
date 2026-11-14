@@ -7,6 +7,7 @@ use rusqlite::{params, Connection};
 
 mod layout;
 mod pins;
+mod rewrites;
 mod rules;
 mod second_place;
 mod table;
