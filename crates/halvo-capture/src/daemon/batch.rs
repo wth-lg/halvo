@@ -180,7 +180,7 @@ impl Batch {
     }
 
     /// The first and the last capture instant of the records, in signed unix
-    /// nanoseconds.
+    /// nanoseconds; both 0 for an empty batch.
     pub fn captures(&self) -> (i64, i64) {
         (self.first_capture, self.last_capture)
     }
@@ -283,6 +283,8 @@ impl Batch {
         self.entries.clear();
         self.events = 0;
         self.day = None;
+        self.first_capture = 0;
+        self.last_capture = 0;
         self.opened_at = None;
         self.segment_id = None;
     }
@@ -759,6 +761,27 @@ mod tests {
             harness.store.batches().len() >= 2,
             "fewer than 2 batches in 11 s"
         );
+    }
+
+    #[test]
+    fn a_cleared_batch_has_no_capture_instants() {
+        let mut batch = Batch::with_capacity(64);
+        assert_eq!(batch.captures(), (0, 0));
+        batch.push(
+            EntryKind::of(Modality::Keystroke),
+            5,
+            b"0123456789",
+            Duration::from_secs(1),
+        );
+        batch.push(
+            EntryKind::of(Modality::Keystroke),
+            9,
+            b"0123456789",
+            Duration::from_secs(2),
+        );
+        assert_eq!(batch.captures(), (5, 9));
+        batch.clear();
+        assert_eq!(batch.captures(), (0, 0));
     }
 
     #[test]
