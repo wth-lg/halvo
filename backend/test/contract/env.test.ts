@@ -1,8 +1,11 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import statementsText from "../../test-kit/sql/statements.json?raw";
 import { AccountObject, stepOf } from "../../src/do/account-object.ts";
+import { AFTER_CLIENT_GONE_MS } from "../../src/gateway/stream.ts";
+import type { Price } from "../../src/ledger/index.ts";
 import type { Env } from "../../src/types.ts";
+import prices from "../../test-kit/prices/v1.json";
 
 type Statement = { query: string; bindings: (string | number | null)[]; rows: Record<string, string | number | null>[] };
 
@@ -66,5 +69,84 @@ test("the object turns its test methods on only when TEST_CLOCK is exactly 1", a
       const object = new AccountObject(state, { ...bindings, TEST_CLOCK: value } as Env);
       expect({ value, result: (await object.testInspect()).result }).toEqual({ value, result });
     }
+  });
+});
+
+const BOUND_CLOCK = Date.UTC(2030, 0, 1) + 1_237;
+const LOW: Price = { input: prices.low_cost_hosted.input, output: prices.low_cost_hosted.output };
+const realNow = Date.now;
+afterEach(() => {
+  Date.now = realNow;
+  vi.restoreAllMocks();
+});
+
+function consoleLines(): string[] {
+  const lines: string[] = [];
+  for (const method of ["log", "error", "warn", "info", "debug", "trace", "dir", "table"] as const) {
+    vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+      lines.push(`${method} ${args.map(String).join(" ")}`);
+    });
+  }
+  return lines;
+}
+
+test("contract 6, unit 4.9: the object refuses HOLD_LIFE_MS above 30,000 ms, which is AFTER_CLIENT_GONE_MS, and SYNC_INTERVAL_SECONDS above 86,400 s where it reads its settings, as numberVariable refuses a value that does not parse: one line bad-variable with the variable's name and an Error of that name, one above the bound, at 100000 and at the largest value that the parser takes, with TEST_CLOCK absent and with it 1; below the bound (5000 and 9000, whose first digits are larger than the bound's) and at each bound the object starts and writes no line, and its alarm stands at the open hold's expiry, 30,000 ms after a reserve at a clock of no whole second, and, after the hold settles, at the end of the 86,400 s interval that starts at the whole second of the seed", async () => {
+  expect(AFTER_CLIENT_GONE_MS).toBe(30_000);
+  const hash = "5d".repeat(32);
+  Date.now = () => BOUND_CLOCK;
+  for (const [name, bound] of [
+    ["HOLD_LIFE_MS", 30_000],
+    ["SYNC_INTERVAL_SECONDS", 86_400],
+  ] as const) {
+    for (const value of [String(bound + 1), "100000", "999999999999999"]) {
+      for (const testClock of [undefined, "1"]) {
+        const stub = bindings.ACCOUNT.get(bindings.ACCOUNT.newUniqueId());
+        await runInDurableObject(stub, async (_instance: AccountObject, state) => {
+          const lines = consoleLines();
+          let refused: unknown = null;
+          try {
+            new AccountObject(state, { ...bindings, TEST_CLOCK: testClock, [name]: value } as Env);
+          } catch (error) {
+            refused = error;
+          }
+          vi.restoreAllMocks();
+          expect({ name, value, testClock, refused: refused instanceof Error ? refused.name : refused, lines }).toEqual({
+            name,
+            value,
+            testClock,
+            refused: name,
+            lines: [`log {"event":"bad-variable","variable":"${name}"}`],
+          });
+          expect(await state.storage.getAlarm()).toBeNull();
+        });
+      }
+    }
+  }
+
+  for (const [hold, interval] of [
+    ["5000", "9000"],
+    ["30000", "86400"],
+  ] as const) {
+    await runInDurableObject(bindings.ACCOUNT.get(bindings.ACCOUNT.newUniqueId()), async (_instance: AccountObject, state) => {
+      const lines = consoleLines();
+      const object = new AccountObject(state, { ...bindings, HOLD_LIFE_MS: hold, SYNC_INTERVAL_SECONDS: interval } as Env);
+      vi.restoreAllMocks();
+      expect({ hold, interval, made: object instanceof AccountObject, lines }).toEqual({ hold, interval, made: true, lines: [] });
+    });
+  }
+
+  const stub = bindings.ACCOUNT.get(bindings.ACCOUNT.newUniqueId());
+  await runInDurableObject(stub, async (_instance: AccountObject, state) => {
+    const lines = consoleLines();
+    const object = new AccountObject(state, { ...bindings, TEST_CLOCK: "1", HOLD_LIFE_MS: "30000", SYNC_INTERVAL_SECONDS: "86400" } as Env);
+    expect(await object.testSeed({ accountId: "4d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a", hash, subscription: "active", customerId: "cus_test_bound", cap: { amount: 10, period: "week" } })).toEqual({ result: "seeded" });
+    Date.now = () => BOUND_CLOCK + 389;
+    expect(await object.reserve(hash, { requestId: "bound", tier: "low_cost_hosted", amount: 10_000, price: LOW })).toMatchObject({ outcome: "admitted" });
+    expect(await state.storage.getAlarm()).toBe(BOUND_CLOCK + 389 + 30_000);
+    expect(await object.dispatch("bound")).toBe("go");
+    expect(await object.settle("bound", { inputTokens: 7, outputTokens: 9 })).toMatchObject({ outcome: "settled" });
+    expect(await state.storage.getAlarm()).toBe(Date.UTC(2030, 0, 1) + 1_000 + 86_400_000);
+    vi.restoreAllMocks();
+    expect(lines).toEqual([]);
   });
 });
