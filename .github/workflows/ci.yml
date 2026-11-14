@@ -95,7 +95,8 @@ jobs:
           bin=${LOOP_BIN:-}
           if [ -z "$bin" ]; then
             built=$(cargo test --locked -p halvo-learn-store --lib --no-run 2>&1)
-            bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable unittests src\/lib.rs (\(.*\))$/\1/p' | tail -n 1)
+            bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable unittests src.lib\.rs (\(.*\))$/\1/p' | tail -n 1)
+            bin=${bin//\\//}
           fi
           found=no
           [ -n "$bin" ] && found=yes
@@ -173,7 +174,8 @@ jobs:
           bin=${LOOP_BIN:-}
           if [ -z "$bin" ]; then
             built=$(cargo test --locked -p halvo-learn-store --lib --no-run 2>&1)
-            bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable unittests src\/lib.rs (\(.*\))$/\1/p' | tail -n 1)
+            bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable unittests src.lib\.rs (\(.*\))$/\1/p' | tail -n 1)
+            bin=${bin//\\//}
           fi
           found=no
           [ -n "$bin" ] && found=yes
