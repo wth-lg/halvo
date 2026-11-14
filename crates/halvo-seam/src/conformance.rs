@@ -817,7 +817,7 @@ fn at_the_watermark<S: Subject>(
 /// `at` of the `keystroke` to that of the entry after it, the range from 1 ns after the `at` of the `keystroke`
 /// to the same end, and the first range with the kinds filter `keystroke`. A server fails that ends a ranged
 /// read at the first entry whose `at` is at or after the end of the range, or after it by less than the step
-/// of D, also only under a kinds filter or only from a position other than zero, or that ends it at the first
+/// of D, also only under a kinds filter of one name or only from a position other than zero, or that ends it at the first
 /// line of a Batch whose `at` is at or after the end, or that drops an entry whose `at` is below that of an
 /// entry that it served before, or that finds the first line of a range by a binary search over `at`, or that
 /// checks the start only until the first `at` at or after it.
