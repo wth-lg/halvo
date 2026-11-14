@@ -135,7 +135,20 @@ if [ "$code" -ne 0 ] || [ -n "$cdup" ]; then
   exit 1
 fi
 repo=$(pwd)
-tracked=$(own_git ls-files -- "$root" 2>/dev/null) || tracked=
+list_root=$root
+case $list_root in
+  "$repo"/*) list_root=${list_root#"$repo"/} ;;
+  "$repo") list_root=. ;;
+esac
+while :; do
+  case $list_root in
+    ./?*) list_root=${list_root#./} ;;
+    *//*) list_root=${list_root%%//*}/${list_root#*//} ;;
+    ?*/) list_root=${list_root%/} ;;
+    *) break ;;
+  esac
+done
+tracked=$(own_git -c core.quotePath=false ls-files -- "$list_root" 2>/dev/null) || tracked=
 
 inspect() {
   script_file=$1
@@ -225,8 +238,10 @@ inspect() {
       return 1
       ;;
   esac
+  list_file=$list_root/${script_file#"$root"/}
+  [ "$list_root" != . ] || list_file=${script_file#"$root"/}
   case $nl$tracked$nl in
-    *"$nl$script_file$nl"*) ;;
+    *"$nl$list_file$nl"*) ;;
     *)
       refusal='git does not track it'
       return 1
@@ -1179,6 +1194,30 @@ own_self_test() {
   case_witness=yes
   own_case untracked-script-under-a-ci.d-directory 1 "FAIL 20-planted ($untracked_refusal)" macos
   own_case rules-refuses-an-untracked-script 1 "FAIL 20-planted ($untracked_refusal)" --rules
+  plant='printf "PASS 20-planted\n"'
+  for spelling in dot-slash trailing-slash absolute outside-ascii; do
+    run_dir=r1
+    [ "$spelling" != outside-ascii ] || run_dir=$(printf 'r\303\251')
+    new_repo && add_script "$run_dir" 10-a.sh "$good" "$pass_a" &&
+      printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/$run_dir/ci.d/20-planted.sh"
+    case $spelling in
+      dot-slash) case_scripts=./scripts ;;
+      trailing-slash) case_scripts=scripts/ ;;
+      absolute) case_scripts=$fixture/scripts ;;
+    esac
+    case_witness=yes
+    case_absent="FAIL 10-a ($untracked_refusal)"
+    case_first='PASS 10-a'
+    case_then="FAIL 20-planted ($untracked_refusal)"
+    own_case "tracked-script-runs-and-untracked-script-is-refused-$spelling" 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  done
+  : >"$tmp/case-probe"
+  if [ -e "$tmp/CASE-PROBE" ]; then
+    new_repo && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit &&
+      mv "$fixture/scripts/r1" "$fixture/scripts/R1x" && mv "$fixture/scripts/R1x" "$fixture/scripts/R1"
+    case_witness=yes
+    own_case run-directory-renamed-by-case-alone-stays-refused 1 "FAIL 10-a ($untracked_refusal)" macos
+  fi
 
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 1'
   own_case pass-line-with-exit-1 1 'FAIL 10-a (exit 1)' macos
