@@ -541,6 +541,14 @@ disallowed-methods = [
 EOF
 }
 
+cargo_failed() {
+  perl -ne 'next unless /^(?:error|\s*-->)/; s{(?:^|(?<=[\s(=\x27"]))(?:[A-Za-z]:[\\/]|/)[^\s:"\x27()]+}{<path>}g; print' "$2"
+  if grep -q -e 'needs to be updated but --locked was passed' "$2"; then
+    fail lock
+  fi
+  fail "$1"
+}
+
 blobs() {
   label=$1
   shift
@@ -578,14 +586,14 @@ forbid_run() {
   cargo clippy "$@" --lib --bins --examples --all-features --locked -- -F clippy::disallowed_methods >"$artifacts/clippy-forbid.txt" 2>&1
   code=$?
   printf 'allow clippy with the lint forbidden: exit=%s\n' "$code"
-  [ "$code" -eq 0 ] || fail allow
+  [ "$code" -eq 0 ] || cargo_failed allow "$artifacts/clippy-forbid.txt"
 }
 
 tauri_features() {
   cargo tree -e normal --workspace --target all -i tauri --depth 0 --format '{f}' --locked \
     >"$artifacts/tauri-features.txt" 2>"$artifacts/tauri-tree.txt"
   code=$?
-  [ "$code" -eq 0 ] || fail tree
+  [ "$code" -eq 0 ] || cargo_failed tree "$artifacts/tauri-tree.txt"
   features=$(tr '\r\n' ',,' <"$artifacts/tauri-features.txt") || fail setup
   count=0
   unstable=no
@@ -612,7 +620,7 @@ child_starts() {
   cargo tree -e normal --target all -p halvo --prefix none --format '{p}' --locked \
     >"$artifacts/linked.txt" 2>"$artifacts/linked-tree.txt"
   code=$?
-  [ "$code" -eq 0 ] || fail tree
+  [ "$code" -eq 0 ] || cargo_failed tree "$artifacts/linked-tree.txt"
   blobs starts 'src-tauri/*.rs' 'crates/*.rs' src-tauri/Cargo.toml 'crates/*/Cargo.toml'
   perl "$scan" starts "$artifacts/starts.list" "$artifacts/starts.blobs" "$artifacts/starts.txt" \
     halvo "$artifacts/linked.txt" halvo-coord halvo-coord-app halvo-coord-store
@@ -665,7 +673,7 @@ measure() {
   code=$?
   printf 'cargo test exit=%s halvo-coord-app=%s\n' "$code" "$app"
   seconds tests
-  [ "$code" -eq 0 ] || fail cargo
+  [ "$code" -eq 0 ] || cargo_failed cargo "$log"
   git diff --binary >"$artifacts/tracked-after.txt" || fail setup
   cmp -s "$artifacts/tracked-before.txt" "$artifacts/tracked-after.txt" || fail changed
   tr -d '\r' <"$log" >"$lines" || fail setup
@@ -707,7 +715,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_CLIPPY_EXIT STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_CLIPPY_EXIT STUB_CLIPPY_TEXT STUB_TREE_TEXT STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
     "$@" 2>&1
   )
   code=$?
@@ -730,6 +738,8 @@ check() {
   fi
   STUB_EXIT=0
   STUB_CLIPPY_EXIT=0
+  STUB_CLIPPY_TEXT=
+  STUB_TREE_TEXT=
   STUB_TAURI_EXIT=0
   STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
@@ -833,11 +843,13 @@ if [ "$CI_D_JOB" = macos ] && [ "$*" != "$want" ]; then
 fi
 case $* in
   "$want")
+    printf '%b' "$STUB_CLIPPY_TEXT"
     exit "$STUB_CLIPPY_EXIT"
     ;;
   clippy*) exit 93 ;;
   'tree -e normal --workspace --target all -i tauri --depth 0 --format {f} --locked')
     printf '%s\n' "$STUB_TAURI"
+    printf '%b' "$STUB_TREE_TEXT" >&2
     exit "$STUB_TAURI_EXIT"
     ;;
   'tree -e normal --target all -p halvo --prefix none --format {p} --locked')
@@ -859,6 +871,8 @@ EOF
   STUB_ARGS=$work/args
   STUB_EXIT=0
   STUB_CLIPPY_EXIT=0
+  STUB_CLIPPY_TEXT=
+  STUB_TREE_TEXT=
   STUB_TAURI_EXIT=0
   STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
@@ -883,7 +897,13 @@ EOF
   batch=$out
   seen seconds-of-the-forbid-run-in-the-macos-job 'part forbid seconds='
   STUB_CLIPPY_EXIT=101
-  check macos-job-forbid-run-fails FAIL "FAIL $name (allow)" run_mac app
+  STUB_CLIPPY_TEXT='    Checking halvo-coord v0.0.0 (/fixture/abs/crates/halvo-coord)\nerror: use of a disallowed method \0140std::process::Command::new\0140\n --> crates/halvo-coord/src/lib.rs:3:13\nerror: could not compile \0140halvo-coord\0140 (lib) due to 1 previous error\n'
+  check macos-job-forbid-run-fails FAIL " --> crates/halvo-coord/src/lib.rs:3:13" run_mac app
+  STUB_CLIPPY_EXIT=101
+  STUB_CLIPPY_TEXT='error: the lock file /fixture/abs/Cargo.lock needs to be updated but --locked was passed to prevent this\n'
+  check a-lockfile-mismatch-in-the-macos-job FAIL "FAIL $name (lock)" run_mac app
+  batch=$out
+  seen a-cargo-error-prints-no-absolute-path 'error: the lock file <path> needs to be updated'
   check a-job-that-is-neither FAIL "FAIL $name (usage)" \
     env CI_D_JOB=linux CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-linux" sh "$here/$name.sh"
   if [ "$job" = macos ]; then
@@ -967,6 +987,9 @@ EOF
   check tauri-with-unstable FAIL "FAIL $name (tauri)" run_one
   STUB_TAURI_EXIT=101
   check cargo-tree-of-tauri-fails FAIL "FAIL $name (tree)" run_one
+  STUB_TAURI_EXIT=101
+  STUB_TREE_TEXT='error: the lock file /fixture/abs/Cargo.lock needs to be updated but --locked was passed to prevent this\n'
+  check a-lockfile-mismatch-in-the-windows-job FAIL "FAIL $name (lock)" run_one
   STUB_LINKED_EXIT=101
   check cargo-tree-of-the-app-fails FAIL "FAIL $name (tree)" run_one
 
