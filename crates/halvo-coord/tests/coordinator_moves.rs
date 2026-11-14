@@ -5984,3 +5984,118 @@ fn rd80_a_hide_forgets_the_report_of_a_shown_item_and_keeps_an_armed_one() {
         "an armed item stays armed"
     );
 }
+
+/// The review's case, kept: RD-52 (b) rule 3: a run's request whose own log meets a refusal seq and whose read after it brings a stored switch-off does the rest of the switch-off before anything else it would store for that agent, so no item_raised row of that request is stored, the run is stopped with one cancel, paused is sent once and no card shows; a pass means on_run holds the rule for a handback, a confirmation and a second step.
+
+#[test]
+fn rd52b_rule3_a_request_whose_seq_read_brings_a_stored_switch_off_stores_no_item_of_it() {
+    use halvo_coord::types::AgentState;
+    for way in ["stuck", "confirm", "second_step"] {
+        for order in UNSEEN {
+            let case = format!("{way} {order:?}");
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            lose_the_holds_reply(&c, order);
+            assert_eq!(
+                c.control(&agent(0), Action::SwitchOff),
+                Err(Cause::NoService),
+                "{case}: the switch-off does not see its hold"
+            );
+            c.ports().loss.set(None);
+            let lost: Vec<halvo_coord::types::Event> =
+                c.ports().lost.borrow_mut().drain(..).collect();
+            c.ports().ports.events.borrow_mut().extend(lost);
+            assert_eq!(hold_sets(&c, 0), 1, "{case}: the owner holds the hold");
+            let raised_before = events(&c)
+                .iter()
+                .filter(|w| matches!(w, What::ItemRaised { .. }))
+                .count();
+            let m = mark(&c);
+            let event = match way {
+                "stuck" => handback(&run, 0, HandbackReason::StepFailed),
+                "confirm" => ask_confirm(&run, 0),
+                _ => bind(&run, 0),
+            };
+            let _ = c.on_run(&run, event);
+            let raised_after = events(&c)
+                .iter()
+                .filter(|w| matches!(w, What::ItemRaised { .. }))
+                .count();
+            assert_eq!(
+                raised_after, raised_before,
+                "{case}: no item_raised row is stored after the read that showed the hold"
+            );
+            assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+            assert_eq!(
+                states_sent(&c, m),
+                [AgentState::Paused],
+                "{case}: paused once"
+            );
+            assert!(c.snapshot().items.is_empty(), "{case}: no card");
+            assert_eq!(hold_sets(&c, 0), 1, "{case}: no second hold_set");
+        }
+    }
+}
+
+/// The review's case, kept: RD-52 (b) rule 3: a tick is a move that does the rest of a switch-off only where a log of its own caused the read, so a tick that logs nothing for agent 0 (no wait limit, no arm, nothing waiting) leaves a waiting run beside an unseen stored switch-off alone: no cancel, no lapse, no set_state, the card open; a pass means the tick holds the rule for a handback, a confirmation and a second step.
+
+#[test]
+fn rd52b_rule3_a_tick_with_no_log_of_its_own_does_not_stop_the_run_of_an_unseen_switch_off() {
+    for way in ["stuck", "confirm", "second_step"] {
+        for order in UNSEEN {
+            let case = format!("{way} {order:?}");
+            let (c, run, item) = waiting(way);
+            switched_off_unseen(&c, &item, order, &case);
+            let m = mark(&c);
+            c.tick();
+            assert_eq!(cancels_of(&c, m, &run), 0, "{case}: no cancel");
+            assert!(states_sent(&c, m).is_empty(), "{case}: no set_state");
+            assert_eq!(closing_rows(&c, &item), 0, "{case}: no lapse");
+            assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+            assert_ne!(
+                row_line(&c.snapshot(), 0),
+                text("line.working.stopping"),
+                "{case}: the run is not stopping"
+            );
+        }
+    }
+}
+
+/// The review's case, kept: RD-52 (b) rule 3: a tick whose own log (the flush of agent 0's waiting item_raised row) meets a refusal seq and whose read brings an unseen stored switch-off does the rest of the switch-off before anything else it stores for that agent, so the open item, though past its wait limit in the same tick, lapses with cancelled, the run gets one cancel and paused is sent once; a pass means the tick's later stages do not lapse the item with wait_limit first.
+
+#[test]
+fn rd52b_rule3_a_ticks_flush_read_that_brings_a_switch_off_stops_before_the_wait_limit() {
+    use halvo_coord::types::AgentState;
+    for order in UNSEEN {
+        let case = format!("{order:?}");
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.ports().ports.refuse(Method::Log, PortError::NoService);
+        let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+        c.ports().ports.clear_refusals();
+        let (item, _) = open_item(&c);
+        assert_eq!(
+            closing_rows(&c, &item),
+            0,
+            "{case}: setup: the item is open and its row waits in the ledger"
+        );
+        switched_off_unseen(&c, &item, order, &case);
+        c.ports()
+            .ports
+            .set_clock(T0 + Limits::PRODUCT.wait_limit_s * 1000, DAY);
+        let m = mark(&c);
+        c.tick();
+        assert_eq!(
+            step_rows(&c, &item),
+            ["lapsed:cancelled"],
+            "{case}: the switch-off's lapse, not the wait limit's"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+        assert_eq!(
+            states_sent(&c, m),
+            [AgentState::Paused],
+            "{case}: paused once"
+        );
+        assert_eq!(hold_sets(&c, 0), 1, "{case}: no second hold_set");
+    }
+}

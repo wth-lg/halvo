@@ -141,6 +141,49 @@ fn reachable<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
         .map(|r| r.run.clone())
 }
 
+/// The coordinator's read of an agent's events inside an items move, which the items drive calls
+/// after a refusal `seq` or a log with no acknowledgement (rulings RD-52 (b) rule 3, (c) rule
+/// 1): it takes the owner's events into the board's facts and the ledger, and gives `Off` where
+/// they first show the agent's hold `off` beside its live run that no stop has reached, so that
+/// the move stops the run first and stores nothing more for that agent.
+struct Reading<'a, P, C> {
+    ports: &'a P,
+    board: &'a mut Board<C>,
+    i: usize,
+    off_before: bool,
+    made: bool,
+    stopped: bool,
+}
+
+impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
+    fn new(ports: &'a P, board: &'a mut Board<C>, i: usize) -> Reading<'a, P, C> {
+        let off_before = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        Reading {
+            ports,
+            board,
+            i,
+            off_before,
+            made: false,
+            stopped: false,
+        }
+    }
+
+    fn read(&mut self, l: &mut Ledger) -> items::Read {
+        self.made = true;
+        let facts = &mut self.board.members[self.i].facts;
+        let read = schedule::resync(self.ports, &facts.agent, &mut facts.events);
+        l.take(&facts.events);
+        let agent = facts.agent.clone();
+        let off = schedule::holds(facts).contains(&schedule::Hold::Off);
+        self.stopped = !self.off_before && off && reachable(self.board, &agent).is_some();
+        match (read, self.stopped) {
+            (Err(_), _) => items::Read::Failed,
+            (Ok(()), true) => items::Read::Off,
+            (Ok(()), false) => items::Read::Taken,
+        }
+    }
+}
+
 /// The parts of the state that the lapse of a run's open item writes, beside the board.
 struct Parts<'a> {
     table: &'a mut Table,
@@ -219,7 +262,7 @@ where
             let _ = self.act(&mut st, Act::QuitTick);
         } else {
             let before = Self::offs(&st);
-            self.tick_in(&mut st);
+            self.tick_in(&mut st, &before);
             self.after_reads(&mut st, &before);
         }
         self.publish(&mut st);
@@ -243,13 +286,24 @@ where
         }
     }
 
-    fn tick_in(&self, st: &mut State<Cfg<P>>) {
+    /// The stages of a tick (I5.9). A switch-off that the read after the tick's own flush first
+    /// shows is done right after that read, before the tick's other stages store or send
+    /// anything for that agent (ruling RD-52 (b) rule 3); `before` are the agents that stood off
+    /// before the tick.
+    fn tick_in(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
         if st.board.is_none() {
             match run::recover(&self.ports, &self.limits) {
                 Ok(life) => st.board = Some(life.board),
                 Err(_) => return,
             }
         }
+        {
+            let State { board, ledgers, .. } = &mut *st;
+            let Some(board) = board.as_mut() else { return };
+            schedule::drive(&self.ports, board, &self.limits, Move::Create);
+            self.flush_ledgers(board, ledgers);
+        }
+        self.after_reads(st, before);
         let State {
             board,
             table,
@@ -263,8 +317,6 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
-        schedule::drive(&self.ports, board, &self.limits, Move::Create);
-        self.flush_ledgers(board, ledgers);
         let done = run::drive(&self.ports, board, table, &self.limits, Act::Tick);
         for workflow in &done.gone {
             for m in board
@@ -400,8 +452,11 @@ where
                 }
             }
             let l = ledger(ledgers, &board.members[i].facts);
+            let before = (l.last(), l.waiting().len());
             let _ = items::tick(&self.ports, l, table, h, &self.limits);
-            self.read_back(board, i);
+            if (l.last(), l.waiting().len()) != before {
+                self.read_back(board, i);
+            }
         }
         held.retain(|h| h.confirmation().state().is_open());
     }
@@ -553,8 +608,23 @@ where
                             return Err(Cause::State);
                         };
                         let l = ledger(ledgers, &board.members[i].facts);
-                        let open = items::raise_run_item(&self.ports, l, &self.limits, run, kind)?;
-                        self.read_back(board, i);
+                        let mut reading = Reading::new(&self.ports, board, i);
+                        let raised = items::raise_run_item_reading(
+                            &self.ports,
+                            l,
+                            &self.limits,
+                            run,
+                            kind,
+                            &mut |l| reading.read(l),
+                        );
+                        let (made, stopped) = (reading.made, reading.stopped);
+                        if stopped {
+                            return self.stopped_at_raise(st, i);
+                        }
+                        let open = raised?;
+                        if !made {
+                            self.read_back(board, i);
+                        }
                         st.waits.push(Waited {
                             run: run.clone(),
                             agent: agent.clone(),
@@ -603,8 +673,18 @@ where
             return Err(Cause::State);
         };
         let l = ledger(ledgers, &board.members[i].facts);
-        let h = items::issue(&self.ports, l, table, &self.limits, ask)?;
-        self.read_back(board, i);
+        let mut reading = Reading::new(&self.ports, board, i);
+        let issued = items::issue_reading(&self.ports, l, table, &self.limits, ask, &mut |l| {
+            reading.read(l)
+        });
+        let (made, stopped) = (reading.made, reading.stopped);
+        if stopped {
+            return self.stopped_at_raise(st, i);
+        }
+        let h = issued?;
+        if !made {
+            self.read_back(board, i);
+        }
         if !h.confirmation().state().is_open() {
             return Ok(());
         }
@@ -643,8 +723,19 @@ where
             return Err(Cause::State);
         };
         let l = ledger(ledgers, &board.members[i].facts);
-        let b = items::raise_bind(&self.ports, l, table, &self.limits, ask)?;
-        self.read_back(board, i);
+        let mut reading = Reading::new(&self.ports, board, i);
+        let raised =
+            items::raise_bind_reading(&self.ports, l, table, &self.limits, ask, &mut |l| {
+                reading.read(l)
+            });
+        let (made, stopped) = (reading.made, reading.stopped);
+        if stopped {
+            return self.stopped_at_raise(st, i);
+        }
+        let b = raised?;
+        if !made {
+            self.read_back(board, i);
+        }
         let item = b.item().clone();
         binds.push(b);
         self.act(
@@ -815,6 +906,19 @@ where
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
+    }
+
+    /// A run's request whose raise met a read that first shows the agent switched off beside the
+    /// run (RD-52 (b) rule 3): no item is raised, the rest of the switch-off stops the run in this
+    /// move, and the request is answered `state`, as a request that ends its run.
+    fn stopped_at_raise(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        let agent = st
+            .board
+            .as_ref()
+            .map(|b| b.members[i].facts.agent.clone())
+            .ok_or(Cause::State)?;
+        self.off(st, i, Move::Off { agent })?;
+        Err(Cause::State)
     }
 
     /// The agents whose hold `off` stands in the board's events.
@@ -1056,26 +1160,7 @@ where
                         .map(|(_, a)| a.clone())
                         .ok_or(Cause::State)?;
                     let l = ledger(ledgers, &board.members[i].facts);
-                    let off = |facts: &Facts<Cfg<P>>| {
-                        schedule::holds(facts).contains(&schedule::Hold::Off)
-                    };
-                    let off_before = off(&board.members[i].facts);
-                    let mut read_once = false;
-                    let mut stopped = false;
-                    let mut read = |l: &mut Ledger| {
-                        read_once = true;
-                        let facts = &mut board.members[i].facts;
-                        let read = schedule::resync(&self.ports, &facts.agent, &mut facts.events);
-                        l.take(&facts.events);
-                        stopped = !off_before
-                            && off(&board.members[i].facts)
-                            && reachable(board, &agent).is_some();
-                        match (read, stopped) {
-                            (Err(_), _) => items::Read::Failed,
-                            (Ok(()), true) => items::Read::Off,
-                            (Ok(()), false) => items::Read::Taken,
-                        }
-                    };
+                    let mut reading = Reading::new(&self.ports, board, i);
                     let out = items::answer_handback_reading(
                         &self.ports,
                         l,
@@ -1083,9 +1168,10 @@ where
                         item,
                         &ask,
                         choice,
-                        &mut read,
+                        &mut |l| reading.read(l),
                     );
-                    if !read_once {
+                    let (made, stopped) = (reading.made, reading.stopped);
+                    if !made {
                         self.read_back(board, i);
                     }
                     if stopped {

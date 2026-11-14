@@ -405,6 +405,67 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
     Ok(())
 }
 
+/// `flush` whose one read after a refusal `seq` is `read`: false where that read showed the
+/// agent switched off beside its run, after which nothing more is sent (ruling RD-52 (b) rule 3);
+/// a read that failed is the refusal.
+fn flush_reading<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<bool, PortError> {
+    let mut resynced = false;
+    while !ledger.waiting.is_empty() {
+        let n = body_len(&ledger.waiting, limits);
+        match ports.log(&ledger.waiting[..n]) {
+            Ok(()) => {
+                ledger.last = ledger.waiting[n - 1].seq.get();
+                let sent: Vec<Event> = ledger.waiting.drain(..n).collect();
+                ledger.kept(&sent);
+            }
+            Err(e) if refused_with(&e, "seq") && !resynced => {
+                resynced = true;
+                match read(ledger) {
+                    Read::Failed => return Err(e),
+                    Read::Off => return Ok(false),
+                    Read::Taken => {}
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(true)
+}
+
+/// The ledger's own read, for the functions that the coordinator does not hand its read.
+fn own_read<P: Owner>(ports: &P, ledger: &mut Ledger) -> Read {
+    resync(ports, ledger).map_or(Read::Failed, |()| Read::Taken)
+}
+
+/// Stores the raise `row` as `store` does, with `read` as the read after a refusal `seq`. Where
+/// that read shows the agent switched off beside its run, the row leaves the ledger unsent and
+/// the answer is `state`, so that the item is not raised (ruling RD-52 (b) rule 3); any other
+/// failure leaves the row waiting, as `store` does.
+fn store_raise<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    row: What,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<(), Cause> {
+    let Ok(stamp) = Stamp::read(ports) else {
+        return Ok(());
+    };
+    let events = ledger.number(vec![row.clone()], stamp);
+    ledger.waiting.extend(events);
+    if let Ok(false) = flush_reading(ports, ledger, limits, read) {
+        ledger.waiting.retain(|e| e.what != row);
+        ledger.renumber();
+        return Err(Cause::State);
+    }
+    Ok(())
+}
+
 /// Stores the events after the waiting ones, at the instant and on the day of one read of the
 /// clock; an event that gets no acknowledgement waits and goes again with the next write or
 /// `flush`.
@@ -653,6 +714,21 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
     limits: &Limits,
     ask: &ConfirmAsk,
 ) -> Result<Held, Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    issue_reading(ports, ledger, table, limits, ask, &mut read)
+}
+
+/// `issue` with `read` as the read after a refusal `seq` of its `item_raised` row, which the
+/// coordinator hands: a read that shows the agent switched off beside its run issues nothing and
+/// answers `state` (ruling RD-52 (b) rule 3).
+pub fn issue_reading<P: Owner + Runs + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    ask: &ConfirmAsk,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<Held, Cause> {
     let late = ask
         .effects()
         .iter()
@@ -686,7 +762,7 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
         item,
         raised: Raised::Confirm(ask.run().clone()),
     };
-    let _ = store(ports, ledger, limits, vec![raised]);
+    store_raise(ports, ledger, limits, raised, read)?;
     Ok(held)
 }
 
@@ -993,6 +1069,21 @@ pub fn raise_run_item<P: Owner + Clock + Rng>(
     run: &RunId,
     kind: RunItemKind,
 ) -> Result<RunItem, Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    raise_run_item_reading(ports, ledger, limits, run, kind, &mut read)
+}
+
+/// `raise_run_item` with `read` as the read after a refusal `seq` of its row, which the
+/// coordinator hands: a read that shows the agent switched off beside its run raises nothing and
+/// answers `state` (ruling RD-52 (b) rule 3).
+pub fn raise_run_item_reading<P: Owner + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    run: &RunId,
+    kind: RunItemKind,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<RunItem, Cause> {
     let raised = match kind {
         RunItemKind::SignIn => Raised::SignIn(run.clone()),
         RunItemKind::LinkAccount => Raised::LinkAccount(run.clone()),
@@ -1006,7 +1097,7 @@ pub fn raise_run_item<P: Owner + Clock + Rng>(
         item: item.clone(),
         raised,
     };
-    let _ = store(ports, ledger, limits, vec![row]);
+    store_raise(ports, ledger, limits, row, read)?;
     Ok(RunItem { item, kind })
 }
 
@@ -1050,7 +1141,7 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     ask: &HandbackAsk,
     choice: Choice,
 ) -> Result<(), Cause> {
-    let mut read = |l: &mut Ledger| resync(ports, l).map_or(Read::Failed, |()| Read::Taken);
+    let mut read = |l: &mut Ledger| own_read(ports, l);
     answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
 }
 
@@ -1184,6 +1275,21 @@ pub fn raise_bind<P: Owner + Clock + Rng>(
     limits: &Limits,
     ask: &BindAsk,
 ) -> Result<HeldBind, Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    raise_bind_reading(ports, ledger, table, limits, ask, &mut read)
+}
+
+/// `raise_bind` with `read` as the read after a refusal `seq` of its `item_raised` row, which
+/// the coordinator hands: a read that shows the agent switched off beside its run raises nothing
+/// and answers `state` (ruling RD-52 (b) rule 3).
+pub fn raise_bind_reading<P: Owner + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    ask: &BindAsk,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<HeldBind, Cause> {
     if table.is_stopped(&ask.run) {
         return Err(Cause::State);
     }
@@ -1193,7 +1299,7 @@ pub fn raise_bind<P: Owner + Clock + Rng>(
         item: item.clone(),
         raised: Raised::SignIn(ask.run.clone()),
     };
-    let _ = store(ports, ledger, limits, vec![raised]);
+    store_raise(ports, ledger, limits, raised, read)?;
     Ok(HeldBind {
         item,
         ask: ask.clone(),
