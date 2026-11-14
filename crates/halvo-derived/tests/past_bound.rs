@@ -872,3 +872,106 @@ fn the_interface_read_leaves_rows_past_their_bound_out_of_summaries_and_evidence
         "(support ids, (evidence page, a next)) on DAY, on DAY + 1 after summary 1, and on DAY + 43"
     );
 }
+
+/// What a handler of `Items` read: the support ids of the workflow's item and the evidence page's summary ids, in
+/// front before it passes the request on, behind, and in front again.
+type ItemReads = Rc<RefCell<Vec<(&'static str, usize, usize)>>>;
+
+/// A runner handler that reads the item of the workflow in `workflow` and its first evidence page, and, where
+/// `front` is set, passes the request on and reads both again.
+struct Items {
+    front: bool,
+    workflow: Rc<RefCell<Option<WorkflowId>>>,
+    seen: ItemReads,
+}
+
+impl Items {
+    fn read(&self, cx: &HandlerCx<'_>, at: &'static str) {
+        let w = self.workflow.borrow().clone().unwrap();
+        let summaries = cx.workflow(&w).unwrap().unwrap().summaries.len();
+        let evidence = cx.evidence(&w, None).unwrap().evidence.len();
+        self.seen.borrow_mut().push((at, summaries, evidence));
+    }
+}
+
+impl Handler for Items {
+    fn handle(&self, _r: &RawRequest, cx: &mut HandlerCx<'_>) -> Result<Box<RawValue>, ErrorName> {
+        if self.front {
+            self.read(cx, "front");
+            cx.pass_on()?;
+            self.read(cx, "front again");
+        } else {
+            self.read(cx, "behind");
+        }
+        Ok(RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+/// H3, C25.5: a handler's workflow read and evidence read take the one reading of the host's clock that the handled
+/// request took at its start. With a clock that steps over the day of going of the workflow's one summary at each
+/// reading, every `workflow` and `evidence` call of one request, in front and behind, still hands out the summary
+/// and its evidence row, and the request reads the clock once.
+#[test]
+fn a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_request() {
+    let scratch = Scratch::new("handler-item-one-reading");
+    let clock = SteppingClock {
+        at: Rc::new(Cell::new(i64::from(DAY) * DAY_NS + NOON)),
+        step: Rc::new(Cell::new(0)),
+        readings: Rc::new(Cell::new(0)),
+    };
+    let fixed = Rc::new(RefCell::new(vec![over(&[1])]));
+    let workflow = Rc::new(RefCell::new(None));
+    let seen: ItemReads = Rc::new(RefCell::new(Vec::new()));
+    let items = |front| {
+        Box::new(Items {
+            front,
+            workflow: Rc::clone(&workflow),
+            seen: Rc::clone(&seen),
+        })
+    };
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))))
+        .handler("test", Takes::Runner, items(true))
+        .handler("test", Takes::Runner, items(false));
+    let mut store = open_entries(&scratch, host, &Bound::Unchanged.entries()).unwrap();
+    let mut first = episode(1, DAY - 92, None);
+    first.expires = Instant(FAR);
+    store
+        .commit_batch(&store_id(1), &[first], position(1, 0), &mut Seq(1))
+        .unwrap();
+    fixed.borrow_mut().clear();
+    let id = match store
+        .interface_read(&InterfaceRead::workflows(
+            &InterfaceRole::claim(),
+            RequestId::from_random([8; 16]),
+            None,
+        ))
+        .unwrap()
+    {
+        ReplyResult::Workflows(page) => page.workflows[0].workflow.id().clone(),
+        other => panic!("no workflows page: {other:?}"),
+    };
+    *workflow.borrow_mut() = Some(id);
+    let deadline = i64::from(DAY + 1) * DAY_NS;
+    clock.step.set(1);
+    clock.at.set(deadline - 1);
+    clock.readings.set(0);
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    let one_request = (seen.borrow().clone(), clock.readings.get());
+    seen.borrow_mut().clear();
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    drop(store);
+    assert_eq!(
+        one_request,
+        (
+            vec![("front", 1, 1), ("behind", 1, 1), ("front again", 1, 1)],
+            1
+        ),
+        "(support ids and evidence rows read in front, behind and in front again; readings of the clock) in a \
+         request that started one nanosecond before the day of going"
+    );
+    assert_eq!(
+        *seen.borrow(),
+        vec![("front", 0, 0), ("behind", 0, 0), ("front again", 0, 0)],
+        "the next request starts after the day of going"
+    );
+}

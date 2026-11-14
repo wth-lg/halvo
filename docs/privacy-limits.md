@@ -116,3 +116,18 @@ system; until then they are the recommended text.
   store-3 and daemon-3 make it true.
 
 docs-2 confirms each sentence of this section against the merged code.
+
+## What the derived store keeps after a removal
+
+Note of 2026-11-13: when Halvo removes something from what it has learned about your
+work (because it expired, because the recording behind it was removed, or because you
+dismissed or deleted a workflow), a copy of the removed text can remain inside Halvo's
+encrypted data file, with no time limit, until Halvo happens to reuse that space. The
+same holds for an earlier value that Halvo replaced in place, as when you approve a
+workflow or a later batch changes one. Any program that runs under your account can
+find it there, and on a Mac so can anyone who has a copy of Halvo's whole data folder;
+someone who has only the file cannot read it. A delete of everything that removes the
+folder derived/ with its key leaves no such copy; no code of this version does that.
+The mend is Halvo's own build of the database, which zeroes that space: the capture
+run's unit sqlcipher-1 builds it (ruling S-82). U5.2 of the workflow run deletes this
+note, when the mended build of the database and its test are on main.

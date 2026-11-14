@@ -1,4 +1,5 @@
 #![cfg(target_os = "macos")]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 mod common;
 
@@ -20,20 +21,31 @@ const SIG_DFL: usize = 0;
 /// Alone in its test binary, because it makes the system reap every child of the process.
 #[test]
 fn a_runner_that_the_system_reaped_gets_no_signal_to_its_group() {
+    // SAFETY: signal sets SIGCHLD to SIG_IGN for this whole process, which is alone in its binary, so the system
+    // reaps every child of it; no handler is installed, so no code runs on the signal.
     unsafe {
         signal(SIGCHLD, SIG_IGN);
     }
     let rig = Rig::new("sigchld-ignored");
-    let script = rig.script(&["hello", "child", "sleep 300", "exit 1"]);
+    *rig.store.hold_end_run.lock().unwrap() = true;
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "child",
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     let started = rig.sup.start(spec);
     let runner = rig.mark(&run).and_then(|m| m.runner);
+    *rig.store.hold_end_run.lock().unwrap() = false;
     let child_seen = wait_until(SHORT, || !script.logged("child").is_empty());
     let child = script.logged("child").first().copied();
     let runner_gone = runner.is_some_and(|r| wait_until(SHORT, || line_gone(&r)));
     let ended = rig.rec.wait_end(&run, Duration::from_secs(60)).is_some();
     let child_alive_after_end = child.is_some_and(|(p, c)| !gone(p, c));
+    // SAFETY: signal sets SIGCHLD back to SIG_DFL for this whole process, which is alone in its binary; no handler
+    // is installed, so no code runs on the signal.
     unsafe {
         signal(SIGCHLD, SIG_DFL);
     }

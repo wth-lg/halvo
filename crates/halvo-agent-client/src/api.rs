@@ -131,6 +131,38 @@ pub struct RunEnd {
     pub end_run: EndRun,
 }
 
+/// How a runner's process ended, as the system gave it to the library when the library reaped it: the status that
+/// it exited with, of which 2 is a refusal (A0.3), or on macOS the signal that ended it. A runner that the library
+/// ended exits by the signal SIGKILL on macOS and with the status 1 on Windows; a runner that the system reaped for
+/// the library's process, as it does for a process that ignores SIGCHLD on macOS, leaves the library no status. On
+/// Windows the status 1 is what a runner gives that the library ended and what a runner gives that exits with 1 by
+/// itself: the two cannot be told apart there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunnerExit {
+    /// The runner exited with this status.
+    Status(i32),
+    /// A signal of this number ended the runner (macOS).
+    #[cfg_attr(
+        all(windows, not(test)),
+        expect(dead_code, reason = "no signal ends a process on Windows")
+    )]
+    Signal(i32),
+}
+
+impl RunnerExit {
+    /// Whether the runner refused: it exited with the status 2.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
+        )
+    )]
+    pub fn is_refusal(self) -> bool {
+        self == RunnerExit::Status(2)
+    }
+}
+
 /// The calls before a runner starts and after it has ended, however it ended.
 pub trait MarkSink: Send + Sync {
     fn start(&self, run: &RunId);
@@ -149,6 +181,31 @@ pub struct Parts {
 
 /// Where the library keeps its marks, the runner binary that it starts, how long a start waits, and how long a
 /// runner whose link closed has to end by itself before the library ends what is left.
+///
+/// The library starts the runner with three of its handles or descriptors open in it and no other: the two ends of
+/// the link as the runner's standard input and output, and the null device as its standard error, which nobody
+/// reads. On Windows the runner gets a console of its own that shows no window, which a process that it starts
+/// without a console flag of its own shares, so the runner starts attached to no console of the library's process;
+/// a runner under the library's token can still attach itself to a console of the library's process by that
+/// process's number, as it can open its parent process. A process that another thread of the library's process
+/// starts in the moment in which a runner is started, by another start, the standard library's among them, can hold
+/// the ends of the runner's link: on Windows while the three handles are inheritable for the start, on macOS between
+/// the making of a pipe and its close-on-exec flag. While the run lives, such a process can read and write the
+/// frames of the link. The library cannot keep such a process out. What bounds it: the library ends a runner
+/// `link_end` after it closed the link, whether or not the runner saw the end of its input, and it takes a runner's
+/// end from its process and not from the end of its output alone. The library closes the link of a run `link_end`
+/// after the run's `finish` was stored when its runner has not ended by then, and from that close the runner has
+/// `link_end`, as after any close. The library reads that bound between two events of the run: a call of its
+/// caller in which it waits, such as `Confirmer::answers` for a `confirm` frame that a runner sends after its
+/// stored `finish`, is not cut short by it, and the close comes once that call has returned.
+/// The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
+/// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
+/// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them
+/// for the account of the library's token, `TEMP` and `TMP` the directory Temp under its LocalAppData known folder.
+/// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
+/// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
+/// `data_dir` and the paths of a `RunSpec` must be absolute; `absolute_paths` names the first that is not, and
+/// `Supervisor::start` does not call it yet.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub data_dir: PathBuf,
@@ -167,6 +224,45 @@ impl Config {
             link_end: LINK_END,
         }
     }
+}
+
+/// A path of a start that is not absolute, named by what it is (ruling CP-160 (1) (e)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelativePath {
+    /// `Config::runner`, the runner binary.
+    Runner,
+    /// `RunSpec::browser`, which the library passes on as `--browser`.
+    Browser,
+    /// `RunSpec::model`, which the library passes on as `--model`.
+    Model,
+    /// `Config::data_dir`.
+    DataDir,
+}
+
+/// Refuses a start whose runner path, `--browser`, `--model` or data directory is not absolute, naming the first of
+/// them in that order: the runner works in the system's directory and not in the library's, where a relative path
+/// names another file. `Supervisor::start` does not call it yet; until it does, a relative path reaches the runner
+/// as its caller gave it.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "its call at the top of Supervisor::start is the first line of the next unit of src/supervisor.rs"
+    )
+)]
+pub fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
+    let paths = [
+        (Some(&config.runner), RelativePath::Runner),
+        (Some(&spec.browser), RelativePath::Browser),
+        (spec.model.as_ref(), RelativePath::Model),
+        (Some(&config.data_dir), RelativePath::DataDir),
+    ];
+    for (path, name) in paths {
+        if path.is_some_and(|p| !p.is_absolute()) {
+            return Err(name);
+        }
+    }
+    Ok(())
 }
 
 /// The answer of `reap` for one mark.
@@ -190,6 +286,119 @@ pub struct ReapAnswer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    const ROOT: &str = "/halvo";
+    #[cfg(windows)]
+    const ROOT: &str = r"C:\halvo";
+
+    fn absolute(name: &str) -> PathBuf {
+        PathBuf::from(ROOT).join(name)
+    }
+
+    fn spec(browser: PathBuf, model: Option<PathBuf>) -> RunSpec {
+        RunSpec {
+            run: RunId::from_random([1; 16]),
+            agent: AgentId::from_random([2; 16]),
+            workflow: WorkflowId::from_random([3; 16]),
+            mode: Mode::Replay,
+            browser,
+            model,
+            headed: false,
+        }
+    }
+
+    fn config(data_dir: PathBuf, runner: PathBuf) -> Config {
+        Config::new(data_dir, runner)
+    }
+
+    #[test]
+    fn a_start_whose_paths_are_all_absolute_passes_with_a_model_and_without() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(absolute_paths(&c, &spec(absolute("browser"), None)), Ok(()));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), Some(absolute("model")))),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn of_the_ends_of_a_runner_the_status_2_alone_is_a_refusal() {
+        for status in [0, 1, 3, 255] {
+            assert!(
+                !RunnerExit::Status(status).is_refusal(),
+                "the status {status} is no refusal"
+            );
+        }
+        assert!(RunnerExit::Status(2).is_refusal(), "the status 2 is one");
+        for signal in [2, 9] {
+            assert!(
+                !RunnerExit::Signal(signal).is_refusal(),
+                "the signal {signal} is no refusal"
+            );
+        }
+    }
+
+    #[test]
+    fn a_relative_runner_path_is_refused() {
+        let c = config(absolute("data"), PathBuf::from("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::Runner)
+        );
+    }
+
+    #[test]
+    fn a_relative_browser_path_is_refused() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(PathBuf::from("bin/browser"), None)),
+            Err(RelativePath::Browser)
+        );
+    }
+
+    #[test]
+    fn a_relative_model_path_is_refused() {
+        let c = config(absolute("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(
+                &c,
+                &spec(absolute("browser"), Some(PathBuf::from("model.gguf")))
+            ),
+            Err(RelativePath::Model)
+        );
+    }
+
+    #[test]
+    fn a_relative_data_directory_is_refused() {
+        let c = config(PathBuf::from("data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::DataDir)
+        );
+    }
+
+    #[test]
+    fn of_several_relative_paths_the_first_in_the_order_runner_browser_model_data_directory_is_named(
+    ) {
+        let all = config(PathBuf::from("data"), PathBuf::from("runner"));
+        let relative = spec(PathBuf::from("browser"), Some(PathBuf::from("model")));
+        assert_eq!(absolute_paths(&all, &relative), Err(RelativePath::Runner));
+        let data = config(PathBuf::from("data"), absolute("runner"));
+        assert_eq!(absolute_paths(&data, &relative), Err(RelativePath::Browser));
+        let model = spec(absolute("browser"), Some(PathBuf::from("model")));
+        assert_eq!(absolute_paths(&data, &model), Err(RelativePath::Model));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_path_with_no_drive_is_refused() {
+        let c = config(PathBuf::from(r"\data"), absolute("runner"));
+        assert_eq!(
+            absolute_paths(&c, &spec(absolute("browser"), None)),
+            Err(RelativePath::DataDir)
+        );
+    }
 
     #[test]
     fn a_new_config_waits_ten_seconds_for_hello_and_link_end_twenty_seconds_for_a_closed_link() {
