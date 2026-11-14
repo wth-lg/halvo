@@ -352,6 +352,19 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.waiting_turn.store",
         "It waits while Halvo wraps up the task it did before, and you need to do nothing.",
     ),
+    ("say.item.new", "“{name}” has a new question for you."),
+    (
+        "say.item.gone",
+        "“{name}” no longer has a question for you.",
+    ),
+    (
+        "param_typed.full",
+        "Your answer is full, so the last thing you added was left out. Shorten it to add more.",
+    ),
+    (
+        "param_typed.too_long",
+        "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
