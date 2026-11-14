@@ -145,9 +145,9 @@ run ends as a stop, and without one it ends with exit 2 and the line
 A runner that was started with a signal ignored, as a shell does for INT in a
 background job, cannot trap that signal. After the first signal a signal that
 the runner does not catch still ends it before its wait and the removal of its
-scratch are done. KILL ends it as below. QUIT ends it at once with 131, no
-STOPPED line and its scratch left, when the runner was started with QUIT at
-its default; a runner started as a background job of a shell without job
+scratch are done. KILL ends it as below. QUIT ends it at once with 131, with
+no STOPPED line and with its scratch left, when the runner was started with
+QUIT at its default; a runner started as a background job of a shell without job
 control has QUIT ignored, and QUIT then does not end it. Limit: USR1, USR2,
 ALRM, PIPE and every other signal that the runner does not catch end it too,
 with 128 plus the signal's number; what its EXIT trap then prints is not
