@@ -380,9 +380,26 @@ fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
     Ok(())
 }
 
-/// The form of a profile path that the start writes into its flags and its mark.
+/// The form of a profile path that the start writes into its flags and its mark (CP-189 G1,
+/// Addition 1 (3)): on macOS the path with every link resolved (`/var` as `/private/var`), the
+/// profile itself once it exists and else its parent directory with the profile's name, so that a
+/// caller reads before the start the form that the start will write; on Windows the path as it is,
+/// because the system's resolved form there is another spelling (`\\?\`). The browser writes its
+/// crash handler's `--database=` in the resolved form, so a flag in another form would leave the
+/// run's handler without the mark. The mark itself compares paths as G1 states and follows no link.
 pub fn resolve_profile(profile: &Path) -> PathBuf {
-    profile.to_path_buf()
+    if cfg!(windows) {
+        return profile.to_path_buf();
+    }
+    if let Ok(p) = std::fs::canonicalize(profile) {
+        return p;
+    }
+    match (profile.parent(), profile.file_name()) {
+        (Some(parent), Some(name)) => {
+            std::fs::canonicalize(parent).map_or_else(|_| profile.to_path_buf(), |p| p.join(name))
+        }
+        _ => profile.to_path_buf(),
+    }
 }
 
 /// The browser's command line after its path, every flag the executor's own: the product's flags
@@ -441,6 +458,17 @@ impl Executor {
         }
         let (profile, temp) = session::make_dirs(&opts.profile).map_err(refuse)?;
         let made = session::RemoveOnDrop::new(&profile, &temp);
+        // CP-189 G1, Addition 1 (3): the profile's path resolved once, here, before any flag.
+        let profile = resolve_profile(&profile);
+        let resolved = StartOptions {
+            browser: opts.browser.clone(),
+            profile: profile.clone(),
+            headless: opts.headless,
+            relay: opts.relay.clone(),
+            guard: opts.guard.clone(),
+            crash_means: opts.crash_means,
+        };
+        let opts = &resolved;
         let launched = async {
             write_agent_settings(&profile)
                 .map_err(|f| (f, Default::default(), Default::default()))?;
@@ -1932,7 +1960,7 @@ pub(crate) mod tests {
     /// The processes that name `profile` in their arguments and started at or after `since_us`.
     #[cfg(target_os = "macos")]
     fn naming(profile: &Path, since_us: u64) -> Vec<crate::procs::Proc> {
-        let flag = format!("--user-data-dir={}", profile.display());
+        let flag = format!("--user-data-dir={}", resolve_profile(profile).display());
         crate::procs::table()
             .unwrap()
             .into_iter()

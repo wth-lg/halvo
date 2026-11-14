@@ -476,6 +476,7 @@ async fn handler_class_row(argv: &[String]) -> (usize, usize) {
         }
     };
     let root = ex.root().clone();
+    let profile = ex.profile().map_or(profile, Path::to_path_buf);
     let mark = halvo_web::checks::Mark::new(&profile, &browser, root.started_us);
     let roots: Vec<PathBuf> = root
         .exe
@@ -546,6 +547,8 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     };
     let root = ex.root().clone();
     let ids = ex.pipe_ids().clone();
+    // CP-189 G1, Addition 1 (3): the profile in the one form that the start wrote.
+    let profile = ex.profile().map_or(profile, Path::to_path_buf);
     let subject = halvo_web::checks::Subject {
         root: &root,
         profile: &profile,
@@ -1537,7 +1540,11 @@ async fn killed_start(argv: &[String]) -> (usize, usize) {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_micros() as u64)
             .saturating_sub(1_000_000);
-        let mark = halvo_web::checks::Mark::new(&profile, &browser, since_us);
+        let mark = halvo_web::checks::Mark::new(
+            &halvo_web::cdp::resolve_profile(&profile),
+            &browser,
+            since_us,
+        );
         let mut child = match std::process::Command::new(&me)
             .arg("start_only")
             .arg("--browser")
