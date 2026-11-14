@@ -422,10 +422,6 @@ fn covered(events: &[Event], before: usize, what: &What) -> bool {
 }
 
 /// After a read of the owner's events: the agent's own item leaves its facts when those events
-/// close it, and an agent that then holds no item takes the newest own item that the read brought
-/// and that is still open, so that the board holds what the owner's ledger holds: a check that a
-/// lost acknowledgement hid, with the lapse of the `ready` item before it, replaces that item
-/// (ruling RD-5).
 fn settle<C>(facts: &mut Facts<C>, before: usize) {
     let open = match &facts.doing {
         Doing::Idle(Some(o)) | Doing::Queued(Some(o)) => Some(o.item.clone()),
@@ -950,12 +946,6 @@ pub(crate) fn resync<P: Owner>(
     }
 }
 
-/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, rulings RD-12 (b) and RD-5):
-/// the facts take the owner's events after their last one, and `settle` makes the board hold the
-/// agent's item that the owner's ledger holds, whichever log was refused: a skip, a start or a
-/// lapse that the owner stored with a lost acknowledgement takes the agent's item off the board,
-/// and an agent that then holds no item takes the newest item of the coordinator's own kinds that
-/// those events raised and left open.
 pub(crate) fn read_after_seq<P: Owner, C>(
     ports: &P,
     facts: &mut Facts<C>,
@@ -966,9 +956,6 @@ pub(crate) fn read_after_seq<P: Owner, C>(
     Ok(())
 }
 
-/// The read after a refusal `seq` of the raise of a check or of the person's answer to it (I7.2,
-/// rulings RD-12 (b) and RD-34 (b) (5)): `read_after_seq`, and then the close of each start that
-/// the read brought and that no runner took up, as `store_read` does for the other moves.
 pub(crate) fn read_back<P: Owner, C: ConfigView>(
     ports: &P,
     limits: &crate::types::Limits,
@@ -987,9 +974,6 @@ pub(crate) fn read_back<P: Owner, C: ConfigView>(
     Ok(())
 }
 
-/// The `ready` items of member `i` whose `item_lapsed` the board owes and whose close the agent's
-/// events do not hold: the raise of a check and the answer to it lapse them with the cause `check`
-/// (I5.4, I5.8, ruling RD-96).
 pub(crate) fn owed_ready<C>(board: &Board<C>, i: usize) -> Vec<ItemId> {
     let facts = &board.members[i].facts;
     board
@@ -1310,12 +1294,6 @@ where
     report
 }
 
-/// The body of the person's answer to the check of `run`, from the agent's facts and the `ready`
-/// items whose lapse the board owes, `owed` (I5.4, rulings RD-5, RD-38 and RD-96): with an open
-/// item `check`, its `item_answered`; with no item `check` and an open `ready` item or an owed
-/// one, the lapse of each with the cause `check`, the `item_raised` of a new item `check` and its
-/// `item_answered`, in that order; then `hold_cleared` with the run and the answer, and for
-/// `went_through` the `slot_skipped` of the slot that the run's `run_started` names, or of none.
 fn check_body<P: Rng, C>(
     cx: &Cx<'_, P>,
     facts: &Facts<C>,
@@ -1364,13 +1342,6 @@ fn check_body<P: Rng, C>(
     Ok(whats)
 }
 
-/// The person's answer to the check of `run` (I5.4, I7.2, rulings XB-31, RD-5 and RD-38): it logs
-/// `check_body` of the agent's facts, and the agent then holds no item `check` or `ready`. After
-/// a refusal `seq` it reads the owner's events once and closes the lost starts that they bring
-/// (`read_back`); where the hold `check` of that run still stands it logs once more the body that
-/// the facts as read give. Where it no longer stands, a `hold_cleared` of that run with the same
-/// answer is this answer, stored with a lost acknowledgement, and is taken with nothing logged; one
-/// with the other answer makes this answer `stale`; and with none the answer is `state`.
 fn answer_check<P: Owner + Rng, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -1641,8 +1612,8 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
     report
 }
 
-/// Carries out a move on the ports and the board, and is the one function of the schedule
-/// that calls a port (I5.10). A tick, a start by the person and an end read the day first
+/// Carries out a move on the ports and the board (I5.10).
+/// A tick, a start by the person and an end read the day first
 /// (ruling XB-10). A tick works in the order of I5.9: it reads the day; sends the
 /// request to defer again when a run is live before it; stops, by `Runs::cancel` and with the
 /// cause `deleted`, each run of a workflow that the owner's list no longer holds and drops that

@@ -211,7 +211,7 @@ impl<C> Found<C> {
 }
 
 /// The recovery of a new life of the app (I5.8, I5.10), the coordinator's first move: it
-/// calls `Runs::reap` before anything else, so that no `Runs::start` comes before it, and
+/// calls `Runs::reap` so that no `Runs::start` comes before it, and
 /// answers that call's error with no board, so that no start can come before `reap` has
 /// answered. It reads the owner's list of workflows and every agent of `Owner::agents` whose
 /// workflow the list holds, with every ledger event of the agent, page by page of at most 64,
