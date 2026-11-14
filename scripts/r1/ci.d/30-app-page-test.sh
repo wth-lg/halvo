@@ -1,7 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: the page tests run and none fails; zero tests is a failure
-# lane: free
 set -u
 name=30-app-page-test
 pattern='ui/tests/**/*.test.js'
