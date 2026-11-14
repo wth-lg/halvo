@@ -40,6 +40,15 @@ pub fn scratch(name: &str) -> PathBuf {
     .unwrap()
 }
 
+#[test]
+fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+    let first = scratch("one-name");
+    fs::write(first.join("mine"), b"first").unwrap();
+    let second = scratch("one-name");
+    assert_ne!(first, second);
+    assert_eq!(fs::read_dir(&second).unwrap().count(), 0);
+}
+
 fn nanos() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

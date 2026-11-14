@@ -311,6 +311,15 @@ mod tests {
         dir.canonicalize().expect("the canonical directory")
     }
 
+    #[test]
+    fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+        let first = scratch("one-name");
+        fs::write(first.join("mine"), b"first").expect("write into the first");
+        let second = scratch("one-name");
+        assert_ne!(first, second);
+        assert_eq!(fs::read_dir(&second).expect("list").count(), 0);
+    }
+
     /// The review's patch aside-no-same-file: a file with the same bytes that took the copy's
     /// place after the checks is not the checked file; `aside` puts it back and leaves it.
     #[test]

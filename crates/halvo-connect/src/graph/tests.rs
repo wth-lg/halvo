@@ -326,6 +326,18 @@ fn listen_binds_no_port_while_a_closed_port_is_held() {
 }
 
 #[test]
+fn a_panic_while_the_ports_are_held_leaves_them_usable() {
+    let panicked = thread::spawn(|| {
+        let _held = ports();
+        panic!("a test failed while it held the ports");
+    })
+    .join();
+    assert!(panicked.is_err());
+    let (_ports, port) = closed_port();
+    assert_ne!(port, 0);
+}
+
+#[test]
 fn a_held_answer_is_no_answer_and_its_effect_unknown() {
     let (port, seen) = listen(Reply::Hold);
     let error = graph(port, Duration::from_millis(300))

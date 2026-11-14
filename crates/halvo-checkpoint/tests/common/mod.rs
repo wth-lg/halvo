@@ -9,6 +9,15 @@ pub struct Scratch {
     pub dir: PathBuf,
 }
 
+#[test]
+fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+    let first = Scratch::new("one-name");
+    fs::write(first.path("mine"), b"first").expect("write into the first");
+    let second = Scratch::new("one-name");
+    assert_ne!(first.dir, second.dir);
+    assert_eq!(fs::read_dir(&second.dir).expect("list").count(), 0);
+}
+
 impl Scratch {
     pub fn new(name: &str) -> Scratch {
         let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-checkpoint");
