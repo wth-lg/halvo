@@ -2,11 +2,13 @@
 stop_signal=''
 stop_status=''
 stop_row=''
+stop_note=''
 stop_printed=no
 
 stop_on() {
   [ -z "$stop_signal" ] || return 0
   stop_signal=$1; stop_status=$2
+  trap '' TERM INT HUP
 }
 
 stop_traps() {
@@ -78,7 +80,9 @@ From the first signal on the runner starts no new step of the run (it still
 waits for the running test as below, and it removes its scratch), prints
 exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
 a step that the signal ended, and exits with 143, 130 or 129 for that first
-signal. A later signal changes nothing. The line by phase:
+signal. From the first signal on the runner ignores TERM, INT and HUP, and so
+does every process that it starts after it, so a later signal changes nothing.
+The line by phase:
 
   phase                                         STOPPED line
   before the flags are read                     STOPPED mutation (signal S; no row had started)
@@ -86,8 +90,10 @@ signal. A later signal changes nothing. The line by phase:
   the read of the rows files, the name check    STOPPED mutation (signal S; no row had started)
   the print of --list                           STOPPED mutation (signal S; no row had started)
   the --only selection                          STOPPED mutation (signal S; no row had started)
-  the unmutated build                           STOPPED mutation:<row> (signal S; no test was running)
+  the cargo build of the copy, unmutated        STOPPED mutation:<row> (signal S; no test was running)
+  or of a mutant                                or (signal S; the running build of the copy did not end within 60 s and was killed)
   a gate check                                  STOPPED mutation:<row> (signal S; no test was running)
+                                                or (signal S; the running check-NAME did not end within 60 s and was killed)
   a short step of a row                         STOPPED mutation:<row> (signal S; no test was running)
   the test                                      STOPPED mutation:<row> (signal S; the running case was let end)
                                                 or (signal S; the running case did not end within 60 s and was killed)
@@ -99,11 +105,24 @@ their defaults and ends its case by its own trap. On the signal the runner
 sends the test's process group TERM and waits up to 60 s for the test to end;
 then it kills the group, and what the case made may be left; so it is under a
 caller that sends KILL sooner. A test runs with its standard input from
-/dev/null and QUIT ignored. A gate check that runs when the signal comes is
-not shielded: the runner lets it end or the signal ends it, and starts no
-next one. Limits: a signal that comes after a test has started and before the
-runner waits for it is acted on when the test ends by itself, with the test's
-own limit (900 s for a cargo test, 300 s for a gate case) as its bound. A
+/dev/null and QUIT ignored. A gate check and the cargo build of the copy
+(unmutated or of a mutant) run with TERM, INT and HUP ignored too, and with
+their standard input from /dev/null; on the signal the runner starts no next
+step and waits up to 60 s for that step to end, then stops it and every
+process below it by KILL, and the STOPPED line names it; what the step made
+may be left then, as under a caller that sends KILL sooner. The build of a
+mutant on any other file (sh -n, cc, perl -c, swiftc) is not shielded. A step
+that ends a child of its own by TERM, INT or HUP gets no such end under the
+shield: a verify child past its deadline ends by the check's KILL 5 s later.
+Limits: a signal that comes after a test or a shielded step has started and
+before the runner waits for it is acted on when the step ends by itself, with
+its own limit (900 s for a cargo test, 300 s for a gate case, the check's own
+deadlines for a gate check, none for a build) as its bound; a signal that
+comes after the process of a shielded step has started and before that process
+has read that no signal was recorded lets the step start, and the runner waits
+for it as for a running step. The helper for timed runs sends KILL 5 s after
+its TERM, and at once when the runner has ended: under it a shielded step that
+needs longer than that is killed and what it made may be left. A
 step whose own exit status says that a signal ended it (129, 130, 137 or 143)
 is never read as an answer: with a signal of the runner's own within 2 s the
 run ends as a stop, and without one it ends with exit 2 and the line
@@ -129,7 +148,7 @@ stop_now() {
 }
 
 stop_check() {
-  [ -z "$stop_signal" ] || stop_now "$stop_row" "no test was running"
+  [ -z "$stop_signal" ] || stop_now "$stop_row" "${stop_note:-no test was running}"
 }
 
 step_check() {
@@ -247,7 +266,8 @@ needs_cargo() {
 
 tree_build() {
   stop_check
-  GATE_ROOT=$tree sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" > "$1" 2>&1
+  # shellcheck disable=SC2016
+  shield_run "build of the copy" env GATE_ROOT="$tree" sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" > "$1" 2>&1
   step_check $? "build of the copy"
 }
 
@@ -277,7 +297,7 @@ gate_lines() {
   step_check $? "git add of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
   for gate_check in store deletion no-ll-hook; do
     stop_check
-    env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
+    shield_run "check-$gate_check" env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
     step_check $? "check-$gate_check"
   done
   return 0
@@ -290,6 +310,43 @@ stop_past_bound() {
 test_ended() {
   case $(ps -o stat= -p "$1" 2> /dev/null) in ''|Z*) return 0 ;; esac
   return 1
+}
+
+shield_run() {
+  shield_name=$1; shift
+  ( trap '' TERM INT HUP; [ -z "$stop_signal" ] || exit 0; exec "$@" ) &
+  shield_pid=$!
+  wait "$shield_pid"
+  shield_status=$?
+  [ -n "$stop_signal" ] || return "$shield_status"
+  shield_deadline=$(date +%s)
+  shield_deadline=$((shield_deadline + stop_wait_s))
+  until test_ended "$shield_pid"; do
+    shield_clock=$(date +%s)
+    if stop_past_bound "$shield_clock" "$shield_deadline"; then
+      shield_kill "$shield_pid"
+      stop_note="the running $shield_name did not end within $stop_wait_s s and was killed"
+      break
+    fi
+    sleep 0.1
+  done
+  wait "$shield_pid"
+}
+
+shield_kill() {
+  kill -s STOP "$1" 2> /dev/null
+  shield_held=" $1 "
+  shield_more=yes
+  while [ "$shield_more" = yes ]; do
+    shield_more=no
+    for shield_child in $(descendants_of "$1"); do
+      case $shield_held in *" $shield_child "*) continue ;; esac
+      kill -s STOP "$shield_child" 2> /dev/null
+      shield_held="$shield_held$shield_child "
+      shield_more=yes
+    done
+  done
+  for shield_child in $shield_held; do kill -s KILL "$shield_child" 2> /dev/null; done
 }
 
 test_wait() {
@@ -657,11 +714,22 @@ stub_cargo() {
 here=${0%/*}
 read -r hold < "$here/hold"
 printf 'cargo\n' >> "$here/starts"
-if [ "$hold" -gt 0 ]; then
-  : > "$here/marker"
-  sleep "$hold"
-  mv "$here/marker" "$here/marker.released"
-fi
+case $hold in
+  0) ;;
+  go)
+    : > "$here/marker"
+    polls=0
+    until [ -e "$here/go" ]; do
+      polls=$((polls + 1))
+      [ "$polls" -lt 300 ] || { printf 'timeout\n' > "$here/ended"; exit 1; }
+      sleep 0.1
+    done
+    mv "$here/marker" "$here/marker.released" ;;
+  *)
+    : > "$here/marker"
+    sleep "$hold"
+    mv "$here/marker" "$here/marker.released" ;;
+esac
 printf 'itself\n' > "$here/ended"
 printf 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n'
 STUB
@@ -723,9 +791,36 @@ stopped_by() {
     [ "$stop_polls" -lt 300 ] || { kill -s KILL -- "-$stop_pid"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$stop_polls"; return 1; }
     sleep 0.1
   done
+  stop_held_at_end=no
   case $stop_whom in
     tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
       kill -s "$stop_signal_sent" "$stop_pid" ;;
+    helper|helper-again) kill -s "$stop_signal_sent" -- "-$stop_pid"
+      stop_polls=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt 300 ]; do
+        polls_of_the_step "$stop_fixture"
+        [ "$step_polls" -lt 3 ] || break
+        stop_polls=$((stop_polls + 1))
+        sleep 0.1
+      done
+      if [ "$stop_whom" = helper-again ]; then
+        stop_again=0
+        while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_again" -lt 10 ]; do
+          kill -s "$stop_signal_sent" -- "-$stop_pid"
+          stop_again=$((stop_again + 1))
+          sleep 0.1
+        done
+      fi
+      if ! kill -0 "$stop_pid" 2> /dev/null && [ -e "$stop_fixture/bin/marker" ]; then stop_held_at_end=yes; fi
+      : > "$stop_fixture/bin/go"
+      stop_polls=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt "$((helper_kill_after_s * 10))" ]; do
+        stop_polls=$((stop_polls + 1))
+        sleep 0.1
+      done
+      [ ! -e "$stop_fixture/bin/marker" ] || stop_held_at_end=yes
+      stop_rest=$(pgrep -g "$stop_pid")
+      [ -z "$stop_rest" ] || kill -s KILL -- "-$stop_pid" ;;
     group) kill -s "$stop_signal_sent" -- "-$stop_pid" ;;
     twice) kill -s "$stop_signal_sent" "$stop_pid"; sleep 0.5; kill -s TERM "$stop_pid" ;;
     *) kill -s "$stop_signal_sent" "$stop_pid" ;;
@@ -758,6 +853,7 @@ stopped_by() {
   [ "$stop_left" -eq 0 ] || stop_defects="$stop_defects; $stop_left processes of the stand-ins are left"
   stop_fail=$(grep -m 1 '^FAIL ' "$stop_fixture.out")
   [ -z "$stop_fail" ] || stop_defects="$stop_defects; the runner printed $stop_fail"
+  [ "$stop_held_at_end" = no ] || stop_defects="$stop_defects; the runner ended while its stand-in held the marker"
   [ -n "$stop_defects" ] || return 0
   printf '%s\n' "${stop_defects#; }"
   return 1
@@ -1142,11 +1238,11 @@ cases() {
   cp "$DIR/lib.sh" "$gate_scratch/stop-unmutated/scripts/r1-gate/lib.sh"
   stub_cargo stop-unmutated 30
   row stop-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
-  t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 1 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; the running build of the copy did not end within 1 s and was killed)'
   fixture_tree stop-gate
   stub_gate_hold stop-gate
   row stop-gate/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
-  t stop-by-term-to-the-group-during-a-gate-check-reports-no-failure PASS stopped_by stop-gate TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-by-term-to-the-group-during-a-gate-check-reports-no-failure PASS stopped_by stop-gate TERM group 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   fixture_tree stop-gate-unmutated
   mkdir -p "$gate_scratch/stop-gate-unmutated/crates/x/src"
   printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-gate-unmutated/crates/x/src/lib.rs"
@@ -1154,7 +1250,7 @@ cases() {
   stub_cargo stop-gate-unmutated 0
   stub_gate_hold stop-gate-unmutated
   row stop-gate-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
-  t stop-by-term-to-the-group-during-an-unmutated-gate-check-reports-no-failure PASS with_cargo_home stop-gate-unmutated stopped_by stop-gate-unmutated TERM group 60 run 143 left itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-by-term-to-the-group-during-an-unmutated-gate-check-reports-no-failure PASS with_cargo_home stop-gate-unmutated stopped_by stop-gate-unmutated TERM group 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
   for stop_fixture_name in stop-restore stop-restore-last; do
     fixture_tree "$stop_fixture_name"
     stub_cp "$stop_fixture_name"
@@ -1165,7 +1261,95 @@ cases() {
   t stop-while-the-last-row-ends-prints-no-count PASS stopped_by stop-restore-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   stop_cases_by_step
   stop_cases_by_main
+  shield_cases
   rule_cases
+}
+
+shield_cases() {
+  helper_kill_after_s=5
+  for shield_fixture in term int hup bound again; do
+    fixture_tree "stop-shield-$shield_fixture"
+    stub_gate_until_go "stop-shield-$shield_fixture"
+    stub_ps "stop-shield-$shield_fixture"
+    row "stop-shield-$shield_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'measured rows' required X-1
+  done
+  : > "$gate_scratch/stop-shield-again/bin/ps.slow"
+  t stop-by-term-again-while-the-runner-waits-for-a-gate-check-changes-nothing PASS stopped_by stop-shield-again TERM helper-again 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  for shield_signal in TERM INT HUP; do
+    stop_line "$shield_signal"
+    t "stop-by-$stop_line_lower-as-the-helper-ends-a-run-lets-a-gate-check-end" PASS stopped_by "stop-shield-$stop_line_lower" "$shield_signal" helper 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $shield_signal; no test was running)"
+  done
+  t stop-past-the-bound-kills-a-gate-check-and-names-it PASS stopped_by stop-shield-bound TERM group 1 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running check-store did not end within 1 s and was killed)'
+  fixture_tree stop-shield-unmutated
+  mkdir -p "$gate_scratch/stop-shield-unmutated/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-shield-unmutated/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-shield-unmutated/scripts/r1-gate/lib.sh"
+  stub_cargo stop-shield-unmutated 0
+  stub_gate_until_go stop-shield-unmutated
+  stub_ps stop-shield-unmutated
+  row stop-shield-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-as-the-helper-ends-a-run-lets-an-unmutated-gate-check-end PASS with_cargo_home stop-shield-unmutated stopped_by stop-shield-unmutated TERM helper 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  t a-shielded-step-starts-with-no-signal-and-not-after-one PASS shield_start_rule
+  fixture_tree stop-shield-build
+  mkdir -p "$gate_scratch/stop-shield-build/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-shield-build/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-shield-build/scripts/r1-gate/lib.sh"
+  stub_cargo stop-shield-build go
+  stub_ps stop-shield-build
+  stub_gate_hold stop-shield-build
+  row stop-shield-build/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-as-the-helper-ends-a-run-lets-the-unmutated-build-end PASS with_cargo_home stop-shield-build stopped_by stop-shield-build TERM helper 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+stub_ps() {
+  mkdir -p "$gate_scratch/$1/bin"
+  stub_ps_real=$(command -v ps)
+  printf '%s\n' "$stub_ps_real" > "$gate_scratch/$1/bin/ps.real"
+  cat > "$gate_scratch/$1/bin/ps" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+case "$*" in
+  *stat=*) printf '%s\n' "$*" >> "$here/ps.polls"; [ ! -e "$here/ps.slow" ] || sleep 1 ;;
+esac
+read -r real < "$here/ps.real"
+exec "$real" "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/ps"
+}
+
+polls_of_the_step() {
+  step_polls=0
+  [ ! -f "$1/bin/ps.polls" ] || step_polls=$(wc -l < "$1/bin/ps.polls" | tr -d ' ')
+}
+
+stub_gate_until_go() {
+  stub_gate_hold "$1"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+: > "$here/marker"
+polls=0
+until [ -e "$here/go" ]; do
+  polls=$((polls + 1))
+  [ "$polls" -lt 300 ] || { printf 'timeout\n' > "$here/ended"; exit 1; }
+  sleep 0.1
+done
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'PASS store\n'
+STUB
+}
+
+shield_start_rule() {
+  shield_rule_dir=$gate_scratch/shield-start-rule
+  mkdir -p "$shield_rule_dir"
+  # shellcheck disable=SC2016
+  ( stop_signal=''; shield_run check-x sh -c ': > "$1"' sh "$shield_rule_dir/with-no-signal" ) > "$shield_rule_dir.out" 2>&1
+  [ -e "$shield_rule_dir/with-no-signal" ] || { printf 'the step did not start with no signal recorded\n'; return 1; }
+  # shellcheck disable=SC2016
+  ( stop_signal=TERM; stop_status=143; stop_row=held; shield_run check-x sh -c ': > "$1"' sh "$shield_rule_dir/after-a-signal" ) >> "$shield_rule_dir.out" 2>&1
+  [ ! -e "$shield_rule_dir/after-a-signal" ] || { printf 'the step started after a recorded signal\n'; return 1; }
 }
 
 stop_line() {
@@ -1190,7 +1374,7 @@ stop_cases_by_step() {
     stop_line "$step_signal"
     t "stop-by-$stop_line_lower-to-the-runner-during-the-unmutated-build-starts-no-gate-check" PASS with_cargo_home "stop-p5-$stop_line_lower" stopped_by "stop-p5-$stop_line_lower" "$step_signal" runner 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $step_signal; no test was running)"
   done
-  t stop-by-term-to-the-group-during-the-unmutated-build-starts-no-gate-check PASS with_cargo_home stop-p5-group stopped_by stop-p5-group TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-by-term-to-the-group-during-the-unmutated-build-starts-no-gate-check PASS with_cargo_home stop-p5-group stopped_by stop-p5-group TERM group 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   for step_fixture in p6-term p6-int p6-hup p6-group; do
     fixture_tree "stop-$step_fixture"
     stub_gate_hold "stop-$step_fixture"
@@ -1200,7 +1384,7 @@ stop_cases_by_step() {
     stop_line "$step_signal"
     t "stop-by-$stop_line_lower-to-the-runner-during-a-gate-check-starts-no-next-check" PASS stopped_by "stop-p6-$stop_line_lower" "$step_signal" runner 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $step_signal; no test was running)"
   done
-  t stop-by-term-to-the-group-during-a-gate-check-starts-no-next-check PASS stopped_by stop-p6-group TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-by-term-to-the-group-during-a-gate-check-starts-no-next-check PASS stopped_by stop-p6-group TERM group 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   for step_fixture in p7-term p7-int p7-hup; do
     fixture_tree "stop-$step_fixture"
     stub_hold "stop-$step_fixture" perl '*apply-row*'
