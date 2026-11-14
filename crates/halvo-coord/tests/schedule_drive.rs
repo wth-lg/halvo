@@ -1153,6 +1153,74 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     let mut live = w.facts(0).clone();
     live.doing = Doing::Live(halvo_coord::types::Live::Working);
     assert_eq!(tick_step(&live, true, &l), Ask::Nothing);
+    let mut w = world(&[AUTO, manual()]);
+    nothing_first(&mut w, 0);
+    nothing_first(&mut w, 1);
+    assert_eq!(
+        tick_step(w.facts(0), true, &l),
+        Ask::Ready,
+        "a clean run and no finished one: ready at an open slot (ruling RD-67 5.2)"
+    );
+    assert_eq!(
+        tick_step(w.facts(1), true, &l),
+        Ask::Nothing,
+        "a clean run and no slot: no ready at once"
+    );
+}
+
+/// Makes the one stored run of agent `n` one that ended `nothing_to_do`, at the owner and on the
+/// board: a clean run, and no finished one (ruling RD-67 5.2).
+fn nothing_first(w: &mut World, n: usize) {
+    let to_nothing = |e: &mut Event| {
+        if let What::RunEnded { cause, .. } = &mut e.what {
+            if e.agent == agent(n) {
+                *cause = RunEnd::NothingToDo;
+            }
+        }
+    };
+    w.ports.events.borrow_mut().iter_mut().for_each(to_nothing);
+    let i = w
+        .board
+        .members
+        .iter()
+        .position(|m| m.facts.agent == agent(n))
+        .unwrap();
+    w.board.members[i]
+        .facts
+        .events
+        .iter_mut()
+        .for_each(to_nothing);
+    for r in &mut w.board.members[i].facts.runs {
+        r.outcome = Outcome::NothingToDo;
+    }
+}
+
+/// RD-67 5.2: the slot of a skip and the slot of a start by the person read the clean run, so
+/// that a skip at a card that an open slot raised for an agent with a clean run and no finished
+/// one stores that slot's day, and a start by the person stores it as its slot.
+#[test]
+fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
+    let mut w = world(&[AUTO]);
+    nothing_first(&mut w, 0);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    w.forget();
+    assert_eq!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
+    assert_eq!(
+        w.calls(),
+        vec!["log item_answered ready skip, slot_skipped 0".to_string()]
+    );
+    let mut s = world(&[AUTO]);
+    nothing_first(&mut s, 0);
+    let run = ok_run(&s.start(0));
+    let slot = s.stored().iter().find_map(|e| match &e.what {
+        What::RunStarted { run: r, slot, .. } if *r == run => Some(*slot),
+        _ => None,
+    });
+    assert_eq!(
+        slot,
+        Some(Some(DAY)),
+        "the start by the person takes the slot"
+    );
 }
 
 #[test]
@@ -1191,7 +1259,27 @@ fn skip_of_a_first_run_stores_a_null_slot_and_waits_for_the_next_day() {
     );
     assert_eq!(w.tick().raised, Vec::<AgentId>::new());
     w.clock(T0, DAY + 1);
-    assert_eq!(w.tick().raised, vec![agent(0)]);
+    assert_eq!(
+        w.tick().raised,
+        Vec::<AgentId>::new(),
+        "turned by ruling RD-73 1.2: no ready until the next slot opens"
+    );
+    w.clock(T0, DAY + 2);
+    assert_eq!(w.tick().raised, vec![agent(0)], "the next slot");
+    let mut manual = world(&[A {
+        finished: false,
+        ..manual()
+    }]);
+    manual.tick();
+    manual.go(Move::Skip { agent: agent(0) });
+    for day in [DAY + 1, DAY + 40] {
+        manual.clock(T0, day);
+        assert_eq!(
+            manual.tick().raised,
+            Vec::<AgentId>::new(),
+            "no slot: no ready while the skip's row is handed out"
+        );
+    }
     let mut none = world(&[AUTO]);
     assert_eq!(
         none.go(Move::Skip { agent: agent(0) }).answer,

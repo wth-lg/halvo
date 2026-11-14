@@ -17,7 +17,7 @@ pub use drive::{drive, drive_with, stop_run, Answer, Ended, Halt, Move, Report, 
 pub(crate) use drive::{item_closed, read_back, resync, seq_refusal};
 pub use hold::{holds, Hold};
 pub use queue::{Queue, Waiting};
-pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};
+pub use slot::{clean, current_slot, finished, next_slot, slot_due, slot_open};
 pub use start::{
     active_state, needs_model, needs_person, start_step, Around, Clear, Go, StartStep, Verdict,
 };

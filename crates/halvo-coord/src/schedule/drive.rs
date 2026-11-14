@@ -1,5 +1,5 @@
 use super::{
-    active_state, current_slot, finished, gives_active, holds, slot_open, start_step, tick_plan,
+    active_state, clean, current_slot, gives_active, holds, slot_open, start_step, tick_plan,
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
@@ -1444,7 +1444,7 @@ where
                 return refused(Cause::State);
             };
             let slot = current_slot(&facts.workflow, facts.today)
-                .filter(|s| finished(facts) && slot_open(facts, *s));
+                .filter(|s| clean(facts) && slot_open(facts, *s));
             let whats = vec![
                 What::ItemAnswered {
                     item: item.clone(),
