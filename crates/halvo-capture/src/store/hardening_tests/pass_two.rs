@@ -1513,3 +1513,32 @@ fn p3_c_the_tail_on_a_store_that_a_handle_holds_answers_locked_and_touches_nothi
         "{reads}"
     );
 }
+
+/// The review's keyro case (ruling ST-46 K5 N1): a store.key of mode 0400
+/// with a second name outside the store. The key-file step sets the mode to
+/// 0600 by its name before its zero-fill, so the zero-fill reaches every name
+/// of the file and the second name ends all zero.
+#[test]
+fn delete_all_zeroes_a_store_key_of_mode_0400_through_every_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let key_path = KeyFile::path(&store_dir);
+    let second_name = dir.path().join("a-second-name-of-store-key");
+    std::fs::hard_link(&key_path, &second_name).unwrap();
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    set_mode(&key_path, 0o400);
+    let answer = store.delete_all();
+    drop(store);
+    let after = std::fs::read(&second_name).unwrap();
+    println!(
+        "ST46 N1 {} second_name_len={} second_name_nonzero_bytes={}",
+        report_line(&answer),
+        after.len(),
+        after.iter().filter(|&&b| b != 0).count()
+    );
+    assert!(answer.is_ok(), "{}", report_line(&answer));
+    assert!(
+        !after.is_empty() && after.iter().all(|&b| b == 0),
+        "a second name of a store.key of mode 0400 keeps the wrapped key"
+    );
+}
