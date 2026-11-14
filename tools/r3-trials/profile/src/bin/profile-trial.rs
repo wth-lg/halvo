@@ -1200,30 +1200,41 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
             }
         );
     }
-    match product::outer(
-        &args.machine,
+    ExitCode::from(item3_end(
+        args,
         &cell,
         set,
         inner.as_deref(),
         &err,
-        args.sandbox_off,
-    ) {
+        &mut |l| out(l),
+    ))
+}
+
+fn item3_end(
+    args: &Args,
+    cell: &str,
+    set: &str,
+    inner: Option<&str>,
+    err: &str,
+    print: &mut dyn FnMut(&str),
+) -> u8 {
+    match product::outer(&args.machine, cell, set, inner, err, args.sandbox_off) {
         Outer::Egress(line) => {
-            out(&format!("egress_set {cell} set={set}"));
-            out(&line);
-            ExitCode::SUCCESS
+            print(&format!("egress_set {cell} set={set}"));
+            print(&line);
+            0
         }
         Outer::Control(line) => {
-            out(&line);
-            ExitCode::SUCCESS
+            print(&line);
+            0
         }
         Outer::NotRun(cause) => {
-            out(&format!("notrun item=3 {cell} set={set} cause={cause}"));
-            ExitCode::from(1)
+            print(&format!("notrun item=3 {cell} set={set} cause={cause}"));
+            1
         }
         Outer::Signal => {
-            out(&format!("notrun item=3 {cell} cause=signal"));
-            ExitCode::from(1)
+            print(&format!("notrun item=3 {cell} cause=signal"));
+            1
         }
     }
 }
