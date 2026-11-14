@@ -57,6 +57,47 @@ import its inputs are the agent-setup run's trial files, which reach the reposit
 EOF
 }
 
+forbid_table() {
+  cat <<'EOF'
+type all std::process::Command|pub fn t01(_: Option<&std::process::Command>) {}
+type all std::process::Child|pub fn t02(_: Option<&std::process::Child>) {}
+type all std::process::Stdio|pub fn t03(_: Option<&std::process::Stdio>) {}
+type all std::process::ChildStdin|pub fn t04(_: Option<&std::process::ChildStdin>) {}
+type all std::process::ChildStdout|pub fn t05(_: Option<&std::process::ChildStdout>) {}
+type all std::process::ChildStderr|pub fn t06(_: Option<&std::process::ChildStderr>) {}
+type all std::process::Output|pub fn t07(_: Option<&std::process::Output>) {}
+type all std::net::TcpStream|pub fn t08(_: Option<&std::net::TcpStream>) {}
+type all std::net::TcpListener|pub fn t09(_: Option<&std::net::TcpListener>) {}
+type all std::net::UdpSocket|pub fn t10(_: Option<&std::net::UdpSocket>) {}
+type unix std::os::unix::net::UnixStream|pub fn t11(_: Option<&std::os::unix::net::UnixStream>) {}
+type unix std::os::unix::net::UnixListener|pub fn t12(_: Option<&std::os::unix::net::UnixListener>) {}
+type unix std::os::unix::net::UnixDatagram|pub fn t13(_: Option<&std::os::unix::net::UnixDatagram>) {}
+method all std::process::Command::new|pub fn m01() { let _ = std::process::Command::new("x"); }
+method all std::process::Command::spawn|pub fn m02(c: &mut std::process::Command) { let _ = c.spawn(); }
+method all std::process::Command::output|pub fn m03(c: &mut std::process::Command) { let _ = c.output(); }
+method all std::process::Command::status|pub fn m04(c: &mut std::process::Command) { let _ = c.status(); }
+method unix std::os::unix::process::CommandExt::exec|pub fn m05(c: &mut std::process::Command) { let _ = std::os::unix::process::CommandExt::exec(c); }
+method all std::net::TcpStream::connect|pub fn m06() { let _ = std::net::TcpStream::connect("192.0.2.1:9"); }
+method all std::net::TcpStream::connect_timeout|pub fn m07(a: &std::net::SocketAddr) { let _ = std::net::TcpStream::connect_timeout(a, std::time::Duration::from_secs(1)); }
+method all std::net::TcpListener::bind|pub fn m08() { let _ = std::net::TcpListener::bind("127.0.0.1:0"); }
+method all std::net::UdpSocket::bind|pub fn m09() { let _ = std::net::UdpSocket::bind("127.0.0.1:0"); }
+method all std::net::ToSocketAddrs::to_socket_addrs|pub fn m10() { let _ = std::net::ToSocketAddrs::to_socket_addrs("x.invalid:1"); }
+method unix std::os::unix::net::UnixStream::connect|pub fn m11() { let _ = std::os::unix::net::UnixStream::connect("/x"); }
+method unix std::os::unix::net::UnixStream::connect_addr|pub fn m12(a: &std::os::unix::net::SocketAddr) { let _ = std::os::unix::net::UnixStream::connect_addr(a); }
+method unix std::os::unix::net::UnixStream::pair|pub fn m13() { let _ = std::os::unix::net::UnixStream::pair(); }
+method unix std::os::unix::net::UnixListener::bind|pub fn m14() { let _ = std::os::unix::net::UnixListener::bind("/x"); }
+method unix std::os::unix::net::UnixListener::bind_addr|pub fn m15(a: &std::os::unix::net::SocketAddr) { let _ = std::os::unix::net::UnixListener::bind_addr(a); }
+method unix std::os::unix::net::UnixDatagram::bind|pub fn m16() { let _ = std::os::unix::net::UnixDatagram::bind("/x"); }
+method unix std::os::unix::net::UnixDatagram::bind_addr|pub fn m17(a: &std::os::unix::net::SocketAddr) { let _ = std::os::unix::net::UnixDatagram::bind_addr(a); }
+method unix std::os::unix::net::UnixDatagram::pair|pub fn m18() { let _ = std::os::unix::net::UnixDatagram::pair(); }
+method unix std::os::unix::net::UnixDatagram::connect|pub fn m19(s: &std::os::unix::net::UnixDatagram) { let _ = s.connect("/x"); }
+method unix std::os::unix::net::UnixDatagram::connect_addr|pub fn m20(s: &std::os::unix::net::UnixDatagram, a: &std::os::unix::net::SocketAddr) { let _ = s.connect_addr(a); }
+method unix std::os::fd::FromRawFd::from_raw_fd|pub fn m21() -> std::fs::File { unsafe { std::os::fd::FromRawFd::from_raw_fd(3) } }
+method windows std::os::windows::io::FromRawSocket::from_raw_socket|pub fn m22() -> std::net::TcpStream { unsafe { std::os::windows::io::FromRawSocket::from_raw_socket(0) } }
+method windows std::os::windows::io::FromRawHandle::from_raw_handle|pub fn m23() -> std::fs::File { unsafe { std::os::windows::io::FromRawHandle::from_raw_handle(std::ptr::null_mut()) } }
+EOF
+}
+
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
@@ -84,6 +125,117 @@ platform_of() {
     MINGW* | MSYS* | CYGWIN*) platform=windows-2025 ;;
     *) platform=none ;;
   esac
+}
+
+job_of() {
+  job=${CI_D_JOB:-}
+  if [ -z "$job" ]; then
+    case $system in
+      Darwin) job=macos ;;
+      MINGW* | MSYS* | CYGWIN*) job=windows ;;
+    esac
+  fi
+  case $job in
+    macos) job_system=unix ;;
+    windows) job_system=windows ;;
+    *) fail setup ;;
+  esac
+}
+
+absolute_dir() {
+  (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; })
+}
+
+write_forbid_list() {
+  conf=$artifacts/forbid-list
+  mkdir -p "$conf" || fail setup
+  conf_abs=$(absolute_dir "$conf") || fail setup
+  [ -n "$conf_abs" ] || fail setup
+  forbid_table >"$work/forbid-table.txt" || fail setup
+  awk -v own="$job_system" '
+    {
+      split($0, half, "|")
+      split(half[1], part, " ")
+      other = (part[2] != "all" && part[2] != own) ? ", allow-invalid = true" : ""
+      line = "  { path = \"" part[3] "\"" other " },"
+      if (part[1] == "type") types = types line "\n"
+      else methods = methods line "\n"
+    }
+    END {
+      printf "disallowed-types = [\n%s]\ndisallowed-methods = [\n%s]\n", types, methods
+    }
+  ' "$work/forbid-table.txt" >"$conf/clippy.toml" || fail setup
+}
+
+forbid() {
+  out=$1
+  shift
+  CLIPPY_CONF_DIR=$conf_abs cargo clippy --locked "$@" --lib --bins --message-format=json -- \
+    -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code >"$out.json" 2>"$out.err"
+}
+
+read_forbid() {
+  awk -v root="$root_abs" '
+    function last(text, word,   base, k, at) {
+      base = 0
+      at = 0
+      while ((k = index(substr(text, base + 1), word)) > 0) {
+        at = base + k
+        base = at
+      }
+      return at
+    }
+    index($0, "{\"reason\":\"compiler-message\"") != 1 { next }
+    {
+      line = $0
+      if (index(line, " does not refer to ") > 0) print "refer"
+      named = last(line, "\"code\":{\"code\":\"")
+      code = ""
+      if (named > last(line, "\"code\":null")) {
+        tail = substr(line, named + 16)
+        code = substr(tail, 1, index(tail, "\"") - 1)
+      }
+      if (code != "clippy::disallowed_types" && code != "clippy::disallowed_methods" && code != "unsafe_code") next
+      where = "-"
+      at = 0
+      if (match(line, /--> [^ ]+:[0-9]+:[0-9]+\\n/)) {
+        loc = substr(line, RSTART + 4, RLENGTH - 6)
+        sub(/:[0-9]+$/, "", loc)
+        at = loc
+        sub(/^.*:/, "", at)
+        where = substr(loc, 1, length(loc) - length(at) - 1)
+        gsub(/\\\\/, "/", where)
+        if (root != "" && index(where, root "/") == 1) where = substr(where, length(root) + 2)
+        if (where ~ /^\// || where ~ /^[A-Za-z]:\//) where = "outside-the-repository"
+      }
+      print "finding", code, where, at
+    }
+  ' "$1"
+}
+
+forbid_crates() {
+  started=$(date +%s)
+  forbid "$artifacts/forbid" -p halvo-route -p halvo-route-gate -p halvo-route-wire
+  forbid_exit=$?
+  forbid_seconds=$(($(date +%s) - started))
+  read_forbid "$artifacts/forbid.json" >"$work/forbid-read.txt" || fail setup
+  findings=0
+  while IFS=' ' read -r kind code where at; do
+    case $kind in
+      finding)
+        findings=$((findings + 1))
+        printf 'forbid %s:%s %s\n' "$where" "$at" "$code"
+        ;;
+      refer)
+        printf 'egress forbid list-entry=refers-to-nothing\n'
+        holds=no
+        ;;
+    esac
+  done <"$work/forbid-read.txt"
+  printf 'egress forbid findings=%s exit=%s\n' "$findings" "$forbid_exit"
+  if [ "$findings" -ne 0 ] || [ "$forbid_exit" -ne 0 ]; then
+    holds=no
+  fi
 }
 
 tree_changes() {
@@ -360,6 +512,9 @@ check() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail setup
   mkdir -p "$work/out" "$work/discover" || fail setup
   platform_of
+  job_of
+  root_abs=$(absolute_dir .) || fail setup
+  holds=yes
 
   tree=$(git rev-parse --verify --quiet 'HEAD^{tree}' 2>/dev/null) || fail setup
   [ -n "$tree" ] || fail setup
@@ -370,6 +525,10 @@ check() {
   fi
   count_entries
   not_observed
+
+  write_forbid_list
+  forbid_crates
+  printf 'egress seconds forbid=%s\n' "$forbid_seconds"
 
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || fail setup
   cargo build --locked -p halvo-route-gate --bin route-gate --message-format=json \
@@ -405,7 +564,7 @@ check() {
   if [ "$refused_mode" = yes ]; then
     printf 'NOT VERIFIED egress requirement=W2 platform=%s\n' "$platform"
   fi
-  if [ "$matched" = no ] || [ "$ran" = no ] || [ "$changed" = yes ]; then
+  if [ "$holds" = no ] || [ "$matched" = no ] || [ "$ran" = no ] || [ "$changed" = yes ]; then
     fail check
   fi
   [ "$denied" -eq 0 ] || fail denied
@@ -437,6 +596,20 @@ case $* in
     printf '{"reason":"compiler-artifact","package_id":"path+file://%s/crates/halvo-route-gate#0.0.0","manifest_path":"%s/crates/halvo-route-gate/Cargo.toml","target":{"kind":["bin"],"name":"route-gate","src_path":"%s/crates/halvo-route-gate/src/main.rs"},"executable":"%s","fresh":%s}\n' \
       "$CI_D_REPO" "$CI_D_REPO" "$CI_D_REPO" "$STUB_EXE" "$STUB_FRESH"
     exit 0
+    ;;
+  'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code')
+    want=$(cd "$CI_D_ARTIFACTS/forbid-list" && pwd) || exit 96
+    got=$(cd "$CLIPPY_CONF_DIR" && pwd) || exit 96
+    [ "$got" = "$want" ] || exit 96
+    invalid=$(grep -c 'allow-invalid = true' "$CLIPPY_CONF_DIR/clippy.toml")
+    case $CI_D_JOB:$invalid in
+      macos:2 | windows:15) ;;
+      *) exit 95 ;;
+    esac
+    if [ -f "$STUB_CLIPPY_JSON" ]; then
+      while IFS= read -r line || [ -n "$line" ]; do printf '%s\n' "$line"; done <"$STUB_CLIPPY_JSON"
+    fi
+    exit "$STUB_CLIPPY_EXIT"
     ;;
   "tree --locked -e normal,no-proc-macro --target all -p halvo-route-gate --prefix none --format {p}")
     printf 'halvo-route-gate v0.0.0 (%s/crates/halvo-route-gate)\nserde v1.0.0\nserde v1.0.0 (*)\n' "$CI_D_REPO"
@@ -528,6 +701,9 @@ case_reset() {
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
+  STUB_CLIPPY_JSON=$work/clippy-clean.json
+  STUB_CLIPPY_EXIT=0
+  case_job=$own_job
   case_actions=
   case_arg=
 }
@@ -536,7 +712,7 @@ case_run() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
-    GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -567,6 +743,12 @@ case_run() {
   case_reset
 }
 
+finding_json() {
+  # shellcheck disable=SC2016
+  printf '{"reason":"compiler-message","package_id":"path+file:///x#0.0.0","message":{"rendered":"error: a use\\n  --> %s:%s:5\\n","$message_type":"diagnostic","children":[{"children":[],"code":null,"level":"note","message":"n","rendered":null,"spans":[]}],"code":{"code":"%s","explanation":null},"level":"error","message":"m","spans":[]}}\n' \
+    "$3" "$4" "$2" >"$1"
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_failed setup
   case $work in
@@ -589,6 +771,16 @@ self_test() {
       ;;
     *) self_failed "no platform for $system" ;;
   esac
+  case $system in
+    Darwin) own_job=macos ;;
+    *) own_job=windows ;;
+  esac
+  : >"$work/clippy-clean.json" || self_failed setup
+  finding_json "$work/clippy-finding.json" clippy::disallowed_methods 'crates\\halvo-route-gate\\src\\net.txt' 2 || self_failed setup
+  finding_json "$work/clippy-unsafe.json" unsafe_code 'crates/halvo-route/src/x.rs' 7 || self_failed setup
+  # shellcheck disable=SC2016
+  printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: `std::nope` does not refer to a reachable type\n","$message_type":"diagnostic","children":[],"code":null,"level":"warning","message":"x","spans":[]}}' \
+    >"$work/clippy-refer.json" || self_failed setup
   wrong=
   rejected=0
   case_reset
@@ -599,6 +791,18 @@ self_test() {
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
   case_run commands PASS - 'egress commands=7 asked=13 run=6 cannot=1 crates=1'
   case_run third-party PASS - 'egress limit third-party crates=1 names=serde'
+  case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
+  case_job=windows
+  case_run forbid-list-of-the-windows-job PASS - 'egress forbid findings=0 exit=0'
+  STUB_CLIPPY_JSON=$work/clippy-finding.json
+  STUB_CLIPPY_EXIT=101
+  case_run forbid-finding FAIL check "forbid crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid findings=1 exit=101"
+  STUB_CLIPPY_JSON=$work/clippy-unsafe.json
+  case_run forbid-finding-with-exit-0 FAIL check 'forbid crates/halvo-route/src/x.rs:7 unsafe_code'
+  STUB_CLIPPY_EXIT=101
+  case_run forbid-exit-without-a-finding FAIL check 'egress forbid findings=0 exit=101'
+  STUB_CLIPPY_JSON=$work/clippy-refer.json
+  case_run forbid-list-entry-refers-to-nothing FAIL check 'egress forbid list-entry=refers-to-nothing'
   case_repo=$work/repo-entry
   case_tree=$entry_tree
   case_run list-file-with-one-entry FAIL entries 'egress checks=6 denied=0 entries=1'
