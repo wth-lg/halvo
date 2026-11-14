@@ -342,6 +342,24 @@ mod tests {
     }
 
     #[test]
+    fn the_result_files_last_block_holds_the_set_as_the_program_prints_it() {
+        let file = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/r3/trials/browser-profile.md"),
+        )
+        .expect("the result file");
+        let start = file.rfind("```text\n").expect("a block") + "```text\n".len();
+        let block = &file[start..];
+        let block = &block[..block.find("```").expect("the block's end")];
+        let lines: Vec<&str> = block
+            .lines()
+            .filter(|l| l.starts_with("flag ") || l.starts_with("pref "))
+            .collect();
+        let want = set_lines(EGRESS_PORT);
+        assert_eq!(lines, want.iter().map(String::as_str).collect::<Vec<_>>());
+    }
+
+    #[test]
     fn the_egress_port_is_the_agent_entry_of_the_list() {
         let list = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
