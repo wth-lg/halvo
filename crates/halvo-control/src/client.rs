@@ -1105,17 +1105,15 @@ mod tests {
     #[test]
     fn e111_d_an_already_deleted_that_answers_no_request_is_its_own_error_with_the_id_and_not_a_kind_string(
     ) {
+        type Call<'a> = &'a dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>;
         let current = FIXTURE_STORE_ID;
-        let answered = |call: &dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>| {
+        let answered = |call: Call<'_>| {
             let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
             daemon.set_raw_reply(already_deleted_frame(current));
             let (client, _) = client(daemon);
             call(&client)
         };
-        let calls: [(
-            &str,
-            &dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>,
-        ); 6] = [
+        let calls: [(&str, Call<'_>); 6] = [
             ("delete-all with the id it names", &|c| {
                 c.delete_all(Some(current)).map(|_| ())
             }),
