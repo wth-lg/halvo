@@ -37,6 +37,15 @@ pub const UNREAD_CAP: Duration = Duration::from_secs(300);
 /// spell the guard leaves by the cap only when two reads in a row agree.
 pub const LEFT_CAP: Duration = UNREAD_CAP;
 
+/// The bound of the executor's end of a start with no first reply (`Trigger::Now`) for a member
+/// whose program or arguments stay unread after the forced end: the loop then returns with the
+/// cause `now_unread` (CP-189 G5).
+pub const NOW_UNREAD_BOUND: Duration = Duration::from_secs(10);
+
+/// The bound of the same end for a member that bears the mark and does not end under the forced
+/// end: the loop then returns with the cause `now_marked` (CP-189 G5).
+pub const NOW_MARKED_BOUND: Duration = Duration::from_secs(15);
+
 /// How often the guard reads the process table, and how long it waits after a read that failed.
 pub const POLL: Duration = Duration::from_millis(20);
 pub const UNREAD_PAUSE: Duration = Duration::from_millis(2);
@@ -2298,5 +2307,88 @@ mod tests {
             at > first,
             "left at the first read after the spell, {at} ms"
         );
+    }
+
+    /// CP-189 G5, adversary 2's case C: the executor's end of a start with no first reply returns
+    /// at the first read at or after the forced end at which no member bears the mark and none is
+    /// unread. Mail, a child of the first process, is left and named in the record, whose cause is
+    /// no `tree_gone` while it runs.
+    #[test]
+    fn g5_the_end_of_a_failed_start_returns_once_no_member_bears_the_mark() {
+        let (code, at, ends, records) = run_timed(
+            Trigger::Now,
+            100,
+            &|_, ends| {
+                let mut v = vec![stranger(70, ROOT, 20, 0)];
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 0);
+        assert!(!ends.iter().any(|e| e.0 == 70), "{ends:?}");
+        let forced_at = forced(&ends, ROOT).expect("forced");
+        assert!(
+            at <= forced_at + 300,
+            "returned at {at} ms, forced at {forced_at} ms"
+        );
+        let last = records.last().expect("a record");
+        assert_eq!(
+            (last.cause, last.left, last.left_programs.clone()),
+            ("now_left", 1, vec!["Mail".to_string()])
+        );
+    }
+
+    /// CP-189 G5: a member whose arguments stay unread ends the wait at a bound of its own after
+    /// the forced end, with a cause of its own.
+    #[test]
+    fn g5_a_member_that_stays_unread_ends_the_wait_at_its_bound() {
+        let (_, at, ends, records) = run_timed(
+            Trigger::Now,
+            100,
+            &|_, ends| {
+                let mut v = vec![row(71, ROOT, 20, 0)];
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| if p == 71 { None } else { every_marked(p) },
+        );
+        assert!(!ends.iter().any(|e| e.0 == 71), "{ends:?}");
+        let forced_at = forced(&ends, ROOT).expect("forced");
+        let bound = NOW_UNREAD_BOUND.as_millis();
+        assert!(
+            (forced_at + bound..forced_at + bound + 300).contains(&at),
+            "returned at {at} ms"
+        );
+        assert_eq!(records.last().expect("a record").cause, "now_unread");
+    }
+
+    /// CP-189 G5: a marked member that does not end under the forced end ends the wait at a bound
+    /// of its own, with a cause of its own.
+    #[test]
+    fn g5_a_marked_member_that_does_not_end_ends_the_wait_at_its_bound() {
+        let (_, at, ends, records) = run_timed(
+            Trigger::Now,
+            100,
+            &|_, ends| {
+                let mut v = vec![row(72, ROOT, 20, 0)];
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        let first_forced = forced(&ends, 72).expect("forced");
+        let bound = NOW_MARKED_BOUND.as_millis();
+        assert!(
+            (first_forced + bound..first_forced + bound + 300).contains(&at),
+            "returned at {at} ms"
+        );
+        assert_eq!(records.last().expect("a record").cause, "now_marked");
     }
 }
