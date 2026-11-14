@@ -146,6 +146,29 @@ pub fn set_lines(port: u16) -> Vec<String> {
     lines
 }
 
+/// The list file's bytes as the egress check reads them, with the CR of each CRLF line end
+/// removed, and the count removed: a checkout with `core.autocrlf=true` (Git for Windows) writes the
+/// tracked list with CRLF, which the check's list reader refuses.
+pub fn list_with_lf(text: &str) -> (String, usize) {
+    let removed = text.matches("\r\n").count();
+    (text.replace("\r\n", "\n"), removed)
+}
+
+/// The cause words of the egress check's refusal lines (`REFUSED <cause>: <detail>`), joined by
+/// commas, or `-`; the detail, which can name a path, is left out.
+pub fn refusal_causes(check_stderr: &str) -> String {
+    let causes: Vec<&str> = check_stderr
+        .lines()
+        .filter_map(|l| l.strip_prefix("REFUSED "))
+        .map(|rest| rest.split(':').next().unwrap_or("-"))
+        .collect();
+    if causes.is_empty() {
+        "-".to_string()
+    } else {
+        causes.join(",")
+    }
+}
+
 /// The `egress` line of item 3 from the egress check's standard error (its last line that starts
 /// `egress mode=`) and whether the browser started: `egress machine=<m> mode=<mode>
 /// browser_started=<yes|no> denied=<n>`. None when the check printed no such line.
@@ -302,6 +325,20 @@ mod tests {
             egress_line("mac", "egress mode=sandbox denied=1x log=l\n", true),
             None
         );
+    }
+
+    #[test]
+    fn the_list_reaches_the_check_with_lf_line_ends() {
+        assert_eq!(
+            list_with_lf("[fixed]\r\n[agent]\r\n127.0.0.1:18090\r\n"),
+            ("[fixed]\n[agent]\n127.0.0.1:18090\n".to_string(), 3)
+        );
+        assert_eq!(list_with_lf("[fixed]\n"), ("[fixed]\n".to_string(), 0));
+        assert_eq!(
+            refusal_causes("REFUSED list: C:/x/fixtures.txt line 1\negress x\n"),
+            "list"
+        );
+        assert_eq!(refusal_causes("egress mode=wfp denied=0\n"), "-");
     }
 
     #[test]
