@@ -210,3 +210,47 @@ fn a_store_fault_at_the_handlers_own_load_before_an_end_run_commits_nothing_and_
     assert!(holds_nothing_of(&w, 3));
     assert_eq!(of_run(&w, 3).len(), 1);
 }
+
+/// The limit of L4.3 (ruling LM-81, B3): a stop is no counted cause, so a provisional edit whose step logged `step_ok` is served again after the person stops the run.
+#[test]
+fn an_end_run_after_step_ok_on_the_step_of_a_provisional_edit_keeps_the_edit_served() {
+    let mut w = active_world();
+    w.learn(
+        2,
+        2,
+        "button Pay now",
+        vec![loc("A"), locator("role", "button", Some("Pay"))],
+    );
+    let served = w.replay(3);
+    assert_eq!(names(&served[1]), ["A", "Pay"]);
+    w.log(3, &[(1, "step_ok", 1, None), (2, "step_ok", 2, None)]);
+    assert!(accepted(&end_run(&mut w, 3, 1)));
+    assert_eq!(
+        edits(&w).last().expect("an edit").state,
+        EditState::Provisional
+    );
+    let next = w.replay(4);
+    assert_eq!(names(&next[1]), ["A", "Pay"]);
+}
+
+/// The limit of L3.7 (ruling LM-81, B3): an active edit whose step logged a counted failure stays active, so it is served again after the person stops the run.
+#[test]
+fn an_end_run_after_a_counted_failure_of_an_active_edit_keeps_the_edit_served() {
+    let mut w = active_world();
+    w.learn(
+        2,
+        2,
+        "button Pay now",
+        vec![loc("A"), locator("role", "button", Some("Pay"))],
+    );
+    w.clean_use(3, 2);
+    w.clean_use(4, 2);
+    assert_eq!(edits(&w).last().expect("an edit").state, EditState::Active);
+    let served = w.replay(5);
+    assert_eq!(names(&served[1]), ["A", "Pay"]);
+    w.log(5, &[(1, "step_failed", 2, Some("step_failed"))]);
+    assert!(accepted(&end_run(&mut w, 5, 1)));
+    assert_eq!(edits(&w).last().expect("an edit").state, EditState::Active);
+    let next = w.replay(6);
+    assert_eq!(names(&next[1]), ["A", "Pay"]);
+}
