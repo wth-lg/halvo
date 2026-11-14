@@ -1,9 +1,9 @@
 #!/bin/sh
 # jobs: windows
-# rule: cargo test -p halvo-seam passes with the committed lockfile and shows the four conformance tests, the five tests of the checks of C5.13 item 12, the reduction test and the memory test as passed, each in the block of its own test file.
+# rule: cargo test -p halvo-seam passes with the committed lockfile and shows the four conformance tests, the five tests of the checks of C5.13 item 12, the reduction test, the memory test, the two tests of set D's step back and the test of the matcher of the suite's controls as passed, each in the block of its own test file.
 set -u
 name=21-seam
-tests='conformance:conformance_resume conformance:conformance_shredded conformance:conformance_filters conformance:conformance_store_changed conformance:conformance_check_store_changed_names_the_current_id conformance:conformance_check_open_while_open conformance:conformance_check_open_at_the_watermark_after_a_shred conformance:conformance_check_filtered_stops conformance:conformance_check_one_expiry_instant reduction:reduction_app_title memory:transport_memory'
+tests='conformance:conformance_resume conformance:conformance_shredded conformance:conformance_filters conformance:conformance_store_changed conformance:conformance_check_store_changed_names_the_current_id conformance:conformance_check_open_while_open conformance:conformance_check_open_at_the_watermark_after_a_shred conformance:conformance_check_filtered_stops conformance:conformance_check_one_expiry_instant reduction:reduction_app_title memory:transport_memory conformance:conformance_filters_step_back conformance:conformance_set_d_holds_its_step_back_when_served suite_controls:an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -59,7 +59,7 @@ measure() {
 passing_output() {
   cat <<'EOF'
    Compiling halvo-seam v0.0.0 (/work/halvo/crates/halvo-seam)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.83s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.08s
      Running unittests src/lib.rs (target/debug/deps/halvo_seam-4527526ae09af152)
 
 running 0 tests
@@ -76,10 +76,10 @@ test a_batch_that_breaks_a_rule_of_c5_7_stops_the_client ... ok
 test a_read_whose_next_names_segment_zero_stops_the_client ... ok
 test a_record_below_the_next_of_an_earlier_batch_stops_the_client ... ok
 test a_refusal_that_c5_9_allows_for_the_message_sent_stays_a_refusal ... ok
-test a_reply_to_open_cursor_outside_c5_6_stops_the_client ... ok
 test a_reply_to_open_cursor_with_an_expiry_entry_stops_the_client ... ok
-test after_store_changed_to_an_open_the_position_of_the_open_stays_readable ... ok
+test a_reply_to_open_cursor_outside_c5_6_stops_the_client ... ok
 test after_bad_position_the_position_of_the_open_stays_readable ... ok
+test after_store_changed_to_an_open_the_position_of_the_open_stays_readable ... ok
 test after_store_error_the_position_of_the_last_batch_taken_stays_readable ... ok
 test after_store_error_to_an_open_the_position_of_the_open_stays_readable ... ok
 test bad_position_that_answers_a_close_is_a_failed_read ... ok
@@ -87,35 +87,36 @@ test an_expiry_out_of_rising_seg_order_or_with_a_seg_twice_stops_the_client ... 
 test bad_position_that_answers_a_read_is_a_failed_read ... ok
 test bad_position_that_answers_an_open_at_the_zero_position_is_a_failed_read ... ok
 test bad_request_that_answers_a_close_of_an_open_cursor_is_a_failed_read ... ok
+test after_store_changed_to_a_read_the_position_of_the_last_batch_taken_stays_readable ... ok
 test bad_request_that_answers_a_read_of_an_open_cursor_is_a_failed_read ... ok
-test store_changed_or_bad_position_that_answers_an_analysis_write_is_a_failed_read ... ok
 test store_changed_that_answers_a_close_is_a_failed_read ... ok
+test store_changed_or_bad_position_that_answers_an_analysis_write_is_a_failed_read ... ok
 test store_changed_that_answers_an_open_with_a_null_store_is_a_failed_read ... ok
 test store_changed_that_names_the_store_its_open_named_is_a_failed_read ... ok
 test store_changed_that_names_the_store_of_the_open_cursor_to_a_read_is_a_failed_read ... ok
-test after_store_changed_to_a_read_the_position_of_the_last_batch_taken_stays_readable ... ok
 test the_errors_of_c5_10_leave_the_state_that_their_table_gives ... ok
 test the_analysis_write_goes_out_as_to_bytes_wrote_it_and_its_reply_is_decoded ... ok
 test the_client_reads_a_store_through_both_entries_alike ... ok
 test a_reader_that_resumes_at_its_position_skips_and_repeats_no_record ... ok
 
-test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.93s
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
 
      Running tests/conformance.rs (target/debug/deps/conformance-80bcebace094fcfe)
 
-running 9 tests
+running 11 tests
 test conformance_check_one_expiry_instant ... ok
 test conformance_check_store_changed_names_the_current_id ... ok
 test conformance_filters ... ok
+test conformance_filters_step_back ... ok
 test conformance_resume ... ok
+test conformance_check_filtered_stops ... ok
 test conformance_shredded ... ok
 test conformance_store_changed ... ok
-test conformance_check_filtered_stops ... ok
 test conformance_check_open_at_the_watermark_after_a_shred ... ok
-test conformance_check_open_while_open has been running for over 60 seconds
+test conformance_set_d_holds_its_step_back_when_served ... ok
 test conformance_check_open_while_open ... ok
 
-test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 96.66s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.05s
 
      Running tests/frame.rs (target/debug/deps/frame-aec2a3e72eac0962)
 
@@ -123,68 +124,68 @@ running 8 tests
 test a_failed_read_is_an_io_error ... ok
 test a_frame_one_byte_long_leaves_its_last_byte_as_the_start_of_the_next_length ... ok
 test a_frame_one_byte_short_ends_inside_the_frame ... ok
+test a_frame_of_the_bound_is_taken_and_one_byte_over_it_is_refused_unread ... ok
 test a_frame_split_at_every_byte_and_two_frames_in_one_read_are_read_whole ... ok
 test a_length_of_zero_is_refused_and_no_payload_is_read ... ok
 test the_end_of_the_stream_before_a_frame_is_no_error_and_inside_the_length_is_one ... ok
-test a_frame_of_the_bound_is_taken_and_one_byte_over_it_is_refused_unread ... ok
 test the_example_of_c5_2_travels_after_its_four_length_bytes ... ok
 
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
 
      Running tests/memory.rs (target/debug/deps/memory-2ce0681e34376726)
 
 running 1 test
 test transport_memory ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.10s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.26s
 
      Running tests/message.rs (target/debug/deps/message-ed2d3f5802e48ee7)
 
 running 16 tests
-test a_key_of_another_message_is_a_bad_frame_also_when_its_value_is_null ... ok
 test a_key_twice_is_a_bad_frame_in_the_message_the_position_and_the_range ... ok
 test a_missing_or_unknown_key_or_a_value_of_another_type_is_a_bad_frame ... ok
+test a_key_of_another_message_is_a_bad_frame_also_when_its_value_is_null ... ok
 test a_message_of_c5_4_with_an_illegal_value_is_a_bad_request ... ok
 test a_server_error_keeps_its_rules ... ok
 test a_number_outside_its_form_or_range_is_a_bad_frame ... ok
-test a_watermark_or_a_segment_ordinal_outside_the_form_of_c5_3_is_refused ... ok
 test a_server_message_outside_c5_5_is_refused ... ok
+test a_watermark_or_a_segment_ordinal_outside_the_form_of_c5_3_is_refused ... ok
 test an_array_in_place_of_an_object_is_a_bad_frame ... ok
 test an_expiry_seg_above_2_63_minus_1_gets_the_fixed_error_of_an_expiry_entry ... ok
 test keys_stand_in_any_order_with_json_white_space_and_escaped_keys ... ok
-test the_analysis_write_carries_the_bytes_of_to_bytes_unchanged ... ok
 test the_client_messages_decode_and_write_back_byte_for_byte ... ok
+test the_analysis_write_carries_the_bytes_of_to_bytes_unchanged ... ok
 test the_typed_open_cursor_keeps_its_rules ... ok
-test the_serde_forms_of_a_record_an_entry_and_an_expiry_entry_hold_no_value_in_their_errors ... ok
 test the_server_messages_of_c5_14_decode_and_write_back_byte_for_byte ... ok
+test the_serde_forms_of_a_record_an_entry_and_an_expiry_entry_hold_no_value_in_their_errors ... ok
 
-test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
 
      Running tests/record.rs (target/debug/deps/record-80f25ae29b0277f7)
 
 running 20 tests
-test a_key_written_with_an_escape_is_that_key ... ok
-test a_key_twice_is_refused_in_the_record_in_p_and_in_site ... ok
 test a_kind_outside_c4_4_is_refused ... ok
+test a_key_written_with_an_escape_is_that_key ... ok
 test a_number_outside_the_decimal_integer_form_is_refused ... ok
+test a_key_twice_is_refused_in_the_record_in_p_and_in_site ... ok
 test an_app_with_a_control_character_of_the_category_cc_is_taken_as_null ... ok
 test an_array_in_place_of_an_object_is_refused ... ok
-test an_error_names_the_key_and_holds_no_value_of_the_record ... ok
 test an_unknown_key_is_refused_and_named_by_the_object_that_holds_it ... ok
+test an_error_names_the_key_and_holds_no_value_of_the_record ... ok
 test each_missing_key_is_named ... ok
 test example_lines_of_c4_8_read_and_write_back_byte_for_byte ... ok
-test lines_hold_one_line_and_count_a_long_one_without_holding_it ... ok
-test keys_stand_in_any_order_with_spaces_and_tabs_between_tokens ... ok
 test every_payload_form_of_c4_3_is_read_and_written_back ... ok
-test new_keeps_the_rules_of_the_reader ... ok
-test payload_keys_follow_the_kind ... ok
-test reduced_records_are_read_and_written_back ... ok
+test keys_stand_in_any_order_with_spaces_and_tabs_between_tokens ... ok
+test lines_hold_one_line_and_count_a_long_one_without_holding_it ... ok
 test lines_keep_a_line_of_16384_bytes_and_pass_over_one_of_16385 ... ok
-test the_app_is_cut_to_its_file_name_and_kept_as_an_app_id ... ok
+test new_keeps_the_rules_of_the_reader ... ok
+test reduced_records_are_read_and_written_back ... ok
+test payload_keys_follow_the_kind ... ok
 test the_id_has_the_form_of_a_uuid_v7 ... ok
+test the_app_is_cut_to_its_file_name_and_kept_as_an_app_id ... ok
 test the_line_reader_keeps_the_rules_of_c4_8 ... ok
 
-test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
 
      Running tests/reduction.rs (target/debug/deps/reduction-14fa013e95c66e19)
 
@@ -194,14 +195,14 @@ test the_reduction_serves_the_listed_keys_and_the_marks_and_nothing_else ... ok
 test reduction_app_title ... ok
 test set_reader_refusals_report_the_path_and_the_line ... ok
 
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
 
      Running tests/set_memory.rs (target/debug/deps/set_memory-bb1b4f3b074e4513)
 
 running 1 test
 test set_reader_memory ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
 
      Running tests/set_reader.rs (target/debug/deps/set_reader-ed06e12a81efd24e)
 
@@ -211,11 +212,12 @@ test a_set_path_that_is_a_symbolic_link_is_unreadable_also_when_it_names_a_regul
 test the_set_reader_takes_at_most_1024_bytes_and_one_more ... ok
 test the_set_reader_refuses_a_fifo_as_unreadable_without_waiting ... ok
 
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
 
      Running tests/suite_controls.rs (target/debug/deps/suite_controls-d85fa6ae5030b25b)
 
-running 49 tests
+running 50 tests
+test an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure ... ok
 test control_a_batch_of_another_store_than_its_open_reply ... ok
 test control_a_cursor_opened_with_the_new_id_that_serves_other_entries ... ok
 test control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request ... ok
@@ -226,11 +228,11 @@ test control_a_read_before_the_replace_that_gets_closed ... ok
 test control_a_read_that_never_reaches_the_watermark ... ok
 test control_a_reply_frame_over_the_server_limit ... ok
 test control_a_screen_frame_record_served ... ok
-test control_a_server_that_drops_the_last_record_of_set_c ... ok
 test a_server_whose_restart_adds_a_segment_passes ... ok
-test control_a_next_that_falls ... ok
 test control_a_server_that_goes_on_serving_after_the_replace ... ok
 test a_server_that_ends_each_batch_at_a_segment_end_passes ... ok
+test control_a_server_that_drops_the_last_record_of_set_c ... ok
+test control_a_next_that_falls ... ok
 test control_a_server_that_ignores_the_byte_bound ... ok
 test control_a_server_that_repeats_the_record_at_a_stop ... ok
 test control_a_server_that_serves_the_old_records_after_the_replace ... ok
@@ -238,15 +240,15 @@ test control_a_server_that_skips_the_record_at_a_stop ... ok
 test control_a_server_without_look_ahead ... ok
 test control_a_set_c_that_stops_one_batch_before_its_end ... ok
 test control_a_set_c_too_short_to_stop_a_batch ... ok
+test control_a_server_that_opens_inside_the_watermark_segment ... ok
 test control_a_store_changed_after_the_replace_that_names_the_old_store ... ok
-test control_a_store_changed_that_names_the_old_store ... ok
-test control_a_store_changed_whose_id_the_new_store_does_not_carry ... ok
+test control_a_server_that_refuses_a_position_past_the_end_of_an_inner_segment ... ok
+test control_a_server_that_refuses_a_position_two_past_the_end_of_an_inner_segment ... ok
 test control_a_watermark_that_falls ... ok
 test control_an_empty_batch_whose_next_does_not_rise ... ok
 test control_an_entry_at_next ... ok
-test control_a_server_that_refuses_a_position_past_the_end_of_an_inner_segment ... ok
-test control_a_server_that_refuses_a_position_two_past_the_end_of_an_inner_segment ... ok
-test control_a_server_that_opens_inside_the_watermark_segment ... ok
+test control_a_store_changed_that_names_the_old_store ... ok
+test control_a_store_changed_whose_id_the_new_store_does_not_carry ... ok
 test control_an_error_of_another_cause_than_store_changed ... ok
 test control_an_error_of_another_cause_than_store_changed_after_the_replace ... ok
 test control_an_expiry_instant_not_after_its_records ... ok
@@ -259,47 +261,46 @@ test control_an_open_reply_whose_next_is_not_the_position_asked_for ... ok
 test control_an_entry_below_the_cursor_position ... ok
 test control_an_open_reply_with_a_record ... ok
 test control_an_open_reply_with_an_expiry_entry ... ok
-test control_another_store_id_at_the_zero_position_that_opens_a_cursor ... ok
-test control_replies_of_the_wrong_message ... ok
 test control_an_error_of_another_cause_than_bad_position ... ok
+test control_replies_of_the_wrong_message ... ok
+test control_another_store_id_at_the_zero_position_that_opens_a_cursor ... ok
 test control_an_open_reply_whose_watermark_falls_below_the_reference_after_a_shred ... ok
 test control_an_error_of_another_cause_than_bad_request_for_each_refused_message ... ok
 test run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_shows_it ... ok
 
-test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.92s
+test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.13s
 
      Running tests/transport.rs (target/debug/deps/transport-5e3b8824c212752f)
 
 running 20 tests
 test a_close_after_a_replace_leaves_no_store_changed_for_the_next_cursor ... ok
-test a_malformed_line_gets_store_error_in_place_of_its_batch_and_closes_the_cursor ... ok
-test a_shredded_segment_serves_no_record_and_is_no_error ... ok
-test a_store_id_of_another_store_gets_store_changed_and_opens_no_cursor ... ok
-test an_empty_segment_is_passed_in_the_same_read_and_named_in_no_expiry ... ok
-test an_input_set_reduces_records_and_changes_no_position_expiry_or_next ... ok
-test messages_out_of_order_and_the_analysis_write_get_bad_request ... ok
-test open_fails_on_a_missing_file_a_first_live_of_zero_and_a_refused_set ... ok
-test positions_after_the_watermark_and_beyond_a_file_are_handled_by_c5_9 ... ok
-test the_end_of_a_connection_after_a_replace_leaves_no_store_changed_for_the_next_one ... ok
-test the_example_of_c5_14_travels_byte_for_byte ... ok
-test the_expiry_instant_is_the_first_line_floored_to_a_second_plus_fourteen_days ... ok
-test the_filters_change_no_position_and_serve_marks_and_never_screen_frames ... ok
-test the_first_line_is_checked_when_a_read_starts_inside_its_file ... ok
-test the_read_bound_takes_262144_bytes_of_lines_and_not_one_more ... ok
-test the_store_id_is_the_hash_of_every_file_in_list_order ... ok
-test the_stream_entry_ends_at_end_of_file_and_after_a_bad_frame ... ok
 test a_filter_that_leaves_every_line_out_still_reads_at_most_the_line_bound ... ok
 test a_malformed_line_after_the_bound_is_met_by_the_batch_that_would_hold_it ... ok
+test a_store_id_of_another_store_gets_store_changed_and_opens_no_cursor ... ok
+test a_shredded_segment_serves_no_record_and_is_no_error ... ok
+test a_malformed_line_gets_store_error_in_place_of_its_batch_and_closes_the_cursor ... ok
+test messages_out_of_order_and_the_analysis_write_get_bad_request ... ok
+test an_empty_segment_is_passed_in_the_same_read_and_named_in_no_expiry ... ok
+test open_fails_on_a_missing_file_a_first_live_of_zero_and_a_refused_set ... ok
+test positions_after_the_watermark_and_beyond_a_file_are_handled_by_c5_9 ... ok
+test an_input_set_reduces_records_and_changes_no_position_expiry_or_next ... ok
+test the_end_of_a_connection_after_a_replace_leaves_no_store_changed_for_the_next_one ... ok
+test the_example_of_c5_14_travels_byte_for_byte ... ok
+test the_filters_change_no_position_and_serve_marks_and_never_screen_frames ... ok
 test a_read_that_the_byte_bound_stops_serves_every_line_once_and_both_entries_agree ... ok
+test the_first_line_is_checked_when_a_read_starts_inside_its_file ... ok
+test the_store_id_is_the_hash_of_every_file_in_list_order ... ok
+test the_expiry_instant_is_the_first_line_floored_to_a_second_plus_fourteen_days ... ok
+test the_read_bound_takes_262144_bytes_of_lines_and_not_one_more ... ok
+test the_stream_entry_ends_at_end_of_file_and_after_a_bad_frame ... ok
 
-test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.70s
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
 
    Doc-tests halvo_seam
 
 running 0 tests
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
 EOF
 }
 
