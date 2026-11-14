@@ -2928,4 +2928,45 @@ mod tests {
         );
         assert!(ends.iter().all(|e| e.0 != 101), "{ends:?}");
     }
+
+    /// CP-189 G7, adversary 1's m4: a member without the mark that the guard never met at an ask,
+    /// because its executor runs throughout, is named as left in the last line at the cap.
+    #[test]
+    fn g7_the_cap_with_no_ask_names_what_it_leaves() {
+        let (code, _, ends, records) = run_timed(
+            executor(50),
+            1_000,
+            &|t, _| {
+                let mut v = vec![stranger(5, 1, 50, 5), stranger(72, ROOT, 20, 72)];
+                if t < 1_000 {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 4);
+        assert!(ends.is_empty(), "{ends:?}");
+        let last = records.last().expect("a last line");
+        assert_eq!(
+            (last.cause, last.left, last.left_programs.clone()),
+            ("left_unmarked", 1, vec!["Mail".to_string()]),
+            "{last:?}"
+        );
+    }
+
+    /// CP-189 G7, adversary 3's l3/03: the cap ends the guard at the first read at which
+    /// `LEFT_CAP` has passed since the last marked read, not one read later.
+    #[test]
+    fn g7_the_cap_ends_the_guard_at_the_read_of_its_bound() {
+        let (code, at, _, _) = run(executor(50), 100, &|t, _| {
+            let mut v = vec![stranger(72, ROOT, 20, 72)];
+            if t < 1_000 {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 4);
+        assert_eq!(at, 900 + LEFT_CAP.as_millis());
+    }
 }
