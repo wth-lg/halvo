@@ -400,7 +400,7 @@ judge() {
       if (match(s, arm_re)) return RLENGTH
       return 0
     }
-    function line_of(s,   rest, off, tok, before, pos) {
+    function line_of(s,   rest, off, tok, before, pos, run) {
       chain_mode = 0
       pattern_end = 0
       s = normal(s)
@@ -421,10 +421,29 @@ judge() {
         token(tok, s, pos)
         if (refused[side] + 0 > before) return
       }
+      run = longest_run(s)
+      if (run > max_run) { problem(where, "holds a run of " run " strings joined by a comma, \").join(\" or \"/\", more than the " max_run " that the check reads as one chain; put the strings on several lines, or ask for a ruling"); return }
       before = refused[side] + 0
       chains(s)
       if (refused[side] + 0 > before) return
       from_top(s)
+    }
+    function longest_run(s,   rest, off, n, st, en, run, longest) {
+      rest = s
+      off = 0
+      n = 0
+      run = 0
+      longest = 0
+      while (match(rest, string_re)) {
+        n++
+        st[n] = off + RSTART
+        en[n] = off + RSTART + RLENGTH - 1
+        off += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+        run = (n > 1 && substr(s, en[n - 1] + 1, st[n] - en[n - 1] - 1) ~ sep_gap) ? run + 1 : 1
+        if (run > longest) longest = run
+      }
+      return longest
     }
     function top_path(c,   n, sg, i, d, kp, out) {
       n = split(c, sg, "/")
@@ -559,6 +578,7 @@ judge() {
       fix_four = "; name the four files whole in account/schema/, or ask for a ruling"
       fix_name = "; give it another name, or ask for a ruling"
       fix_ask = "; ask for a ruling"
+      max_run = 64
       split(contract, list, " ")
       for (k in list) copied[list[k]] = 1
       nr7 = split(r7, r7list, " ")
@@ -852,6 +872,11 @@ Readings that refuse an honest line, with the form to write in its place:
   "$(dirname "$0")/../gate/prompt-budget.json";
 - in the app, a comment that names a path under backend/ is refused: write it
   in a .md file;
+- on either side, a line that holds a run of more than 64 strings joined by
+  a comma, ").join(" or "/" is refused, because the chains of a run take
+  time that grows with the square of its strings (400 strings took minutes):
+  put the strings on several lines. A line of many strings in shorter runs
+  is read whole;
 - on either side, the strings of one line are placed each by itself, as the
   chain of a run of strings joined by a comma, ").join(" or "/", and as each
   shorter chain of that run (a shorter chain is refused when it names a
@@ -1748,6 +1773,17 @@ const files = globSync("crates/halvo-capture/src/*.rs", { cwd: root });' 'backen
   pass_with f1c-e57-a-backend-globs-a-directory-of-its-own-side-too backend/scripts/glob3.mjs 'const all = globSync("scripts/*.sh", { cwd: join(here, "..") });' 'read:backend/scripts/glob3.mjs'
   pass_with f1c-e57-a-backend-globs-a-directory-that-nobody-tracks backend/scripts/glob4.mjs 'const out = globSync("dist/out/*.js", { cwd: join(here, "..") });' 'read:backend/scripts/glob4.mjs'
   pass_with f1c-e57-a-lone-top-level-app-directory-is-not-read-from-the-top backend/scripts/lone.mjs 'const all = readdirSync(join(repoRoot, "crates"));' 'read:backend/scripts/lone.mjs'
+
+  run400=$(awk 'BEGIN { printf "{\"version\":3,\"sources\":["; for (i = 1; i <= 400; i++) printf "%s\"../../src/m%d.ts\"", (i > 1 ? "," : ""), i; printf "]}" }') || exit 2
+  case_with f1c-l3-a-run-of-400-climbing-strings-is-refused-above-the-bound backend/dist/maps/app.js.map "$run400" 'backend/dist/maps/app.js.map:1: holds a run of 400 strings joined by'
+  run65=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  case_with f1c-l3-a-run-of-65-strings-is-refused-above-the-bound backend/src/list.ts "$run65" 'backend/src/list.ts:1: holds a run of 65 strings joined by'
+  run64=$(awk 'BEGIN { for (i = 1; i <= 64; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  pass_with f1c-l3-a-run-of-64-strings-is-read backend/src/list.ts "$run64" 'read:backend/src/list.ts'
+  run64app=$(awk 'BEGIN { for (i = 1; i <= 60; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf ", \"crates\", \"halvo-capture\", \"src\", \"lib.rs\"];" }') || exit 2
+  case_with f1c-l3-a-run-of-64-strings-that-ends-in-an-app-path-is-read-and-refused backend/src/list.ts "$run64app" 'backend/src/list.ts:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  pairs=$(awk 'BEGIN { printf "{"; for (i = 1; i <= 300; i++) printf "%s\"k%d\":\"../v%d\"", (i > 1 ? "," : ""), i, i; printf "}" }') || exit 2
+  pass_with f1c-l3-a-line-of-600-strings-in-short-runs-is-read backend/test/fixtures/pairs.json "$pairs" 'read:backend/test/fixtures/pairs.json'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
