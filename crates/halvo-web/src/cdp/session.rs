@@ -860,11 +860,15 @@ mod tests {
     /// through the child's handle in cdp.rs. The text before this file's tests is read.
     #[test]
     fn g3_the_stop_holds_no_call_that_ends_a_process_without_the_mark() {
-        let source = include_str!("session.rs");
-        let code = source
-            .split("#[cfg(test)]\nmod tests {")
-            .next()
-            .unwrap_or(source);
+        // A checkout on Windows may give the file CR LF line ends (run 43543209046).
+        let source = include_str!("session.rs").replace("\r\n", "\n");
+        let marker = "#[cfg(test)]\nmod tests {";
+        assert_eq!(
+            source.matches(marker).count(),
+            1,
+            "the test module's first line is not found once"
+        );
+        let code = source.split(marker).next().unwrap_or_default();
         for banned in [
             "procs::kill(",
             "procs::ask_end(",
