@@ -106,9 +106,11 @@ impl EncryptedStore {
     /// never by its kept name, following no link: (1) the count of keyed
     /// segments, unknown when it cannot be read; (2) the root step, which opens
     /// the custody's roots location once and, when that directory holds the
-    /// store's root or an earlier call on this handle removed it, destroys
-    /// every root file there, the store's own first, and otherwise destroys
-    /// nothing and reads the root as left; (3) the handle refuses writes from here on,
+    /// store's root, destroys every root file there, the store's own first,
+    /// and otherwise destroys nothing and reads the root as left; once a call
+    /// on this handle read its root destroyed, a later call opens no roots
+    /// path again and reports from the listing that the earlier call kept;
+    /// (3) the handle refuses writes from here on,
     /// whatever step 2 answered; (4) the key file, removed even when its
     /// zero-fill failed; (5) the three database files and the journal; (6)
     /// the segments tree. `Ok` with the report when the root reads destroyed

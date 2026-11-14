@@ -1784,7 +1784,9 @@ pub struct EncryptedStore {
         )
     )]
     pending_left: bool,
-    root_removed: bool,
+    /// The roots listing of the call on this handle that read its root
+    /// destroyed; a later call reports from it and opens no roots path.
+    root_destroyed_with: Option<RootsLeft>,
     _writer_lock: DirLock,
 }
 
@@ -1875,7 +1877,7 @@ impl EncryptedStore {
                 fs: Arc::new(OsFs),
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
-                root_removed: false,
+                root_destroyed_with: None,
                 _writer_lock,
             }),
             Err(e) => {
@@ -2015,7 +2017,7 @@ impl EncryptedStore {
             fs: Arc::new(OsFs),
             unwrap_time,
             pending_left,
-            root_removed: false,
+            root_destroyed_with: None,
             _writer_lock,
         })
     }
@@ -2130,10 +2132,20 @@ impl EncryptedStore {
         ))
     }
 
+    /// The root step of the handle. Once a call on this handle read its root
+    /// destroyed, a later call reads its root as destroyed from the handle's
+    /// state and the other roots from the listing that the earlier call kept,
+    /// and opens no roots path again (ruling ST-45 H3).
     pub(crate) fn root_step(&self) -> RootStep {
+        if let Some(kept) = &self.root_destroyed_with {
+            return RootStep {
+                reading: RootReading::Destroyed,
+                roots: kept.clone(),
+            };
+        }
         let named = self.custody.root_id();
         let (reading, roots) = match self.custody.roots() {
-            Some(roots) => file_root::destroy_roots_in(roots, Some(named), self.root_removed),
+            Some(roots) => file_root::destroy_roots_in(roots, Some(named)),
             None => (
                 match self.custody.destroy_root() {
                     Ok(()) => RootReading::Destroyed,
@@ -2168,8 +2180,8 @@ impl EncryptedStore {
 
     pub(crate) fn remove_files_after(&mut self, root_step: RootStep) {
         self.keyed = Keyed::Deleting(None);
-        if root_step.reading == RootReading::Destroyed {
-            self.root_removed = true;
+        if root_step.reading == RootReading::Destroyed && self.root_destroyed_with.is_none() {
+            self.root_destroyed_with = Some(root_step.roots.clone());
         }
         let mut report =
             remove_the_store_files(&self.dir, None, root_step.reading, root_step.roots);
@@ -2349,7 +2361,7 @@ fn tail_root_step(
                 listed: true,
             },
         ),
-        None => file_root::destroy_roots_in(roots, named, false),
+        None => file_root::destroy_roots_in(roots, named),
     };
     (reading, roots, root_not_handled)
 }

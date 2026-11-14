@@ -139,19 +139,15 @@ impl RootsLeft {
 }
 
 /// The root step through one opened handle of the roots location. `named`
-/// is the root that the handle, the key file or a mark that reads made names;
-/// `removed_before` says that an earlier call on the same handle removed it.
+/// is the root that the handle, the key file or a mark that reads made names.
 /// The step lists, destroys and reads again through that one handle, and it
-/// destroys there only when the directory holds an entry of the named root or
-/// an earlier call removed it (the witness): a directory put at the old name
-/// is not touched, and a roots directory that left its name is not read as
-/// destroyed. With the witness every root file of the directory is destroyed,
-/// the named one first. With nothing named it destroys nothing.
-pub(crate) fn destroy_roots_in(
-    roots: &Path,
-    named: Option<RootId>,
-    removed_before: bool,
-) -> (RootReading, RootsLeft) {
+/// destroys there only when the directory holds an entry of the named root
+/// (the witness): a directory put at the old name is not touched, and a
+/// roots directory that left its name is not read as destroyed. With the
+/// witness every root file of the directory is destroyed, the named one
+/// first. With nothing named it destroys nothing. A later call on a handle
+/// whose root read destroyed does not come here (ruling ST-45 H3).
+pub(crate) fn destroy_roots_in(roots: &Path, named: Option<RootId>) -> (RootReading, RootsLeft) {
     let none_counted = |listed: bool| RootsLeft {
         left: Vec::new(),
         names: Vec::new(),
@@ -176,7 +172,7 @@ pub(crate) fn destroy_roots_in(
         .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.name)))
         .collect();
     let holds_named = found.iter().any(|(file, _)| file.id() == named);
-    if !holds_named && !removed_before {
+    if !holds_named {
         return (RootReading::Left(Some(named)), none_counted(true));
     }
     found.sort_by_key(|(file, _)| file.id() != named);

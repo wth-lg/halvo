@@ -112,7 +112,9 @@ fixed order. Check 2 is three tests: one over random races of processes
 that open a store, one over random races of processes that create one in
 an empty directory, and one of two fixed cases around the directory lock.
 `docs/verify/check-covered.sh` reads this table and the table under
-Covered code.
+Covered code. The delete tail, `EncryptedStore::delete_store_dir`, is held
+by tests and rows, not by the formal checks: no move of check 1 calls it,
+and a later unit adds it as a move (ruling ST-45 Addition 1).
 
 ## Tool
 
@@ -1101,12 +1103,21 @@ What the code does since store-3, each sentence with the test that shows it.
   once and lists, destroys and reads again through that one handle; it
   makes no second walk of the path and does not call the custody's destroy
   by path. It destroys there only when the directory holds an entry of the
-  root that the handle names, or when an earlier call on the same handle
-  removed that root (the witness), and then it destroys every root file of
-  that directory, the store's own first. Otherwise it destroys nothing
-  there and the root reads left: a directory put at the roots directory's
-  old name is not touched, and a roots directory that left its name is not
-  read as destroyed. For a custody without a roots directory the custody's
+  root that the handle names (the witness), and then it destroys every root
+  file of that directory, the store's own first. Otherwise it destroys
+  nothing there and the root reads left: a directory put at the roots
+  directory's old name is not touched, and a roots directory that left its
+  name is not read as destroyed. Once a call on the handle read its root
+  destroyed, no later call on that handle opens the roots path again: the
+  later call reads its own root as destroyed from the handle's state and
+  the other roots from the listing that the earlier call kept, answers
+  `Ok` when that listing showed none left and nothing of the store is left
+  and `DeleteIncomplete` with those names otherwise, and destroys nothing
+  under the roots path; the first formal check puts a root file of another
+  id under the roots path before such a later call and requires that it
+  stays (ruling ST-45 H3; tests
+  `p2_a_resumed_delete_all_keeps_the_root_of_a_store_made_at_its_old_name`,
+  `a_later_delete_all_after_the_root_read_destroyed_does_not_open_the_roots_path_again`). For a custody without a roots directory the custody's
   own answer decides. The report reads the root as destroyed, left (with
   its id when the call knows it) or unnamed, the readings of C11.4; the
   line prints `root_destroyed=yes`, `no` or `unknown`. It answers `Ok`
@@ -1314,6 +1325,12 @@ set, and the root's own volume name answers the root.
   finished, and the root that stands in the moved directory can still
   unwrap a copy of the store. Following a moved roots directory with a
   handle held for the store's life is store-3b's.
+- A later call on a handle whose root read destroyed (ruling ST-45 H3). It
+  reports the roots from the listing that the earlier call kept and opens
+  no roots path, so a root file put under the roots directory after that
+  call is neither destroyed nor named by the handle; the tail, run after
+  the handle is dropped, finishes what was left. The identity of the roots
+  directory goes with the held handle to store-3b.
 - The root of a key file that this build does not handle (ruling ST-44
   F5). Its name is given once, by the call that removes its key file; a
   root of a key file of version 1 is an item of the login keychain, and its
