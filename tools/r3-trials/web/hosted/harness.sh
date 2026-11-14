@@ -138,10 +138,12 @@ esac
 guard
 case $(uname -s) in
   Darwin)
+    # shellcheck source=SCRIPTDIR/mac.sh
     . "$here/mac.sh"
     mac_main "$here"
     ;;
   MINGW* | MSYS* | CYGWIN*)
+    # shellcheck source=SCRIPTDIR/win.sh
     . "$here/win.sh"
     win_main
     ;;
