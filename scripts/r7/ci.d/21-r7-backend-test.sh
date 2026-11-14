@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; check 50's records, sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs in backend/ with GATE_STATE under the artifacts, exit 0 with the last line "concurrency: records: N of N as expected", where N is the number of .json files under backend/gate/fixtures/concurrency/records/ at HEAD and is above 0; no tracked file differs from HEAD after both runs; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; check 50's records, sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs in backend/ with GATE_STATE under the artifacts, exit 0 with one line of a record as expected for each of N records and the last line "concurrency: records: N of N as expected", where N is the number of .json files under backend/gate/fixtures/concurrency/records/ and its sub-directories at HEAD and is above 0; no tracked file differs from HEAD after both runs; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
 set -u
 name=21-r7-backend-test
 list=scripts/r7/backend-tests.txt
@@ -94,24 +94,27 @@ records_in() {
     records_cause="$records_script or backend/scripts/with-env.sh is missing"
     return 1
   fi
-  if ! git -C "$r_repo" ls-tree --name-only HEAD -- "$records_dir/" >"$r_out/records-at-head.txt"; then
+  if ! git -C "$r_repo" ls-tree -r -z --name-only HEAD -- "$records_dir/" >"$r_out/records-at-head.z"; then
     records_cause="git could not list $records_dir/ at HEAD"
     return 1
   fi
+  LC_ALL=C tr '\n\000' '?\n' <"$r_out/records-at-head.z" >"$r_out/records-at-head.txt" || return 2
   r_want=$(grep -c '\.json$' "$r_out/records-at-head.txt")
   mkdir -p "$r_out/records-state" || return 2
   (cd "$r_repo/backend" && GATE_STATE=$r_out/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_out/records.txt" 2>"$r_out/records.err.txt"
   r_code=$?
   r_last=$(tail -n 1 "$r_out/records.txt")
   r_failed=$(grep -c '^self-test concurrency: record ' "$r_out/records.txt")
+  r_read=$(grep -c -E '^self-test concurrency: (good record-.*: PASS|bad record-.*: FAIL) as expected$' "$r_out/records.txt")
   r_line=other
   [ "$r_last" != "concurrency: records: $r_want of $r_want as expected" ] || r_line=all-of-head
   git -C "$r_repo" diff --quiet HEAD --
   r_tree=$?
-  records_counts="records exit=$r_code at-head=$r_want failed=$r_failed last-line=$r_line tree-diff=$r_tree"
+  records_counts="records exit=$r_code at-head=$r_want as-expected=$r_read failed=$r_failed last-line=$r_line tree-diff=$r_tree"
   [ "$r_want" -gt 0 ] || records_cause="HEAD holds no record under $records_dir/"
   [ -n "$records_cause" ] || [ "$r_code" = 0 ] || records_cause="check 50's records exited $r_code; the lines are records.txt among the artifacts"
   [ -n "$records_cause" ] || [ "$r_line" = all-of-head ] || records_cause="the last line of $records_script is not \"concurrency: records: $r_want of $r_want as expected\" for the $r_want records at HEAD; the lines are records.txt among the artifacts"
+  [ -n "$records_cause" ] || [ "$r_read" = "$r_want" ] || records_cause="$records_script printed $r_read lines of a record as expected for the $r_want records at HEAD; the lines are records.txt among the artifacts"
   case $r_tree in
     0) ;;
     1) records_cause="${records_cause:+$records_cause; }a tracked file differs from HEAD after the node tests and the records" ;;
@@ -448,6 +451,25 @@ self_test() {
   commit_fixture a-file-that-is-no-record-at-head
   expect_records PASS a-file-that-is-no-record-at-head ''
 
+  records_fixture a-record-with-a-name-that-is-not-ascii
+  cp "$scratch/a-record-with-a-name-that-is-not-ascii/$first_good" "$scratch/a-record-with-a-name-that-is-not-ascii/$records_dir/good-caf$(printf '\303\251')-a-copy.json" || exit 2
+  git -C "$scratch/a-record-with-a-name-that-is-not-ascii" add "$records_dir" || exit 2
+  commit_fixture a-record-with-a-name-that-is-not-ascii
+  expect_records PASS a-record-with-a-name-that-is-not-ascii ''
+
+  records_fixture a-record-in-a-sub-directory
+  mkdir -p "$scratch/a-record-in-a-sub-directory/$records_dir/kept" || exit 2
+  git -C "$scratch/a-record-in-a-sub-directory" mv "$first_good" "$records_dir/kept/" || exit 2
+  commit_fixture a-record-in-a-sub-directory
+  expect_records FAIL a-record-in-a-sub-directory 'the last line of'
+
+  records_fixture records-mjs-prints-only-the-last-line
+  edit_file "$scratch/records-mjs-prints-only-the-last-line/$records_script" 'let failed = 0;' 'console.log("concurrency: records: " + files.length + " of " + files.length + " as expected");
+process.exit(0);
+let failed = 0;'
+  commit_fixture records-mjs-prints-only-the-last-line
+  expect_records FAIL records-mjs-prints-only-the-last-line 'lines of a record as expected'
+
   records_fixture a-good-record-expects-another-count
   break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted'
   commit_fixture a-good-record-expects-another-count
@@ -518,19 +540,19 @@ process.exit(failed === 0 ? 0 : 1);'
   expect_records FAIL head-without-a-commit "git could not list $records_dir/ at HEAD"
 
   passed_records='concurrency: records: 1 of 1 as expected'
-  measure_fixture measure-runs-the-tests-and-the-records 0 "$passed_records"
-  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-head=1 failed=0 last-line=all-of-head tree-diff=0' "PASS $name"
+  measure_fixture measure-runs-the-tests-and-the-records 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "PASS $name"
 
   measure_fixture measure-fails-on-the-records-alone 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
-  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-head=1 failed=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the lines are records.txt among the artifacts)"
+  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-head=1 as-expected=0 failed=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the lines are records.txt among the artifacts)"
 
-  measure_fixture measure-fails-on-the-tests-alone 0 "$passed_records"
+  measure_fixture measure-fails-on-the-tests-alone 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   printf '1\n' >"$scratch/measure-fails-on-the-tests-alone/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-head=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test script exited 1)"
+  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test script exited 1)"
 
   measure_fixture measure-fails-on-both 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
   printf '1\n' >"$scratch/measure-fails-on-both/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-both 'records exit=1 at-head=1 failed=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the lines are records.txt among the artifacts)"
+  expect_measure FAIL measure-fails-on-both 'records exit=1 at-head=1 as-expected=0 failed=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the lines are records.txt among the artifacts)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
