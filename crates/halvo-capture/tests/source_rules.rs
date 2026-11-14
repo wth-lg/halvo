@@ -130,13 +130,14 @@ fn root() -> PathBuf {
 /// each by its path from the root, byte for byte. The rules read every other
 /// file there as Rust, whatever its name: the compiler opens a module file by
 /// a path, and a volume that folds case gives `x.RS` for `x.rs`.
-const DATA_FILES: [&str; 9] = [
+const DATA_FILES: [&str; 10] = [
     "crates/halvo-capture/Cargo.toml",
     "crates/halvo-capture/src/custody/mutants.rows",
     "crates/halvo-capture/src/daemon/mutants.rows",
     "crates/halvo-capture/src/macos/mutants.rows",
     "crates/halvo-capture/src/mutants.rows",
     "crates/halvo-capture/src/store/mutants.rows",
+    "crates/halvo-capture/src/store/testdata/crashpoint.c",
     "crates/halvo-capture/src/store/testdata/segment-v1.golden",
     "crates/halvo-capture/src/windows/mutants.rows",
     "src-tauri/src/engine-url-forms.txt",
