@@ -9,6 +9,14 @@ mod effect;
 mod file;
 mod link;
 mod playbook;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+    )
+)]
+mod release;
 mod run;
 mod secret;
 

@@ -14,17 +14,10 @@ fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
 }
 
-fn checkpoint_and_files(sup: &Supervisor) -> Vec<String> {
-    vec![
-        format!("formulas.halvo-checkpoint-{}.xlsx", sup.run.as_str()),
-        "formulas.xlsx".into(),
-        "source.csv".into(),
-    ]
-}
-
-/// D1, the review's R1 and A1: a permission `user_files` that the load before the propose no longer holds.
+/// D1, the review's R1 and A1, CP-135 (3): a permission `user_files` that the load before the edit's `prepare` no
+/// longer holds: no `prepare`, so no checkpoint and no prepared copy, and no effect row.
 #[test]
-fn a_permission_withdrawn_at_the_load_before_the_propose_makes_no_effect_row() {
+fn a_permission_withdrawn_at_the_load_before_the_prepare_makes_no_effect_row() {
     let files = FillFiles::new("gates-d1", 1);
     let before = files.workbook_bytes();
     let sup = fill(70, &files);
@@ -78,8 +71,8 @@ fn a_permission_withdrawn_at_the_load_before_the_propose_makes_no_effect_row() {
     );
     assert_eq!(
         files.names(),
-        checkpoint_and_files(&sup),
-        "the prepared copy is gone"
+        ["formulas.xlsx".to_string(), "source.csv".to_string()],
+        "no checkpoint and no prepared copy"
     );
 }
 
