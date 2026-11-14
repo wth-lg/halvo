@@ -35,6 +35,15 @@ pub const RULE_LIST_ID: &str = "halvo-window-main";
 pub const RULE_LIST: &str = r#"[{"trigger":{"url-filter":".*"},"action":{"type":"block"}},{"trigger":{"url-filter":"^tauri://localhost/"},"action":{"type":"ignore-previous-rules"}},{"trigger":{"url-filter":"^ipc://localhost/"},"action":{"type":"ignore-previous-rules"}}]"#;
 
 #[cfg(any(target_os = "macos", test))]
+pub const GUARD_WORLD: &str = "halvo-guard";
+
+#[cfg(any(target_os = "macos", test))]
+pub const PEER_READING: &str = "['RTCPeerConnection', 'webkitRTCPeerConnection'].filter(function (name) { return name in window; }).map(function (name) { return name + ':' + typeof window[name]; }).join(',') || 'absent'";
+
+#[cfg(any(target_os = "macos", test))]
+pub const PEER_ABSENT: &str = "absent";
+
+#[cfg(any(target_os = "macos", test))]
 pub const LINK_PRECONNECT_FEATURE: &str = "LinkPreconnect";
 
 #[cfg(any(target_os = "macos", test))]
@@ -225,8 +234,9 @@ mod platform {
     };
     use objc2_foundation::{NSArray, NSError, NSString, NSURL};
     use objc2_web_kit::{
-        WKContentRuleList, WKContentRuleListStore, WKNavigationAction, WKNavigationActionPolicy,
-        WKNavigationDelegate, WKPreferences, WKWebView, WKWebViewConfiguration, WKWebsiteDataStore,
+        WKContentRuleList, WKContentRuleListStore, WKContentWorld, WKNavigationAction,
+        WKNavigationActionPolicy, WKNavigationDelegate, WKPreferences, WKWebView,
+        WKWebViewConfiguration, WKWebsiteDataStore,
     };
     use tauri::webview::PlatformWebview;
 
@@ -478,6 +488,53 @@ mod platform {
         set_feature(&prefs, super::LINK_PRECONNECT_FEATURE, false)
     }
 
+    fn read_the_peer_constructor(view: &WKWebView, answer: Sender<GuardAnswer>) {
+        let Some(mtm) = MainThreadMarker::new() else {
+            let _ = answer.send(Err("not on the main thread".to_string()));
+            return;
+        };
+        // SAFETY: on the main thread, which `mtm` proves; the world comes back retained.
+        let world =
+            unsafe { WKContentWorld::worldWithName(&NSString::from_str(super::GUARD_WORLD), mtm) };
+        let pending = Cell::new(Some(answer));
+        let read = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
+            let Some(answer) = pending.take() else {
+                return;
+            };
+            // SAFETY: WebKit passes a result that it keeps alive for the call, or null.
+            let text = unsafe { result.as_ref() }
+                .and_then(|result| result.downcast_ref::<NSString>())
+                .map(|text| text.to_string());
+            let reading = match text {
+                Some(text) if text == super::PEER_ABSENT => Ok(GuardInstalled(())),
+                Some(text) => Err(format!(
+                    "the engine offers the peer connection's constructor ({text})"
+                )),
+                None => {
+                    // SAFETY: WebKit passes an error that it keeps alive for the call, or null.
+                    let reason = unsafe { error.as_ref() }
+                        .map(|error| error.localizedDescription().to_string())
+                        .unwrap_or_else(|| "no answer".to_string());
+                    Err(format!(
+                        "the engine's peer connection could not be read at start: {reason}"
+                    ))
+                }
+            };
+            let _ = answer.send(reading);
+        });
+        // SAFETY: on the main thread with `view` retained; the script and the world live through
+        // the call, and WebKit copies the block and calls it once on the main thread. The script
+        // runs in a world of its own, where no script of the page or of the app runs.
+        unsafe {
+            view.evaluateJavaScript_inFrame_inContentWorld_completionHandler(
+                &NSString::from_str(super::PEER_READING),
+                None,
+                &world,
+                Some(&read),
+            )
+        };
+    }
+
     pub fn install(webview: &PlatformWebview, site: &EngineSite, answer: Sender<GuardAnswer>) {
         let Some(mtm) = MainThreadMarker::new() else {
             let _ = answer.send(Err("not on the main thread".to_string()));
@@ -539,7 +596,7 @@ mod platform {
                     .userContentController()
                     .addContentRuleList(list)
             };
-            let _ = answer.send(Ok(GuardInstalled(())));
+            read_the_peer_constructor(&view, answer);
         });
         // SAFETY: on the main thread; the two strings live through the call, and WebKit copies
         // the completion block and calls it once on the main thread, which is the thread that
@@ -663,6 +720,12 @@ mod tests {
         );
         assert_eq!(RULE_LIST_ID, "halvo-window-main");
         assert_eq!(LINK_PRECONNECT_FEATURE, "LinkPreconnect");
+        assert_eq!(GUARD_WORLD, "halvo-guard");
+        assert_eq!(PEER_ABSENT, "absent");
+        assert_eq!(
+            PEER_READING,
+            "['RTCPeerConnection', 'webkitRTCPeerConnection'].filter(function (name) { return name in window; }).map(function (name) { return name + ':' + typeof window[name]; }).join(',') || 'absent'"
+        );
         assert_eq!((PROXY_HOST, PROXY_PORT), ("255.255.255.255", "9"));
     }
 
@@ -715,8 +778,8 @@ mod tests {
             .find(".addContentRuleList(list)")
             .expect("the list is added");
         let answered = macos
-            .find("let _ = answer.send(Ok(GuardInstalled(())));")
-            .expect("the answer");
+            .find("            read_the_peer_constructor(&view, answer);\n")
+            .expect("the reading after the list");
         assert!(added < answered);
         for (text, count) in [
             (
@@ -728,6 +791,14 @@ mod tests {
                 1,
             ),
             ("answers(&config, sel!(_setAllowedNetworkHosts:))", 1),
+            (
+                "Some(text) if text == super::PEER_ABSENT => Ok(GuardInstalled(())),",
+                1,
+            ),
+            ("let _ = answer.send(reading);", 1),
+            ("evaluateJavaScript_inFrame_inContentWorld_completionHandler(", 1),
+            ("WKContentWorld::worldWithName(&NSString::from_str(super::GUARD_WORLD), mtm)", 1),
+            ("&NSString::from_str(super::PEER_READING),", 1),
             ("msg_send![&*config, _setAllowedNetworkHosts: &*none]", 1),
             ("WKWebsiteDataStore::nonPersistentDataStore(mtm)", 1),
             ("answers(&config, sel!(_allowedNetworkHosts))", 1),
