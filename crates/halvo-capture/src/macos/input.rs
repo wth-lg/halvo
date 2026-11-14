@@ -3267,7 +3267,13 @@ mod tests {
         let held = held(1_000);
         key_down(&held.ctx);
         held.ctx.stop.store(true, Ordering::SeqCst);
+        let asked_at_the_stop = asked();
         ticks(&held.ctx, 2_000);
+        assert_eq!(
+            asked(),
+            asked_at_the_stop,
+            "no tick after the stop takes a reading"
+        );
         assert_eq!(keystrokes(&held.writer), 0);
         assert_eq!(held_now(&held.ctx), 0);
         assert!(!held.counters.figures().keys_withheld);
@@ -5339,10 +5345,21 @@ mod tests {
         let held = held(1_000);
         key_down(&held.ctx);
         held.ctx.stop.store(true, Ordering::SeqCst);
+        let asked_at_the_stop = asked();
         advance(40);
         on_reading_tick(&held.ctx);
+        assert_eq!(
+            asked(),
+            asked_at_the_stop,
+            "a tick after the stop takes no reading"
+        );
         advance(40);
         on_tap_event(&held.ctx, event(CGEventType::KeyDown));
+        assert_eq!(
+            asked(),
+            asked_at_the_stop,
+            "an event after the stop takes no reading"
+        );
         assert_eq!(
             held_now(&held.ctx),
             0,
