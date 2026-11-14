@@ -166,12 +166,17 @@ if (process.platform !== "win32") {
 }
 
 test("when the stop settles, no connection of the stand-in is open any more", async () => {
-  const stub = await startStub({ record: fresh(), idleMs: 300 });
-  const held = await holder(portOf(stub.app));
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 300 });
+  const peer = await openPeer(portOf(stub.app));
+  peer.socket.pause();
+  peer.socket.write(keepAlive.repeat(6000));
+  await plateau(dir);
   stub.close();
   await stub.stopped;
   assert.equal(stub.connections(), 0, "the stop settled after the last served socket had closed");
-  held.socket.destroy();
+  assert.equal(lines(dir).at(-1).error, "forced-close", "the stop's limit closed the connection");
+  peer.socket.destroy();
 });
 
 test("L3 the control port is closed at the begin of the stop: a test call 200 ms into the wait gets no answer", async () => {
