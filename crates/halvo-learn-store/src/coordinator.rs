@@ -127,15 +127,11 @@ impl LearnHandlers {
             };
             entries.push((entry, edit.edit.as_str().to_owned()));
         }
-        let routine = routines
-            .into_iter()
-            .filter(|r| r.workflow == read.workflow && r.agent == read.agent)
-            .max_by_key(|r| r.rev);
-        if let Some(LearnRoutine {
+        if let Some(&LearnRoutine {
             mark: Mark::Stale,
             since: Some(since),
             ..
-        }) = routine
+        }) = rows::newest_routine(&routines, &read.workflow, &read.agent)
         {
             let entry = Refinement {
                 day: since,
