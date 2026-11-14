@@ -741,7 +741,7 @@ fn send_end_run(inner: &Inner, spec: &RunSpec) -> bool {
         agent: spec.agent.clone(),
         run: spec.run.clone(),
     });
-    owner::acknowledged(inner, &id, call)
+    owner::acknowledged(inner, &id, call) == owner::Ack::Acknowledged
 }
 
 #[cfg(test)]

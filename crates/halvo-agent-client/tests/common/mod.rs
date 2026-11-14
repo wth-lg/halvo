@@ -159,6 +159,7 @@ pub struct Store {
     pub rows: Mutex<HashMap<RunId, Rows>>,
     pub rev: AtomicU32,
     pub fail_add_origin: AtomicUsize,
+    pub garbage_add_origin: AtomicUsize,
     pub fail_all: AtomicUsize,
     pub load_origins: Mutex<Vec<String>>,
     pub check: Mutex<Option<Check>>,
@@ -299,6 +300,9 @@ impl Store {
         let body = CoordinatorCall::parse(raw.body().get().as_bytes()).unwrap();
         match body {
             CoordinatorCall::AddOrigin(_) => {
+                if take_one(&self.garbage_add_origin) {
+                    return Ok(b"not a reply".to_vec());
+                }
                 if self
                     .fail_add_origin
                     .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))

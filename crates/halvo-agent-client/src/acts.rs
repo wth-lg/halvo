@@ -14,12 +14,16 @@ use halvo_schema::executable::text::{ApprovalId, WebOrigin, V1};
 use halvo_schema::RequestId;
 
 use crate::api::{CallError, OriginAnswer};
-use crate::owner;
+use crate::owner::{self, Ack};
 use crate::supervisor::{Flow, Running};
 use crate::sys;
 
 /// How long the library waits before it sends an `add_origin` that was not acknowledged again.
 pub(crate) const ADD_AGAIN: Duration = Duration::from_millis(500);
+
+/// How many sends of one `add_origin` in all, the first and two repeats, may meet a reply that `decode_reply`
+/// refuses before the library gives the body up (ruling CP-193 item 4).
+pub(crate) const ADD_REFUSED_MAX: u8 = 3;
 
 /// What the runner waits for while the library holds its reply.
 #[derive(Default)]
@@ -45,6 +49,7 @@ struct Pending {
     origin: WebOrigin,
     way: Way,
     then: Then,
+    refused: u8,
 }
 
 /// The state of a run's acts: the origins that the bindings hold, what the runner waits for, whether a `bind` is in
@@ -257,11 +262,15 @@ impl Running<'_> {
             origin,
             way,
             then,
+            refused: 0,
         });
         true
     }
 
-    /// Sends again each `add_origin` that waits, once `ADD_AGAIN` has passed since the last try.
+    /// Sends again each `add_origin` that waits, once `ADD_AGAIN` has passed since the last try. A link error, a reply
+    /// with another id, an error reply or a reply of another form is sent again without a count; at the
+    /// `ADD_REFUSED_MAX`th reply that `decode_reply` refuses the body is given up: for the way `new_origin` the run
+    /// goes on, for `sign_in` and `account_link`, where the runner waits for the reply, the run is lost.
     pub(crate) fn retry_adds(&mut self) -> Flow {
         self.drop_cancelled_bind();
         match self.acts.next_try {
@@ -274,7 +283,7 @@ impl Running<'_> {
         let spec = &self.slot.spec;
         let mut left = Vec::new();
         let mut flow = Flow::Go;
-        for p in std::mem::take(&mut self.acts.adds) {
+        for mut p in std::mem::take(&mut self.acts.adds) {
             let call = CoordinatorCall::AddOrigin(AddOrigin {
                 workflow: spec.workflow.clone(),
                 agent: spec.agent.clone(),
@@ -282,9 +291,21 @@ impl Running<'_> {
                 origin: p.origin.clone(),
                 way: p.way,
             });
-            if !owner::acknowledged(self.inner, &p.id, call) {
-                left.push(p);
-                continue;
+            match owner::acknowledged(self.inner, &p.id, call) {
+                Ack::Acknowledged => {}
+                Ack::Unanswered => {
+                    left.push(p);
+                    continue;
+                }
+                Ack::Refused => {
+                    p.refused += 1;
+                    if p.refused < ADD_REFUSED_MAX {
+                        left.push(p);
+                    } else if p.way != Way::NewOrigin {
+                        flow = Flow::Lost;
+                    }
+                    continue;
+                }
             }
             self.acts.bound.insert(p.origin);
             match p.then {

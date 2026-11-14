@@ -1017,3 +1017,111 @@ fn a_cancel_while_the_add_origin_of_a_bind_waits_drops_it_and_takes_the_declined
     let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
     assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
 }
+
+#[test]
+fn two_add_origin_replies_that_cannot_be_read_and_then_an_acknowledgement_bind_the_origin() {
+    let rig = Rig::new("add-refused-two");
+    rig.store.garbage_add_origin.store(2, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("bound", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
+    assert_eq!(adds(&rig).len(), 3);
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn three_add_origin_replies_that_cannot_be_read_end_a_run_that_waits_for_the_bind_or_the_account_link(
+) {
+    for reason in ["sign_in", "account_link"] {
+        let rig = Rig::new("add-refused-three");
+        rig.store
+            .garbage_add_origin
+            .store(usize::MAX, Ordering::SeqCst);
+        let mut lines = vec!["hello".to_owned(), "on-eof hang".to_owned()];
+        if reason == "sign_in" {
+            lines.push(sign_in());
+            lines.push(bind("http://pay.test:18090"));
+        } else {
+            lines.push(handback("account_link", "http://mail.test:18090"));
+        }
+        lines.push("idle".to_owned());
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let script = rig.script(&refs);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        signed_in(&rig, &run, 1);
+        let end = rig
+            .rec
+            .wait_end(&run, SHORT)
+            .unwrap_or_else(|| panic!("{reason}: the run did not end: {}", script.log()));
+        assert_eq!(adds(&rig).len(), 3, "{reason}: three sends in all");
+        assert_eq!(
+            end.forced,
+            Some(Forced {
+                path: ForcedPath::LinkEnd,
+                browser: false
+            }),
+            "{reason}"
+        );
+        assert!(binds(&script).is_empty(), "{reason}: {}", script.log());
+        assert_eq!(rig.store.count(r#""op":"end_run""#), 1, "{reason}");
+    }
+}
+
+#[test]
+fn three_link_errors_on_an_add_origin_end_nothing_and_the_fourth_send_binds() {
+    let rig = Rig::new("add-link-errors");
+    rig.store.fail_add_origin.store(3, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("bound", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
+    assert_eq!(adds(&rig).len(), 4);
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn three_add_origin_replies_that_cannot_be_read_drop_a_new_origin_and_the_run_goes_on() {
+    let rig = Rig::new("add-refused-new-origin");
+    rig.store
+        .garbage_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &confirm(Some("http://pay.test:18090")),
+        "log answered",
+        "sleep 2500",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "log went-on",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("went-on", SHORT), "{}", script.log());
+    assert_eq!(adds(&rig).len(), 3, "three sends in all");
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
