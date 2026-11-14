@@ -609,8 +609,8 @@ impl ScriptedDaemon {
                             ask_to_stop(line, answer);
                         }
                     }
+                    f.desired = CaptureState::Paused;
                     if !pausing {
-                        f.desired = CaptureState::Paused;
                         f.capture_reason = None;
                         f.capture = if f.sources.iter().any(|s| s.unstopped) {
                             Capture::Pausing
@@ -1481,6 +1481,11 @@ mod tests {
             daemon.set_stop_answer(first, StopAnswer::Ok);
             let paused = changed(daemon.handle(Request::Pause));
             assert_eq!(paused.fields().capture, Capture::Pausing, "{platform:?}");
+            assert_eq!(
+                paused.fields().desired,
+                CaptureState::Paused,
+                "{platform:?}: the Pause in a stop sequence keeps the person's word"
+            );
             assert_eq!(
                 line(&paused, first),
                 SourceLine {
