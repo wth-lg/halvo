@@ -20,8 +20,8 @@ use crate::event::Modality;
 use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
-    timing, Admission, Bounds, Cause, HeldKeys, Monotonic, Step, Timing, Uptime, READING_STEP,
-    SESSION_STEP,
+    timing, Admission, Bounds, Cause, HeldKeys, Monotonic, Stamps, Step, Timing, Uptime,
+    READING_STEP, SESSION_STEP,
 };
 use crate::secure_input_macos::{
     hold_secure_input, read_session, secure_input_reading, Reading, SecureInputHold,
@@ -447,11 +447,11 @@ impl OwnTake {
 
 #[derive(Clone, Copy)]
 struct TimerCalls {
-    make: fn(*mut c_void) -> CFRunLoopTimer,
+    make: fn(*mut c_void, Duration) -> CFRunLoopTimer,
     invalidate: fn(&CFRunLoopTimer),
 }
 
-fn reading_timer(info: *mut c_void) -> CFRunLoopTimer {
+fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
     let mut context = CFRunLoopTimerContext {
         version: 0,
         info,
@@ -459,7 +459,7 @@ fn reading_timer(info: *mut c_void) -> CFRunLoopTimer {
         release: None,
         copyDescription: None,
     };
-    let step = READING_STEP.as_secs_f64();
+    let step = step.as_secs_f64();
     let timer = CFRunLoopTimer::new(
         CFDate::now().abs_time() + step,
         step,
@@ -495,7 +495,91 @@ struct TapContext {
     clocks: Clocks,
     stop: Arc<AtomicBool>,
     timers: TimerCalls,
+    step: Duration,
     hold: SharedHold,
+    #[cfg(feature = "stall-seam")]
+    drops: Option<DropCounts>,
+}
+
+/// The counts of the hold's drops by their cause and the widest gap between
+/// two readings while keys were held, which a test build reads alone. Status
+/// and the timed run's report never see them.
+#[cfg(feature = "stall-seam")]
+#[derive(Clone, Default)]
+pub struct DropCounts(Arc<DropFigures>);
+
+#[cfg(feature = "stall-seam")]
+#[derive(Default)]
+struct DropFigures {
+    by_cause: [AtomicU64; 10],
+    widest_gap_ns: AtomicU64,
+}
+
+#[cfg(feature = "stall-seam")]
+const CAUSES: [(Cause, &str); 10] = [
+    (Cause::On, "on"),
+    (Cause::Unknown, "unknown"),
+    (Cause::Gap, "gap"),
+    (Cause::LateKey, "late"),
+    (Cause::UntimedKey, "untimed"),
+    (Cause::TapSwitchedOff, "tap_off"),
+    (Cause::OwnTake, "own_take"),
+    (Cause::Full, "full"),
+    (Cause::Stop, "stop"),
+    (Cause::Refused, "refused"),
+];
+
+#[cfg(feature = "stall-seam")]
+impl DropCounts {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn count(&self, cause: Cause) {
+        if let Some(at) = CAUSES.iter().position(|&(listed, _)| listed == cause) {
+            self.0.by_cause[at].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn gap(&self, gap: Duration) {
+        let ns = u64::try_from(gap.as_nanos()).unwrap_or(u64::MAX);
+        self.0.widest_gap_ns.fetch_max(ns, Ordering::Relaxed);
+    }
+
+    /// The count of drops for each cause, by the cause's name.
+    pub fn by_cause(&self) -> Vec<(&'static str, u64)> {
+        CAUSES
+            .iter()
+            .zip(&self.0.by_cause)
+            .map(|(&(_, name), count)| (name, count.load(Ordering::Relaxed)))
+            .collect()
+    }
+
+    /// The count of drops whose cause has this name.
+    pub fn of(&self, name: &str) -> u64 {
+        self.by_cause()
+            .into_iter()
+            .find(|&(listed, _)| listed == name)
+            .map_or(0, |(_, count)| count)
+    }
+
+    /// The widest gap between two readings, from before the earlier read to
+    /// after the later one, while keys were held.
+    pub fn widest_gap(&self) -> Duration {
+        Duration::from_nanos(self.0.widest_gap_ns.load(Ordering::Relaxed))
+    }
+}
+
+/// What a test build hands the source in place of the product's values: the
+/// hold's bound, the gap bound, the step of the reading timer, the session
+/// reader and the counts of the drops.
+#[cfg(all(debug_assertions, feature = "stall-seam"))]
+pub struct StallSeam {
+    pub bound: Duration,
+    pub gap: Duration,
+    pub step: Duration,
+    pub session: fn() -> Session,
+    pub drops: DropCounts,
 }
 
 impl TapContext {
@@ -504,7 +588,7 @@ impl TapContext {
         state.session_at = Some((self.clocks.monotonic)());
     }
 
-    fn reading(&self, state: &mut HoldState, key: bool) -> (Reading, Monotonic) {
+    fn reading(&self, state: &mut HoldState, key: bool) -> (Reading, Stamps) {
         let now = (self.clocks.monotonic)();
         let stale = state
             .session_at
@@ -512,11 +596,25 @@ impl TapContext {
         if stale && (key || !state.keys.is_empty()) {
             self.read_session(state);
         }
+        let before = (self.clocks.monotonic)();
         let reading = (self.secure)(state.session);
-        (reading, (self.clocks.monotonic)())
+        let after = (self.clocks.monotonic)();
+        #[cfg(feature = "stall-seam")]
+        if let (Some(drops), false) = (&self.drops, state.keys.is_empty()) {
+            if let Some(previous) = state.keys.previous() {
+                drops.gap(Duration::from_nanos(after.0.saturating_sub(previous.0)));
+            }
+        }
+        (reading, Stamps { before, after })
     }
 
     fn dropped(&self, keys: usize, cause: Cause) {
+        #[cfg(feature = "stall-seam")]
+        if keys > 0 {
+            if let Some(drops) = &self.drops {
+                drops.count(cause);
+            }
+        }
         if keys > 0 && cause.withholds() {
             self.counters.withhold();
         }
@@ -530,6 +628,10 @@ impl TapContext {
             Admission::Held => {}
             Admission::Suppressed => self.counters.count_suppressed_key(),
             Admission::Withheld { cause, .. } => {
+                #[cfg(feature = "stall-seam")]
+                if let Some(drops) = &self.drops {
+                    drops.count(cause);
+                }
                 self.counters.withhold();
                 if cause.timing_fault() {
                     self.counters.set_stalled(true);
@@ -578,7 +680,7 @@ impl TapContext {
         match (state.keys.is_empty(), &state.timer) {
             (false, None) => {
                 let info = std::ptr::from_ref(self).cast_mut().cast::<c_void>();
-                state.timer = Some(ReadingTimer((self.timers.make)(info)));
+                state.timer = Some(ReadingTimer((self.timers.make)(info, self.step)));
             }
             (true, Some(_)) => {
                 if let Some(ReadingTimer(timer)) = state.timer.take() {
@@ -618,8 +720,8 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
     if ctx.stop.load(Ordering::SeqCst) {
         state.keys.drop_all();
     } else {
-        let arrival = (ctx.clocks.monotonic)();
         let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
+        let arrival = at.before;
         let step = match (kind, event.timing) {
             (Kind::Key | Kind::Reading, Timing::Late { .. }) => {
                 state.keys.late_reading(at, Cause::LateKey)
@@ -698,6 +800,7 @@ fn tap_context(
         clocks: settings.clocks,
         stop,
         timers: TIMER_CALLS,
+        step: READING_STEP,
         hold: Arc::new(Mutex::new(HoldState {
             keys: HeldKeys::new(bounds),
             flags: None,
@@ -705,6 +808,8 @@ fn tap_context(
             session_at: None,
             timer: None,
         })),
+        #[cfg(feature = "stall-seam")]
+        drops: None,
     }
 }
 
@@ -713,7 +818,7 @@ fn tap_event(ctx: &TapContext, etype: CGEventType, event: &CGEvent) -> TapEvent 
     TapEvent {
         etype,
         flags: event.get_flags().bits(),
-        timing: timing(arrival, os_time(event), lock(&ctx.hold).keys.bounds().gap),
+        timing: timing(arrival, os_time(event), lock(&ctx.hold).keys.bounds().lag),
     }
 }
 
@@ -1014,7 +1119,10 @@ pub struct InputSource {
     plan: HoldPlan,
     hold: Hold,
     bounds: Bounds,
+    step: Duration,
     session: fn() -> Session,
+    #[cfg(feature = "stall-seam")]
+    drops: Option<DropCounts>,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     tap: Option<TapThread>,
     failure: Option<CaptureError>,
@@ -1047,20 +1155,30 @@ impl InputSource {
         )
     }
 
-    /// A source with a shorter bound whose session is read by `session` in
-    /// place of the system's session: for the hosted stall tests alone, whose
-    /// runner may have no session at the console. Only a test build of this
-    /// crate, which turns the feature `stall-seam` on, has it.
+    /// A source that takes the bound, the gap bound, the timer's step and the
+    /// session reader of `seam` and counts its drops in `seam.drops`: for the
+    /// hosted stall tests alone. Only a test build of this crate, which turns
+    /// the feature `stall-seam` on, has it.
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
-    pub fn with_hold_bound_and_session(
+    pub fn with_seam(
         foreground: ForegroundReader,
         counters: InputCounters,
         plan: HoldPlan,
-        bound: Duration,
-        session: fn() -> Session,
+        seam: StallSeam,
     ) -> Self {
-        let mut source = Self::with_hold_bound(foreground, counters, plan, bound);
-        source.session = session;
+        let mut source = Self::with_bounds(
+            foreground,
+            counters,
+            plan,
+            Bounds {
+                hold: seam.bound,
+                gap: seam.gap,
+                ..Bounds::PRODUCT
+            },
+        );
+        source.step = seam.step;
+        source.session = seam.session;
+        source.drops = Some(seam.drops);
         source
     }
 
@@ -1076,7 +1194,10 @@ impl InputSource {
             plan,
             hold: hold_secure_input,
             bounds,
+            step: READING_STEP,
             session: read_session,
+            #[cfg(feature = "stall-seam")]
+            drops: None,
             refusal: Arc::new(Mutex::new(None)),
             tap: None,
             failure: None,
@@ -1106,7 +1227,8 @@ impl InputSource {
             ..tap_settings()
         };
         let stop = Arc::new(AtomicBool::new(false));
-        let ctx = tap_context(
+        #[cfg_attr(not(feature = "stall-seam"), allow(unused_mut))]
+        let mut ctx = tap_context(
             sink,
             self.foreground.clone(),
             self.counters.clone(),
@@ -1114,6 +1236,11 @@ impl InputSource {
             self.bounds,
             stop.clone(),
         );
+        ctx.step = self.step;
+        #[cfg(feature = "stall-seam")]
+        {
+            ctx.drops = self.drops.clone();
+        }
         let own_take = OwnTake {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
@@ -1202,6 +1329,29 @@ mod proofs {
     #[cfg(halvo_proof = "held_key_printed_twin")]
     fn held_key_printed_twin(key: &super::HeldKey) -> String {
         format!("{:?}", key.instant)
+    }
+
+    #[cfg(halvo_proof = "seam_in_a_release_build")]
+    fn seam_in_a_release_build(
+        foreground: crate::macos::foreground::ForegroundReader,
+    ) -> super::InputSource {
+        super::InputSource::with_seam(
+            foreground,
+            super::InputCounters::new(),
+            super::HoldPlan::Never,
+            todo!(),
+        )
+    }
+
+    #[cfg(halvo_proof = "seam_in_a_release_build_twin")]
+    fn seam_in_a_release_build_twin(
+        foreground: crate::macos::foreground::ForegroundReader,
+    ) -> super::InputSource {
+        super::InputSource::new(
+            foreground,
+            super::InputCounters::new(),
+            super::HoldPlan::Never,
+        )
     }
 
     #[cfg(halvo_proof = "hold_bound_in_a_release_build")]
@@ -1389,6 +1539,7 @@ mod tests {
             Bounds {
                 hold: Duration::from_millis(bound_ms),
                 gap: Duration::from_millis(30),
+                lag: Duration::from_millis(30),
                 cap,
             },
             Arc::new(AtomicBool::new(false)),
@@ -2124,6 +2275,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement of MA-12 F3: run it through the timed helper"]
     fn measure_the_readings_of_the_hold() {
+        const SECONDS: u64 = 20;
         let session = read_session();
         let read_ns = per_call_ns(10_000, || {
             let _ = secure_input_reading(Session::AtConsole);
@@ -2131,61 +2283,163 @@ mod tests {
         let session_ns = per_call_ns(1_000, || {
             let _ = read_session();
         });
-        let (handle, writer) = sink::channel(64);
+        let mut loads = [0f64; 3];
+        // SAFETY: `loads` is a writable array of three doubles, the count passed.
+        let _ = unsafe { libc::getloadavg(loads.as_mut_ptr(), 3) };
+        let mut parent = [0u8; 256];
+        // SAFETY: `parent` is writable for the size passed; proc_name writes at
+        // most that many bytes of the parent's name.
+        let named = unsafe {
+            libc::proc_name(
+                libc::getppid(),
+                parent.as_mut_ptr().cast(),
+                parent.len() as u32,
+            )
+        };
+        let started_by: String = parent[..usize::try_from(named.max(0)).unwrap_or(0)]
+            .iter()
+            .map(|&byte| byte as char)
+            .filter(char::is_ascii_alphanumeric)
+            .collect();
+        let (handle, writer) = sink::channel(4_096);
         let (_fg_writer, reader) = foreground_state_for_test();
+        let counters = InputCounters::new();
         let settings = TapSettings {
             secure: timed_reader,
             ..tap_settings()
         };
-        let ctx = tap_context(
+        let ctx = Box::new(tap_context(
             handle,
             reader,
-            InputCounters::new(),
+            counters.clone(),
             &settings,
             Bounds {
-                hold: Duration::from_secs(60),
+                hold: Duration::from_secs(3_600),
                 ..Bounds::PRODUCT
             },
             Arc::new(AtomicBool::new(false)),
-        );
+        ));
         ctx.read_session(&mut lock(&ctx.hold));
-        let ctx = Box::new(ctx);
-        let callback_event = TapEvent {
+        let key = TapEvent {
             etype: CGEventType::KeyDown,
             flags: 0,
             timing: Timing::InTime {
                 lag: Duration::ZERO,
             },
         };
-        on_tap_event(&ctx, callback_event);
         READ_TIMES.with(|times| times.borrow_mut().clear());
-        let window = Duration::from_secs(5);
-        // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
-        // CoreFoundation exports and never writes.
-        CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, window, false);
-        let held = held_now(&ctx);
+        let mut spacing = Vec::new();
+        let mut drops = 0u64;
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(SECONDS) {
+            if held_now(&ctx) == 0 {
+                READ_TIMES.with(|times| times.borrow_mut().clear());
+                on_tap_event(&ctx, key);
+            }
+            // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::run_in_mode(
+                unsafe { kCFRunLoopDefaultMode },
+                Duration::from_millis(250),
+                false,
+            );
+            let times = READ_TIMES.with(|times| std::mem::take(&mut *times.borrow_mut()));
+            spacing.extend(times.windows(2).map(|two| two[1] - two[0]));
+            if held_now(&ctx) == 0 {
+                drops += 1;
+            } else if let Some(&last) = times.last() {
+                READ_TIMES.with(|times| times.borrow_mut().push(last));
+            }
+        }
+        let seconds = started.elapsed().as_secs_f64();
         drop(ctx);
         drop(writer);
-        let times = READ_TIMES.with(|times| times.borrow().clone());
-        let mut spacing: Vec<u64> = times.windows(2).map(|two| two[1] - two[0]).collect();
+        let over = |ms: u64| spacing.iter().filter(|&&ns| ns > ms * MS).count();
+        let (over_30, over_50, over_100, over_250) = (over(30), over(50), over(100), over(250));
         spacing.sort_unstable();
         let at = |share: f64| {
             spacing
                 .get(((spacing.len() as f64 - 1.0) * share).round() as usize)
                 .map_or(0, |ns| ns / 1_000)
         };
-        let over_gap = spacing.iter().filter(|&&ns| ns > 30 * MS).count();
         println!(
-            "measure dictionary={} on_console={} read_ns={read_ns} session_ns={session_ns} readings={} \
-             wakeups_per_s={:.1} spacing_p50_us={} spacing_p99_us={} spacing_max_us={} \
-             gaps_over_30ms={over_gap} key_still_held={held}",
+            "measure dictionary={} on_console={} seconds={seconds:.1} load1={:.2} \
+             started_by={started_by} read_ns={read_ns} session_ns={session_ns} readings={} \
+             spacing_p50_us={} spacing_p99_us={} spacing_max_us={} gaps_over_30ms={} \
+             gaps_over_50ms={} gaps_over_100ms={} gaps_over_250ms={} drops={drops} \
+             stalled_at_end={}",
             u8::from(session != Session::NoDictionary),
             u8::from(session == Session::AtConsole),
-            times.len(),
-            times.len() as f64 / window.as_secs_f64(),
+            loads[0],
+            spacing.len() + 1,
             at(0.5),
             at(0.99),
-            spacing.last().map_or(0, |ns| ns / 1_000)
+            spacing.last().map_or(0, |ns| ns / 1_000),
+            over_30,
+            over_50,
+            over_100,
+            over_250,
+            u8::from(counters.stalled())
+        );
+    }
+
+    #[test]
+    fn a_key_is_judged_late_by_the_lag_bound_and_not_by_the_gap_bound() {
+        let held = held(1_000);
+        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+            hold: Duration::from_millis(1_000),
+            gap: Duration::from_millis(60),
+            lag: Duration::from_millis(30),
+            cap: 64,
+        });
+        let callback = tap_callback(*held.ctx);
+        let event = event_object(CGEventType::KeyDown, 0);
+        set_stamp(&event, START - 31 * MS);
+        let _ = callback(std::ptr::null(), CGEventType::KeyDown, &event);
+        assert!(
+            held.counters.figures().keys_withheld,
+            "a key 31 ms late is late under a lag bound of 30 ms, whatever the gap bound"
+        );
+    }
+
+    #[test]
+    fn the_counts_of_the_drops_change_no_verdict() {
+        let run = |counted: bool| {
+            let mut held = held(100);
+            if counted {
+                held.ctx.drops = Some(DropCounts::new());
+            }
+            ANSWERS.with(|answers| {
+                *answers.borrow_mut() = (0..64)
+                    .map(|n| {
+                        if n % 7 == 3 {
+                            Reading::On
+                        } else {
+                            Reading::Off
+                        }
+                    })
+                    .collect();
+            });
+            for n in 0..40 {
+                if n % 3 == 0 {
+                    key_down(&held.ctx);
+                } else {
+                    tick(&held.ctx);
+                }
+            }
+            ticks(&held.ctx, 300);
+            let drops = held.ctx.drops.as_ref().map(DropCounts::by_cause);
+            (keystrokes(&held.writer), held.counters.figures(), drops)
+        };
+        let (plain_records, plain_figures, _) = run(false);
+        let (counted_records, counted_figures, drops) = run(true);
+        assert_eq!(
+            (plain_records, plain_figures),
+            (counted_records, counted_figures)
+        );
+        assert!(
+            drops.is_some_and(|drops| drops.iter().any(|&(name, count)| name == "on" && count > 0)),
+            "the counts saw the drops for on"
         );
     }
 
@@ -2933,6 +3187,7 @@ mod tests {
     #[test]
     fn the_product_constructors_read_the_session_of_the_system() {
         let source = source_with(HoldPlan::Never);
+        assert_eq!(source.step, READING_STEP);
         assert!(std::ptr::fn_addr_eq(
             source.session,
             read_session as fn() -> Session

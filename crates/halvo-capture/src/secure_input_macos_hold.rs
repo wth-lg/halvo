@@ -17,9 +17,13 @@ pub const HOLD_BOUND: Duration = Duration::from_millis(30_000);
 /// held.
 pub const READING_STEP: Duration = Duration::from_millis(10);
 
-/// The widest gap between two readings, and the widest lag of a key at the
-/// callback, that keep the held keys.
+/// The widest gap between two readings that keeps the held keys: from the time
+/// taken before the earlier read to the time taken after the later one.
 pub const GAP_BOUND: Duration = Duration::from_millis(30);
+
+/// The widest lag of a key at the callback, after its OS time, that keeps the
+/// held keys. No change of the gap bound moves it.
+pub const LAG_BOUND: Duration = Duration::from_millis(30);
 
 /// The step at which the session is read again while keys are held.
 pub const SESSION_STEP: Duration = Duration::from_millis(250);
@@ -44,6 +48,7 @@ pub struct Uptime(pub u64);
 pub struct Bounds {
     pub hold: Duration,
     pub gap: Duration,
+    pub lag: Duration,
     pub cap: usize,
 }
 
@@ -52,6 +57,7 @@ impl Bounds {
     pub const PRODUCT: Self = Self {
         hold: HOLD_BOUND,
         gap: GAP_BOUND,
+        lag: LAG_BOUND,
         cap: QUEUE_CAP,
     };
 }
@@ -87,6 +93,14 @@ impl Cause {
     }
 }
 
+/// The two times of one reading: taken before the read of the state and
+/// after it returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamps {
+    pub before: Monotonic,
+    pub after: Monotonic,
+}
+
 /// What one reading decides for the oldest held key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
@@ -95,21 +109,22 @@ pub enum Verdict {
     Wait,
 }
 
-/// The deciding function: the arrival of the oldest held key, the time of the
-/// reading before this one, this reading with its time and the bounds in;
-/// release the oldest key, drop every held key, or wait.
+/// The deciding function: the arrival of the oldest held key, the time taken
+/// before the read of the reading before this one, this reading with its two
+/// times and the bounds in; release the oldest key, drop every held key, or
+/// wait.
 pub fn decide(
     oldest: Option<Monotonic>,
     previous: Option<Monotonic>,
     reading: Reading,
-    at: Monotonic,
+    at: Stamps,
     bounds: &Bounds,
 ) -> Verdict {
     let Some(oldest) = oldest else {
         return Verdict::Wait;
     };
     let in_time = previous.is_some_and(|previous| {
-        at >= previous && Duration::from_nanos(at.0 - previous.0) <= bounds.gap
+        at.after >= previous && Duration::from_nanos(at.after.0 - previous.0) <= bounds.gap
     });
     if !in_time {
         return Verdict::Drop(Cause::Gap);
@@ -117,7 +132,9 @@ pub fn decide(
     match reading {
         Reading::On => Verdict::Drop(Cause::On),
         Reading::Unknown => Verdict::Drop(Cause::Unknown),
-        Reading::Off if Duration::from_nanos(at.0.saturating_sub(oldest.0)) >= bounds.hold => {
+        Reading::Off
+            if Duration::from_nanos(at.before.0.saturating_sub(oldest.0)) >= bounds.hold =>
+        {
             Verdict::Release
         }
         Reading::Off => Verdict::Wait,
@@ -197,6 +214,11 @@ impl<T> HeldKeys<T> {
         self.bounds
     }
 
+    /// The time taken before the read of the last reading.
+    pub fn previous(&self) -> Option<Monotonic> {
+        self.previous
+    }
+
     pub fn len(&self) -> usize {
         self.keys.len()
     }
@@ -207,10 +229,10 @@ impl<T> HeldKeys<T> {
 
     /// Takes one reading: drops every held key on a gap, on or unknown, and
     /// otherwise releases the oldest key when it is due.
-    pub fn reading(&mut self, reading: Reading, at: Monotonic) -> Step<T> {
+    pub fn reading(&mut self, reading: Reading, at: Stamps) -> Step<T> {
         let oldest = self.keys.front().map(|held| held.arrival);
         let verdict = decide(oldest, self.previous, reading, at, &self.bounds);
-        self.previous = Some(at);
+        self.previous = Some(at.before);
         match verdict {
             Verdict::Release => match self.keys.pop_front() {
                 Some(held) => Step::Released(held.key),
@@ -226,8 +248,8 @@ impl<T> HeldKeys<T> {
 
     /// Takes the reading of a key event that came late or untimed: the
     /// callback ran late, so every held key is dropped and none is released.
-    pub fn late_reading(&mut self, at: Monotonic, cause: Cause) -> Step<T> {
-        self.previous = Some(at);
+    pub fn late_reading(&mut self, at: Stamps, cause: Cause) -> Step<T> {
+        self.previous = Some(at.before);
         Step::Dropped {
             keys: self.drop_all(),
             cause,
@@ -289,14 +311,29 @@ mod tests {
         Bounds {
             hold: Duration::from_millis(1_000),
             gap: Duration::from_millis(30),
+            lag: Duration::from_millis(30),
             cap: 4,
+        }
+    }
+
+    fn both(at: Monotonic) -> Stamps {
+        Stamps {
+            before: at,
+            after: at,
+        }
+    }
+
+    fn read(before_ms: u64, after_ms: u64) -> Stamps {
+        Stamps {
+            before: at(before_ms),
+            after: at(after_ms),
         }
     }
 
     fn held(keys: &[u64]) -> HeldKeys<u64> {
         let mut hold = HeldKeys::new(bounds());
         for &key in keys {
-            assert_eq!(hold.reading(Reading::Off, at(key)), Step::Waiting);
+            assert_eq!(hold.reading(Reading::Off, both(at(key))), Step::Waiting);
             assert_eq!(
                 hold.admit(Reading::Off, IN_TIME, at(key), key),
                 Admission::Held
@@ -306,17 +343,58 @@ mod tests {
     }
 
     #[test]
+    fn the_gap_is_counted_from_before_the_earlier_read_to_after_the_later_read() {
+        let mut hold = held(&[0]);
+        assert_eq!(hold.reading(Reading::Off, read(1, 20)), Step::Waiting);
+        assert_eq!(
+            hold.reading(Reading::Off, read(25, 32)),
+            Step::Dropped {
+                keys: 1,
+                cause: Cause::Gap
+            },
+            "the later read ended 31 ms after the earlier read began"
+        );
+        let mut hold = held(&[0]);
+        assert_eq!(hold.reading(Reading::Off, read(2, 20)), Step::Waiting);
+        assert_eq!(hold.reading(Reading::Off, read(25, 32)), Step::Waiting);
+    }
+
+    #[test]
+    fn a_key_is_as_old_as_the_bound_by_the_time_before_its_releasing_read() {
+        assert_eq!(
+            decide(
+                Some(at(0)),
+                Some(at(990)),
+                Reading::Off,
+                read(999, 1_001),
+                &bounds()
+            ),
+            Verdict::Wait
+        );
+        assert_eq!(
+            decide(
+                Some(at(0)),
+                Some(at(990)),
+                Reading::Off,
+                read(1_000, 1_001),
+                &bounds()
+            ),
+            Verdict::Release
+        );
+    }
+
+    #[test]
     fn a_late_reading_drops_a_key_that_is_due_and_releases_none() {
         let mut hold = held(&[0, 1]);
         assert_eq!(
-            hold.late_reading(at(1_000), Cause::LateKey),
+            hold.late_reading(both(at(1_000)), Cause::LateKey),
             Step::Dropped {
                 keys: 2,
                 cause: Cause::LateKey
             }
         );
         assert!(hold.is_empty());
-        assert_eq!(hold.reading(Reading::Off, at(1_010)), Step::Waiting);
+        assert_eq!(hold.reading(Reading::Off, both(at(1_010))), Step::Waiting);
     }
 
     #[test]
@@ -327,11 +405,13 @@ mod tests {
         assert_eq!(SESSION_STEP, Duration::from_millis(250));
         assert_eq!(QUEUE_CAP, 4_096);
         assert_eq!(LATE_BOUND, Duration::from_millis(250));
+        assert_eq!(LAG_BOUND, Duration::from_millis(30));
         assert_eq!(
             Bounds::PRODUCT,
             Bounds {
                 hold: Duration::from_millis(30_000),
                 gap: Duration::from_millis(30),
+                lag: Duration::from_millis(30),
                 cap: 4_096
             }
         );
@@ -341,11 +421,23 @@ mod tests {
     fn a_key_is_released_when_it_is_as_old_as_the_bound_and_not_before() {
         let previous = Some(at(985));
         assert_eq!(
-            decide(Some(at(0)), previous, Reading::Off, at(999), &bounds()),
+            decide(
+                Some(at(0)),
+                previous,
+                Reading::Off,
+                both(at(999)),
+                &bounds()
+            ),
             Verdict::Wait
         );
         assert_eq!(
-            decide(Some(at(0)), previous, Reading::Off, at(1_000), &bounds()),
+            decide(
+                Some(at(0)),
+                previous,
+                Reading::Off,
+                both(at(1_000)),
+                &bounds()
+            ),
             Verdict::Release
         );
     }
@@ -353,7 +445,13 @@ mod tests {
     #[test]
     fn a_reading_of_on_drops_the_held_keys() {
         assert_eq!(
-            decide(Some(at(0)), Some(at(5)), Reading::On, at(10), &bounds()),
+            decide(
+                Some(at(0)),
+                Some(at(5)),
+                Reading::On,
+                both(at(10)),
+                &bounds()
+            ),
             Verdict::Drop(Cause::On)
         );
     }
@@ -365,7 +463,7 @@ mod tests {
                 Some(at(0)),
                 Some(at(5)),
                 Reading::Unknown,
-                at(10),
+                both(at(10)),
                 &bounds()
             ),
             Verdict::Drop(Cause::Unknown)
@@ -376,7 +474,13 @@ mod tests {
     fn a_reading_of_on_or_unknown_drops_even_a_key_that_is_due() {
         for reading in [Reading::On, Reading::Unknown] {
             assert!(matches!(
-                decide(Some(at(0)), Some(at(1_990)), reading, at(2_000), &bounds()),
+                decide(
+                    Some(at(0)),
+                    Some(at(1_990)),
+                    reading,
+                    both(at(2_000)),
+                    &bounds()
+                ),
                 Verdict::Drop(_)
             ));
         }
@@ -389,7 +493,7 @@ mod tests {
                 Some(at(0)),
                 Some(at(1_000)),
                 Reading::Off,
-                at(1_031),
+                both(at(1_031)),
                 &bounds()
             ),
             Verdict::Drop(Cause::Gap)
@@ -399,7 +503,7 @@ mod tests {
                 Some(at(0)),
                 Some(at(1_000)),
                 Reading::Off,
-                at(1_030),
+                both(at(1_030)),
                 &bounds()
             ),
             Verdict::Release
@@ -409,11 +513,17 @@ mod tests {
     #[test]
     fn a_reading_before_the_one_before_it_or_with_none_before_it_is_a_gap() {
         assert_eq!(
-            decide(Some(at(0)), Some(at(20)), Reading::Off, at(10), &bounds()),
+            decide(
+                Some(at(0)),
+                Some(at(20)),
+                Reading::Off,
+                both(at(10)),
+                &bounds()
+            ),
             Verdict::Drop(Cause::Gap)
         );
         assert_eq!(
-            decide(Some(at(0)), None, Reading::Off, at(10), &bounds()),
+            decide(Some(at(0)), None, Reading::Off, both(at(10)), &bounds()),
             Verdict::Drop(Cause::Gap)
         );
     }
@@ -422,7 +532,7 @@ mod tests {
     fn with_nothing_held_every_reading_waits() {
         for reading in [Reading::Off, Reading::On, Reading::Unknown] {
             assert_eq!(
-                decide(None, None, reading, at(5_000), &bounds()),
+                decide(None, None, reading, both(at(5_000)), &bounds()),
                 Verdict::Wait
             );
         }
@@ -431,8 +541,8 @@ mod tests {
     #[test]
     fn a_gap_before_a_key_arrives_onto_an_empty_hold_keeps_that_key() {
         let mut hold = HeldKeys::new(bounds());
-        assert_eq!(hold.reading(Reading::Off, at(0)), Step::Waiting);
-        assert_eq!(hold.reading(Reading::Off, at(60_000)), Step::Waiting);
+        assert_eq!(hold.reading(Reading::Off, both(at(0))), Step::Waiting);
+        assert_eq!(hold.reading(Reading::Off, both(at(60_000))), Step::Waiting);
         assert_eq!(
             hold.admit(Reading::Off, IN_TIME, at(60_000), 1),
             Admission::Held
@@ -547,7 +657,7 @@ mod tests {
     fn a_drop_takes_the_oldest_and_the_newest_key_alike() {
         let mut hold = held(&[0, 10, 20]);
         assert_eq!(
-            hold.reading(Reading::On, at(25)),
+            hold.reading(Reading::On, both(at(25))),
             Step::Dropped {
                 keys: 3,
                 cause: Cause::On
@@ -556,7 +666,7 @@ mod tests {
         assert!(hold.is_empty());
         let mut hold = held(&[0, 10, 20]);
         for step in 1..=200 {
-            let _ = hold.reading(Reading::Off, at(20 + step * 10));
+            let _ = hold.reading(Reading::Off, both(at(20 + step * 10)));
         }
         assert!(hold.is_empty(), "every key is released or dropped");
     }
@@ -565,12 +675,25 @@ mod tests {
     fn one_reading_releases_one_key_and_the_keys_go_in_their_order() {
         let mut hold = held(&[0, 1, 2]);
         for ms in (10..1_000).step_by(10) {
-            assert_eq!(hold.reading(Reading::Off, at(ms)), Step::Waiting, "{ms}");
+            assert_eq!(
+                hold.reading(Reading::Off, both(at(ms))),
+                Step::Waiting,
+                "{ms}"
+            );
         }
-        assert_eq!(hold.reading(Reading::Off, at(1_002)), Step::Released(0));
-        assert_eq!(hold.reading(Reading::Off, at(1_003)), Step::Released(1));
-        assert_eq!(hold.reading(Reading::Off, at(1_004)), Step::Released(2));
-        assert_eq!(hold.reading(Reading::Off, at(1_005)), Step::Waiting);
+        assert_eq!(
+            hold.reading(Reading::Off, both(at(1_002))),
+            Step::Released(0)
+        );
+        assert_eq!(
+            hold.reading(Reading::Off, both(at(1_003))),
+            Step::Released(1)
+        );
+        assert_eq!(
+            hold.reading(Reading::Off, both(at(1_004))),
+            Step::Released(2)
+        );
+        assert_eq!(hold.reading(Reading::Off, both(at(1_005))), Step::Waiting);
     }
 
     #[test]
@@ -579,16 +702,16 @@ mod tests {
         let mut ms = 0;
         while ms < 990 {
             ms += 10;
-            assert_eq!(hold.reading(Reading::Off, at(ms)), Step::Waiting);
+            assert_eq!(hold.reading(Reading::Off, both(at(ms))), Step::Waiting);
         }
         assert_eq!(
-            hold.reading(Reading::Unknown, at(1_000)),
+            hold.reading(Reading::Unknown, both(at(1_000))),
             Step::Dropped {
                 keys: 1,
                 cause: Cause::Unknown
             }
         );
-        assert_eq!(hold.reading(Reading::Off, at(1_010)), Step::Waiting);
+        assert_eq!(hold.reading(Reading::Off, both(at(1_010))), Step::Waiting);
     }
 
     #[test]
@@ -638,7 +761,10 @@ mod tests {
         let mut now = 0;
         for key in 0..(repeats + typed) as u64 {
             now += step;
-            assert_eq!(hold.reading(Reading::Off, Monotonic(now)), Step::Waiting);
+            assert_eq!(
+                hold.reading(Reading::Off, both(Monotonic(now))),
+                Step::Waiting
+            );
             assert_eq!(
                 hold.admit(Reading::Off, IN_TIME, Monotonic(now), key),
                 Admission::Held,
