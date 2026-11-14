@@ -81,6 +81,10 @@ impl FileSide for MovedUnderTheRead {
         Ok(())
     }
 
+    fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+        Ok(false)
+    }
+
     fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
         Claim::Absent
     }
@@ -245,6 +249,10 @@ impl FileSide for File {
             Some(Fails::Fault(fault)) => Err(Err(fault)),
             _ => Ok(()),
         }
+    }
+
+    fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+        Ok(false)
     }
 
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
@@ -1020,6 +1028,10 @@ impl FileSide for MovedUnderTheDelete {
         Ok(())
     }
 
+    fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+        Ok(false)
+    }
+
     fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
         Claim::Absent
     }
@@ -1654,6 +1666,10 @@ mod real_files {
             self.inner.settle_claimed(keychain)
         }
 
+        fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+            self.inner.claimed_or_named()
+        }
+
         fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
             if let Some(hook) = self.hook.borrow_mut().take() {
                 hook();
@@ -1936,6 +1952,10 @@ mod real_files {
             self.inner.settle_claimed(keychain)
         }
 
+        fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+            self.inner.claimed_or_named()
+        }
+
         fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
             self.inner.remove_if_holds(bytes)
         }
@@ -1995,5 +2015,189 @@ mod real_files {
         assert_eq!(store.keychain.keychain.items(), [other.clone()]);
         assert!(names_in(label).is_empty(), "{:?}", names_in(label));
         assert_eq!(found(store.read()), other);
+    }
+
+    #[test]
+    fn a_removal_of_the_keychain_item_ends_the_claim_of_a_killed_move_of_the_same_bytes() {
+        let label = "claim-removal-keychain";
+        stopped_after_the_claim(label, X, 4243);
+        let store = signed(label, Keys::holding(&[X]));
+        assert_eq!(store.remove(StoreKind::Keychain), Some(Delete::Deleted));
+        assert!(store.keychain.keychain.items().is_empty());
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+        assert!(matches!(store.read(), Read::NotStored));
+    }
+
+    struct ClaimedAfterTheSettle {
+        inner: Item<UnixFs, Plain>,
+        hooks: RefCell<Vec<Box<dyn FnOnce()>>>,
+    }
+
+    impl FileSide for ClaimedAfterTheSettle {
+        fn read(&self) -> Read {
+            self.inner.read()
+        }
+
+        fn write(&self, secret: &Secret) -> Write {
+            self.inner.write(secret)
+        }
+
+        fn delete(&self) -> Delete {
+            self.inner.delete()
+        }
+
+        fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
+            self.inner.delete_if_holds(held)
+        }
+
+        fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+            let settled = self.inner.settle_claimed(keychain);
+            let next = {
+                let mut hooks = self.hooks.borrow_mut();
+                (!hooks.is_empty()).then(|| hooks.remove(0))
+            };
+            if let Some(hook) = next {
+                hook();
+            }
+            settled
+        }
+
+        fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+            self.inner.claimed_or_named()
+        }
+
+        fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+            self.inner.remove_if_holds(bytes)
+        }
+    }
+
+    fn claim_of_another_process(label: &str) -> (Box<dyn FnOnce()>, std::path::PathBuf) {
+        let store = parent(label).join("store");
+        let claim = store.join(format!(".account.{}.0.claim", std::process::id() + 1));
+        let (from, to) = (store.join("account"), claim.clone());
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            std::fs::rename(&from, &to).expect("the claim of another process");
+        });
+        (hook, claim)
+    }
+
+    fn named_back(label: &str, claim: &std::path::Path) {
+        if claim.exists() {
+            std::fs::rename(claim, parent(label).join("store").join("account"))
+                .expect("the file named back");
+        }
+    }
+
+    fn stands(label: &str, keychain: &Items, bytes: &[u8]) -> bool {
+        let in_file =
+            matches!(file_item(label).read(), Read::Found(held) if held.expose() == bytes);
+        in_file || keychain.borrow().iter().any(|item| item == bytes)
+    }
+
+    #[test]
+    fn a_delete_if_holds_during_another_process_claim_never_answers_not_stored() {
+        for keeps in [Keeps::File, Keeps::Keychain] {
+            let label = match keeps {
+                Keeps::File => "unsigned-delete-if-holds-during-a-claim",
+                Keeps::Keychain => "signed-delete-if-holds-during-a-claim",
+            };
+            assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+            let (hook, claim) = claim_of_another_process(label);
+            let items: Items = Rc::new(RefCell::new(Vec::new()));
+            let this = Mac {
+                keeps,
+                file: ClaimedAfterTheSettle {
+                    inner: file_item(label),
+                    hooks: RefCell::new(vec![hook]),
+                },
+                keychain: keys(SharedKeys {
+                    items: Rc::clone(&items),
+                }),
+            };
+            let answer = this.delete_if_holds(X);
+            named_back(label, &claim);
+            let stands = stands(label, &items, X);
+            match answer {
+                DeleteIfHolds::Deleted => assert!(!stands, "{keeps:?}: Deleted while X stands"),
+                DeleteIfHolds::NotStored => panic!("{keeps:?}: NotStored while X stood"),
+                answer => assert!(stands, "{keeps:?}: {answer:?} and X is gone"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_read_or_a_delete_during_another_process_claim_never_answers_not_stored() {
+        for (keeps, op) in [
+            (Keeps::File, "read"),
+            (Keeps::Keychain, "read"),
+            (Keeps::File, "delete"),
+            (Keeps::Keychain, "delete"),
+        ] {
+            let label = format!("{op}-{keeps:?}-during-a-claim").to_lowercase();
+            assert_eq!(file_item(&label).write(&secret(X)), Write::Stored);
+            let (hook, claim) = claim_of_another_process(&label);
+            let items: Items = Rc::new(RefCell::new(Vec::new()));
+            let this = Mac {
+                keeps,
+                file: ClaimedAfterTheSettle {
+                    inner: file_item(&label),
+                    hooks: RefCell::new(vec![hook]),
+                },
+                keychain: keys(SharedKeys {
+                    items: Rc::clone(&items),
+                }),
+            };
+            let answer = match op {
+                "read" => format!("{:?}", this.read()),
+                _ => format!("{:?}", this.delete()),
+            };
+            named_back(&label, &claim);
+            let stands = stands(&label, &items, X);
+            assert_ne!(answer, "NotStored", "{keeps:?} {op}");
+            assert_eq!(answer == "Deleted", !stands, "{keeps:?} {op}: {answer}");
+        }
+    }
+
+    #[test]
+    fn an_unsigned_delete_whose_file_is_claimed_after_its_read_answers_a_fault() {
+        let label = "unsigned-delete-claimed-after-the-read";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let (hook, claim) = claim_of_another_process(label);
+        let unsigned = Mac {
+            keeps: Keeps::File,
+            file: AfterRead {
+                inner: file_item(label),
+                hook: RefCell::new(Some(hook)),
+            },
+            keychain: keys(Keys::empty()),
+        };
+        assert_eq!(unsigned.delete(), Delete::Fault(Fault { code: -1 }));
+        named_back(label, &claim);
+        assert_eq!(found(file_item(label).read()), X);
+    }
+
+    #[test]
+    fn a_read_that_finds_the_file_claimed_twice_by_another_process_answers_a_fault() {
+        for keeps in [Keeps::File, Keeps::Keychain] {
+            let label = format!("read-{keeps:?}-claimed-twice").to_lowercase();
+            assert_eq!(file_item(&label).write(&secret(X)), Write::Stored);
+            let (first, claim) = claim_of_another_process(&label);
+            let (second, _) = claim_of_another_process(&label);
+            let this = Mac {
+                keeps,
+                file: ClaimedAfterTheSettle {
+                    inner: file_item(&label),
+                    hooks: RefCell::new(vec![first, second]),
+                },
+                keychain: keys(Keys::empty()),
+            };
+            let read = this.read();
+            named_back(&label, &claim);
+            assert!(
+                matches!(read, Read::Fault(Fault { code: -1 })),
+                "{keeps:?}: {read:?}"
+            );
+            assert_eq!(found(file_item(&label).read()), X, "{keeps:?}");
+        }
     }
 }

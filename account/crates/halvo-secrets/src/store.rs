@@ -60,6 +60,16 @@ use crate::{Directory, Name, Secret};
 /// operation and puts each such file back under the store's name, so that a
 /// `delete_if_holds` that was stopped after its claim never hides a credential.
 ///
+/// A claim of another process that is alive while an operation runs. When an operation of
+/// either store, of either system, finds no file under the store's name, as its read, as
+/// its delete or as the open or the claim of `delete_if_holds`, it lists the store
+/// directory once more before it answers `NotStored`. When the listing holds the store's
+/// name or a name of the claim's form, another operation was at work: the operation ends
+/// each claim as above and runs once more, and a second such finding answers `Fault` with
+/// -1. So no operation answers `NotStored` while the credential lies in another process's
+/// claim, and a delete of a build without the feature whose file is claimed after its read
+/// answers `Fault` with -1.
+///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
 /// directory that is missing answers `Fault`, and a write makes the store directory alone,
@@ -120,8 +130,10 @@ use crate::{Directory, Name, Secret};
 ///
 /// `remove` at the person's word, after the app has said what it costs: `from` names the
 /// file of the file store or the Keychain item. It removes whatever item that store holds,
-/// with no compare, and the other store's item stays; the removal of the file first ends
-/// each claim as the place above says. Then it reads, the move included, and gives that
+/// with no compare, and the other store's item stays; a removal of either store's item
+/// first ends each claim as the place above says, with the bytes that the Keychain item
+/// holds, so a claim of a killed move of the Keychain item's bytes goes with that item.
+/// Then it reads, the move included, and gives that
 /// read beside the removal's answer, so the caller learns what then stands: in the state
 /// with other bytes in both stores, a build with the feature then reads the item that
 /// stays, moving the file into the Keychain where the Keychain's item was removed, and a
@@ -129,9 +141,11 @@ use crate::{Directory, Name, Secret};
 /// `Locked::OtherStore` while the Keychain item stays. A kind that the store never looks
 /// at, `Dpapi` on macOS, answers `None`.
 ///
-/// Two limits stay. A delete or a `delete_if_holds` of a build without the feature whose
-/// two steps both fall between a move's read of the file and its add answers `Deleted`,
-/// and the move then adds the credential that it read. Two first sign-ins on the two
+/// Two limits stay. A delete or a `delete_if_holds` of a build without the feature, or a
+/// `remove` of the file by either build, whose steps all fall between a move's read of the
+/// file and its add answers `Deleted` (a `remove` with its read then answering what stands
+/// at that moment, possibly `NotStored`), and the move then adds the credential that it
+/// read, which the next read gives. Two first sign-ins on the two
 /// builds at one moment can store one each, which leaves both stores with other bytes
 /// until `remove`. No order of steps closes either without one lock over the operations
 /// of both builds.

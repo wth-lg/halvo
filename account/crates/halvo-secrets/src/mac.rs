@@ -16,6 +16,7 @@ pub(crate) trait FileSide {
     fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds;
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>>;
+    fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>>;
 }
 
 impl<F: Fs, C: Codec> FileSide for Item<F, C> {
@@ -25,6 +26,10 @@ impl<F: Fs, C: Codec> FileSide for Item<F, C> {
 
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
         Item::settle_claimed(self, keychain)
+    }
+
+    fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+        Item::claimed_or_named(self)
     }
 
     fn read(&self) -> Read {
@@ -119,10 +124,35 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     fn settled_file(&self, keychain: Option<&[u8]>) -> Read {
-        match self.file.settle(keychain) {
-            Ok(()) => self.file.read(),
-            Err(Ok(locked)) => Read::Locked(locked),
-            Err(Err(fault)) => Read::Fault(fault),
+        for last in [false, true] {
+            let read = match self.file.settle(keychain) {
+                Ok(()) => self.file.read(),
+                Err(Ok(locked)) => return Read::Locked(locked),
+                Err(Err(fault)) => return Read::Fault(fault),
+            };
+            if !matches!(read, Read::NotStored) {
+                return read;
+            }
+            match self.file.claimed_or_named() {
+                Ok(false) => return read,
+                Ok(true) if last => return Read::Fault(Fault { code: -1 }),
+                Ok(true) => {}
+                Err(Ok(locked)) => return Read::Locked(locked),
+                Err(Err(fault)) => return Read::Fault(fault),
+            }
+        }
+        Read::Fault(Fault { code: -1 })
+    }
+
+    fn delete_own_file(&self) -> Delete {
+        match self.file.delete() {
+            Delete::NotStored => match self.file.claimed_or_named() {
+                Ok(false) => Delete::NotStored,
+                Ok(true) => Delete::Fault(Fault { code: -1 }),
+                Err(Ok(locked)) => Delete::Locked(locked),
+                Err(Err(fault)) => Delete::Fault(fault),
+            },
+            answer => answer,
         }
     }
 
@@ -150,7 +180,7 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     pub(crate) fn delete(&self) -> Delete {
         let own = match self.read() {
             Read::Found(_) => match self.keeps {
-                Keeps::File => self.file.delete(),
+                Keeps::File => self.delete_own_file(),
                 Keeps::Keychain => self.keychain.delete(),
             },
             Read::NotStored => Delete::NotStored,
@@ -179,22 +209,20 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     pub(crate) fn remove(&self, from: StoreKind) -> Option<Delete> {
-        match from {
-            StoreKind::Keychain => Some(self.keychain.delete()),
-            StoreKind::File => {
-                let keychain = self.keychain.read();
-                let moved = match &keychain {
-                    Read::Found(secret) => Some(secret.expose()),
-                    _ => None,
-                };
-                Some(match self.file.settle(moved) {
-                    Ok(()) => self.file.delete(),
-                    Err(Ok(locked)) => Delete::Locked(locked),
-                    Err(Err(fault)) => Delete::Fault(fault),
-                })
-            }
-            StoreKind::Dpapi => None,
+        if from == StoreKind::Dpapi {
+            return None;
         }
+        let keychain = self.keychain.read();
+        let moved = match &keychain {
+            Read::Found(secret) => Some(secret.expose()),
+            _ => None,
+        };
+        Some(match self.file.settle(moved) {
+            Ok(()) if from == StoreKind::File => self.file.delete(),
+            Ok(()) => self.keychain.delete(),
+            Err(Ok(locked)) => Delete::Locked(locked),
+            Err(Err(fault)) => Delete::Fault(fault),
+        })
     }
 
     fn answer_from_both(&self, own: Delete) -> Delete {

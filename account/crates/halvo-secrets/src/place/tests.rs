@@ -1592,14 +1592,12 @@ fn a_claimed_file_that_cannot_be_named_back_stays_under_its_private_name_and_ans
 fn a_failed_step_of_a_delete_if_holds_answers_its_class_and_keeps_the_file() {
     for code in CODES {
         for (step, call) in [("walk", 1), ("open_item", 1), ("publish", 1), ("remove", 1)] {
+            if code == ENOENT && step == "publish" {
+                continue;
+            }
             let store = item(stored().failing_call(step, call, code));
             let answer = format!("{:?}", store.delete_if_holds(STORED));
-            let want = if code == ENOENT && step == "publish" {
-                "NotStored".to_string()
-            } else {
-                delete_if_holds_class(code)
-            };
-            assert_eq!(answer, want, "{step} {code}");
+            assert_eq!(answer, delete_if_holds_class(code), "{step} {code}");
             assert_eq!(
                 bytes_at(&store.fs, PATH),
                 Some(STORED.to_vec()),
@@ -1679,4 +1677,98 @@ fn a_store_that_keeps_its_file_alone_puts_a_left_claim_back_before_each_operatio
         store.after_claims(Item::read),
         Read::Locked(Locked::Mode)
     ));
+}
+
+fn claimed_by_another_process(entries: &mut BTreeMap<PathBuf, Entry>) {
+    let file = entries
+        .remove(&PathBuf::from(PATH))
+        .expect("the stored file");
+    entries.insert(
+        PathBuf::from(format!("{DIR}/.account.99999999.0.claim")),
+        file,
+    );
+}
+
+fn named_back_by_the_other_process(store: &Item<Memory, Plain>) {
+    let claim = PathBuf::from(format!("{DIR}/.account.99999999.0.claim"));
+    if let Some(file) = store.fs.entries.borrow_mut().remove(&claim) {
+        store
+            .fs
+            .entries
+            .borrow_mut()
+            .insert(PathBuf::from(PATH), file);
+    }
+}
+
+#[test]
+fn a_claim_that_finds_the_file_under_another_process_claim_never_answers_not_stored() {
+    let memory = stored()
+        .before_call("publish", 1, claimed_by_another_process)
+        .failing_call("publish", 1, ENOENT);
+    let store = item(memory);
+    assert_answer_matches_what_stands(&store, store.delete_if_holds(STORED));
+}
+
+#[test]
+fn an_open_that_finds_the_file_under_another_process_claim_never_answers_not_stored() {
+    let store = item(stored().before_call("open_item", 1, claimed_by_another_process));
+    assert_answer_matches_what_stands(
+        &store,
+        store.after_claims(|item| item.delete_if_holds(STORED)),
+    );
+}
+
+fn assert_answer_matches_what_stands(store: &Item<Memory, Plain>, answer: DeleteIfHolds) {
+    named_back_by_the_other_process(store);
+    let stands = store
+        .fs
+        .paths()
+        .iter()
+        .any(|path| bytes_at(&store.fs, path) == Some(STORED.to_vec()));
+    match answer {
+        DeleteIfHolds::Deleted => assert!(!stands, "Deleted while the credential stands"),
+        DeleteIfHolds::NotStored => panic!("NotStored while another process held the credential"),
+        answer => assert!(stands, "{answer:?} and the credential is gone"),
+    }
+}
+
+#[test]
+fn a_read_or_a_delete_while_another_process_holds_a_live_claim_never_answers_not_stored() {
+    let store = item(stored().before_call("open_item", 1, claimed_by_another_process));
+    assert_eq!(found(store.after_claims(Item::read)), STORED);
+    assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
+
+    let store = item(stored().before_call("open_item", 1, claimed_by_another_process));
+    assert_eq!(store.after_claims(Item::delete), Delete::Deleted);
+    assert_eq!(store.fs.paths(), [DIR]);
+
+    let store = item(
+        stored()
+            .before_call("open_item", 1, claimed_by_another_process)
+            .before_call("open_item", 3, claimed_by_another_process),
+    );
+    let read = store.after_claims(Item::read);
+    assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+}
+
+#[test]
+fn a_claim_whose_rename_finds_nothing_while_the_name_stands_is_made_again_once() {
+    let store = item(stored().failing_call("publish", 1, ENOENT));
+    assert!(matches!(
+        store.delete_if_holds(STORED),
+        DeleteIfHolds::Deleted
+    ));
+    assert_eq!(store.fs.paths(), [DIR]);
+
+    let store = item(
+        stored()
+            .failing_call("publish", 1, ENOENT)
+            .failing_call("publish", 2, ENOENT),
+    );
+    let answer = store.delete_if_holds(STORED);
+    assert!(
+        matches!(answer, DeleteIfHolds::Fault(Fault { code: -1 })),
+        "{answer:?}"
+    );
+    assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
 }

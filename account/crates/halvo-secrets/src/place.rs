@@ -302,6 +302,44 @@ impl From<Stop> for Delete {
     }
 }
 
+impl From<Result<Locked, Fault>> for Stop {
+    fn from(stop: Result<Locked, Fault>) -> Stop {
+        match stop {
+            Ok(locked) => Stop::Locked(locked),
+            Err(fault) => Stop::Fault(fault),
+        }
+    }
+}
+
+/// An answer that can say that nothing stands under the name.
+pub(crate) trait Absent {
+    fn is_absent(&self) -> bool;
+}
+
+impl Absent for Read {
+    fn is_absent(&self) -> bool {
+        matches!(self, Read::NotStored)
+    }
+}
+
+impl Absent for Write {
+    fn is_absent(&self) -> bool {
+        false
+    }
+}
+
+impl Absent for Delete {
+    fn is_absent(&self) -> bool {
+        matches!(self, Delete::NotStored)
+    }
+}
+
+impl Absent for DeleteIfHolds {
+    fn is_absent(&self) -> bool {
+        matches!(self, DeleteIfHolds::NotStored)
+    }
+}
+
 impl From<Stop> for DeleteIfHolds {
     fn from(stop: Stop) -> DeleteIfHolds {
         match stop {
@@ -533,12 +571,12 @@ impl<F: Fs, C: Codec> Item<F, C> {
         };
         match self.open(&dir) {
             Ok(Some(_)) => {}
-            Ok(None) => return DeleteIfHolds::NotStored,
+            Ok(None) => return self.gone_or_again(held, again),
             Err(stop) => return stop.into(),
         }
         let private = match self.claim(&dir) {
             Ok(Some(private)) => private,
-            Ok(None) => return DeleteIfHolds::NotStored,
+            Ok(None) => return self.gone_or_again(held, again),
             Err(stop) => return stop.into(),
         };
         let kept = |answer: DeleteIfHolds| {
@@ -566,16 +604,57 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
     }
 
+    fn gone_or_again(&self, held: &[u8], again: bool) -> DeleteIfHolds {
+        match self.claimed_or_named() {
+            Ok(false) => DeleteIfHolds::NotStored,
+            Ok(true) if again => match self.settle_claimed(None) {
+                Ok(()) => self.take_if_holds(held, false),
+                Err(Ok(locked)) => DeleteIfHolds::Locked(locked),
+                Err(Err(fault)) => DeleteIfHolds::Fault(fault),
+            },
+            Ok(true) => DeleteIfHolds::Fault(Fault { code: -1 }),
+            Err(Ok(locked)) => DeleteIfHolds::Locked(locked),
+            Err(Err(fault)) => DeleteIfHolds::Fault(fault),
+        }
+    }
+
+    /// Whether the store directory holds, at the moment it is listed, a file under the
+    /// store's name or under a name of the claim's form.
+    pub(crate) fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
+        let dir = match self.place() {
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return Ok(false),
+            Err(stop) => return Err(stop.into()),
+        };
+        let names = self.fs.names(&dir).map_err(|error| stopped(&error))?;
+        Ok(names
+            .iter()
+            .any(|entry| entry == self.name.as_str() || self.is_claimed(entry)))
+    }
+
     /// Ends each claim that a stopped operation left in the store directory by putting it
     /// back under the store's name, then runs `op`; a claim that cannot be read or put back
-    /// is the answer. This is the order of every operation of a store that keeps its file
-    /// alone.
-    pub(crate) fn after_claims<T: From<Stop>>(&self, op: impl FnOnce(&Self) -> T) -> T {
-        match self.settle_claimed(None) {
-            Ok(()) => op(self),
-            Err(Ok(locked)) => Stop::Locked(locked).into(),
-            Err(Err(fault)) => Stop::Fault(fault).into(),
+    /// is the answer. When `op` finds nothing under the name while the directory then holds
+    /// the name or a claim, another operation was at work: it settles and runs `op` once
+    /// more, and a second such answer is `Fault` with -1. This is the order of every
+    /// operation of a store that keeps its file alone.
+    pub(crate) fn after_claims<T: From<Stop> + Absent>(&self, op: impl Fn(&Self) -> T) -> T {
+        for last in [false, true] {
+            if let Err(stop) = self.settle_claimed(None) {
+                return Stop::from(stop).into();
+            }
+            let answer = op(self);
+            if !answer.is_absent() {
+                return answer;
+            }
+            match self.claimed_or_named() {
+                Ok(false) => return answer,
+                Ok(true) if last => return Stop::Fault(Fault { code: -1 }).into(),
+                Ok(true) => {}
+                Err(stop) => return Stop::from(stop).into(),
+            }
         }
+        Stop::Fault(Fault { code: -1 }).into()
     }
 
     #[cfg_attr(windows, allow(dead_code))]
