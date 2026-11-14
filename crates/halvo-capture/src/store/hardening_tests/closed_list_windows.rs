@@ -617,3 +617,34 @@ fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trim
         "calls acted on the trimmed sibling, made something at the name given or answered other than Io(InvalidInput): {acted:?}"
     );
 }
+
+/// Ruling ST-46 K2 on Windows: a directory link in a part of the roots path
+/// below the directory that it shares with the store path: the tail runs no
+/// sweep and the other store opens after it. When the runner cannot make a
+/// directory link the test prints so and asserts nothing.
+#[test]
+fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let (behind, behind_roots, behind_id, _) = file_root_store(&base.join("behind"));
+    let wrapped = wrapped_of(&behind);
+    let data = base.join("data");
+    std::fs::create_dir(&data).unwrap();
+    let (store_dir, _, _, _) = file_root_store(&data);
+    let made = std::os::windows::fs::symlink_dir(base.join("behind"), data.join("alias"));
+    println!("WIN-ST46-K2 directory_link_made={}", made.is_ok());
+    if made.is_err() {
+        return;
+    }
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &data.join("alias").join("roots"));
+    let other_unwraps = unwraps(&behind_roots, behind_id, &wrapped);
+    println!(
+        "WIN-ST46-K2 {} the_other_root_unwraps={other_unwraps}",
+        report_line(&answer)
+    );
+    assert!(
+        other_unwraps,
+        "the tail swept another store's roots through a directory link"
+    );
+    assert!(answer.is_err(), "{}", report_line(&answer));
+}

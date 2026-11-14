@@ -1392,3 +1392,79 @@ fn with_nothing_moved_after_the_listing_the_root_reads_destroyed() {
     assert!(answer.is_ok(), "{}", report_line(&answer));
     assert!(delete_report(&answer).root_destroyed());
 }
+
+/// The verifier's issue 1 (ruling ST-46 K2): the roots path reaches another
+/// store's directory through a link in one of its parts below the directory
+/// that it shares with the store path (here `data/alias`, beside a link at
+/// the store name). The tail runs no sweep there, its roots read not listed,
+/// it answers DeleteIncomplete, and that store opens and reads after it. The
+/// control, the tests' own layout, still sweeps.
+#[test]
+fn the_tail_runs_no_sweep_through_a_link_in_a_part_of_the_roots_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    std::fs::create_dir(&data).unwrap();
+    let behind = dir.path().join("behind");
+    let behind_id = RootId::fresh().unwrap();
+    let mut other = EncryptedStore::create(
+        &behind,
+        Box::new(DevFallbackCustody::new(behind_id, behind.join("roots"))),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = other
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    drop(other);
+    std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
+    std::os::unix::fs::symlink(&behind, data.join("alias")).unwrap();
+    let answer =
+        EncryptedStore::delete_store_dir(&data.join("store"), &data.join("alias").join("roots"));
+    let reads = public_reads(&behind, &behind.join("roots"), segment.segment_id);
+    println!(
+        "ST46 K2 a link in the roots path {} the_other_store: {reads}",
+        report_line(&answer)
+    );
+    assert!(
+        reads.starts_with("open=Ok segment_plaintext_equal=true"),
+        "the tail swept another store's roots through a link in its roots path: {reads}"
+    );
+    assert!(
+        answer.is_err() && !delete_report(&answer).roots.listed,
+        "{}",
+        report_line(&answer)
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    put_a_root(&roots_dir);
+    zero_the_key_file(&store_dir);
+    let control = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    println!("ST46 K2 the tests' own layout {}", report_line(&control));
+    assert!(control.is_ok(), "{}", report_line(&control));
+    assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+}
+
+/// ST-46 K2: a roots path that holds a parent part gets no sweep.
+#[test]
+fn the_tail_runs_no_sweep_on_a_roots_path_with_a_parent_part() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    std::fs::create_dir(dir.path().join("x")).unwrap();
+    put_a_root(&roots_dir);
+    zero_the_key_file(&store_dir);
+    let before = root_files_in(&roots_dir);
+    let through = dir.path().join("x").join("..").join("roots");
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &through);
+    println!("ST46 K2 a parent part {}", report_line(&answer));
+    assert_eq!(
+        root_files_in(&roots_dir),
+        before,
+        "the tail swept through a parent part"
+    );
+    assert!(
+        answer.is_err() && !delete_report(&answer).roots.listed,
+        "{}",
+        report_line(&answer)
+    );
+}
