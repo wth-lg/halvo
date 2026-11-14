@@ -385,6 +385,10 @@ mod sys {
         let mut found = Vec::new();
         for v in values {
             let mut dup: HANDLE = std::ptr::null_mut();
+            // SAFETY: `process` is open with PROCESS_DUP_HANDLE (null was refused above). The call
+            // looks `*v` up in that process's handle table and fails with 0 when it names no
+            // handle; on success it writes a new handle of this process, with the source's access,
+            // to `dup`, a live local, and leaves the source handle open (no DUPLICATE_CLOSE_SOURCE).
             let ok = unsafe {
                 DuplicateHandle(
                     process,
