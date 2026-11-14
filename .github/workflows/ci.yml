@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,24 +81,92 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 46-r4-dialog-ran
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 46-r4-dialog-ran
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
+      - name: U4.5 loop of the new tests and of the dialog targets, counted by the result lines
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          cargo test -p halvo-coord-app --locked --no-run --message-format=json > "$RUNNER_TEMP/u45-build.json" 2> "$RUNNER_TEMP/u45-build.err"
+          echo "u45 loop build exit=$?"
+          exe() { grep -o '"executable":"[^"]*"' "$RUNNER_TEMP/u45-build.json" | sed 's/"executable":"//; s/"$//; s/\\\\/\//g' | grep "/deps/$1-" | head -1; }
+          loop() {
+            label=$1; n=$2; how=$3; want=$4; shift 4
+            pass=0; i=0
+            while [ "$i" -lt "$n" ]; do
+              i=$((i + 1))
+              "$@" > "$RUNNER_TEMP/u45-loop.out" 2>&1
+              case $how in
+                line) x=-xF ;;
+                pattern) x=-xE ;;
+                *) x=-F ;;
+              esac
+              if tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -q "$x" -e "$want"; then
+                pass=$((pass + 1)); missed=no
+              else
+                missed=yes
+                echo "u45 loop $label run $i missed; its end and failure lines:"
+                tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -E '_hosted (end|case .* FAIL)' | head -8
+              fi
+              if [ "$label" = guard-hosted ]; then
+                tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -E '_hosted (notice|reading .*report made by|press|again)' > "$RUNNER_TEMP/u45-loop-lines.txt"
+                if [ "$i" = 1 ] || [ "$missed" = yes ]; then
+                  echo "u45 loop $label run $i lines of the pair:"
+                  head -80 "$RUNNER_TEMP/u45-loop-lines.txt"
+                fi
+                echo "u45 loop $label run $i reports: $(grep -c 'report made by a press' "$RUNNER_TEMP/u45-loop-lines.txt") by a press, $(grep -c 'report made by a become notice' "$RUNNER_TEMP/u45-loop-lines.txt") by a notice, $(grep -c 'report made by the repeating reading' "$RUNNER_TEMP/u45-loop-lines.txt") by the repeating reading"
+              fi
+            done
+            echo "u45 loop $label runs=$n passed=$pass by the line: $want"
+          }
+          lib=$(exe halvo_coord_app); sched=$(exe schedule); guard=$(exe guard_hosted); dlg=$(exe dialog_hosted)
+          echo "u45 loop binaries: lib=${lib:+found} schedule=${sched:+found} guard=${guard:+found} dialog=${dlg:+found}"
+          new="present::tests::guard:: present::tests::moment:: present::tests::serve::every_show_holds present::tests::serve::a_card_that_breaks present::tests::system::seams::alert_the_hold_starts present::tests::card::a_field_is_taken present::tests::card::each_mark present::tests::card::a_card_of_every_class present::tests::card::a_title_or_a_control present::tests::card::an_access_key present::tests::card::a_card_over_its_bound present::tests::system::the_task_dialog"
+          if [ "$RUNNER_OS" = macOS ]; then plain=43; dcases=4; gcases=7; gruns=60; else plain=44; dcases=5; gcases=8; gruns=20; fi
+          # shellcheck disable=SC2086
+          loop new-lib-tests 200 start "test result: ok. $plain passed; 0 failed; 0 ignored; 0 measured; 44 filtered out;" "$lib" $new
+          loop schedule-tests 200 start "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;" "$sched"
+          loop dialog-hosted 20 line "dialog_hosted end: cases ran $dcases of $dcases, failed 0" "$dlg"
+          loop guard-hosted "$gruns" pattern "guard_hosted end: cases ran $gcases of $gcases, failed 0, helped 0, moments at a press 0, retries [0-9]+" "$guard"
+      - name: U4.5 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          change() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2; shift 2
+            while [ "$#" -ge 2 ]; do
+              OLD=$1 NEW=$2 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+              shift 2
+            done
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+            ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+            echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change moment.rs H1-guard-taken-out 'Event::Press { .. } if guard.press(now) => Decision::Answer,' 'Event::Press { .. } if guard.press(now) || true => Decision::Answer,'
+            change system.rs H2-report-before-the-key-window 'let _ = hold.ivars().shown.send(Step::Shown);' 'let _ = &hold.ivars().shown;' 'let response = alert.runModal();' 'let _ = tx.send(Step::Shown); let response = alert.runModal();'
+            change system.rs H3-buttons-keep-their-own-action 'button.setTarget(Some(target));' 'let _ = target;' 'button.setAction(Some(sel!(press:)));' 'let _ = sel!(press:);'
+            change system.rs H4-no-reading-but-at-a-press '(sel!(becameKey:), NSWindowDidBecomeKeyNotification),' '(sel!(becameKey:), NSWindowDidResignKeyNotification),' '                        NSApplicationDidBecomeActiveNotification,' '                        NSApplicationDidResignActiveNotification,' '*hold.ivars().timer.borrow_mut() = Some(timer);' 'timer.invalidate();'
+            change system.rs H5-hold-from-before-the-report 'lock(&state).guard.reported(Instant::now())' 'lock(&state).guard.reported(Instant::now() - Duration::from_secs(5))'
+          else
+            change system.rs W1-guard-taken-out 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) =>' 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) && false =>'
+            change system.rs W4-no-subclass 'unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };' 'windows::core::BOOL(SUBCLASS as i32);'
+            change system.rs W5-deactivation-as-activation 'as u32 != WA_INACTIVE =>' 'as u32 == WA_INACTIVE =>'
+          fi
+          echo "u45 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -144,21 +201,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 46-r4-dialog-ran
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 46-r4-dialog-ran
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -194,6 +240,85 @@ jobs:
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
+      - name: U4.5 loop of the new tests and of the dialog targets, counted by the result lines
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          cargo test -p halvo-coord-app --locked --no-run --message-format=json > "$RUNNER_TEMP/u45-build.json" 2> "$RUNNER_TEMP/u45-build.err"
+          echo "u45 loop build exit=$?"
+          exe() { grep -o '"executable":"[^"]*"' "$RUNNER_TEMP/u45-build.json" | sed 's/"executable":"//; s/"$//; s/\\\\/\//g' | grep "/deps/$1-" | head -1; }
+          loop() {
+            label=$1; n=$2; how=$3; want=$4; shift 4
+            pass=0; i=0
+            while [ "$i" -lt "$n" ]; do
+              i=$((i + 1))
+              "$@" > "$RUNNER_TEMP/u45-loop.out" 2>&1
+              case $how in
+                line) x=-xF ;;
+                pattern) x=-xE ;;
+                *) x=-F ;;
+              esac
+              if tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -q "$x" -e "$want"; then
+                pass=$((pass + 1)); missed=no
+              else
+                missed=yes
+                echo "u45 loop $label run $i missed; its end and failure lines:"
+                tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -E '_hosted (end|case .* FAIL)' | head -8
+              fi
+              if [ "$label" = guard-hosted ]; then
+                tr -d '\r' < "$RUNNER_TEMP/u45-loop.out" | grep -E '_hosted (notice|reading .*report made by|press|again)' > "$RUNNER_TEMP/u45-loop-lines.txt"
+                if [ "$i" = 1 ] || [ "$missed" = yes ]; then
+                  echo "u45 loop $label run $i lines of the pair:"
+                  head -80 "$RUNNER_TEMP/u45-loop-lines.txt"
+                fi
+                echo "u45 loop $label run $i reports: $(grep -c 'report made by a press' "$RUNNER_TEMP/u45-loop-lines.txt") by a press, $(grep -c 'report made by a become notice' "$RUNNER_TEMP/u45-loop-lines.txt") by a notice, $(grep -c 'report made by the repeating reading' "$RUNNER_TEMP/u45-loop-lines.txt") by the repeating reading"
+              fi
+            done
+            echo "u45 loop $label runs=$n passed=$pass by the line: $want"
+          }
+          lib=$(exe halvo_coord_app); sched=$(exe schedule); guard=$(exe guard_hosted); dlg=$(exe dialog_hosted)
+          echo "u45 loop binaries: lib=${lib:+found} schedule=${sched:+found} guard=${guard:+found} dialog=${dlg:+found}"
+          new="present::tests::guard:: present::tests::moment:: present::tests::serve::every_show_holds present::tests::serve::a_card_that_breaks present::tests::system::seams::alert_the_hold_starts present::tests::card::a_field_is_taken present::tests::card::each_mark present::tests::card::a_card_of_every_class present::tests::card::a_title_or_a_control present::tests::card::an_access_key present::tests::card::a_card_over_its_bound present::tests::system::the_task_dialog"
+          if [ "$RUNNER_OS" = macOS ]; then plain=43; dcases=4; gcases=7; gruns=60; else plain=44; dcases=5; gcases=8; gruns=20; fi
+          # shellcheck disable=SC2086
+          loop new-lib-tests 200 start "test result: ok. $plain passed; 0 failed; 0 ignored; 0 measured; 44 filtered out;" "$lib" $new
+          loop schedule-tests 200 start "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;" "$sched"
+          loop dialog-hosted 20 line "dialog_hosted end: cases ran $dcases of $dcases, failed 0" "$dlg"
+          loop guard-hosted "$gruns" pattern "guard_hosted end: cases ran $gcases of $gcases, failed 0, helped 0, moments at a press 0, retries [0-9]+" "$guard"
+      - name: U4.5 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          change() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2; shift 2
+            while [ "$#" -ge 2 ]; do
+              OLD=$1 NEW=$2 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+              shift 2
+            done
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+            ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+            echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change moment.rs H1-guard-taken-out 'Event::Press { .. } if guard.press(now) => Decision::Answer,' 'Event::Press { .. } if guard.press(now) || true => Decision::Answer,'
+            change system.rs H2-report-before-the-key-window 'let _ = hold.ivars().shown.send(Step::Shown);' 'let _ = &hold.ivars().shown;' 'let response = alert.runModal();' 'let _ = tx.send(Step::Shown); let response = alert.runModal();'
+            change system.rs H3-buttons-keep-their-own-action 'button.setTarget(Some(target));' 'let _ = target;' 'button.setAction(Some(sel!(press:)));' 'let _ = sel!(press:);'
+            change system.rs H4-no-reading-but-at-a-press '(sel!(becameKey:), NSWindowDidBecomeKeyNotification),' '(sel!(becameKey:), NSWindowDidResignKeyNotification),' '                        NSApplicationDidBecomeActiveNotification,' '                        NSApplicationDidResignActiveNotification,' '*hold.ivars().timer.borrow_mut() = Some(timer);' 'timer.invalidate();'
+            change system.rs H5-hold-from-before-the-report 'lock(&state).guard.reported(Instant::now())' 'lock(&state).guard.reported(Instant::now() - Duration::from_secs(5))'
+          else
+            change system.rs W1-guard-taken-out 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) =>' 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) && false =>'
+            change system.rs W4-no-subclass 'unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };' 'windows::core::BOOL(SUBCLASS as i32);'
+            change system.rs W5-deactivation-as-activation 'as u32 != WA_INACTIVE =>' 'as u32 == WA_INACTIVE =>'
+          fi
+          echo "u45 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
