@@ -1,9 +1,11 @@
 #!/bin/sh
 # jobs: macos
-# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; the windows job does not run it, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; check 50's records, sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs in backend/ with GATE_STATE under the artifacts, exit 0 with the last line "concurrency: records: N of N as expected", where N is the number of .json files under backend/gate/fixtures/concurrency/records/ at HEAD and is above 0; no tracked file differs from HEAD after both runs; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
 set -u
 name=21-r7-backend-test
 list=scripts/r7/backend-tests.txt
+records_dir=backend/gate/fixtures/concurrency/records
+records_script=backend/gate/fixtures/concurrency/records.mjs
 
 compare_report() {
   node - "$1" "$2" "$3" "$4" <<'EOF'
@@ -79,15 +81,62 @@ test_in() {
   [ -z "$cause" ]
 }
 
+records_in() {
+  r_repo=$1
+  r_out=$2
+  records_counts='records=unmeasured'
+  records_cause=
+  if [ ! -d "$r_repo/backend/node_modules" ]; then
+    records_cause="backend/node_modules is missing; sh scripts/prerequisites.sh installs the packages"
+    return 1
+  fi
+  if [ ! -f "$r_repo/$records_script" ] || [ ! -f "$r_repo/backend/scripts/with-env.sh" ]; then
+    records_cause="$records_script or backend/scripts/with-env.sh is missing"
+    return 1
+  fi
+  if ! git -C "$r_repo" ls-tree --name-only HEAD -- "$records_dir/" >"$r_out/records-at-head.txt"; then
+    records_cause="git could not list $records_dir/ at HEAD"
+    return 1
+  fi
+  r_want=$(grep -c '\.json$' "$r_out/records-at-head.txt")
+  mkdir -p "$r_out/records-state" || return 2
+  (cd "$r_repo/backend" && GATE_STATE=$r_out/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_out/records.txt" 2>"$r_out/records.err.txt"
+  r_code=$?
+  r_last=$(tail -n 1 "$r_out/records.txt")
+  r_failed=$(grep -c '^self-test concurrency: record ' "$r_out/records.txt")
+  r_line=other
+  [ "$r_last" != "concurrency: records: $r_want of $r_want as expected" ] || r_line=all-of-head
+  git -C "$r_repo" diff --quiet HEAD --
+  r_tree=$?
+  records_counts="records exit=$r_code at-head=$r_want failed=$r_failed last-line=$r_line tree-diff=$r_tree"
+  [ "$r_want" -gt 0 ] || records_cause="HEAD holds no record under $records_dir/"
+  [ -n "$records_cause" ] || [ "$r_code" = 0 ] || records_cause="check 50's records exited $r_code; the lines are records.txt among the artifacts"
+  [ -n "$records_cause" ] || [ "$r_line" = all-of-head ] || records_cause="the last line of $records_script is not \"concurrency: records: $r_want of $r_want as expected\" for the $r_want records at HEAD; the lines are records.txt among the artifacts"
+  case $r_tree in
+    0) ;;
+    1) records_cause="${records_cause:+$records_cause; }a tracked file differs from HEAD after the node tests and the records" ;;
+    *) records_cause="${records_cause:+$records_cause; }git could not compare the tracked files with HEAD" ;;
+  esac
+  [ -z "$records_cause" ]
+}
+
 measure() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || exit 2
-  if test_in "$repo" "$artifacts"; then
-    printf '%s\n' "$counts"
+  test_in "$repo" "$artifacts"
+  tested=$?
+  [ "$tested" = 0 ] || [ -n "$cause" ] || cause="the test run stopped with status $tested"
+  printf '%s\n' "$counts"
+  records_in "$repo" "$artifacts"
+  recorded=$?
+  [ "$recorded" = 0 ] || [ -n "$records_cause" ] || records_cause="the records' run stopped with status $recorded"
+  printf '%s\n' "$records_counts"
+  if [ "$tested" = 0 ] && [ "$recorded" = 0 ]; then
     printf 'PASS %s\n' "$name"
   else
-    printf '%s\n' "$counts"
+    [ "$tested" = 0 ] || [ "$recorded" = 0 ] || cause="$cause; $records_cause"
+    [ "$tested" != 0 ] || cause=$records_cause
     printf 'FAIL %s (%s)\n' "$name" "$cause"
     exit 1
   fi
@@ -153,8 +202,18 @@ EOF
   report "$1" test/a.test.ts:2:0 test/b/c.node.test.ts:3:0
 }
 
-expect() {
+verdict() {
   want=$1
+  got=$2
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$3" "$want" "$got"
+  if [ "$got" != "$want" ]; then
+    wrong="$wrong $3"
+  elif [ "$want" = FAIL ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
+expect() {
   case_name=$2
   dir=$scratch/$case_name
   (STUB_STATE=$dir/state test_in "$dir" "$dir/out") >/dev/null 2>&1
@@ -170,17 +229,79 @@ expect() {
     printf 'with-env|%s|%s\nvitest|%s|%s\n' "$top" "$wanted" "$top" "${wanted#node_modules/.bin/vitest }" >"$dir/calls.wanted"
     cmp -s "$dir/calls.wanted" "$dir/state/calls" || got=PASS-with-other-calls
   fi
-  printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
-  if [ "$got" != "$want" ]; then
-    wrong="$wrong $case_name"
-  elif [ "$want" = FAIL ]; then
-    rejected=$((rejected + 1))
-  fi
+  verdict "$1" "$got" "$case_name"
+}
+
+records_base() {
+  base=$scratch/records-base
+  mkdir -p "$base" || exit 2
+  git -C "$checkout" archive --format=tar HEAD -- backend >"$scratch/backend.tar" || exit 2
+  tar -xf "$scratch/backend.tar" -C "$base" || exit 2
+  git -C "$base" init -q >/dev/null 2>&1 || exit 2
+  git -C "$base" add -A || exit 2
+  git -C "$base" -c maintenance.auto=false commit -q -m "the backend at HEAD" >/dev/null || exit 2
+  first_good=$(git -C "$base" ls-tree --name-only HEAD -- "$records_dir/" | grep -E '/good-[^/]*\.json$' | head -n 1)
+  [ -n "$first_good" ] || exit 2
+}
+
+records_fixture() {
+  dir=$scratch/$1
+  git clone -q "$scratch/records-base" "$dir" || exit 2
+  mkdir -p "$dir/out" || exit 2
+  [ "${2:-}" = without-packages ] || ln -s "$checkout/backend/node_modules" "$dir/backend/node_modules" || exit 2
+}
+
+commit_fixture() {
+  git -C "$scratch/$1" -c maintenance.auto=false commit -q -a -m "$1" >/dev/null || exit 2
+}
+
+edit_file() {
+  node - "$1" "$2" "$3" <<'EOF' || exit 2
+const fs = require("fs");
+const [file, from, to] = process.argv.slice(2);
+const text = fs.readFileSync(file, "utf8");
+if (text.split(from).length !== 2) process.exit(3);
+fs.writeFileSync(file, text.replace(from, () => to));
+EOF
+}
+
+break_record() {
+  node - "$scratch/$1/$records_dir" "$2" "$3" "$4" <<'EOF' || exit 2
+const fs = require("fs");
+const path = require("path");
+const [dir, kind, prefix, body] = process.argv.slice(2);
+const file = fs.readdirSync(dir)
+  .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
+  .sort()
+  .find((name) => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")).kind === kind);
+if (!file) process.exit(3);
+const before = fs.readFileSync(path.join(dir, file), "utf8");
+const record = JSON.parse(before);
+new Function("record", body)(record);
+const after = `${JSON.stringify(record, null, 1)}\n`;
+if (JSON.stringify(JSON.parse(after)) === JSON.stringify(JSON.parse(before))) process.exit(4);
+fs.writeFileSync(path.join(dir, file), after);
+EOF
+}
+
+expect_records() {
+  case_name=$2
+  dir=$scratch/$case_name
+  (records_in "$dir" "$dir/out" >/dev/null 2>&1; code=$?; printf '%s\n' "$records_cause" >"$dir/cause"; exit "$code")
+  code=$?
+  case $code in
+    0) got=PASS ;;
+    1) got=FAIL ;;
+    *) got=exit-$code ;;
+  esac
+  [ "$got" != FAIL ] || grep -q -F -- "$3" "$dir/cause" || got=FAIL-for-another-cause
+  verdict "$1" "$got" "$case_name"
 }
 
 self_test() {
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   scratch=$(cd "$scratch" && pwd -P) || exit 2
+  checkout=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   rejected=0
   wrong=
 
@@ -274,6 +395,80 @@ self_test() {
   fixture with-env-missing
   mv "$scratch/with-env-missing/backend/scripts" "$scratch/with-env-missing/scripts.moved" || exit 2
   expect FAIL with-env-missing
+
+  if [ ! -d "$checkout/backend/node_modules" ]; then
+    printf 'FAIL self-test:%s (backend/node_modules is missing, and the cases of the records run the records of HEAD with it; sh scripts/prerequisites.sh installs the packages)\n' "$name"
+    exit 1
+  fi
+  records_base
+
+  records_fixture records-of-head
+  expect_records PASS records-of-head ''
+
+  records_fixture a-good-record-expects-another-count
+  break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted'
+  commit_fixture a-good-record-expects-another-count
+  expect_records FAIL a-good-record-expects-another-count "check 50's records exited 1"
+
+  records_fixture a-bad-record-expects-no-violation
+  break_record a-bad-record-expects-no-violation judge bad- 'record.expect.violations = []'
+  commit_fixture a-bad-record-expects-no-violation
+  expect_records FAIL a-bad-record-expects-no-violation "check 50's records exited 1"
+
+  records_fixture a-line-record-expects-another-line
+  break_record a-line-record-expects-another-line line good- 'record.expect.line += "."'
+  commit_fixture a-line-record-expects-another-line
+  expect_records FAIL a-line-record-expects-another-line "check 50's records exited 1"
+
+  records_fixture a-record-of-a-kind-with-no-reading
+  break_record a-record-of-a-kind-with-no-reading judge good- 'record.kind = "no-such-reading"'
+  commit_fixture a-record-of-a-kind-with-no-reading
+  expect_records FAIL a-record-of-a-kind-with-no-reading "check 50's records exited 1"
+
+  records_fixture a-record-that-is-no-json
+  printf ',\n' >>"$scratch/a-record-that-is-no-json/$first_good" || exit 2
+  commit_fixture a-record-that-is-no-json
+  expect_records FAIL a-record-that-is-no-json "check 50's records exited 1"
+
+  records_fixture records-mjs-skips-a-record
+  edit_file "$scratch/records-mjs-skips-a-record/$records_script" '  .sort();' '  .sort().slice(1);'
+  commit_fixture records-mjs-skips-a-record
+  expect_records FAIL records-mjs-skips-a-record 'the last line of'
+
+  records_fixture records-mjs-exits-0-on-a-broken-record
+  edit_file "$scratch/records-mjs-exits-0-on-a-broken-record/$records_script" 'process.exit(failed === 0 ? 0 : 1);' 'process.exit(0);'
+  break_record records-mjs-exits-0-on-a-broken-record judge good- 'record.expect.counted = !record.expect.counted'
+  commit_fixture records-mjs-exits-0-on-a-broken-record
+  expect_records FAIL records-mjs-exits-0-on-a-broken-record 'the last line of'
+
+  records_fixture a-record-that-head-does-not-hold
+  cp "$scratch/a-record-that-head-does-not-hold/$first_good" "$scratch/a-record-that-head-does-not-hold/$records_dir/good-a-copy-that-head-does-not-hold.json" || exit 2
+  expect_records FAIL a-record-that-head-does-not-hold 'the last line of'
+
+  records_fixture the-records-write-a-tracked-file
+  edit_file "$scratch/the-records-write-a-tracked-file/$records_script" 'process.exit(failed === 0 ? 0 : 1);' '(await import("node:fs")).appendFileSync(join(HERE, "record-base.json"), " ");
+process.exit(failed === 0 ? 0 : 1);'
+  commit_fixture the-records-write-a-tracked-file
+  expect_records FAIL the-records-write-a-tracked-file 'a tracked file differs from HEAD'
+
+  records_fixture records-mjs-missing
+  mv "$scratch/records-mjs-missing/$records_script" "$scratch/records-mjs-missing/records.mjs.moved" || exit 2
+  commit_fixture records-mjs-missing
+  expect_records FAIL records-mjs-missing "$records_script or backend/scripts/with-env.sh is missing"
+
+  records_fixture records-with-env-missing
+  mv "$scratch/records-with-env-missing/backend/scripts/with-env.sh" "$scratch/records-with-env-missing/with-env.sh.moved" || exit 2
+  commit_fixture records-with-env-missing
+  expect_records FAIL records-with-env-missing "$records_script or backend/scripts/with-env.sh is missing"
+
+  records_fixture no-record-at-head
+  mv "$scratch/no-record-at-head/$records_dir" "$scratch/no-record-at-head/records.moved" || exit 2
+  commit_fixture no-record-at-head
+  mkdir -p "$scratch/no-record-at-head/$records_dir" || exit 2
+  expect_records FAIL no-record-at-head 'HEAD holds no record'
+
+  records_fixture packages-missing without-packages
+  expect_records FAIL packages-missing 'backend/node_modules is missing'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
