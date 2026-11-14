@@ -1,11 +1,11 @@
 use std::num::NonZeroU32;
 
 use halvo_schema::coordinator::names::{
-    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldSetCause, ItemKind,
-    OtherKind, OtherLapse, ReadyAnswer, RunEnd, Trigger,
+    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldCause,
+    HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, Trigger,
 };
 use halvo_schema::coordinator::record::{
-    Answered, BindAnswer, Cleared, CoordEvent, Entry, ItemId, Lapsed, LinkAnswer, Raised,
+    Answered, BindAnswer, Cleared, CoordEvent, Entry, Held, ItemId, Lapsed, LinkAnswer, Raised,
     SignInAnswer, What,
 };
 use halvo_schema::executable::{ApprovalId, Digest, EffectId, RunId, WebOrigin};
@@ -104,16 +104,23 @@ fn every_shape() -> Vec<(What, String)> {
             ),
         ),
         (
-            What::HoldSet {
-                cause: HoldSetCause::Person,
-            },
+            What::HoldSet { held: Held::Person },
             line("hold_set", &[("cause", &q("person"))]),
         ),
         (
             What::HoldSet {
-                cause: HoldSetCause::Failures,
+                held: Held::Failures,
             },
             line("hold_set", &[("cause", &q("failures"))]),
+        ),
+        (
+            What::HoldSet {
+                held: Held::SignInRefused { run: run() },
+            },
+            line(
+                "hold_set",
+                &[("run", &q(RUN)), ("cause", &q("sign_in_refused"))],
+            ),
         ),
         (
             What::HoldCleared {
@@ -126,6 +133,15 @@ fn every_shape() -> Vec<(What, String)> {
                 cleared: Cleared::Failures,
             },
             line("hold_cleared", &[("cause", &q("failures"))]),
+        ),
+        (
+            What::HoldCleared {
+                cleared: Cleared::SignInRefused { run: run() },
+            },
+            line(
+                "hold_cleared",
+                &[("run", &q(RUN)), ("cause", &q("sign_in_refused"))],
+            ),
         ),
         (
             What::SlotSkipped { slot: Some(20766) },
@@ -459,7 +475,11 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
     );
     assert_eq!(
         names(HoldSetCause::ALL.iter().map(|v| v.as_str()).collect()),
-        ["person", "failures"]
+        ["person", "failures", "sign_in_refused"]
+    );
+    assert_eq!(
+        names(HoldCause::ALL.iter().map(|v| v.as_str()).collect()),
+        ["person", "failures", "check", "sign_in_refused"]
     );
     assert_eq!(
         names(EffectAnswer::ALL.iter().map(|v| v.as_str()).collect()),
@@ -703,7 +723,7 @@ fn r4_record_refuses_a_key_that_its_event_does_not_set_and_a_key_that_it_lacks()
 }
 
 #[test]
-fn r4_record_hold_cleared_sets_run_and_answer_for_check_alone() {
+fn r4_record_hold_cleared_sets_run_for_check_and_sign_in_refused_and_answer_for_check_alone() {
     let r = q(RUN);
     let a = q("try_again");
     for cause in ["person", "failures"] {
@@ -714,10 +734,58 @@ fn r4_record_hold_cleared_sets_run_and_answer_for_check_alone() {
             assert_eq!(
                 (refusal.key(), refusal.rule()),
                 (Some(key), "not_null"),
-                "I7.1: hold_cleared sets run and answer for check alone; {text}"
+                "I7.1: hold_cleared sets run for check and sign_in_refused alone; {text}"
             );
         }
     }
+    let c = q("sign_in_refused");
+    refused(
+        &with(
+            &[("cause", &c), ("run", &r), ("answer", &a)],
+            "hold_cleared",
+        ),
+        Some("answer"),
+        "not_null",
+    );
+    refused(
+        &with(&[("cause", &c)], "hold_cleared"),
+        Some("run"),
+        "not_a_string",
+    );
+}
+
+#[test]
+fn r4_record_hold_set_names_the_run_for_sign_in_refused_alone() {
+    let r = q(RUN);
+    for cause in ["person", "failures"] {
+        refused(
+            &with(&[("cause", &q(cause)), ("run", &r)], "hold_set"),
+            Some("run"),
+            "not_null",
+        );
+    }
+    let c = q("sign_in_refused");
+    refused(
+        &with(&[("cause", &c)], "hold_set"),
+        Some("run"),
+        "not_a_string",
+    );
+    refused(
+        &with(
+            &[("cause", &c), ("run", &r), ("answer", &q("try_again"))],
+            "hold_set",
+        ),
+        Some("answer"),
+        "not_null",
+    );
+    let set =
+        CoordEvent::parse(with(&[("cause", &c), ("run", &r)], "hold_set").as_bytes()).unwrap();
+    assert_eq!(
+        set.what,
+        What::HoldSet {
+            held: Held::SignInRefused { run: run() }
+        }
+    );
 }
 
 #[test]

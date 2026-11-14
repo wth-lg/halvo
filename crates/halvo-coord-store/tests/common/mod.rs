@@ -119,6 +119,17 @@ pub fn row(seq: u32, day: u32) -> String {
     hold_set(1, 1, seq, day, noon(day))
 }
 
+/// A row `hold_set` or `hold_cleared` of workflow 1 and agent 1 at noon of `TODAY` with the cause and the run.
+pub fn hold_row(seq: u32, event: &str, cause: &str, run_n: Option<u32>) -> String {
+    let run = run_n.map_or("null".to_owned(), |n| format!("\"{}\"", run(n)));
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"{event}","run":{run},"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null}}"#,
+        wf(1),
+        agent(1),
+        noon(TODAY)
+    )
+}
+
 /// A row `item_answered` of workflow 1 and agent 1 at noon of its day: the answer `reject_once` to effect `n` of the
 /// confirmation item 1 of run 1.
 pub fn confirm_answered(seq: u32, day: u32, n: u32) -> String {

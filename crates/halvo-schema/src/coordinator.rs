@@ -80,6 +80,7 @@ pub const NAMES: &[&str] = &[
     "no_record",
     "app_ended",
     "failures",
+    "sign_in_refused",
     "allow_once",
     "reject_once",
     "decline",

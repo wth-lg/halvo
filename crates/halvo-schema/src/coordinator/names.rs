@@ -168,19 +168,22 @@ names! {
 }
 
 names! {
-    /// The `cause` of `hold_set`: the hold that was set, `person` for the hold `off` (contracts.md I7.1).
+    /// The `cause` of `hold_set`: the hold that was set, `person` for the hold `off`, and `sign_in_refused`, the
+    /// hold after a refused sign-in (contracts.md I7.1, ruling RD-73 4.2).
     pub enum HoldSetCause {
         Person = "person",
         Failures = "failures",
+        SignInRefused = "sign_in_refused",
     }
 }
 
 names! {
-    /// The `cause` of `hold_cleared`: the hold that ended (contracts.md I7.1).
+    /// The `cause` of `hold_cleared`: the hold that ended (contracts.md I7.1, ruling RD-73 4.2).
     pub enum HoldCause {
         Person = "person",
         Failures = "failures",
         Check = "check",
+        SignInRefused = "sign_in_refused",
     }
 }
 

@@ -240,6 +240,18 @@ const FORMS: &[Form] = &[
         may_be_null: &[],
     },
     Form {
+        name: "hold_set sign_in_refused",
+        event: "hold_set",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
+        may_be_null: &[],
+    },
+    Form {
+        name: "hold_cleared sign_in_refused",
+        event: "hold_cleared",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
+        may_be_null: &[],
+    },
+    Form {
         name: "slot_skipped",
         event: "slot_skipped",
         sets: &[("slot", "20766")],

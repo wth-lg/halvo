@@ -193,12 +193,34 @@ impl Lapsed {
     }
 }
 
-/// The `cause` of `hold_cleared`: the hold that ended, with the `run` and the `answer` of the check.
+/// The `cause` of `hold_set`: the hold that was set, with the `run` whose refused sign-in the hold
+/// `sign_in_refused` answers (ruling RD-73 4.2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Held {
+    Person,
+    Failures,
+    SignInRefused { run: RunId },
+}
+
+impl Held {
+    /// The row's `cause`.
+    pub fn cause(&self) -> HoldSetCause {
+        match self {
+            Held::Person => HoldSetCause::Person,
+            Held::Failures => HoldSetCause::Failures,
+            Held::SignInRefused { .. } => HoldSetCause::SignInRefused,
+        }
+    }
+}
+
+/// The `cause` of `hold_cleared`: the hold that ended, with the `run` and the `answer` of the check, and the `run`
+/// whose refused sign-in the hold `sign_in_refused` answered (ruling RD-73 4.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Cleared {
     Person,
     Failures,
     Check { run: RunId, answer: CheckAnswer },
+    SignInRefused { run: RunId },
 }
 
 /// An event of `coord_event` with the keys that it sets; every other key of the row is null.
@@ -230,7 +252,7 @@ pub enum What {
         entry: Entry,
     },
     HoldSet {
-        cause: HoldSetCause,
+        held: Held,
     },
     HoldCleared {
         cleared: Cleared,
@@ -475,10 +497,23 @@ fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
             }
         }
         Event::HoldSet => {
-            obj.null_but(&OWN, &["cause"])?;
-            What::HoldSet {
-                cause: obj.read("cause", HoldSetCause::from_raw)?,
-            }
+            let held = match obj.read("cause", HoldSetCause::from_raw)? {
+                HoldSetCause::Person => {
+                    obj.null_but(&OWN, &["cause"])?;
+                    Held::Person
+                }
+                HoldSetCause::Failures => {
+                    obj.null_but(&OWN, &["cause"])?;
+                    Held::Failures
+                }
+                HoldSetCause::SignInRefused => {
+                    obj.null_but(&OWN, &["cause", "run"])?;
+                    Held::SignInRefused {
+                        run: obj.read("run", run_id)?,
+                    }
+                }
+            };
+            What::HoldSet { held }
         }
         Event::HoldCleared => {
             let cleared = match obj.read("cause", HoldCause::from_raw)? {
@@ -495,6 +530,12 @@ fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
                     Cleared::Check {
                         run: obj.read("run", run_id)?,
                         answer: obj.read("answer", CheckAnswer::from_raw)?,
+                    }
+                }
+                HoldCause::SignInRefused => {
+                    obj.null_but(&OWN, &["cause", "run"])?;
+                    Cleared::SignInRefused {
+                        run: obj.read("run", run_id)?,
                     }
                 }
             };
@@ -600,7 +641,13 @@ impl CoordEvent {
                 ]
             }
             What::ItemReleased { item, entry } => entry_cells(item, entry),
-            What::HoldSet { cause } => vec![text("cause", cause.as_str())],
+            What::HoldSet { held } => match held {
+                Held::Person | Held::Failures => vec![text("cause", held.cause().as_str())],
+                Held::SignInRefused { run } => vec![
+                    ("run", Cell::Text(run.as_str())),
+                    text("cause", held.cause().as_str()),
+                ],
+            },
             What::HoldCleared { cleared } => match cleared {
                 Cleared::Person => vec![text("cause", HoldCause::Person.as_str())],
                 Cleared::Failures => vec![text("cause", HoldCause::Failures.as_str())],
@@ -608,6 +655,10 @@ impl CoordEvent {
                     ("run", Cell::Text(run.as_str())),
                     text("answer", answer.as_str()),
                     text("cause", HoldCause::Check.as_str()),
+                ],
+                Cleared::SignInRefused { run } => vec![
+                    ("run", Cell::Text(run.as_str())),
+                    text("cause", HoldCause::SignInRefused.as_str()),
                 ],
             },
             What::SlotSkipped { slot } => vec![("slot", slot.map_or(Cell::Null, Cell::Count))],
