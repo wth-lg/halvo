@@ -44,9 +44,9 @@ that order it draws two words, w1 and w2, for the record's id. The id is a UUID 
 that `build` writes: a record that cannot be made takes no number.
 
 `build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
-any other SCRIPT argument with `script`, a directory or a symbolic link among them, so a caller that passes every
-entry of a scripts directory skips no file. `build` and `split` name a script file in a refusal
-by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
+any other SCRIPT argument with `script`, a directory or a symbolic link among them, so a
+caller that passes every entry of a scripts directory skips no file. `build` and `split` name a
+script file in a refusal by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
 
 ## The script manifest and `check-labels`
 
@@ -54,14 +54,16 @@ Each line of the script manifest ends with the key `seed_category`. `build` writ
 an episode whose category is not `other` names the step in one of its ranges, and false
 otherwise. `check-labels` knows a seed-category step by this key alone, not by the label rows.
 So a body that lost every row of a seed task fails with `FAIL outside` lines under the
-generated rule. A range of such an episode whose step is marked false fails with `FAIL seed`
-under both rules.
+generated rule, while the step's mark is true. A range of such an episode whose step is marked
+false fails with `FAIL seed` under both rules.
 
-`check-labels` follows no symbolic link. Each entry of `streams/` that is a link gives
+`check-labels` follows no symbolic link below its DIR argument. Each entry of `streams/` that
+is a link gives
 `FAIL link <stream id>`, and these lines come first. A `streams` directory that is itself a
 link is refused with `batches`, and a `manifest.toml`, `script-manifest.jsonl`, day file or
-`labels.jsonl` that is a link with `tier-manifest`, `script-manifest`, `batches` or `labels`. Each range is held against every earlier range whose end lies
-after its start, and the later row of each overlapping pair gets its `FAIL row` line.
+`labels.jsonl` that is a link with `tier-manifest`, `script-manifest`, `batches` or `labels`.
+Each range is held against every earlier range whose end lies after its start, and the later
+row of each overlapping pair gets its `FAIL row` line.
 
 ## `leak`
 
@@ -70,14 +72,20 @@ or a name and `..` follow its name; a link among the other components of an argu
 followed. Inside a walk it follows no link. A stream directory, `streams` directory, manifest,
 day file or label file that is a link, in the tier or in a development body, is refused with
 `tier-files` or `body`, and the detail of these two refusals is the TIER argument or the PATH
-argument alone. A `HIT` line names a
-file as the PATH argument followed by `#<n>`: n is the number of the file among the files that
-the walk of that argument searches, in byte order of name, from 1. No name below the argument
-is printed, because a file's name may be a service's name.
+argument alone. A `HIT` line names a file as the PATH argument followed by `#<n>`: n is the
+number of the file among the files that the walk of that argument searches, in byte order of
+name, from 1. No name below the argument is printed, because a file's name may be a service's name.
 
 ## What later units must know
 
 - `compose --ranges` reads no file. Its fifteen lines are constants of the command.
+- A true seed mark on a step that no range names passes `check-labels` when no title event of
+  the step lies outside every range, so an importer computes the mark from the script that was
+  played, as `build` does.
+- `check-labels` follows a DIR argument that is itself a symbolic link; only the entries below
+  DIR are held to the rule on links.
+- The `tier-manifest` refusal of `leak` and of `input-copy` prints a path below TIER: TIER
+  joined with the path that the manifest lists.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.
