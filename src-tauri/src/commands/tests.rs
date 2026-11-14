@@ -6,8 +6,8 @@ use halvo_control::client::{ClientError, Connector, NoTransport};
 
 use super::control::{Control, Gated, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
 
-const BOUND: Duration = Duration::from_secs(20);
-const MARGIN: Duration = Duration::from_millis(300);
+const STEP_TIMEOUT: Duration = Duration::from_secs(20);
+const ABSENT_STEP_WAIT: Duration = Duration::from_millis(300);
 
 #[derive(Debug, Default)]
 struct Gate {
@@ -16,11 +16,11 @@ struct Gate {
 }
 
 #[derive(Debug, Clone, Default)]
-struct Held {
+struct HeldUntilReleased {
     gate: Arc<(Mutex<Gate>, Condvar)>,
 }
 
-impl Held {
+impl HeldUntilReleased {
     fn gate(&self) -> std::sync::MutexGuard<'_, Gate> {
         self.gate.0.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -53,7 +53,7 @@ impl Held {
     }
 }
 
-impl Connector for Held {
+impl Connector for HeldUntilReleased {
     type Transport = NoTransport;
 
     fn endpoint(&self) -> String {
@@ -65,7 +65,7 @@ impl Connector for Held {
         let mut gate = self.gate();
         gate.connects.push(name);
         self.gate.1.notify_all();
-        let until = Instant::now() + BOUND;
+        let until = Instant::now() + STEP_TIMEOUT;
         while gate.released == 0 && Instant::now() < until {
             let left = until.saturating_duration_since(Instant::now());
             gate = self
@@ -84,7 +84,7 @@ impl Connector for Held {
 
 type Call = JoinHandle<Result<halvo_control::proto::DaemonStatus, ClientError>>;
 
-fn status_call(gated: &Arc<Gated<Held>>, name: &str) -> Call {
+fn status_call(gated: &Arc<Gated<HeldUntilReleased>>, name: &str) -> Call {
     let made = gated.places().make();
     let gated = Arc::clone(gated);
     std::thread::Builder::new()
@@ -93,18 +93,21 @@ fn status_call(gated: &Arc<Gated<Held>>, name: &str) -> Call {
         .expect("a thread starts")
 }
 
-fn four_in_flight() -> (Held, Arc<Gated<Held>>, Vec<Call>) {
-    let held = Held::default();
+fn four_in_flight() -> (HeldUntilReleased, Arc<Gated<HeldUntilReleased>>, Vec<Call>) {
+    let held = HeldUntilReleased::default();
     let gated = Arc::new(Gated::new(held.clone()));
     let calls = (0..4)
         .map(|n| status_call(&gated, &format!("in-flight-{n}")))
         .collect();
-    assert!(held.wait_for_connects(4, BOUND), "four calls connect");
+    assert!(
+        held.wait_for_connects(4, STEP_TIMEOUT),
+        "four calls connect"
+    );
     assert_eq!(gated.places().in_flight(), 4);
     (held, gated, calls)
 }
 
-fn release_all(held: &Held, calls: Vec<Call>) {
+fn release_all(held: &HeldUntilReleased, calls: Vec<Call>) {
     for _ in 0..calls.len() + 2 {
         held.release_one();
     }
@@ -121,7 +124,7 @@ fn a_fifth_call_waits_until_one_returns() {
     let (held, gated, mut calls) = four_in_flight();
     calls.push(status_call(&gated, "fifth"));
     assert!(
-        !held.wait_for_connects(5, MARGIN),
+        !held.wait_for_connects(5, ABSENT_STEP_WAIT),
         "a fifth call connected while four were in flight: {:?}",
         held.connects()
     );
@@ -129,7 +132,7 @@ fn a_fifth_call_waits_until_one_returns() {
     assert_eq!(gated.places().waiting(), 1);
     held.release_one();
     assert!(
-        held.wait_for_connects(5, BOUND),
+        held.wait_for_connects(5, STEP_TIMEOUT),
         "the fifth call connects once one returns"
     );
     assert_eq!(held.connects()[4], "fifth");
@@ -154,10 +157,10 @@ fn waiting_calls_take_the_free_places_in_the_order_in_which_they_were_made() {
     calls.push(spawn(third, "third"));
     calls.push(spawn(second, "second"));
     calls.push(spawn(first, "first"));
-    assert!(!held.wait_for_connects(5, MARGIN));
+    assert!(!held.wait_for_connects(5, ABSENT_STEP_WAIT));
     for n in 5..=7 {
         held.release_one();
-        assert!(held.wait_for_connects(n, BOUND), "call {n} connects");
+        assert!(held.wait_for_connects(n, STEP_TIMEOUT), "call {n} connects");
     }
     assert_eq!(held.connects()[4..], ["first", "second", "third"]);
     release_all(&held, calls);
@@ -175,7 +178,8 @@ fn the_deadline_of_a_call_runs_from_the_moment_it_is_made_and_counts_the_wait() 
         "{answer:?}"
     );
     assert!(
-        waited >= Duration::from_millis(2_000) && waited < Duration::from_millis(2_000) + BOUND,
+        waited >= Duration::from_millis(2_000)
+            && waited < Duration::from_millis(2_000) + STEP_TIMEOUT,
         "waited {waited:?}"
     );
     assert_eq!(held.connects().len(), 4, "the late call never connected");
@@ -191,7 +195,7 @@ fn a_call_that_is_made_and_dropped_before_it_enters_leaves_the_line() {
     drop(dropped);
     held.release_one();
     assert!(
-        held.wait_for_connects(5, BOUND),
+        held.wait_for_connects(5, STEP_TIMEOUT),
         "the call after the dropped one connects"
     );
     assert_eq!(held.connects()[4], "after");
