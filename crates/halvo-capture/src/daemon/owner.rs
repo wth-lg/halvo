@@ -2305,6 +2305,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    #[ignore = "ruling DM-10: about eight minutes in a debug build, so the release build of scripts/r1/ci.d/26-daemon-owner-growth.sh runs it in the macos job"]
     fn two_million_floor_records_grow_the_owner_by_at_most_the_bound() {
         const NAME: &str =
             "daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound";
@@ -2326,6 +2327,8 @@ mod tests {
                 thread.handle.call(Command::ClosePause),
                 Ok(Answer::Resumed(_))
             ));
+            let ready_heap = crate::daemon::signal::heap_bytes_in_use().unwrap();
+            let ready_footprint = crate::daemon::signal::phys_footprint_bytes().unwrap();
             let ready = crate::daemon::signal::peak_rss_bytes().unwrap();
             let started = std::time::Instant::now();
             for _ in 0..RECORDS {
@@ -2341,7 +2344,20 @@ mod tests {
                 panic!("the owner did not settle");
             };
             let peak = crate::daemon::signal::peak_rss_bytes().unwrap();
+            let settled_heap = crate::daemon::signal::heap_bytes_in_use().unwrap();
+            let settled_footprint = crate::daemon::signal::phys_footprint_bytes().unwrap();
             assert_eq!(settled.events_persisted, RECORDS);
+            let grown = |after: u64, before: u64| after as i128 - before as i128;
+            println!(
+                "owner_heap_bytes printed_not_held all_zones_ready={} all_zones_settled={} all_zones_growth={} default_zone_ready={} default_zone_settled={} default_zone_growth={} footprint_ready={ready_footprint} footprint_settled={settled_footprint} footprint_growth={}",
+                ready_heap.all_zones,
+                settled_heap.all_zones,
+                grown(settled_heap.all_zones, ready_heap.all_zones),
+                ready_heap.default_zone,
+                settled_heap.default_zone,
+                grown(settled_heap.default_zone, ready_heap.default_zone),
+                grown(settled_footprint, ready_footprint)
+            );
             println!(
                 "owner_growth_bytes={} records={RECORDS} elapsed_ms={}",
                 peak.saturating_sub(ready),
@@ -2351,7 +2367,13 @@ mod tests {
             return;
         }
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+            .args([
+                "--ignored",
+                "--exact",
+                NAME,
+                "--nocapture",
+                "--test-threads=1",
+            ])
             .env(CHILD, "1")
             .output()
             .unwrap();
@@ -2361,6 +2383,12 @@ mod tests {
             .lines()
             .find_map(|line| line.find("owner_growth_bytes=").map(|at| &line[at..]))
             .expect("the child printed no growth line");
+        if let Some(heap) = text
+            .lines()
+            .find_map(|line| line.find("owner_heap_bytes ").map(|at| &line[at..]))
+        {
+            println!("{heap}");
+        }
         println!("{line}");
         let growth: u64 = line["owner_growth_bytes=".len()..]
             .split(' ')
