@@ -684,3 +684,27 @@ fn reap_removes_nothing_through_a_profiles_folder_or_an_agents_folder_that_is_a_
         );
     }
 }
+
+#[test]
+fn reap_keeps_the_profile_of_a_run_of_this_life_that_runs_after_its_finish_removed_its_mark() {
+    let rig = Rig::new("reap-profiles-finished");
+    let finish = common::ask_finish();
+    let script = rig.script(&["hello", &finish, "log finished", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("finished", SHORT), "{}", script.log());
+    assert!(
+        rig.mark(&run).is_none(),
+        "the acknowledged finish removed the mark"
+    );
+    let root = profiles(&rig);
+    profile_tree(&root.join(run.as_str()));
+    let answers = rig.sup.reap().unwrap();
+    assert!(answers.iter().all(|a| a.run != run));
+    assert!(
+        root.join(run.as_str()).join("tmp").join("scratch").exists(),
+        "the profile of a running run was removed"
+    );
+    rig.sup.kill(&run).unwrap();
+}

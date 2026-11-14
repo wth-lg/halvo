@@ -1116,3 +1116,21 @@ fn three_add_origin_replies_that_cannot_be_read_drop_a_new_origin_and_the_run_go
     assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
     rig.sup.kill(&run).unwrap();
 }
+
+#[test]
+fn a_bind_after_a_sign_in_done_and_a_later_done_handback_of_another_reason_ends_the_run_and_asks_nobody(
+) {
+    for (reason, origin, added) in [
+        ("step_failed", "http://pay.test:18090", 0),
+        ("account_link", "http://mail.test:18090", 1),
+    ] {
+        let send = bind("http://pay.test:18090").replacen("ask ", "send ", 1);
+        let other = handback(reason, origin);
+        let (rig, script, end) = out_of_turn(
+            "bind-after-later-handback",
+            &["hello", "on-eof hang", &sign_in(), &other, &send, "idle"],
+            &[HandbackOutcome::Done, HandbackOutcome::Done],
+        );
+        assert_lost_unasked(&rig, &script, &end, 0, added);
+    }
+}
