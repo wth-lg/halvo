@@ -21,6 +21,32 @@ const MARKER_HEAD: &[u8] = b"h";
 const MARKER_LEN: usize = 8;
 const FILL: &[u8] = b"bcdefjkmnrstvwxyz";
 const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 2; }";
+const STOPS: [&str; 24] = [
+    "#if defined(SQLITE_ENABLE_STAT4)",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined\"",
+    "#endif",
+    "#if !defined(SQLITE_TEMP_STORE) || SQLITE_TEMP_STORE!=2",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_TEMP_STORE is not 2\"",
+    "#endif",
+    "#if !defined(SQLITE_DEFAULT_AUTOVACUUM) || SQLITE_DEFAULT_AUTOVACUUM!=0",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0\"",
+    "#endif",
+    "#if !defined(BTS_FAST_SECURE)",
+    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"",
+    "#endif",
+    "#if !defined(SQLITE_HAS_CODEC)",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined\"",
+    "#endif",
+    "#if !defined(SQLITE_DEFAULT_SYNCHRONOUS) || SQLITE_DEFAULT_SYNCHRONOUS!=2 || !defined(SQLITE_DEFAULT_WAL_SYNCHRONOUS) || SQLITE_DEFAULT_WAL_SYNCHRONOUS!=2",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2\"",
+    "#endif",
+    "#if defined(SQLITE_DEBUG)",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEBUG is defined\"",
+    "#endif",
+    "#if !defined(SQLITE_DEFAULT_PAGE_SIZE) || SQLITE_DEFAULT_PAGE_SIZE!=4096",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_PAGE_SIZE is not 4096\"",
+    "#endif",
+];
 const MENDS: [(usize, &str); 2] = [
     (81262, " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }"),
     (81517, " if( (pPg->pBt->btsFlags & BTS_FAST_SECURE) && pData>pBegin ){ memset(pBegin, 0, (size_t)(pData - pBegin)); }"),
@@ -664,17 +690,22 @@ fn under_a_key_every_row_of_each_seed_reads_back_and_the_integrity_check_holds()
 }
 
 #[test]
-fn the_compiled_copy_is_the_pinned_file_with_a_statement_at_the_ends_of_lines_81262_and_81517_and_one_added_function(
+fn the_compiled_copy_is_the_pinned_file_with_two_statements_then_eight_compile_stops_and_one_added_function(
 ) {
     let pinned = std::fs::read(env!("HALVO_SQLCIPHER_PINNED_SOURCE")).unwrap();
     let copy = std::fs::read(concat!(env!("OUT_DIR"), "/sqlcipher.c"))
         .expect("the build script wrote its copy of the source");
     let pinned: Vec<&[u8]> = pinned.split(|byte| *byte == b'\n').collect();
     let copy: Vec<&[u8]> = copy.split(|byte| *byte == b'\n').collect();
-    assert_eq!(copy.len(), pinned.len() + 1);
+    assert_eq!(copy.len(), pinned.len() + STOPS.len() + 1);
     let last = pinned.len() - 1;
     assert_eq!(pinned[last], b"");
-    assert_eq!(copy[last..], [MARK, b""]);
+    let tail: Vec<&[u8]> = STOPS
+        .iter()
+        .map(|line| line.as_bytes())
+        .chain([MARK, b"".as_slice()])
+        .collect();
+    assert_eq!(copy[last..], tail[..]);
     let differ: Vec<usize> = (0..last)
         .filter(|&at| copy[at] != pinned[at])
         .map(|at| at + 1)

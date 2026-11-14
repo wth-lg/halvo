@@ -84,6 +84,33 @@ const MENDS: [Mend; 2] = [
     },
 ];
 
+const STOPS: &str = concat!(
+    "#if defined(SQLITE_ENABLE_STAT4)\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined\"\n",
+    "#endif\n",
+    "#if !defined(SQLITE_TEMP_STORE) || SQLITE_TEMP_STORE!=2\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_TEMP_STORE is not 2\"\n",
+    "#endif\n",
+    "#if !defined(SQLITE_DEFAULT_AUTOVACUUM) || SQLITE_DEFAULT_AUTOVACUUM!=0\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0\"\n",
+    "#endif\n",
+    "#if !defined(BTS_FAST_SECURE)\n",
+    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"\n",
+    "#endif\n",
+    "#if !defined(SQLITE_HAS_CODEC)\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined\"\n",
+    "#endif\n",
+    "#if !defined(SQLITE_DEFAULT_SYNCHRONOUS) || SQLITE_DEFAULT_SYNCHRONOUS!=2 || !defined(SQLITE_DEFAULT_WAL_SYNCHRONOUS) || SQLITE_DEFAULT_WAL_SYNCHRONOUS!=2\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2\"\n",
+    "#endif\n",
+    "#if defined(SQLITE_DEBUG)\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEBUG is defined\"\n",
+    "#endif\n",
+    "#if !defined(SQLITE_DEFAULT_PAGE_SIZE) || SQLITE_DEFAULT_PAGE_SIZE!=4096\n",
+    "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_PAGE_SIZE is not 4096\"\n",
+    "#endif\n",
+);
+
 const MARK: &str = "int halvo_sqlcipher_page_gap_mend(void){ return 2; }\n";
 
 fn libtomcrypt_build(source_dir: &Path) -> cc::Build {
@@ -246,6 +273,7 @@ fn mended_source(source: &[u8], name: &Path) -> Vec<u8> {
         from = end;
     }
     copy.extend_from_slice(&source[from..]);
+    copy.extend_from_slice(STOPS.as_bytes());
     copy.extend_from_slice(MARK.as_bytes());
     copy
 }

@@ -46,15 +46,28 @@ two functions, rebuildPage and editPage, and in one added function.
 - Neither statement adds a line, so every line number of the compiled file,
   among them those that the database logs for a corrupt page, is that of the
   pinned file.
-- The copy ends with the function halvo_sqlcipher_page_gap_mend, which answers
-  2 and touches no structure of the database. `halvo_sqlcipher::page_gap_mend_linked`
+- After the last line of the pinned file, each on lines of its own, the copy
+  holds eight compile-time stops, and then it ends with the function
+  halvo_sqlcipher_page_gap_mend. The compiler refuses the file by name when
+  SQLITE_ENABLE_STAT4 is defined, SQLITE_TEMP_STORE is not 2,
+  SQLITE_DEFAULT_AUTOVACUUM is not 0, BTS_FAST_SECURE is not defined (the
+  database's code is not compiled in this file, as under an outside
+  -DSQLITE_AMALGAMATION), SQLITE_HAS_CODEC is not defined,
+  SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2,
+  SQLITE_DEBUG is defined, or SQLITE_DEFAULT_PAGE_SIZE is not 4096, whether
+  build.rs or the environment (CFLAGS) set it. A flag that redefines an
+  identifier of the source is not read. The test
+  `page_gap::pins::the_compile_options_of_this_build_are_its_closed_list`
+  reads PRAGMA compile_options, less the compiler's line, against a closed
+  list for each system. The function halvo_sqlcipher_page_gap_mend answers 2
+  and touches no structure of the database. `halvo_sqlcipher::page_gap_mend_linked`
   is true only for that answer, so a program that calls it does not link
   another SQLCipher and refuses a library of the earlier one-statement build.
   The open of each store is to require it, in the next unit that changes that
   open.
-- The build has no SQLITE_ENABLE_STAT4: with it, ANALYZE and PRAGMA optimize
-  copy whole index keys into sqlite_stat4, where they outlive the rows. No
-  store runs either.
+- The build has no SQLITE_ENABLE_STAT4, and the compiler stops if a flag
+  defines it: with it, ANALYZE and PRAGMA optimize copy whole index keys into
+  sqlite_stat4, where they outlive the rows. No store runs either.
 - No cargo feature and no switch of the environment or of the build takes a
   statement out.
 
