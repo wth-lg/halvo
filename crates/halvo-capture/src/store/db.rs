@@ -951,17 +951,36 @@ fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
     }
 }
 
+/// Whether the root that a pending mark names was made: `Owed` is written
+/// before the root step, `Made` after the custody's create_root answered Ok
+/// and before the key file is published. A mark without the reading, or one
+/// that does not parse, reads `Owed`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum PendingReading {
+    #[default]
+    Owed,
+    Made,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Pending {
     custody_kind: CustodyKind,
     root_id: RootId,
+    #[serde(default)]
+    reading: PendingReading,
 }
 
-fn write_pending(store_dir: &Dir, custody: &dyn KeyCustody) -> StoreResult<()> {
+fn write_pending(
+    store_dir: &Dir,
+    custody: &dyn KeyCustody,
+    reading: PendingReading,
+) -> StoreResult<()> {
     let json = serde_json::to_vec(&Pending {
         custody_kind: custody.kind(),
         root_id: custody.root_id(),
+        reading,
     })
     .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
     durable::write_durably(
@@ -1000,7 +1019,7 @@ fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<
     if !present || keyed == KeyNames::Unknown {
         return Ok(());
     }
-    if let Some(pending) = read_pending(store_dir) {
+    if let Some(pending) = read_pending(store_dir).filter(|p| p.reading == PendingReading::Made) {
         if keyed != KeyNames::Root(pending.root_id) {
             file_root::destroy_root_at(roots, pending.root_id)?;
         }
@@ -1800,10 +1819,20 @@ impl EncryptedStore {
         failpoint::seam(SEAM_BEFORE_THE_DATABASE_STEP);
         Db::destroy_in(dir)?;
         let _ = segment::remove_segments_tree(dir);
-        write_pending(dir, custody.as_ref())?;
+        write_pending(dir, custody.as_ref(), PendingReading::Owed)?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
+        if let Err(e) = write_pending(dir, custody.as_ref(), PendingReading::Made) {
+            drop(db);
+            return Err(Self::abandon_create(
+                dir,
+                &key_file,
+                None,
+                custody.as_ref(),
+                e,
+            ));
+        }
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_ROOT);
         let (written, published) = Self::write_key_file(&key_file, custody.as_ref(), &store_key);
@@ -2160,9 +2189,11 @@ impl EncryptedStore {
         };
         let _writer_lock = DirLock::take(&store)?;
         let place = KeyFile::of_store(&store)?;
-        let named = place
-            .named_root()
-            .or_else(|| read_pending(&store).map(|pending| pending.root_id));
+        let named = place.named_root().or_else(|| {
+            read_pending(&store)
+                .filter(|pending| pending.reading == PendingReading::Made)
+                .map(|pending| pending.root_id)
+        });
         let root_not_handled = place.older_root();
         let roots = file_root::destroy_every_root(roots, named);
         let mut report = remove_the_store_files(&store, None, roots);

@@ -1116,11 +1116,19 @@ What the code does since store-3, each sentence with the test that shows it.
   root file under `roots`, and never opens the database. A key file of
   version 1 is removed, and its root is reported as not handled by this
   build.
-- `create` records `create.pending` before its root and removes it after
-  `store.key` is published by a hard link; `create`, an open that
-  succeeds and the tail destroy a root that a leftover `create.pending`
-  names and no key file names, and the delete on a handle removes
-  `create.pending` and its temporary file. Test:
+- `create` records `create.pending` with the reading owed before its
+  root, writes it again with the reading made once the custody's
+  `create_root` answered Ok and before the key file is published, and
+  removes it after `store.key` is published by a hard link; a second write
+  that fails sends the create to its abandon, which destroys the root that
+  it made. `create`, an open that succeeds and the tail destroy a root that
+  a leftover `create.pending` names only when the mark reads made and no
+  key file of its own directory names that root; a mark that reads owed,
+  that has no reading or that does not parse is removed and destroys
+  nothing (ruling ST-44 F3). The delete on a handle removes
+  `create.pending` and its temporary file. Tests:
+  `a_create_over_a_stale_pending_mark_destroys_no_root_of_a_live_store`,
+  `a_stopped_create_under_a_root_id_that_another_create_then_made_keeps_that_live_root`,
   `a_create_killed_between_its_root_and_its_key_file_leaves_a_root_that_the_next_create_destroys`.
 - A create whose link meets an entry at `store.key` that it did not make
   (another writer put it there after the create's look) leaves that entry
@@ -1268,6 +1276,14 @@ set, and the root's own volume name answers the root.
   again: a delete whose create of step 6 is killed between its root and
   its key file while the mark of ruling ST-34 is set, so that no life
   makes a store.
+- The pending mark (ruling ST-44 F3). (i) A create stopped between its
+  `create_root` and the second write of its mark leaves a root file, and
+  its partial files, that no mark and no key file names. It wraps no key,
+  only a delete destroys it, and while it stands a create under that root
+  id answers `RootExists`. (ii) A mark that reads made destroys by id: two
+  creates under one root id with a delete between them are not covered;
+  the rule is a fresh id for each create, and no caller passes an id
+  twice. Binding the made mark to the file's identity is store-3b's.
 
 - On Windows the store sets no access rule on its files and directories,
   syncs no directory after a rename or an unlink, and opens a link at a
