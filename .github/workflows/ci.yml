@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job alone (ruling MA-19 (9), push 8)
 
 on:
   push:
@@ -14,7 +16,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +30,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -66,11 +56,6 @@ jobs:
           else
             sh scripts/check-changelog.sh
           fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
       - name: Own-source reads
         shell: bash
         run: |
@@ -89,21 +74,119 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 51-macos-stall
+      - name: Measurement and the gap of the test's own (MA-16 (2) (c), (3))
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          lib=$(cargo test --locked -p halvo-capture --lib --no-run --message-format json | sed -n 's/.*"executable":"\([^"]*halvo_capture-[^"]*\)".*/\1/p' | tail -n 1)
+          [ -x "$lib" ] || exit 1
+          "$lib" --ignored --exact --nocapture macos::input::tests::measure_the_readings_of_the_hold > "$RUNNER_TEMP/measure.log" 2>&1
+          grep '^measure' "$RUNNER_TEMP/measure.log"
+          widest=$(sed -n 's/^measure .* spacing_max_us=\([0-9][0-9]*\) .*/\1/p' "$RUNNER_TEMP/measure.log")
+          [ -n "$widest" ] || exit 1
+          gap=$(( (widest * 2 / 1000 + 9) / 10 * 10 ))
+          [ "$gap" -ge 30 ] || gap=30
+          echo "gap of the test's own ms=$gap from spacing_max_us=$widest (twice the widest spacing, rounded up to 10 ms, at least 30)"
+          echo "HALVO_STALL_GAP_MS=$gap" >> "$GITHUB_ENV"
+          echo "HALVO_STALL_STEP_MS=10" >> "$GITHUB_ENV"
+      - name: short_window (MA-19 (3))
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          fixture="$RUNNER_TEMP/stall-fixture"
+          if [ ! -x "$fixture" ]; then
+            clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics -o "$fixture" crates/halvo-capture/tests/macos_stall_fixture/fixture.m || exit 1
+          fi
+          stall=$(cargo test --locked -p halvo-capture --test macos_stall_fixture --no-run --message-format json | sed -n 's/.*"name":"macos_stall_fixture".*"executable":"\([^"]*\)".*/\1/p')
+          [ -x "$stall" ] || exit 1
+          failed=0
+          one() {
+            from=$(date +%s)
+            HALVO_STALL_FIXTURE="$fixture" perl -e 'alarm shift; exec @ARGV or exit 127' "$2" "$stall" --ignored --exact --nocapture --test-threads=1 "$1" </dev/null > "$RUNNER_TEMP/one.log" 2>&1
+            code=$?
+            grep -E "^$1 " "$RUNNER_TEMP/one.log"
+            grep -E "panicked at|^$1: " "$RUNNER_TEMP/one.log" | head -n 6
+            n=$(sed -n 's/^test result: [a-zA-Z]*\. \([0-9][0-9]*\) passed;.*/\1/p' "$RUNNER_TEMP/one.log" | tail -n 1)
+            n=${n:-0}
+            ok=0
+            [ "$code" -eq 0 ] && [ "$n" -eq 1 ] && grep -q '^test result: ok\.' "$RUNNER_TEMP/one.log" && ok=1
+            [ "$ok" -eq 1 ] || failed=1
+            echo "step test=$1 exit=$code passed=$n expected=1 ok=$ok seconds=$(( $(date +%s) - from ))"
+          }
+          echo "short_window gap_ms=$HALVO_STALL_GAP_MS step_ms=$HALVO_STALL_STEP_MS"
+          one short_window_a_the_click_round_as_it_was_at_wait_150_ms 1200
+          one short_window_a_the_click_round_as_it_was_at_wait_2000_ms 900
+          one short_window_b_a_set_on_time 700
+          exit "$failed"
+      - name: The mended click phase, 62 counted rounds at wait 2,000 ms (MA-19 (4), (5))
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          fixture="$RUNNER_TEMP/stall-fixture"
+          if [ ! -x "$fixture" ]; then
+            clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics -o "$fixture" crates/halvo-capture/tests/macos_stall_fixture/fixture.m || exit 1
+          fi
+          stall=$(cargo test --locked -p halvo-capture --test macos_stall_fixture --no-run --message-format json | sed -n 's/.*"name":"macos_stall_fixture".*"executable":"\([^"]*\)".*/\1/p')
+          [ -x "$stall" ] || exit 1
+          failed=0
+          one() {
+            from=$(date +%s)
+            HALVO_STALL_FIXTURE="$fixture" perl -e 'alarm shift; exec @ARGV or exit 127' "$2" "$stall" --ignored --exact --nocapture --test-threads=1 "$1" </dev/null > "$RUNNER_TEMP/one.log" 2>&1
+            code=$?
+            grep -E "^$1 " "$RUNNER_TEMP/one.log"
+            grep -E "panicked at|^$1: " "$RUNNER_TEMP/one.log" | head -n 6
+            n=$(sed -n 's/^test result: [a-zA-Z]*\. \([0-9][0-9]*\) passed;.*/\1/p' "$RUNNER_TEMP/one.log" | tail -n 1)
+            n=${n:-0}
+            ok=0
+            [ "$code" -eq 0 ] && [ "$n" -eq 1 ] && grep -q '^test result: ok\.' "$RUNNER_TEMP/one.log" && ok=1
+            [ "$ok" -eq 1 ] || failed=1
+            echo "step test=$1 exit=$code passed=$n expected=1 ok=$ok seconds=$(( $(date +%s) - from ))"
+          }
+          one the_mended_click_phase_counts_62_rounds_at_wait_2000_ms 900
+          exit "$failed"
+      - name: The whole-password forms as measured lines (MA-19 (6))
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          fixture="$RUNNER_TEMP/stall-fixture"
+          if [ ! -x "$fixture" ]; then
+            clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics -o "$fixture" crates/halvo-capture/tests/macos_stall_fixture/fixture.m || exit 1
+          fi
+          stall=$(cargo test --locked -p halvo-capture --test macos_stall_fixture --no-run --message-format json | sed -n 's/.*"name":"macos_stall_fixture".*"executable":"\([^"]*\)".*/\1/p')
+          [ -x "$stall" ] || exit 1
+          failed=0
+          one() {
+            from=$(date +%s)
+            HALVO_STALL_FIXTURE="$fixture" perl -e 'alarm shift; exec @ARGV or exit 127' "$2" "$stall" --ignored --exact --nocapture --test-threads=1 "$1" </dev/null > "$RUNNER_TEMP/one.log" 2>&1
+            code=$?
+            grep -E "^$1 " "$RUNNER_TEMP/one.log"
+            grep -E "panicked at|^$1: " "$RUNNER_TEMP/one.log" | head -n 6
+            n=$(sed -n 's/^test result: [a-zA-Z]*\. \([0-9][0-9]*\) passed;.*/\1/p' "$RUNNER_TEMP/one.log" | tail -n 1)
+            n=${n:-0}
+            ok=0
+            [ "$code" -eq 0 ] && [ "$n" -eq 1 ] && grep -q '^test result: ok\.' "$RUNNER_TEMP/one.log" && ok=1
+            [ "$ok" -eq 1 ] || failed=1
+            echo "step test=$1 exit=$code passed=$n expected=1 ok=$ok seconds=$(( $(date +%s) - from ))"
+          }
+          one measured_a_password_typed_whole_ahead_at_machine_speed 300
+          one measured_a_password_typed_whole_ahead_at_a_persons_pace 300
+          exit "$failed"
       - name: ci.d
+        if: ${{ !cancelled() }}
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 51-macos-stall
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -113,85 +196,3 @@ jobs:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
 
-  windows:
-    runs-on: windows-2025
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
