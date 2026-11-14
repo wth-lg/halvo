@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,86 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 31-store-full-volume
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 31-store-full-volume
+      - name: Loop step of store-3
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          export RUST_TEST_THREADS=1
+          exe=$(cargo test --locked -p halvo-capture --lib --no-run --message-format=json 2>/dev/null | python3 -c "import json,sys; print([j['executable'] for j in map(json.loads, sys.stdin) if j.get('reason')=='compiler-artifact' and j.get('executable') and j['target']['kind']==['lib']][-1])")
+          echo "loop executable: $exe"
+          cat > "$RUNNER_TEMP/names.txt" <<'NAMES'
+          store::hardening_tests::the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots 200
+          store::hardening_tests::the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_it 200
+          store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind 20
+          store::hardening_tests::closed_list_windows::the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone 200
+          store::hardening_tests::closed_list_windows::the_tail_without_the_lock_destroys_the_named_root_alone 200
+          store::hardening_tests::closed_list_windows::a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name 200
+          store::hardening_tests::pass_two::p2_a_resumed_delete_all_keeps_the_root_of_a_store_made_at_its_old_name 200
+          store::hardening_tests::pass_two::a_later_delete_all_after_the_root_read_destroyed_does_not_open_the_roots_path_again 200
+          store::hardening_tests::pass_two::p2_d_the_tail_writes_nothing_through_a_second_name_at_store_key_tmp 200
+          store::hardening_tests::pass_two::delete_all_writes_nothing_through_a_second_name_at_store_key_tmp 200
+          store::hardening_tests::pass_two::the_store_key_file_under_a_second_name_at_store_key_tmp_ends_all_zero_under_every_name 200
+          store::hardening_tests::pass_two::an_entry_at_store_key_tmp_that_no_call_can_remove_is_counted_as_not_followed 200
+          store::hardening_tests::pass_two::p2_b_a_tail_after_a_tail_that_left_the_root_file_names_it_or_destroys_it 200
+          store::hardening_tests::pass_two::p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail 200
+          store::hardening_tests::pass_two::p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_names 200
+          store::hardening_tests::pass_two::a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok 200
+          store::hardening_tests::pass_two::p2_c_delete_all_reads_destroyed_only_when_it_removed_the_root_file_itself 200
+          store::hardening_tests::pass_two::p2_c2_the_tail_reads_destroyed_only_when_it_removed_the_root_file_and_not_a_link_to_it 200
+          store::hardening_tests::pass_two::a_file_of_another_length_at_the_root_name_is_removed_unwritten_and_the_root_reads_left 200
+          store::hardening_tests::pass_two::an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_removes_it 200
+          store::hardening_tests::pass_two::the_tail_answers_each_arm_as_its_row_says_and_leaves_the_roots_directory_as_its_row_says 20
+          store::hardening_tests::pass_two::the_tail_opens_no_roots_path_through_a_link_at_the_store_name 200
+          store::hardening_tests::pass_two::the_tail_beside_a_key_file_of_version_1_sweeps_the_roots_and_the_next_tail_reads_unnamed 200
+          store::hardening_tests::pass_two::the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_destroyed 200
+          store::hardening_tests::closed_list_windows::the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays 200
+          NAMES
+          cat > "$RUNNER_TEMP/loop_step.py" <<'LOOP'
+          """Runs each test of store-3's round 2, by its built test executable and not by cargo, the number of times its line
+          names (200, or 20 for a test that kills a child), and counts a pass only from the run's own result line: the line
+          "test result: ok. 1 passed; 0 failed". A filter that matches no test exits 0 and counts as not compiled here.
+          usage: python3 loop_step2.py <test executable> <names file: name<space>count per line>"""
+          import re
+          import subprocess
+          import sys
+          import time
+
+          exe, names = sys.argv[1], sys.argv[2]
+          result_line = re.compile(r"^test result: (\w+)\. (\d+) passed; (\d+) failed", re.M)
+          for line in [l.split() for l in open(names) if l.strip()]:
+              name, runs = line[0], int(line[1])
+
+              def once():
+                  started = time.monotonic()
+                  done = subprocess.run([exe, "--exact", name, "--test-threads=1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                  found = result_line.search(done.stdout.decode("utf-8", "replace"))
+                  ran = int(found.group(2)) + int(found.group(3)) if found else 0
+                  passed = found is not None and found.group(2) == "1" and found.group(3) == "0" and done.returncode == 0
+                  return passed, ran, time.monotonic() - started
+
+              passed, ran, first = once()
+              if ran == 0:
+                  print(f"LOOP {name} not-compiled-here", flush=True)
+                  continue
+              passes, tests_ran = (1 if passed else 0), ran
+              for _ in range(runs - 1):
+                  passed, ran, _ = once()
+                  passes += 1 if passed else 0
+                  tests_ran += ran
+              print(f"LOOP {name} runs={runs} passes={passes} tests_ran={tests_ran} first_run_s={first:.2f}", flush=True)
+          LOOP
+          python3 "$RUNNER_TEMP/loop_step.py" "$exe" "$RUNNER_TEMP/names.txt"
+      - name: Rows of store-3 round 4 to their end
+        if: always()
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          sh scripts/r1-gate/mutation-test.sh --only later-delete-all-opens-the-roots-path-again --only key-temp-that-stays-is-not-counted --only formal-root-step-moves-the-roots-directory-aside --only no-root-step-when-the-store-directory-left-its-name --only kill-table-child-delete-all-keeps-key-and-root --only owed-pending-mark-destroys-its-root --only custody-wrap-under-constant-key --only custody-root-is-all-zero --only formal-custody-wrap-under-constant-key --only formal-custody-root-is-all-zero --only root-file-made-of-the-root-id --only tail-sweeps-nothing-when-nothing-is-named --only any-entry-at-the-root-name-reads-as-the-root-file
+          echo "rows exit=$?"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +187,78 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: Loop step of store-3
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          export RUST_TEST_THREADS=1
+          exe=$(cargo test --locked -p halvo-capture --lib --no-run --message-format=json 2>/dev/null | python3 -c "import json,sys; print([j['executable'] for j in map(json.loads, sys.stdin) if j.get('reason')=='compiler-artifact' and j.get('executable') and j['target']['kind']==['lib']][-1])")
+          echo "loop executable: $exe"
+          cat > "$RUNNER_TEMP/names.txt" <<'NAMES'
+          store::hardening_tests::the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots 200
+          store::hardening_tests::the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_it 200
+          store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind 20
+          store::hardening_tests::closed_list_windows::the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone 200
+          store::hardening_tests::closed_list_windows::the_tail_without_the_lock_destroys_the_named_root_alone 200
+          store::hardening_tests::closed_list_windows::a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name 200
+          store::hardening_tests::pass_two::p2_a_resumed_delete_all_keeps_the_root_of_a_store_made_at_its_old_name 200
+          store::hardening_tests::pass_two::a_later_delete_all_after_the_root_read_destroyed_does_not_open_the_roots_path_again 200
+          store::hardening_tests::pass_two::p2_d_the_tail_writes_nothing_through_a_second_name_at_store_key_tmp 200
+          store::hardening_tests::pass_two::delete_all_writes_nothing_through_a_second_name_at_store_key_tmp 200
+          store::hardening_tests::pass_two::the_store_key_file_under_a_second_name_at_store_key_tmp_ends_all_zero_under_every_name 200
+          store::hardening_tests::pass_two::an_entry_at_store_key_tmp_that_no_call_can_remove_is_counted_as_not_followed 200
+          store::hardening_tests::pass_two::p2_b_a_tail_after_a_tail_that_left_the_root_file_names_it_or_destroys_it 200
+          store::hardening_tests::pass_two::p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail 200
+          store::hardening_tests::pass_two::p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_names 200
+          store::hardening_tests::pass_two::a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok 200
+          store::hardening_tests::pass_two::p2_c_delete_all_reads_destroyed_only_when_it_removed_the_root_file_itself 200
+          store::hardening_tests::pass_two::p2_c2_the_tail_reads_destroyed_only_when_it_removed_the_root_file_and_not_a_link_to_it 200
+          store::hardening_tests::pass_two::a_file_of_another_length_at_the_root_name_is_removed_unwritten_and_the_root_reads_left 200
+          store::hardening_tests::pass_two::an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_removes_it 200
+          store::hardening_tests::pass_two::the_tail_answers_each_arm_as_its_row_says_and_leaves_the_roots_directory_as_its_row_says 20
+          store::hardening_tests::pass_two::the_tail_opens_no_roots_path_through_a_link_at_the_store_name 200
+          store::hardening_tests::pass_two::the_tail_beside_a_key_file_of_version_1_sweeps_the_roots_and_the_next_tail_reads_unnamed 200
+          store::hardening_tests::pass_two::the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_destroyed 200
+          store::hardening_tests::closed_list_windows::the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays 200
+          NAMES
+          cat > "$RUNNER_TEMP/loop_step.py" <<'LOOP'
+          """Runs each test of store-3's round 2, by its built test executable and not by cargo, the number of times its line
+          names (200, or 20 for a test that kills a child), and counts a pass only from the run's own result line: the line
+          "test result: ok. 1 passed; 0 failed". A filter that matches no test exits 0 and counts as not compiled here.
+          usage: python3 loop_step2.py <test executable> <names file: name<space>count per line>"""
+          import re
+          import subprocess
+          import sys
+          import time
+
+          exe, names = sys.argv[1], sys.argv[2]
+          result_line = re.compile(r"^test result: (\w+)\. (\d+) passed; (\d+) failed", re.M)
+          for line in [l.split() for l in open(names) if l.strip()]:
+              name, runs = line[0], int(line[1])
+
+              def once():
+                  started = time.monotonic()
+                  done = subprocess.run([exe, "--exact", name, "--test-threads=1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                  found = result_line.search(done.stdout.decode("utf-8", "replace"))
+                  ran = int(found.group(2)) + int(found.group(3)) if found else 0
+                  passed = found is not None and found.group(2) == "1" and found.group(3) == "0" and done.returncode == 0
+                  return passed, ran, time.monotonic() - started
+
+              passed, ran, first = once()
+              if ran == 0:
+                  print(f"LOOP {name} not-compiled-here", flush=True)
+                  continue
+              passes, tests_ran = (1 if passed else 0), ran
+              for _ in range(runs - 1):
+                  passed, ran, _ = once()
+                  passes += 1 if passed else 0
+                  tests_ran += ran
+              print(f"LOOP {name} runs={runs} passes={passes} tests_ran={tests_ran} first_run_s={first:.2f}", flush=True)
+          LOOP
+          python3 "$RUNNER_TEMP/loop_step.py" "$exe" "$RUNNER_TEMP/names.txt"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
