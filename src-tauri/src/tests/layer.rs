@@ -705,3 +705,95 @@ fn a_round_refreshes_the_tray_before_it_tells_the_modules() {
     });
     assert_eq!(*order.lock().expect("the order"), ["refresh", "module"]);
 }
+
+#[derive(Default)]
+struct RecordingControl {
+    places: Arc<Places>,
+    calls: Mutex<Vec<&'static str>>,
+}
+
+impl RecordingControl {
+    fn record(&self, call: &'static str) {
+        self.calls.lock().expect("the calls").push(call);
+    }
+}
+
+impl Control for RecordingControl {
+    fn places(&self) -> &Arc<Places> {
+        &self.places
+    }
+
+    fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+        self.record("status");
+        Ok(sample_status(Platform::Macos))
+    }
+
+    fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+        self.record("inventory");
+        Err(ClientError::Unsupported)
+    }
+
+    fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        self.record("pause");
+        Ok(sample_status(Platform::Macos))
+    }
+
+    fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        self.record("resume");
+        Ok(sample_status(Platform::Macos))
+    }
+
+    fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+        self.record("delete_all");
+        Err(ClientError::Unsupported)
+    }
+
+    fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+        self.record("set_storage_cap");
+        Err(ClientError::Unsupported)
+    }
+
+    fn request_permission(&self, _: Made, _: Permission) -> Result<RequestOutcome, ClientError> {
+        self.record("request_permission");
+        Err(ClientError::Unsupported)
+    }
+}
+
+#[test]
+fn every_read_command_of_every_module_makes_no_writing_call() {
+    let control = Arc::new(RecordingControl::default());
+    let state = AppState::with_control(control.clone(), None, no_pane);
+    let test = test_app_from(
+        test_parts(scratch_dir("reads-write-nothing"), state),
+        app::context(),
+        ScriptedConnector::new(macos_fixture_daemon()),
+    );
+    let args = json!({
+        "capture": "paused",
+        "storeId": "x",
+        "capBytes": 1,
+        "permission": "accessibility",
+    });
+    let mut asked = 0;
+    for module in crate::commands::names::MODULES {
+        for read in module.reads {
+            let _ = call(&test, read, args.clone());
+            asked += 1;
+        }
+    }
+    assert_eq!(asked, 3);
+    let calls = control.calls.lock().expect("the calls").clone();
+    assert!(calls.contains(&"inventory"), "{calls:?}");
+    for write in [
+        "pause",
+        "resume",
+        "delete_all",
+        "set_storage_cap",
+        "request_permission",
+    ] {
+        assert!(
+            !calls.contains(&write),
+            "{write} was made by a read: {calls:?}"
+        );
+    }
+}
