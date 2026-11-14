@@ -455,6 +455,11 @@ pub mod seam {
 
     pub use crate::floor::payload::KeyClass;
     pub use crate::secure_input::windows::{Moved, Rule};
+
+    /// What UI Automation reports of the element that has the focus now.
+    pub fn focused_element_properties() -> String {
+        crate::secure_input::windows::focused_element_properties()
+    }
     use crate::secure_input::{KeystrokeClearance, Withheld};
 
     /// What the keyboard source did with a key.
@@ -1367,6 +1372,15 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
             .is_some_and(|state| state.device == RawDevice::Pointer)
     });
     if pointer {
+        #[cfg(test)]
+        {
+            let hold = tests::HOLD_THE_POLL_MS.swap(0, Ordering::SeqCst);
+            if hold > 0 {
+                tests::POLL_HELD.store(true, Ordering::SeqCst);
+                std::thread::sleep(std::time::Duration::from_millis(hold));
+                tests::POLL_HELD.store(false, Ordering::SeqCst);
+            }
+        }
         let before = super::now_tick();
         // SAFETY: GetQueueStatus takes flags and reads this thread's queue.
         let queued = unsafe {
@@ -3537,5 +3551,406 @@ mod tests {
         assert_ne!(window, 0, "INCONCLUSIVE: the window was not made");
         assert!(!window_left, "the failed start left its window");
         assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn every_key_down_of_a_focus_key_latches_and_only_a_recorded_one_holds_first() {
+        let mut state = KeyState::default();
+        let stroke = |vkey: u16, released: bool| KeyStroke { vkey, released };
+        let first = key_step(&mut state, stroke(VK_TAB.0, false));
+        let repeat = key_step(&mut state, stroke(VK_TAB.0, false));
+        let release = key_step(&mut state, stroke(VK_TAB.0, true));
+        let again = key_step(&mut state, stroke(VK_TAB.0, false));
+        let enter = key_step(&mut state, stroke(VK_RETURN.0, false));
+        let enter_repeat = key_step(&mut state, stroke(VK_RETURN.0, false));
+        let letter = key_step(&mut state, stroke(0x41, false));
+        let letter_repeat = key_step(&mut state, stroke(0x41, false));
+        let no_key = key_step(&mut state, stroke(NO_KEY, false));
+        assert!(first.record.is_some() && first.latch, "{first:?}");
+        assert!(
+            repeat.record.is_none() && repeat.latch,
+            "a repeated Tab down set no latch: {repeat:?}"
+        );
+        assert!(release.record.is_none() && !release.latch, "{release:?}");
+        assert!(again.record.is_some() && again.latch, "{again:?}");
+        assert!(enter.record.is_some() && enter.latch, "{enter:?}");
+        assert!(
+            enter_repeat.record.is_none() && enter_repeat.latch,
+            "{enter_repeat:?}"
+        );
+        assert!(letter.record.is_some() && !letter.latch, "{letter:?}");
+        assert!(
+            letter_repeat.record.is_none() && !letter_repeat.latch,
+            "{letter_repeat:?}"
+        );
+        assert!(no_key.record.is_none() && !no_key.latch, "{no_key:?}");
+    }
+
+    fn key_input(vkey: u16, released: bool) -> windows::Win32::UI::Input::KeyboardAndMouse::INPUT {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+            VIRTUAL_KEY,
+        };
+        INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VIRTUAL_KEY(vkey),
+                    wScan: 0,
+                    dwFlags: if released {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        KEYBD_EVENT_FLAGS(0)
+                    },
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
+    }
+
+    fn send_keys(inputs: &[windows::Win32::UI::Input::KeyboardAndMouse::INPUT]) -> u32 {
+        // SAFETY: the slice holds live INPUT values and the size argument is
+        // the size of one INPUT.
+        unsafe {
+            windows::Win32::UI::Input::KeyboardAndMouse::SendInput(
+                inputs,
+                core::mem::size_of::<windows::Win32::UI::Input::KeyboardAndMouse::INPUT>() as i32,
+            )
+        }
+    }
+
+    fn keystroke_counter(writer: crate::sink::SinkWriter) -> std::sync::mpsc::Receiver<bool> {
+        let (tx, events) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            while let Some(event) = writer.recv() {
+                let keystroke = event.modality == crate::event::Modality::Keystroke;
+                if tx.send(keystroke).is_err() {
+                    break;
+                }
+            }
+        });
+        events
+    }
+
+    #[test]
+    fn a_held_tab_sets_one_latch_for_each_key_down_at_the_source() {
+        let _serial = crate::windows::tests::serial();
+        let (own, in_front) = OwnWindow::in_front();
+        let (sink, writer) = crate::sink::channel(256);
+        let events = keystroke_counter(writer);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let started = keyboard.begin(crate::source::SourceContext::new(sink));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let gate = clicks().gate.clone();
+        let count = || gate.as_ref().map(|gate| gate.latch_count());
+        let before = count();
+        let mut accepted = send_keys(&[key_input(VK_TAB.0, false)]);
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let after_one = count();
+        accepted += send_keys(&[key_input(VK_TAB.0, false)]);
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let after_two = count();
+        accepted += send_keys(&[key_input(VK_TAB.0, true)]);
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let after_the_release = count();
+        let front_at_the_end = own.is_in_front();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let keystrokes = events.try_iter().filter(|keystroke| *keystroke).count();
+        let stopped = keyboard.shutdown();
+        drop(own);
+        println!(
+            "TF held-tab own_window_in_front={in_front} front_at_the_end={front_at_the_end} \
+             started={} accepted={accepted} latches_before={before:?} after_one={after_one:?} \
+             after_two={after_two:?} after_the_release={after_the_release:?} \
+             keystroke_events={keystrokes} stopped={}",
+            started.is_ok(),
+            stopped.is_ok()
+        );
+        assert!(
+            started.is_ok() && in_front && front_at_the_end && accepted == 3,
+            "INCONCLUSIVE: the window of the test was not in front or the keys were not sent"
+        );
+        let before = before.expect("the keyboard's gate");
+        assert_eq!(
+            after_one,
+            Some(before + 1),
+            "the first Tab down set no latch"
+        );
+        assert_eq!(
+            after_two,
+            Some(before + 2),
+            "the repeated Tab down set no latch of its own"
+        );
+        assert_eq!(after_the_release, after_two, "the release set a latch");
+    }
+
+    pub(super) static HOLD_THE_POLL_MS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static POLL_HELD: AtomicBool = AtomicBool::new(false);
+
+    #[test]
+    fn keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (own, in_front) = OwnWindow::in_front();
+        let (sink, writer) = crate::sink::channel(256);
+        let events = keystroke_counter(writer);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let owner = clicks().owner;
+        let mut rounds = Vec::new();
+        if keyboard_started.is_ok() && pointer_started.is_ok() {
+            for index in 1..=5 {
+                for (name, hold_ms) in [("idle", 0u64), ("held", 600)] {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    while events.try_recv().is_ok() {}
+                    let mut held = false;
+                    if hold_ms > 0 {
+                        HOLD_THE_POLL_MS.store(hold_ms, Ordering::SeqCst);
+                        held = wait_for(std::time::Duration::from_secs(1), || {
+                            POLL_HELD.load(Ordering::SeqCst)
+                        });
+                    }
+                    let front = own.is_in_front();
+                    let accepted = send_keys(&[key_input(0x41, false), key_input(0x41, true)]);
+                    std::thread::sleep(std::time::Duration::from_millis(hold_ms + 500));
+                    let keystrokes = events.try_iter().filter(|keystroke| *keystroke).count();
+                    let counted = front && accepted == 2 && (hold_ms == 0 || held);
+                    println!(
+                        "TF pointer-pump round={name}-{index} hold_ms={hold_ms} pump_was_held={held} \
+                         own_window_in_front={front} accepted={accepted} keystroke_events={keystrokes} \
+                         counted={counted}"
+                    );
+                    rounds.push((name, counted, keystrokes));
+                }
+            }
+        }
+        HOLD_THE_POLL_MS.store(0, Ordering::SeqCst);
+        let health = keyboard.health();
+        let pointer_stopped = pointer.shutdown();
+        let keyboard_stopped = keyboard.shutdown();
+        drop(own);
+        let _ = registrations();
+        let tally = |wanted: &str| {
+            let counted: Vec<usize> = rounds
+                .iter()
+                .filter(|(name, counted, _)| *name == wanted && *counted)
+                .map(|(_, _, keystrokes)| *keystrokes)
+                .collect();
+            (counted.len(), counted.iter().sum::<usize>())
+        };
+        let (idle_counted, idle_recorded) = tally("idle");
+        let (held_counted, held_recorded) = tally("held");
+        println!(
+            "TF pointer-pump own_window_in_front={in_front} owner={owner:?} \
+             idle_rounds_counted={idle_counted} idle_keystroke_events={idle_recorded} \
+             held_rounds_counted={held_counted} held_keystroke_events={held_recorded} \
+             keys_withheld={} pointer_stopped={} keyboard_stopped={}",
+            health.counters.keys_withheld,
+            pointer_stopped.is_ok(),
+            keyboard_stopped.is_ok()
+        );
+        assert!(
+            keyboard_started.is_ok() && pointer_started.is_ok() && in_front,
+            "INCONCLUSIVE: a source did not start or the window of the test was not in front"
+        );
+        assert_eq!(
+            owner,
+            Some(RawDevice::Pointer),
+            "INCONCLUSIVE: the pointer source did not own the clicks"
+        );
+        assert_eq!(
+            (idle_counted, held_counted),
+            (5, 5),
+            "INCONCLUSIVE: a round did not count"
+        );
+        assert_eq!(
+            idle_recorded, 5,
+            "the control: an idle pointer source recorded fewer than 5 of 5 keys"
+        );
+        assert_eq!(
+            held_recorded, 0,
+            "a key was recorded while the pointer's pump was held"
+        );
+        assert!(
+            health.counters.keys_withheld,
+            "keys_withheld did not read yes"
+        );
+    }
+
+    fn mouse_removed_since() -> bool {
+        let mouse = RawDevice::Pointer.hid_usage();
+        registrations()
+            .iter()
+            .any(|(usage, removed)| *usage == mouse && *removed)
+    }
+
+    fn clear_the_route() {
+        let mut route = clicks();
+        route.gate = None;
+        route.keyboard_window = None;
+        route.keyboard_register = None;
+        route.owner = None;
+    }
+
+    #[test]
+    fn a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own() {
+        let _serial = crate::windows::tests::serial();
+        let mut rows = Vec::new();
+        for (case, timed_out) in [
+            ("another-window", false),
+            ("another-gate", false),
+            ("own", false),
+            ("another-window", true),
+            ("own", true),
+        ] {
+            let _ = registrations();
+            let (sink, _writer) = crate::sink::channel(64);
+            let mut keyboard = RawInputSource::with_calls(
+                RawDevice::Keyboard,
+                StartCalls {
+                    register_device: register_held,
+                    remove_device: register_counted,
+                    ..SYSTEM_CALLS
+                },
+            );
+            let started = keyboard.begin(crate::source::SourceContext::new(sink));
+            let window = clicks().keyboard_window;
+            let owner_at_the_start = clicks().owner;
+            let mut held = true;
+            if timed_out {
+                HOLD_THE_REGISTER_MS.store(2_000, Ordering::SeqCst);
+                clicks().owner = None;
+                if let Some(window) = window {
+                    // SAFETY: PostMessageW takes a window handle and plain
+                    // values; a window that is gone makes the call fail.
+                    unsafe {
+                        let _ = PostMessageW(
+                            Some(HWND(window as *mut core::ffi::c_void)),
+                            WM_TAKE_MOUSE,
+                            WPARAM(0),
+                            LPARAM(0),
+                        );
+                    }
+                }
+                held = wait_for(std::time::Duration::from_secs(2), || {
+                    REGISTER_HELD.load(Ordering::SeqCst)
+                });
+                clicks().owner = Some(RawDevice::Keyboard);
+            }
+            let other_gate = Arc::new(PasswordGate::new());
+            match case {
+                "another-window" => clicks().keyboard_window = Some(1),
+                "another-gate" => clicks().gate = Some(Arc::clone(&other_gate)),
+                _ => {}
+            }
+            let stopped = keyboard.shutdown();
+            let mouse_removed = mouse_removed_since();
+            let (window_after, gate_left, gate_is_the_other, owner_after) = {
+                let route = clicks();
+                (
+                    route.keyboard_window,
+                    route.gate.is_some(),
+                    route
+                        .gate
+                        .as_ref()
+                        .is_some_and(|gate| Arc::ptr_eq(gate, &other_gate)),
+                    route.owner,
+                )
+            };
+            if timed_out {
+                std::thread::sleep(std::time::Duration::from_millis(2_500));
+            }
+            clear_the_route();
+            let _ = registrations();
+            println!(
+                "TF keyboard-let-go case={case} timed_out={timed_out} started={} held={held} \
+                 window={window:?} owner_at_the_start={owner_at_the_start:?} stopped={stopped:?} \
+                 mouse_removed={mouse_removed} window_after={window_after:?} gate_left={gate_left} \
+                 gate_is_the_other={gate_is_the_other} owner_after={owner_after:?}",
+                started.is_ok()
+            );
+            rows.push((
+                case,
+                timed_out,
+                started.is_ok() && held && window.is_some(),
+                matches!(stopped, Err(CaptureError::Timeout { .. })),
+                mouse_removed,
+                window_after,
+                window,
+                gate_left,
+                gate_is_the_other,
+                owner_after,
+            ));
+        }
+        for (
+            case,
+            timed_out,
+            ran,
+            stop_timed_out,
+            mouse_removed,
+            after,
+            window,
+            gate_left,
+            other,
+            owner,
+        ) in rows
+        {
+            assert!(
+                ran,
+                "INCONCLUSIVE: {case} timed_out={timed_out} did not run"
+            );
+            assert_eq!(
+                stop_timed_out, timed_out,
+                "INCONCLUSIVE: {case}: the stop's time-out was not as the case asks"
+            );
+            match case {
+                "own" => {
+                    assert!(
+                        mouse_removed,
+                        "{case} {timed_out}: the own mouse registration stayed"
+                    );
+                    assert_eq!(
+                        after, None,
+                        "{case} {timed_out}: the route kept the own window"
+                    );
+                    assert!(
+                        !gate_left,
+                        "{case} {timed_out}: the route kept the own gate"
+                    );
+                    assert_eq!(owner, None, "{case} {timed_out}");
+                }
+                "another-window" => {
+                    assert!(
+                        !mouse_removed,
+                        "{case} {timed_out}: another's mouse registration was removed"
+                    );
+                    assert_eq!(
+                        after,
+                        Some(1),
+                        "{case} {timed_out}: another's window was cleared"
+                    );
+                    assert!(
+                        gate_left,
+                        "{case} {timed_out}: the route's gate was cleared"
+                    );
+                    assert_eq!(owner, Some(RawDevice::Keyboard), "{case} {timed_out}");
+                }
+                _ => {
+                    assert!(
+                        !mouse_removed,
+                        "{case}: another's mouse registration was removed"
+                    );
+                    assert_eq!(after, window, "{case}: the route's window was cleared");
+                    assert!(other, "{case}: another's gate was cleared");
+                    assert_eq!(owner, Some(RawDevice::Keyboard), "{case}");
+                }
+            }
+        }
     }
 }

@@ -883,6 +883,8 @@ impl PasswordGate {
 
 #[cfg(target_os = "windows")]
 pub(crate) use detector::focus_window_is_password_edit;
+#[cfg(feature = "test-seam")]
+pub(crate) use detector::focused_element_properties;
 
 #[cfg(target_os = "windows")]
 mod detector {
@@ -1552,6 +1554,12 @@ mod detector {
         let state = handler
             .reader
             .state(element, super::ReadBy::Event, moves, false);
+        #[cfg(test)]
+        IN_FLIGHT.with(|hook| {
+            if let Some(hook) = hook.borrow().as_ref() {
+                hook();
+            }
+        });
         handler
             .shared
             .field_seen(tick(), state, handler.reader.seen());
@@ -1559,6 +1567,12 @@ mod detector {
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::handler_ended();
         S_OK
+    }
+
+    #[cfg(test)]
+    thread_local! {
+        static IN_FLIGHT: std::cell::RefCell<Option<Box<dyn Fn()>>> =
+            const { std::cell::RefCell::new(None) };
     }
 
     thread_local! {
@@ -1772,6 +1786,61 @@ mod detector {
         removed
     }
 
+    #[cfg(feature = "test-seam")]
+    pub(crate) fn focused_element_properties() -> String {
+        // SAFETY: joins the calling thread to the process's MTA; `_com` undoes
+        // it when the call succeeded.
+        let joined = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        if let Err(error) = joined.ok() {
+            return format!("uia=none com={:#x}", error.code().0);
+        }
+        let _com = Com;
+        // SAFETY: CoCreateInstance makes the system's UI Automation object for
+        // this MTA thread.
+        let automation: windows::core::Result<IUIAutomation> =
+            unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) };
+        let Ok(automation) = automation else {
+            return "uia=none".to_string();
+        };
+        // SAFETY: the call takes the live automation object.
+        let Ok(element) = (unsafe { automation.GetFocusedElement() }) else {
+            return "uia=no_focused_element".to_string();
+        };
+        let text = |value: windows::core::Result<windows::core::BSTR>| match value {
+            Ok(value) if value.is_empty() => "-".to_string(),
+            Ok(value) => value.to_string().replace([' ', '\r', '\n'], "_"),
+            Err(error) => format!("err:{:#x}", error.code().0),
+        };
+        // SAFETY: each call reads a current property of the live element.
+        unsafe {
+            let legacy = element
+                .GetCurrentPropertyValue(UIA_LegacyIAccessibleStatePropertyId)
+                .ok()
+                .and_then(|mut value| variant_i32(&mut value));
+            format!(
+                "is_password={} legacy_state={} protected={} control_type={} \
+                 localized_control_type={} class_name={} framework={} aria_role={} \
+                 aria_properties={} automation_id={} item_type={}",
+                element.CurrentIsPassword().map_or_else(
+                    |e| format!("err:{:#x}", e.code().0),
+                    |p| p.as_bool().to_string()
+                ),
+                legacy.map_or("none".to_string(), |state| format!("{state:#x}")),
+                legacy.is_some_and(|state| state as u32 & STATE_SYSTEM_PROTECTED != 0),
+                element
+                    .CurrentControlType()
+                    .map_or_else(|e| format!("err:{:#x}", e.code().0), |t| t.0.to_string()),
+                text(element.CurrentLocalizedControlType()),
+                text(element.CurrentClassName()),
+                text(element.CurrentFrameworkId()),
+                text(element.CurrentAriaRole()),
+                text(element.CurrentAriaProperties()),
+                text(element.CurrentAutomationId()),
+                text(element.CurrentItemType()),
+            )
+        }
+    }
+
     pub(crate) fn focus_window_is_password_edit() -> bool {
         let mut info = GUITHREADINFO {
             cbSize: core::mem::size_of::<GUITHREADINFO>() as u32,
@@ -1935,6 +2004,10 @@ mod detector {
 
         impl EditInFront {
             fn open() -> (EditInFront, bool) {
+                EditInFront::open_with(0)
+            }
+
+            fn open_with(style: u32) -> (EditInFront, bool) {
                 use std::sync::atomic::{AtomicBool, Ordering};
                 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
                 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -1943,7 +2016,8 @@ mod detector {
                 };
                 use windows::Win32::UI::WindowsAndMessaging::{
                     BringWindowToTop, CreateWindowExW, DestroyWindow, SetForegroundWindow,
-                    ShowWindow, SW_SHOW, WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+                    ShowWindow, SW_SHOW, WINDOW_EX_STYLE, WINDOW_STYLE, WS_OVERLAPPEDWINDOW,
+                    WS_VISIBLE,
                 };
                 let stop = Arc::new(AtomicBool::new(false));
                 let (tx, rx) = std::sync::mpsc::channel();
@@ -1957,7 +2031,7 @@ mod detector {
                             WINDOW_EX_STYLE(0),
                             windows::core::PCWSTR(class.as_ptr()),
                             windows::core::PCWSTR::null(),
-                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                            WS_OVERLAPPEDWINDOW | WS_VISIBLE | WINDOW_STYLE(style),
                             80,
                             80,
                             320,
@@ -2276,6 +2350,319 @@ mod detector {
                 })
             );
             std::thread::sleep(Duration::from_millis(1_800));
+        }
+
+        static HANDLERS_REMOVED: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+
+        fn handler_counted(
+            automation: &IUIAutomation,
+            handler: &IUIAutomationFocusChangedEventHandler,
+        ) -> windows::core::Result<()> {
+            HANDLERS_REMOVED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            remove_handler(automation, handler)
+        }
+
+        fn no_desktop_hook() -> HWINEVENTHOOK {
+            HWINEVENTHOOK::default()
+        }
+
+        #[test]
+        fn a_desktop_hook_that_cannot_be_set_refuses_the_attach_and_removes_the_focus_handler() {
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            HANDLERS_REMOVED.store(0, Ordering::SeqCst);
+            let control = PasswordGate::with_removals(Removals {
+                handler: handler_counted,
+                ..Removals::default()
+            });
+            let control_attached = control.attach();
+            let removed_by_the_control = HANDLERS_REMOVED.load(Ordering::SeqCst);
+            let control_detached = control.detach(crate::windows::INPUT_STOP_DEADLINE);
+            HANDLERS_REMOVED.store(0, Ordering::SeqCst);
+            let gate = PasswordGate::with_removals(Removals {
+                handler: handler_counted,
+                set_desktop_hook: no_desktop_hook,
+                ..Removals::default()
+            });
+            let attached = gate.attach();
+            let running = gate
+                .detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some();
+            let removed = HANDLERS_REMOVED.load(Ordering::SeqCst);
+            assert_eq!(control_attached, Ok(()));
+            assert_eq!(removed_by_the_control, 0);
+            assert_eq!(control_detached, Ok(()));
+            assert!(
+                matches!(
+                    &attached,
+                    Err(CaptureError::Os {
+                        stage: "SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH)",
+                        ..
+                    })
+                ),
+                "{attached:?}"
+            );
+            assert!(!running, "a refused attach keeps a detector");
+            assert_eq!(removed, 1, "the focus handler was not removed");
+        }
+
+        static HOLD_FIRST_READ: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+
+        fn first_read_held() {
+            while HOLD_FIRST_READ.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        #[test]
+        fn an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector() {
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let gate = Arc::new(PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                ..Removals::default()
+            }));
+            HOLD_FIRST_READ.store(true, Ordering::SeqCst);
+            let waiting = {
+                let gate = Arc::clone(&gate);
+                std::thread::spawn(move || gate.attach())
+            };
+            std::thread::sleep(Duration::from_millis(300));
+            let free_during_the_wait = gate.detector.try_lock().is_ok();
+            let first = waiting.join().expect("the attaching thread ends");
+            let second = gate.attach();
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            let third = gate.attach();
+            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            assert_eq!(
+                first,
+                Err(CaptureError::Timeout {
+                    stage: "wait for the password detector's first read",
+                    ms: 1_000,
+                })
+            );
+            assert!(
+                free_during_the_wait,
+                "the attach held the detector's lock across its wait"
+            );
+            assert_eq!(
+                second,
+                Err(CaptureError::Timeout {
+                    stage: "wait for the earlier password detector to end",
+                    ms: 1_000,
+                })
+            );
+            assert_eq!(third, Ok(()), "the stopped detector did not end");
+            assert_eq!(detached, Ok(()));
+        }
+
+        #[test]
+        fn the_process_file_is_the_own_executables_name_and_nothing_for_an_ended_process() {
+            let exe = std::env::current_exe().expect("the test's executable");
+            let name = exe
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_string);
+            let mut child = std::process::Command::new("cmd")
+                .args(["/c", "exit"])
+                .spawn()
+                .expect("a child process");
+            let pid = child.id();
+            let ended = child.wait();
+            drop(child);
+            let own = process_file(i32::try_from(std::process::id()).ok());
+            let of_the_ended = process_file(i32::try_from(pid).ok());
+            assert!(ended.is_ok(), "INCONCLUSIVE: the child did not end");
+            assert_eq!(own, (name, FileRead::Read));
+            assert_eq!(of_the_ended.0, None, "{of_the_ended:?}");
+        }
+
+        fn element_of(reader: &Reader, hwnd: usize) -> IUIAutomationElement {
+            // SAFETY: the window lives while its EditInFront lives, and the
+            // cache request is live for the call.
+            unsafe {
+                reader
+                    .automation
+                    .ElementFromHandleBuildCache(HWND(hwnd as *mut c_void), &reader.cache)
+            }
+            .expect("the edit's element")
+        }
+
+        fn handler_of(
+            gate: &PasswordGate,
+            reader: &Arc<Reader>,
+        ) -> IUIAutomationFocusChangedEventHandler {
+            FocusHandler {
+                vtable: &HANDLER_VTABLE,
+                refs: AtomicU32::new(1),
+                shared: Arc::clone(&gate.shared),
+                reader: Arc::clone(reader),
+                wake: Arc::new(Event::new().expect("an event")),
+            }
+            .into_interface()
+        }
+
+        #[test]
+        fn an_event_of_another_element_does_not_let_the_kept_password_element_go() {
+            const EM_SETPASSWORDCHAR: u32 = 0x00CC;
+            use windows::Win32::Foundation::{LPARAM, WPARAM};
+            use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ES_PASSWORD};
+            let _serial = crate::windows::tests::serial();
+            // SAFETY: joins this test thread to the process's MTA; `_com`
+            // undoes it after the reader and the handler are dropped.
+            let joined = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            assert!(joined.is_ok(), "{joined:?}");
+            let _com = Com;
+            let (other, _) = EditInFront::open();
+            let (kept, in_front) = EditInFront::open_with(ES_PASSWORD as u32);
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's password edit did not come to the front"
+            );
+            let reader = Arc::new(new_reader().expect("the reader is made"));
+            let kept_element = element_of(&reader, kept.hwnd);
+            let other_element = element_of(&reader, other.hwnd);
+            let gate = PasswordGate::new();
+            let handler = handler_of(&gate, &reader);
+            gate.read_at(
+                tick().wrapping_sub(400),
+                FieldState::Clear,
+                Moved::NotCompared,
+            );
+            // SAFETY: the handler and the element are live COM objects for
+            // the call, which borrows both.
+            let first_answer = unsafe { handler_focus(handler.as_raw(), kept_element.as_raw()) };
+            let at_the_kept = gate.field_now();
+            // SAFETY: SendMessageW takes the live edit's handle and plain
+            // values; the edit's thread pumps its messages.
+            unsafe {
+                let _ = SendMessageW(
+                    HWND(kept.hwnd as *mut c_void),
+                    EM_SETPASSWORDCHAR,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(0)),
+                );
+            }
+            let unmasked =
+                super::super::state_of(reader.read(&element_of(&reader, kept.hwnd)), false);
+            // SAFETY: as above.
+            let second_answer = unsafe { handler_focus(handler.as_raw(), other_element.as_raw()) };
+            std::thread::sleep(Duration::from_millis(50));
+            let key = gate.hold(tick(), false, 0);
+            std::thread::sleep(Duration::from_millis(150));
+            own_read(&gate.shared, &reader);
+            let at_the_own_read = gate.field_now();
+            let decided = gate
+                .decide(&key, key.tick.wrapping_add(200), 0, false)
+                .map(|(answer, rule)| (answer.is_ok(), rule));
+            println!(
+                "TF r1 at_the_kept={at_the_kept:?} unmasked={unmasked:?} \
+                 at_the_own_read={at_the_own_read:?} decided={decided:?}"
+            );
+            drop(handler);
+            drop(kept_element);
+            drop(other_element);
+            drop(reader);
+            drop(kept);
+            drop(other);
+            assert_eq!((first_answer, second_answer), (S_OK, S_OK));
+            assert_eq!(
+                at_the_kept,
+                FieldState::Password,
+                "INCONCLUSIVE: the password edit's event did not read Password"
+            );
+            assert_eq!(
+                unmasked,
+                FieldState::Clear,
+                "INCONCLUSIVE: the unmasked edit does not read Clear on its own"
+            );
+            assert_eq!(at_the_own_read, FieldState::Password);
+            assert_eq!(
+                decided.map(|(cleared, _)| cleared),
+                Some(false),
+                "{decided:?}"
+            );
+        }
+
+        #[test]
+        fn an_own_read_between_a_focus_events_start_and_its_mark_does_not_let_its_reading_go() {
+            use windows::Win32::UI::WindowsAndMessaging::ES_PASSWORD;
+            let _serial = crate::windows::tests::serial();
+            // SAFETY: joins this test thread to the process's MTA; `_com`
+            // undoes it after the reader and the handler are dropped.
+            let joined = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            assert!(joined.is_ok(), "{joined:?}");
+            let _com = Com;
+            let (password, _) = EditInFront::open_with(ES_PASSWORD as u32);
+            let (plain, in_front) = EditInFront::open();
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's plain edit did not come to the front"
+            );
+            let reader = Arc::new(new_reader().expect("the reader is made"));
+            let password_element = element_of(&reader, password.hwnd);
+            let gate = PasswordGate::new();
+            let handler = handler_of(&gate, &reader);
+            gate.read_at(
+                tick().wrapping_sub(400),
+                FieldState::Clear,
+                Moved::NotCompared,
+            );
+            let in_flight = Arc::new(std::sync::Mutex::new(None));
+            {
+                let shared = Arc::clone(&gate.shared);
+                let reader = Arc::clone(&reader);
+                let in_flight = Arc::clone(&in_flight);
+                IN_FLIGHT.with(|hook| {
+                    *hook.borrow_mut() = Some(Box::new(move || {
+                        shared.latch(tick(), super::super::LatchFrom::TheInputThread);
+                        own_read(&shared, &reader);
+                        let read =
+                            shared
+                                .lock()
+                                .entries
+                                .back()
+                                .and_then(|entry| match entry.mark {
+                                    super::super::Mark::Read { state, .. } => Some(state),
+                                    _ => None,
+                                });
+                        *in_flight
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner) = read;
+                    }));
+                });
+            }
+            // SAFETY: the handler and the element are live COM objects for
+            // the call, which borrows both.
+            let answer = unsafe { handler_focus(handler.as_raw(), password_element.as_raw()) };
+            IN_FLIGHT.with(|hook| *hook.borrow_mut() = None);
+            let at_the_mark = gate.field_now();
+            let read_in_flight = *in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            println!(
+                "TF handler-order read_in_flight={read_in_flight:?} at_the_mark={at_the_mark:?}"
+            );
+            drop(handler);
+            drop(password_element);
+            drop(reader);
+            drop(plain);
+            drop(password);
+            assert_eq!(answer, S_OK);
+            assert_eq!(
+                at_the_mark,
+                FieldState::Password,
+                "INCONCLUSIVE: the password edit's event did not read Password"
+            );
+            assert_eq!(
+                read_in_flight,
+                Some(FieldState::Password),
+                "an own read of another element let the event's reading go before its mark"
+            );
         }
     }
 }
