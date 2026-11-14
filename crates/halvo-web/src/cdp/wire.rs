@@ -424,6 +424,21 @@ pub(crate) fn storage_page_headers() -> Vec<HeaderEntry> {
     ]
 }
 
+/// What `serve` sends for the executor's own storage page (CP-189 G8): the page, with status 200
+/// and the headers of `storage_page_headers`, which hold the policy line of A4.2.
+pub(crate) fn storage_fulfil(
+    id: chromiumoxide::cdp::browser_protocol::fetch::RequestId,
+) -> Result<FulfillRequestParams, String> {
+    use base64::Engine;
+    let body = base64::engine::general_purpose::STANDARD.encode(super::session::STORAGE_PAGE);
+    FulfillRequestParams::builder()
+        .request_id(id)
+        .response_code(200)
+        .response_headers(storage_page_headers())
+        .body(body)
+        .build()
+}
+
 /// Whether `headers` hold a Location line, its name read without regard to the case of its
 /// letters.
 pub(crate) fn has_location(headers: &[HeaderEntry]) -> bool {
@@ -871,15 +886,7 @@ impl Wire {
     }
 
     async fn serve(&self, session: Option<String>, ev: EventRequestPaused) {
-        use base64::Engine;
-        let body = base64::engine::general_purpose::STANDARD.encode(super::session::STORAGE_PAGE);
-        let params = FulfillRequestParams::builder()
-            .request_id(ev.request_id.clone())
-            .response_code(200)
-            .response_headers(storage_page_headers())
-            .body(body)
-            .build();
-        if let Ok(p) = params {
+        if let Ok(p) = storage_fulfil(ev.request_id.clone()) {
             let _ = self.call(session.as_deref(), p).await;
         }
     }
@@ -1637,5 +1644,50 @@ mod tests {
         for kind in ["worker", "shared_worker", "service_worker", "browser_ui"] {
             assert!(!nests(kind) && !must_arm(kind), "{kind}");
         }
+    }
+
+    /// CP-189 G8: a 301 to 308 whose Location value is empty or blank carries no place to go, so
+    /// it is no redirect and gets the line; a Location with a value still passes on.
+    #[test]
+    fn g8_a_redirect_with_an_empty_or_blank_location_gets_the_line() {
+        for value in ["", " ", "\t", "  \t "] {
+            let headers = [HeaderEntry::new("Location", value)];
+            assert!(!has_location(&headers), "{value:?}");
+            for status in [301, 302, 303, 307, 308] {
+                assert_eq!(
+                    policy_way(true, status, has_location(&headers)),
+                    PolicyWay::Fulfil,
+                    "{status} {value:?}"
+                );
+                assert_eq!(
+                    policy_way(false, status, has_location(&headers)),
+                    PolicyWay::AddLine,
+                    "{status} {value:?}"
+                );
+            }
+        }
+        let headers = [HeaderEntry::new("location", "/next")];
+        assert!(has_location(&headers));
+        assert_eq!(
+            policy_way(true, 301, has_location(&headers)),
+            PolicyWay::PassOn
+        );
+    }
+
+    /// CP-189 G8: what `serve` sends for the executor's own storage page is that page with status
+    /// 200 and the policy line of A4.2.
+    #[test]
+    fn g8_serve_sends_the_storage_page_with_the_line() {
+        use base64::Engine;
+        let params = storage_fulfil("r1".to_string().into()).expect("params");
+        assert_eq!(params.response_code, 200);
+        let headers = params.response_headers.expect("headers");
+        assert!(headers
+            .iter()
+            .any(|h| h.name == "Content-Security-Policy" && h.value == crate::WS_POLICY));
+        let body = base64::engine::general_purpose::STANDARD
+            .decode(AsRef::<str>::as_ref(&params.body.expect("body")))
+            .expect("base64");
+        assert_eq!(body, super::super::session::STORAGE_PAGE.as_bytes());
     }
 }

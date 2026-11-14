@@ -339,6 +339,30 @@ pub fn result(
     Verdict::of("ok", "-")
 }
 
+/// The word of a reading's crash handler.
+pub fn handler_state(
+    table: Option<&[crate::procs::Proc]>,
+    since_us: u64,
+    _program: &Path,
+    args: &dyn Fn(u32) -> Option<Vec<String>>,
+) -> &'static str {
+    let runs = table.unwrap_or_default().iter().any(|p| {
+        p.started_us >= since_us
+            && (p
+                .exe
+                .as_deref()
+                .and_then(|e| e.file_name())
+                .is_some_and(|n| n.to_string_lossy().contains("crashpad_handler"))
+                || args(p.pid)
+                    .is_some_and(|a| a.iter().any(|x| x.contains("--type=crashpad-handler"))))
+    });
+    if runs {
+        "runs"
+    } else {
+        "gone"
+    }
+}
+
 /// The places of a run on this system, with the run's `profile` and `temp` and the account's
 /// directories read from the system (macOS: `HOME` and the per-user directories of `confstr`;
 /// Windows: `LOCALAPPDATA`, `USERPROFILE`, `TEMP` and `ProgramData` of this program's own
@@ -1168,5 +1192,234 @@ mod tests {
         assert_eq!(send_setting(&dir), Some(false));
         std::fs::write(dir.join("settings.dat"), b"other").unwrap();
         assert_eq!(send_setting(&dir), None);
+    }
+
+    /// CP-189 G8, the review's point 3: an unread process table, or unread arguments of a process
+    /// of the browser's program that began in the reading, reads `handler=unread`, which the row
+    /// reads notrun (CP-145: an unread table is never an empty one).
+    #[test]
+    fn g8_an_unread_table_or_unread_arguments_of_the_browser_read_handler_unread() {
+        use crate::procs::Proc;
+        let program = Path::new("/B.app/Contents/MacOS/b");
+        let p = |pid: u32, exe: &str, started_us: u64| Proc {
+            pid,
+            ppid: 1,
+            started_us,
+            pgid: pid,
+            exe: Some(PathBuf::from(exe)),
+        };
+        let none = |_: u32| -> Option<Vec<String>> { None };
+        let plain = |_: u32| Some(vec!["--flag".to_string()]);
+        let by_arg = |_: u32| Some(vec!["--type=crashpad-handler".to_string()]);
+        assert_eq!(handler_state(None, 10, program, &plain), "unread");
+        let browser = [p(5, "/B.app/Contents/MacOS/b", 20)];
+        assert_eq!(handler_state(Some(&browser), 10, program, &none), "unread");
+        assert_eq!(handler_state(Some(&browser), 10, program, &plain), "gone");
+        assert_eq!(handler_state(Some(&browser), 10, program, &by_arg), "runs");
+        let other = [p(6, "/usr/bin/other", 20)];
+        assert_eq!(handler_state(Some(&other), 10, program, &none), "gone");
+        let older = [p(5, "/B.app/Contents/MacOS/b", 5)];
+        assert_eq!(handler_state(Some(&older), 10, program, &none), "gone");
+        let handler = [
+            p(5, "/B.app/Contents/MacOS/b", 20),
+            p(
+                7,
+                "/B.app/Contents/Frameworks/x/chrome_crashpad_handler",
+                20,
+            ),
+        ];
+        assert_eq!(handler_state(Some(&handler), 10, program, &none), "runs");
+        let means = Facts {
+            handler: "unread".into(),
+            ..taken(vec![])
+        };
+        assert_eq!(
+            result(
+                &row_places(),
+                &Listing::new(),
+                &start(vec![]),
+                &means,
+                &[file("crashpad", "completed/abc.dmp", 4096)],
+                0
+            ),
+            Verdict::of("notrun", "handler")
+        );
+    }
+
+    /// CP-189 G8, T2's order: what was sent after the crash reads `miss` (`sent`) before a profile
+    /// that the stop left, a removal outside the profile, no dump inside and a handler that ran.
+    #[test]
+    fn g8_t2_sent_reads_before_what_follows_it() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let mut origin = Listing::new();
+        origin.insert(("crashpad", "settings.dat".to_string()), (40, 1, false));
+        let means = Facts {
+            removed: false,
+            dumps_inside_profile: 0,
+            handler: "stop_wait".into(),
+            ..taken(vec![File {
+                removed: true,
+                ..file("crashpad", "settings.dat", 40)
+            }])
+        };
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &means, &control, 1),
+            Verdict::of("miss", "sent")
+        );
+    }
+
+    /// CP-189 G8, T2's order: a profile that the stop left reads `miss` (`not_removed`) before a
+    /// removal outside the profile, no dump inside and a handler that ran.
+    #[test]
+    fn g8_t2_not_removed_reads_before_what_follows_it() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let mut origin = Listing::new();
+        origin.insert(("crashpad", "settings.dat".to_string()), (40, 1, false));
+        let means = Facts {
+            removed: false,
+            dumps_inside_profile: 0,
+            handler: "stop_wait".into(),
+            ..taken(vec![File {
+                removed: true,
+                ..file("crashpad", "settings.dat", 40)
+            }])
+        };
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &means, &control, 0),
+            Verdict::of("miss", "not_removed")
+        );
+    }
+
+    /// CP-189 G8, T2's order: a removal outside the profile of a file that stood before the row
+    /// reads `miss` (`removed_outside`) before no dump inside and a handler that ran.
+    #[test]
+    fn g8_t2_removed_outside_reads_before_what_follows_it() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let mut origin = Listing::new();
+        origin.insert(("crashpad", "settings.dat".to_string()), (40, 1, false));
+        let means = Facts {
+            dumps_inside_profile: 0,
+            handler: "stop_wait".into(),
+            ..taken(vec![File {
+                removed: true,
+                ..file("crashpad", "settings.dat", 40)
+            }])
+        };
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &means, &control, 0),
+            Verdict::of("miss", "removed_outside")
+        );
+    }
+
+    /// CP-189 G8, T3's first exemption: a removal at the account's crash place of a file that an
+    /// earlier reading of the row left, and that the listing before the row lacks, is the row's
+    /// own and decides nothing; it is counted as own.
+    #[test]
+    fn g8_t3_a_removal_of_what_an_earlier_reading_left_decides_nothing() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let origin = Listing::new();
+        let means = taken(vec![File {
+            removed: true,
+            ..file("crashpad", "completed/earlier-reading.dmp", 4096)
+        }]);
+        assert_eq!(
+            removals(&means.changed, &places, &origin),
+            Removals {
+                deciding: 0,
+                own: 1,
+                temp: 0
+            }
+        );
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &means, &control, 0),
+            Verdict::of("ok", "-")
+        );
+    }
+
+    /// CP-189 G8, T3's second exemption: a removal in the system's temporary directory of a file
+    /// that stood before the row decides nothing; it is counted as temp.
+    #[test]
+    fn g8_t3_a_removal_in_the_system_temp_decides_nothing() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+            place(SYSTEM_TEMP, PathBuf::from("/t"), false, false),
+        ];
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let mut origin = Listing::new();
+        origin.insert(
+            (SYSTEM_TEMP, "other-program.lock".to_string()),
+            (4, 1, false),
+        );
+        let means = taken(vec![File {
+            removed: true,
+            ..file(SYSTEM_TEMP, "other-program.lock", 4)
+        }]);
+        assert_eq!(
+            removals(&means.changed, &places, &origin),
+            Removals {
+                deciding: 0,
+                own: 0,
+                temp: 1
+            }
+        );
+        assert_eq!(
+            result(&places, &origin, &start(vec![]), &means, &control, 0),
+            Verdict::of("ok", "-")
+        );
+    }
+
+    /// CP-189 G8: a dump that another program left in the system's temporary directory during the
+    /// control is not the control's, so a control with no other dump reads notrun.
+    #[test]
+    fn g8_a_dump_in_the_system_temp_during_the_control_is_not_the_control_s() {
+        let places = vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+            place(SYSTEM_TEMP, PathBuf::from("/t"), false, false),
+        ];
+        let control = vec![file(SYSTEM_TEMP, "other-program.dmp", 4096)];
+        assert_eq!(
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &taken(vec![]),
+                &control,
+                0
+            ),
+            Verdict::of("notrun", "control_no_dump")
+        );
+        let control = vec![
+            file(SYSTEM_TEMP, "other-program.dmp", 4096),
+            file("crashpad", "completed/abc.dmp", 4096),
+        ];
+        assert_eq!(
+            result(
+                &places,
+                &Listing::new(),
+                &start(vec![]),
+                &taken(vec![]),
+                &control,
+                0
+            ),
+            Verdict::of("ok", "-")
+        );
     }
 }
