@@ -40,7 +40,7 @@ structure over edits to shared files, and an earlier row keeps one workflow file
   of docs/baseline/r1-gate-bounds.txt.
 - Each job's limit is 120 minutes since jobtime-9 (ruling PR-31 item 1), because
   a job that the limit cuts off saves no cache and shows no result, and the macos
-  job was reckoned at about 5,340 s after landing 43 against the 5,400 s of 90
-  minutes, with landing 41's slow attempt at about 5,700 to 5,780 s by
-  projection, which cutting the job's steps alone did not bring under 5,400 s;
-  the limit is there to end a job that hangs.
+  job was reckoned at about 5,340 s on a normal runner after landing 43 against
+  the 5,400 s of 90 minutes, with landing 41's slow attempt at about 5,700 to
+  5,780 s by projection, and the cuts in hand were not reckoned to bring it under
+  5,400 s; the limit is there to end a job that hangs.

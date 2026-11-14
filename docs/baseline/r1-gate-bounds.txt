@@ -32,10 +32,11 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: 120 by ruling PR-31 item 1: the macos job reckons about
-# 5,340 s after land-43, 5,700 to 5,780 s on land-41's slow attempt, and store-3
-# adds 350 to 430 s. Before it: 90 by ruling JB-6 (2), 60 (2026-11-11 08:25Z),
-# 30 (RD-45). The workflow lint compares each job's timeout with it.
+# ci_job_timeout_min: 120 by ruling PR-31 item 1 of 2026-11-14: the macos job
+# reckons about 5,340 s after land-43 on a normal runner, 5,700 to 5,780 s by
+# projection on land-41's slow attempt, and store-3 adds 350 to 430 s. Before
+# it: 90 by ruling JB-6 (2), 60 (2026-11-11 08:25Z), 30 (RD-45). The workflow
+# lint compares each job's timeout with it.
 ci_job_timeout_min=120
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
