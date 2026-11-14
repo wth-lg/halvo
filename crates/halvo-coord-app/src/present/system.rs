@@ -1,14 +1,10 @@
 #[cfg(any(test, target_os = "macos"))]
-use super::guard::Guard;
-#[cfg(any(test, target_os = "macos"))]
 use super::outcome::from_alert;
 #[cfg(any(test, windows))]
 use super::outcome::from_task_dialog;
 use super::{Card, Dialog};
 use halvo_coord::items::ConfirmAnswer;
 use std::time::Duration;
-#[cfg(any(test, target_os = "macos"))]
-use std::time::Instant;
 use tauri::{AppHandle, Runtime};
 
 /// The native dialog in the form `system` of U0.4's verdict (I11.5, ruling RD-42 D2), never the
@@ -25,10 +21,16 @@ use tauri::{AppHandle, Runtime};
 /// hold anew, that a second show holds again, and that the window was the active window at the
 /// report. On macOS it is the alert of AppKit, shown on the main thread, whose buttons send their
 /// action to the hold, which ends the modal session with the button's response when the button's
-/// window is the modal window and the hold lets the press through; the window became the active
-/// window when it is the key window of the active app, read at the notification that it became the
-/// key window and at the notification that the app became active, and the report comes at the
-/// first such moment. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
+/// window is the modal window and the hold lets the press through. The window became the active
+/// window when a reading on the main thread finds it the key window of the active app (ruling
+/// RD-103): at the notices that it became the key window and that the app became active, which
+/// read in the level form; at a reading repeated about every 50 ms in the main run loop's common
+/// modes until the show's first moment; and at each press, before the press is decided. The
+/// notices that it resigned key and that the app resigned active store not true without a
+/// reading, so that the next reading of both true is a moment. The report comes at the first
+/// moment, a press that takes a moment is refused, and a press while the window is not the active
+/// window or not the modal window answers nothing and starts an existing hold anew; the decision
+/// is the pure function of `Moment`. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
 /// text with the response 1000 and the allowing text with 1001; that no button is titled Cancel or
 /// holds the Escape key; that its message text is the card's title and its informative text the
 /// card's text; and that a press on each button after the hold, a stopped and an aborted modal
@@ -125,15 +127,6 @@ pub fn wait_alert<E>(
     }
 }
 
-/// A notice at `now` that the alert's window became the key window or that the app became
-/// active, read with whether the app is active and whether the alert's window is its key window:
-/// the window became the active window only when both hold, and then the hold of `guard` starts
-/// anew; `true` at the first such moment, when the show reports itself on screen.
-#[cfg(any(test, target_os = "macos"))]
-pub fn notice(guard: &mut Guard, app_active: bool, window_key: bool, now: Instant) -> bool {
-    app_active && window_key && guard.active(now)
-}
-
 /// The answer of a task dialog from the result of its call and the id of the pressed button:
 /// `allow` for the allowing id from a call that returned, and `reject` for every other pair.
 #[cfg(any(test, windows))]
@@ -144,29 +137,42 @@ pub fn task_answer<E>(called: Result<(), E>, pressed: i32) -> ConfirmAnswer {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::super::guard::Guard;
+    use super::super::moment::{Decision, Event, Moment, Pair};
     use super::super::Card;
-    use super::{controls, notice, wait_alert, Step};
+    use super::{controls, wait_alert, Step};
     use halvo_coord::items::ConfirmAnswer;
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, NSObject};
     use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker, MainThreadOnly};
     use objc2_app_kit::{
-        NSAlert, NSApplication, NSApplicationDidBecomeActiveNotification, NSButton,
-        NSWindowDidBecomeKeyNotification,
+        NSAlert, NSApplication, NSApplicationDidBecomeActiveNotification,
+        NSApplicationDidResignActiveNotification, NSButton, NSWindowDidBecomeKeyNotification,
+        NSWindowDidResignKeyNotification,
     };
-    use objc2_foundation::{NSNotification, NSNotificationCenter, NSString};
+    use objc2_foundation::{
+        NSNotification, NSNotificationCenter, NSRunLoop, NSRunLoopCommonModes, NSString, NSTimer,
+    };
+    use std::cell::RefCell;
     use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError};
     use std::time::{Duration, Instant};
     use tauri::{AppHandle, Runtime};
 
-    fn lock(guard: &Mutex<Guard>) -> MutexGuard<'_, Guard> {
-        guard.lock().unwrap_or_else(PoisonError::into_inner)
+    const READING: f64 = 0.05;
+
+    struct State {
+        guard: Guard,
+        moment: Moment,
+    }
+
+    fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
+        state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     struct Held {
-        guard: Arc<Mutex<Guard>>,
+        state: Arc<Mutex<State>>,
         shown: mpsc::Sender<Step>,
         button: Retained<NSButton>,
+        timer: RefCell<Option<Retained<NSTimer>>>,
     }
 
     define_class!(
@@ -180,51 +186,108 @@ mod macos {
         impl Hold {
             #[unsafe(method(press:))]
             fn press(&self, sender: Option<&NSButton>) {
-                let Some(button) = sender else {
-                    return;
-                };
-                let app = NSApplication::sharedApplication(self.mtm());
-                let modal = app.modalWindow().zip(button.window()).is_some_and(|(modal, own)| {
-                    std::ptr::eq(Retained::as_ptr(&modal), Retained::as_ptr(&own))
-                });
-                if modal && lock(&self.ivars().guard).press(Instant::now()) {
-                    app.stopModalWithCode(button.tag());
+                if let Some(button) = sender {
+                    press(self, button);
                 }
             }
 
             #[unsafe(method(becameKey:))]
             fn became_key(&self, note: &NSNotification) {
-                let Some(window) = self.ivars().button.window() else {
-                    return;
-                };
-                let ours = note
-                    .object()
-                    .is_some_and(|object| std::ptr::eq(Retained::as_ptr(&object), Retained::as_ptr(&window).cast()));
-                if ours {
-                    active(self);
+                if ours(self, note) {
+                    decide(self, Event::Become);
                 }
             }
 
             #[unsafe(method(becameActive:))]
             fn became_active(&self, _: &NSNotification) {
-                active(self);
+                decide(self, Event::Become);
+            }
+
+            #[unsafe(method(resignedKey:))]
+            fn resigned_key(&self, note: &NSNotification) {
+                if ours(self, note) {
+                    decide(self, Event::Resign);
+                }
+            }
+
+            #[unsafe(method(resignedActive:))]
+            fn resigned_active(&self, _: &NSNotification) {
+                decide(self, Event::Resign);
+            }
+
+            #[unsafe(method(reading:))]
+            fn reading(&self, _: Option<&NSTimer>) {
+                decide(self, Event::Reading);
             }
         }
     );
 
-    fn active(hold: &Hold) {
+    fn ours(hold: &Hold, note: &NSNotification) -> bool {
         let Some(window) = hold.ivars().button.window() else {
-            return;
+            return false;
         };
+        note.object().is_some_and(|object| {
+            std::ptr::eq(Retained::as_ptr(&object), Retained::as_ptr(&window).cast())
+        })
+    }
+
+    fn pair(hold: &Hold) -> Pair {
         let app = NSApplication::sharedApplication(hold.mtm());
-        let mut guard = lock(&hold.ivars().guard);
-        if notice(
-            &mut guard,
-            app.isActive(),
-            window.isKeyWindow(),
-            Instant::now(),
+        Pair {
+            active: app.isActive(),
+            key: hold
+                .ivars()
+                .button
+                .window()
+                .is_some_and(|window| window.isKeyWindow()),
+        }
+    }
+
+    fn decide(hold: &Hold, event: Event) {
+        let decision = {
+            let mut state = lock(&hold.ivars().state);
+            let now = Instant::now();
+            let read = (event != Event::Resign).then(|| pair(hold));
+            let State { guard, moment } = &mut *state;
+            moment.decide(guard, event, read, now)
+        };
+        after(hold, decision);
+    }
+
+    fn press(hold: &Hold, button: &NSButton) {
+        let app = NSApplication::sharedApplication(hold.mtm());
+        let decision = {
+            let mut state = lock(&hold.ivars().state);
+            let now = Instant::now();
+            let read = pair(hold);
+            let modal = app
+                .modalWindow()
+                .zip(button.window())
+                .is_some_and(|(modal, own)| {
+                    std::ptr::eq(Retained::as_ptr(&modal), Retained::as_ptr(&own))
+                });
+            let State { guard, moment } = &mut *state;
+            moment.decide(guard, Event::Press { modal }, Some(read), now)
+        };
+        after(hold, decision);
+        if decision == Decision::Answer {
+            app.stopModalWithCode(button.tag());
+        }
+    }
+
+    fn after(hold: &Hold, decision: Decision) {
+        if matches!(
+            decision,
+            Decision::Moment { first: true } | Decision::Refused { moment: Some(true) }
         ) {
+            stop_reading(hold);
             let _ = hold.ivars().shown.send(Step::Shown);
+        }
+    }
+
+    fn stop_reading(hold: &Hold) {
+        if let Some(timer) = hold.ivars().timer.borrow_mut().take() {
+            timer.invalidate();
         }
     }
 
@@ -235,8 +298,11 @@ mod macos {
         on_screen: &dyn Fn(),
     ) -> ConfirmAnswer {
         let (tx, rx) = mpsc::channel();
-        let guard = Arc::new(Mutex::new(Guard::new(arm)));
-        let held = guard.clone();
+        let state = Arc::new(Mutex::new(State {
+            guard: Guard::new(arm),
+            moment: Moment::default(),
+        }));
+        let held = state.clone();
         let title = card.title().to_owned();
         let text = card.text();
         let titles = controls(card).map(str::to_owned);
@@ -251,9 +317,10 @@ mod macos {
             alert.layout();
             let hold: Retained<Hold> = {
                 let this = Hold::alloc(mtm).set_ivars(Held {
-                    guard: held,
+                    state: held,
                     shown: tx.clone(),
                     button: buttons[0].clone(),
+                    timer: RefCell::new(None),
                 });
                 // SAFETY: `init` of NSObject on a newly allocated object.
                 unsafe { msg_send![super(this), init] }
@@ -268,29 +335,46 @@ mod macos {
                 }
             }
             let center = NSNotificationCenter::defaultCenter();
-            // SAFETY: `hold` answers the selectors `becameKey:` and `becameActive:` with a
-            // notification, and it is removed as an observer before it is dropped.
+            // SAFETY: `hold` answers each of the four selectors with a notification, and it is
+            // removed as an observer before it is dropped.
             unsafe {
-                center.addObserver_selector_name_object(
-                    target,
-                    sel!(becameKey:),
-                    Some(NSWindowDidBecomeKeyNotification),
-                    None,
-                );
-                center.addObserver_selector_name_object(
-                    target,
-                    sel!(becameActive:),
-                    Some(NSApplicationDidBecomeActiveNotification),
-                    None,
-                );
+                for (selector, name) in [
+                    (sel!(becameKey:), NSWindowDidBecomeKeyNotification),
+                    (
+                        sel!(becameActive:),
+                        NSApplicationDidBecomeActiveNotification,
+                    ),
+                    (sel!(resignedKey:), NSWindowDidResignKeyNotification),
+                    (
+                        sel!(resignedActive:),
+                        NSApplicationDidResignActiveNotification,
+                    ),
+                ] {
+                    center.addObserver_selector_name_object(target, selector, Some(name), None);
+                }
             }
+            // SAFETY: `hold` answers the selector `reading:` with the timer, which retains it
+            // until it is invalidated at the show's first moment or after the modal session.
+            let timer = unsafe {
+                NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
+                    READING,
+                    target,
+                    sel!(reading:),
+                    None,
+                    true,
+                )
+            };
+            // SAFETY: the main run loop and its common modes, in which the modal session runs.
+            unsafe { NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
+            *hold.ivars().timer.borrow_mut() = Some(timer);
             let response = alert.runModal();
+            stop_reading(&hold);
             // SAFETY: `hold` is the observer that was added above.
             unsafe { center.removeObserver(target) };
             let _ = tx.send(Step::Response(response));
         });
         wait_alert(queued, &rx, on_screen, &|| {
-            lock(&guard).reported(Instant::now())
+            lock(&state).guard.reported(Instant::now())
         })
     }
 }
