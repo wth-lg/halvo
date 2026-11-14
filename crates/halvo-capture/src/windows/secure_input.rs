@@ -99,15 +99,23 @@ pub(crate) fn with_kept(
     read: FieldState,
     by: ReadBy,
     moves: u64,
+    events_in_flight: bool,
 ) -> (FieldState, Kept) {
     match kept {
+        Some(_) if element == KeptElement::Same && by == ReadBy::Event => {
+            (FieldState::Password, Kept::Set)
+        }
         Some(_) if element == KeptElement::Same => (FieldState::Password, Kept::Leave),
         _ if read == FieldState::Password => (FieldState::Password, Kept::Set),
         None => (read, Kept::Leave),
         Some(_) if by == ReadBy::Event => (read, Kept::Leave),
-        Some(at) if moves > at => (read, Kept::Drop),
+        Some(at) if lets_go(at, moves, events_in_flight) => (read, Kept::Drop),
         Some(_) => (FieldState::Password, Kept::Leave),
     }
+}
+
+pub(crate) fn lets_go(kept_move: u64, read_move: u64, events_in_flight: bool) -> bool {
+    !events_in_flight && read_move > kept_move
 }
 
 pub const KEY_HOLD: Duration = Duration::from_millis(120);
@@ -128,6 +136,14 @@ pub const LATCH_SETTLE: Duration = Duration::from_millis(100);
 
 /// The step at which the detector reads again while a key stays undecided.
 pub const READ_STEP: Duration = Duration::from_millis(30);
+
+/// The step of the system's tick count, by which the pointer pump's forwarded
+/// tick must pass the end of a key's hold.
+pub const TICK_STEP: Duration = Duration::from_millis(16);
+
+/// The age past which a mark no longer gives the state at a key; far below the
+/// 2^31 ms at which a tick's offset turns round.
+pub const MARK_AGE_LIMIT: Duration = Duration::from_secs(24 * 60 * 60);
 
 const MARKS_KEPT: usize = 256;
 
@@ -167,6 +183,7 @@ struct Entry {
     at: Option<u32>,
     began: u32,
     mark: Mark,
+    pushed: std::time::Instant,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -204,6 +221,12 @@ pub enum Rule {
     /// An own read from the key to its deciding read, that read included,
     /// showed another element or could not compare the elements.
     ElementNotTheSame,
+    /// A mark from the key's own span left the gate's ring of marks before
+    /// the key was decided.
+    MarksLost,
+    /// The pointer source owned the click route, and its pump had not
+    /// forwarded its input past the key's hold within 250 ms.
+    ClicksNotForwarded,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -214,11 +237,6 @@ pub(crate) enum Judgment {
 
 fn ms(duration: Duration) -> u32 {
     u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
-}
-
-fn before(a: u32, b: u32) -> bool {
-    let d = b.wrapping_sub(a);
-    d != 0 && d <= i32::MAX as u32
 }
 
 fn not_after(a: u32, b: u32) -> bool {
@@ -233,6 +251,10 @@ fn later_of(a: u32, b: u32) -> u32 {
     }
 }
 
+fn offset(tick: u32, from: u32) -> i64 {
+    i64::from(tick.wrapping_sub(from) as i32)
+}
+
 fn most_restrictive(a: FieldState, b: FieldState) -> FieldState {
     match (a, b) {
         (FieldState::Password, _) | (_, FieldState::Password) => FieldState::Password,
@@ -241,156 +263,131 @@ fn most_restrictive(a: FieldState, b: FieldState) -> FieldState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct LatchState {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenLatch {
     seq: u64,
     at: u32,
     from: LatchFrom,
-    closed_by: Option<Entry>,
+    based: bool,
 }
 
-fn latch_states(marks: &VecDeque<Entry>, first_read_after_start: Option<u64>) -> Vec<LatchState> {
-    let reads: Vec<&Entry> = marks
-        .iter()
-        .filter(|entry| matches!(entry.mark, Mark::Read { .. }))
-        .collect();
-    let started = marks
-        .iter()
-        .rev()
-        .find(|entry| entry.mark == Mark::Started)
-        .map(|entry| entry.seq);
-    let mut states = Vec::new();
-    let mut floor = 0u64;
-    let mut blocked = false;
-    for entry in marks.iter() {
-        let Mark::Latch { from, at } = entry.mark else {
-            continue;
-        };
-        let mut state = LatchState {
-            seq: entry.seq,
-            at,
-            from,
-            closed_by: None,
-        };
-        if !blocked {
-            let settle = at.wrapping_add(ms(LATCH_SETTLE));
-            let first_after_start = |read: &Entry| {
-                started.is_some_and(|started| entry.seq > started)
-                    && first_read_after_start == Some(read.seq)
-            };
-            let base = reads.iter().find(|read| {
-                read.seq > entry.seq
-                    && read.seq >= floor
-                    && (not_after(settle, read.began) || first_after_start(read))
-            });
-            let closed = base.and_then(|base| {
-                reads.iter().find(|read| {
-                    read.seq > base.seq
-                        && matches!(
-                            read.mark,
-                            Mark::Read {
-                                moved: Moved::Another,
-                                ..
-                            }
-                        )
-                })
-            });
-            match closed {
-                Some(read) => {
-                    floor = read.seq;
-                    state.closed_by = Some(**read);
-                }
-                None => blocked = true,
-            }
-        }
-        states.push(state);
-    }
-    states
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ClosedLatch {
+    seq: u64,
+    at: u32,
+    from: LatchFrom,
+    closing_seq: u64,
+    closing_tick: u32,
 }
 
-fn judge(
-    marks: &VecDeque<Entry>,
-    key: &HeldKey,
-    now: u32,
-    front: u32,
-    password_edit_now: bool,
-) -> Judgment {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Gap {
+    from: u32,
+    back: Option<u32>,
+}
+
+fn behind_the_key(seq: u64, at: u32, from: LatchFrom, key: &HeldKey) -> bool {
+    seq < key.seen
+        || (from == LatchFrom::AnotherThread
+            && (0..=i64::from(ms(super::LATE_KEY_MAX) + ms(KEY_HOLD)))
+                .contains(&offset(key.tick, at)))
+}
+
+fn judge(m: &Marks, key: &HeldKey, now: u32, front: u32, password_edit_now: bool) -> Judgment {
     if key.password_edit || password_edit_now {
         return Judgment::Decided(SecureInputReading::Active, Rule::PasswordEdit);
     }
-    if now.wrapping_sub(key.tick) > ms(super::LATE_KEY_MAX) {
-        return Judgment::Decided(SecureInputReading::Unknown, Rule::NotClearedInTime);
+    let late = now.wrapping_sub(key.tick) > ms(super::LATE_KEY_MAX);
+    if late {
+        let rule = if m.clicks_not_forwarded(key)
+            && judge_marks(m, key, now)
+                == Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
+        {
+            Rule::ClicksNotForwarded
+        } else {
+            Rule::NotClearedInTime
+        };
+        return Judgment::Decided(SecureInputReading::Unknown, rule);
     }
     if key.front != front {
         return Judgment::Decided(SecureInputReading::Unknown, Rule::AnotherThreadInFront);
     }
-    let after_key =
-        |entry: &Entry| entry.seq >= key.seen || entry.at.is_none_or(|at| !before(at, key.tick));
-    let started = marks
-        .iter()
-        .rev()
-        .find(|entry| entry.mark == Mark::Started)
-        .map(|entry| entry.seq);
-    let first_read = started.and_then(|started| {
-        marks
-            .iter()
-            .find(|entry| entry.seq > started && matches!(entry.mark, Mark::Read { .. }))
-            .map(|entry| entry.seq)
-    });
-    let before_first_read = |entry: &Entry| {
-        started.is_some_and(|started| entry.seq > started)
-            && first_read.is_none_or(|read| entry.seq < read)
+    match judge_marks(m, key, now) {
+        Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
+            if m.clicks_not_forwarded(key) =>
+        {
+            Judgment::Wait(now.wrapping_add(ms(READ_STEP)))
+        }
+        judged => judged,
+    }
+}
+
+fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
+    if m.left_the_ring > key.seen {
+        return Judgment::Decided(SecureInputReading::Unknown, Rule::MarksLost);
+    }
+    let bound = i64::from(ms(super::LATE_KEY_MAX) + ms(KEY_HOLD));
+    let after_key = |entry: &Entry| {
+        entry.seq >= key.seen
+            || entry
+                .at
+                .is_none_or(|at| (0..=bound).contains(&offset(at, key.tick)))
     };
-    let opening = marks
+    let before_first_read = |entry: &Entry| {
+        m.started.is_some_and(|started| entry.seq > started)
+            && m.first_read.is_none_or(|read| entry.seq < read)
+    };
+    let opening = m
+        .entries
         .iter()
         .rev()
         .filter(|entry| !after_key(entry))
         .find_map(|entry| {
             let state = entry.mark.state()?;
+            let tick = entry.at.unwrap_or(entry.began);
+            let age = offset(key.tick, tick);
+            let stale = !(0..=i64::from(ms(MARK_AGE_LIMIT))).contains(&age)
+                || entry.pushed.elapsed() > MARK_AGE_LIMIT;
             let clear_event = matches!(entry.mark, Mark::Field(FieldState::Clear));
-            Some(if clear_event && before_first_read(entry) {
+            Some(if stale || (clear_event && before_first_read(entry)) {
                 FieldState::Unknown
             } else {
                 state
             })
         })
         .unwrap_or(FieldState::Unknown);
-    let latches = latch_states(marks, first_read);
-    let behind = |latch: &&LatchState| match latch.from {
-        LatchFrom::TheInputThread => latch.seq < key.seen,
-        LatchFrom::AnotherThread => not_after(latch.at, key.tick),
-    };
-    let mut floor_tick = key.tick.wrapping_add(ms(KEY_HOLD));
-    let mut floor_seq = 0u64;
-    let mut open_latch: Option<u32> = None;
-    for latch in latches.iter().filter(behind) {
-        match latch.closed_by {
-            Some(read) => {
-                let at = read.at.unwrap_or(read.began);
-                floor_tick = later_of(floor_tick, at.wrapping_add(ms(KEY_HOLD)));
-                floor_seq = floor_seq.max(read.seq + 1);
-            }
-            None => {
-                open_latch.get_or_insert(latch.at);
-            }
-        }
+    let mut floor = i64::from(ms(KEY_HOLD));
+    let mut floor_seq = key.seen;
+    for latch in m
+        .closed
+        .iter()
+        .filter(|latch| behind_the_key(latch.seq, latch.at, latch.from, key))
+    {
+        floor = floor.max(offset(latch.closing_tick, key.tick) + i64::from(ms(KEY_HOLD)));
+        floor_seq = floor_seq.max(latch.closing_seq + 1);
     }
+    let open_latch = m
+        .open
+        .iter()
+        .find(|latch| behind_the_key(latch.seq, latch.at, latch.from, key))
+        .map(|latch| latch.at);
     let deciding = if open_latch.is_some() {
         None
     } else {
-        marks.iter().find(|entry| {
+        m.entries.iter().find(|entry| {
             entry.seq >= floor_seq
                 && matches!(entry.mark, Mark::Read { .. })
-                && not_after(floor_tick, entry.began)
+                && offset(entry.began, key.tick) >= floor
         })
     };
     let upto = deciding.map_or(u64::MAX, |read| read.seq);
-    let later = marks
+    let later = m
+        .entries
         .iter()
         .filter(|entry| after_key(entry) && entry.seq <= upto)
         .filter_map(|entry| entry.mark.state())
         .fold(FieldState::Clear, most_restrictive);
-    let moved = marks.iter().any(|entry| {
+    let moved = m.entries.iter().any(|entry| {
         after_key(entry)
             && entry.seq <= upto
             && matches!(entry.mark, Mark::Read { moved, .. } if moved != Moved::Same)
@@ -410,11 +407,15 @@ fn judge(
             Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
         }
         FieldState::Clear => {
-            let last_read = marks
+            let last_read = m
+                .entries
                 .iter()
                 .rev()
                 .find(|entry| matches!(entry.mark, Mark::Read { .. }))
                 .map(|entry| entry.began.wrapping_add(ms(READ_STEP)));
+            let floor_tick = key
+                .tick
+                .wrapping_add(u32::try_from(floor.max(0)).unwrap_or(u32::MAX));
             let earliest = match open_latch {
                 Some(at) => later_of(now, at.wrapping_add(ms(LATCH_SETTLE))),
                 None => floor_tick,
@@ -462,34 +463,118 @@ impl SecureInputProbe for PasswordFieldProbe {
 struct Marks {
     entries: VecDeque<Entry>,
     next_seq: u64,
+    left_the_ring: u64,
+    started: Option<u64>,
+    first_read: Option<u64>,
+    open: VecDeque<OpenLatch>,
+    closed: VecDeque<ClosedLatch>,
+    latch_floor: u64,
     settle_due: Option<u32>,
     read_due: Option<u32>,
     moves: u64,
+    events_in_flight: u32,
     stopping: bool,
-    clicks_lost: Option<u32>,
-    clicks_gap: Option<(u32, u32)>,
+    gap: Option<Gap>,
+    pointer_owns: bool,
+    pointer_since: Option<u32>,
+    forwarded: Option<u32>,
 }
 
 impl Marks {
-    fn clicks_unseen_for(&self, key: u32) -> bool {
-        let end = key.wrapping_add(ms(KEY_HOLD));
-        self.clicks_lost.is_some_and(|lost| not_after(lost, end))
-            || self
-                .clicks_gap
-                .is_some_and(|(lost, back)| not_after(lost, end) && not_after(key, back))
+    fn clicks_unseen_for(&self, key: &HeldKey) -> bool {
+        self.gap.is_some_and(|gap| match gap.back {
+            None => true,
+            Some(back) => {
+                offset(gap.from, key.tick) <= i64::from(ms(KEY_HOLD)) && offset(back, key.tick) >= 0
+            }
+        })
+    }
+
+    fn clicks_not_forwarded(&self, key: &HeldKey) -> bool {
+        self.pointer_owns
+            && !self.forwarded.is_some_and(|forwarded| {
+                (i64::from(ms(KEY_HOLD) + ms(TICK_STEP))..=i64::from(i32::MAX))
+                    .contains(&offset(forwarded, key.tick))
+            })
+    }
+
+    fn drop_old_gap(&mut self, now: u32) {
+        if self.gap.is_some_and(|gap| {
+            gap.back
+                .is_some_and(|back| offset(now, back) > i64::from(ms(super::LATE_KEY_MAX)))
+        }) {
+            self.gap = None;
+        }
+    }
+
+    fn drop_old_closed_latches(&mut self, now: u32) {
+        self.closed
+            .retain(|latch| offset(now, latch.closing_tick) <= i64::from(ms(super::LATE_KEY_MAX)));
     }
 
     fn push(&mut self, at: Option<u32>, began: u32, mark: Mark) {
         if self.entries.len() == MARKS_KEPT {
-            self.entries.pop_front();
+            if let Some(gone) = self.entries.pop_front() {
+                self.left_the_ring = gone.seq + 1;
+            }
         }
+        let seq = self.next_seq;
         self.entries.push_back(Entry {
-            seq: self.next_seq,
+            seq,
             at,
             began,
             mark,
+            pushed: std::time::Instant::now(),
         });
         self.next_seq += 1;
+        match mark {
+            Mark::Latch { from, at } => self.open.push_back(OpenLatch {
+                seq,
+                at,
+                from,
+                based: false,
+            }),
+            Mark::Read { moved, .. } => self.read_came(seq, began, at.unwrap_or(began), moved),
+            Mark::Field(_) | Mark::Started => {}
+        }
+    }
+
+    fn read_came(&mut self, seq: u64, began: u32, tick: u32, moved: Moved) {
+        let first_after_start = self.started.is_some() && self.first_read.is_none();
+        if first_after_start {
+            self.first_read = Some(seq);
+        }
+        let started = self.started;
+        let base_of = |latch: &OpenLatch, floor: u64| {
+            seq > latch.seq
+                && seq >= floor
+                && (not_after(latch.at.wrapping_add(ms(LATCH_SETTLE)), began)
+                    || (first_after_start && started.is_some_and(|start| latch.seq > start)))
+        };
+        let Some(oldest) = self.open.front_mut() else {
+            return;
+        };
+        if !oldest.based {
+            oldest.based = base_of(oldest, self.latch_floor);
+            return;
+        }
+        if moved != Moved::Another {
+            return;
+        }
+        if let Some(closed) = self.open.pop_front() {
+            self.closed.push_back(ClosedLatch {
+                seq: closed.seq,
+                at: closed.at,
+                from: closed.from,
+                closing_seq: seq,
+                closing_tick: tick,
+            });
+        }
+        self.latch_floor = seq;
+        let floor = self.latch_floor;
+        if let Some(next) = self.open.front_mut() {
+            next.based = base_of(next, floor);
+        }
     }
 
     fn ask_read(&mut self, from: u32) {
@@ -511,13 +596,21 @@ impl Shared {
     }
 
     fn field(&self, at: u32, state: FieldState) {
+        let _ = self.begin_event();
         self.field_seen(at, state, None);
+    }
+
+    fn begin_event(&self) -> u64 {
+        let mut marks = self.lock();
+        marks.moves += 1;
+        marks.events_in_flight += 1;
+        marks.moves
     }
 
     fn field_seen(&self, at: u32, state: FieldState, seen: Option<String>) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
-        marks.moves += 1;
+        marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
     }
@@ -556,7 +649,20 @@ impl Shared {
     fn started(&self, at: u32) {
         note_mark("start", Some(FieldState::Unknown), None, Some(at), at, None);
         let mut marks = self.lock();
-        *marks = Marks::default();
+        let kept = Marks {
+            next_seq: marks.next_seq,
+            left_the_ring: marks.next_seq,
+            open: std::mem::take(&mut marks.open),
+            moves: marks.moves,
+            gap: marks.gap,
+            pointer_owns: marks.pointer_owns,
+            pointer_since: marks.pointer_since,
+            forwarded: marks.forwarded,
+            ..Marks::default()
+        };
+        *marks = kept;
+        let seq = marks.next_seq;
+        marks.started = Some(seq);
         marks.push(Some(at), at, Mark::Started);
     }
 
@@ -620,17 +726,57 @@ impl PasswordGate {
             None,
         );
         let mut marks = self.shared.lock();
-        if marks.clicks_lost.is_none() {
-            marks.clicks_lost = Some(tick);
-        }
+        marks.gap = Some(match marks.gap {
+            Some(gap) => Gap {
+                from: if offset(tick, gap.from) < 0 {
+                    tick
+                } else {
+                    gap.from
+                },
+                back: None,
+            },
+            None => Gap {
+                from: tick,
+                back: None,
+            },
+        });
     }
 
     pub(crate) fn clicks_back(&self, tick: u32) {
         note_mark("clicks-back", None, None, Some(tick), tick, None);
         let mut marks = self.shared.lock();
-        if let Some(lost) = marks.clicks_lost.take() {
-            marks.clicks_gap = Some((lost, tick));
+        if let Some(gap) = marks.gap.as_mut() {
+            if gap.back.is_none() {
+                gap.back = Some(tick);
+            }
         }
+    }
+
+    pub(crate) fn pointer_takes_the_clicks(&self, tick: u32) {
+        let mut marks = self.shared.lock();
+        marks.pointer_owns = true;
+        marks.pointer_since = Some(tick);
+        marks.forwarded = None;
+    }
+
+    pub(crate) fn pointer_lets_the_clicks_go(&self, fallback: u32) {
+        let from = {
+            let mut marks = self.shared.lock();
+            let from = marks.forwarded.or(marks.pointer_since).unwrap_or(fallback);
+            marks.pointer_owns = false;
+            marks.pointer_since = None;
+            marks.forwarded = None;
+            from
+        };
+        self.clicks_lost(from);
+    }
+
+    pub(crate) fn pointer_forwarded(&self, tick: u32) {
+        let mut marks = self.shared.lock();
+        marks.forwarded = Some(match marks.forwarded {
+            Some(forwarded) if offset(tick, forwarded) < 0 => forwarded,
+            _ => tick,
+        });
     }
 
     pub(crate) fn latch_after(&self, tick: u32) {
@@ -667,10 +813,12 @@ impl PasswordGate {
     ) -> Option<(Result<KeystrokeClearance, Withheld>, Rule)> {
         let judged = {
             let mut marks = self.shared.lock();
-            if marks.clicks_unseen_for(key.tick) {
+            marks.drop_old_gap(now);
+            marks.drop_old_closed_latches(now);
+            if marks.clicks_unseen_for(key) {
                 return Some((Err(Withheld::Unknown), Rule::NoClickRoute));
             }
-            let judged = judge(&marks.entries, key, now, front, password_edit_now);
+            let judged = judge(&marks, key, now, front, password_edit_now);
             if let Judgment::Wait(from) = judged {
                 marks.ask_read(from);
             }
@@ -685,7 +833,7 @@ impl PasswordGate {
         };
         let age = Duration::from_millis(u64::from(now.wrapping_sub(key.tick)));
         let answer = match rule {
-            Rule::NotClearedInTime => Err(Withheld::Unknown),
+            Rule::NotClearedInTime | Rule::ClicksNotForwarded => Err(Withheld::Unknown),
             _ => check(&PasswordFieldProbe(reading), Some(age)),
         };
         Some((answer, rule))
@@ -729,12 +877,7 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn latch_count(&self) -> usize {
-        self.shared
-            .lock()
-            .entries
-            .iter()
-            .filter(|entry| matches!(entry.mark, Mark::Latch { .. }))
-            .count()
+        self.shared.lock().open.len()
     }
 }
 
@@ -836,6 +979,10 @@ mod detector {
         pub(super) desktop_hook: DesktopHookRemover,
         #[cfg(test)]
         pub(super) before_read: fn(),
+        #[cfg(test)]
+        pub(super) before_first_read: fn(),
+        #[cfg(test)]
+        pub(super) set_desktop_hook: fn() -> HWINEVENTHOOK,
     }
 
     fn remove_handler(
@@ -859,6 +1006,10 @@ mod detector {
                 desktop_hook: unhook_desktop,
                 #[cfg(test)]
                 before_read: || {},
+                #[cfg(test)]
+                before_first_read: || {},
+                #[cfg(test)]
+                set_desktop_hook,
             }
         }
     }
@@ -896,17 +1047,20 @@ mod detector {
         }
 
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
-            let mut detector = self
+            if self
                 .detector
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if detector.is_some() {
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some()
+            {
                 return Ok(());
             }
             self.wait_for_the_stale_detector()?;
             #[cfg(feature = "test-seam")]
             crate::windows::input::seam::detector_started();
-            self.shared.started(tick());
+            let at = tick();
+            self.shared.started(at);
+            self.clicks_lost(at);
             let wake = Arc::new(Event::new()?);
             let (ready, started) = std::sync::mpsc::channel();
             let shared = Arc::clone(&self.shared);
@@ -920,9 +1074,13 @@ mod detector {
                     domain: "io",
                     code: i64::from(e.raw_os_error().unwrap_or(0)),
                 })?;
-            match started.recv() {
+            let deadline = crate::windows::INPUT_STOP_DEADLINE;
+            match started.recv_timeout(deadline) {
                 Ok(Ok(())) => {
-                    *detector = Some(Running {
+                    *self
+                        .detector
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Running {
                         wake,
                         join: Some(join),
                     });
@@ -932,7 +1090,19 @@ mod detector {
                     let _ = join.join();
                     Err(error)
                 }
-                Err(_) => {
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    self.shared.lock().stopping = true;
+                    wake.set();
+                    *self
+                        .stale
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(join);
+                    Err(CaptureError::Timeout {
+                        stage: "wait for the password detector's first read",
+                        ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
+                    })
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     let _ = join.join();
                     Err(CaptureError::ThreadEnded)
                 }
@@ -1026,25 +1196,42 @@ mod detector {
         static SEEN: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
     }
 
-    #[cfg(feature = "test-seam")]
-    fn file_read_of(pid: Option<i32>) -> (Option<String>, String) {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[cfg_attr(not(feature = "test-seam"), allow(dead_code))]
+    pub(super) enum FileRead {
+        Read,
+        NoProcessId,
+        Open(i32),
+        Query(i32),
+    }
+
+    impl FileRead {
+        #[cfg(feature = "test-seam")]
+        fn text(self) -> String {
+            match self {
+                FileRead::Read => "ok".to_string(),
+                FileRead::NoProcessId => "not-read:no-process-id".to_string(),
+                FileRead::Open(code) => format!("error:open:{code:#010x}"),
+                FileRead::Query(code) => format!("error:query:{code:#010x}"),
+            }
+        }
+    }
+
+    pub(super) fn process_file(pid: Option<i32>) -> (Option<String>, FileRead) {
         use windows::core::PWSTR;
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::Threading::{
             OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
             PROCESS_QUERY_LIMITED_INFORMATION,
         };
-        let Some(pid) = pid else {
-            return (None, "not-read:no-process-id".to_string());
-        };
-        let Ok(pid) = u32::try_from(pid) else {
-            return (None, "not-read:negative-process-id".to_string());
+        let Some(pid) = pid.and_then(|pid| u32::try_from(pid).ok()) else {
+            return (None, FileRead::NoProcessId);
         };
         // SAFETY: OpenProcess takes plain values; the handle that it returns is
         // closed once, after the query.
         let handle = match unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) } {
             Ok(handle) => handle,
-            Err(error) => return (None, format!("error:open:{:#010x}", error.code().0)),
+            Err(error) => return (None, FileRead::Open(error.code().0)),
         };
         let mut failed = 0;
         let path = crate::windows::foreground::image_path_with(|buf, len| {
@@ -1065,9 +1252,9 @@ mod detector {
         match path {
             Some(path) => (
                 path.rsplit(['/', '\\']).next().map(str::to_string),
-                "ok".to_string(),
+                FileRead::Read,
             ),
-            None => (None, format!("error:query:{failed:#010x}")),
+            None => (None, FileRead::Query(failed)),
         }
     }
 
@@ -1101,12 +1288,6 @@ mod detector {
     }
 
     const DEFAULT_IS_NO_ANSWER: bool = true;
-
-    #[cfg(not(feature = "test-seam"))]
-    pub(super) fn process_file(pid: Option<i32>) -> Option<String> {
-        let path = crate::windows::foreground::process_path(u32::try_from(pid?).ok()?)?;
-        path.rsplit(['/', '\\']).next().map(str::to_string)
-    }
 
     fn focus_window_class() -> Option<String> {
         let mut info = GUITHREADINFO {
@@ -1158,26 +1339,22 @@ mod detector {
                 .ok()
                 .map(|id| id.to_string())
                 .filter(|id| !id.is_empty());
-            #[cfg(not(feature = "test-seam"))]
-            // SAFETY: as above.
-            let file = process_file(unsafe { element.CachedProcessId() }.ok());
-            #[cfg(feature = "test-seam")]
             // SAFETY: as above.
             let pid = unsafe { element.CachedProcessId() }.ok();
-            #[cfg(feature = "test-seam")]
-            let (file, file_read) = file_read_of(pid);
+            let (file, _file_read) = process_file(pid);
             let class = focus_window_class();
             let kind = kind_of(framework.as_deref(), class.as_deref(), file.as_deref());
             #[cfg(feature = "test-seam")]
             self.saw(format!(
                 "framework={} window_class={} file={} kind={kind:?} is_password={} protected={} \
-                 pid_read={} file_read={file_read}",
+                 pid_read={} file_read={}",
                 framework.as_deref().unwrap_or("none"),
                 class.as_deref().unwrap_or("none"),
                 file.as_deref().unwrap_or("none"),
                 is_password.map_or("none", |p| if p { "1" } else { "0" }),
                 u8::from(protected),
                 u8::from(pid.is_some()),
+                _file_read.text(),
             ));
             match is_password {
                 Some(is_password) => FocusRead::Answered {
@@ -1206,6 +1383,7 @@ mod detector {
             element: Option<&IUIAutomationElement>,
             by: super::ReadBy,
             moves: u64,
+            events_in_flight: bool,
         ) -> FieldState {
             let Some(element) = element else {
                 #[cfg(feature = "test-seam")]
@@ -1242,6 +1420,7 @@ mod detector {
                 read,
                 by,
                 moves,
+                events_in_flight,
             );
             match change {
                 super::Kept::Leave => {}
@@ -1251,7 +1430,7 @@ mod detector {
             state
         }
 
-        fn own(&self, moves: u64) -> (FieldState, super::Moved) {
+        fn own(&self, moves: u64, events_in_flight: bool) -> (FieldState, super::Moved) {
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
             let mut last = self
@@ -1272,7 +1451,12 @@ mod detector {
             *last = element.clone();
             drop(last);
             (
-                self.state(element.as_ref(), super::ReadBy::OwnRead, moves),
+                self.state(
+                    element.as_ref(),
+                    super::ReadBy::OwnRead,
+                    moves,
+                    events_in_flight,
+                ),
                 moved,
             )
         }
@@ -1364,8 +1548,10 @@ mod detector {
                 IUIAutomationElement::from_raw_borrowed(&sender),
             )
         };
-        let moves = handler.shared.lock().moves;
-        let state = handler.reader.state(element, super::ReadBy::Event, moves);
+        let moves = handler.shared.begin_event();
+        let state = handler
+            .reader
+            .state(element, super::ReadBy::Event, moves, false);
         handler
             .shared
             .field_seen(tick(), state, handler.reader.seen());
@@ -1466,11 +1652,30 @@ mod detector {
         let began = tick();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_began(began);
-        let moves = shared.lock().moves;
-        let (state, moved) = reader.own(moves);
+        let (moves, events_in_flight) = {
+            let marks = shared.lock();
+            (marks.moves, marks.events_in_flight > 0)
+        };
+        let (state, moved) = reader.own(moves, events_in_flight);
         shared.read_seen(began, tick(), state, moved, reader.seen());
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_ended();
+    }
+
+    fn set_desktop_hook() -> HWINEVENTHOOK {
+        // SAFETY: an out-of-context hook with no module and a callback with the
+        // WINEVENTPROC signature, served by the calling thread's pump.
+        unsafe {
+            SetWinEventHook(
+                EVENT_SYSTEM_DESKTOPSWITCH,
+                EVENT_SYSTEM_DESKTOPSWITCH,
+                None,
+                Some(desktop_proc),
+                0,
+                0,
+                WINEVENT_OUTOFCONTEXT,
+            )
+        }
     }
 
     fn run(
@@ -1494,19 +1699,21 @@ mod detector {
             }
         };
         DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
-        // SAFETY: an out-of-context hook with no module and a callback with the
-        // WINEVENTPROC signature, served by this thread's pump.
-        let desktop = unsafe {
-            SetWinEventHook(
-                EVENT_SYSTEM_DESKTOPSWITCH,
-                EVENT_SYSTEM_DESKTOPSWITCH,
-                None,
-                Some(desktop_proc),
-                0,
-                0,
-                WINEVENT_OUTOFCONTEXT,
-            )
-        };
+        #[cfg(test)]
+        let desktop = (removals.set_desktop_hook)();
+        #[cfg(not(test))]
+        let desktop = set_desktop_hook();
+        if desktop.is_invalid() {
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
+            let _ = (removals.handler)(&reader.automation, &handler);
+            let _ = ready.send(Err(os(
+                "SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH)",
+                &windows::core::Error::from_thread(),
+            )));
+            return Ok(());
+        }
+        #[cfg(test)]
+        (removals.before_first_read)();
         own_read(shared, &reader);
         let _ = ready.send(Ok(()));
         let mut msg = MSG::default();
@@ -1656,7 +1863,7 @@ mod detector {
                 password_edit: false,
                 front: 0,
             };
-            let judged = super::super::judge(&gate.shared.lock().entries, &before, at, 0, false);
+            let judged = super::super::judge(&gate.shared.lock(), &before, at, 0, false);
             let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
             assert_eq!(first, Some(Mark::Started));
             assert!(own_read, "attach returned before the detector's own read");
@@ -1676,8 +1883,8 @@ mod detector {
             assert!(joined.is_ok(), "{joined:?}");
             let _com = Com;
             let reader = new_reader().expect("the reader is made");
-            let own = reader.state(None, super::super::ReadBy::OwnRead, 0);
-            let event = reader.state(None, super::super::ReadBy::Event, 3);
+            let own = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
+            let event = reader.state(None, super::super::ReadBy::Event, 3, false);
             let seen = reader.seen();
             drop(reader);
             assert_eq!(own, FieldState::Unknown);
@@ -2210,27 +2417,27 @@ mod tests {
         use KeptElement::{Other, Same};
         use ReadBy::{Event, OwnRead};
         assert_eq!(
-            with_kept(Some(3), Same, Clear, Event, 9),
-            (Password, Kept::Leave)
-        );
-        assert_eq!(
-            with_kept(None, Other, Password, Event, 4),
+            with_kept(Some(3), Same, Clear, Event, 9, false),
             (Password, Kept::Set)
         );
         assert_eq!(
-            with_kept(Some(3), Other, Clear, Event, 9),
+            with_kept(None, Other, Password, Event, 4, false),
+            (Password, Kept::Set)
+        );
+        assert_eq!(
+            with_kept(Some(3), Other, Clear, Event, 9, false),
             (Clear, Kept::Leave)
         );
         assert_eq!(
-            with_kept(Some(3), Other, Clear, OwnRead, 3),
+            with_kept(Some(3), Other, Clear, OwnRead, 3, false),
             (Password, Kept::Leave)
         );
         assert_eq!(
-            with_kept(Some(3), Other, Clear, OwnRead, 4),
+            with_kept(Some(3), Other, Clear, OwnRead, 4, false),
             (Clear, Kept::Drop)
         );
         assert_eq!(
-            with_kept(None, Other, Clear, OwnRead, 4),
+            with_kept(None, Other, Clear, OwnRead, 4, false),
             (Clear, Kept::Leave)
         );
     }
@@ -2751,17 +2958,6 @@ mod tests {
     }
 
     #[test]
-    fn the_gate_keeps_the_newest_256_marks() {
-        let gate = PasswordGate::new();
-        for at in 0..300u32 {
-            gate.read_at(at, FieldState::Clear, Moved::Same);
-        }
-        let marks = gate.shared.lock();
-        assert_eq!(marks.entries.len(), 256);
-        assert_eq!(marks.entries.front().map(|entry| entry.began), Some(44));
-    }
-
-    #[test]
     fn a_read_that_ends_in_an_error_reads_unknown() {
         assert_eq!(unreadable_state(), FieldState::Unknown);
     }
@@ -2770,5 +2966,454 @@ mod tests {
     fn key_hold_is_above_the_largest_delay_that_s3_measured() {
         assert!(KEY_HOLD > S3_LARGEST_KEY_TO_FOCUS_EVENT);
         assert_eq!(S3_LARGEST_KEY_TO_FOCUS_EVENT, Duration::from_micros(75_300));
+    }
+
+    #[test]
+    fn a_read_older_than_half_the_tick_range_is_no_deciding_read() {
+        let gate = PasswordGate::new();
+        let k: u32 = 3_000_000_000;
+        let old = k.wrapping_sub(0x8000_0000).wrapping_sub(500);
+        gate.read_at(old, FieldState::Clear, Moved::Same);
+        gate.read_at(k - 10, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, k);
+        gate.field_at(k + 75, FieldState::Password);
+        assert_ne!(reading(&gate, &letter, k + 80), Some(Ok(())));
+    }
+
+    #[test]
+    fn an_open_latch_from_another_thread_holds_a_key_half_the_tick_range_later() {
+        let gate = PasswordGate::new();
+        gate.latch_after(2_000);
+        let k: u32 = 2_000u32.wrapping_add(0x8000_0000).wrapping_add(10);
+        gate.read_at(k - 10, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, k);
+        gate.read_at(k + 120, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, k + 125), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_click_route_lost_half_the_tick_range_ago_still_withholds_a_key() {
+        let gate = PasswordGate::new();
+        gate.clicks_lost(2_000);
+        let k: u32 = 2_000u32.wrapping_add(0x8000_0000).wrapping_add(10);
+        gate.read_at(k - 10, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, k);
+        gate.read_at(k + 120, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, k + 125), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_state_mark_older_than_the_age_limit_reads_unknown_at_the_key() {
+        let gate = PasswordGate::new();
+        let k: u32 = 100_000_000;
+        gate.read_at(k - 86_400_001, FieldState::Clear, Moved::NotCompared);
+        let letter = key(&gate, k);
+        gate.read_at(k + 120, FieldState::Clear, Moved::Same);
+        assert_eq!(
+            reading(&gate, &letter, k + 130),
+            Some(Err(Withheld::Unknown))
+        );
+    }
+
+    fn behind_a_latch_and_reads(
+        latch: fn(&PasswordGate, u32),
+        reads: u32,
+    ) -> Option<Result<(), Withheld>> {
+        let gate = PasswordGate::new();
+        gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
+        latch(&gate, 2_000);
+        let mut t = 2_100;
+        for _ in 0..reads {
+            gate.read_at(t, FieldState::Clear, Moved::Same);
+            t += 30;
+        }
+        let letter = key(&gate, t + 5);
+        gate.read_at(t + 130, FieldState::Clear, Moved::Same);
+        gate.read_at(t + 160, FieldState::Clear, Moved::Same);
+        reading(&gate, &letter, t + 200)
+    }
+
+    #[test]
+    fn a_latch_that_no_move_closes_never_leaves_the_gate() {
+        let first = (200..600).find(|&reads| {
+            behind_a_latch_and_reads(|gate, at| gate.latch(at), reads) == Some(Ok(()))
+        });
+        assert_eq!(first, None, "the first count of reads that clears");
+    }
+
+    #[test]
+    fn a_click_that_moves_nothing_then_300_reads_of_the_same_element_withhold_every_key() {
+        let gate = PasswordGate::new();
+        gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
+        gate.latch_after(2_000);
+        let mut t = 2_100;
+        let mut cleared = 0;
+        for round in 0..300 {
+            gate.read_at(t, FieldState::Clear, Moved::Same);
+            if round % 10 == 0 {
+                let letter = key(&gate, t + 5);
+                gate.read_at(t + 130, FieldState::Clear, Moved::Same);
+                gate.read_at(t + 160, FieldState::Clear, Moved::Same);
+                cleared += usize::from(reading(&gate, &letter, t + 200) == Some(Ok(())));
+                t += 160;
+            }
+            t += 30;
+        }
+        assert_eq!(cleared, 0);
+    }
+
+    #[test]
+    fn a_key_with_a_password_mark_and_then_256_clear_reads_inside_its_250_ms_is_withheld() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.field_at(2_010, FieldState::Password);
+        for i in 0..256u32 {
+            gate.read_at(2_120 + i / 2, FieldState::Clear, Moved::Same);
+        }
+        assert_eq!(reading(&gate, &letter, 2_249), Some(Err(Withheld::Unknown)));
+    }
+
+    #[test]
+    fn a_mark_of_a_held_keys_span_that_leaves_the_ring_withholds_it_by_a_rule_of_its_own() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        for i in 0..257u32 {
+            gate.read_at(2_120 + i / 2, FieldState::Clear, Moved::Same);
+        }
+        assert_eq!(rule(&gate, &letter, 2_249), Some(Rule::MarksLost));
+    }
+
+    #[test]
+    fn the_ring_keeps_the_newest_256_marks_and_every_latch_that_is_open() {
+        let gate = PasswordGate::new();
+        gate.latch(0);
+        for at in 1..300u32 {
+            gate.read_at(at, FieldState::Clear, Moved::Same);
+        }
+        let marks = gate.shared.lock();
+        assert_eq!(marks.entries.len(), 256);
+        assert_eq!(marks.entries.front().map(|entry| entry.began), Some(44));
+        assert_eq!(marks.open.len(), 1);
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    struct ReferenceLatch {
+        seq: u64,
+        closed_by: Option<u64>,
+    }
+
+    fn reference_latch_states(marks: &VecDeque<Entry>) -> Vec<ReferenceLatch> {
+        let reads: Vec<&Entry> = marks
+            .iter()
+            .filter(|entry| matches!(entry.mark, Mark::Read { .. }))
+            .collect();
+        let mut states = Vec::new();
+        let mut floor = 0u64;
+        let mut blocked = false;
+        for entry in marks.iter() {
+            let Mark::Latch { at, .. } = entry.mark else {
+                continue;
+            };
+            let mut state = ReferenceLatch {
+                seq: entry.seq,
+                closed_by: None,
+            };
+            if !blocked {
+                let settle = at.wrapping_add(ms(LATCH_SETTLE));
+                let base = reads.iter().find(|read| {
+                    read.seq > entry.seq && read.seq >= floor && not_after(settle, read.began)
+                });
+                let closed = base.and_then(|base| {
+                    reads.iter().find(|read| {
+                        read.seq > base.seq
+                            && matches!(
+                                read.mark,
+                                Mark::Read {
+                                    moved: Moved::Another,
+                                    ..
+                                }
+                            )
+                    })
+                });
+                match closed {
+                    Some(read) => {
+                        floor = read.seq;
+                        state.closed_by = Some(read.seq);
+                    }
+                    None => blocked = true,
+                }
+            }
+            states.push(state);
+        }
+        states
+    }
+
+    #[test]
+    fn the_latches_that_the_gate_keeps_are_those_of_the_rule_over_every_mark() {
+        for seed in 1..=200u64 {
+            let gate = PasswordGate::new();
+            let mut draw = seed;
+            let mut next = move || {
+                draw = draw
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                (draw >> 33) as u32
+            };
+            let mut tick = 10_000u32;
+            for _ in 0..200 {
+                let r = next();
+                tick = tick.wrapping_add(r % 40);
+                match (r >> 8) % 8 {
+                    0 => gate.latch(tick),
+                    1 => gate.latch_after(tick),
+                    2 => gate.read_at(tick, FieldState::Clear, Moved::Another),
+                    3 => gate.read_at(tick, FieldState::Clear, Moved::NotCompared),
+                    _ => gate.read_at(tick, FieldState::Clear, Moved::Same),
+                }
+                let marks = gate.shared.lock();
+                let reference = reference_latch_states(&marks.entries);
+                let open: Vec<u64> = reference
+                    .iter()
+                    .filter(|latch| latch.closed_by.is_none())
+                    .map(|latch| latch.seq)
+                    .collect();
+                let kept_open: Vec<u64> = marks.open.iter().map(|latch| latch.seq).collect();
+                assert_eq!(kept_open, open, "seed {seed}");
+                for latch in reference.iter().filter(|latch| latch.closed_by.is_some()) {
+                    let kept = marks.closed.iter().find(|closed| closed.seq == latch.seq);
+                    if let Some(kept) = kept {
+                        assert_eq!(Some(kept.closing_seq), latch.closed_by, "seed {seed}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_late_click_of_the_keys_own_tick_holds_the_key() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.latch_after(2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        gate.read_at(2_150, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_160), None);
+    }
+
+    #[test]
+    fn a_second_gap_of_the_click_route_does_not_hide_the_first() {
+        let gate = plain();
+        let letter = key(&gate, 2_001);
+        gate.clicks_lost(1_990);
+        gate.clicks_back(2_050);
+        gate.clicks_lost(2_130);
+        gate.clicks_back(2_140);
+        gate.read_at(2_125, FieldState::Clear, Moved::Same);
+        gate.read_at(2_155, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, 2_160), Some(Ok(())));
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.clicks_lost(2_010);
+        gate.clicks_back(2_030);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        gate.clicks_lost(2_200);
+        gate.clicks_back(2_210);
+        assert_ne!(reading(&gate, &letter, 2_215), Some(Ok(())));
+    }
+
+    #[test]
+    fn in_the_pumps_order_a_second_gap_records_no_key_typed_after_an_unseen_click() {
+        let gate = plain();
+        let mut held = VecDeque::new();
+        let mut out = Vec::new();
+        let release = |gate: &PasswordGate,
+                       held: &mut VecDeque<(&'static str, HeldKey)>,
+                       now: u32,
+                       out: &mut Vec<(&'static str, bool)>| {
+            while let Some((_, waiting)) = held.front() {
+                let Some((answer, _)) = gate.decide(waiting, now, FRONT, false) else {
+                    break;
+                };
+                if let Some((name, _)) = held.pop_front() {
+                    out.push((name, answer.is_ok()));
+                }
+            }
+        };
+        gate.latch_after(1_850);
+        held.push_back(("K0", key(&gate, 1_900)));
+        release(&gate, &mut held, 1_900, &mut out);
+        gate.read_at(1_955, FieldState::Clear, Moved::Same);
+        release(&gate, &mut held, 1_960, &mut out);
+        gate.read_at(2_010, FieldState::Clear, Moved::Another);
+        release(&gate, &mut held, 2_015, &mut out);
+        gate.clicks_lost(2_021);
+        held.push_back(("K", key(&gate, 2_022)));
+        release(&gate, &mut held, 2_022, &mut out);
+        gate.clicks_back(2_030);
+        release(&gate, &mut held, 2_030, &mut out);
+        gate.read_at(2_040, FieldState::Clear, Moved::Same);
+        for t in [2_045, 2_060, 2_075, 2_090, 2_105, 2_120, 2_135] {
+            release(&gate, &mut held, t, &mut out);
+        }
+        gate.clicks_lost(2_143);
+        gate.clicks_back(2_145);
+        release(&gate, &mut held, 2_145, &mut out);
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
+        release(&gate, &mut held, 2_150, &mut out);
+        gate.read_at(2_160, FieldState::Clear, Moved::Same);
+        for t in [2_165, 2_180, 2_195] {
+            release(&gate, &mut held, t, &mut out);
+        }
+        assert!(
+            !out.iter().any(|(name, recorded)| *name == "K" && *recorded),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn a_route_lost_inside_the_hold_and_not_back_withholds_the_key() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.clicks_lost(2_050);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, 2_130), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_second_loss_of_the_route_keeps_the_first() {
+        let gate = plain();
+        gate.clicks_lost(1_990);
+        let letter = key(&gate, 2_000);
+        gate.clicks_lost(2_200);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, 2_210), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_time_with_no_click_route_from_a_forwarded_tick_before_the_stop_meets_the_hold() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.clicks_lost(1_995);
+        gate.clicks_back(2_060);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_eq!(rule(&gate, &letter, 2_130), Some(Rule::NoClickRoute));
+    }
+
+    #[test]
+    fn a_key_waits_while_the_pointer_owns_the_clicks_and_has_not_forwarded_past_its_hold() {
+        let gate = plain();
+        gate.pointer_takes_the_clicks(1_000);
+        let letter = key(&gate, 2_010);
+        gate.read_at(2_135, FieldState::Clear, Moved::Same);
+        gate.read_at(2_165, FieldState::Clear, Moved::Same);
+        let before_the_click_came = reading(&gate, &letter, 2_170);
+        gate.latch_after(2_000);
+        assert_ne!(before_the_click_came, Some(Ok(())));
+        let gate = plain();
+        gate.pointer_takes_the_clicks(1_000);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        let answer = reading(&gate, &letter, 2_130);
+        gate.latch_after(1_990);
+        assert_ne!(answer, Some(Ok(())));
+    }
+
+    #[test]
+    fn a_forwarded_tick_past_the_hold_clears_the_key() {
+        let gate = plain();
+        gate.pointer_takes_the_clicks(1_000);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        gate.pointer_forwarded(2_000 + HOLD + 15);
+        assert_eq!(reading(&gate, &letter, 2_140), None);
+        gate.pointer_forwarded(2_000 + HOLD + 16);
+        assert_eq!(reading(&gate, &letter, 2_140), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_pointer_pump_that_forwards_nothing_withholds_the_key_at_250_ms() {
+        let gate = plain();
+        gate.pointer_takes_the_clicks(1_000);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_200), None);
+        assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));
+        assert_eq!(rule(&gate, &letter, 2_251), Some(Rule::ClicksNotForwarded));
+    }
+
+    #[test]
+    fn the_focus_event_that_made_a_password_reading_is_not_the_move_that_lets_it_go() {
+        use FieldState::{Clear, Password};
+        use KeptElement::Other;
+        use ReadBy::OwnRead;
+        let gate = PasswordGate::new();
+        let kept = gate.shared.begin_event();
+        gate.shared.field_seen(2_000, Password, None);
+        let read_move = gate.shared.lock().moves;
+        assert!(!lets_go(kept, read_move, false));
+        assert_eq!(
+            with_kept(Some(kept), Other, Clear, OwnRead, read_move, false),
+            (Password, Kept::Leave)
+        );
+        gate.latch(2_100);
+        let after_a_latch = gate.shared.lock().moves;
+        assert!(lets_go(kept, after_a_latch, false));
+        assert!(!lets_go(kept, after_a_latch, true));
+    }
+
+    #[test]
+    fn the_deciding_reads_own_state_joins_the_verdict() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Password, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Active)));
+    }
+
+    #[test]
+    fn with_no_kept_element_a_read_keeps_its_own_state() {
+        use FieldState::Unknown;
+        use KeptElement::Other;
+        use ReadBy::{Event, OwnRead};
+        assert_eq!(
+            with_kept(None, Other, Unknown, OwnRead, 4, false),
+            (Unknown, Kept::Leave)
+        );
+        assert_eq!(
+            with_kept(None, Other, Unknown, Event, 4, false),
+            (Unknown, Kept::Leave)
+        );
+    }
+
+    #[test]
+    fn a_read_that_cannot_compare_closes_no_latch() {
+        let gate = plain();
+        gate.latch(2_000);
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_130, FieldState::Clear, Moved::NotCompared);
+        gate.read_at(2_160, FieldState::Clear, Moved::NotCompared);
+        let letter = key(&gate, 2_200);
+        gate.read_at(2_320, FieldState::Clear, Moved::Same);
+        gate.read_at(2_350, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, 2_360), Some(Ok(())));
+    }
+
+    #[test]
+    fn an_own_read_at_the_keys_own_tick_that_shows_a_move_withholds_the_key() {
+        let gate = plain();
+        gate.read_at(2_000, FieldState::Clear, Moved::Another);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        gate.read_at(2_150, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_160), Some(Err(Withheld::Unknown)));
+    }
+
+    #[test]
+    fn after_a_desktop_switch_a_clear_own_read_opens_nothing_without_a_move() {
+        let gate = plain();
+        gate.shared.desktop_switched(1_900);
+        gate.read_at(2_000, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, 2_010);
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
+        gate.read_at(2_160, FieldState::Clear, Moved::Same);
+        assert_ne!(reading(&gate, &letter, 2_170), Some(Ok(())));
     }
 }

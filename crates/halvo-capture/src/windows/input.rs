@@ -181,8 +181,20 @@ fn keyboard_takes_mouse_again() {
     }
 }
 
-fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
+fn keyboard_lets_mouse_go(
+    remove: RemoveCall,
+    window: usize,
+    gate: Option<&Arc<PasswordGate>>,
+) -> windows::core::Result<()> {
     let mut route = clicks();
+    let own_gate = match (route.gate.as_ref(), gate) {
+        (Some(routed), Some(own)) => Arc::ptr_eq(routed, own),
+        (None, None) => true,
+        _ => false,
+    };
+    if route.keyboard_window != Some(window) || !own_gate {
+        return Ok(());
+    }
     route.gate = None;
     route.keyboard_window = None;
     route.keyboard_register = None;
@@ -199,7 +211,7 @@ fn pointer_lets_mouse_go(mut route: std::sync::MutexGuard<'static, ClickRoute>, 
     }
     route.owner = None;
     if let Some(gate) = &route.gate {
-        gate.clicks_lost(removed_at);
+        gate.pointer_lets_the_clicks_go(removed_at);
     }
     if let Some(window) = route.keyboard_window {
         // SAFETY: PostMessageW takes a window handle and plain values; a
@@ -211,6 +223,15 @@ fn pointer_lets_mouse_go(mut route: std::sync::MutexGuard<'static, ClickRoute>, 
                 WPARAM(0),
                 LPARAM(0),
             );
+        }
+    }
+}
+
+fn pointer_forwarded(tick: u32) {
+    let route = clicks();
+    if route.owner == Some(RawDevice::Pointer) {
+        if let Some(gate) = &route.gate {
+            gate.pointer_forwarded(tick);
         }
     }
 }
@@ -271,6 +292,20 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
         return Some(KeyClass::Shortcut);
     }
     Some(class_of(key.vkey))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct KeyStep {
+    pub(crate) record: Option<KeyClass>,
+    pub(crate) latch: bool,
+}
+
+pub(crate) fn key_step(state: &mut KeyState, key: KeyStroke) -> KeyStep {
+    let latch = !key.released && key.vkey < NO_KEY && moves_focus(key.vkey);
+    KeyStep {
+        record: map_keystroke(state, key),
+        latch,
+    }
 }
 
 pub(crate) fn keystroke_packet(
@@ -794,6 +829,7 @@ pub struct RawInputSource {
     removed: Removed,
     gate: Option<Arc<PasswordGate>>,
     gate_counts: Arc<GateCounts>,
+    window: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl RawInputSource {
@@ -819,6 +855,7 @@ impl RawInputSource {
             removed: Removed::default(),
             gate: None,
             gate_counts: Arc::default(),
+            window: Arc::default(),
         }
     }
 
@@ -914,7 +951,12 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 let Some(gate) = state.gate.as_mut() else {
                     return;
                 };
-                if map_keystroke(&mut state.keys, key).is_none() {
+                let step = key_step(&mut state.keys, key);
+                if step.record.is_none() {
+                    if step.latch {
+                        gate.gate.latch(tick);
+                        release_held(gate, &state.producer, false);
+                    }
                     return;
                 }
                 gate.counts.note_lag(super::now_tick().wrapping_sub(tick));
@@ -923,7 +965,7 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                     crate::secure_input::windows::focus_window_is_password_edit(),
                     foreground_thread(),
                 );
-                if moves_focus(key.vkey) {
+                if step.latch {
                     gate.gate.latch(tick);
                 }
                 gate.held.push_back((held, key, app));
@@ -931,6 +973,7 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
                 click_from_the_pointer_pump(sample.button_flags, tick);
+                pointer_forwarded(tick);
                 let packet = pointer_packet(sample, app, tick);
                 if sample.is_motion_only() {
                     state.producer.push_motion(packet);
@@ -991,6 +1034,7 @@ fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     // into `size`, a live local, and reads the handle that WM_INPUT gave.
     let probe = unsafe { GetRawInputData(handle, RID_INPUT, None, &mut size, header_size) };
     if probe != 0 || size == 0 {
+        latch_for_an_unread_input(tick);
         return;
     }
     let mut buf = vec![0u8; size as usize];
@@ -1006,6 +1050,7 @@ fn read_raw_input(handle: HRAWINPUT, tick: u32) {
         )
     };
     if read != size {
+        latch_for_an_unread_input(tick);
         return;
     }
     if keyboard_reads_a_click(&buf, tick) {
@@ -1013,6 +1058,22 @@ fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     }
     if let Some(packet) = decode_raw_input(&buf) {
         emit_from_raw(packet, tick);
+    }
+}
+
+fn latch_for_an_unread_input(tick: u32) {
+    let device = INPUT_CTX.with(|cell| {
+        let borrow = cell.borrow();
+        let state = borrow.as_ref()?;
+        if let Some(gate) = state.gate.as_ref() {
+            gate.gate.latch(tick);
+        }
+        Some(state.device)
+    });
+    if device == Some(RawDevice::Pointer) {
+        if let Some(gate) = clicks().gate.as_ref() {
+            gate.latch_after(tick);
+        }
     }
 }
 
@@ -1044,6 +1105,8 @@ impl CaptureSource for RawInputSource {
         let calls = self.calls;
         let removed = Removed::default();
         self.removed = Arc::clone(&removed);
+        let window = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        self.window = Arc::clone(&window);
         if let Some(gate) = &self.gate {
             let attached = gate.attach();
             #[cfg(feature = "test-seam")]
@@ -1067,7 +1130,7 @@ impl CaptureSource for RawInputSource {
                 };
                 let name = format!("halvo-rawinput-{device:?}");
                 super::spawn_pump(name, move |ready, signal| {
-                    run_raw_input(state, (claim, removed), calls, ready, &signal)
+                    run_raw_input(state, (claim, removed, window), calls, ready, &signal)
                 })
             });
         if begun.is_err() {
@@ -1083,7 +1146,11 @@ impl CaptureSource for RawInputSource {
         if let Err(CaptureError::Timeout { .. }) = stopped {
             if self.device == RawDevice::Keyboard {
                 let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
-                let _ = keyboard_lets_mouse_go(self.calls.remove_device);
+                let _ = keyboard_lets_mouse_go(
+                    self.calls.remove_device,
+                    self.window.load(Ordering::SeqCst),
+                    self.gate.as_ref(),
+                );
             } else {
                 let route = clicks();
                 let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
@@ -1159,7 +1226,7 @@ impl Drop for WindowGuard {
 
 fn run_raw_input(
     state: InputState,
-    (claim, removed): (DeviceClaim, Removed),
+    (claim, removed, own_window): (DeviceClaim, Removed, Arc<std::sync::atomic::AtomicUsize>),
     calls: StartCalls,
     ready: PumpReady,
     signal: &super::StopSignal,
@@ -1185,6 +1252,8 @@ fn run_raw_input(
         }
     };
     let _window_guard = WindowGuard { hwnd };
+    own_window.store(hwnd.0 as usize, Ordering::SeqCst);
+    let own_gate = gate.clone();
 
     INPUT_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let ctx_guard = CtxGuard;
@@ -1200,6 +1269,9 @@ fn run_raw_input(
         let registered = (calls.register_device)(&dev);
         if registered.is_ok() {
             route.owner = Some(RawDevice::Pointer);
+            if let Some(gate) = &route.gate {
+                gate.pointer_takes_the_clicks(super::now_tick());
+            }
         }
         registered
     } else {
@@ -1222,9 +1294,16 @@ fn run_raw_input(
             route.gate = gate;
             route.keyboard_window = Some(hwnd.0 as usize);
             route.keyboard_register = Some(calls.register_device);
+            if route.owner == Some(RawDevice::Pointer) {
+                if let Some(gate) = &route.gate {
+                    let now = super::now_tick();
+                    gate.pointer_takes_the_clicks(now);
+                    gate.clicks_back(now);
+                }
+            }
         }
         if let Err(error) = keyboard_takes_mouse(hwnd, calls.register_device) {
-            let _ = keyboard_lets_mouse_go(calls.remove_device);
+            let _ = keyboard_lets_mouse_go(calls.remove_device, hwnd.0 as usize, own_gate.as_ref());
             ready.report(Err(super::os_error(
                 "RegisterRawInputDevices(mouse)",
                 &error,
@@ -1234,25 +1313,27 @@ fn run_raw_input(
     }
 
     super::ensure_message_queue();
-    let poll = if device == RawDevice::Keyboard {
-        let Some(poll) = (calls.set_timer)() else {
-            let error = super::last_os_error("SetTimer");
-            let _ = keyboard_lets_mouse_go(calls.remove_device);
-            ready.report(Err(error));
-            return;
-        };
-        Some(poll)
-    } else {
-        None
+    let Some(poll) = (calls.set_timer)() else {
+        let error = super::last_os_error("SetTimer");
+        if device == RawDevice::Keyboard {
+            let _ = keyboard_lets_mouse_go(calls.remove_device, hwnd.0 as usize, own_gate.as_ref());
+        } else {
+            pointer_lets_mouse_go(clicks(), super::now_tick());
+        }
+        ready.report(Err(error));
+        return;
     };
+    let poll = Some(poll);
     ready.report(Ok(()));
     super::pump_messages(signal);
     if device == RawDevice::Keyboard {
+        let claim = device_guard.claim.take();
         drop(device_guard);
         signal.report_removal(
             MOUSE_REMOVE_STAGE,
-            keyboard_lets_mouse_go(calls.remove_device),
+            keyboard_lets_mouse_go(calls.remove_device, hwnd.0 as usize, own_gate.as_ref()),
         );
+        drop(claim);
     } else {
         let claim = device_guard.claim.take();
         let route = clicks();
@@ -1280,6 +1361,24 @@ fn run_raw_input(
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+    let pointer = INPUT_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .is_some_and(|state| state.device == RawDevice::Pointer)
+    });
+    if pointer {
+        let before = super::now_tick();
+        // SAFETY: GetQueueStatus takes flags and reads this thread's queue.
+        let queued = unsafe {
+            windows::Win32::UI::WindowsAndMessaging::GetQueueStatus(
+                windows::Win32::UI::WindowsAndMessaging::QS_RAWINPUT,
+            )
+        };
+        if (queued >> 16) & windows::Win32::UI::WindowsAndMessaging::QS_RAWINPUT.0 == 0 {
+            pointer_forwarded(before.wrapping_sub(ms_of(crate::secure_input::windows::TICK_STEP)));
+        }
+        return;
+    }
     keyboard_takes_mouse_again();
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
