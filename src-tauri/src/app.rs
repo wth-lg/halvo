@@ -11,7 +11,7 @@ use tauri::{
 };
 
 use crate::commands::{self, capture::AppState};
-use crate::engine::{EngineSite, GuardAnswer, GuardInstall, GuardInstalled};
+use crate::engine::{EngineSite, GuardAnswer, GuardInstall, GuardInstalled, NotInstalled};
 use crate::launch::Exit;
 use crate::poller;
 use crate::tray::{self, TrayInstalled};
@@ -50,8 +50,8 @@ pub const ENGINE_RULES_DIR: &str = "engine-rules";
 
 pub enum Opening {
     Load(GuardInstalled),
-    RunWithoutWindow(String),
-    End(String),
+    RunWithoutWindow(NotInstalled),
+    End(NotInstalled),
 }
 
 pub fn decide(answer: GuardAnswer, tray: bool) -> Opening {
@@ -68,7 +68,9 @@ pub fn not_opened_line(reason: &str) -> String {
     )
 }
 
-pub struct WindowMissing;
+pub struct WindowMissing {
+    pub restart_cures: bool,
+}
 
 #[derive(Default)]
 pub struct PageLoads(AtomicU32);
@@ -100,11 +102,13 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 Ok(window) => match engine_site(app.handle(), parts.engine_rules_dir) {
                     Ok(site) => (parts.guard)(&window, site, sender),
                     Err(e) => {
-                        let _ = sender.send(Err(e));
+                        let _ = sender.send(Err(NotInstalled::from(e)));
                     }
                 },
                 Err(e) => {
-                    let _ = sender.send(Err(format!("the window main cannot be built: {e}")));
+                    let _ = sender.send(Err(NotInstalled::from(format!(
+                        "the window main cannot be built: {e}"
+                    ))));
                 }
             }
             let tray = match parts.tray.map(|install| install(app.handle())) {
@@ -134,7 +138,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 Ok(answer) => open(app.handle(), decide(answer, with_tray), visible),
                 Err(TryRecvError::Disconnected) => open(
                     app.handle(),
-                    decide(Err(closure_not_run()), with_tray),
+                    decide(Err(NotInstalled::from(closure_not_run())), with_tray),
                     visible,
                 ),
                 Err(TryRecvError::Empty) => {
@@ -297,10 +301,11 @@ fn wait_for_the_guard<R: Runtime>(
     std::thread::spawn(move || {
         let answer = match answer.recv_timeout(GUARD_WAIT) {
             Ok(answer) => answer,
-            Err(RecvTimeoutError::Disconnected) => Err(closure_not_run()),
-            Err(RecvTimeoutError::Timeout) => {
-                Err(format!("no answer within {} s", GUARD_WAIT.as_secs()))
-            }
+            Err(RecvTimeoutError::Disconnected) => Err(NotInstalled::from(closure_not_run())),
+            Err(RecvTimeoutError::Timeout) => Err(NotInstalled::from(format!(
+                "no answer within {} s",
+                GUARD_WAIT.as_secs()
+            ))),
         };
         let opening = decide(answer, with_tray);
         let handle = app.clone();
@@ -316,7 +321,9 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
                 return;
             }
             Err(e) => decide(
-                Err(format!("the app's page did not load: {e}")),
+                Err(NotInstalled::from(format!(
+                    "the app's page did not load: {e}"
+                ))),
                 app.state::<AppState>()
                     .tray_installed
                     .load(Ordering::SeqCst),
@@ -329,13 +336,15 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
     }
     match opening {
         Opening::Load(_) => {}
-        Opening::RunWithoutWindow(reason) => {
-            eprintln!("{}", not_opened_line(&reason));
-            app.manage(WindowMissing);
+        Opening::RunWithoutWindow(refusal) => {
+            eprintln!("{}", not_opened_line(&refusal.reason));
+            app.manage(WindowMissing {
+                restart_cures: refusal.restart_cures,
+            });
             tray::refresh(app, &app.state::<AppState>().views.view());
         }
-        Opening::End(reason) => {
-            eprintln!("{}", not_opened_line(&reason));
+        Opening::End(refusal) => {
+            eprintln!("{}", not_opened_line(&refusal.reason));
             app.exit(Exit::GuardNotInstalled.code());
         }
     }

@@ -53,7 +53,38 @@ pub const PROXY_PORT: &str = "9";
 
 pub struct GuardInstalled(());
 
-pub type GuardAnswer = Result<GuardInstalled, String>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotInstalled {
+    pub reason: String,
+    pub restart_cures: bool,
+}
+
+impl NotInstalled {
+    #[cfg(any(not(windows), test))]
+    pub fn on_this_system(reason: impl Into<String>) -> Self {
+        NotInstalled {
+            reason: reason.into(),
+            restart_cures: false,
+        }
+    }
+}
+
+impl From<String> for NotInstalled {
+    fn from(reason: String) -> Self {
+        NotInstalled {
+            reason,
+            restart_cures: true,
+        }
+    }
+}
+
+impl From<&str> for NotInstalled {
+    fn from(reason: &str) -> Self {
+        NotInstalled::from(reason.to_string())
+    }
+}
+
+pub type GuardAnswer = Result<GuardInstalled, NotInstalled>;
 
 pub struct EngineSite {
     #[cfg_attr(
@@ -96,7 +127,9 @@ pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Se
     let unreached = answer.clone();
     let asked = window.with_webview(move |webview| platform::install(&webview, &site, answer));
     if let Err(e) = asked {
-        let _ = unreached.send(Err(format!("the engine cannot be reached: {e}")));
+        let _ = unreached.send(Err(NotInstalled::from(format!(
+            "the engine cannot be reached: {e}"
+        ))));
     }
 }
 
@@ -122,14 +155,14 @@ mod platform {
     };
     use windows_core::{Interface, HRESULT, HSTRING, PWSTR};
 
-    use super::{EngineSite, GuardAnswer, GuardInstalled};
+    use super::{EngineSite, GuardAnswer, GuardInstalled, NotInstalled};
 
     const E_POINTER: HRESULT = HRESULT(0x8000_4003_u32 as i32);
 
     pub fn install(webview: &PlatformWebview, _site: &EngineSite, answer: Sender<GuardAnswer>) {
         let installed = install_every_means(webview)
             .map(|()| GuardInstalled(()))
-            .map_err(|e| format!("{e}"));
+            .map_err(|e| NotInstalled::from(format!("{e}")));
         let _ = answer.send(installed);
     }
 
@@ -240,7 +273,7 @@ mod platform {
     };
     use tauri::webview::PlatformWebview;
 
-    use super::{EngineSite, GuardAnswer, GuardInstalled};
+    use super::{EngineSite, GuardAnswer, GuardInstalled, NotInstalled};
 
     #[link(name = "Network", kind = "framework")]
     extern "C" {
@@ -331,7 +364,7 @@ mod platform {
         Some(config)
     }
 
-    fn read_the_store_and_the_hosts(view: &WKWebView) -> Result<(), String> {
+    fn read_the_store_and_the_hosts(view: &WKWebView) -> Result<(), NotInstalled> {
         // SAFETY: on the main thread with `view` retained; the copy of the configuration shares
         // the page's data store and carries its allowed hosts, and both come back retained.
         let config = unsafe { view.configuration() };
@@ -339,12 +372,14 @@ mod platform {
         let store = unsafe { config.websiteDataStore() };
         // SAFETY: a property read of the retained store on the main thread.
         if unsafe { store.isPersistent() } {
-            return Err("the window's data store keeps data between starts".to_string());
+            return Err(NotInstalled::from(
+                "the window's data store keeps data between starts".to_string(),
+            ));
         }
         if !answers(&config, sel!(_allowedNetworkHosts)) {
-            return Err(
+            return Err(NotInstalled::on_this_system(
                 "the configuration of this system has no allowed-hosts setting".to_string(),
-            );
+            ));
         }
         // SAFETY: the configuration answers _allowedNetworkHosts (checked above), which takes
         // nothing and returns an NSSet or nil, retained here.
@@ -354,12 +389,14 @@ mod platform {
         // SAFETY: an NSSet answers count, which takes nothing and returns NSUInteger.
         let count: usize = unsafe { msg_send![&*hosts, count] };
         if count != 0 {
-            return Err(format!("the window allows {count} network hosts"));
+            return Err(NotInstalled::from(format!(
+                "the window allows {count} network hosts"
+            )));
         }
         Ok(())
     }
 
-    fn put_delegate_in_front(view: &WKWebView, mtm: MainThreadMarker) -> Result<(), String> {
+    fn put_delegate_in_front(view: &WKWebView, mtm: MainThreadMarker) -> Result<(), NotInstalled> {
         // SAFETY: `view` is retained and this runs on the main thread, which `mtm` proves and
         // WebKit requires; the delegate comes back retained, so the ivars own it.
         let inner = unsafe { view.navigationDelegate() }.ok_or("no navigation delegate")?;
@@ -375,7 +412,7 @@ mod platform {
         Ok(())
     }
 
-    fn set_the_store_proxy(view: &WKWebView) -> Result<(), String> {
+    fn set_the_store_proxy(view: &WKWebView) -> Result<(), NotInstalled> {
         // SAFETY: on the main thread with `view` retained; both reads come back retained.
         let store = unsafe { view.configuration().websiteDataStore() };
         // SAFETY: `store` is a retained NSObject; respondsToSelector: takes a SEL and returns
@@ -383,7 +420,9 @@ mod platform {
         let has_setting: bool =
             unsafe { msg_send![&*store, respondsToSelector: sel!(setProxyConfigurations:)] };
         if !has_setting {
-            return Err("the data store of this system has no proxy setting".to_string());
+            return Err(NotInstalled::on_this_system(
+                "the data store of this system has no proxy setting".to_string(),
+            ));
         }
         let host = CString::new(super::PROXY_HOST).map_err(|e| e.to_string())?;
         let port = CString::new(super::PROXY_PORT).map_err(|e| e.to_string())?;
@@ -414,10 +453,12 @@ mod platform {
         unsafe { msg_send![object, respondsToSelector: selector] }
     }
 
-    fn feature_named(key: &str) -> Result<Retained<AnyObject>, String> {
+    fn feature_named(key: &str) -> Result<Retained<AnyObject>, NotInstalled> {
         let class = WKPreferences::class();
         if !answers(class.as_ref(), sel!(_features)) {
-            return Err("the preferences of this system list no features".to_string());
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system list no features".to_string(),
+            ));
         }
         // SAFETY: +_features takes nothing and returns an autoreleased NSArray of _WKFeature,
         // which Retained retains.
@@ -426,7 +467,9 @@ mod platform {
         for i in 0..features.count() {
             let feature = features.objectAtIndex(i);
             if !answers(&feature, sel!(key)) {
-                return Err("a feature of this system has no key".to_string());
+                return Err(NotInstalled::on_this_system(
+                    "a feature of this system has no key".to_string(),
+                ));
             }
             // SAFETY: the feature answers key (checked above), which takes nothing and returns an
             // NSString owned by the feature.
@@ -435,18 +478,22 @@ mod platform {
                 return Ok(feature);
             }
         }
-        Err(format!(
+        Err(NotInstalled::on_this_system(format!(
             "the preferences of this system have no feature {key}"
-        ))
+        )))
     }
 
-    fn set_feature(prefs: &WKPreferences, key: &str, on: bool) -> Result<(), String> {
+    fn set_feature(prefs: &WKPreferences, key: &str, on: bool) -> Result<(), NotInstalled> {
         let feature = feature_named(key)?;
         if !answers(prefs, sel!(_setEnabled:forFeature:)) {
-            return Err("the preferences of this system cannot set a feature".to_string());
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system cannot set a feature".to_string(),
+            ));
         }
         if !answers(prefs, sel!(_isEnabledForFeature:)) {
-            return Err("the preferences of this system cannot read a feature back".to_string());
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system cannot read a feature back".to_string(),
+            ));
         }
         // SAFETY: the preferences answer _setEnabled:forFeature: (checked above), which takes a
         // BOOL and a _WKFeature of the list and returns void, on the main thread.
@@ -455,26 +502,28 @@ mod platform {
         // same _WKFeature and returns BOOL.
         let now: bool = unsafe { msg_send![prefs, _isEnabledForFeature: &*feature] };
         if now != on {
-            return Err(format!("the feature {key} does not read back as set"));
+            return Err(NotInstalled::from(format!(
+                "the feature {key} does not read back as set"
+            )));
         }
         Ok(())
     }
 
-    fn turn_off_engine_features(view: &WKWebView) -> Result<(), String> {
+    fn turn_off_engine_features(view: &WKWebView) -> Result<(), NotInstalled> {
         // SAFETY: on the main thread with `view` retained; both reads come back retained, and the
         // preferences are the object that the page's settings follow (WebKit's configuration copy
         // shares it).
         let prefs = unsafe { view.configuration().preferences() };
         if !answers(&prefs, sel!(_setPeerConnectionEnabled:)) {
-            return Err(
+            return Err(NotInstalled::on_this_system(
                 "the preferences of this system have no peer-connection setting".to_string(),
-            );
+            ));
         }
         if !answers(&prefs, sel!(_peerConnectionEnabled)) {
-            return Err(
+            return Err(NotInstalled::on_this_system(
                 "the preferences of this system cannot read the peer-connection setting back"
                     .to_string(),
-            );
+            ));
         }
         // SAFETY: the preferences answer _setPeerConnectionEnabled: (checked above), which takes
         // a BOOL and returns void, on the main thread.
@@ -483,14 +532,18 @@ mod platform {
         // nothing and returns BOOL.
         let peer_on: bool = unsafe { msg_send![&*prefs, _peerConnectionEnabled] };
         if peer_on {
-            return Err("peer connections stay on after the preference was set".to_string());
+            return Err(NotInstalled::from(
+                "peer connections stay on after the preference was set".to_string(),
+            ));
         }
         set_feature(&prefs, super::LINK_PRECONNECT_FEATURE, false)
     }
 
     fn read_the_peer_constructor(view: &WKWebView, answer: Sender<GuardAnswer>) {
         let Some(mtm) = MainThreadMarker::new() else {
-            let _ = answer.send(Err("not on the main thread".to_string()));
+            let _ = answer.send(Err(NotInstalled::from(
+                "not on the main thread".to_string(),
+            )));
             return;
         };
         // SAFETY: on the main thread, which `mtm` proves; the world comes back retained.
@@ -507,17 +560,17 @@ mod platform {
                 .map(|text| text.to_string());
             let reading = match text {
                 Some(text) if text == super::PEER_ABSENT => Ok(GuardInstalled(())),
-                Some(text) => Err(format!(
+                Some(text) => Err(NotInstalled::on_this_system(format!(
                     "the engine offers the peer connection's constructor ({text})"
-                )),
+                ))),
                 None => {
                     // SAFETY: WebKit passes an error that it keeps alive for the call, or null.
                     let reason = unsafe { error.as_ref() }
                         .map(|error| error.localizedDescription().to_string())
                         .unwrap_or_else(|| "no answer".to_string());
-                    Err(format!(
+                    Err(NotInstalled::from(format!(
                         "the engine's peer connection could not be read at start: {reason}"
-                    ))
+                    )))
                 }
             };
             let _ = answer.send(reading);
@@ -537,7 +590,9 @@ mod platform {
 
     pub fn install(webview: &PlatformWebview, site: &EngineSite, answer: Sender<GuardAnswer>) {
         let Some(mtm) = MainThreadMarker::new() else {
-            let _ = answer.send(Err("not on the main thread".to_string()));
+            let _ = answer.send(Err(NotInstalled::from(
+                "not on the main thread".to_string(),
+            )));
             return;
         };
         let pointer = webview.inner().cast::<WKWebView>();
@@ -545,7 +600,7 @@ mod platform {
         // alive while the closure runs on the main thread; retaining it here keeps the view alive
         // until the rule list's completion has used it.
         let Some(view) = (unsafe { Retained::retain(pointer) }) else {
-            let _ = answer.send(Err("no web view".to_string()));
+            let _ = answer.send(Err(NotInstalled::from("no web view".to_string())));
             return;
         };
         if let Err(e) = put_delegate_in_front(&view, mtm)
@@ -557,9 +612,9 @@ mod platform {
             return;
         }
         if let Err(e) = std::fs::create_dir_all(&site.rules_dir) {
-            let _ = answer.send(Err(format!(
+            let _ = answer.send(Err(NotInstalled::from(format!(
                 "the directory of the rule list cannot be made: {e}"
-            )));
+            ))));
             return;
         }
         let directory = NSURL::fileURLWithPath_isDirectory(
@@ -570,7 +625,9 @@ mod platform {
         // through the call, and the store comes back retained.
         let Some(store) = (unsafe { WKContentRuleListStore::storeWithURL(Some(&directory), mtm) })
         else {
-            let _ = answer.send(Err("no store of rule lists".to_string()));
+            let _ = answer.send(Err(NotInstalled::from(
+                "no store of rule lists".to_string(),
+            )));
             return;
         };
         let pending = Cell::new(Some((answer, view)));
@@ -586,7 +643,9 @@ mod platform {
                 let reason = unsafe { error.as_ref() }
                     .map(|error| error.localizedDescription().to_string())
                     .unwrap_or_else(|| "no rule list".to_string());
-                let _ = answer.send(Err(format!("the rule list did not compile: {reason}")));
+                let _ = answer.send(Err(NotInstalled::from(format!(
+                    "the rule list did not compile: {reason}"
+                ))));
                 return;
             };
             // SAFETY: WebKit runs the completion on the main thread; `view` is retained by the
@@ -615,14 +674,16 @@ mod platform {
 mod platform {
     use std::sync::mpsc::Sender;
 
-    use super::{EngineSite, GuardAnswer};
+    use super::{EngineSite, GuardAnswer, NotInstalled};
 
     pub fn install(
         _: &tauri::webview::PlatformWebview,
         _: &EngineSite,
         answer: Sender<GuardAnswer>,
     ) {
-        let _ = answer.send(Err("no engine guard for this system".to_string()));
+        let _ = answer.send(Err(NotInstalled::on_this_system(
+            "no engine guard for this system".to_string(),
+        )));
     }
 }
 

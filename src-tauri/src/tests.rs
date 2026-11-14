@@ -1109,7 +1109,7 @@ fn guard_refused(
     answer: Sender<GuardAnswer>,
 ) {
     called_at(window);
-    let _ = answer.send(Err("refused by the stand-in".to_string()));
+    let _ = answer.send(Err(engine::NotInstalled::from("refused by the stand-in")));
 }
 
 fn guard_dropped(
@@ -1258,16 +1258,19 @@ fn the_deciding_function_loads_on_installed_runs_on_with_a_tray_and_ends_without
         app::Opening::Load(_)
     ));
     assert!(matches!(
-        app::decide(Err("x".to_string()), true),
-        app::Opening::RunWithoutWindow(reason) if reason == "x"
+        app::decide(Err(engine::NotInstalled::from("x")), true),
+        app::Opening::RunWithoutWindow(refusal) if refusal.reason == "x" && refusal.restart_cures
     ));
-    let app::Opening::End(reason) =
-        app::decide(Err("the install's closure did not run".to_string()), false)
-    else {
+    let app::Opening::End(reason) = app::decide(
+        Err(engine::NotInstalled::from(
+            "the install's closure did not run",
+        )),
+        false,
+    ) else {
         panic!("without a tray the app ends");
     };
     assert_eq!(
-        app::not_opened_line(&reason),
+        app::not_opened_line(&reason.reason),
         "halvo: the window main is not opened, because its engine guard is not installed: the install's closure did not run"
     );
     let code = Exit::GuardNotInstalled.code();
@@ -1373,5 +1376,56 @@ fn the_engine_arguments_of_the_environment_are_taken_out_before_the_window_is_bu
         text.matches("take_engine_arguments_out_of_the_environment();")
             .count(),
         1
+    );
+}
+
+fn guard_refused_on_this_system(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::NotInstalled::on_this_system(
+        "the preferences of this system have no peer-connection setting",
+    )));
+}
+
+#[test]
+fn a_cause_that_no_restart_cures_gives_the_tray_its_second_line() {
+    let app = app_with_guard(
+        "guard-this-system",
+        guard_refused_on_this_system,
+        Some(tray_stand_in),
+    );
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    let missing = app.state::<app::WindowMissing>();
+    assert!(!missing.restart_cures);
+    let view = app.state::<AppState>().views.view();
+    let shown = tray::shown(app.handle(), &view);
+    assert_eq!(
+        shown.status_text,
+        "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored."
+    );
+    assert!(!shown.open_enabled);
+    let usual = tray::labels(&view);
+    assert_eq!(
+        (
+            shown.title,
+            shown.tooltip,
+            shown.toggle_text,
+            shown.toggle_enabled
+        ),
+        (
+            usual.title,
+            usual.tooltip,
+            usual.toggle_text,
+            usual.toggle_enabled
+        )
+    );
+    let refused = app_with_guard("guard-retry", guard_refused, Some(tray_stand_in));
+    let view = refused.state::<AppState>().views.view();
+    assert_eq!(
+        tray::shown(refused.handle(), &view).status_text,
+        "Halvo's window is not available. Quit Halvo and start it again."
     );
 }

@@ -36,6 +36,8 @@ pub const NOT_RUNNING: &str = "Capture service not running";
 
 pub const WINDOW_MISSING: &str = "Halvo's window is not available. Quit Halvo and start it again.";
 
+pub const WINDOW_CANNOT_OPEN_HERE: &str = "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored.";
+
 fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -> TrayLabels {
     TrayLabels {
         title,
@@ -47,17 +49,21 @@ fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -
     }
 }
 
-pub fn without_window(labels: TrayLabels) -> TrayLabels {
+pub fn without_window(labels: TrayLabels, restart_cures: bool) -> TrayLabels {
     TrayLabels {
-        status_text: WINDOW_MISSING,
+        status_text: if restart_cures {
+            WINDOW_MISSING
+        } else {
+            WINDOW_CANNOT_OPEN_HERE
+        },
         open_enabled: false,
         ..labels
     }
 }
 
 pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
-    if app.try_state::<crate::app::WindowMissing>().is_some() {
-        without_window(labels(view))
+    if let Some(missing) = app.try_state::<crate::app::WindowMissing>() {
+        without_window(labels(view), missing.restart_cures)
     } else {
         labels(view)
     }
