@@ -3737,3 +3737,40 @@ fn each_judge_of_a_mended_phase_fails_it_at_one_round_for_each_wait() {
         .is_some_and(|found| found.contains("three in the secure field")));
     assert!(control(&[]).is_some_and(|found| found.contains("the control ran no round")));
 }
+
+#[test]
+fn the_waits_rounds_and_kept_time_of_both_forms_are_the_ruled_ones() {
+    let second = Duration::from_millis(1_000);
+    assert_eq!(
+        stall_waits(),
+        [
+            (150, second),
+            (300, second),
+            (600, second),
+            (850, second),
+            (2_000, Duration::from_millis(3_000)),
+        ],
+        "the five waits of MA-12 F6 with their bounds, in both forms"
+    );
+    assert_eq!(
+        (
+            SHORT_ROUNDS_FOR_EACH_WAIT,
+            SHORT_CAP_FOR_EACH_WAIT,
+            SHORT_CONTROL_ROUNDS,
+            SHORT_FAULT_ROUNDS,
+            RETURN_ROUNDS_FOR_EACH_WAIT
+        ),
+        (1, 2, 1, 1, 1),
+        "the short form of MA-23 Addition 1 (1)"
+    );
+    assert_eq!(
+        (ROUNDS, ROUNDS + 1, FAULT_ROUNDS),
+        (3, 4, 5),
+        "the long form: three counted rounds for each wait under a cap of four, three controls, five rounds of D1"
+    );
+    assert_eq!(
+        KEPT_MARGIN,
+        Duration::from_millis(130),
+        "the kept time of MA-19 (4)"
+    );
+}

@@ -347,6 +347,7 @@ measure() {
   form_line=$(tr -d '\r' <"$work/form.txt" | sed -n 's/^form=/form=/p' | tail -n 1)
   case $form_line in
     "form=$form "*) ;;
+    *) fail "$form_test printed no line of the form $form" ;;
   esac
   printf 'MS %s\n' "$form_line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
   tr -d '\r' <"$work/form.txt" | sed -n 's/^left_out /MS left out: /p' | tee -a "$artifacts/ms.txt" ||
@@ -428,7 +429,7 @@ measure() {
     [ "$seconds" -le "$budget_s" ] ||
       printf 'MS the short form took %s s, above its budget of %s s; this fails nothing (ruling MA-23 Addition 1 (5))\n' \
         "$seconds" "$budget_s" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
-    line="MS form=short seconds=$seconds budget=$budget_s notices=$notices"
+    line="MS form=short seconds=$seconds"
   else
     line="MS form=long seconds=$seconds notices=$notices"
   fi
