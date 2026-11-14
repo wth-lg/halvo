@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: The tests of halvo-cap pass, and measure-peak catches its control child at 268435456 bytes: the Job refuses it on Windows, the parent stops it within 2000 ms on macOS.
+# lane: alone
 set -u
 name=11-cap
 limit=268435456

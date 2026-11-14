@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; and src/daemon/ holds a file to read.
+# lane: free
 set -u
 name=22-daemon-no-dead-allow
 

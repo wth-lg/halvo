@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; the windows job does not run it, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# lane: alone
 set -u
 name=21-r7-backend-test
 list=scripts/r7/backend-tests.txt

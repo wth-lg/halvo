@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 11 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob.
+# lane: free
 # shellcheck disable=SC2016
 set -u
 name=24-r7-wall
