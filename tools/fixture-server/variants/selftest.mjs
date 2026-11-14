@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 197;
-const CASES_WINDOWS = 195;
+const CASES_UNIX = 198;
+const CASES_WINDOWS = 196;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
