@@ -267,7 +267,7 @@ mod tests {
     /// directory, the write run's tokens_out (`dir=n,dir=n`), and a body whose run stayed below the
     /// limit cannot have reached it. No text of a body is printed.
     #[test]
-    #[ignore]
+    #[ignore = "reads the saved bodies of R3_BODIES_DIR, which no test run holds; run by hand with that variable"]
     fn recount_the_saved_bodies() {
         let Ok(dir) = std::env::var("R3_BODIES_DIR") else {
             return;
