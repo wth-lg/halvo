@@ -154,6 +154,7 @@ fn of_report(report: Report) -> Done {
     }
 }
 
+/// The live run `run` of the board with the index of its member and its phase.
 fn live<C>(board: &Board<C>, run: &RunId) -> Option<(usize, Phase)> {
     let r = board.runs.iter().find(|r| &r.run == run)?;
     let i = board
@@ -175,6 +176,11 @@ fn phase_of(phase: &Phase) -> Live {
     }
 }
 
+/// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
+/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
+/// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
+/// Every other `cancel` marks the run stopped in the guard's table before the port's call, so
+/// that a panic in the call leaves the run's effect records refused (ruling RD-34 (e)).
 struct Watch<'a, P> {
     ports: &'a P,
     unknown: RefCell<Vec<RunId>>,
@@ -285,6 +291,9 @@ impl<P: Rng> Rng for Watch<'_, P> {
     }
 }
 
+/// Ends the `stopping` run whose kill the library refused with `unknown_run`, in the tick of
+/// that kill and with the cause `interrupted` (I5.7, I5.8): its `run_ended` is stored, no
+/// `end_run` is sent for it, and its end takes one start from the queue.
 fn lose<P>(ports: &P, board: &mut Board<P::Config>, limits: &Limits, run: &RunId) -> Option<Report>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
@@ -508,6 +517,8 @@ where
     done
 }
 
+/// `Runs::kill` for the tree of `run`, which leaves the board when the kill succeeded, with
+/// nothing stored or sent: the quit's kill.
 fn kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
 where
     P: Runs,
@@ -592,6 +603,9 @@ where
     stop_as(ports, board, table, run, by, lapsed_first)
 }
 
+/// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in
+/// the guard's table `state`, which the quit's stop-all does not ask, because the quit lapses
+/// every open item with `app_ended` first (I4.5).
 fn stop_as<P>(
     ports: &P,
     board: &mut Board<P::Config>,

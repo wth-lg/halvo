@@ -144,6 +144,8 @@ fn port_cause(error: &PortError) -> Cause {
     }
 }
 
+/// What a move works with: the ports, the limits, and the one read of the clock that the move
+/// made first, whose instant and day stamp every row of the move (I7.1).
 struct Cx<'a, P> {
     ports: &'a P,
     limits: &'a crate::types::Limits,
@@ -245,6 +247,10 @@ fn store_at<P: Owner, C: ConfigView>(
     store_read(cx, board, i, whats, day, at, None).map(|_| ())
 }
 
+/// What a store did: it logged the events or found them in the read after a refusal `seq`; or
+/// the read brought a lost start, which it closed, and it logged nothing of a `run_started`; or
+/// a start decided its steps 0 to 4 again from the facts as read and they fail with this cause,
+/// so that it logged nothing more (ruling RD-52 (a)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Stored {
     Logged,
@@ -252,8 +258,14 @@ enum Stored {
     Decided(Cause),
 }
 
+/// A start's decision of its steps 0 to 4 again, from the agent's facts as a read left them: the
+/// cause of the step that now fails, or none where the start goes on (ruling RD-52 (a)).
 type Decide<'a, C> = &'a dyn Fn(&Facts<C>) -> Option<Cause>;
 
+/// Logs the events; after a refusal `seq` it reads the owner's events once, keeps the events
+/// that the read does not cover, closes the lost starts that it brought, and, for a start that
+/// gives `decide`, decides that start's steps 0 to 4 again from the facts as read before it logs
+/// the rest once more (I7.2, rulings XB-31, RD-34 (b) and RD-52 (a)).
 fn store_read<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -290,6 +302,14 @@ fn store_read<P: Owner, C: ConfigView>(
     log_at(cx, board, i, &rest, day, at).map(|()| Stored::Logged)
 }
 
+/// Closes each `run_started` of the agent among its events from `from` on whose
+/// acknowledgement was lost (ruling RD-34 (b) (5)): the events hold no `run_ended` of the run,
+/// the board holds no live or dying run of it, and no `run_ended` or `end_run` of it is owed in
+/// this life. As recovery would in the next life (I5.8), its `run_ended` with `interrupted` and
+/// its `end_run` are sent, each owed until the owner acknowledges it, and the agent's newest run
+/// reads as not ended by the store, so that step 3 of I5.5 holds the agent's next start until
+/// the store has ended it. Such a row was never taken up: the start that logged it answered
+/// `no_service` and launched no runner. Whether it closed one.
 fn close_lost_starts<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -376,6 +396,10 @@ fn log_at<P: Owner, C>(
     Ok(())
 }
 
+/// Whether the owner's events, of which those from `before` on came with the read after a
+/// refusal `seq`, already hold what `what` would store (I7.2, ruling XB-31): an open item raised
+/// as `what` raises it, an item that `what` would close and that they close, an end of the run
+/// whose `run_ended` `what` is, whatever its cause (ruling RD-34), or the same event.
 fn covered(events: &[Event], before: usize, what: &What) -> bool {
     let read = &events[before.min(events.len())..];
     match what {
@@ -390,6 +414,7 @@ fn covered(events: &[Event], before: usize, what: &What) -> bool {
     }
 }
 
+/// After a read of the owner's events: the agent's own item leaves its facts when those events
 fn settle<C>(facts: &mut Facts<C>, before: usize) {
     let open = match &facts.doing {
         Doing::Idle(Some(o)) | Doing::Queued(Some(o)) => Some(o.item.clone()),
@@ -480,6 +505,10 @@ where
     }
 }
 
+/// Logs the `run_ended` of a run, with `hold_set` of `failures` where the end makes the streak.
+/// A debt logs through `log_at`, so that a refusal `seq` comes back to `send_owed`, whose read
+/// pays it when the owner's events hold the run's end; the end of a move logs through `store_at`
+/// (ruling RD-34).
 fn log_end<P: Owner, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -529,6 +558,13 @@ where
     Ok(())
 }
 
+/// Steps 5 to 8 of a start that passed steps 0 to 4 (I5.5): the request to defer, the store of
+/// the open `ready` item's answer `start` and of `run_started`, the body `start_run` and
+/// `Runs::start`. Where the log meets `seq`, the start decides its steps 0 to 4 again from the
+/// facts as read (`decide`, ruling RD-52 (a)); where one fails it answers that step's cause and
+/// writes nothing of the body, so that no slot and no start of the day is counted and no runner
+/// starts. Such a start has sent the request to defer of step 5, as I5.5 says of a start that
+/// fails at step 6.
 fn launch<P, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -614,6 +650,12 @@ where
     served(Ok(Answer::Ok), Some(run))
 }
 
+/// A start of the agent `i` (I5.5). A start acts on no verdict that is older than its newest
+/// read of the owner's events (ruling RD-52 (a)): after the store of `hold_cleared` that ends the
+/// hold `failures`, and after a store of its path whose refusal `seq` caused a read, it decides
+/// steps 0 to 4 again. Where its read brought a `hold_set` with the cause `person` that the
+/// board's events did not hold, it sends `set_state` `paused` once, after its answer is decided;
+/// a send that fails is not made again.
 fn start<P, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -872,10 +914,15 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
     }
 }
 
+/// Whether the owner refused a log with `seq`: the record's `seq` is not the owner's last of the
+/// agent plus 1, because the owner stored an event whose acknowledgement was lost, or one of
+/// another writer (I7.2).
 pub(crate) fn seq_refusal(error: &PortError) -> bool {
     matches!(error, PortError::Refused(name) if name.as_str() == "seq")
 }
 
+/// The events take the owner's events of the agent after the last one that they hold, page by
+/// page of at most 64, as `coord_history` gives them (I7.2, rulings XB-17 and XB-31).
 pub(crate) fn resync<P: Owner>(
     ports: &P,
     agent: &AgentId,
@@ -937,6 +984,8 @@ pub(crate) fn owed_ready<C>(board: &Board<C>, i: usize) -> Vec<ItemId> {
         .collect()
 }
 
+/// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
+/// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
 pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
     let confirm = events.iter().any(|e| {
         matches!(&e.what, What::ItemRaised { item: i, raised: Raised::Confirm(_) } if i == item)
@@ -948,17 +997,26 @@ pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
     })
 }
 
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): `read_after_seq` reads the
+/// owner's events after the last one that the facts hold, and the debt is paid when those hold
+/// the run's `run_ended`, which the owner stored with an acknowledgement that was lost; else the
+/// next tick logs it after them.
 fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
     let facts = &mut board.members[i].facts;
     read_after_seq(cx.ports, facts).is_ok() && holds_end(&facts.events, run)
 }
 
+/// Whether the events hold a `run_ended` of the run.
 fn holds_end(events: &[Event], run: &RunId) -> bool {
     events
         .iter()
         .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
 }
 
+/// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`
+/// gave it, shows the run of an owed `end_run` ended: it names the run, or a run whose
+/// `run_started` comes after that of the run, which the store could take only once it had ended
+/// it (I5.5 step 3, I5.8).
 fn store_took<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -> bool {
     let Some(i) = board.index(agent) else {
         return false;
@@ -1015,6 +1073,7 @@ fn raise<P: Owner + Rng, C: ConfigView>(
     Ok(())
 }
 
+/// Takes the day of the move's read of the clock as the coordinator's day (I5.9).
 fn read_day<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     let day = cx.stamp.day();
     board.day = day;
@@ -1112,6 +1171,10 @@ where
     report
 }
 
+/// The new life's raise of `setup` for every agent of the list whose hold `setup` stands and that
+/// holds no open item, one whose item recovery lapsed with `app_ended` among them (I5.8, K7). No
+/// run is live and the queue is empty before the life's first creation move, so that an agent
+/// with no open item is `idle`.
 fn setups_again<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, list: &[Workflow])
 where
     P: Owner + Rng,

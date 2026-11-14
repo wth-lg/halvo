@@ -22,6 +22,7 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
     !gone && idle && holds(facts).contains(&Hold::Check)
 }
 
+/// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
 pub(super) fn raise_checks<P, C>(
     ports: &P,
     board: &mut Board<C>,

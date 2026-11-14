@@ -122,6 +122,9 @@ fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError
     Ok(events)
 }
 
+/// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
+/// and `item_lapsed` with `app_ended` for each open item, after the agent's last event, which
+/// the agent's events take once the owner acknowledged them. An empty body calls no port.
 fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Result<(), PortError> {
     let mut whats: Vec<What> = f
         .step
@@ -157,6 +160,10 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
     Ok(())
 }
 
+/// The workflow of an agent of a new life as the owner's list holds it (ruling XB-28 (a)): the
+/// full shape as it is, and the dismissed shape with its id, its category and its site, the
+/// state `paused`, the trigger `manual` and no period, so that no tick starts its agent or
+/// sends `active` for it.
 fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
     match workflow {
         Workflow::Full(f) => f.clone(),
