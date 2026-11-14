@@ -1226,7 +1226,7 @@ own_self_test() {
   own_case script-changes-a-tracked-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 05-x.sh "$good" 'printf "PASS 05-x\n"' &&
     add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; for f in "$TMPDIR"/../* "$TMPDIR"/../../*; do [ ! -f "$f" ] || : >"$f"; done; printf "PASS 10-a\n"'
-  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
+  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX") || case_tmpdir=$tmp/no-own-tmp
   case_witness=yes
   case_absent='FAIL run-ci-d (10-a moved HEAD)'
   case_first="PASS 05-x${nl}PASS 10-a${nl}FAIL run-ci-d (10-a changed a tracked file: tracked.txt)"
