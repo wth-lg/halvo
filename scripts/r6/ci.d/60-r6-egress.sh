@@ -248,7 +248,7 @@ compare_lists() {
     fi
   done <"$work/listed-once.txt"
   cannot=$(awk 'END { print NR }' "$work/cannot-list.txt") || fail setup
-  printf 'egress commands=%s asked=%s run=%s cannot=%s\n' "$commands" "$asked" "$checks" "$cannot"
+  printf 'egress commands=%s asked=%s run=%s cannot=%s crates=%s\n' "$commands" "$asked" "$checks" "$cannot" "$crates"
   while IFS=' ' read -r word reason; do
     printf 'egress cannot=%s reason=%s\n' "$word" "$reason"
   done <"$work/cannot-list.txt"
@@ -463,9 +463,9 @@ write_repo() {
   printf '%s\n' '[fixed]' "$2" '[agent]' | awk 'NF' >"$dir/scripts/r6/egress/gate.txt" || self_failed setup
   cat >"$dir/docs/r2/trials/egress.md" <<'EOF' || self_failed setup
 cells: this-mac.sandbox
-not-observed this-mac sandbox path-1-this-mac: one
+not-observable this-mac sandbox path-1-this-mac: one
 not-observed this-mac sandbox path-2-this-mac: two
-not-observed macos-15 sandbox path-1-macos-15: one
+not-observable macos-15 sandbox path-1-macos-15: one
 not-observed macos-15 sandbox path-2-macos-15: two
 not-observable windows-2025 wfp path-1-windows-2025: one
 not-observed windows-2025 wfp path-2-windows-2025: two
@@ -496,8 +496,10 @@ code=$?
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
 denied=0
 [ "$STUB_CHECK" != denied ] || denied=1
+[ "$STUB_CHECK" != denied0 ] || denied=1
 printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/1/denied.log\n' "$list" "$code" "$denied" >&2
 [ "$STUB_CHECK" != exit3 ] || exit 3
+[ "$STUB_CHECK" != denied0 ] || exit 0
 [ "$code" = 0 ] && [ "$denied" = 0 ]
 EOF
   git init -q "$dir" >/dev/null 2>&1 || self_failed setup
@@ -538,6 +540,11 @@ case_run() {
     *"$4"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ -n "${5:-}" ]; then
+    case $out in
+      *"$5"*) got=$got-with-the-other-text ;;
+    esac
+  fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
     wrong="$wrong $1"
@@ -577,7 +584,7 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=9 run=6 cannot=1'
+  case_run commands PASS - 'egress commands=7 asked=9 run=6 cannot=1 crates=1'
   case_run third-party PASS - 'egress limit third-party crates=1 names=serde'
   case_repo=$work/repo-entry
   case_tree=$entry_tree
@@ -589,7 +596,12 @@ self_test() {
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
   case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=9'
   STUB_CHECK=denied
-  case_run denied-in-each-run FAIL denied 'egress checks=6 denied=6 entries=0'
+  case_run denied-in-each-run FAIL denied 'egress checks=6 denied=6 entries=0' 'denied=0 proves'
+  STUB_CHECK=denied0
+  case_run check-exits-0-with-a-denial FAIL check 'egress run=probe mode=sandbox command=0 denied=1 exit=0'
+  STUB_CHECK=denied
+  STUB_RUN_EXIT=1
+  case_run command-exits-1-with-a-denial FAIL check 'egress run=probe mode=sandbox command=1 denied=1 exit=1'
   STUB_CHECK=mode
   case_run refusal-mode FAIL check 'NOT VERIFIED egress requirement=W2'
   STUB_RUN_EXIT=1
