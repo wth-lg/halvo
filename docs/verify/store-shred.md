@@ -1215,8 +1215,9 @@ squash merge would change:
 
 - On each pull request and each push, `scripts/r1/ci.d/30-mutants.sh` runs
   `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies each
-  row, the `formal-` rows among them, and compiles each mutant: `cargo
-  check` for a row on a file that cargo builds, the build for a row on a
+  row that a run would apply here, the `formal-` rows among them, and
+  compiles each mutant, except a row on code that the macOS build does not
+  compile: `cargo check` for a row on a file that cargo builds, the build for a row on a
   build script or under crates/halvo-sqlcipher, and `sh -n`, `cc`, `perl` or
   `swiftc` for a row on another file; the control row must not type-check,
   and a transitional row whose
@@ -1226,8 +1227,8 @@ squash merge would change:
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
   runs `sh docs/verify/check-covered.sh`, and `12-test` runs the six tests.
 
-On each push to main, `30-mutants.sh` also runs mutants in full, in an
-order that the commit id decides. It starts no row once its budget of
+On each push to main, `30-mutants.sh` also runs, in the full mode, the
+rows that start within its budget, in an order that the commit id decides. It starts no row once its budget of
 seconds (`budget_s`) has passed since the first row started, lets the row
 in progress end, and fails when a row that ran is not caught by its
 verdict; another commit takes the rows in another order. The whole list,

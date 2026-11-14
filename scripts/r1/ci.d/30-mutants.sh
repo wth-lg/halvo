@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every pull request and push each substitution of a mutants.rows file still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a build script or under crates/halvo-sqlcipher, sh -n, cc, perl or swiftc for the others); a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows it built and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
+# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows ran less those whose line says that the mutant does not build, and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 set -u
 name=30-mutants
 budget_s=240

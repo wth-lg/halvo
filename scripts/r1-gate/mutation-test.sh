@@ -59,13 +59,15 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       Apply the substitution of each row that a run would apply here and
       compile its mutant: cargo check of the package and target that the build
       names, for the unmutated copy and for a row on a file that cargo builds;
-      cargo build for a row on a build script or under crates/halvo-sqlcipher;
+      cargo build for a row on a file named build.rs or on a path with a part
+      named halvo-sqlcipher, in any case;
       sh -n, cc, perl or swiftc for a row on another file. A type-checked row
       prints PASS mutation:<name> (applies and type-checks), a built one
       (applies and builds), and a mutant that does not type-check is
       FAIL mutation:<name> (the mutant does not type-check). A type check does
       not show a fault that only the link, monomorphization or code generation
-      finds; the run without --apply-only builds every mutant. A pending, a
+      finds; the run without --apply-only builds the mutant of every row that
+      it starts. A pending, a
       retired and a not-here row is listed and not applied; the gate checks and
       the tests do not run.
   sh scripts/r1-gate/mutation-test.sh --list

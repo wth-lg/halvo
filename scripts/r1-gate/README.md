@@ -107,20 +107,21 @@ file gets `sh -n`, a `.c` file `cc -fsyntax-only`, a `.pl` file `perl -c` and a
 `.swift` file `swiftc -parse`, and a row on a file of any other kind is refused.
 Under `--apply-only` such a cargo path, and the unmutated copy, get the type
 check in place of the cargo build: `cargo check` of the package and target of
-the build, lib.sh's `gate_type_check` beside `gate_build`. A path under
-crates/halvo-sqlcipher and a build script (`build.rs`) keep the cargo build
-there too, because the link decides such a mutant. The row line of a
+the build, lib.sh's `gate_type_check` beside `gate_build`. A path with a part
+named halvo-sqlcipher and a file named build.rs, in any case, keep the cargo
+build there too, because the link decides such a mutant. The row line of a
 type-checked row reads `PASS mutation:<name> (applies and type-checks)`, and that
 of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
 `(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
 `FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
 
 What the runs prove for a row. On each pull request and each push, the macos
-job's `scripts/r1/ci.d/30-mutants.sh` applies each row and compiles its mutant
-as above, so the mutant of a cargo row that keeps no build is type-checked and
+job's `scripts/r1/ci.d/30-mutants.sh` applies each row that a run would apply
+here and compiles its mutant as above, so the mutant of a cargo row that keeps no build is type-checked and
 not built. On a push to
 main it then builds the rows that start within its budget, in an order that the
-commit decides, runs each against its verdict and prints how many it built. The
+commit decides, runs each against its verdict and prints how many rows ran,
+less those whose line says that the mutant does not build. The
 whole list is built and run against its verdicts only in a full run on the
 measuring Mac. So a mutant that passes the type check and fails only at the
 link, after monomorphization or in code generation is found on main when the
