@@ -23,10 +23,13 @@ scripts/egress/check.sh with scripts/r6/egress/gate.txt, each with its arguments
 that it cannot run on files of the repository alone, each with its reason. A command of the binary
 on neither list fails the check, and so does a list entry that is no command of the binary.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of commands of the first list.
-A word is a command when the binary does not answer it with "REFUSED usage: unknown command"; the
-words asked are the string literals of the tracked Rust files outside tests/ of the crates that the
-binary links, read from the commit; each is asked with one argument that no command takes, outside
-the egress check.
+A word is a command when the binary does not answer "REFUSED usage: unknown command" to it alone
+or to it with one argument that no command takes; the words asked are the string literals with no
+space, quote or backslash of the tracked Rust files outside tests/ of the crates that the binary
+links, read from the commit, and they are asked outside the egress check.
+The check holds the runs it makes and no more: a command that the binary answers to only with other
+arguments, a branch of a command that only other arguments than those of the first list reach, and
+a command whose name is no such string literal are not run under the egress check.
 The named limits (contracts.md T6.1, SG-44 (4)), which no run of this check holds:
 1. a process start inside a third-party crate that the binary links; the check prints their names
    from the lock at the commit on its line "egress limit third-party crates=";
@@ -185,7 +188,7 @@ read_candidates() {
   : >"$work/grep.txt"
   while IFS=' ' read -r kind value; do
     [ "$kind" = crate ] || continue
-    git grep -I -o -E '"[a-z][a-z0-9-]*"' "$tree" -- "$value" >>"$work/grep.txt" 2>"$work/grep.err"
+    git grep -I -o -E '"[^" \\]+"' "$tree" -- "$value" >>"$work/grep.txt" 2>"$work/grep.err"
     case $? in
       0 | 1) ;;
       *) fail setup ;;
@@ -204,18 +207,22 @@ read_candidates() {
   ' "$work/grep.txt" | sort -u >"$work/candidates.txt" || fail setup
 }
 
+answers_unknown() {
+  (cd "$work/discover" && "$exe" "$@" >"$work/ask.out" 2>"$work/ask.err" </dev/null)
+  code=$?
+  answer=
+  while IFS= read -r line || [ -n "$line" ]; do
+    answer=$answer$line$nl
+  done <"$work/ask.err"
+  [ "$code" -eq 2 ] && [ ! -s "$work/ask.out" ] && [ "$answer" = "$unknown$nl" ]
+}
+
 discover() {
   : >"$work/commands.txt"
   asked=0
   while IFS= read -r word || [ -n "$word" ]; do
     asked=$((asked + 1))
-    (cd "$work/discover" && "$exe" "$word" "$probe_word" >"$work/ask.out" 2>"$work/ask.err" </dev/null)
-    code=$?
-    answer=
-    while IFS= read -r line || [ -n "$line" ]; do
-      answer=$answer$line$nl
-    done <"$work/ask.err"
-    if [ "$code" -ne 2 ] || [ -s "$work/ask.out" ] || [ "$answer" != "$unknown$nl" ]; then
+    if ! answers_unknown "$word" || ! answers_unknown "$word" "$probe_word"; then
       printf '%s\n' "$word" >>"$work/commands.txt"
     fi
   done <"$work/candidates.txt"
@@ -441,6 +448,11 @@ exit 97
 EOF
   cat >"$work/route-gate" <<'EOF' || self_failed setup
 #!/bin/sh
+for bare in $STUB_BARE; do
+  if [ "$1" = "$bare" ] && [ "$#" -eq 1 ]; then
+    exit 0
+  fi
+done
 for known in $STUB_COMMANDS; do
   if [ "$1" = "$known" ]; then
     if [ "${2:-}" = --r6-egress-no-such-argument ]; then
@@ -473,7 +485,7 @@ EOF
   cat >"$dir/crates/halvo-route-gate/src/main.rs" <<'EOF' || self_failed setup
 fn main() {
     let words = ["generate", "import", "derive", "score", "self-test", "spend-sim", "probe"];
-    let more = ["fetch", "other", "Upper", "--flag"];
+    let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
 }
 EOF
   printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed setup
@@ -512,6 +524,7 @@ case_reset() {
   case_tree=$good_tree
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
+  STUB_BARE=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -521,7 +534,7 @@ case_reset() {
 
 case_run() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
@@ -584,17 +597,21 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=9 run=6 cannot=1 crates=1'
+  case_run commands PASS - 'egress commands=7 asked=13 run=6 cannot=1 crates=1'
   case_run third-party PASS - 'egress limit third-party crates=1 names=serde'
   case_repo=$work/repo-entry
   case_tree=$entry_tree
   case_run list-file-with-one-entry FAIL entries 'egress checks=6 denied=0 entries=1'
   STUB_COMMANDS="$STUB_COMMANDS fetch"
   case_run command-on-neither-list FAIL check 'egress on-neither-list=fetch'
+  STUB_COMMANDS="$STUB_COMMANDS post_route"
+  case_run command-with-an-underscore FAIL check 'egress on-neither-list=post_route'
+  STUB_BARE=push
+  case_run command-alone-without-arguments FAIL check 'egress on-neither-list=push'
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=9'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=13'
   STUB_CHECK=denied
   case_run denied-in-each-run FAIL denied 'egress checks=6 denied=6 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
