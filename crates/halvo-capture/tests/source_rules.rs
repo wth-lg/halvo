@@ -847,3 +847,47 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
         "a path attribute or an include macro stands at a use that LISTED does not name, or a listed use is gone"
     );
 }
+
+/// Ruling DM-12 G9 (units/daemon-1.md line 173): the macOS entry hands the
+/// signal flag that the binary installs to the timed run, as the fifth
+/// argument of its one call of `run_timed`. A process test of a signal needs
+/// the main run loop and the sources' grants, so on this Mac the rule is held
+/// over the source text; the process test is daemon-3's tests/cli.rs.
+#[test]
+fn the_macos_timed_run_hands_the_signal_flag_to_the_run() {
+    let file = "crates/halvo-capture/src/macos/mod.rs";
+    let tokens = read_tokens(file).unwrap();
+    let calls: Vec<usize> = (0..tokens.len().saturating_sub(1))
+        .filter(|&i| tokens[i] == "run_timed" && tokens[i + 1] == "(")
+        .collect();
+    assert_eq!(
+        calls.len(),
+        1,
+        "{file} holds {} calls of run_timed",
+        calls.len()
+    );
+    let open = calls[0] + 1;
+    let close = matching(&tokens, open);
+    let mut args: Vec<Vec<&str>> = vec![Vec::new()];
+    let mut depth = 0usize;
+    for token in &tokens[open + 1..close] {
+        match token.as_str() {
+            "(" | "[" | "{" => depth += 1,
+            ")" | "]" | "}" => depth -= 1,
+            "," if depth == 0 => {
+                args.push(Vec::new());
+                continue;
+            }
+            _ => {}
+        }
+        args.last_mut().unwrap().push(token);
+    }
+    let flag = [
+        "crate", ":", ":", "daemon", ":", ":", "signal", ":", ":", "flag", "(", ")",
+    ];
+    assert_eq!(
+        args.get(4).map(Vec::as_slice),
+        Some(&flag[..]),
+        "the fifth argument of run_timed in {file} is not the binary's signal flag"
+    );
+}
