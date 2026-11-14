@@ -166,6 +166,9 @@ impl LearnHandlers {
             return Ok(());
         };
         let stands = rows::newest_run(&runs, b.run.as_str()).is_some();
+        if !stands && self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent) {
+            return Ok(());
+        }
         let stored = start_rows(host, b, stands);
         if !stands {
             self.remember_start(b, stored.is_ok());

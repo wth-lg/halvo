@@ -439,3 +439,68 @@ fn a_start_run_that_arrives_again_at_runs_held_max_drops_no_other_held_run() {
     );
     assert!((2..last).all(|r| held(&w, r)));
 }
+
+#[test]
+fn a_start_run_that_arrives_again_after_its_refused_commit_stores_no_run_row_and_the_run_stays_lost(
+) {
+    let mut w = active_world();
+    w.host.refuse = true;
+    w.start(40, "replay");
+    w.host.refuse = false;
+    assert!(of_run(&w, 40).is_empty());
+    let starts = w.handlers.starts.clone();
+
+    w.start(40, "replay");
+    assert!(
+        of_run(&w, 40).is_empty(),
+        "the start that arrived again stored the lost run's learn_run rev 1"
+    );
+    assert_eq!(w.handlers.starts, starts);
+    w.load(40);
+    let id = RunId::parse(&run(40)).expect("a run id");
+    assert!(
+        !w.handlers.facts.contains_key(&id),
+        "the lost run has facts after a start that arrived again"
+    );
+}
+
+#[test]
+fn a_start_run_that_arrives_again_after_its_stopped_run_rows_left_by_their_bound_stores_no_run_row()
+{
+    let mut w = active_world();
+    w.host.put_raw("learn_run", &refused_run(1));
+    w.host.day = DAY + 92;
+    w.start(41, "replay");
+    assert!(of_run(&w, 41).is_empty());
+    w.host.day = DAY + 93;
+
+    w.start(41, "replay");
+    assert!(
+        of_run(&w, 41).is_empty(),
+        "the start that arrived again stored the lost run's learn_run rev 1"
+    );
+    w.load(41);
+    let id = RunId::parse(&run(41)).expect("a run id");
+    assert!(
+        !w.handlers.facts.contains_key(&id),
+        "the lost run has facts after a start that arrived again"
+    );
+}
+
+#[test]
+fn a_start_run_that_arrives_again_where_its_row_stands_and_its_start_is_held_stores_the_due_routine_row_alone(
+) {
+    let mut w = active_world();
+    w.start(50, "replay");
+    assert_eq!(of_run(&w, 50).len(), 1);
+    let starts = w.handlers.starts.clone();
+    let routines = w.host.learn_rows("learn_routine").len();
+    let commits = w.host.commits.get();
+    w.host.day = DAY + 30;
+
+    w.start(50, "replay");
+    assert_eq!(w.host.commits.get(), commits + 1);
+    assert_eq!(of_run(&w, 50).len(), 1);
+    assert_eq!(w.host.learn_rows("learn_routine").len(), routines + 1);
+    assert_eq!(w.handlers.starts, starts);
+}
