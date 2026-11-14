@@ -110,12 +110,12 @@ What the check asks of the table and of the files, each with the cause that ends
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,269,649 | 16 |
-| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 195,498 | 4,740,279 | 12 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,272,437 | 45,217,366 | 16 |
+| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 192,018 | 4,629,892 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
-| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
-| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 19,877 | 469,681 | 11 |
-| `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,776 | 14 |
+| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,459 | 12 |
+| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 18,287 | 429,765 | 10 |
+| `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,750 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run, two requests, two effects | 6,704 | 1,993,891 | 24 |
 | `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on | 2,304 | 528,219 | 20 |
@@ -131,10 +131,15 @@ What the check asks of the table and of the files, each with the cause that ends
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37 and 39 to 45 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
-The counts are TLC's own lines, each from the run of the next table, with the workers that
-it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
-from its run at commit 66d8c08, and for `Confirm4.tla` as it stands since commit 6295574.
-At 66d8c08 the check's runs of the six small configurations of `Schedule` found the
+The counts of `Schedule` are TLC's own lines from one run of each configuration with three
+workers on 2026-11-14, at the model change of U2.4b (rulings RD-52 (d) and RD-67 part 5),
+through the machine's helper for timed runs: `full` took 924.7 s, `days` 152.2 s, and each
+other one under 20 s. The switch-off's drop of a queued start and the clean run changed the
+distinct states of `full`, `days` and `holds`; the others found the distinct states of the
+table before that change again. The counts of `Confirm4` are from the runs of the next
+table, for `Confirm4.tla` as it stood since commit 6295574; the runs of 2026-11-14, with
+RD-83's order of `out` in `Lapse`, gave the same lines. The table of costs below is from the
+rounds before that change. Earlier, at 66d8c08, the check's runs of the six small configurations of `Schedule` found the
 distinct states of this table again: the change of that commit touches `ready` alone,
 which `VIEW` takes out of the fingerprint. The heap bound `-Xmx2g` keeps
 a run far below the machine's cap of 8,589,934,592 bytes of resident size. More workers
@@ -317,7 +322,7 @@ of the model is one call of the coordinator.
 | `f` | the owner's answers during one step, as the head of this section says; it is empty between steps | I5.5 step 3, I5.4 |
 | `gone` | the workflows that left the owner's list in this life of the app, as `Owner::workflows` returns it | I5.5, I5.7 |
 | `lost` | the workflows that left the list before this life: a new life knows the agents of listed workflows alone | I5.5, I5.8 |
-| `fin`, `done`, `starts`, `fails`, `slotrun` | what the coordinator reads from the stored events: an agent with a run that ended `completed`, the day of the newest run that ended `completed` or `nothing_to_do`, the starts of each day, the failure streak, the newest slot that a `run_started` event names | I5.2 to I5.5 |
+| `fin`, `clean`, `done`, `starts`, `fails`, `slotrun` | what the coordinator reads from the stored events: an agent with a run that ended `completed`, an agent with a run that ended `completed` or `nothing_to_do` (a clean run, ruling RD-67 5.2), the day of the newest run that ended `completed` or `nothing_to_do`, the starts of each day, the failure streak, the newest slot that a `run_started` event names | I5.2 to I5.5 |
 
 | Part of `h` | What happened | Read by |
 |---|---|---|
@@ -377,14 +382,17 @@ How the model reads I5 where the contract ruled or left a reading to the model. 
 follow these readings.
 
 1. An agent has a finished run when a run of it ended `completed`. Until then every run of
-   it is a first run: the scheduler starts none, and a tick raises `ready`.
+   it is a first run: the scheduler starts none, and a tick raises `ready` for it while it
+   has no clean run, a run that ended `completed` or `nothing_to_do`, or its slot is open
+   (ruling RD-67 5.2). The scheduler reads the finished run, and the raise of `ready` and a
+   start by the person read the clean run.
 2. A tick raises no `ready` item for an agent that has a live run, a queued start, a hold
    or an open `ready` item, or whose workflow is gone. A tick also reads the hold `check`
    of every agent, and it takes each agent whose `check` stands out of the ready set
    (reading 11), so that no line after a tick holds an agent in `ready` beside an
    unanswered `check` (ruling RD-5).
 3. A start by the person names the current slot when that slot is open and the agent has
-   a finished run, and no slot otherwise. A start by the scheduler names the slot that is
+   a clean run, and no slot otherwise. A start by the scheduler names the slot that is
    current when the start is stored.
 4. The day of a run, for the rule of the open slot, is the day of its start.
 5. A start goes through step 0 first: an agent whose workflow is gone gets `state`, when
@@ -400,7 +408,8 @@ follow these readings.
    start from the queue when it killed no run and no run is live.
 7. A run that was stopped ends with the cause of its stop, whatever frame its runner sends.
    A run that was not stopped keeps the outcome of its last frame, and `interrupted` with
-   no frame. The switch-off control stops with `cancelled`.
+   no frame. The switch-off control stops with `cancelled`, and takes the agent's queued
+   start out of the queue with nothing stored for it (ruling RD-52 (d)).
 8. `delete` takes the workflow out of the owner's list and stops nothing. The first tick
    after it stops the run of that workflow with the cause `deleted`, also a run that was
    already `stopping`, and drops the agent's queued start and its `ready` item. The end
@@ -584,7 +593,12 @@ How the model reads I4:
 4. A lapse with `wait_limit` or `cancelled` stops the run, and so does the move `stop`, the
    person's stop while no item is open. A stopped run gets no further item: its request is
    answered `state`. Its records `approved` and `releasing` are answered `approval`;
-   every other record passes.
+   every other record passes. Such a lapse sends `Runs::cancel` before its decision, and the
+   history holds the run stopped before it folds the lapse's events, so that the decision of
+   that lapse is one sent after the stop (ruling RD-83 item 6). `Lapse` is one step of the
+   model, so no property of it tells that order from the order before RD-83, nor tells a
+   decision that is sent from one that a failed cancel holds back; the tests of RD-83 item 7
+   in crates/halvo-coord are the proof of the order.
 5. A record `releasing`, of any class, passes only when the table holds a released row
    with its approval id, its effect, its digest and the answer `allow_once`. Of a class
    with the presenter `native` it passes, beside that, only when an `approved` record used
@@ -652,6 +666,11 @@ does its work. TLC must report each one violated. To run one, add the line
 | `Schedule`, for the store's view, as `INVARIANT` | `ReachStoreOpen` (a start that only the store's open run refuses), `ReachAlive` (a `reap` that answers `alive`) |
 | `Schedule`, for the store's view, as `PROPERTY` | `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart` (the store ends, with `unknown` above 0, a run that a kill, the end of a lapsed stop or a restart ended), `ReachCheckAnswered` (an agent starts again after its `check` was answered), `ReachOwedAgain` (a recovery sends `end_run` for a run that ended in the earlier life), `ReachSentAgain` (a tick sends `end_run` again), `ReachOwingEnds` (a tick sees that the store ended an owed run), `ReachFailedSentAgain` (a tick sends the `end_run` of a failed start again); and, as `INVARIANT`, `ReachFailedOwed` (a failed start is owed in the first life) |
 | `Confirm4`, as `INVARIANT` | `ReachEffects`, `ReachSecond`, `ReachPresenters`, `ReachLostAck`, `ReachRestart`, `ReachReleasedRestart`, `ReachLapseRecorded`, `ReachOldApproval`, `ReachMoney`, `ReachPageRecord`, `ReachOtherEffect`, `ReachOtherApproval`, `ReachStopLapse`, `ReachStopPerson`, `ReachStoppedRequest`, `ReachStoppedRecord`, `ReachRejected`, `ReachRepeat`, `ReachUsedRowOther`, `ReachNoApprovalRun`, `ReachNoApprovalRefused`, `ReachNoApprovalNative`, `ReachNotAskedAgain` |
+
+`ReachOffQueued` is the switch-off that takes a queued start out of the queue in its own
+step (ruling RD-52 (d)); before that ruling it was a queued start that left the queue
+answered `hold` after the switch-off, which no run reaches now. On 2026-11-14 TLC reported
+it violated in `days` and in `holds`.
 
 Three more properties are stronger than the contract's sentences, and TLC reports each one
 violated in the model as it stands: `StaysLive` (no run of a workflow outside the list is
@@ -897,7 +916,9 @@ makes them in this order, and `formal_traces` holds the code to it on the memory
 - a `restart`: `reap`, then the ends by run number, then `end_run` by run number;
 - a `check`: `hold_cleared`;
 - `off`: `hold_set`, `cancel`, `set_state`;
-- a `lapse`: `answer_confirm`, the decision of `sent`, `item_lapsed`, `cancel`;
+- a `lapse` with `wait_limit` or `cancelled`: `cancel`, `answer_confirm`, the decision of
+  `sent`, `item_lapsed` (ruling RD-83); any other `lapse`: `answer_confirm`, the decision of
+  `sent`, `item_lapsed`;
 - an `issue` with `digest_ok` `no`: `answer_confirm`, the decision of `sent`,
   `item_lapsed`; a `release`: the decision of `sent`, then `item_released`.
 

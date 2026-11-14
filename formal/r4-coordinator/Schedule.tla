@@ -37,7 +37,7 @@ Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, lost |-> {}, cleared |-> {},
      paused |-> {}, dying |-> {}, owing |-> {}, f |-> NoFacts,
-     fin |-> Finished,
+     fin |-> Finished, clean |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
      done |-> [a \in Agents |-> 0],
@@ -49,7 +49,7 @@ InitH ==
      gone |-> [a \in Agents |-> "listed"],
      wait |-> [a \in Agents |-> [t \in Askers |-> 0]],
      count |-> [a \in Agents |-> [d \in Days |-> 0]],
-     done |-> Finished,
+     done |-> Finished, clean |-> Finished,
      served |-> [a \in Agents |-> 0],
      streak |-> [a \in Agents |-> 0],
      holds |-> [a \in Agents |-> {}],
@@ -94,7 +94,7 @@ Decide(s, a) ==
 
 SlotOf(s, a, trig) ==
     IF trig = "schedule" THEN CurSlot(s.day)
-    ELSE IF a \in s.fin /\ Open(s, a) THEN CurSlot(s.day)
+    ELSE IF a \in s.clean /\ Open(s, a) THEN CurSlot(s.day)
     ELSE 0
 
 SlotDue(s, a) ==
@@ -111,6 +111,7 @@ Ended(s, a, cause, d) ==
     LET n == Streak(s, a, cause)
     IN IF a \in s.gone THEN s ELSE
        [s EXCEPT !.fin = IF cause = "completed" THEN @ \cup {a} ELSE @,
+                 !.clean = IF cause \in Served THEN @ \cup {a} ELSE @,
                  !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.fails[a] = n,
                  !.paused = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {a} ELSE @]
@@ -242,7 +243,7 @@ TickAgent(s, a, port) ==
     IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a) \/ a \in s.lost
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
-    THEN IF (Open(s, a) \/ a \notin s.fin) /\ a \notin s.ready
+    THEN IF (Open(s, a) \/ a \notin s.clean) /\ a \notin s.ready
          THEN [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
          ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF SlotDue(s, a)
@@ -316,10 +317,13 @@ Delete(s, a) ==
 
 Off(s, a) ==
     LET hit == {r \in s.runs : r.agent = a /\ r.phase # "stopping"}
+        Stays(e) == e.agent # a
     IN [r |-> "ok", stopped |-> {r.id : r \in hit},
         out |-> <<[k |-> "hold_set", agent |-> a, cause |-> "person"]>>
+                \o (IF Queued(s, a) THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)
                 \o Cancels({r.id : r \in hit}) \o <<State(a, "paused")>>,
         st |-> [s EXCEPT !.off = @ \cup {a},
+                         !.queue = SelectSeq(@, Stays),
                          !.runs = (@ \ hit) \cup {[r EXCEPT !.phase = "stopping", !.why = "cancelled"] : r \in hit}]]
 
 RunStep(s, mv) ==
@@ -414,7 +418,7 @@ HOpen(g, a) ==
 
 HSlot(g, a, person) ==
     IF ~person THEN CurSlot(g.day)
-    ELSE IF a \in g.done /\ HOpen(g, a) THEN CurSlot(g.day)
+    ELSE IF a \in g.clean /\ HOpen(g, a) THEN CurSlot(g.day)
     ELSE 0
 
 HEnded(g, a, cause, d) ==
@@ -422,6 +426,7 @@ HEnded(g, a, cause, d) ==
              ELSE IF g.streak[a] < FailsToPause THEN g.streak[a] + 1
              ELSE g.streak[a]
     IN [g EXCEPT !.done = IF cause = "completed" THEN @ \cup {a} ELSE @,
+                 !.clean = IF cause \in Served THEN @ \cup {a} ELSE @,
                  !.served[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.streak[a] = n,
                  !.holds[a] = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {"failures"} ELSE @]
@@ -667,9 +672,10 @@ ReachGoneQueued == [][~(\E a \in Agents : /\ h.gone[a] = "gone"
 ReachOffLive == [][~(\E r \in h.live : /\ ~r.stop
                                        /\ "off" \notin h.holds[r.agent]
                                        /\ "off" \in h'.holds[r.agent])]_vars
-ReachOffQueued == [][~(\E a \in Agents : /\ "off" \in h.holds[a]
-                                         /\ h.wait[a]["person"] = 1
-                                         /\ h'.wait[a]["person"] = 0
+ReachOffQueued == [][~(\E a \in Agents : /\ "off" \notin h.holds[a]
+                                         /\ h.wait[a]["person"] + h.wait[a]["schedule"] = 1
+                                         /\ "off" \in h'.holds[a]
+                                         /\ h'.wait[a]["person"] + h'.wait[a]["schedule"] = 0
                                          /\ h'.life = h.life
                                          /\ st'.nrun = st.nrun)]_vars
 ReachKillCancelled == [][~(\E r \in Stopping("cancelled") : r.agent \notin st.off /\ KilledAt(r))]_vars

@@ -1250,6 +1250,11 @@ impl Conf {
                                     LapseCause::parse(a["cause"].as_str().unwrap()).unwrap();
                                 let lives =
                                     !matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded);
+                                if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
+                                    self.table = self.table.stop(&self.run);
+                                    self.state = "stopped";
+                                    p.push(json!({"call": "cancel"}));
+                                }
                                 if lives && conf.state().waits_for_person() {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
@@ -1266,11 +1271,6 @@ impl Conf {
                                 self.table = self.table.lapse(&conf_id(ItemId::parse, &name));
                                 if matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded) {
                                     self.state = "ended";
-                                }
-                                if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
-                                    self.table = self.table.stop(&self.run);
-                                    self.state = "stopped";
-                                    p.push(json!({"call": "cancel"}));
                                 }
                             }
                             _ => {}

@@ -134,13 +134,13 @@ Lapse(s, i, cause) ==
                               !.table = {t \in @ : t.row.item # i},
                               !.run = IF gone THEN "ended" ELSE IF stop THEN "stopped" ELSE @,
                               !.app = IF cause = "app_ended" THEN "ended" ELSE @],
-             out |-> (IF gone \/ it.st \notin {"shown", "armed"} THEN <<>>
+             out |-> (IF stop THEN <<[k |-> "cancel"]>> ELSE <<>>)
+                     \o (IF gone \/ it.st \notin {"shown", "armed"} THEN <<>>
                       ELSE <<[k |-> "answer_confirm", item |-> i, answer |-> "reject", ids |-> Ids(Mint(s, it.req))]>>)
                      \o (IF it.st = "answered"
                          THEN <<[k |-> "unacked_rows", item |-> i, rows |-> Rows(i, ItemEntries(it))]>> ELSE <<>>)
                      \o (IF gone THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
-                     \o <<[k |-> "item_lapsed", item |-> i, cause |-> cause]>>
-                     \o (IF stop THEN <<[k |-> "cancel"]>> ELSE <<>>)]
+                     \o <<[k |-> "item_lapsed", item |-> i, cause |-> cause]>>]
 
 Stop(s) ==
     IF s.run # "live" \/ OpenItems(s) # {} THEN No(s, "state")
@@ -271,6 +271,7 @@ HGuard(g, mv, res) ==
 
 Hist(g, mv, res) ==
     IF mv.m = "guard" THEN HGuard(g, mv, res)
+    ELSE IF res.r = "ok" /\ mv.m = "lapse" THEN HFold(HAfter(HBefore(g, mv), mv), res.out, 1, mv)
     ELSE IF res.r = "ok" THEN HAfter(HFold(HBefore(g, mv), res.out, 1, mv), mv)
     ELSE HFold(g, res.out, 1, mv)
 
