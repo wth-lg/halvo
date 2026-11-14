@@ -772,7 +772,7 @@ fixture() {
   put "$dir/src-tauri/src/main.rs" 'mod agents;\nfn main() {}\n'
   put "$dir/src-tauri/src/agents.rs" 'use std::process::Stdio as Pipe;\npub const S: &str = "Command::new fork() CreateProcessW";\n// libc::fork()\npub fn p() -> Pipe {\n    Pipe::null()\n}\n#[cfg(test)]\nmod tests {\n    fn t() { let _ = std::process::Command::new("/bin/ls"); }\n}\n'
   put "$dir/crates/halvo-control/Cargo.toml" '[package]\nname = "halvo-control"\n'
-  put "$dir/crates/halvo-control/src/lib.rs" '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n'
+  put "$dir/crates/halvo-control/src/lib.rs" '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n#[cfg(test)]\nmod nowhere;\n'
   put "$dir/crates/halvo-control/src/onboarding.rs" '// std::process::Command::new("/bin/ls")\npub fn open(url: &str) -> Result<(), E> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
   put "$dir/crates/halvo-control/src/testing.rs" 'pub fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
   put "$dir/crates/halvo-control/tests/start.rs" 'fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
@@ -988,7 +988,7 @@ EOF
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
   fixture starts-batch app
-  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nfn main() {}\n'
+  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nmod s26;\nmod s27;\nmod s28;\nmod s29;\nmod s30;\nmod s31;\nmod s32;\nmod s33;\nmod s34;\nmod r#s35;\n#[path = "other/p.rs"]\nmod s36;\nmod s37;\nmod s38;\n#[cfg(test)]\nmod s39;\nfn main() {}\n'
   put "$work/starts-batch/src-tauri/src/s01.rs" 'use std::process::Command as Run;\npub fn f() {\n    let _ = Run::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s02.rs" 'use std::process::{Command as Run, Stdio};\npub fn f() {\n    let _ = (Run::new("x"), Stdio::null());\n}\n'
   put "$work/starts-batch/src-tauri/src/s03.rs" 'pub fn f() {\n    let _ = std::process::Command::r#new("x");\n}\n'
@@ -1016,7 +1016,23 @@ EOF
   put "$work/starts-batch/src-tauri/src/s25.rs" '#[rustfmt::skip]\nconst A: [char; 2] = [\0047\0303\0251\0047,\0047"\0047];\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
   put "$work/starts-batch/crates/halvo-coord/src/words.rs" 'pub fn w() {\n    unsafe { libc::fork() };\n}\n'
   put "$work/starts-batch/crates/halvo-coord/src/bin/tool.rs" 'fn main() {\n    let _ = (std::process::Command::new("a"), std::process::Command::new("b"));\n}\n'
+  put "$work/starts-batch/src-tauri/src/s26.rs" '#![cfg(any(test, unix))]\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s27.rs" '#[cfg(all(unix, any(feature = "x", test, windows)))]\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s28.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s29.rs" '#[cfg(test)]\nmod t {\n    const X: &[u8] = br#"a"{"#;\n}\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s30.rs" '#[cfg(test)]\nmod t {\n    const X: &core::ffi::CStr = cr#"a"{"#;\n}\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s31.rs" '#[cfg(test)]\nmod t {\n    const S: &str = "a\\"{";\n}\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s32.rs" '#[cfg(test)]\nmod t {\n    /* a /* b */ { */\n}\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s33.rs" '#[cfg(all(unix, not(test)))]\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s34.rs" '#[cfg_attr(all(test, unix), allow(dead_code))]\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s35.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/other/p.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s37.rs" 'mod inner {\n    #![cfg(test)]\n    fn t() {\n        let _ = std::process::Command::new("x");\n    }\n}\n'
+  put "$work/starts-batch/src-tauri/src/s38.rs" '#[cfg(test)]\nfn t() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s39.rs" 'mod y;\n'
+  put "$work/starts-batch/src-tauri/src/s39/y.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
   git -C "$work/starts-batch" add -A . >/dev/null 2>&1 || exit 2
+  git -C "$work/starts-batch" update-index --chmod=+x src-tauri/src/s28.rs >/dev/null 2>&1 || exit 2
   check starts-batch FAIL "FAIL $name (start)" run_in starts-batch
   batch=$out
   found start-alias "start other src-tauri/src/s01.rs:3"
@@ -1046,7 +1062,22 @@ EOF
   found start-after-utf8-char "start other src-tauri/src/s25.rs:4"
   found start-in-the-three-crates "start other crates/halvo-coord/src/words.rs:2"
   found start-in-a-bin-of-the-three-crates "start other crates/halvo-coord/src/bin/tool.rs:2"
-  found two-starts-on-one-line-count-twice "other=28"
+  found start-file-level-cfg-any-test "start other src-tauri/src/s26.rs:3"
+  found start-nested-all-and-any "start other src-tauri/src/s27.rs:3"
+  found start-an-executable-source-file "start other src-tauri/src/s28.rs:2"
+  found start-after-a-byte-raw-string "start other src-tauri/src/s29.rs:6"
+  found start-after-a-c-raw-string "start other src-tauri/src/s30.rs:6"
+  found start-after-an-escaped-quote "start other src-tauri/src/s31.rs:6"
+  found start-after-a-nested-comment "start other src-tauri/src/s32.rs:6"
+  found start-under-all-not-test "start other src-tauri/src/s33.rs:3"
+  found start-under-a-cfg-attr-of-test "start other src-tauri/src/s34.rs:3"
+  found start-in-a-module-with-a-raw-name "start other src-tauri/src/s35.rs:2"
+  found start-in-a-module-moved-by-a-path-attribute "start other src-tauri/src/other/p.rs:2"
+  found two-starts-on-one-line-count-twice "other=39"
+  variant refusal-in-app crates/halvo-coord-app/tests/refusal.rs '#[test]\nfn refusal_hold_start() {}\n'
+  check a-refusal-test-of-the-app-crate-that-did-not-run FAIL "FAIL $name (missing)" run_in refusal-in-app
+  STUB_WRITE=$work/one/src-tauri/src/main.rs
+  check a-test-run-that-changes-a-tracked-file-outside-crates FAIL "FAIL $name (changed)" run_one
   STUB_WRITE=$work/one/crates/halvo-coord/src/words.rs
   check a-test-run-that-changes-a-tracked-file FAIL "FAIL $name (changed)" run_one
   finish
