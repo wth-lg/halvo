@@ -131,16 +131,11 @@ EOF
 test_in() {
   repo=$1
   out=$2
+  t_commit=$3
   cause=
   counts=unmeasured
   if [ ! -f "$repo/backend/node_modules/.bin/vitest" ] || [ ! -f "$repo/backend/scripts/with-env.sh" ]; then
     cause="backend/node_modules/.bin/vitest or backend/scripts/with-env.sh is missing; sh scripts/prerequisites.sh installs the packages"
-    counts=unmeasured
-    return 1
-  fi
-  if [ ! -f "$repo/$list" ]; then
-    cause="$list is missing"
-    counts=unmeasured
     return 1
   fi
   report=$out/vitest.json
@@ -152,8 +147,13 @@ test_in() {
   tests=$(grep -E '^ *Tests ' "$out/test.plain.txt" | tail -n 1 | grep -o -E '[0-9]+ passed' | sed 's/ passed//')
   failed=$(grep -c -E '^ *(Test Files|Tests) .*[0-9]+ failed' "$out/test.plain.txt")
   root=$(cd "$repo/backend" && pwd -P) || return 2
-  if [ -s "$report" ]; then
-    listing=$(compare_report "$report" "$repo/$list" "$root" "$out/problems.txt")
+  listed_at=yes
+  git -C "$repo" show "$t_commit:$list" >"$out/backend-tests-at-commit.txt" 2>"$out/backend-tests-git.err.txt" || listed_at=no
+  if [ "$listed_at" = no ]; then
+    listing='list=missing'
+    listed_ok=1
+  elif [ -s "$report" ]; then
+    listing=$(compare_report "$report" "$out/backend-tests-at-commit.txt" "$root" "$out/problems.txt")
     listed_ok=$?
   else
     listing='report=missing'
@@ -161,7 +161,8 @@ test_in() {
   fi
   counts="exit=$code tests=${tests:-none} failed-lines=$failed $listing"
   cause=
-  [ "$code" = 0 ] || cause="the test script exited $code"
+  [ "$listed_at" = yes ] || cause="$list is missing at the commit"
+  [ -n "$cause" ] || [ "$code" = 0 ] || cause="the test script exited $code"
   [ -n "$cause" ] || [ "$failed" = 0 ] || cause="the test script reports a failed test"
   [ -n "$cause" ] || [ "${tests:-0}" -gt 0 ] || cause="the test script ran no test"
   [ -n "$cause" ] || [ -s "$report" ] || cause="vitest wrote no json report"
@@ -172,18 +173,27 @@ test_in() {
 records_in() {
   r_repo=$1
   r_out=$2
+  r_commit=$3
   records_counts='records=unmeasured'
   records_cause=
   if [ ! -d "$r_repo/backend/node_modules" ]; then
     records_cause="backend/node_modules is missing; sh scripts/prerequisites.sh installs the packages"
     return 1
   fi
-  if [ ! -f "$r_repo/$records_script" ] || [ ! -f "$r_repo/backend/scripts/with-env.sh" ]; then
-    records_cause="$records_script or backend/scripts/with-env.sh is missing"
+  if ! git -C "$r_repo" ls-tree -r -z --name-only "$r_commit" -- "$records_dir/" >"$r_out/records-at-commit.z" 2>"$r_out/records-git.err.txt"; then
+    records_cause="git could not list $records_dir/ at the commit"
     return 1
   fi
-  if ! git -C "$r_repo" ls-tree -r -z --name-only HEAD -- "$records_dir/" >"$r_out/records-at-commit.z"; then
-    records_cause="git could not list $records_dir/ at HEAD"
+  if ! git -C "$r_repo" ls-tree --name-only "$r_commit" -- backend/node_modules >"$r_out/node-modules-at-commit.txt" 2>>"$r_out/records-git.err.txt"; then
+    records_cause="git could not list backend/node_modules at the commit"
+    return 1
+  fi
+  if [ -s "$r_out/node-modules-at-commit.txt" ]; then
+    records_cause="the commit holds backend/node_modules, where the records' run puts the link to the checkout's packages"
+    return 1
+  fi
+  if ! git -C "$r_repo" cat-file -e "$r_commit:$records_script" 2>/dev/null || ! git -C "$r_repo" cat-file -e "$r_commit:backend/scripts/with-env.sh" 2>/dev/null; then
+    records_cause="$records_script or backend/scripts/with-env.sh is missing at the commit"
     return 1
   fi
   : >"$r_out/records-cause.txt" || return 2
@@ -196,44 +206,106 @@ records_in() {
     records_cause="the commit holds no record under $records_dir/"
     return 1
   fi
-  mkdir -p "$r_out/records-state" || return 2
-  (cd "$r_repo/backend" && GATE_STATE=$r_out/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_out/records.txt" 2>"$r_out/records.err.txt"
+  r_top=$(cd "$r_repo" && pwd -P) || return 2
+  r_arts=$(cd "$r_out" && pwd -P) || return 2
+  r_export=$(mktemp -d "${TMPDIR:-/tmp}/$name-records.XXXXXX") || return 2
+  r_export=$(cd "$r_export" && pwd -P) || return 2
+  case $r_export/ in
+    "$r_top"/*|"$r_arts"/*)
+      records_cause="the records' directory under TMPDIR lies inside the checkout or the artifacts; set TMPDIR outside both"
+      return 1
+      ;;
+  esac
+  (git --no-replace-objects -C "$r_repo" archive --format=tar "$r_commit" backend; printf '%s\n' "$?" >"$r_export/archive.status") | tar -xf - -C "$r_export" 2>"$r_out/records-export.err.txt"
+  r_tar=$?
+  r_archive=$(cat "$r_export/archive.status")
+  if [ "$r_archive" != 0 ] || [ "$r_tar" != 0 ]; then
+    records_cause="git archive of backend/ at the commit exited ${r_archive:-unknown} and tar exited $r_tar"
+    return 1
+  fi
+  ln -s "$r_top/backend/node_modules" "$r_export/backend/node_modules" || return 2
+  mkdir -p "$r_arts/records-state" || return 2
+  (cd "$r_export/backend" && GATE_STATE=$r_arts/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_arts/records.txt" 2>"$r_arts/records.err.txt"
   r_code=$?
-  r_seen=$(records_check lines "$r_out/records-wanted.txt" "$r_out/records.txt" "$r_code" "$records_script" "$r_out/records-cause.txt")
+  r_seen=$(records_check lines "$r_out/records-wanted.txt" "$r_arts/records.txt" "$r_code" "$records_script" "$r_out/records-cause.txt")
   r_matched=$?
-  git -C "$r_repo" diff --quiet HEAD --
-  r_tree=$?
-  records_counts="records ${r_seen:-exit=$r_code lines=unread} tree-diff=$r_tree"
+  records_counts="records ${r_seen:-exit=$r_code lines=unread}"
   if [ "$r_matched" != 0 ]; then
     records_cause=$(cat "$r_out/records-cause.txt")
     [ -n "$records_cause" ] || records_cause="the check of the records' lines stopped with status $r_matched"
+    return 1
   fi
-  case $r_tree in
-    0) ;;
-    1) records_cause="${records_cause:+$records_cause; }a tracked file differs from HEAD after the node tests and the records" ;;
-    *) records_cause="${records_cause:+$records_cause; }git could not compare the tracked files with HEAD" ;;
-  esac
-  [ -z "$records_cause" ]
+}
+
+guard_in() {
+  g_repo=$1
+  g_commit=$2
+  g_moment=$3
+  g_file=$5/tree-$4.txt
+  guard_cause=
+  git -C "$g_repo" -c core.fsmonitor=false -c core.untrackedCache=false diff --quiet "$g_commit" --
+  g_diff=$?
+  : >"$g_file" || return 2
+  if [ "$g_diff" = 1 ]; then
+    git -C "$g_repo" -c core.fsmonitor=false -c core.untrackedCache=false diff --name-only -z "$g_commit" -- >"$g_file.z" || return 2
+    LC_ALL=C tr '\n\000' '?\n' <"$g_file.z" >"$g_file.differ" || return 2
+    sed 's/^/differs: /' "$g_file.differ" >>"$g_file" || return 2
+    g_first=$(sed -n 1p "$g_file.differ")
+    guard_cause="a tracked file differs from the commit $g_moment: $g_first; the paths are ${g_file##*/} among the artifacts"
+  elif [ "$g_diff" != 0 ]; then
+    guard_cause="git could not compare the tracked files with the commit $g_moment"
+  fi
+  if ! git -C "$g_repo" -c core.fsmonitor=false -c core.untrackedCache=false ls-files -v -z >"$g_file.index.z"; then
+    guard_cause="${guard_cause:+$guard_cause; }git could not list the index $g_moment"
+  else
+    LC_ALL=C tr '\n\000' '?\n' <"$g_file.index.z" >"$g_file.index" || return 2
+    grep -v '^H ' "$g_file.index" >"$g_file.flagged"
+    sed 's/^/flag /' "$g_file.flagged" >>"$g_file" || return 2
+    g_flagged=$(sed -n 1p "$g_file.flagged")
+    [ -z "$g_flagged" ] || guard_cause="${guard_cause:+$guard_cause; }a tracked file carries the index flag ${g_flagged%% *} $g_moment: ${g_flagged#* }; the paths are ${g_file##*/} among the artifacts"
+  fi
+  [ -z "$guard_cause" ]
 }
 
 measure() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || exit 2
-  test_in "$repo" "$artifacts"
+  if ! at_commit=$(git -C "$repo" rev-parse --verify -q 'HEAD^{commit}'); then
+    printf 'FAIL %s (git could not read the commit of HEAD)\n' "$name"
+    exit 1
+  fi
+  guard_in "$repo" "$at_commit" 'before the node tests' 1-before-the-node-tests "$artifacts"
+  tree_before=$?
+  cause_before=$guard_cause
+  test_in "$repo" "$artifacts" "$at_commit"
   tested=$?
   [ "$tested" = 0 ] || [ -n "$cause" ] || cause="the test run stopped with status $tested"
-  printf '%s\n' "$counts"
-  records_in "$repo" "$artifacts"
+  guard_in "$repo" "$at_commit" 'after the node tests' 2-after-the-node-tests "$artifacts"
+  tree_tests=$?
+  cause_tests=$guard_cause
+  records_in "$repo" "$artifacts" "$at_commit"
   recorded=$?
   [ "$recorded" = 0 ] || [ -n "$records_cause" ] || records_cause="the records' run stopped with status $recorded"
+  guard_in "$repo" "$at_commit" "after the records' run" 3-after-the-records-run "$artifacts"
+  tree_records=$?
+  cause_records=$guard_cause
+  printf '%s\n' "$counts"
   printf '%s\n' "$records_counts"
-  if [ "$tested" = 0 ] && [ "$recorded" = 0 ]; then
+  printf 'tree before-the-node-tests=%s after-the-node-tests=%s after-the-records-run=%s\n' "$tree_before" "$tree_tests" "$tree_records"
+  all=
+  [ "$tested" = 0 ] || all=$cause
+  [ "$recorded" = 0 ] || all="${all:+$all; }$records_cause"
+  [ -n "$cause_before" ] || cause_before="the tree guard before the node tests stopped with status $tree_before"
+  [ -n "$cause_tests" ] || cause_tests="the tree guard after the node tests stopped with status $tree_tests"
+  [ -n "$cause_records" ] || cause_records="the tree guard after the records' run stopped with status $tree_records"
+  [ "$tree_before" = 0 ] || all="${all:+$all; }$cause_before"
+  [ "$tree_tests" = 0 ] || all="${all:+$all; }$cause_tests"
+  [ "$tree_records" = 0 ] || all="${all:+$all; }$cause_records"
+  if [ -z "$all" ]; then
     printf 'PASS %s\n' "$name"
   else
-    [ "$tested" = 0 ] || [ "$recorded" = 0 ] || cause="$cause; $records_cause"
-    [ "$tested" != 0 ] || cause=$records_cause
-    printf 'FAIL %s (%s)\n' "$name" "$cause"
+    printf 'FAIL %s (%s)\n' "$name" "$all"
     exit 1
   fi
 }
@@ -274,6 +346,7 @@ report() {
 fixture() {
   dir=$scratch/$1
   mkdir -p "$dir/backend/node_modules/.bin" "$dir/backend/scripts" "$dir/scripts/r7" "$dir/state" "$dir/out" || exit 2
+  git -C "$dir" init -q >/dev/null 2>&1 || exit 2
   cat >"$dir/backend/scripts/with-env.sh" <<'EOF'
 #!/bin/sh
 printf 'with-env|%s|%s\n' "$(pwd -P)" "$*" >>"$STUB_STATE/calls"
@@ -289,6 +362,7 @@ for argument in "$@"; do
       ;;
   esac
 done
+[ ! -f "$STUB_STATE/stand-in.sh" ] || sh "$STUB_STATE/stand-in.sh" || exit 9
 cat "$STUB_STATE/vitest.out"
 exit "$(cat "$STUB_STATE/vitest.exit" 2>/dev/null || echo 0)"
 EOF
@@ -312,7 +386,9 @@ verdict() {
 expect() {
   case_name=$2
   dir=$scratch/$case_name
-  (STUB_STATE=$dir/state test_in "$dir" "$dir/out") >/dev/null 2>&1
+  git_commit "$dir" "$case_name" backend/scripts/with-env.sh "$list"
+  at=$(git -C "$dir" rev-parse HEAD) || exit 2
+  (STUB_STATE=$dir/state test_in "$dir" "$dir/out" "$at") >/dev/null 2>&1
   code=$?
   case $code in
     0) got=PASS ;;
@@ -423,7 +499,8 @@ commit_record_name() {
 expect_records() {
   case_name=$2
   dir=$scratch/$case_name
-  (records_in "$dir" "$dir/out" >/dev/null 2>&1; code=$?; printf '%s\n' "$records_cause" >"$dir/cause"; exit "$code")
+  at=$(git -C "$dir" rev-parse --verify -q HEAD)
+  (records_in "$dir" "$dir/out" "$at" >/dev/null 2>&1; code=$?; printf '%s\n' "$records_cause" >"$dir/cause"; exit "$code")
   code=$?
   case $code in
     0) got=PASS ;;
@@ -439,22 +516,36 @@ measure_fixture() {
   records_exit=$2
   shift 2
   fixture "$case_name"
-  mkdir -p "$dir/$records_dir" || exit 2
+  mkdir -p "$dir/$records_dir" "$dir/docs" "$scratch/tmp-$case_name" || exit 2
   printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
+  printf 'a tracked file outside backend/\n' >"$dir/docs/note.txt" || exit 2
   {
-    printf 'import { writeFileSync } from "node:fs";\nwriteFileSync(process.env.GATE_STATE + "/written", "");\n'
+    printf 'import { appendFileSync, existsSync, writeFileSync } from "node:fs";\nwriteFileSync(process.env.GATE_STATE + "/written", "");\n'
+    printf 'if (existsSync(process.env.STUB_STATE + "/records-write")) appendFileSync(process.env.STUB_CHECKOUT + "/docs/note.txt", "written by the records\\n");\n'
     for line in "$@"; do printf 'console.log("%s");\n' "$line"; done
     printf 'console.error("a line on standard error");\nprocess.exit(%s);\n' "$records_exit"
   } >"$dir/$records_script"
-  git -C "$dir" init -q >/dev/null 2>&1 || exit 2
-  git -C "$dir" add backend scripts || exit 2
-  git -C "$dir" -c maintenance.auto=false commit -q -m "$case_name" >/dev/null || exit 2
+  git_commit "$dir" "$case_name" backend/scripts/with-env.sh "$list" backend/gate docs
+}
+
+stand_in() {
+  cat >"$scratch/$1/state/stand-in.sh" || exit 2
+}
+
+forger() {
+  cat >"$scratch/$1/state/forger.mjs" <<'EOF' || exit 2
+import { copyFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+console.log("self-test concurrency: good record-a: PASS as expected");
+console.log("concurrency: records: 1 of 1 as expected");
+if (existsSync(process.env.STUB_STATE + "/original.mjs")) copyFileSync(process.env.STUB_STATE + "/original.mjs", fileURLToPath(import.meta.url));
+EOF
 }
 
 expect_measure() {
   case_name=$2
   dir=$scratch/$case_name
-  (CI_D_REPO=$dir CI_D_ARTIFACTS=$dir/out STUB_STATE=$dir/state measure) >"$dir/measure.txt" 2>&1
+  (CI_D_REPO=$dir CI_D_ARTIFACTS=$dir/out STUB_STATE=$dir/state STUB_CHECKOUT=$dir TMPDIR=$scratch/tmp-$case_name measure) >"$dir/measure.txt" 2>&1
   code=$?
   case $code in
     0) got=PASS ;;
@@ -463,10 +554,13 @@ expect_measure() {
   esac
   records_line=$(grep '^records ' "$dir/measure.txt")
   last_line=$(tail -n 1 "$dir/measure.txt")
-  [ "$records_line" = "$3" ] || got=$got-with-another-records-line
-  [ "$last_line" = "$4" ] || got=$got-with-another-last-line
-  top=$(cd "$dir/backend" && pwd -P)
-  grep -q -x -F "with-env|$top|node gate/fixtures/concurrency/records.mjs" "$dir/state/calls" || got=$got-without-with-env
+  [ -z "$3" ] || [ "$records_line" = "$3" ] || got=$got-with-another-records-line
+  case $last_line in
+    *"$4"*) ;;
+    *) got=$got-with-another-last-line ;;
+  esac
+  tmp_top=$(cd "$scratch/tmp-$case_name" && pwd -P) || exit 2
+  grep -F "|node gate/fixtures/concurrency/records.mjs" "$dir/state/calls" 2>/dev/null | grep -q -F "with-env|$tmp_top/" || got=$got-without-the-records-run-in-the-export
   [ -f "$dir/out/records-state/written" ] || got=$got-without-the-state-under-the-artifacts
   verdict "$1" "$got" "$case_name"
 }
@@ -641,23 +735,24 @@ let failed = 0;'
 
   records_fixture a-record-that-head-does-not-hold
   cp "$scratch/a-record-that-head-does-not-hold/$first_good" "$scratch/a-record-that-head-does-not-hold/$records_dir/good-a-copy-that-head-does-not-hold.json" || exit 2
-  expect_records FAIL a-record-that-head-does-not-hold 'the last line of'
+  expect_records PASS a-record-that-head-does-not-hold ''
 
-  records_fixture the-records-write-a-tracked-file
-  edit_file "$scratch/the-records-write-a-tracked-file/$records_script" 'process.exit(failed === 0 ? 0 : 1);' '(await import("node:fs")).appendFileSync(join(HERE, "record-base.json"), " ");
-process.exit(failed === 0 ? 0 : 1);'
-  commit_fixture the-records-write-a-tracked-file
-  expect_records FAIL the-records-write-a-tracked-file 'a tracked file differs from HEAD'
+  records_fixture a-record-in-a-sub-directory-beside-an-untracked-record
+  mkdir -p "$scratch/a-record-in-a-sub-directory-beside-an-untracked-record/$records_dir/kept" || exit 2
+  git -C "$scratch/a-record-in-a-sub-directory-beside-an-untracked-record" mv "$first_good" "$records_dir/kept/" || exit 2
+  commit_fixture a-record-in-a-sub-directory-beside-an-untracked-record
+  cp "$scratch/a-record-in-a-sub-directory-beside-an-untracked-record/$records_dir/kept/${first_good##*/}" "$scratch/a-record-in-a-sub-directory-beside-an-untracked-record/$records_dir/good-an-untracked-copy.json" || exit 2
+  expect_records FAIL a-record-in-a-sub-directory-beside-an-untracked-record 'a record in a sub-directory'
 
   records_fixture records-mjs-missing
   mv "$scratch/records-mjs-missing/$records_script" "$scratch/records-mjs-missing/records.mjs.moved" || exit 2
   commit_fixture records-mjs-missing
-  expect_records FAIL records-mjs-missing "$records_script or backend/scripts/with-env.sh is missing"
+  expect_records FAIL records-mjs-missing "$records_script or backend/scripts/with-env.sh is missing at the commit"
 
   records_fixture records-with-env-missing
   mv "$scratch/records-with-env-missing/backend/scripts/with-env.sh" "$scratch/records-with-env-missing/with-env.sh.moved" || exit 2
   commit_fixture records-with-env-missing
-  expect_records FAIL records-with-env-missing "$records_script or backend/scripts/with-env.sh is missing"
+  expect_records FAIL records-with-env-missing "$records_script or backend/scripts/with-env.sh is missing at the commit"
 
   records_fixture no-record-at-head
   mv "$scratch/no-record-at-head/$records_dir" "$scratch/no-record-at-head/records.moved" || exit 2
@@ -670,7 +765,7 @@ process.exit(failed === 0 ? 0 : 1);'
 
   records_fixture head-without-a-commit
   git -C "$scratch/head-without-a-commit" update-ref -d HEAD || exit 2
-  expect_records FAIL head-without-a-commit "git could not list $records_dir/ at HEAD"
+  expect_records FAIL head-without-a-commit "git could not list $records_dir/ at the commit"
 
   good_line='self-test concurrency: good record-a: PASS as expected'
   bad_line='self-test concurrency: bad record-b: FAIL as expected'
@@ -736,24 +831,79 @@ process.exit(failed === 0 ? 0 : 1);'
   commit_stub_records the-summary-twice
   expect_records FAIL the-summary-twice 'the last line of'
 
+  stub_records the-commit-holds-backend-node-modules 0 "$good_line" "$bad_line" "$summary_line"
+  printf 'a file of the commit\n' >"$scratch/the-commit-holds-backend-node-modules/backend/node_modules/tracked.txt" || exit 2
+  git_commit "$scratch/the-commit-holds-backend-node-modules" the-commit-holds-backend-node-modules backend/scripts/with-env.sh backend/gate backend/node_modules/tracked.txt
+  expect_records FAIL the-commit-holds-backend-node-modules 'the commit holds backend/node_modules'
+
   passed_records='concurrency: records: 1 of 1 as expected'
   measure_fixture measure-runs-the-tests-and-the-records 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
-  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "PASS $name"
+  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok' "PASS $name"
 
   measure_fixture measure-fails-on-the-records-alone 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
-  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
+  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other' "FAIL $name (check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
 
   measure_fixture measure-fails-on-the-tests-alone 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   printf '1\n' >"$scratch/measure-fails-on-the-tests-alone/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "FAIL $name (the test script exited 1)"
+  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok' "FAIL $name (the test script exited 1)"
 
   measure_fixture measure-fails-on-both 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
   printf '1\n' >"$scratch/measure-fails-on-both/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-both 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
+  expect_measure FAIL measure-fails-on-both 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other' "FAIL $name (the test script exited 1; check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
 
   measure_fixture a-test-run-that-stops-with-status-2 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   mkdir -p "$scratch/a-test-run-that-stops-with-status-2/out/vitest.json" || exit 2
-  expect_measure FAIL a-test-run-that-stops-with-status-2 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "FAIL $name (the test run stopped with status 2)"
+  expect_measure FAIL a-test-run-that-stops-with-status-2 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok' "FAIL $name (the test run stopped with status 2)"
+
+  measure_fixture the-node-tests-forge-records-mjs-and-put-it-back 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
+  forger the-node-tests-forge-records-mjs-and-put-it-back
+  stand_in the-node-tests-forge-records-mjs-and-put-it-back <<'EOF'
+cp gate/fixtures/concurrency/records.mjs "$STUB_STATE/original.mjs" && cp "$STUB_STATE/forger.mjs" gate/fixtures/concurrency/records.mjs
+EOF
+  expect_measure FAIL the-node-tests-forge-records-mjs-and-put-it-back '' "check 50's records exited 1; the first problem line"
+
+  measure_fixture the-node-tests-forge-every-path-made-before-them 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
+  forger the-node-tests-forge-every-path-made-before-them
+  stand_in the-node-tests-forge-every-path-made-before-them <<'EOF'
+find "$CI_D_ARTIFACTS" "$TMPDIR" -type d >"$STUB_STATE/made-before" || exit 1
+while IFS= read -r made; do
+  cp "$STUB_STATE/forger.mjs" "$made/records.mjs" || exit 1
+done <"$STUB_STATE/made-before"
+find "$CI_D_ARTIFACTS" "$TMPDIR" -name records.mjs -type f -exec cp "$STUB_STATE/forger.mjs" {} \;
+EOF
+  expect_measure FAIL the-node-tests-forge-every-path-made-before-them '' "check 50's records exited 1; the first problem line"
+
+  measure_fixture the-node-tests-take-a-line-out-of-the-list 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  report the-node-tests-take-a-line-out-of-the-list test/a.test.ts:2:0
+  stand_in the-node-tests-take-a-line-out-of-the-list <<'EOF'
+grep -v 'c.node.test.ts' ../scripts/r7/backend-tests.txt >"$STUB_STATE/list" && cp "$STUB_STATE/list" ../scripts/r7/backend-tests.txt
+EOF
+  expect_measure FAIL the-node-tests-take-a-line-out-of-the-list '' "the test files differ from $list"
+
+  measure_fixture the-node-tests-change-a-file-under-docs 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  stand_in the-node-tests-change-a-file-under-docs <<'EOF'
+printf 'changed by the node tests\n' >>../docs/note.txt
+EOF
+  expect_measure FAIL the-node-tests-change-a-file-under-docs '' 'a tracked file differs from the commit after the node tests: docs/note.txt'
+
+  for flagged in assume-unchanged:h skip-worktree:S both:s; do
+    flag_case=the-node-tests-rewrite-a-record-behind-${flagged%%:*}
+    measure_fixture "$flag_case" 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+    case ${flagged%%:*} in
+      both) printf 'git -C .. update-index --assume-unchanged %s && git -C .. update-index --skip-worktree %s || exit 1\n' "$records_dir/good-a.json" "$records_dir/good-a.json" ;;
+      *) printf 'git -C .. update-index --%s %s || exit 1\n' "${flagged%%:*}" "$records_dir/good-a.json" ;;
+    esac | stand_in "$flag_case"
+    printf 'printf %s >gate/fixtures/concurrency/records/good-a.json\n' "'{\"rewritten\": true}\\n'" >>"$scratch/$flag_case/state/stand-in.sh"
+    expect_measure FAIL "$flag_case" '' "a tracked file carries the index flag ${flagged#*:} after the node tests: $records_dir/good-a.json"
+  done
+
+  measure_fixture the-checkout-is-dirty-before-the-run 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  printf 'left by an earlier step\n' >>"$scratch/the-checkout-is-dirty-before-the-run/docs/note.txt" || exit 2
+  expect_measure FAIL the-checkout-is-dirty-before-the-run '' 'a tracked file differs from the commit before the node tests: docs/note.txt'
+
+  measure_fixture the-records-write-a-tracked-file 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  : >"$scratch/the-records-write-a-tracked-file/state/records-write" || exit 2
+  expect_measure FAIL the-records-write-a-tracked-file '' "a tracked file differs from the commit after the records' run: docs/note.txt"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
