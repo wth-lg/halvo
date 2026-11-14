@@ -745,11 +745,9 @@ fn golden_names() {
     }
 }
 
-const GATEWAY_KEYS: [&str; 5] = ["effort", "max_output_tokens", "messages", "role", "content"];
-
 fn gateway_keys_held(path: &Path) -> Result<(), Vec<&'static str>> {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let held: Vec<&'static str> = GATEWAY_KEYS
+    let held: Vec<&'static str> = ["effort", "max_output_tokens", "messages", "role", "content"]
         .into_iter()
         .filter(|key| text.lines().any(|line| line == *key))
         .collect();
@@ -779,7 +777,8 @@ fn the_committed_names_file_holds_none_of_the_five_gateway_keys() {
 #[test]
 fn a_copy_of_the_names_file_with_one_gateway_key_added_fails_the_check_for_that_key() {
     let held = leaf("golden-gateway-keys");
-    let missed: Vec<(&str, Result<(), Vec<&str>>)> = GATEWAY_KEYS
+    let five = ["effort", "max_output_tokens", "messages", "role", "content"];
+    let missed: Vec<(&str, Result<(), Vec<&str>>)> = five
         .into_iter()
         .map(|key| {
             let copy = names_copy_with(held.path(), &format!("names-{key}.txt"), &[key]);
@@ -790,6 +789,11 @@ fn a_copy_of_the_names_file_with_one_gateway_key_added_fails_the_check_for_that_
     assert!(
         missed.is_empty(),
         "copies of the names file with one gateway key added, and what the check answered: {missed:?}"
+    );
+    assert_eq!(
+        gateway_keys_held(&names_copy_with(held.path(), "names-five.txt", &five)),
+        Err(five.to_vec()),
+        "a copy with the five gateway keys added"
     );
     let near = [
         "roles",
