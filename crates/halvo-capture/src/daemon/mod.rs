@@ -25,6 +25,8 @@ mod report;
 #[cfg(test)]
 mod scripted;
 pub mod signal;
+#[cfg(test)]
+mod stop_tests;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -443,18 +445,24 @@ where
     if let Some(refusal) = sources.hold_refusal() {
         return Err(refusal);
     }
-    let published = owner.snapshot();
     let last = match last {
         Ok(snapshot) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
-            Some(Answer::ShutDown(_)) => {
-                owner.join().map_err(|_| DaemonError::DrainPanicked)?;
-                Ok(snapshot)
-            }
+            Some(Answer::ShutDown(_)) => Ok(snapshot),
             _ => Err(LossCause::ShutdownUnanswered),
         },
         Err(cause) => Err(cause),
     };
-    let settled = last.unwrap_or(published);
+    let settled = match last {
+        Ok(snapshot) => snapshot,
+        Err(_) => owner.snapshot(),
+    };
+    if last.is_ok() {
+        owner.join().map_err(|_| DaemonError::DrainPanicked)?;
+    }
+    let count = match last {
+        Ok(_) => settled.events_lost + settled.events_pending,
+        Err(_) => unstored_bound(&settled, &sink_counts),
+    };
     let cause = match last {
         Err(cause) => Some(cause),
         Ok(_) if settled.events_pending > 0 => Some(LossCause::Pending),
@@ -464,7 +472,7 @@ where
     };
     let loss = cause.map(|cause| Loss {
         cause,
-        line: loss_line(&settled, last.is_ok(), &reports),
+        line: loss_line(&settled, count, last.is_ok(), &reports),
     });
     let status = if loss.is_some() {
         exit::ERROR
@@ -509,7 +517,31 @@ fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counter
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
-fn loss_line(settled: &counters::Snapshot, answered: bool, reports: &[owner::Report]) -> String {
+/// For a stop that got no answer: an upper bound of what the life did not
+/// store, from a snapshot read after the last wait and the sink's counts read
+/// after the sources stopped: lost, pending, and accepted less received over
+/// the kinds of `Modality::ALL`.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn unstored_bound(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> u64 {
+    use crate::event::Modality;
+    let accepted: u64 = Modality::ALL
+        .into_iter()
+        .map(|kind| sink.of(kind).accepted)
+        .sum();
+    let received: u64 = Modality::ALL
+        .into_iter()
+        .map(|kind| settled.received(kind))
+        .sum();
+    settled.events_lost + settled.events_pending + accepted.saturating_sub(received)
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn loss_line(
+    settled: &counters::Snapshot,
+    count: u64,
+    answered: bool,
+    reports: &[owner::Report],
+) -> String {
     let instant = |at: Option<i64>| {
         at.and_then(|nanos| {
             halvo_control::model::UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok()
@@ -527,8 +559,7 @@ fn loss_line(settled: &counters::Snapshot, answered: bool, reports: &[owner::Rep
         .filter(|_| final_failed)
         .unwrap_or("-");
     format!(
-        "halvo-capture: lost events={} first={} last={} error={kind}",
-        settled.events_lost + settled.events_pending,
+        "halvo-capture: lost events={count} first={} last={} error={kind}",
         instant(settled.lost_first_at),
         instant(settled.lost_last_at),
     )
