@@ -16,12 +16,19 @@ pub fn day_of(name: &str) -> Option<u32> {
     (1..=93).contains(&d).then_some(d)
 }
 
-/// One stream directory of a body: its id, its day files in the order of name and the path of its label file.
+/// One stream directory of a body: its id, its day files in the order of name, the path of its label file, and
+/// the names of its day files and label file that are symbolic links, which a reader refuses and never follows.
 #[derive(Clone, Debug)]
 pub struct StreamDir {
     pub id: String,
     pub days: Vec<(u32, PathBuf)>,
     pub labels: PathBuf,
+    pub links: Vec<String>,
+}
+
+/// True when `path` names a symbolic link.
+pub fn is_link(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink())
 }
 
 /// What `dir/streams/` holds: its stream directories, and the names of its entries that are symbolic links,
@@ -56,17 +63,27 @@ pub fn stream_dirs(dir: &Path) -> Option<Streams> {
     for id in names {
         let sd = root.join(&id);
         let mut days: Vec<(u32, PathBuf)> = Vec::new();
+        let mut file_links: Vec<String> = Vec::new();
         for entry in fs::read_dir(&sd).ok()? {
             let entry = entry.ok()?;
-            if let Some(d) = entry.file_name().to_str().and_then(day_of) {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let read = day_of(name);
+            if (read.is_some() || name == "labels.jsonl") && entry.file_type().ok()?.is_symlink() {
+                file_links.push(name.to_owned());
+            } else if let Some(d) = read {
                 days.push((d, entry.path()));
             }
         }
         days.sort();
+        file_links.sort();
         out.push(StreamDir {
             labels: sd.join("labels.jsonl"),
             id,
             days,
+            links: file_links,
         });
     }
     Some(Streams { dirs: out, links })

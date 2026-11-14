@@ -114,6 +114,7 @@ fn a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
     let dir = scratch("link-path");
     let t = tier(&dir);
     write(&dir.join("real/notes.md"), "We used Goldfinch-Cart once.\n");
+    fs::create_dir_all(dir.join("real/sub")).expect("a directory below");
     let o = run(&["leak", &s(&t), &s(&dir.join("real"))]);
     assert_eq!(o.code, 1, "{}", o.stdout);
     link_dir(&dir.join("real"), &dir.join("linked"));
@@ -125,6 +126,8 @@ fn a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
         format!("{linked}{sep}{sep}"),
         format!("{linked}{sep}."),
         format!("{linked}{sep}.{sep}"),
+        format!("{linked}{sep}sub{sep}.."),
+        format!("{linked}{sep}sub{sep}..{sep}"),
     ] {
         refused(&run(&["leak", &s(&t), &form]), "path");
     }
@@ -172,4 +175,83 @@ fn a_stream_directory_that_is_a_link_in_the_tier_or_in_a_body_is_refused() {
         &run(&["leak", &s(&t), &s(&dir.join("clean"))]),
         "tier-files",
     );
+}
+
+fn link_file(target: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).expect("a symbolic link");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(target, link).expect("a symbolic link");
+}
+
+fn files_made_links(stream: &Path, elsewhere: &Path, names: &[&str]) {
+    fs::create_dir_all(elsewhere).expect("elsewhere");
+    for name in names {
+        fs::rename(stream.join(name), elsewhere.join(name)).expect("move the file");
+        link_file(&elsewhere.join(name), &stream.join(name));
+    }
+}
+
+#[test]
+fn a_day_file_or_a_label_file_that_is_a_link_is_refused_by_check_labels() {
+    let dir = copy_golden("link-files");
+    let elsewhere = dir.parent().expect("parent").join("elsewhere");
+    files_made_links(&dir.join("streams/golden"), &elsewhere, &["day-003.jsonl"]);
+    refused(&run(&["check-labels", &s(&dir)]), "batches");
+    let dir = copy_golden("link-labels");
+    let elsewhere = dir.parent().expect("parent").join("elsewhere");
+    files_made_links(&dir.join("streams/golden"), &elsewhere, &["labels.jsonl"]);
+    refused(&run(&["check-labels", &s(&dir)]), "labels");
+    for (name, cause) in [
+        ("script-manifest.jsonl", "script-manifest"),
+        ("manifest.toml", "tier-manifest"),
+    ] {
+        let dir = copy_golden(&format!("link-{name}"));
+        let elsewhere = dir.parent().expect("parent").join("elsewhere");
+        if name == "manifest.toml" {
+            write(&elsewhere.join(name), "version = 1\n");
+            link_file(&elsewhere.join(name), &dir.join(name));
+        } else {
+            files_made_links(&dir, &elsewhere, &[name]);
+        }
+        refused(&run(&["check-labels", &s(&dir)]), cause);
+    }
+}
+
+#[test]
+fn a_file_of_a_body_that_is_a_link_is_refused_by_leak_with_the_argument_alone() {
+    let dir = scratch("link-body-files");
+    let t = tier(&dir);
+    let walk = dir.join("walk");
+    let dev = common::build_golden(&walk, "zz-mill.test");
+    files_made_links(
+        &dev.join("streams/golden"),
+        &dir.join("moved-day"),
+        &["day-003.jsonl"],
+    );
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    refused(&o, "body");
+    assert_eq!(o.stderr, format!("REFUSED body: {}\n", s(&walk)));
+    let walk = dir.join("walk-own");
+    fs::create_dir_all(&walk).expect("walk");
+    write(&walk.join("notes.md"), "c-two\n");
+    link_file(
+        &t.join("script-manifest.jsonl"),
+        &walk.join("script-manifest.jsonl"),
+    );
+    link_file(&t.join("manifest.toml"), &walk.join("manifest.toml"));
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    refused(&o, "body");
+    assert_eq!(o.stderr, format!("REFUSED body: {}\n", s(&walk)));
+    let stream = fs::read_dir(t.join("streams"))
+        .expect("streams")
+        .next()
+        .expect("one stream")
+        .expect("entry")
+        .path();
+    files_made_links(&stream, &dir.join("moved-tier"), &["labels.jsonl"]);
+    write(&dir.join("clean/readme.txt"), "plain words\n");
+    let o = run(&["leak", &s(&t), &s(&dir.join("clean"))]);
+    refused(&o, "tier-files");
+    assert_eq!(o.stderr, format!("REFUSED tier-files: {}\n", s(&t)));
 }

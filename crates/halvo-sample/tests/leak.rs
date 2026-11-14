@@ -165,6 +165,16 @@ fn leak_refusals() {
     refused(&run(&["leak", &s(&t), &s(&dir.join("none"))]), "path");
     write(&dir.join("bad/script-manifest.jsonl"), "{}\n");
     refused(&run(&["leak", &s(&t), &s(&dir.join("bad"))]), "body");
+    write(
+        &dir.join("named/zz-mill.test/script-manifest.jsonl"),
+        "{}\n",
+    );
+    let o = run(&["leak", &s(&t), &s(&dir.join("named"))]);
+    refused(&o, "body");
+    assert_eq!(
+        o.stderr,
+        format!("REFUSED body: {}\n", s(&dir.join("named")))
+    );
     refused(
         &run(&["leak", &s(&golden()), &s(&dir.join("bad"))]),
         "tier-manifest",

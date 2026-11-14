@@ -9,7 +9,7 @@ use std::path::Path;
 use halvo_schema::Category;
 use halvo_seam::record::Edge;
 
-use crate::body::{read_stream, stream_dirs, StreamRecords};
+use crate::body::{is_link, read_stream, stream_dirs, StreamRecords};
 use crate::form::{text_lines, Refusal};
 use crate::labels::{parse_row, Row};
 use crate::manifest::{parse_script_manifest, StepLine, TierManifest};
@@ -192,6 +192,12 @@ fn read_rows(path: &Path) -> Result<Vec<(usize, Row)>, Refusal> {
 /// Runs `check-labels` on `dir`.
 pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> {
     let manifest_path = dir.join("manifest.toml");
+    if is_link(&manifest_path) {
+        return Err(Refusal::new(
+            "tier-manifest",
+            manifest_path.display().to_string(),
+        ));
+    }
     let source = match fs::read(&manifest_path) {
         Ok(bytes) => {
             let m = TierManifest::parse(&bytes).ok_or_else(|| {
@@ -210,6 +216,9 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
     let rule = rule.or(source).unwrap_or(Rule::Generated);
     let sm_path = dir.join("script-manifest.jsonl");
     let sm_fault = || Refusal::new("script-manifest", sm_path.display().to_string());
+    if is_link(&sm_path) {
+        return Err(sm_fault());
+    }
     let sm_bytes = fs::read(&sm_path).map_err(|_| sm_fault())?;
     let steps: Vec<StepLine> = parse_script_manifest(&sm_bytes).ok_or_else(sm_fault)?;
     let listing = stream_dirs(dir)
@@ -217,6 +226,21 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
         .ok_or_else(|| Refusal::new("batches", dir.join("streams").display().to_string()))?;
     let mut streams = Vec::new();
     for d in &listing.dirs {
+        if let Some(name) = d.links.first() {
+            let cause = if name == "labels.jsonl" {
+                "labels"
+            } else {
+                "batches"
+            };
+            return Err(Refusal::new(
+                cause,
+                dir.join("streams")
+                    .join(&d.id)
+                    .join(name)
+                    .display()
+                    .to_string(),
+            ));
+        }
         if !d.labels.is_file() {
             return Err(Refusal::new("labels", d.labels.display().to_string()));
         }
