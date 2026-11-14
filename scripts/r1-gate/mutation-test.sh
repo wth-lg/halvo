@@ -775,6 +775,7 @@ here=${0%/*}
 read -r hold < "$here/hold"
 printf 'cargo\n' >> "$here/starts"
 printf '%s\n' "$*" >> "$here/args"
+printf '%s\n' "${CARGO_TARGET_DIR:-unset}" >> "$here/target-dirs"
 case $hold in
   0) ;;
   refuse)
@@ -1403,6 +1404,19 @@ form_said() {
   return 1
 }
 
+form_target_dirs() {
+  unset CARGO_TARGET_DIR
+  form_want=$(cd "$gate_scratch/$1" && pwd -P)/target/r1-gate
+  : > "$gate_scratch/$1/bin/target-dirs"
+  form_args "$1" yes > /dev/null
+  form_args "$1" no > /dev/null
+  form_dirs=$(sort -u "$gate_scratch/$1/bin/target-dirs")
+  form_calls=$(wc -l < "$gate_scratch/$1/bin/target-dirs" | tr -d ' ')
+  [ "$form_dirs" = "$form_want" ] && [ "$form_calls" -eq 4 ] && return 0
+  printf 'target dirs of %s calls: %s\n' "$form_calls" "$form_dirs" | tr '\n' '|'
+  return 1
+}
+
 form_same_target() {
   form_checked=$(form_args "$1" yes | sed 's/^check /build /')
   form_built=$(form_args "$1" no)
@@ -1420,6 +1434,7 @@ form_cases() {
   t full-run-builds-the-copy-and-a-cargo-row PASS with_cargo_home form-lib form_args_are form-lib no "$form_build$form_nl$form_build"
   t full-run-that-type-checks-is-refused FAIL with_cargo_home form-lib form_args_are form-lib no "$form_check$form_nl$form_check"
   t type-check-names-the-package-and-target-of-the-build PASS with_cargo_home form-lib form_same_target form-lib
+  t type-check-and-build-use-the-target-directory-of-the-copy PASS with_cargo_home form-lib form_target_dirs form-lib
   t apply-only-cargo-row-line-says-type-checks PASS with_cargo_home form-lib form_said form-lib yes 'PASS mutation:held (applies and type-checks)'
   form_fixture form-sqlcipher crates/halvo-sqlcipher 0
   row form-sqlcipher/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
