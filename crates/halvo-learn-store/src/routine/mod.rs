@@ -16,6 +16,8 @@ mod tests;
 
 const REWRITE_DAYS: u32 = 30;
 
+const AHEAD_DAYS_KEPT: u32 = 2;
+
 /// The routine step of the learning run (contracts.md L4.5, L6), a `WriterStep` that a host puts after the
 /// recurrence step. After each committed batch it reads the bounded summaries and the rows of the kinds
 /// `learn_routine` and `learn_run` of the family `learn`; it reads no `learn_edit` row. For the newest
@@ -23,8 +25,11 @@ const REWRITE_DAYS: u32 = 30;
 /// the occurrence days of L6.1 and the day of the host's clock, and returns the new row, with `rev` + 1 and `day`
 /// today, where its mark, `period` or `last` differs from the newest row's or the newest row is 30 or more days
 /// old. A summary is an occurrence when its category and its whole site value, the source included, equal the
-/// row's, or, where both have no site, its category and its app equal the row's. It returns `learn_routine` rows
-/// alone, and nothing when a `learn_routine` or `learn_run` row cannot be read or the clock gives day 0.
+/// row's, or, where both have no site, its category and its app equal the row's. While the day of a pair's newest
+/// row lies one or two days after the clock's day, it returns no row for that pair and does not apply
+/// `routine_step` to it; two days is the workflow run's store's own number for a row stamped after its clock. It
+/// returns `learn_routine` rows alone, and nothing when a `learn_routine` or `learn_run` row cannot be read or the
+/// clock gives day 0.
 pub struct LearnStep<C> {
     clock: C,
 }
@@ -55,6 +60,7 @@ fn written(
     let newest: Vec<&LearnRoutine> = pairs
         .into_iter()
         .filter_map(|(workflow, agent)| rows::newest_routine(&routines, workflow, agent))
+        .filter(|row| !rests(row, today))
         .collect();
     let mut theirs: Vec<Summary> = Vec::new();
     summaries.for_each(&mut |s| {
@@ -79,6 +85,10 @@ fn written(
         }
     }
     Some(out)
+}
+
+fn rests(newest: &LearnRoutine, today: u32) -> bool {
+    (1..=AHEAD_DAYS_KEPT).contains(&newest.day.get().saturating_sub(today))
 }
 
 fn figures(row: &LearnRoutine) -> RoutineState {

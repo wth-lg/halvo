@@ -450,7 +450,7 @@ fn a_row_at_the_highest_rev_gives_no_next_row() {
 }
 
 #[test]
-fn a_clock_set_back_gives_the_row_of_routine_step_and_never_the_mark() {
+fn a_clock_more_than_two_days_behind_the_newest_row_gives_the_row_of_routine_step() {
     let back = DAY - 10;
     let prev = settled(5, DAY, 7, DAY - 14, DAY);
     let mut store = Store::default();
