@@ -444,6 +444,7 @@ judge() {
       r = top_path(c)
       if (!(r in known) || !index(r, "/") || path == "backend/scripts/names-v0.sh") return 0
       if (side == "backend" && tracked("backend/" r)) return 0
+      if (side == "app" && index(path, "account/schema/") == 1 && (r in copied)) return 0
       if (side == "backend" && !inside(r)) problem(where, "names " r ", a tracked file of the app, read from the top of the repository: " c fix_top)
       else if (side == "app" && inside(r)) problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
       else return 0
@@ -820,7 +821,9 @@ EOF
   the next function, and a definition on one line are refused.
 - account/schema/, for the four files of the wire contract named whole:
   backend/contract/schema/v1.json, backend/contract/routes/v1.json,
-  backend/contract/samples/v1.json and backend/gate/prompt-budget.json.
+  backend/contract/samples/v1.json and backend/gate/prompt-budget.json. The
+  reading from the top below keeps this exception too, so vendored.txt and
+  vendor.sh there may name the four files (contract 8).
 
 Readings that refuse an honest line, with the form to write in its place:
 - in backend/, a variable that starts a path stands for backend/: write
@@ -1172,7 +1175,7 @@ texts_case() {
   want=$1
   case_name=$2
   rule=$(sed -n 's/^# rule: //p' "$0") || exit 2
-  changelog=$(grep -F 'scripts/r7/ci.d/24-r7-wall.sh' "${CI_D_REPO:-.}/CHANGELOG.md") || changelog=
+  changelog=$(awk -v s='scripts/r7/ci.d/24-r7-wall.sh' '/^## / { if (found) exit } index($0, s) && index($0, " named limits of --help: ") { line = $0; found = 1 } END { print line }' "${CI_D_REPO:-.}/CHANGELOG.md") || changelog=
   usage >"$scratch/help.txt" || exit 2
   sed -n 's/^  known limit \([a-z0-9-]*\): .*/\1/p' "$scratch/help.txt" >"$scratch/help-names.txt" || exit 2
   help_names=$(tr '\n' ' ' <"$scratch/help-names.txt") || exit 2
@@ -1689,6 +1692,28 @@ esac' 'read:scripts/k8.sh'
     */test/*) return 0 ;;
   esac
 }' 'read:scripts/k10.sh'
+
+  fixture f1c-l1-the-record-of-account-schema-names-a-contract-file
+  put backend/contract/schema/v1.json '{}'
+  put account/schema/vendored.txt 'f382 schema.v1.json backend/contract/schema/v1.json'
+  stage
+  expect PASS f1c-l1-the-record-of-account-schema-names-a-contract-file 'read:account/schema/vendored.txt'
+  fixture f1c-l1-the-vendor-script-copies-a-contract-file
+  put backend/contract/schema/v1.json '{}'
+  put account/schema/vendor.sh 'cp backend/contract/schema/v1.json account/schema/schema.v1.json'
+  stage
+  expect PASS f1c-l1-the-vendor-script-copies-a-contract-file 'read:account/schema/vendor.sh'
+  fixture f1c-l1-the-same-line-elsewhere
+  put backend/contract/schema/v1.json '{}'
+  put ui/backend/contract/schema/v1.json '{}'
+  put ui/vendor.sh 'cp ./backend/contract/schema/v1.json schema.v1.json'
+  stage
+  expect FAIL f1c-l1-the-same-line-elsewhere 'ui/vendor.sh:1: names backend/contract/schema/v1.json, a tracked file of backend/ or formal/r7-ledger/, read from the top'
+  fixture f1c-l1-another-backend-file-in-account-schema
+  put account/schema/backend/src/types.ts 'x'
+  put account/schema/vendor.sh 'cp ./backend/src/types.ts types.ts'
+  stage
+  expect FAIL f1c-l1-another-backend-file-in-account-schema 'account/schema/vendor.sh:1: names backend/src/types.ts, a tracked file of backend/ or formal/r7-ledger/, read from the top'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
