@@ -161,7 +161,7 @@ fn small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place() {
 }
 
 #[test]
-fn a_table_of_the_fts5_form_with_its_secure_delete_leaves_no_removed_token() {
+fn the_fts5_draw_of_seed_24_leaves_no_tail_of_a_removed_token_in_any_file() {
     crate::initialize().unwrap();
     let found = fts5_form(24);
     assert!(found.is_empty(), "{}", found.join("\n"));

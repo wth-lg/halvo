@@ -80,10 +80,21 @@ in the draws of the tests", with the limits below.
   with an index, bodies of 8 to 40 bytes, of 20 to 950 bytes and larger than a
   page, deletes one at a time with a truncating checkpoint after each,
   replacements in place, mass deletes that take the index from depth 3 back
-  to depth 1, a plain table of small rows (seeds 1 and 8) and a table of the
-  FTS5 form with its own secure-delete option (seed 24). After each step they
-  search every byte of every file for the text of removed rows, count each
-  stored row's places and read every row back against a model.
+  to depth 1, and a plain table of small rows (seeds 1 and 8). After each step
+  they search every byte of every file for the text of removed rows, count
+  each stored row's places and read every row back against a model. Tables of
+  the FTS5 form with their own secure-delete option are drawn apart: after
+  merges that end, they leave no removed token, searched whole and by its
+  tail, in any page that dbstat does not name the table's _idx tree.
+- FTS5's own code keeps the token of a removed row, and neither statement
+  makes or mends it: as a key of a live row of the table's _idx tree (the
+  head of the token, whole when its neighbour differs in the last byte alone)
+  until that leaf loses its last term, its segment is merged away, or a
+  'rebuild' runs; and as whole tokens in the _data tree when a merge stops
+  partway. The test
+  `page_gap::fts5::the_fts5_idx_key_of_a_removed_row_stays_until_a_rebuild`
+  pins the first. Only the capture store has such a table (events_fts); its
+  unit store-4 removes it (rulings A2 and E11 of that run's contract).
 - The structural check reads every page of the file by the database's own
   layout after each round and requires zero in every byte that holds no cell,
   no header and no pointer, a cell of fewer than 4 bytes included. Its rules
