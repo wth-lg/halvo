@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,95 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 31-store-full-volume
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 31-store-full-volume
+      - name: Loop step of store-3
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          export RUST_TEST_THREADS=1
+          exe=$(cargo test --locked -p halvo-capture --lib --no-run --message-format=json 2>/dev/null | python3 -c "import json,sys; print([j['executable'] for j in map(json.loads, sys.stdin) if j.get('reason')=='compiler-artifact' and j.get('executable') and j['target']['kind']==['lib']][-1])")
+          echo "loop executable: $exe"
+          cat > "$RUNNER_TEMP/names.txt" <<'NAMES'
+          store::hardening_tests::a_create_whose_database_is_cut_to_nothing_before_the_page_look_answers_obstructed 200
+          store::hardening_tests::a_custody_made_before_its_root_guard_shares_the_guards_roots_directory 200
+          store::hardening_tests::a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form 200
+          store::hardening_tests::a_key_file_place_refuses_a_link_at_its_parents_name_and_reads_nothing_behind_it 200
+          store::hardening_tests::a_refused_open_at_the_custody_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_in_the_database_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_another_label_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_version_1_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_version_3_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_that_does_not_parse_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_stopped_create_answers_sealed_and_the_next_create_clears_it 20
+          store::hardening_tests::a_refused_open_of_version_3_beside_a_create_pending_of_its_own_root_keeps_both 20
+          store::hardening_tests::a_refused_open_with_no_store_db_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_root_step_whose_custody_destroy_fails_still_destroys_every_root_file_under_its_roots 200
+          store::hardening_tests::a_sweep_whose_first_removal_fails_still_removes_the_other_keyless_file 200
+          store::hardening_tests::an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_within_a_bound 20
+          store::hardening_tests::an_open_beside_a_create_pending_of_another_root_destroys_that_root_and_keeps_its_own 20
+          store::hardening_tests::an_open_beside_a_create_pending_of_its_own_root_keeps_the_root_and_removes_create_pending 20
+          store::hardening_tests::an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it 20
+          store::hardening_tests::an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_the_second_instant 200
+          store::hardening_tests::delete_all_unlinks_a_link_at_one_database_side_file_and_still_removes_the_others 200
+          store::hardening_tests::delete_all_unlinks_a_link_to_a_directory_in_segments_and_counts_it_as_not_followed 200
+          store::hardening_tests::removing_a_written_segment_through_a_shard_that_is_a_link_removes_nothing_and_answers_ok 200
+          store::hardening_tests::the_answer_of_a_handle_takes_a_gone_directory_code_as_obstructed_only_when_the_name_is_gone 200
+          store::hardening_tests::the_live_holder_probe_and_the_held_look_answer_a_code_by_its_class_and_never_a_bare_code 200
+          store::hardening_tests::the_size_of_a_store_counts_nothing_behind_a_link_to_a_large_file 200
+          store::db::tests::the_code_table_reads_each_primary_code_and_no_code 200
+          store::db::tests::the_text_of_a_database_error_holds_no_text_of_the_sqlite_message 200
+          store::durable::tests::a_held_store_directory_cannot_be_renamed_and_stays_named 200
+          store::durable::tests::remove_entry_refuses_a_directory_with_entries_and_unlinks_a_link_to_a_directory 200
+          store::durable::tests::remove_tree_unlinks_a_link_inside_the_tree_and_keeps_its_target 200
+          store::durable::tests::the_identity_of_an_entry_that_is_a_link_reads_link_and_names_the_link_itself 200
+          custody::file_root::tests::a_create_root_whose_step_after_the_link_fails_leaves_no_root_file_of_its_id 200
+          store::hardening_tests::a_refused_open_while_another_process_holds_the_database_keeps_the_pending_root_and_create_pending 20
+          NAMES
+          cat > "$RUNNER_TEMP/loop_step.py" <<'LOOP'
+          """Runs each test of store-3's round 2, by its built test executable and not by cargo, the number of times its line
+          names (200, or 20 for a test that kills a child), and counts a pass only from the run's own result line: the line
+          "test result: ok. 1 passed; 0 failed". A filter that matches no test exits 0 and counts as not compiled here.
+          usage: python3 loop_step2.py <test executable> <names file: name<space>count per line>"""
+          import re
+          import subprocess
+          import sys
+          import time
+
+          exe, names = sys.argv[1], sys.argv[2]
+          result_line = re.compile(r"^test result: (\w+)\. (\d+) passed; (\d+) failed", re.M)
+          for line in [l.split() for l in open(names) if l.strip()]:
+              name, runs = line[0], int(line[1])
+
+              def once():
+                  started = time.monotonic()
+                  done = subprocess.run([exe, "--exact", name, "--test-threads=1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                  found = result_line.search(done.stdout.decode("utf-8", "replace"))
+                  ran = int(found.group(2)) + int(found.group(3)) if found else 0
+                  passed = found is not None and found.group(2) == "1" and found.group(3) == "0" and done.returncode == 0
+                  return passed, ran, time.monotonic() - started
+
+              passed, ran, first = once()
+              if ran == 0:
+                  print(f"LOOP {name} not-compiled-here", flush=True)
+                  continue
+              passes, tests_ran = (1 if passed else 0), ran
+              for _ in range(runs - 1):
+                  passed, ran, _ = once()
+                  passes += 1 if passed else 0
+                  tests_ran += ran
+              print(f"LOOP {name} runs={runs} passes={passes} tests_ran={tests_ran} first_run_s={first:.2f}", flush=True)
+          LOOP
+          python3 "$RUNNER_TEMP/loop_step.py" "$exe" "$RUNNER_TEMP/names.txt"
+      - name: Rows of store-3 round 2 to their end
+        if: always()
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          sh scripts/r1-gate/mutation-test.sh --only refused-open-clears-the-pending-create --only unreadable-segment-file-is-missing --only formal-single-writer-both-locks --only formal-create-takes-an-existing-root --only formal-refused-create-destroys-the-root
+          echo "rows exit=$?"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +196,87 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: Loop step of store-3
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          export RUST_TEST_THREADS=1
+          exe=$(cargo test --locked -p halvo-capture --lib --no-run --message-format=json 2>/dev/null | python3 -c "import json,sys; print([j['executable'] for j in map(json.loads, sys.stdin) if j.get('reason')=='compiler-artifact' and j.get('executable') and j['target']['kind']==['lib']][-1])")
+          echo "loop executable: $exe"
+          cat > "$RUNNER_TEMP/names.txt" <<'NAMES'
+          store::hardening_tests::a_create_whose_database_is_cut_to_nothing_before_the_page_look_answers_obstructed 200
+          store::hardening_tests::a_custody_made_before_its_root_guard_shares_the_guards_roots_directory 200
+          store::hardening_tests::a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form 200
+          store::hardening_tests::a_key_file_place_refuses_a_link_at_its_parents_name_and_reads_nothing_behind_it 200
+          store::hardening_tests::a_refused_open_at_the_custody_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_in_the_database_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_another_label_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_version_1_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_of_version_3_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_key_file_that_does_not_parse_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_refused_open_of_a_stopped_create_answers_sealed_and_the_next_create_clears_it 20
+          store::hardening_tests::a_refused_open_of_version_3_beside_a_create_pending_of_its_own_root_keeps_both 20
+          store::hardening_tests::a_refused_open_with_no_store_db_keeps_the_pending_root_and_create_pending 20
+          store::hardening_tests::a_root_step_whose_custody_destroy_fails_still_destroys_every_root_file_under_its_roots 200
+          store::hardening_tests::a_sweep_whose_first_removal_fails_still_removes_the_other_keyless_file 200
+          store::hardening_tests::an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_within_a_bound 20
+          store::hardening_tests::an_open_beside_a_create_pending_of_another_root_destroys_that_root_and_keeps_its_own 20
+          store::hardening_tests::an_open_beside_a_create_pending_of_its_own_root_keeps_the_root_and_removes_create_pending 20
+          store::hardening_tests::an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it 20
+          store::hardening_tests::an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_the_second_instant 200
+          store::hardening_tests::delete_all_unlinks_a_link_at_one_database_side_file_and_still_removes_the_others 200
+          store::hardening_tests::delete_all_unlinks_a_link_to_a_directory_in_segments_and_counts_it_as_not_followed 200
+          store::hardening_tests::removing_a_written_segment_through_a_shard_that_is_a_link_removes_nothing_and_answers_ok 200
+          store::hardening_tests::the_answer_of_a_handle_takes_a_gone_directory_code_as_obstructed_only_when_the_name_is_gone 200
+          store::hardening_tests::the_live_holder_probe_and_the_held_look_answer_a_code_by_its_class_and_never_a_bare_code 200
+          store::hardening_tests::the_size_of_a_store_counts_nothing_behind_a_link_to_a_large_file 200
+          store::db::tests::the_code_table_reads_each_primary_code_and_no_code 200
+          store::db::tests::the_text_of_a_database_error_holds_no_text_of_the_sqlite_message 200
+          store::durable::tests::a_held_store_directory_cannot_be_renamed_and_stays_named 200
+          store::durable::tests::remove_entry_refuses_a_directory_with_entries_and_unlinks_a_link_to_a_directory 200
+          store::durable::tests::remove_tree_unlinks_a_link_inside_the_tree_and_keeps_its_target 200
+          store::durable::tests::the_identity_of_an_entry_that_is_a_link_reads_link_and_names_the_link_itself 200
+          custody::file_root::tests::a_create_root_whose_step_after_the_link_fails_leaves_no_root_file_of_its_id 200
+          store::hardening_tests::a_refused_open_while_another_process_holds_the_database_keeps_the_pending_root_and_create_pending 20
+          NAMES
+          cat > "$RUNNER_TEMP/loop_step.py" <<'LOOP'
+          """Runs each test of store-3's round 2, by its built test executable and not by cargo, the number of times its line
+          names (200, or 20 for a test that kills a child), and counts a pass only from the run's own result line: the line
+          "test result: ok. 1 passed; 0 failed". A filter that matches no test exits 0 and counts as not compiled here.
+          usage: python3 loop_step2.py <test executable> <names file: name<space>count per line>"""
+          import re
+          import subprocess
+          import sys
+          import time
+
+          exe, names = sys.argv[1], sys.argv[2]
+          result_line = re.compile(r"^test result: (\w+)\. (\d+) passed; (\d+) failed", re.M)
+          for line in [l.split() for l in open(names) if l.strip()]:
+              name, runs = line[0], int(line[1])
+
+              def once():
+                  started = time.monotonic()
+                  done = subprocess.run([exe, "--exact", name, "--test-threads=1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                  found = result_line.search(done.stdout.decode("utf-8", "replace"))
+                  ran = int(found.group(2)) + int(found.group(3)) if found else 0
+                  passed = found is not None and found.group(2) == "1" and found.group(3) == "0" and done.returncode == 0
+                  return passed, ran, time.monotonic() - started
+
+              passed, ran, first = once()
+              if ran == 0:
+                  print(f"LOOP {name} not-compiled-here", flush=True)
+                  continue
+              passes, tests_ran = (1 if passed else 0), ran
+              for _ in range(runs - 1):
+                  passed, ran, _ = once()
+                  passes += 1 if passed else 0
+                  tests_ran += ran
+              print(f"LOOP {name} runs={runs} passes={passes} tests_ran={tests_ran} first_run_s={first:.2f}", flush=True)
+          LOOP
+          python3 "$RUNNER_TEMP/loop_step.py" "$exe" "$RUNNER_TEMP/names.txt"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
