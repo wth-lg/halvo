@@ -24,6 +24,8 @@
 
 #[path = "hosted/gate.rs"]
 mod gate;
+#[path = "hosted/schedule.rs"]
+mod schedule;
 
 use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::types::{Class, Field, FieldFrom, Limits};
@@ -67,11 +69,14 @@ fn card() -> Card {
     .expect("the words file holds the entries of payment")
 }
 
-/// One press of a show: `at` from the show's report, by `control`; `answers` for the press that
-/// must close the dialog, and for no other.
+/// One press of a show: `at` milliseconds from `from`, by `control`; `answers` for the press that
+/// must close the dialog, and for no other. A press timed from the press before it that answers
+/// nothing must fall inside that press's hold, and its case fails with "the schedule slipped"
+/// when the two ran `arm_ms` or more apart.
 #[derive(Clone, Copy)]
 struct Press<C: 'static> {
     at: u64,
+    from: schedule::From,
     control: C,
     answers: bool,
 }
@@ -129,7 +134,9 @@ fn begin_show(label: &str) {
 /// The system's side of a case: a press of a control, whether the dialog is open, a move of the
 /// dialog to the front with a reading of what was active before it, and its close at the bound.
 trait Ui<C> {
-    fn press(&self, control: C) -> bool;
+    /// Presses `control`: the time at which the press ran on the dialog's thread, `None` when it
+    /// found no control to press.
+    fn press(&self, control: C) -> Option<Instant>;
     fn open(&self) -> bool;
     fn front(&self) -> String;
     fn close(&self);
@@ -186,8 +193,9 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
         }
         return failures;
     };
+    let mut previous = None;
     for press in presses {
-        sleep_until(base + Duration::from_millis(press.at));
+        sleep_until(schedule::due(base, previous, press.from, press.at));
         if DONE.load(Ordering::SeqCst) {
             failures.push(format!(
                 "the dialog had closed before the press at {} ms",
@@ -195,14 +203,30 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
             ));
             break;
         }
-        let sent = ui.press(press.control);
-        if !sent {
+        let ran = ui.press(press.control);
+        let Some(ran) = ran else {
             failures.push(format!(
                 "the press at {} ms by {} found no control to press",
                 press.at,
                 U::word(press.control)
             ));
+            break;
+        };
+        if let (schedule::From::Previous, Some(before)) = (press.from, previous) {
+            let gap = ran.saturating_duration_since(before).as_millis();
+            println!(
+                "guard_hosted schedule {label}: the press before ran at +{} ms, this one at +{} ms, gap {gap} ms",
+                before.saturating_duration_since(base).as_millis(),
+                ran.saturating_duration_since(base).as_millis()
+            );
+            if !press.answers {
+                if let Some(line) = schedule::slipped(before, ran, arm()) {
+                    failures.push(line);
+                    break;
+                }
+            }
         }
+        previous = Some(ran);
         if !press.answers {
             std::thread::sleep(SETTLE);
             if DONE.load(Ordering::SeqCst) || !ui.open() {
@@ -368,6 +392,7 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod cases {
+    use super::schedule::From;
     use super::{arm, case, end, now_in_show, on_screen, print, Press, Show, Ui};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
@@ -401,6 +426,16 @@ mod cases {
     const fn p(at: u64, control: Control, answers: bool) -> Press<Control> {
         Press {
             at,
+            from: From::Report,
+            control,
+            answers,
+        }
+    }
+
+    const fn after(at: u64, control: Control, answers: bool) -> Press<Control> {
+        Press {
+            at,
+            from: From::Previous,
             control,
             answers,
         }
@@ -415,9 +450,9 @@ mod cases {
         p(800, Control::Action(ALLOW), true),
     ];
     const ALLOW_CLICK_AGAIN: &[Press<Control>] = &[
-        p(100, Control::Click(ALLOW), false),
-        p(550, Control::Click(ALLOW), false),
-        p(1_250, Control::Click(ALLOW), true),
+        p(300, Control::Click(ALLOW), false),
+        after(250, Control::Click(ALLOW), false),
+        after(750, Control::Click(ALLOW), true),
     ];
     const ALLOW_CLICK_AFTER: &[Press<Control>] = &[p(700, Control::Click(ALLOW), true)];
     const REJECT_CLICK: &[Press<Control>] = &[
@@ -446,7 +481,7 @@ mod cases {
             &[(ALLOW_ACTION, ConfirmAnswer::Allow)],
         ),
         (
-            "macos allow_click_at_100ms_and_550ms",
+            "macos allow_click_at_300ms_and_250ms_after_it",
             &[(ALLOW_CLICK_AGAIN, ConfirmAnswer::Allow)],
         ),
         (
@@ -664,7 +699,7 @@ mod cases {
     struct Mac;
 
     impl Ui<Control> for Mac {
-        fn press(&self, control: Control) -> bool {
+        fn press(&self, control: Control) -> Option<Instant> {
             on_main(move || {
                 // SAFETY: this runs on the main thread inside the alert's modal session, and the
                 // objects that it reads belong to the modal window, which lives until it ends.
@@ -672,7 +707,7 @@ mod cases {
                     let app = app();
                     let window: *mut AnyObject = msg_send![app, modalWindow];
                     if window.is_null() {
-                        return false;
+                        return None;
                     }
                     let (label, at) = now_in_show();
                     let tag = match control {
@@ -685,14 +720,14 @@ mod cases {
                             let alert_key: bool = msg_send![window, isKeyWindow];
                             let _: () = msg_send![panel, orderOut: std::ptr::null_mut::<AnyObject>()];
                             println!("guard_hosted again {label} +{at} ms: the panel took key={panel_key}, the alert took it back={alert_key}");
-                            return true;
+                            return Some(Instant::now());
                         }
                     };
                     let (active, key, _) = pair_now();
                     let content: *mut AnyObject = msg_send![window, contentView];
                     let found = button(content, tag, 0);
                     if found.is_null() {
-                        return false;
+                        return None;
                     }
                     let target: *mut AnyObject = msg_send![found, target];
                     let held = AnyClass::get(c"HalvoDialogHold").is_some_and(|hold| {
@@ -707,26 +742,25 @@ mod cases {
                         Mac::word(control),
                         own == window
                     );
+                    let ran = Instant::now();
                     match control {
                         Control::Click(_) => {
                             let _: () =
                                 msg_send![found, performClick: std::ptr::null_mut::<AnyObject>()];
-                            true
+                            Some(ran)
                         }
-                        Control::Again => true,
+                        Control::Again => Some(ran),
                         Control::Action(_) => {
                             let action: Option<Sel> = msg_send![found, action];
-                            let Some(action) = action else {
-                                return false;
-                            };
+                            let action = action?;
                             let sent: bool =
                                 msg_send![app, sendAction: action, to: target, from: found];
-                            sent
+                            sent.then_some(ran)
                         }
                     }
                 }
             })
-            .unwrap_or(false)
+            .flatten()
         }
 
         fn open(&self) -> bool {
@@ -855,9 +889,11 @@ mod cases {
 
 #[cfg(windows)]
 mod cases {
+    use super::schedule::From;
     use super::{arm, case, end, now_in_show, on_screen, print, Press, Show, Ui};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
+    use std::time::Instant;
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
@@ -880,6 +916,16 @@ mod cases {
     const fn p(at: u64, control: Control, answers: bool) -> Press<Control> {
         Press {
             at,
+            from: From::Report,
+            control,
+            answers,
+        }
+    }
+
+    const fn after(at: u64, control: Control, answers: bool) -> Press<Control> {
+        Press {
+            at,
+            from: From::Previous,
             control,
             answers,
         }
@@ -899,9 +945,9 @@ mod cases {
     ];
     const CLOSE: &[Press<Control>] = &[p(100, Control::Close, false), p(800, Control::Close, true)];
     const CLICK_100_AGAIN: &[Press<Control>] = &[
-        p(100, Control::Click(100), false),
-        p(550, Control::Click(100), false),
-        p(1_250, Control::Click(100), true),
+        p(300, Control::Click(100), false),
+        after(250, Control::Click(100), false),
+        after(750, Control::Click(100), true),
     ];
     const CLICK_100_AFTER: &[Press<Control>] = &[p(700, Control::Click(100), true)];
     const CLICK_100_AFTER_ACTIVE_AGAIN: &[Press<Control>] = &[
@@ -929,7 +975,7 @@ mod cases {
             &[(CLOSE, ConfirmAnswer::Reject)],
         ),
         (
-            "windows click_100_at_100ms_and_550ms",
+            "windows click_100_at_300ms_and_250ms_after_it",
             &[(CLICK_100_AGAIN, ConfirmAnswer::Allow)],
         ),
         (
@@ -963,15 +1009,14 @@ mod cases {
     }
 
     impl Ui<Control> for Win {
-        fn press(&self, control: Control) -> bool {
+        fn press(&self, control: Control) -> Option<Instant> {
             let (label, at) = now_in_show();
             println!(
                 "guard_hosted press {label} +{at} ms: {}",
                 Win::word(control)
             );
-            let Some(window) = self.window() else {
-                return false;
-            };
+            let window = self.window()?;
+            let ran = Instant::now();
             match control {
                 Control::Click(id) => {
                     // SAFETY: `window` is the window that the call above found; a message to a
@@ -990,7 +1035,7 @@ mod cases {
                     };
                 }
             }
-            true
+            Some(ran)
         }
 
         fn open(&self) -> bool {
