@@ -2646,7 +2646,13 @@ mod tests {
         assert!(late_300.1, "keys_withheld did not read yes");
     }
 
-    fn drawn_sequence(seed: u64, read_the_seam: bool) -> (Vec<String>, bool) {
+    #[derive(Clone, Copy)]
+    enum Draw {
+        Dense,
+        Spaced,
+    }
+
+    fn drawn_sequence(seed: u64, draw_as: Draw, read_the_seam: bool) -> (Vec<String>, bool, u32) {
         use crate::secure_input::windows::FieldState;
         let (mut state, handoff, writer) = lag_rig();
         let producer = handoff.producer();
@@ -2667,8 +2673,40 @@ mod tests {
         state
             .gate
             .read_at(tick, FieldState::Clear, Moved::NotCompared);
+        let mut keys = 0u32;
+        let mut last_key = tick;
+        let mut hold = |state: &mut GateState, tick: u32, name: String| {
+            keys += 1;
+            let held = state.gate.hold(tick, false, front);
+            state.held.push_back((
+                held,
+                KeyStroke {
+                    vkey: 0x41,
+                    released: false,
+                },
+                Some(name),
+            ));
+        };
         for key in 0..400u32 {
             let r = next();
+            if let Draw::Spaced = draw_as {
+                tick = tick.wrapping_add(20 + r % 20);
+                match (r >> 8) % 80 {
+                    0 | 1 => state.gate.field_at(tick, state_of(r >> 12)),
+                    2 => state.gate.latch(tick),
+                    3..=6 => state.gate.read_at(tick, FieldState::Clear, Moved::Another),
+                    _ if tick.wrapping_sub(last_key) >= 200 && (r >> 16) % 3 == 0 => {
+                        last_key = tick;
+                        hold(&mut state, tick, key.to_string());
+                    }
+                    _ => state.gate.read_at(tick, FieldState::Clear, Moved::Same),
+                }
+                release_held_at(&mut state, &producer, false, (tick, front), || false);
+                if read_the_seam {
+                    let _ = seam::take();
+                }
+                continue;
+            }
             tick = tick.wrapping_add(r % 15);
             match (r >> 8) % 20 {
                 0 => state.gate.field_at(tick, state_of(r >> 12)),
@@ -2683,17 +2721,7 @@ mod tests {
                 ),
                 9 => state.gate.latch(tick),
                 10 => state.gate.latch_after(tick.wrapping_sub(r % 20)),
-                _ => {
-                    let held = state.gate.hold(tick, false, front);
-                    state.held.push_back((
-                        held,
-                        KeyStroke {
-                            vkey: 0x41,
-                            released: false,
-                        },
-                        Some(key.to_string()),
-                    ));
-                }
+                _ => hold(&mut state, tick, key.to_string()),
             }
             release_held_at(&mut state, &producer, false, (tick, front), || false);
             if read_the_seam {
@@ -2706,24 +2734,22 @@ mod tests {
                 let _ = seam::take();
             }
         };
-        for _ in 0..=state.gate.latch_count() {
+        let (tail, quiet) = match draw_as {
+            Draw::Dense => (state.gate.latch_count() + 1, 5),
+            Draw::Spaced => (0, 0),
+        };
+        for _ in 0..tail {
             tick = tick.wrapping_add(110);
             state.gate.read_at(tick, FieldState::Clear, Moved::Same);
             tick = tick.wrapping_add(10);
             state.gate.read_at(tick, FieldState::Clear, Moved::Another);
             step(&mut state, tick);
         }
-        tick = tick.wrapping_add(1);
-        let last = state.gate.hold(tick, false, front);
-        state.held.push_back((
-            last,
-            KeyStroke {
-                vkey: 0x41,
-                released: false,
-            },
-            Some("last".to_string()),
-        ));
-        for _ in 0..5 {
+        if let Draw::Dense = draw_as {
+            tick = tick.wrapping_add(1);
+            hold(&mut state, tick, "last".to_string());
+        }
+        for _ in 0..quiet {
             tick = tick.wrapping_add(30);
             state.gate.read_at(tick, FieldState::Clear, Moved::Same);
             step(&mut state, tick);
@@ -2733,17 +2759,37 @@ mod tests {
         while let Ok(received) = writer.recv_timeout(std::time::Duration::from_millis(300)) {
             apps.push(received.event().foreground_app.clone());
         }
-        (apps, state.counts.withheld.load(Ordering::Relaxed))
+        (apps, state.counts.withheld.load(Ordering::Relaxed), keys)
     }
 
     #[test]
     fn a_gate_with_a_reader_of_the_seam_and_one_without_give_the_same_verdicts() {
         for seed in [3, 41, 977] {
-            let read = drawn_sequence(seed, true);
-            let unread = drawn_sequence(seed, false);
+            let read = drawn_sequence(seed, Draw::Dense, true);
+            let unread = drawn_sequence(seed, Draw::Dense, false);
             assert!(
                 !read.0.is_empty() && read.1,
                 "the drawn sequence decided too little: {seed}"
+            );
+            assert_eq!(read, unread, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn spaced_keys_cleared_among_other_marks_get_the_same_verdicts_with_and_without_the_seam() {
+        for seed in [3, 41, 977] {
+            let read = drawn_sequence(seed, Draw::Spaced, true);
+            let unread = drawn_sequence(seed, Draw::Spaced, false);
+            let cleared = read.0.len() as u32;
+            println!(
+                "TF spaced-sequence seed={seed} keys={} cleared={cleared} withheld={}",
+                read.2,
+                read.2 - cleared
+            );
+            assert!(
+                cleared >= 10 && read.2 > cleared,
+                "the spaced sequence of seed {seed} cleared {cleared} of {} keys",
+                read.2
             );
             assert_eq!(read, unread, "seed {seed}");
         }
