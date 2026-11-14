@@ -730,14 +730,16 @@ use RootsAfter::{Both, Empty, Nothing, TheOtherOne};
 use RootsAt::*;
 
 /// One row for each arm of `delete_store_dir` by named or unnamed and by
-/// roots present, absent or not listable. An arm in which nothing can name a
+/// roots present, absent or not listable. A named root with nothing at the
+/// roots path reads left with the roots location not listed (ruling ST-44 F1
+/// (d)); with nothing named, nothing at the roots path is an answer, listed. An arm in which nothing can name a
 /// root (nothing, a link or a file at the store name) has the unnamed rows
 /// alone. The witness binds the two arms without the lock that run a root
 /// step (the lock that fails), with the named root alone; the store directory
 /// that cannot be opened gets no root step.
 const TAIL_ROWS: &[Row] = &[
     row(LockHeld, Named, Present, true, "yes", true, Empty),
-    row(LockHeld, Named, Absent, false, "no", true, Nothing),
+    row(LockHeld, Named, Absent, false, "no", false, Nothing),
     row(LockHeld, Named, NotListable, false, "no", false, Both),
     row(LockHeld, Unnamed, Present, true, "unknown", true, Empty),
     row(LockHeld, Unnamed, Absent, true, "unknown", true, Nothing),
