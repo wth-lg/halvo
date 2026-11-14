@@ -792,9 +792,25 @@ pub fn tick<P: Owner + Runs + Clock>(
     limits: &Limits,
 ) -> Result<(), Cause> {
     let _ = flush(ports, ledger, limits);
-    let now = ports.now().map_err(|e| cause_of(&e))?;
-    match due(held, now, limits) {
-        Some(ConfirmMove::Lapse(cause)) => lapse(ports, ledger, table, held, cause, limits),
+    let stamp = clock_at(ports)?;
+    tick_at(ports, ledger, table, held, stamp, limits)
+}
+
+/// The move that `due` gives for a held confirmation at the one reading `stamp`, which is also
+/// the stamp of a lapse's `item_lapsed` row; it reads no clock and sends no waiting rows first
+/// (I5.9, ruling RD-101 item 1).
+pub fn tick_at<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    stamp: Stamp,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    match due(held, stamp.now(), limits) {
+        Some(ConfirmMove::Lapse(cause)) => {
+            lapse_stamped(ports, ledger, table, held, cause, limits, Some(stamp))
+        }
         Some(mv) => {
             held.confirmation = confirm_step(Some(&held.confirmation), mv)?;
             Ok(())
@@ -898,10 +914,10 @@ pub fn answer<P: Owner + Runs + Clock>(
 /// A lapse with `wait_limit` or `cancelled`, also where the person's stop made it, goes in four
 /// steps (ruling RD-83): first, in memory and before any port call, the item `lapsed`, its rows
 /// out of the guard's table, the run stopped in the guard's table (the caller holds the stop on
-/// the board before it, ruling RD-48 (a)), and the `item_lapsed` row, at a time read then,
-/// waiting in the ledger; second, `Runs::cancel` once; third, the decision, only where the
-/// cancel answered success or `ended`, so that the runner holds the cancel when the decision
-/// comes; fourth, the row to the owner. After a cancel that answered another error no decision
+/// the board before it, ruling RD-48 (a)), and the `item_lapsed` row, at the reading that the
+/// tick hands on (`tick_at`) or else at a time read then, waiting in the ledger; second,
+/// `Runs::cancel` once; third, the decision, only where the cancel answered success or `ended`,
+/// so that the runner holds the cancel when the decision comes; fourth, the row to the owner. After a cancel that answered another error no decision
 /// is sent, and the kill of I5.7 ends the run.
 ///
 /// Every other lapse first sends the decision, then lapses the item, takes its rows out of the
@@ -913,6 +929,18 @@ pub fn lapse<P: Owner + Runs + Clock>(
     held: &mut Held,
     cause: LapseCause,
     limits: &Limits,
+) -> Result<(), Cause> {
+    lapse_stamped(ports, ledger, table, held, cause, limits, None)
+}
+
+fn lapse_stamped<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    cause: LapseCause,
+    limits: &Limits,
+    stamp: Option<Stamp>,
 ) -> Result<(), Cause> {
     let next = confirm_step(Some(&held.confirmation), ConfirmMove::Lapse(cause))?;
     let run = held.ask.run().clone();
@@ -926,7 +954,7 @@ pub fn lapse<P: Owner + Runs + Clock>(
     if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
         held.confirmation = next;
         *table = table.lapse(&held.item).stop(&run);
-        if let Ok(stamp) = Stamp::read(ports) {
+        if let Some(stamp) = stamp.or_else(|| Stamp::read(ports).ok()) {
             queue_at(ledger, vec![lapsed], stamp);
         }
         let cancelled = ports.cancel(&run);

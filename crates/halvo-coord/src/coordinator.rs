@@ -116,7 +116,9 @@ fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &
 
 fn hold_stop<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
     *table = table.stop(run);
-    schedule::stop_run(board, run, now, by.cause().end());
+    if !board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
+        schedule::stop_run(board, run, now, by.cause().end());
+    }
 }
 
 fn waiting_on(doing: &Doing) -> Option<RunItem> {
@@ -425,18 +427,21 @@ where
             let Some(i) = index(board, h.ask().agent()) else {
                 continue;
             };
-            if let Ok(now) = self.ports.now() {
+            let l = ledger(ledgers, &board.members[i].facts);
+            let before = (l.last(), l.waiting().len());
+            let _ = items::flush(&self.ports, l, &self.limits);
+            if let Ok(stamp) = crate::ports::Stamp::read(&self.ports) {
                 let lapses = matches!(
-                    items::due(h, now, &self.limits),
+                    items::due(h, stamp.now(), &self.limits),
                     Some(ConfirmMove::Lapse(LapseCause::WaitLimit))
                 );
                 if lapses {
-                    hold_stop(board, table, h.ask().run(), now, StopBy::WaitLimit);
+                    hold_stop(board, table, h.ask().run(), stamp.now(), StopBy::WaitLimit);
                 }
+                let l = ledger(ledgers, &board.members[i].facts);
+                let _ = items::tick_at(&self.ports, l, table, h, stamp, &self.limits);
             }
             let l = ledger(ledgers, &board.members[i].facts);
-            let before = (l.last(), l.waiting().len());
-            let _ = items::tick(&self.ports, l, table, h, &self.limits);
             if (l.last(), l.waiting().len()) != before {
                 self.read_back(board, i);
             }
