@@ -142,11 +142,6 @@ fn meet_c_the_answer_to_the_check_of_a_switched_off_agent_ends_the_check_alone()
     );
 }
 
-/// RD-99 item 3, the queued twin of meet_a: a queued agent whose `ready` item the owner stored with
-/// a lost acknowledgement, and whose Switch off the owner refuses with `busy`. The switch-off's read
-/// shows no hold and reveals the item; the agent takes it up and stays queued (`settle`), so its
-/// row offers no Start now, a second start answers `state`, and the other run's end serves its one
-/// start with the item's answer `start` before the one `run_started`.
 #[test]
 fn meet_r13_a_queued_agent_whose_refused_switch_off_reveals_a_ready_item_stays_queued() {
     let mut w = world(&[MANUAL, PERSON]);
@@ -272,4 +267,36 @@ fn a_switch_off_that_drops_a_queued_start_keeps_the_revealed_ready_item_open() {
     w.act(Act::Tick);
     assert_eq!(raised(&w), 1, "no second ready item beside the open one");
     assert_eq!(w.facts(1).doing, open);
+}
+
+#[test]
+fn the_rest_of_a_switch_off_with_no_hold_standing_answers_state_and_stops_and_sends_nothing() {
+    let mut w = world(&[MANUAL, PERSON]);
+    let run = w
+        .act(Act::Start { agent: agent(0) })
+        .report
+        .run
+        .expect("agent 0 runs");
+    let queued = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    w.forget();
+    for n in [0, 1] {
+        let off = Move::Off { agent: agent(n) };
+        let off = schedule_drive(&w.ports, &mut w.board, &w.limits, off);
+        assert_eq!(off.answer, Err(Cause::State), "agent {n}");
+        assert!(holds(w.facts(n)).is_empty(), "agent {n}");
+    }
+    assert_eq!(
+        w.calls(),
+        Vec::<String>::new(),
+        "no cancel and no set_state"
+    );
+    assert!(
+        w.board
+            .runs
+            .iter()
+            .any(|r| r.run == run && r.stop.is_none()),
+        "the run is not stopped"
+    );
+    assert_eq!(w.board.queue.len(), 1, "the queued start stays");
 }

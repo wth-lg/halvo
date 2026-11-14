@@ -3094,3 +3094,22 @@ fn rd52a_the_ticks_raise_of_a_ready_item_whose_read_shows_a_hold_raises_nothing(
         "the control raises it"
     );
 }
+
+#[test]
+fn a_tick_raises_ready_at_once_for_a_persons_agent_with_no_slot_whose_only_run_failed() {
+    for (outcome, raised) in [
+        (Outcome::Failed, vec![agent(0)]),
+        (Outcome::Completed, Vec::<AgentId>::new()),
+    ] {
+        let mut w = world(&[A {
+            person: true,
+            finished: false,
+            ..manual()
+        }]);
+        let run = ok_run(&w.start(0));
+        w.end(&run, Some(outcome));
+        w.clock(T0 + 5_000, DAY);
+        let tick = w.tick();
+        assert_eq!(tick.raised, raised, "{outcome:?}");
+    }
+}

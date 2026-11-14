@@ -6324,6 +6324,27 @@ fn rd52b_rule3_a_request_whose_seq_read_brings_a_stored_switch_off_stores_no_ite
             );
             assert!(c.snapshot().items.is_empty(), "{case}: no card");
             assert_eq!(hold_sets(&c, 0), 1, "{case}: no second hold_set");
+            c.tick();
+            c.ports().ports.set_clock(T0 + 1_000, DAY);
+            c.tick();
+            assert_eq!(
+                items_raised(&c),
+                raised_before,
+                "{case}: no item_raised at the next ticks"
+            );
+            let lapsed = |c: &Coordinator<Both>| {
+                events(c)
+                    .iter()
+                    .filter(|w| matches!(w, What::ItemLapsed { .. }))
+                    .count()
+            };
+            let lapsed_before = lapsed(&c);
+            let life = next_life(&c, |_| {});
+            assert_eq!(
+                lapsed(&life),
+                lapsed_before,
+                "{case}: the next life lapses no item of it"
+            );
         }
     }
 }
@@ -6530,12 +6551,6 @@ fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
     assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
 }
 
-/// RD-99 item 2, a named limit until U2.4g: the runner's end of a run whose own read first shows a
-/// switch-off that the owner stored unseen by the board stops nothing and sends no `set_state`.
-/// Once for a run that waits on a handback item and once for a working run: after the end no
-/// `set_state` of any state and no `cancel`; the item lapses with `run_ended` once and the run
-/// ends with its own cause; the row is Off with Switch on and Delete and no Start now; the next
-/// tick starts nothing and raises no item; Start now answers `hold`.
 #[test]
 fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_sends_no_state() {
     use halvo_coord::types::Control;
@@ -7113,5 +7128,134 @@ fn a_stop_or_a_wait_limit_tick_whose_read_shows_a_stored_switch_off_lapses_with_
                 );
             }
         }
+    }
+}
+
+#[test]
+fn a_stored_went_through_whose_reply_was_lost_then_try_again_stores_no_second_row_and_hands_went_through(
+) {
+    use halvo_coord::types::HandbackResult;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback(&run, 0, HandbackReason::EffectUnknown))
+            .unwrap();
+        let (item, kind) = open_item(&c);
+        assert_eq!(kind, ItemKind::Check, "{order:?}");
+        c.ports().loss.set(Some(order));
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::WentThrough,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::NoService),
+            "{order:?}"
+        );
+        let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+        c.ports().ports.events.borrow_mut().extend(lost);
+        assert_eq!(closing_rows(&c, &item), 1, "{order:?}: the owner holds it");
+        let m = mark(&c);
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::TryAgain,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::UnknownItem),
+            "{order:?}"
+        );
+        assert_eq!(closing_rows(&c, &item), 1, "{order:?}: no second row");
+        assert_eq!(
+            handed_back(&c, m),
+            [HandbackResult::Declined],
+            "{order:?}: the stored went_through"
+        );
+    }
+}
+
+#[test]
+fn a_handback_answer_stored_with_no_read_lets_the_next_switch_off_store_its_hold_at_its_first_log()
+{
+    for reason in DECLINE_DONE {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback(&run, 0, reason)).unwrap();
+        let (item, _) = open_item(&c);
+        let tried = c.ports().ports.tried.borrow().len();
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Done,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Ok(()),
+            "{reason:?}"
+        );
+        assert!(
+            !c.ports().ports.tried.borrow()[tried..]
+                .iter()
+                .any(|t| t.refused.is_some()),
+            "{reason:?}: the answer's log was acknowledged with no read"
+        );
+        let tried = c.ports().ports.tried.borrow().len();
+        assert_eq!(
+            c.control(&agent(0), Action::SwitchOff),
+            Ok(()),
+            "{reason:?}"
+        );
+        let after: Vec<(Call, bool)> = c.ports().ports.tried.borrow()[tried..]
+            .iter()
+            .map(|t| (t.call.clone(), t.refused.is_some()))
+            .collect();
+        let hold = after
+            .iter()
+            .position(|(call, _)| {
+                matches!(call, Call::Log(rows) if rows.iter().any(|e| matches!(e.what, What::HoldSet { .. })))
+            })
+            .expect("hold_set is logged");
+        assert!(!after[hold].1, "{reason:?}: acknowledged at its first log");
+        assert!(
+            !after[..hold]
+                .iter()
+                .any(|(call, _)| matches!(call, Call::History(..))),
+            "{reason:?}: no read before it"
+        );
+    }
+}
+
+#[test]
+fn a_tick_whose_confirmation_flush_reads_a_stored_switch_off_stops_the_run_at_its_end() {
+    use halvo_coord::types::AgentState;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.ports().loss.set(Some(support::Loss::Nothing));
+        c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+        c.ports().loss.set(None);
+        let (item, kind) = open_item(&c);
+        assert_eq!(kind, ItemKind::Confirm, "{case}");
+        assert_eq!(items_raised(&c), 0, "{case}: the raise waits in the ledger");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Nothing));
+        c.ports().next_history_fails.set(true);
+        c.tick();
+        c.ports().loss.set(None);
+        c.ports().next_history_fails.set(false);
+        assert!(
+            c.off_beside_live().is_empty(),
+            "{case}: no run beside the hold"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+        assert_eq!(
+            states_sent(&c, m),
+            [AgentState::Paused],
+            "{case}: paused once"
+        );
     }
 }
