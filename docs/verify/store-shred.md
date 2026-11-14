@@ -1747,7 +1747,9 @@ set, and the root's own volume name answers the root.
   move it does neither. The store's own calls act through the handle. What
   was moved away is ciphertext whose key a shred destroys, and whose root
   a delete-all destroys with every other root file under the roots
-  directory. The review's two runs W1 (pr-review-14), taken before
+  directory when that directory holds the store's root, and the delete
+  tail with every root file under the roots directory that it is given
+  (ruling ST-45 H1). The review's two runs W1 (pr-review-14), taken before
   store-3, are the
   facts of the first three steps: with another directory put at the name after the last look, a
   `create` answered `Ok` and that directory, which had held an empty
