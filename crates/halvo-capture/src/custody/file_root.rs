@@ -349,8 +349,6 @@ impl PartialEq for EntryFate {
     }
 }
 
-/// Whether the regular file at `name` has one name, by the count read through
-/// a handle that follows no link; a count that cannot be read is not one.
 /// Destroys one entry of a roots directory. An entry that is no regular file
 /// is removed as the entry that it is. For a regular file the step first sets
 /// its mode to 0600 by its name through the directory's handle, following no

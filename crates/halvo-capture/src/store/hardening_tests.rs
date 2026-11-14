@@ -8903,7 +8903,7 @@ fn a_pending_create_beside_an_unreadable_key_file_destroys_no_root() {
     use super::db::SEAM_BEFORE_THE_MODE_STEP;
     use super::failpoint;
     use std::os::unix::fs::PermissionsExt;
-    println!("CASE-NOTE: a store whose create stopped after publishing store.key and before removing create.pending keeps its root when an open cannot read store.key for a moment; the open must refuse, not destroy the root that store.key names");
+    println!("CASE-NOTE: a store beside the first pending mark of a stopped create, which reads owed, keeps its root when an open cannot read store.key for a moment; the open must refuse, not destroy the root that store.key names");
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let before = root_files_in(&roots_dir);

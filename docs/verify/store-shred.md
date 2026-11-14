@@ -1176,8 +1176,9 @@ What the code does since store-3, each sentence with the test that shows it.
   that this call removed, after that removal) the tail opens the roots path
   once and destroys every entry whose name is a root name or a partial
   name, whether or not anything names a root, also beside a key file that
-  this build does not handle; it opens no roots path that leads through a
-  store name at which it did not open a directory itself. The root reads
+  this build does not handle, unless it refuses the roots path by ruling
+  ST-46 K2 (below); it opens no roots path that leads through a store name
+  at which it did not open a directory itself. The root reads
   destroyed only when a root was named and this call removed, at the
   root's own name (the root name in any letter case, never a partial name
   alone), a regular file that is not empty and, off Windows, of the root
@@ -1193,7 +1194,11 @@ What the code does since store-3, each sentence with the test that shows it.
   `a_root_file_renamed_aside_after_the_listing_with_a_link_at_its_name_reads_left`,
   `a_root_file_renamed_aside_after_the_listing_with_an_empty_file_at_its_name_reads_left`,
   `a_partial_root_file_renamed_aside_after_the_listing_reads_the_root_left`,
-  `with_nothing_moved_after_the_listing_the_root_reads_destroyed`). Left (not found) when one
+  `with_nothing_moved_after_the_listing_the_root_reads_destroyed`). A
+  partial name of the named root that is renamed aside, with a link or an
+  entry of another kind put at its name after the listing, reads Gone for
+  that name, as before the round; K1's tests hold the absent partial name
+  (ruling ST-46 Addition 1 S4, for store-3b). Left (not found) when one
   was named and not removed; and unnamed when nothing named one. A link,
   an entry of another kind, an empty file or, off Windows, a file of
   another length at that name is removed as the entry that it is, with no
@@ -1489,12 +1494,19 @@ set, and the root's own volume name answers the root.
   no link (on Windows it clears the read-only attribute), and if the
   zero-fill still fails the name is removed as C11.4 step 4 has it, with no
   report field changed: a second name of `store.key` whose zero-fill failed
-  keeps the wrapped key, which does not unwrap once the root is destroyed
+  keeps the wrapped key, which does not unwrap once the root is destroyed.
+  On Windows the read-only attribute of `store.key` is cleared by its path,
+  which follows a link put there after the look (ruling ST-46 Addition 1
+  S4, for store-3b)
   (ruling ST-46 K5 N1;
   `delete_all_zeroes_a_store_key_of_mode_0400_through_every_name`);
   a file of another program that a process of the same user hard-links at
-  a root file's name is zeroed with it (found by the review of store-3 and
-  left so). Before the open the root step sets the entry's mode to 0600 by
+  a root file's name is zeroed with it only when it has the root file's
+  length at a root name (any length above 0 on Windows) or stands at a
+  partial name; at a root name a file of another length is removed with no
+  write through it, at the named root's own name always and at another
+  root's name when it has more than one name (found by the review of
+  store-3 and left so for the root's length and the partial name). Before the open the root step sets the entry's mode to 0600 by
   its name through the directory's handle, following no link, and only for
   an entry that reads as a regular file at a root name or a partial name
   (on Windows it clears the read-only attribute after the open). It keeps
@@ -1526,7 +1538,10 @@ set, and the root's own volume name answers the root.
   the old roots name that holds a file of the root file's length at the
   root's name: that file is the witness, the handle's delete destroys every
   root file there and reads its own root destroyed while the moved root
-  still unwraps. It needs a program that puts that file there; store-3b's
+  still unwraps, and the answer is `Ok`. A program that puts that file
+  there makes this state, and so does a person who moves the roots folder
+  away and puts a copy of it at the old name without a program: the copy
+  that docs/privacy-limits.md line 25 names. Store-3b's
   held handle and the identity of the roots directory close it, and
   store-3b takes the case as a test that fails first (ruling ST-46 K6, the
   verifier's issue 3). A rename alone, or with a
@@ -1558,7 +1573,12 @@ set, and the root's own volume name answers the root.
   store path and the roots path are built from one data directory value);
   a link that a second program puts into the path after the walk; the open
   of the roots from the parent's handle and the tail that takes a data
-  directory with a closed layout are store-3b's.
+  directory with a closed layout are store-3b's. The walk is a look by path
+  that a later call acts on by name. A store path and a roots path spelled
+  differently (another letter case, a relative path beside an absolute
+  one) share fewer parts as given, so the walk looks at more parts, and a
+  link in the parts that they share as spelled is followed (ruling ST-46
+  Addition 1 S4, for store-3b).
   A create that makes its directory after the tail read that none stands
   can lose its root; the daemon's instance lock is the guard. After a
   handle's delete that the witness stopped, the tail after a restart sweeps
@@ -1572,9 +1592,10 @@ set, and the root's own volume name answers the root.
   holds `store.db`, because it never opens the database: a holder that does
   not hold the directory lock is not refused. The tail on a name where no
   directory stands sweeps the roots directory that it is given, unless that
-  path leads through the store name, and answers `Ok` with the root
-  unnamed when no root file stays (ruling ST-45 H1, which restores ST-30
-  (1)(d) for the tail); the daemon's instance lock on the data directory
+  path leads through the store name or the tail refuses it by ruling ST-46
+  K2 (a link or a parent part below the directory that it shares with the
+  store path), and answers `Ok` with the root unnamed when no root file
+  stays (ruling ST-45 H1, which restores ST-30 (1)(d) for the tail); the daemon's instance lock on the data directory
   keeps the tail from running beside a live daemon. A
   program that takes `store.db` between the probe and the open makes `open`
   answer `Locked` after it asked its custody. A caller that gives a create
