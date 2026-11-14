@@ -531,24 +531,50 @@ fn the_tail_without_the_lock_destroys_the_named_root_alone() {
     assert!(problems.is_empty(), "arms that fail: {problems:?}");
 }
 
-/// Ruling ST-45 H6 (b), the test first: a create and then an open at a store
-/// path, and a create at a roots path, of which a part ends in a dot or a
-/// space, not verbatim. It prints what stands at the trimmed name and fails
-/// when a call acted on the trimmed sibling.
+/// Ruling ST-45 H6 (b): a create and then an open at a store path or with a
+/// roots path of which a part ends in a dot or a space, not verbatim and
+/// verbatim. It prints what stands at the trimmed name and fails when a call
+/// acted on the trimmed sibling, when one made anything at the name given,
+/// or when one answered other than Io(InvalidInput). The first run of this
+/// test, at the commit with the tests and no change, found that every create
+/// made its directory at the trimmed sibling.
 #[test]
 fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name() {
     let mut acted = Vec::new();
-    for (case, store_name, roots_name) in [
-        ("a store path that ends in a dot", "store.", "roots"),
-        ("a store path that ends in a space", "store ", "roots"),
-        ("a roots path that ends in a dot", "store", "roots."),
-        ("a roots path that ends in a space", "store", "roots "),
+    for (case, store_name, roots_name, verbatim) in [
+        ("a store path that ends in a dot", "store.", "roots", false),
+        (
+            "a store path that ends in a space",
+            "store ",
+            "roots",
+            false,
+        ),
+        ("a roots path that ends in a dot", "store", "roots.", false),
+        (
+            "a roots path that ends in a space",
+            "store",
+            "roots ",
+            false,
+        ),
+        (
+            "a verbatim store path that ends in a dot",
+            "store.",
+            "roots",
+            true,
+        ),
+        (
+            "a verbatim roots path that ends in a dot",
+            "store",
+            "roots.",
+            true,
+        ),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
         let text = base.display().to_string();
-        let store_dir = PathBuf::from(format!(r"{text}\{store_name}"));
-        let roots_dir = PathBuf::from(format!(r"{text}\{roots_name}"));
+        let lead = if verbatim { r"\\?\" } else { "" };
+        let store_dir = PathBuf::from(format!(r"{lead}{text}\{store_name}"));
+        let roots_dir = PathBuf::from(format!(r"{lead}{text}\{roots_name}"));
         let root_id = RootId::fresh().unwrap();
         let created = answer_text(&EncryptedStore::create(
             &store_dir,
@@ -575,12 +601,19 @@ fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trim
         println!(
             "WIN-ST45-H6B case={case} create={created} open={opened} trimmed_store_name_exists={at_trimmed_store} trimmed_roots_name_exists={at_trimmed_roots} verbatim_store_name_exists={verbatim_store} verbatim_roots_name_exists={verbatim_roots}"
         );
-        if at_trimmed_store || at_trimmed_roots {
+        let refused = "Io(InvalidInput)";
+        if at_trimmed_store
+            || at_trimmed_roots
+            || (store_trims && verbatim_store)
+            || (roots_trims && verbatim_roots)
+            || created != refused
+            || opened != refused
+        {
             acted.push(case);
         }
     }
     assert!(
         acted.is_empty(),
-        "calls acted on the trimmed sibling: {acted:?}"
+        "calls acted on the trimmed sibling, made something at the name given or answered other than Io(InvalidInput): {acted:?}"
     );
 }
