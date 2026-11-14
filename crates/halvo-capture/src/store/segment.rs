@@ -150,8 +150,8 @@ pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct SegmentsRemoval {
-    pub(crate) left: u64,
-    pub(crate) not_followed: u64,
+    pub(crate) entries_left: u64,
+    pub(crate) links_or_others_met: u64,
 }
 
 pub(crate) fn remove_segments_through(store_dir: &Dir) -> SegmentsRemoval {
@@ -165,7 +165,7 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
         Ok(entry) => entry,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return,
         Err(_) => {
-            removal.left += 1;
+            removal.entries_left += 1;
             return;
         }
     };
@@ -174,7 +174,7 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
         _ => EntryKind::File,
     };
     if entry.kind == EntryKind::Link || entry.kind == EntryKind::Other || entry.kind != expected {
-        removal.not_followed += 1;
+        removal.links_or_others_met += 1;
     }
     if entry.kind == EntryKind::Dir {
         let listed = parent.open_dir(name).and_then(|below| {
@@ -185,14 +185,14 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
             below.sync()
         });
         if matches!(&listed, Err(e) if e.kind() != io::ErrorKind::NotFound) {
-            removal.left += 1;
+            removal.entries_left += 1;
         }
     }
     match parent.remove_entry(name) {
         Ok(()) => {}
         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
         Err(_) if entry.kind == EntryKind::Dir => {}
-        Err(_) => removal.left += 1,
+        Err(_) => removal.entries_left += 1,
     }
     let _ = parent.sync();
 }

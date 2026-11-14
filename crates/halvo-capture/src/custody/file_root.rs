@@ -171,7 +171,7 @@ pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLe
     }
 }
 
-pub(crate) fn root_file_present(roots: &Path, root_id: RootId) -> bool {
+pub(crate) fn root_file_may_be_present(roots: &Path, root_id: RootId) -> bool {
     match Dir::open(roots) {
         Ok(dir) => {
             !matches!(dir.entry(&root_name(root_id)), Err(e) if e.kind() == ErrorKind::NotFound)
@@ -217,7 +217,7 @@ impl<P: Protector> FileRoots<P> {
         self.dir.join(root_name(root_id))
     }
 
-    fn roots_dir(&self) -> Result<Dir, CustodyError> {
+    fn open_private_roots_dir(&self) -> Result<Dir, CustodyError> {
         durable::create_private_dir_all(&self.dir).map_err(root_io)?;
         let dir = Dir::open(&self.dir).map_err(root_io)?;
         dir.make_private().map_err(root_io)?;
@@ -256,17 +256,20 @@ impl<P: Protector> FileRoots<P> {
     pub(crate) fn create_root(&self, root_id: RootId) -> Result<(), CustodyError> {
         match self.existing_root(root_id)? {
             Some(_) => Err(CustodyError::RootExists),
-            None => self.make_root(root_id).map(drop),
+            None => self.publish_new_root_by_link(root_id).map(drop),
         }
     }
 
-    fn make_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+    fn publish_new_root_by_link(
+        &self,
+        root_id: RootId,
+    ) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
         let mut root = Zeroizing::new([0u8; 32]);
         fill_random(root.as_mut_slice())?;
         let blob = self
             .protector
             .protect(root.as_slice(), root_id.as_bytes())?;
-        let dir = self.roots_dir()?;
+        let dir = self.open_private_roots_dir()?;
         let partial = partial_name(root_id)?;
         let written = write_partial(&dir, &partial, &blob);
         let published = written.and_then(|()| {
@@ -306,7 +309,7 @@ impl<P: Protector> FileRoots<P> {
     ) -> Result<WrappedKey, CustodyError> {
         let root = match self.existing_root(root_id)? {
             Some(root) => root,
-            None => match self.make_root(root_id) {
+            None => match self.publish_new_root_by_link(root_id) {
                 Err(CustodyError::RootExists) => self
                     .existing_root(root_id)?
                     .ok_or(CustodyError::RootMissing)?,
@@ -336,7 +339,7 @@ impl<P: Protector> FileRoots<P> {
 
     #[cfg(test)]
     pub(crate) fn create_root_without_a_look(&self, root_id: RootId) -> Result<(), CustodyError> {
-        self.make_root(root_id).map(drop)
+        self.publish_new_root_by_link(root_id).map(drop)
     }
 
     #[cfg(test)]
@@ -364,7 +367,7 @@ impl<P: Protector> FileRoots<P> {
         root: &[u8; 32],
     ) -> Result<(), CustodyError> {
         let blob = self.protector.protect(root, root_id.as_bytes())?;
-        let dir = self.roots_dir()?;
+        let dir = self.open_private_roots_dir()?;
         let partial = partial_name(root_id)?;
         write_partial(&dir, &partial, &blob)?;
         dir.rename(&partial, &root_name(root_id)).map_err(root_io)
@@ -681,7 +684,7 @@ mod tests {
         let roots = roots(dir.path());
         let root_id = RootId::fresh().unwrap();
         std::fs::create_dir_all(roots.path(root_id).join("occupied")).unwrap();
-        let made = roots.make_root(root_id);
+        let made = roots.publish_new_root_by_link(root_id);
         assert!(
             matches!(made, Err(CustodyError::RootExists)),
             "a root write over a directory answered {:?}",

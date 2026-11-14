@@ -259,6 +259,8 @@ mod unix_dir {
     const DIR_FLAGS: libc::c_int =
         libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
 
+    const LINK_THE_ENTRY_NOT_ITS_TARGET: libc::c_int = 0;
+
     impl Dir {
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
             let c = c_name(path.as_os_str())?;
@@ -332,9 +334,9 @@ mod unix_dir {
             let stream = unsafe { libc::fdopendir(raw) };
             if stream.is_null() {
                 let e = io::Error::last_os_error();
-                // SAFETY: fdopendir failed, so raw is still ours alone and is closed
-                // here once.
-                unsafe { libc::close(raw) };
+                // SAFETY: fdopendir failed, so raw is still ours alone, and the
+                // OwnedFd that takes it back closes it once when dropped.
+                drop(unsafe { std::os::fd::OwnedFd::from_raw_fd(raw) });
                 return Err(e);
             }
             let mut names = Vec::new();
@@ -386,7 +388,7 @@ mod unix_dir {
             // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
             // while self lives.
             let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
-                .map_err(|e| self.no_file_or(name, e))?;
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
             match kind(&stat_of(fd.as_raw_fd())?) {
                 EntryKind::File => Ok(File::from(fd)),
                 EntryKind::Dir => Err(io::Error::from_raw_os_error(libc::EISDIR)),
@@ -443,14 +445,14 @@ mod unix_dir {
             // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
             // while self lives.
             let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
-                .map_err(|e| self.no_file_or(name, e))?;
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
             match kind(&stat_of(fd.as_raw_fd())?) {
                 EntryKind::File => Ok(File::from(fd)),
                 _ => Err(refused(Refused::NotARegularFile)),
             }
         }
 
-        fn no_file_or(&self, name: &OsStr, e: io::Error) -> io::Error {
+        fn refuse_other_kind_or(&self, name: &OsStr, e: io::Error) -> io::Error {
             if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() {
                 return e;
             }
@@ -465,7 +467,15 @@ mod unix_dir {
             let fd = self.fd.as_raw_fd();
             // SAFETY: from and to are NUL-terminated, and fd is this handle's
             // descriptor, open while self lives.
-            checked(unsafe { libc::linkat(fd, from.as_ptr(), fd, to.as_ptr(), 0) })
+            checked(unsafe {
+                libc::linkat(
+                    fd,
+                    from.as_ptr(),
+                    fd,
+                    to.as_ptr(),
+                    LINK_THE_ENTRY_NOT_ITS_TARGET,
+                )
+            })
         }
 
         pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {

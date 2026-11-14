@@ -27,6 +27,8 @@ use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{DeleteReport, Met, SegmentStore, StoreError, StoreName, StoreResult};
 
 const KEY_FILE_VERSION: u32 = 2;
+#[cfg(target_os = "macos")]
+const STATS_AFTER_THE_FIRST: u32 = 2;
 const DATABASE_VERSION: i64 = 1;
 const KEY_FILE: &str = "store.key";
 const CREATE_PENDING: &str = "create.pending";
@@ -356,9 +358,15 @@ type Named = (NameForm, VolumeIds);
 
 #[cfg(unix)]
 fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
-    use std::os::unix::fs::PermissionsExt;
     #[cfg(test)]
     failpoint::seam(SEAM_BEFORE_THE_MODE_STEP);
+    set_mode_then_close(store_dir)?;
+    open_connection(store_dir, flags)
+}
+
+#[cfg(unix)]
+fn set_mode_then_close(store_dir: &Dir) -> StoreResult<()> {
+    use std::os::unix::fs::PermissionsExt;
     match store_dir.open_file(OsStr::new(DATABASE_FILE)) {
         Ok(file) => file
             .set_permissions(std::fs::Permissions::from_mode(0o600))
@@ -366,7 +374,7 @@ fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, 
         Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::DatabaseMissing),
         Err(e) => return Err(refused_at(StoreName::Database, e)),
     }
-    open_connection(store_dir, flags)
+    Ok(())
 }
 
 fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
@@ -511,13 +519,14 @@ pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
     };
     let flag = Some(flags & libc::MNT_DOVOLFS as u32 != 0);
     let root_dir = Dir::open(&mount).ok();
-    let capability = root_dir.as_ref().and_then(|root| {
+    let capability_at_the_volume_root = |root: &Dir| {
         let fd = root.raw_descriptor();
         match durable::volume_of(fd) {
             Ok((_, _, id)) if id == fsid => path_from_id(fd),
             _ => None,
         }
-    });
+    };
+    let capability = root_dir.as_ref().and_then(capability_at_the_volume_root);
     let root = root_dir.and_then(|root| {
         let (device, file_number) = root.identity().ok()?;
         let name = PathBuf::from(format!("/.vol/{device}/{file_number}"));
@@ -586,7 +595,7 @@ fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)>
     let (device, file_number) = store_dir.identity().map_err(io_error)?;
     let volume = PathBuf::from(format!("/.vol/{device}/{file_number}"));
     let before = volume_readings(store_dir).ids();
-    let mut stats_left = 2;
+    let mut stats_left = STATS_AFTER_THE_FIRST;
     loop {
         let (stat, error) = match volume_stat(&volume) {
             Ok((EntryKind::Dir, d, n)) if d == device && n == file_number => {
@@ -1671,7 +1680,7 @@ impl EncryptedStore {
         }
         if let Some(roots) = custody.roots() {
             clear_pending(dir, roots, key_file.names())?;
-            if file_root::root_file_present(roots, custody.root_id()) {
+            if file_root::root_file_may_be_present(roots, custody.root_id()) {
                 return Err(StoreError::Custody(
                     custody
                         .create_root()
@@ -2089,8 +2098,8 @@ fn remove_the_store_files(
         root_not_handled: None,
         key_file_gone: key_file.gone,
         database_left: database.left,
-        files_left: segments.left + pending_left,
-        not_followed: key_file.not_followed + database.not_followed + segments.not_followed,
+        files_left: segments.entries_left + pending_left,
+        not_followed: key_file.not_followed + database.not_followed + segments.links_or_others_met,
     }
 }
 

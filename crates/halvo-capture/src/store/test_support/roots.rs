@@ -14,13 +14,15 @@ fn registry() -> &'static Mutex<HashMap<RootId, PathBuf>> {
     ROOTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn roots_base() -> PathBuf {
+const STORE_TEST_ROOTS: &str = "store-test-roots";
+
+fn roots_base_outside_the_checked_temp_dir() -> PathBuf {
     let exe = std::env::current_exe().expect("the test executable's path");
     let target = exe
         .ancestors()
         .nth(3)
         .expect("the test executable lies in <target>/<profile>/deps");
-    target.join("tmp").join("store-test-roots")
+    target.join("tmp").join(STORE_TEST_ROOTS)
 }
 
 fn directory_of(root_id: RootId) -> PathBuf {
@@ -28,7 +30,7 @@ fn directory_of(root_id: RootId) -> PathBuf {
     roots
         .entry(root_id)
         .or_insert_with(|| {
-            let dir = roots_base().join(root_id.to_string());
+            let dir = roots_base_outside_the_checked_temp_dir().join(root_id.to_string());
             std::fs::create_dir_all(&dir).expect("a roots directory for the test");
             dir
         })

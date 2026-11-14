@@ -22,6 +22,8 @@ use super::segment::{self, segment_path, CHUNK};
 const LOCK_FILES: [&str; 0] = [];
 #[cfg(windows)]
 const LOCK_FILES: [&str; 1] = ["writer.lock"];
+#[cfg(windows)]
+const NON_UNICODE_DIR_TEXTS: usize = 4;
 
 use super::{
     Met, SegmentExpiry, SegmentStore, StoreError, StoreName, StoreResult, DEFAULT_RETENTION,
@@ -2054,7 +2056,7 @@ fn a_wrong_store_key_opens_as_database_unreadable_and_a_shredded_segment_reads_a
     );
 }
 
-fn files_and_lengths(dir: &Path) -> Vec<(PathBuf, u64)> {
+fn store_files_and_lengths(dir: &Path) -> Vec<(PathBuf, u64)> {
     let mut files: Vec<(PathBuf, u64)> = files_under(dir)
         .into_iter()
         .filter(|path| {
@@ -2107,7 +2109,7 @@ fn answers_after_damage(cases: &[(&str, DamageToTheDatabase)], expected: &str) -
         let dir = tempfile::tempdir().unwrap();
         let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
         damage(&store_dir, &roots_dir, root_id);
-        let before = files_and_lengths(&store_dir);
+        let before = store_files_and_lengths(&store_dir);
         let answer = match open_over_file_root(&store_dir, &roots_dir, root_id) {
             Ok(mut store) => {
                 let read = store.read_segment(segment_id, &mut Vec::new());
@@ -2121,7 +2123,7 @@ fn answers_after_damage(cases: &[(&str, DamageToTheDatabase)], expected: &str) -
             }
             Err(e) => format!("{e:?}"),
         };
-        let after = files_and_lengths(&store_dir);
+        let after = store_files_and_lengths(&store_dir);
         if answer != expected {
             problems.push(format!(
                 "{case}: open answered {answer} in place of {expected}"
@@ -2180,12 +2182,12 @@ fn version_answers(cases: &[(&str, DamageToTheDatabase)]) -> Vec<String> {
             let dir = tempfile::tempdir().unwrap();
             let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
             change(&store_dir, &roots_dir, root_id);
-            let before = files_and_lengths(&store_dir);
+            let before = store_files_and_lengths(&store_dir);
             let answer = match open_by_the_recorded_root(&store_dir, &roots_dir) {
                 Ok(_) => "Ok".to_string(),
                 Err(e) => format!("{e:?}"),
             };
-            let changed = files_and_lengths(&store_dir) != before;
+            let changed = store_files_and_lengths(&store_dir) != before;
             format!(
                 "{case}: {answer}{}",
                 if changed { ", files changed" } else { "" }
@@ -4689,7 +4691,7 @@ fn an_open_after_a_crash_makes_no_shared_memory_file() {
         !shm_while_open && !shm_after_drop,
         "open made store.db-shm in the store directory (while open: {shm_while_open}, after \
          the drop: {shm_after_drop}); files: {:?}",
-        files_and_lengths(&crashed)
+        store_files_and_lengths(&crashed)
     );
 }
 
@@ -4737,13 +4739,13 @@ fn a_refused_open_after_a_crash_changes_no_file_of_the_store() {
     )
     .unwrap();
 
-    let before = files_and_lengths(&crashed);
+    let before = store_files_and_lengths(&crashed);
     let db_before = std::fs::read(crashed.join("store.db")).unwrap();
     let wal_before = std::fs::read(crashed.join("store.db-wal")).unwrap();
     let answer = open_over_file_root(&crashed, &roots_dir, root_id)
         .map(drop)
         .map_err(|e| format!("{e:?}"));
-    let after = files_and_lengths(&crashed);
+    let after = store_files_and_lengths(&crashed);
     let db_after = std::fs::read(crashed.join("store.db")).unwrap();
     let wal_after = std::fs::read(crashed.join("store.db-wal")).ok();
     assert_eq!(answer, Err("DatabaseUnreadable".to_string()));
@@ -4783,11 +4785,11 @@ fn an_empty_database_beside_a_write_ahead_log_opens_as_database_missing_and_keep
     let dir = tempfile::tempdir().unwrap();
     let (crashed, roots_dir, root_id) = crash_image(dir.path());
     cut_store_db_to(&crashed, 0);
-    let before = files_and_lengths(&crashed);
+    let before = store_files_and_lengths(&crashed);
     let answer = open_over_file_root(&crashed, &roots_dir, root_id)
         .map(drop)
         .map_err(|e| format!("{e:?}"));
-    let after = files_and_lengths(&crashed);
+    let after = store_files_and_lengths(&crashed);
     assert_eq!(answer, Err("DatabaseMissing".to_string()));
     assert_eq!(
         after, before,
@@ -6445,7 +6447,7 @@ fn create_answers_obstructed_when_sqlite_holds_a_database_outside_its_handle_and
     let decoy_source = tempfile::tempdir().unwrap();
     let (decoy_store, _, _, _) = file_root_store(decoy_source.path());
     let moved = dir.path().join("moved-away");
-    the_kept_name(true);
+    force_kept_name(true);
     let act = {
         let (store_dir, moved, decoy_db) = (
             store_dir.clone(),
@@ -6465,7 +6467,7 @@ fn create_answers_obstructed_when_sqlite_holds_a_database_outside_its_handle_and
         RootId::fresh().unwrap(),
     );
     let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
-    the_kept_name(false);
+    force_kept_name(false);
     let answer = answer_text(&created);
     drop(created);
     let at_the_name = names_in_store_dir(&store_dir);
@@ -6605,7 +6607,7 @@ fn no_text_of_an_answer_holds_the_directory_marker_or_a_segment_id() {
             .iter()
             .filter(|text| text.contains("whose name is not Unicode: "))
             .count(),
-        4,
+        NON_UNICODE_DIR_TEXTS,
         "the answers in the directory whose name is not Unicode were not read: {texts:#?}"
     );
     let fewest = if cfg!(windows) { 19 } else { 20 };
@@ -6763,8 +6765,8 @@ fn what_the_first_read_of_a_database_with_no_pages_removes_lies_in_the_moved_dir
     drop(seam);
     println!(
         "NOPAGES answer={opened:?} old_name={:?} moved={:?}",
-        files_and_lengths(&store_dir),
-        files_and_lengths(&moved)
+        store_files_and_lengths(&store_dir),
+        store_files_and_lengths(&moved)
     );
     assert_eq!(
         std::fs::read(store_dir.join("store.db-journal")).unwrap(),
@@ -6820,9 +6822,9 @@ fn the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses() {
     use super::durable::EntryKind;
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
-    the_kept_name(true);
+    force_kept_name(true);
     let kept = open_over_file_root(&store_dir, &roots_dir, root_id);
-    the_kept_name(false);
+    force_kept_name(false);
     let kept = kept.unwrap();
     assert_eq!(kept.db().unwrap().name_form(), NameForm::Kept);
     assert_eq!(
@@ -6839,7 +6841,7 @@ fn the_stat_of_the_volume_name_chooses_the_kept_name_or_refuses() {
         Err(io::Error::from_raw_os_error(libc::EIO))
     })));
     let failed = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
-    the_kept_name(false);
+    force_kept_name(false);
     assert_eq!(
         other,
         "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }"
@@ -6860,7 +6862,7 @@ fn a_store_directory_removed_while_open_answers_obstructed_at_the_next_read_and_
         std::fs::rename(entry.path(), held.join(entry.file_name())).unwrap();
     }
     std::fs::remove_dir(&store_dir).unwrap();
-    let held_before = files_and_lengths(&held);
+    let held_before = store_files_and_lengths(&held);
     let read = store.read_segment(segment_id, &mut Vec::new());
     let answer = answer_text(&read);
     drop(store);
@@ -6870,7 +6872,7 @@ fn a_store_directory_removed_while_open_answers_obstructed_at_the_next_read_and_
     );
     assert!(!store_dir.exists());
     assert_eq!(
-        files_and_lengths(&held)
+        store_files_and_lengths(&held)
             .into_iter()
             .map(|(path, _)| path)
             .collect::<Vec<_>>(),
@@ -6969,7 +6971,7 @@ fn swap_race(arm: &str, seam: &'static str, rounds: usize) -> String {
         };
         let guard = super::failpoint::at(seam, nth_call(1, act));
         if arm == "kept-renames" {
-            the_kept_name(true);
+            force_kept_name(true);
         }
         let opened = open_over_file_root(&store_dir, &roots_dir, root_id);
         if let Ok(store) = &opened {
@@ -6979,7 +6981,7 @@ fn swap_race(arm: &str, seam: &'static str, rounds: usize) -> String {
         }
         let answer = answer_text(&opened);
         drop(opened);
-        the_kept_name(false);
+        force_kept_name(false);
         drop(guard);
         match answer.as_str() {
             "Ok" => ok += 1,
@@ -7888,6 +7890,15 @@ const KILL_OPS: [&str; 6] = [
 ];
 
 #[cfg(target_os = "macos")]
+const CRASHPOINT_DIR_KEY: &str = "HALVO_IT_DIR";
+#[cfg(target_os = "macos")]
+const CRASHPOINT_CALL_KEY: &str = "HALVO_IT_CRASH_AT";
+#[cfg(target_os = "macos")]
+const CRASHPOINT_TRACE_KEY: &str = "HALVO_IT_TRACE";
+#[cfg(target_os = "macos")]
+const CRASHPOINT_EXIT: i32 = 77;
+
+#[cfg(target_os = "macos")]
 fn kill_table_store(dir: &Path) -> (PathBuf, PathBuf, RootId, Vec<Uuid>) {
     let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
     let root_id = RootId::fresh().unwrap();
@@ -7964,13 +7975,13 @@ fn kill_table_child(
         ])
         .env("HALVO_KILL_TABLE_DIR", dir)
         .env("HALVO_KILL_TABLE_OP", op)
-        .env("HALVO_IT_DIR", dir.file_name().unwrap())
-        .env("HALVO_IT_CRASH_AT", crash_at.to_string())
+        .env(CRASHPOINT_DIR_KEY, dir.file_name().unwrap())
+        .env(CRASHPOINT_CALL_KEY, crash_at.to_string())
         .env("DYLD_INSERT_LIBRARIES", dylib)
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     if let Some(trace) = trace {
-        command.env("HALVO_IT_TRACE", trace);
+        command.env(CRASHPOINT_TRACE_KEY, trace);
     }
     command.status().unwrap().code().unwrap_or(-1)
 }
@@ -8090,7 +8101,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
             let states = end_states_after_a_kill(dir.path(), op, &expired);
             rows += 1;
             println!("KILL op={op} before_call={at} exit={code} states={states:?}");
-            if code != 77 || states != [true, true, true] {
+            if code != CRASHPOINT_EXIT || states != [true, true, true] {
                 wrong.push(format!("{op} at call {at}: exit {code}, states {states:?}"));
             }
         }
@@ -8245,12 +8256,12 @@ fn at_the_seam_after_the_last_look_a_moved_directory_a_link_and_a_directory_answ
             }
         };
         #[cfg(target_os = "macos")]
-        the_kept_name(true);
+        force_kept_name(true);
         let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
         let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
         drop(seam);
         #[cfg(target_os = "macos")]
-        the_kept_name(false);
+        force_kept_name(false);
         answers.push(format!("{case}: {opened}"));
     }
     println!("ST35 {answers:?}");
@@ -8275,12 +8286,12 @@ fn an_empty_database_at_the_name_of_a_moved_directory_answers_obstructed_and_not
         }
     };
     #[cfg(target_os = "macos")]
-    the_kept_name(true);
+    force_kept_name(true);
     let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
     let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
     drop(seam);
     #[cfg(target_os = "macos")]
-    the_kept_name(false);
+    force_kept_name(false);
     println!("W1 {opened}");
     assert!(opened.starts_with("Obstructed {"), "{opened}");
 }
@@ -8300,7 +8311,7 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
         }
     };
     #[cfg(target_os = "macos")]
-    the_kept_name(true);
+    force_kept_name(true);
     let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(1, act));
     let custody = file_root_custody(
         &dir.path().join("roots"),
@@ -8314,7 +8325,7 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
     ));
     drop(seam);
     #[cfg(target_os = "macos")]
-    the_kept_name(false);
+    force_kept_name(false);
     println!(
         "T1 create after the swap answered {created}; at the name {:?}",
         names_in_store_dir(&store_dir)
@@ -8323,7 +8334,7 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
 }
 
 #[cfg(target_os = "macos")]
-fn the_kept_name(on: bool) {
+fn force_kept_name(on: bool) {
     use super::db::{name_seams, RootAnswer, VolumeReadings};
     if on {
         name_seams::answer_stat(Some(Box::new(|| {
@@ -8434,9 +8445,9 @@ fn the_volume_of_the_tests_reads_yes_and_a_volume_that_reads_no_gets_the_kept_na
     let opened = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     assert_eq!(opened.db().unwrap().volume_ids(), VolumeIds::Yes);
     drop(opened);
-    the_kept_name(true);
+    force_kept_name(true);
     let kept = open_over_file_root(&store_dir, &roots_dir, root_id);
-    the_kept_name(false);
+    force_kept_name(false);
     let kept = kept.unwrap();
     assert_eq!(kept.db().unwrap().name_form(), NameForm::Kept);
     assert_eq!(kept.db().unwrap().volume_ids(), VolumeIds::No);
@@ -8451,7 +8462,7 @@ fn the_volume_of_the_tests_reads_yes_and_a_volume_that_reads_no_gets_the_kept_na
         root: Some(RootAnswer::Other),
     }));
     let on_unknown = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
-    the_kept_name(false);
+    force_kept_name(false);
     assert_eq!(
         on_yes,
         "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }"
@@ -8764,22 +8775,8 @@ fn a_pending_create_beside_a_key_file_of_a_newer_version_destroys_no_root() {
 #[test]
 fn a_create_answers_locked_before_it_clears_a_pending_create() {
     println!("CASE-NOTE: create runs clear_pending, which destroys the root that create.pending names, before Db::refuse_a_live_holder; its doc says Locked comes with nothing removed, so while another process holds store.db the pending root and create.pending should stay, and I expect both gone");
-    let killed = tempfile::tempdir().unwrap();
     let pending_root = RootId::fresh().unwrap();
-    std::fs::write(killed.path().join("root-id"), pending_root.to_string()).unwrap();
-    let status = Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "store::hardening_tests::kill_a_create_after_its_root_for_parent",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env("HALVO_TEST_KILLED_CREATE_DIR", killed.path())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .unwrap();
-    assert!(!status.success(), "the child was not killed: {status:?}");
+    let killed = make_create_pending_naming(pending_root);
     let pending_file = killed.path().join("store").join("create.pending");
     let pending_root_file = killed
         .path()
@@ -8848,7 +8845,7 @@ fn a_create_answers_locked_before_it_clears_a_pending_create() {
 /// process ended between its root and its key file: `store/create.pending`
 /// names `pending_root`, and `roots/<pending_root>.root` stands.
 #[cfg(unix)]
-fn killed_create(pending_root: RootId) -> tempfile::TempDir {
+fn make_create_pending_naming(pending_root: RootId) -> tempfile::TempDir {
     let killed = tempfile::tempdir().unwrap();
     std::fs::write(killed.path().join("root-id"), pending_root.to_string()).unwrap();
     let status = Command::new(std::env::current_exe().unwrap())
@@ -8914,7 +8911,7 @@ fn refused_open_case<G>(
     } else {
         RootId::fresh().unwrap()
     };
-    let killed = killed_create(pending_root);
+    let killed = make_create_pending_naming(pending_root);
     std::fs::copy(
         killed.path().join("store").join("create.pending"),
         store_dir.join("create.pending"),
@@ -9184,7 +9181,7 @@ fn a_refused_open_of_version_3_beside_a_create_pending_of_its_own_root_keeps_bot
 #[test]
 fn a_refused_open_of_a_stopped_create_answers_sealed_and_the_next_create_clears_it() {
     let pending_root = RootId::fresh().unwrap();
-    let killed = killed_create(pending_root);
+    let killed = make_create_pending_naming(pending_root);
     let (store_dir, roots_dir) = (killed.path().join("store"), killed.path().join("roots"));
     let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
     let root_bytes = std::fs::read(&pending_root_file).unwrap();
@@ -9249,7 +9246,7 @@ fn open_after_a_stopped_create(pending_names_the_store_root: bool) -> OpenAfterA
     } else {
         RootId::fresh().unwrap()
     };
-    let killed = killed_create(pending_root);
+    let killed = make_create_pending_naming(pending_root);
     std::fs::copy(
         killed.path().join("store").join("create.pending"),
         store_dir.join("create.pending"),
@@ -9310,7 +9307,7 @@ fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_cle
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let pending_root = RootId::fresh().unwrap();
-    let killed = killed_create(pending_root);
+    let killed = make_create_pending_naming(pending_root);
     std::fs::copy(
         killed.path().join("store").join("create.pending"),
         store_dir.join("create.pending"),
@@ -9370,7 +9367,7 @@ fn an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_wit
         let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
         let outside = dir.path().join("outside");
         let pending_root = RootId::fresh().unwrap();
-        let killed = killed_create(pending_root);
+        let killed = make_create_pending_naming(pending_root);
         let fifo = match case {
             "fifo at create.pending" => {
                 let fifo = store_dir.join("create.pending");
