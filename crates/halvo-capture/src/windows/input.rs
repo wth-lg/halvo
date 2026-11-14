@@ -1263,35 +1263,46 @@ mod tests {
         }
     }
 
-    fn mouse_record(button_flags: u16, last_x: i32) -> Vec<u8> {
-        use windows::Win32::UI::Input::{RAWINPUT, RAWINPUT_0, RAWMOUSE, RAWMOUSE_0, RAWMOUSE_0_0};
-        let raw = RAWINPUT {
-            header: RAWINPUTHEADER {
-                dwType: RIM_TYPEMOUSE.0,
-                ..Default::default()
-            },
-            data: RAWINPUT_0 {
-                mouse: RAWMOUSE {
-                    lLastX: last_x,
-                    Anonymous: RAWMOUSE_0 {
-                        Anonymous: RAWMOUSE_0_0 {
-                            usButtonFlags: button_flags,
-                            usButtonData: 0,
-                        },
-                    },
-                    ..Default::default()
-                },
-            },
-        };
-        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
-        // exactly its bytes while `raw` lives.
-        unsafe {
-            core::slice::from_raw_parts(
-                &raw as *const RAWINPUT as *const u8,
-                core::mem::size_of::<RAWINPUT>(),
-            )
+    fn raw_input_bytes(kind: u32, fields: &[(usize, &[u8])]) -> Vec<u8> {
+        use windows::Win32::UI::Input::RAWINPUT;
+        let mut bytes = vec![0u8; core::mem::size_of::<RAWINPUT>()];
+        let kind_at = core::mem::offset_of!(RAWINPUTHEADER, dwType);
+        bytes[kind_at..kind_at + 4].copy_from_slice(&kind.to_ne_bytes());
+        let data = core::mem::offset_of!(RAWINPUT, data);
+        for (at, value) in fields {
+            bytes[data + at..data + at + value.len()].copy_from_slice(value);
         }
-        .to_vec()
+        bytes
+    }
+
+    fn mouse_record(button_flags: u16, last_x: i32) -> Vec<u8> {
+        mouse_bytes(button_flags, 0, last_x, 0)
+    }
+
+    fn mouse_bytes(button_flags: u16, button_data: u16, last_x: i32, last_y: i32) -> Vec<u8> {
+        use windows::Win32::UI::Input::{RAWMOUSE, RAWMOUSE_0_0};
+        let buttons = core::mem::offset_of!(RAWMOUSE, Anonymous);
+        raw_input_bytes(
+            RIM_TYPEMOUSE.0,
+            &[
+                (
+                    buttons + core::mem::offset_of!(RAWMOUSE_0_0, usButtonFlags),
+                    &button_flags.to_ne_bytes(),
+                ),
+                (
+                    buttons + core::mem::offset_of!(RAWMOUSE_0_0, usButtonData),
+                    &button_data.to_ne_bytes(),
+                ),
+                (
+                    core::mem::offset_of!(RAWMOUSE, lLastX),
+                    &last_x.to_ne_bytes(),
+                ),
+                (
+                    core::mem::offset_of!(RAWMOUSE, lLastY),
+                    &last_y.to_ne_bytes(),
+                ),
+            ],
+        )
     }
 
     fn clear_gate() -> PasswordGate {
@@ -1352,15 +1363,7 @@ mod tests {
             );
         }
         let keyboard = keyboard_packet(0x41, 0);
-        // SAFETY: `keyboard` is a live, initialized RAWINPUT, and the slice
-        // covers exactly its bytes while `keyboard` lives.
-        let bytes = unsafe {
-            core::slice::from_raw_parts(
-                &keyboard as *const windows::Win32::UI::Input::RAWINPUT as *const u8,
-                core::mem::size_of::<windows::Win32::UI::Input::RAWINPUT>(),
-            )
-        };
-        assert_eq!(button_flags_of(bytes), None);
+        assert_eq!(button_flags_of(&keyboard), None);
         assert_eq!(button_flags_of(&mouse_record(1, 0)[..20]), None);
     }
 
@@ -2839,39 +2842,30 @@ mod tests {
     }
 
     #[cfg(target_os = "windows")]
-    fn keyboard_packet(vkey: u16, flags: u16) -> windows::Win32::UI::Input::RAWINPUT {
-        use windows::Win32::UI::Input::{RAWINPUT, RAWINPUTHEADER, RAWINPUT_0, RAWKEYBOARD};
-        RAWINPUT {
-            header: RAWINPUTHEADER {
-                dwType: RIM_TYPEKEYBOARD.0,
-                ..Default::default()
-            },
-            data: RAWINPUT_0 {
-                keyboard: RAWKEYBOARD {
-                    VKey: vkey,
-                    Flags: flags,
-                    ..Default::default()
-                },
-            },
-        }
+    fn keyboard_packet(vkey: u16, flags: u16) -> Vec<u8> {
+        use windows::Win32::UI::Input::RAWKEYBOARD;
+        raw_input_bytes(
+            RIM_TYPEKEYBOARD.0,
+            &[
+                (
+                    core::mem::offset_of!(RAWKEYBOARD, VKey),
+                    &vkey.to_ne_bytes(),
+                ),
+                (
+                    core::mem::offset_of!(RAWKEYBOARD, Flags),
+                    &flags.to_ne_bytes(),
+                ),
+            ],
+        )
     }
 
     #[cfg(target_os = "windows")]
     #[test]
     fn decode_reads_a_keyboard_packet_from_a_misaligned_buffer() {
-        use windows::Win32::UI::Input::RAWINPUT;
-        let raw = keyboard_packet(0x41, 0);
-        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
-        // exactly its bytes for as long as `raw` lives.
-        let bytes = unsafe {
-            core::slice::from_raw_parts(
-                &raw as *const RAWINPUT as *const u8,
-                core::mem::size_of::<RAWINPUT>(),
-            )
-        };
+        let bytes = keyboard_packet(0x41, 0);
         let mut backing = vec![0u8; bytes.len() + 8];
         let off = 1usize;
-        backing[off..off + bytes.len()].copy_from_slice(bytes);
+        backing[off..off + bytes.len()].copy_from_slice(&bytes);
         assert_ne!(
             (backing.as_ptr() as usize + off) % 8,
             0,
@@ -2890,17 +2884,8 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn decode_reads_the_break_flag_as_a_key_up() {
-        use windows::Win32::UI::Input::RAWINPUT;
-        let raw = keyboard_packet(0x42, RI_KEY_BREAK as u16);
-        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
-        // exactly its bytes for as long as `raw` lives.
-        let bytes = unsafe {
-            core::slice::from_raw_parts(
-                &raw as *const RAWINPUT as *const u8,
-                core::mem::size_of::<RAWINPUT>(),
-            )
-        };
-        let packet = decode_raw_input(bytes).expect("keyboard packet");
+        let bytes = keyboard_packet(0x42, RI_KEY_BREAK as u16);
+        let packet = decode_raw_input(&bytes).expect("keyboard packet");
         assert_eq!(
             packet,
             RawInputPacket::Keyboard(KeyStroke {
@@ -2913,37 +2898,8 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn decode_reads_a_mouse_packet() {
-        use windows::Win32::UI::Input::{
-            RAWINPUT, RAWINPUTHEADER, RAWINPUT_0, RAWMOUSE, RAWMOUSE_0, RAWMOUSE_0_0,
-        };
-        let raw = RAWINPUT {
-            header: RAWINPUTHEADER {
-                dwType: RIM_TYPEMOUSE.0,
-                ..Default::default()
-            },
-            data: RAWINPUT_0 {
-                mouse: RAWMOUSE {
-                    lLastX: 5,
-                    lLastY: -3,
-                    Anonymous: RAWMOUSE_0 {
-                        Anonymous: RAWMOUSE_0_0 {
-                            usButtonFlags: 0,
-                            usButtonData: 120,
-                        },
-                    },
-                    ..Default::default()
-                },
-            },
-        };
-        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
-        // exactly its bytes for as long as `raw` lives.
-        let bytes = unsafe {
-            core::slice::from_raw_parts(
-                &raw as *const RAWINPUT as *const u8,
-                core::mem::size_of::<RAWINPUT>(),
-            )
-        };
-        let packet = decode_raw_input(bytes).expect("mouse packet");
+        let bytes = mouse_bytes(0, 120, 5, -3);
+        let packet = decode_raw_input(&bytes).expect("mouse packet");
         assert_eq!(
             packet,
             RawInputPacket::Pointer(PointerSample {
@@ -2964,20 +2920,13 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn header_of(kind: u32) -> Vec<u8> {
         use windows::Win32::UI::Input::RAWINPUTHEADER;
-        let header = RAWINPUTHEADER {
-            dwType: kind,
-            dwSize: core::mem::size_of::<RAWINPUTHEADER>() as u32,
-            ..Default::default()
-        };
-        // SAFETY: `header` is a live, initialized RAWINPUTHEADER, and the slice
-        // covers exactly its bytes while `header` lives.
-        unsafe {
-            core::slice::from_raw_parts(
-                &header as *const RAWINPUTHEADER as *const u8,
-                core::mem::size_of::<RAWINPUTHEADER>(),
-            )
-        }
-        .to_vec()
+        let size = core::mem::size_of::<RAWINPUTHEADER>();
+        let mut bytes = vec![0u8; size];
+        let kind_at = core::mem::offset_of!(RAWINPUTHEADER, dwType);
+        bytes[kind_at..kind_at + 4].copy_from_slice(&kind.to_ne_bytes());
+        let size_at = core::mem::offset_of!(RAWINPUTHEADER, dwSize);
+        bytes[size_at..size_at + 4].copy_from_slice(&(size as u32).to_ne_bytes());
+        bytes
     }
 
     #[cfg(target_os = "windows")]
