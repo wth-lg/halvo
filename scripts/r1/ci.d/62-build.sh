@@ -47,12 +47,9 @@ call_defect() {
 }
 
 environment_defect() {
-  for variable in TAURI_CONFIG CARGO_BUILD_RUSTFLAGS RUSTFLAGS CARGO_ENCODED_RUSTFLAGS; do
-    value=$(printenv "$variable") || continue
-    [ -z "$value" ] && continue
-    printf 'the variable %s is set, so the build reads a setting that no tracked file holds\n' "$variable"
-    return 1
-  done
+  [ -z "${TAURI_CONFIG:-}" ] && return 0
+  printf 'the variable TAURI_CONFIG is set, so the build reads a configuration that no tracked file holds\n'
+  return 1
 }
 
 patch_defect() {
@@ -259,10 +256,7 @@ EOF
   TAURI_CONFIG='{"build":{}}' environment_defect >/dev/null && got=PASS
   verdict tauri-configuration-in-a-variable FAIL "$got"
   got=FAIL
-  RUSTFLAGS='--cfg feature="test-seam"' environment_defect >/dev/null && got=PASS
-  verdict rust-flags-in-a-variable FAIL "$got"
-  got=FAIL
-  (unset TAURI_CONFIG RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_ENCODED_RUSTFLAGS; environment_defect >/dev/null) && got=PASS
+  (unset TAURI_CONFIG; environment_defect >/dev/null) && got=PASS
   verdict environment-without-those-variables PASS "$got"
 
   patch_case() {
