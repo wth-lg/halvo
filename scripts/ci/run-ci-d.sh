@@ -544,7 +544,7 @@ st_finish() {
   : >"$tmp/after.$1"
   st_f_pid=
   [ ! -s "$st_f_d/pid" ] || read -r st_f_pid <"$st_f_d/pid"
-  [ -z "$st_f_pid" ] || st_end_group "$st_f_pid" 0
+  [ -z "$st_f_pid" ] || st_end_group 0 "$st_f_pid"
   st_clear "$st_f_td" || printf 'FAIL %s (its TMPDIR cannot be removed)\n' "$st_f_name" >>"$tmp/after.$1"
   st_f_who=
   st_f_count=0
@@ -618,14 +618,11 @@ st_interrupt() {
 }
 
 st_end_group() {
-  perl -e "my (\$g, \$p) = @ARGV; for (my \$t = 0; kill(0, -\$g) && \$t < \$p + 60; \$t++) { kill('TERM', -\$g) if \$t == \$p; kill('KILL', -\$g) if \$t == \$p + 50; select(undef, undef, undef, 0.1); }" "$1" "$2" 2>/dev/null
+  perl -e "my \$p = shift; my @g = map { split ' ' } @ARGV; for (my \$t = 0; \$t < \$p + 60; \$t++) { my @a = grep { kill(0, -\$_) } @g; last unless @a; kill('TERM', map { -\$_ } @a) if \$t == \$p; kill('KILL', map { -\$_ } @a) if \$t == \$p + 50; select(undef, undef, undef, 0.1); }" "$1" "$2" 2>/dev/null
 }
 
 st_leave() {
-  eval "st_d=\$st_dir_$1 st_td=\$st_tdir_$1 st_t=\$st_name_$1"
-  st_sp=
-  [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
-  [ -z "$st_sp" ] || st_end_group "$st_sp" "$2"
+  eval "st_td=\$st_tdir_$1 st_t=\$st_name_$1"
   [ "$mode" = self-test ] && st_t=self-test:$st_t
   st_clear "$st_td" || record FAIL "FAIL $st_t (its TMPDIR cannot be removed)"
 }
@@ -635,7 +632,7 @@ st_stop() {
   st_sp=
   [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
   if [ -n "$st_sp" ]; then
-    st_end_group "$st_sp" 0
+    st_end_group 0 "$st_sp"
   else
     kill -TERM "$st_p" 2>/dev/null
     st_grace=0
@@ -1404,6 +1401,13 @@ own_self_test() {
   case_jobs=2
   case_max_s=25
   own_case child-that-a-self-test-leaves-is-ended-at-the-end-of-the-step 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  ends_together='case $me in 10-a) other=20-b ;; *) other=10-a ;; esac; ( trap "t=\$CI_D_REPO/term; : >\"\$t.\$me\"; n=0; while [ ! -e \"\$t.\$other\" ] && [ \$n -lt 30 ]; do sleep 0.1; n=\$((n + 1)); done; [ ! -e \"\$t.\$other\" ] || : >\"\$CI_D_REPO/met.\$me\"; exit 0" TERM; sleep 60 & wait ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $ends_together; $passes" && add_script r1 20-b.sh "$good" "$prelude; $ends_together; $passes"
+  case_jobs=2
+  case_made=met.10-a
+  case_max_s=40
+  case_witness=yes
+  own_case groups-that-two-self-tests-left-are-ended-by-one-process 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_empty=yes
@@ -1986,10 +1990,20 @@ if [ "$mode" = self-test ]; then
   st_wait_below 1
   st_flush
   wait
+  st_groups=
+  st_i=0
+  while [ "$st_i" -lt "$st_n" ]; do
+    eval "st_k=\$st_kind_$st_i st_d=\${st_dir_$st_i-}"
+    st_sp=
+    [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
+    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+    st_i=$((st_i + 1))
+  done
+  [ -z "$st_groups" ] || st_end_group 50 "$st_groups"
   st_i=0
   while [ "$st_i" -lt "$st_n" ]; do
     eval "st_k=\$st_kind_$st_i"
-    [ "$st_k" != script ] || st_leave "$st_i" 50
+    [ "$st_k" != script ] || st_leave "$st_i"
     st_i=$((st_i + 1))
   done
 else
