@@ -1,12 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 11 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob.
+# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 15 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob, name-in-a-variable, case-in-text, quote-before-glob, backend-glob.
 # shellcheck disable=SC2016
 set -u
 name=24-r7-wall
 tab=$(printf '\t')
 contract='backend/contract/schema/v1.json backend/contract/routes/v1.json backend/contract/samples/v1.json backend/gate/prompt-budget.json'
-limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob'
+limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob name-in-a-variable case-in-text quote-before-glob backend-glob'
 r7_files='scripts/r7/ci.d/10-r7-layout.sh scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/22-r7-backend-records.sh scripts/r7/ci.d/23-r7-machine-paths.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/ci.d/25-r7-backend-licenses.sh scripts/r7/layout.txt scripts/r7/stamp-gate-records.sh'
 nlimits=$(awk -v l="$limits" 'BEGIN { print split(l, w, " ") }')
 
@@ -902,9 +902,16 @@ Readings that refuse an honest line, with the form to write in its place:
   path is not read from the top (the limit absolute-path). As part of the
   limit names-v0, backend/scripts/names-v0.sh is exempt from it;
 - in the app, the word backend assigned to a name, as a label or as an
-  attribute value is refused: give it another name.
+  attribute value is refused: give it another name;
+- in a shell script of the app, a case on one line whose arm has a glob
+  pattern, as case $f in */test/*) return 0 ;; esac, is refused, because a
+  line that opens a block is not read as an arm: write the case over
+  several lines, one arm to a line;
+- in a shell script of the app, an esac in a string of an arm closes the
+  block early (the limit case-in-text), so a later arm with a glob pattern
+  is refused: word the string without esac.
 
-What it does not refuse, the 11 named limits, each held by a passing fixture
+What it does not refuse, the 15 named limits, each held by a passing fixture
 known-limit-<name> of the self-test:
   known limit names-v0: backend/scripts/names-v0.sh reads crates/halvo-capture/src/event.rs of the app's tree through the variable HALVO_APP_REPO, as ruled.
   known limit computed-path: a path that code computes, such as a climb that code repeats ("../".repeat(2)), a dirname of a dirname, pathlib's parents[n], a variable joined on a later line, or a word that code or the shell joins from pieces ("back" + "end", back""end).
@@ -917,6 +924,10 @@ known-limit-<name> of the self-test:
   known limit unread-variable: in backend/, a variable that the file assigns twice or from another form than the five: a climb after it is placed by the index alone, so a path that the index does not track passes.
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
+  known limit name-in-a-variable: in backend/, a part of a path held in a variable between the strings, as join(root, "crates", crate, "src", "lib.rs") after crate = "halvo-capture": the variable breaks the run of strings, so the reading from the top sees no path of the app.
+  known limit case-in-text: in a shell script, text that is no code moves the tracking of a case block: a string or a here-document that holds case ... in opens a block, a trailing comment that ends in ;; ends an arm, so the next line, a glob command before | and a backslash, is read as a pattern and its glob is not counted; an esac in a string closes a block early, so an honest arm after it is refused.
+  known limit quote-before-glob: an unquoted glob right after a closing quote, as "$repo"/*/test/ledger/cases.ts, is taken as quoted, so it is not counted when the path after it is a file of backend/.
+  known limit backend-glob: in backend/, a glob whose first part is a glob, as */halvo-capture/src/lib.rs, which the shell can open as a path of the app.
 A glob without a letter, as */test/x, is counted when it can stand for
 backend and the path after it is a directory of backend/ or, in a word that
 the shell opens (no quote before it), a tracked file of backend/ (P7-89).
@@ -940,7 +951,7 @@ line after a line that ends an arm (;;, ;& or ;;&), and on the line after a
 pattern line that ends in | and a backslash; every other line of the block,
 as a line of an arm's body, is code for every rule. A line in a pattern's
 place that only looks like an arm is read as one, and a case or esac in a
-string or a here-document is counted as one.
+string or a here-document is counted as one (the limit case-in-text).
 
 Exit status: 0 PASS, 1 FAIL. --self-test runs its cases on throwaway
 repositories under TMPDIR and removes them when it ends.
@@ -1815,6 +1826,34 @@ OUT=$(dirname "$0")
 cat "$OUT/../started.jsonl"' 'read:backend/scripts/out.sh'
   pass_with known-limit-bare-operand scripts/stat.sh 'stat backend' 'read:scripts/stat.sh'
   pass_with known-limit-bracket-glob scripts/bracket.sh 'cat [b]ackend/contract/routes/v1.json' 'read:scripts/bracket.sh'
+  pass_with known-limit-name-in-a-variable backend/scripts/crate.mjs 'const crate = "halvo-capture";
+const text = readFileSync(join(repoRoot, "crates", crate, "src", "lib.rs"), "utf8");' 'read:backend/scripts/crate.mjs'
+  pass_with known-limit-case-in-text scripts/k4.sh 'echo "see the case table in docs/r7"
+b*/scripts/stack.sh | \
+  tee out.txt' 'read:scripts/k4.sh'
+  pass_with known-limit-quote-before-glob scripts/k11.sh 'cat "$repo"/*/test/ledger/cases.ts' 'read:scripts/k11.sh'
+  pass_with known-limit-backend-glob backend/scripts/e3b.sh 'cd "$ROOT" && cat */halvo-capture/src/lib.rs' 'read:backend/scripts/e3b.sh'
+  pass_with f1c-k5-a-here-document-opens-a-case-block scripts/k5.sh 'cat > "$out/gen.sh" <<'"'"'EOF'"'"'
+case $1 in
+EOF
+run_all # the generated case ends in ;;
+b*/scripts/stack.sh | \
+  tee out.txt' 'read:scripts/k5.sh'
+  pass_with f1c-b9-a-trailing-comment-ends-an-arm scripts/b9.sh 'case $mode in
+  run)
+    make # then ;;
+    b*/scripts/check-machine-paths.sh | \
+      tee out.txt
+    ;;
+esac' 'read:scripts/b9.sh'
+  case_with f1c-n2-an-esac-in-a-string-closes-the-block-early scripts/n2.sh 'kind_of() {
+  case $1 in
+    -h) echo "usage: no esac here" ;;
+    */test/*) return 0 ;;
+  esac
+}' 'scripts/n2.sh:4: reads under backend/ by a glob'
+  case_with f1c-k7-a-one-line-case-with-a-glob-pattern scripts/k7.sh 'kind_of() { case $1 in a) return 1 ;; */test/*) return 0 ;; esac; }' 'scripts/k7.sh:1: reads under backend/ by a glob'
+  case_with f1c-n5-a-one-line-case-with-two-glob-patterns scripts/n5.sh 'case $f in */test/*) return 0 ;; */spec/*) return 1 ;; esac' 'scripts/n5.sh:1: reads under backend/ by a glob'
 
   case_repo=$scratch/no-tracked-file
   case_index=$case_repo/.git/index
