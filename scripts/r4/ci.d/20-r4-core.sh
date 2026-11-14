@@ -110,7 +110,7 @@ sub blank {
       $s =~ /\G.*?"\Q$h\E/gcs or pos($s) = $n;
     } elsif ($s =~ /\G(?:b|c)?"/gc) {
       $s =~ /\G(?:[^"\\]|\\.)*"/gcs or pos($s) = $n;
-    } elsif ($s =~ /\Gb?'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]{1,8}\}|.)|[^\\'\n\r])'/gc) {
+    } elsif ($s =~ /\Gb?'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]{1,8}\}|.)|[^\\'\n\r\x80-\xff]|[\xc0-\xff][\x80-\xbf]+)'/gc) {
     } elsif ($s =~ /\G\/\/[^\n]*/gc) {
     } elsif ($s =~ /\G\/\*/gc) {
       my $d = 1;
@@ -234,6 +234,10 @@ sub analyse {
       $end_pending->($at) if $pend && $pdepth == @stack;
       next;
     }
+    if ($c =~ /\G,/gc) {
+      $end_pending->($at) if $pend && $pdepth == @stack;
+      next;
+    }
     $c =~ /\G(?:'?[A-Za-z_][A-Za-z0-9_]*|[0-9][A-Za-z0-9_]*|\s+|.)/gcs;
   }
   push @regions, [0, $n] if $filetest;
@@ -309,15 +313,14 @@ sub in_test {
 }
 
 sub hits {
-  my ($f, $re) = @_;
+  my ($f, $re, $skip) = @_;
   my $c = info($f)->{code};
-  my (%seen, @out);
-  while ($c =~ /$re/g) {
+  my @out;
+  HIT: while ($c =~ /$re/g) {
     my $off = $-[0];
+    for my $r (@{ $skip // [] }) { next HIT if $off >= $r->[0] && $off < $r->[1] }
     next if in_test($f, $off);
-    my $line = line_of($f, $off);
-    next if $seen{$line}++;
-    push @out, [$line, $&];
+    push @out, [line_of($f, $off), $&, $off];
   }
   return @out;
 }
@@ -403,7 +406,7 @@ if ($mode eq 'allow') {
   $found = @find;
   printf "allow crates=%d files=%d found=%d\n", $crates, $files, $found;
 } elsif ($mode eq 'starts') {
-  my ($app, $linkedfile) = @rest;
+  my ($app, $linkedfile, @own) = @rest;
   my %linked;
   open my $lf, '<', $linkedfile or exit 2;
   while (<$lf>) { s/\r?\n\z//; $linked{$1} = 1 if /\A(\S+)/ }
@@ -421,29 +424,66 @@ if ($mode eq 'allow') {
                 ['crates/halvo-capture/src/consent/onboarding.rs', '/usr/bin/sw_vers']);
   my %used;
   my ($crates, $files, $all, $lim, $other) = (0, 0, 0, 0, 0);
-  my $re = qr/\bCommand\s*::\s*new\b|\bposix_spawnp?\b|\b(?:libc|unistd)\s*::\s*(?:fork|vfork|exec[lv]\w*|system|popen)\b|\bCreateProcess\w*|\bShellExecute\w*|\bWinExec\b|\bNSTask\b/;
+  my $libc = 'fork|vfork|exec[lv]\w*|fexecve|system|popen|daemon|forkpty|wordexp|posix_spawn\w*';
+  my $win = 'CreateProcess\w*|ShellExecute\w*|WinExec|_wspawn\w*|NtCreateUserProcess|LSOpen\w*';
+  my $base = '<[^<>;{}]*\bCommand\s*>\s*::\s*(?:r#)?new\b|\bCommand\s*::\s*(?:r#)?new\b'
+    . '|\b(?:libc|unistd)\s*::\s*(?:' . $libc . ')\b'
+    . '|\bsyscall\s*\(\s*(?:libc\s*::\s*)?SYS_(?:fork|vfork|clone3?|execve(?:at)?)\b'
+    . '|\bposix_spawnp?\b|\b(?:' . $win . ')\b|\bNSTask\b'
+    . '|\b(?:open(?:URL|URLs|File|Application)\w*|launch(?:Application|AppWithBundleIdentifier)\w*)\s*[(:]'
+    . '|\bprocess\s*::\s*restart\b';
+  my $spellings = sub {
+    my ($f) = @_;
+    my $c = info($f)->{code};
+    my (@alt, @spans);
+    while ($c =~ /\buse\s+([^;]*);/g) {
+      my $t = $1;
+      push @spans, [$-[0], $+[0]];
+      my ($root) = $t =~ /\A\s*(?:::\s*)?([A-Za-z_]\w*)/;
+      my $sys = defined $root && $root =~ /\A(?:libc|nix)\z/;
+      while ($t =~ /\b(?:r#)?([A-Za-z_]\w*)\s+as\s+(?:r#)?([A-Za-z_]\w*)/g) {
+        my ($n, $a) = ($1, $2);
+        if ($n eq 'Command') {
+          push @alt, '<[^<>;{}]*\b' . quotemeta($a) . '\s*>\s*::\s*(?:r#)?new\b', '\b' . quotemeta($a) . '\s*::\s*(?:r#)?new\b';
+        } elsif ($n =~ /\A(?:$win)\z/ || ($sys && $n =~ /\A(?:$libc)\z/)) {
+          push @alt, '\b' . quotemeta($a) . '\s*\(';
+        }
+      }
+      next unless $sys;
+      for my $n ($t =~ /\b([A-Za-z_]\w*)\b(?!\s+as\b)/g) {
+        push @alt, '\b' . quotemeta($n) . '\s*\(' if $n =~ /\A(?:$libc)\z/;
+      }
+      push @alt, '\b(?:' . $libc . ')\s*\(' if $t =~ /\*/;
+    }
+    my $re = join '|', $base, @alt;
+    return (qr/$re/, \@spans);
+  };
   my @unres;
-  for my $name (sort keys %linked) {
-    next unless defined $dir{$name};
+  my %walked;
+  for my $name ((sort keys %linked), @own) {
+    next unless defined $dir{$name} && !$walked{$name}++;
     $crates++;
     my $d = $dir{$name};
-    my @roots = grep { exists $blob{$_} } ("$d/src/lib.rs", $name eq $app ? "$d/src/main.rs" : ());
-    my ($kind, $unresolved) = walk(@roots);
+    my @roots = ("$d/src/lib.rs");
+    push @roots, "$d/src/main.rs" if $name eq $app || grep { $_ eq $name } @own;
+    push @roots, grep { m{\A\Q$d\E/src/bin/(?:[^/]+\.rs|[^/]+/main\.rs)\z} } sort keys %blob if grep { $_ eq $name } @own;
+    my ($kind, $unresolved) = walk(grep { exists $blob{$_} } @roots);
     push @unres, @$unresolved;
     for my $f (sort grep { $kind->{$_} eq 'product' } keys %$kind) {
       $files++;
       my @lines = split /\n/, $blob{$f}, -1;
-      for my $h (hits($f, $re)) {
+      my ($re, $spans) = $spellings->($f);
+      for my $h (hits($f, $re, $spans)) {
         $all++;
         my $text = $lines[$h->[0] - 1];
         my ($l) = grep { !$used{$_} && $limits[$_][0] eq $f && $text =~ /\bCommand\s*::\s*new\s*\(\s*"\Q$limits[$_][1]\E"\s*\)/ } 0 .. $#limits;
         if (defined $l) {
           $used{$l} = 1;
           $lim++;
-          print $out "start limit $f:$h->[0]\n";
+          print $out "start limit $f:$h->[0]\n"; print "start limit $f:$h->[0]\n";
         } else {
           $other++;
-          print $out "start other $f:$h->[0]\n";
+          print $out "start other $f:$h->[0]\n"; print "start other $f:$h->[0]\n";
         }
       }
     }
@@ -545,7 +585,7 @@ child_starts() {
   [ "$code" -eq 0 ] || fail tree
   blobs starts 'src-tauri/*.rs' 'crates/*.rs' src-tauri/Cargo.toml 'crates/*/Cargo.toml'
   perl "$scan" starts "$artifacts/starts.list" "$artifacts/starts.blobs" "$artifacts/starts.txt" \
-    halvo "$artifacts/linked.txt"
+    halvo "$artifacts/linked.txt" halvo-coord halvo-coord-app halvo-coord-store
   code=$?
   case $code in
     0) ;;
@@ -686,7 +726,7 @@ fixture() {
   fi
   put "$dir/src-tauri/Cargo.toml" '[package]\nname = "halvo"\n'
   put "$dir/src-tauri/src/main.rs" 'mod agents;\nfn main() {}\n'
-  put "$dir/src-tauri/src/agents.rs" '#[cfg(test)]\nmod tests {\n    fn t() { let _ = std::process::Command::new("/bin/ls"); }\n}\n'
+  put "$dir/src-tauri/src/agents.rs" 'use std::process::Stdio as Pipe;\npub const S: &str = "Command::new fork() CreateProcessW";\n// libc::fork()\npub fn p() -> Pipe {\n    Pipe::null()\n}\n#[cfg(test)]\nmod tests {\n    fn t() { let _ = std::process::Command::new("/bin/ls"); }\n}\n'
   put "$dir/crates/halvo-control/Cargo.toml" '[package]\nname = "halvo-control"\n'
   put "$dir/crates/halvo-control/src/lib.rs" '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n'
   put "$dir/crates/halvo-control/src/onboarding.rs" '// std::process::Command::new("/bin/ls")\npub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\n'
@@ -804,7 +844,7 @@ EOF
     finish
   fi
   check text-rules-pass-their-controls PASS 'allow crates=2 files=' run_one
-  check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=2 files=4 hits=1 limits=1 other=0 unresolved=1' run_one
+  check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=4 files=7 hits=1 limits=1 other=0 unresolved=1' run_one
   STUB_TAURI=default,test-util,wry,unstable-x
   check tauri-features-that-only-hold-the-words PASS 'tauri normal features=4 unstable=no test=no' run_one
   check usage FAIL "FAIL $name (usage)" sh "$here/$name.sh" --bogus
@@ -887,9 +927,82 @@ EOF
   variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
+  fixture starts-batch app
+  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nfn main() {}\n'
+  put "$work/starts-batch/src-tauri/src/s01.rs" 'use std::process::Command as Run;\npub fn f() {\n    let _ = Run::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s02.rs" 'use std::process::{Command as Run, Stdio};\npub fn f() {\n    let _ = (Run::new("x"), Stdio::null());\n}\n'
+  put "$work/starts-batch/src-tauri/src/s03.rs" 'pub fn f() {\n    let _ = std::process::Command::r#new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s04.rs" 'pub fn f() {\n    let _ = <std::process::Command>::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s05.rs" 'pub fn f() {\n    unsafe { libc::daemon(0, 0) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s06.rs" 'pub fn f() {\n    unsafe { libc::forkpty(a, b, c, d) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s07.rs" 'pub fn f() {\n    unsafe { libc::wordexp(a, b, 0) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s08.rs" 'pub fn f() {\n    unsafe { libc::fexecve(a, b, c) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s09.rs" 'pub fn f() {\n    unsafe { libc::syscall(libc::SYS_fork) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s10.rs" 'use libc::{execv, fork};\npub fn f() {\n    unsafe { fork() };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s11.rs" 'use libc::fork as split;\npub fn f() {\n    unsafe { split() };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s12.rs" 'use libc::*;\npub fn f() {\n    unsafe { vfork() };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s13.rs" 'pub fn f() {\n    unsafe { libc::system(a) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s14.rs" 'pub fn f() {\n    unsafe { posix_spawn(a, b, c, d, e, g) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s15.rs" 'pub fn f() {\n    unsafe { CreateProcessW(a, b, c, d, 0, 0, e, g, h, i) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s16.rs" 'pub fn f() {\n    unsafe { _wspawnvp(0, a, b) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s17.rs" 'pub fn f() {\n    unsafe { NtCreateUserProcess(a, b, c, d, e, g, h, i, j, k, l) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s18.rs" 'pub fn f() {\n    unsafe { ShellExecuteW(a, b, c, d, e, 1) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s19.rs" 'pub fn f() {\n    unsafe { WinExec(a, 1) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s20.rs" 'pub fn f() {\n    unsafe { LSOpenCFURLRef(u, n) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s21.rs" 'pub fn f(ws: &W, u: &U) {\n    unsafe { ws.openURL(u) };\n}\n'
+  put "$work/starts-batch/src-tauri/src/s22.rs" 'pub fn f() {\n    let _ = NSTask::new();\n}\n'
+  put "$work/starts-batch/src-tauri/src/s23.rs" 'pub fn f(e: &E) {\n    tauri::process::restart(e);\n}\n'
+  put "$work/starts-batch/src-tauri/src/s24.rs" 'pub fn f() {\n    let _ = [#[cfg(test)] 1, 2];\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/s25.rs" '#[rustfmt::skip]\nconst A: [char; 2] = [\0047\0303\0251\0047,\0047"\0047];\npub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  put "$work/starts-batch/crates/halvo-coord/src/words.rs" 'pub fn w() {\n    unsafe { libc::fork() };\n}\n'
+  put "$work/starts-batch/crates/halvo-coord/src/bin/tool.rs" 'fn main() {\n    let _ = (std::process::Command::new("a"), std::process::Command::new("b"));\n}\n'
+  git -C "$work/starts-batch" add -A . >/dev/null 2>&1 || exit 2
+  check starts-batch FAIL "FAIL $name (start)" run_in starts-batch
+  batch=$out
+  found start-alias "start other src-tauri/src/s01.rs:3"
+  found start-alias-grouped "start other src-tauri/src/s02.rs:3"
+  found start-raw-new "start other src-tauri/src/s03.rs:2"
+  found start-qualified "start other src-tauri/src/s04.rs:2"
+  found start-daemon "start other src-tauri/src/s05.rs:2"
+  found start-forkpty "start other src-tauri/src/s06.rs:2"
+  found start-wordexp "start other src-tauri/src/s07.rs:2"
+  found start-fexecve "start other src-tauri/src/s08.rs:2"
+  found start-syscall-fork "start other src-tauri/src/s09.rs:2"
+  found start-grouped-fn "start other src-tauri/src/s10.rs:3"
+  found start-renamed-fn "start other src-tauri/src/s11.rs:3"
+  found start-glob-fn "start other src-tauri/src/s12.rs:3"
+  found start-libc-system "start other src-tauri/src/s13.rs:2"
+  found start-posix-spawn "start other src-tauri/src/s14.rs:2"
+  found start-create-process "start other src-tauri/src/s15.rs:2"
+  found start-wspawn "start other src-tauri/src/s16.rs:2"
+  found start-nt-create "start other src-tauri/src/s17.rs:2"
+  found start-shell-execute "start other src-tauri/src/s18.rs:2"
+  found start-win-exec "start other src-tauri/src/s19.rs:2"
+  found start-ls-open "start other src-tauri/src/s20.rs:2"
+  found start-ns-workspace "start other src-tauri/src/s21.rs:2"
+  found start-ns-task "start other src-tauri/src/s22.rs:2"
+  found start-tauri-restart "start other src-tauri/src/s23.rs:2"
+  found start-after-array-attr "start other src-tauri/src/s24.rs:3"
+  found start-after-utf8-char "start other src-tauri/src/s25.rs:4"
+  found start-in-the-three-crates "start other crates/halvo-coord/src/words.rs:2"
+  found start-in-a-bin-of-the-three-crates "start other crates/halvo-coord/src/bin/tool.rs:2"
+  found two-starts-on-one-line-count-twice "other=28"
   STUB_WRITE=$work/one/crates/halvo-coord/src/words.rs
   check a-test-run-that-changes-a-tracked-file FAIL "FAIL $name (changed)" run_one
   finish
+}
+
+found() {
+  case $batch in
+    *"$2"*) got=FAIL ;;
+    *) got=FAIL-without-the-text ;;
+  esac
+  printf 'case %s/%s want=FAIL got=%s\n' "$name" "$1" "$got"
+  if [ "$got" = FAIL ]; then
+    rejected=$((rejected + 1))
+  else
+    wrong="$wrong $1"
+  fi
 }
 
 finish() {
