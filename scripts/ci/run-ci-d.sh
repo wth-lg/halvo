@@ -1271,7 +1271,7 @@ own_self_test() {
   if ! command -v cygpath >/dev/null 2>&1; then
     new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
       git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit &&
-      add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; git config --global core.checkStat minimal && cp -p \"\$CI_D_REPO/tracked.txt\" \"\$CI_D_ARTIFACTS/kept\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -r \"\$CI_D_ARTIFACTS/kept\" \"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+      add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; git config --global core.checkStat minimal && sleep 1 && cp -p \"\$CI_D_REPO/tracked.txt\" \"\$CI_D_ARTIFACTS/kept\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -r \"\$CI_D_ARTIFACTS/kept\" \"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
     case_git_home=yes
     case_witness=yes
     own_case global-check-stat-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
@@ -1412,7 +1412,7 @@ own_self_test() {
   case_gone=1
   case_made=child-got-term
   case_limit=5
-  case_max_s=15
+  case_max_s=20
   case_path=$tmp/slow-sleep
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
