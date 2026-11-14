@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,32 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-r4-formal
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-r4-formal
+      - name: formal_traces 200 times
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          cargo test -p halvo-coord --locked --test formal_traces --no-run >"${RUNNER_TEMP:-.}/loop-build.txt" 2>&1
+          echo "formal_traces loop build exit=$?"
+          bin=$(tr -d '\r' <"${RUNNER_TEMP:-.}/loop-build.txt" | sed -n 's/.*formal_traces\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\\' '/')
+          echo "formal_traces loop binary found=$([ -n "$bin" ] && echo yes || echo no)"
+          pass=0
+          fail=0
+          i=0
+          while [ "$i" -lt 200 ]; do
+            i=$((i + 1))
+            out=$("${LOOP_BIN:-$bin}" 2>&1)
+            case $out in
+              *"test result: ok. 2 passed; 0 failed"*) pass=$((pass + 1)) ;;
+              *) fail=$((fail + 1)); printf '%s\n' "$out" | grep -E "^test |test result|differ" | head -n 5 ;;
+            esac
+          done
+          echo "formal_traces loop runs=$i passed=$pass failed=$fail"
+          test "$pass" -eq 200
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +144,32 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-r4-formal
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-r4-formal
+      - name: formal_traces 200 times
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          cargo test -p halvo-coord --locked --test formal_traces --no-run >"${RUNNER_TEMP:-.}/loop-build.txt" 2>&1
+          echo "formal_traces loop build exit=$?"
+          bin=$(tr -d '\r' <"${RUNNER_TEMP:-.}/loop-build.txt" | sed -n 's/.*formal_traces\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\\' '/')
+          echo "formal_traces loop binary found=$([ -n "$bin" ] && echo yes || echo no)"
+          pass=0
+          fail=0
+          i=0
+          while [ "$i" -lt 200 ]; do
+            i=$((i + 1))
+            out=$("${LOOP_BIN:-$bin}" 2>&1)
+            case $out in
+              *"test result: ok. 2 passed; 0 failed"*) pass=$((pass + 1)) ;;
+              *) fail=$((fail + 1)); printf '%s\n' "$out" | grep -E "^test |test result|differ" | head -n 5 ;;
+            esac
+          done
+          echo "formal_traces loop runs=$i passed=$pass failed=$fail"
+          test "$pass" -eq 200
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
