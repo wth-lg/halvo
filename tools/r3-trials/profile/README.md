@@ -11,8 +11,10 @@ run.sh builds the programs of this directory with `cargo build --release --locke
 of `profile-trial`, which starts the fixture server of unit U0.1 (`tools/fixture-server/variants`) on
 the port. A SIGTERM or SIGINT sent to run.sh therefore reaches the trial.
 
-Every browser starts headless through `Executor::start` of the library in `tools/r3-trials/web`, with
-the first flag set of A13.2, the resolver rule and, on macOS, `--use-mock-keychain`. `start` makes the
+Every browser of the first round started headless through `Executor::start` of the library in
+`tools/r3-trials/web`, with the first flag set of A13.2, the resolver rule and, on macOS,
+`--use-mock-keychain`. From the second round on it starts as the product does (the section The
+second round below). `start` makes the
 profile directory at the path that the caller names and refuses a path that exists or is a link. It
 makes a temporary directory `<profile>-tmp` beside the profile, with the same refusals, and gives it to
 the browser as `TMPDIR` on macOS and as `TMP` and `TEMP` on Windows. It keeps the canonical paths of
@@ -208,3 +210,177 @@ that the program of `tools/r3-trials/web` left in item 4's scratch, is fixed in 
 now stops each browser with `stop_and_remove`. Before it, a run that ended left 9 profiles and 9
 temporary directories, and an INT or a TERM 2 and 2; after it, 0 in each case (builder-9's evidence
 `addition1/`).
+
+## The second round (U0.3's second pull request)
+
+### The product's start
+
+From this round every browser of items 1, 2 and 4 starts as A11.1 starts the agent's browser after
+U0.7c (`r3_profile::product`):
+
+- on its debugging pipe, the trial program its one client;
+- with `Executor::start_settled`, which writes the agent's `Default/Preferences` (every permission
+  denied, prediction, passwords, payment methods, safe browsing and suggestions off) and a `Local
+  State` before the start; the `Local State` is U0.7c's same-site setting, which isolates
+  `http://pay.agent.test:<port>` and turns secure lookups off (`same_site_local_state`), because
+  U0.7c's verdict says that the product's start writes that setting;
+- with the first flag set of A13.2, U0.7b's flags for the ways out (`ROUND2_FLAGS`) and the relay's
+  flags (`relay_flags`): `--proxy-server` and `--proxy-bypass-list` name the relay, and
+  `--disable-quic` and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` close ways out;
+- with the relay of the trial program as its only route. The relay's list holds the fixture's
+  utility and payment hosts on the port, as the product's list holds the run's bound origins. The
+  start names the browser's first process to the relay and asks for one origin outside the list
+  before the trial acts.
+
+The relay's guard runs as the program that started the browser with `--relay-guard`, so
+`profile-trial` answers that flag first (`r3_web::relay::guard_main`). The steps shape of item 4
+runs the web trial with `--round 3 --relay`, U0.7c's start of the nine steps, which writes the
+agent's settings but not the same-site setting. On macOS the library adds `--use-mock-keychain`.
+
+`profile-trial --print-set` prints the `flag` and `pref` lines of the result file from these
+constants: a `flag` line for each flag of the set without what the executor sets itself (the
+profile directory, headless, the debugging pipe, `--proxy-server` and `--proxy-bypass-list`) and
+without the resolver rules; a `pref` line for each leaf of the two files, its keys joined by dots.
+
+Flags of the trial that the product does not carry: `--use-mock-keychain` (the product's browser
+uses the system's key store for its cookie store, and A8.3 holds: a run's profile lies under the data
+directory and goes at the run's end); every flag of a debugging port (`--remote-debugging-port`),
+which only the port-form controls of the web trial carry; and `--isolate-origins`, which the rows of
+A13.7 add and which names a site on the command line, where the product writes the same-site setting
+into the profile instead (CP-93 (5), CP-95 (2)).
+
+### Item 3
+
+`run.sh --item 3` runs `sh scripts/egress/check.sh scripts/r3/egress/fixtures.txt --` the trial
+program with `--item egress`. That program starts the fixture on 127.0.0.1:18090, the list's one
+entry, and one Chrome that signs in with the second factor, opens `/bill` and `/pay` and holds that
+page for 20 s, as the task shape of item 4 does. The outer program prints the inner program's
+`egress_run` line, then `egress machine=<m> mode=<mode> browser_started=<yes|no> denied=<n>` from the
+check's last line, and on standard error the count of the denial log's lines by their first word.
+Readings fixed before the runs:
+
+- The browser runs without the relay. The relay is the executor's, and the check's list holds the
+  fixture alone (A14.3): a browser behind the relay would send everything to the relay's loopback
+  port, which the list does not hold, and the check would see nothing of the browser's own traffic.
+  So the browser goes direct, and the check sees each of its own connections. The relay's flags that
+  close a way out stay; the two that name the relay go.
+- From 8b0f1a1e two functions of the library decide the lines, and the program prints what they
+  return. `product::run_line` gives the inner line: `browser_started=yes` only when the executor's
+  start of the browser returned Ok; a fault before any start (the runtime, the seed, the fixture's
+  start or reset) and a signal give `task=notrun`; a failed start (`browser_start`, `no_channel`,
+  `start`) gives `browser_started=no task=miss`. `product::outer` reads that line by its keys: a
+  failed start gives the `egress` line with `browser_started=no`; a start that returned Ok gives the
+  `egress` line only with `task=ok`, and otherwise `notrun item=3 ... cause=task`; `task=notrun`
+  gives `notrun item=3 ... cause=<its word>`, or the signal's notrun line; `--sandbox-off` gives
+  `egress_control` and never `egress`. Before 8b0f1a1e the value came from a list of fault names,
+  and a failed fixture reset or `no_channel` read yes (review B2). Every recorded inner line with yes
+  reads `task=ok cause=-`, so the rule narrows yes and no recorded line changes. No `--no-sandbox` is
+  given, so a browser that starts under the check's mode only with its own sandbox off reads
+  `browser_started=no` (A13.3).
+- `--flags first` runs the first flag set of A13.2 with the resolver rule and no setting written,
+  where the item begins; `--flags final` (the default) runs the set above. The block holds the final
+  set's lines; the first set's lines stand in this file.
+- `--sandbox-off` is a control and never a cell: it adds `--no-sandbox` and prints an
+  `egress_control` line in place of the `egress` line.
+- On Windows the checkout wrote `scripts/r3/egress/fixtures.txt` with CRLF line ends, since no
+  `eol=lf` attribute covered that path, and the check's list reader refuses a CR (run 43543961191
+  refused both calls). Run 43547292129 passed an LF copy of the list. From c2f235af the root
+  `.gitattributes` gives the file `eol=lf`, and item 3 passes the tracked file itself.
+
+### Item 3 in lines
+
+The `egress` lines of the first flag set, which the block does not hold, by run. On `mac` at
+c9eafc41 and on `hosted-mac` in runs 43547292129, 43552018301 and 43566221064:
+
+```text
+egress machine=mac mode=sandbox browser_started=no denied=0
+egress machine=hosted-mac mode=sandbox browser_started=no denied=0
+```
+
+On `hosted-win`, runs 43547292129 and 43552018301:
+
+```text
+egress machine=hosted-win mode=wfp browser_started=yes denied=4
+```
+
+On `hosted-win`, run 43566221064:
+
+```text
+egress machine=hosted-win mode=wfp browser_started=yes denied=2
+```
+
+Run 43566221064 prints its two denials by protocol, port and loopback host alone: 2 times `proto=udp
+port=5353 loopback=no`. Runs 43547292129 and 43552018301 printed the count alone, so the kinds of
+their denials are unknown. The count of the first set is what the browser happened to try in a run,
+and no text here gives it as fixed: on `hosted-win` in every run the first set showed at least one
+denied connection and the final set showed none. The final set adds U0.7b's flags, the two relay
+flags that close a way out (`--disable-quic`, the WebRTC policy) and the agent's settings. So item 3
+adds no flag to U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that set, stand.
+The kinds of run 43566221064's denials, and of the controls at c9eafc41 and in that run, come from
+the round's step script, which is not in the tree (`.u03r4/item3-extra.sh` of the scratch head
+cf5bb96a); item 3's program prints the count alone today. From the next run of item 3 on, the
+program prints one line for each denial with its protocol, port and loopback host alone; that change
+is the planner's to place.
+
+What `browser_started=no` covers on `mac` and `hosted-mac`: every call of either set ended with
+`cause=start`, which the executor gives when the browser answered its first call on the pipe
+(`Browser.getVersion`) and the start failed after it. On `mac` the browser's kept standard error
+holds Chrome's line `sandbox initialization failed` (12 lines at the first set and 13 at the final
+set, at c9eafc41); on `hosted-mac` it holds the same line (13 lines at each set in run
+43566221064). The check's own output does not say why a browser did not start.
+
+The control with `--sandbox-off` (final set) is no cell. The count of denials that it logs differs
+from run to run:
+
+- `mac`: 3 at d66953a4, 4 at 6be76414, 4 at c9eafc41.
+- `hosted-mac`: 3 in run 43547292129, 4 in run 43552018301, 3 in run 43566221064.
+
+On this Mac every logged denial read is a refused UDP call to port 443 with no address: the logs at
+d66953a4 and 6be76414 name one process of `Google Chrome Helper` for all of a run's lines, and at
+c9eafc41 the step printed the protocol, the port and the loopback host alone (4 times `proto=udp
+port=443 loopback=unknown`). Runs 43547292129 and 43552018301 printed the `hosted-mac` count alone;
+run 43566221064 prints 3 times `proto=udp port=443 loopback=unknown`. No run shows what these calls
+were for. A reading that no run shows: they are the UDP connects of Chrome's IPv6 test to port 443,
+which the web trial's README names and which send nothing. On `hosted-win`, `denied=0` cannot count
+such a call: the Filtering Platform does not observe IPv6 on that runner (docs/r2/trials/egress.md,
+its line `not-observable windows-2025 wfp ipv6`).
+
+### Item 4 in numbers (run 43552018301)
+
+- `hosted-win`, Chrome: steps median 220,573,696, task median 235,069,440; Edge: steps median
+  189,034,496, task median 214,368,256. The machine's bound comes from Chrome's task shape:
+  301,989,888 (8 MiB times ceil(5 times 235,069,440 / 33,554,432)). In run 43547292129 Chrome's task
+  median was 234,323,968 and the bound 293,601,280: 1.25 times the median lies at 35.0 steps of 8 MiB,
+  so a difference of 0.3 % in the median moves the bound by one step. The first round's bound there
+  was 469,762,048, from Edge's steps shape on the first flag set.
+- `mac`: open. By the coordinator's rule a cell that records the browser's memory is taken on this
+  Mac only at memory pressure level 1, and the level read 2 at every try, so the cell is not taken.
+  A smoke call of one run per shape at 6be76414, not a cell, read 948,161,568 (steps) and
+  959,450,264 (task) at level 2; no run shows what the cell would read at level 1. The cell is
+  filled by `sh tools/r3-trials/profile/run.sh --item 4 --browser <Chrome> --port 18191` through the
+  timed-run helper while the level reads 1 before and after.
+
+### The commits of the cells
+
+Items 1 and 2 ran on `mac` at d66953a4, the hosted cells of items 1, 2 and 4 in run 43552018301 at
+eb189792, and item 3 at c9eafc41, on `mac` and in run 43566221064. The commits after each, with
+the kinds of files they change; none changes a value that a cell computes:
+
+- 33393f00, eb189792 (after d66953a4): item 3's call of the check alone, the list that it passes
+  and the cause that its refusal prints.
+- 3fc451d8, a264060b, 9877e3f1: the hosted harness's shellcheck names, its self-test's stand-ins and
+  its help.
+- c2f235af: the line ends of the egress list in a checkout, a check, the workflow and AGENTS.md.
+- e54e2bf2, ba0a1afe, d8918435: this README, the result file, CHANGELOG.md and a test of the block.
+- ac5cd783, 34c4a52a: comments taken out of both trials, one doc comment put back in place.
+- 87ae0ba4, 020ac877, 1aa38a46: SAFETY notes, clippy.toml entries of both trials and the denied lint.
+- 79995a4e, 4e3db934, 10c652f3: usages and texts of the reader, the collector and a refusal of the
+  web trial, with self-test cases and tests.
+- 3bb6aa73, 58784fbd, 9f1f95e5, c9eafc41: tests, and collector cases.
+- 8b0f1a1e (before item 3 ran): the rule of item 3's `browser_started`; every recorded line keeps
+  its value.
+- cadf0314: the web trial's kill line is printed by `kill_line_of`, which takes the context, in place
+  of the printer at its call; the line of each browser is the same, and two collector cases.
+- 56919992 (after item 3 ran): the end of item 3, from the inner line to the printed lines, is
+  `item3_end`; for six inner lines the program prints the same bytes and exit code as at ba71401c.
+- ffc38432, 796e12f5: tests of `item3_end` and of the inner line that item 3 keeps.

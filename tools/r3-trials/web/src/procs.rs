@@ -1,7 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
 /// One row of the process table: the pid, the parent pid, the creation time in microseconds since
-/// the Unix epoch (0 when the system does not give it) and the executable's path where it is readable.
+/// the Unix epoch (0 when the system does not give it) and the executable where it is readable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proc {
     pub pid: u32,
@@ -20,7 +20,7 @@ pub fn same(a: &Proc, b: &Proc) -> bool {
 /// process's parent pid is the member's pid and its creation time is known and at or after the
 /// member's. So a process whose parent pid is stale, whose parent's pid was reused, or whose parent
 /// has exited does not enter, and neither does any process below a member whose creation time is
-/// unknown. Roots come first, each pid once.
+/// unknown. Roots come first.
 pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
     let mut tree: Vec<Proc> = Vec::new();
     for r in roots {
@@ -64,9 +64,7 @@ pub fn bundle_root(exe: &Path) -> PathBuf {
 }
 
 /// The processes of `table` outside `tree` whose parent pid is 1, which started at or after
-/// `since_us` and whose executable lies under one of `roots`: on macOS the browser's crash handler,
-/// which leaves the tree. A caller waits for them and never ends them, because the rule can also take
-/// a process of the person's own browser.
+/// `since_us` and whose executable lies under one of `roots`.
 pub fn adopted(table: &[Proc], tree: &[Proc], since_us: u64, roots: &[PathBuf]) -> Vec<Proc> {
     table
         .iter()
@@ -87,8 +85,12 @@ const SZOMB: u32 = 5;
 
 #[cfg(target_os = "macos")]
 fn bsd_info(pid: u32) -> Option<libc::proc_bsdinfo> {
+    // SAFETY: proc_bsdinfo is a C struct of integers and byte arrays, for which all-zero bytes are a
+    // valid value.
     let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    // SAFETY: the buffer is `info`, a live proc_bsdinfo owned here, and `size` is its size in bytes,
+    // so the call writes inside it.
     let r = unsafe {
         libc::proc_pidinfo(
             pid as libc::c_int,
@@ -107,19 +109,21 @@ fn started_of(info: &libc::proc_bsdinfo) -> u64 {
 }
 
 /// Every process of the system that it can read, with its parent pid, its creation time and its
-/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
-/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
+/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`; on Windows from a Toolhelp
 /// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
 /// systems get an error.
 #[cfg(target_os = "macos")]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use std::os::unix::ffi::OsStringExt;
+    // SAFETY: a null buffer of size 0 asks for the count alone; the call writes nothing.
     let needed = unsafe { libc::proc_listallpids(std::ptr::null_mut(), 0) };
     if needed <= 0 {
         return Err(std::io::Error::last_os_error());
     }
     let mut pids: Vec<libc::pid_t> = vec![0; needed as usize + 512];
     let bytes = (pids.len() * std::mem::size_of::<libc::pid_t>()) as libc::c_int;
+    // SAFETY: `bytes` is the size in bytes of `pids`, a live vector owned here, so the call writes
+    // inside it.
     let got = unsafe { libc::proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
     if got <= 0 {
         return Err(std::io::Error::last_os_error());
@@ -131,6 +135,8 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
             continue;
         };
         let mut buf = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+        // SAFETY: `buf` is a live vector of `buf.len()` bytes, the size that the call is told, so it
+        // writes inside it.
         let n = unsafe { libc::proc_pidpath(pid, buf.as_mut_ptr().cast(), buf.len() as u32) };
         let exe = (n > 0).then(|| {
             buf.truncate(n as usize);
@@ -156,18 +162,17 @@ pub fn running(p: &Proc) -> bool {
 /// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
 /// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
 /// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
-/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
+/// reused between them.
 #[cfg(target_os = "macos")]
 pub fn kill(p: &Proc) -> bool {
     if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
         return false;
     }
+    // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
+    // read back just above with the creation time of `p`.
     unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
 }
 
-/// Asks the process of `p` to end (SIGTERM) after reading its creation time again, and only when
-/// that is the creation time of `p` (CP-148: the guard asks before it ends by force). Returns whether
-/// it sent the ask.
 #[cfg(target_os = "macos")]
 pub fn ask_end(p: &Proc) -> bool {
     if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
@@ -178,14 +183,11 @@ pub fn ask_end(p: &Proc) -> bool {
     unsafe { libc::kill(p.pid as libc::c_int, libc::SIGTERM) == 0 }
 }
 
-/// On Windows there is no way to ask a windowless process to end: nothing is sent, and the guard's
-/// end by force (`kill`, `TerminateProcess`) follows after its wait (CP-148 (5)).
 #[cfg(not(target_os = "macos"))]
 pub fn ask_end(_p: &Proc) -> bool {
     false
 }
 
-/// This process's own row of the process table, with its creation time.
 pub fn own() -> Option<Proc> {
     table()
         .ok()?
@@ -195,6 +197,7 @@ pub fn own() -> Option<Proc> {
 
 #[cfg(windows)]
 fn open(pid: u32, access: u32) -> Option<windows_sys::Win32::Foundation::HANDLE> {
+    // SAFETY: OpenProcess takes plain values and returns a new handle or null, which is checked.
     let h = unsafe { windows_sys::Win32::System::Threading::OpenProcess(access, 0, pid) };
     (!h.is_null()).then_some(h)
 }
@@ -208,6 +211,8 @@ fn created_us(h: windows_sys::Win32::Foundation::HANDLE) -> Option<u64> {
         dwHighDateTime: 0,
     };
     let (mut created, mut exited, mut kernel, mut user) = (zero, zero, zero, zero);
+    // SAFETY: `h` is an open process handle of the caller, and the four pointers are to live
+    // FILETIME values owned here.
     let ok = unsafe { GetProcessTimes(h, &mut created, &mut exited, &mut kernel, &mut user) };
     if ok == 0 {
         return None;
@@ -224,13 +229,13 @@ fn started_of_pid(pid: u32) -> u64 {
         return 0;
     };
     let t = created_us(h);
+    // SAFETY: `h` was opened above, is closed once here and is not used after.
     unsafe { CloseHandle(h) };
     t.unwrap_or(0)
 }
 
 /// Every process of the system that it can read, with its parent pid, its creation time and its
-/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
-/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
+/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`; on Windows from a Toolhelp
 /// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
 /// systems get an error.
 #[cfg(windows)]
@@ -240,13 +245,18 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
     };
+    // SAFETY: the call takes plain values; its handle is checked against INVALID_HANDLE_VALUE.
     let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snap == INVALID_HANDLE_VALUE {
         return Err(std::io::Error::last_os_error());
     }
     let mut out = Vec::new();
+    // SAFETY: PROCESSENTRY32W is a C struct of integers and a u16 array, for which all-zero bytes
+    // are a valid value; its dwSize is set next.
     let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
     entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+    // SAFETY: `snap` is the open snapshot, and `entry` is a live PROCESSENTRY32W whose dwSize is
+    // its size.
     let mut ok = unsafe { Process32FirstW(snap, &mut entry) };
     while ok != 0 {
         let len = entry
@@ -262,8 +272,10 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
                 &entry.szExeFile[..len],
             ))),
         });
+        // SAFETY: as for Process32FirstW: the open snapshot and the same live entry.
         ok = unsafe { Process32NextW(snap, &mut entry) };
     }
+    // SAFETY: `snap` was opened above, is closed once here and is not used after.
     unsafe { CloseHandle(snap) };
     Ok(out)
 }
@@ -281,7 +293,9 @@ pub fn running(p: &Proc) -> bool {
     };
     let same_process = created_us(h) == Some(p.started_us);
     let mut code = 0u32;
+    // SAFETY: `h` is the handle that `open` gave above, and `code` is a live u32 owned here.
     let ok = unsafe { GetExitCodeProcess(h, &mut code) };
+    // SAFETY: `h` was opened above, is closed once here and is not used after.
     unsafe { CloseHandle(h) };
     same_process && ok != 0 && code == STILL_ACTIVE as u32
 }
@@ -289,7 +303,7 @@ pub fn running(p: &Proc) -> bool {
 /// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
 /// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
 /// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
-/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
+/// reused between them.
 #[cfg(windows)]
 pub fn kill(p: &Proc) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
@@ -300,16 +314,15 @@ pub fn kill(p: &Proc) -> bool {
         return false;
     };
     let same_process = created_us(h) == Some(p.started_us);
-    let killed = same_process && unsafe { TerminateProcess(h, 1) } != 0;
+    let killed = same_process
+        // SAFETY: `h` was opened with PROCESS_TERMINATE, and its creation time, read through the
+        // same handle just above, is that of `p`, so the call ends that process and no other.
+        && unsafe { TerminateProcess(h, 1) } != 0;
+    // SAFETY: `h` was opened above, is closed once here and is not used after.
     unsafe { CloseHandle(h) };
     killed
 }
 
-/// Every process of the system that it can read, with its parent pid, its creation time and its
-/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
-/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
-/// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
-/// systems get an error.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     Err(std::io::Error::new(
@@ -318,17 +331,11 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     ))
 }
 
-/// Whether the process of `p` still runs: its pid exists, still has the creation time of `p`, and
-/// has not exited (on macOS it is no zombie). A pid that another process took over is not running.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn running(_p: &Proc) -> bool {
     false
 }
 
-/// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
-/// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
-/// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
-/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn kill(_p: &Proc) -> bool {
     false
@@ -338,8 +345,6 @@ pub fn kill(_p: &Proc) -> bool {
 mod tests {
     use super::*;
 
-    /// CP-148: the guard's ask to end reads the creation time again and sends nothing to a process
-    /// whose number now names another start.
     #[cfg(target_os = "macos")]
     #[test]
     fn ask_end_leaves_a_process_whose_start_time_differs() {
