@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "if (open === null || open.sealed) writeOffCarry(sql);",
+      "replace": "writeOffCarry(sql);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "4"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 4, faults [",
+    "]: an interval with usage sealed after the write-off ("
+  ]
+}

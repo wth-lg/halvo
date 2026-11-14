@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "test-kit/fake-meter/rerun/property.ts",
+      "find": "  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: \"error\" as const, readGranularitySeconds: READ_WIDTH_SECONDS };",
+      "replace": "  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: \"error\" as const, readGranularitySeconds: 1 };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25: the run threw RangeError: a scenario states a read width of its own (1 s), and the model reads READ_WIDTH_SECONDS (60 s)"
+  ]
+}

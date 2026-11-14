@@ -1,0 +1,23 @@
+{
+  "checkout": true,
+  "env": {
+    "GIT_DIR": "../../other/.git"
+  },
+  "edits": [
+    {
+      "file": "README.md",
+      "find": "# Halvo backend\n",
+      "replace": "# Halvo backend, changed in a checkout\n"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "34"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: git answers before the check for a repository that does not track the check's own file test-kit/fake-meter/rerun/check.mjs"
+  ]
+}
