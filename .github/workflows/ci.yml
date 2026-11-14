@@ -93,6 +93,10 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh macos --self-test
+      - name: Processor
+        shell: bash
+        run: |
+          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
@@ -145,6 +149,10 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh windows --self-test
+      - name: Processor
+        shell: bash
+        run: |
+          printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
