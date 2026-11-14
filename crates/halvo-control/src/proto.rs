@@ -3412,6 +3412,22 @@ stopped/kind body
     }
 
     #[test]
+    fn k6_running_beside_exactly_one_required_source_is_taken() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = sample_status(platform).into_fields();
+            let first = f.enabled_sources[0];
+            f.enabled_sources = vec![first];
+            for line in &mut f.sources {
+                if line.name != first {
+                    line.state = SourceState::Off;
+                }
+            }
+            assert_eq!(f.capture, Capture::Running);
+            assert!(DaemonStatus::new(f).is_ok(), "{platform:?}");
+        }
+    }
+
+    #[test]
     fn pl18_running_needs_a_required_source_and_an_empty_set_reads_faulted_no_source() {
         for platform in [Platform::Macos, Platform::Windows] {
             let mut f = every_source_off(platform);

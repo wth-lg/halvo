@@ -1734,6 +1734,45 @@ mod tests {
         }
 
         #[test]
+        fn k6_each_single_bit_of_group_or_others_is_set_to_0700_at_its_own_name_and_refused_through_a_link(
+        ) {
+            for bits in [0o710, 0o720, 0o740, 0o701, 0o702, 0o704] {
+                let root = tempfile::tempdir().unwrap();
+                let own = root.path().join("own");
+                dir_of_mode(&own, bits);
+                let lock = InstanceLock::take(&own).unwrap().unwrap();
+                assert_eq!(
+                    check_data_dir(&DataDir::from_flag(&own).unwrap(), Some(&lock)),
+                    Ok(DataDirCheck::Own { set_to_0700: true }),
+                    "own {bits:o}"
+                );
+                assert_eq!(mode(&own), 0o700, "own {bits:o}");
+                let target = root.path().join("moved");
+                dir_of_mode(&target, bits);
+                let data = link(&target, &root.path().join("d"));
+                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                assert_eq!(
+                    check_data_dir(&data, Some(&lock)),
+                    Err(DataDirFault::LinkedAndOpenToOthers),
+                    "linked {bits:o}"
+                );
+                assert_eq!(mode(&target), bits, "linked {bits:o}");
+            }
+        }
+
+        #[test]
+        fn k6_the_check_with_no_lock_sets_a_real_directory_of_mode_0755_to_0700() {
+            let root = tempfile::tempdir().unwrap();
+            let dir = root.path().join("d");
+            dir_of_mode(&dir, 0o755);
+            assert_eq!(
+                check_data_dir(&DataDir::from_flag(&dir).unwrap(), None),
+                Ok(DataDirCheck::Own { set_to_0700: true })
+            );
+            assert_eq!(mode(&dir), 0o700);
+        }
+
+        #[test]
         fn k4_a_missing_folder_two_levels_below_a_real_directory_is_still_a_first_run() {
             let root = tempfile::tempdir().unwrap();
             let data = DataDir::from_flag(root.path().join("a").join("halvo")).unwrap();

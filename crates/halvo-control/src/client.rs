@@ -1113,7 +1113,21 @@ mod tests {
             let (client, _) = client(daemon);
             call(&client)
         };
-        let calls: [(&str, Call<'_>); 7] = [
+        let calls: [(&str, Call<'_>); 12] = [
+            ("request-permission", &|c| {
+                c.request_permission(Permission::Accessibility).map(|_| ())
+            }),
+            ("resume", &|c| c.resume().map(|_| ())),
+            ("the claim", &|c| {
+                c.status_claiming_the_indicator().map(|_| ())
+            }),
+            ("permission-asked", &|c| {
+                c.permission_asked(Permission::Accessibility).map(|_| ())
+            }),
+            ("acknowledge-lost-permission", &|c| {
+                c.acknowledge_lost_permission(Permission::Accessibility)
+                    .map(|_| ())
+            }),
             ("delete-all with the id it names", &|c| {
                 c.delete_all(Some(current)).map(|_| ())
             }),

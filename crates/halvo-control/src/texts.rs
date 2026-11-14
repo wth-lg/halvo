@@ -1032,6 +1032,24 @@ mod tests {
                         ],
                         guard,
                     );
+                    let held = status
+                        .fields()
+                        .sources
+                        .iter()
+                        .find(|l| l.name == typing)
+                        .map(class)
+                        .map(|c| match c {
+                            SourceClass::Off => "off",
+                            SourceClass::Runs => "runs",
+                            SourceClass::Stopped => "stopped",
+                            SourceClass::MayRun => "may run",
+                        });
+                    if held != Some(typing_class) {
+                        wrong.push(format!(
+                            "the class of the {} line [{value}]: {held:?}, the row says {typing_class:?}",
+                            typing.as_str()
+                        ));
+                    }
                     let want = cell(platform, guard, typing_class);
                     let want_typed_ahead = (want == PM).then_some(TA);
                     let got = texts(&status);
@@ -1170,6 +1188,8 @@ mod tests {
                     PasswordGuard::None,
                 ),
                 PW,
+                false,
+                false,
             ),
             (
                 "macOS with the guard halvo beside an input line that may run",
@@ -1182,6 +1202,8 @@ mod tests {
                     PasswordGuard::Halvo,
                 ),
                 PW,
+                false,
+                false,
             ),
             (
                 "Windows with the guard os beside a keyboard line that may run",
@@ -1194,6 +1216,8 @@ mod tests {
                     PasswordGuard::Os,
                 ),
                 PW,
+                false,
+                true,
             ),
             (
                 "the mark beside a keyboard line that reads off",
@@ -1206,6 +1230,8 @@ mod tests {
                     PasswordGuard::None,
                 ),
                 PW,
+                false,
+                true,
             ),
             (
                 "the mark beside a screen line that reads stopped",
@@ -1218,6 +1244,8 @@ mod tests {
                     PasswordGuard::Os,
                 ),
                 PM,
+                true,
+                false,
             ),
             (
                 "a screen row that says S0 beside a screen line that runs",
@@ -1230,9 +1258,11 @@ mod tests {
                     PasswordGuard::Os,
                 ),
                 PM,
+                true,
+                false,
             ),
         ];
-        for (kind, pausing, want_passwords) in kinds {
+        for (kind, pausing, want_passwords, screen_runs, keyboard_runs) in kinds {
             let mut f = pausing.into_fields();
             let required: Vec<&crate::proto::SourceLine> = f
                 .sources
@@ -1275,18 +1305,6 @@ mod tests {
                 told.passwords, want_passwords,
                 "{kind}: the password sentence of the table"
             );
-            let screen_runs = matches!(
-                f.sources
-                    .iter()
-                    .find(|l| l.name == SourceName::Screen)
-                    .map(class),
-                Some(SourceClass::Runs | SourceClass::MayRun)
-            );
-            let keyboard_runs = f.platform == Platform::Windows
-                && matches!(
-                    class_of(&f.sources, SourceName::Keyboard),
-                    SourceClass::Runs | SourceClass::MayRun
-                );
             let sentences = texts_of(&told.recorded);
             if screen_runs {
                 assert!(!sentences.contains(&S0), "{kind}: {sentences:?}");
