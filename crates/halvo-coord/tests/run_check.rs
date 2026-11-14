@@ -1982,3 +1982,72 @@ fn a_tick_may_raise_ready_beside_the_check_item_of_an_earlier_life_whose_lapse_i
     );
     never_ready_beside_check(&w);
 }
+
+#[test]
+fn a_switch_off_that_first_reads_the_record_raises_no_check_and_the_next_tick_lapses_and_raises() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        whats(&acknowledged_bodies_from(&w, 0, from)),
+        vec![vec![What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Person,
+        }]]
+    );
+    assert!(closes(&w, &ready).is_empty(), "the ready item stays open");
+    assert_eq!(check_items(&w, 0), 0);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let logged = acknowledged_bodies_from(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
+    never_ready_beside_check(&w);
+}
+
+#[test]
+fn a_skip_that_first_reads_the_record_gives_the_slot_away_and_the_next_tick_raises_the_check_alone()
+{
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(skip.answer, Ok(Answer::Ok));
+    let bodies = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &bodies[..],
+            [body] if matches!(
+                &body[..],
+                [What::ItemAnswered { item, answer: Answered::Ready(ReadyAnswer::Skip) }, What::SlotSkipped { .. }] if *item == ready
+            )
+        ),
+        "{bodies:?}"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Check(None), .. }])
+        ),
+        "{raised:?}"
+    );
+    assert_eq!(skips(&w, 0), 1, "the skip's slot_skipped stands");
+    never_ready_beside_check(&w);
+}
