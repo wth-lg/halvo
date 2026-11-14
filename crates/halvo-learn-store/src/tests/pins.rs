@@ -1,4 +1,6 @@
 use halvo_schema::executable::RunId;
+use halvo_schema::learning::names::RunCause;
+use halvo_schema::learning::record::{RunStatus, Verdict};
 use serde_json::{json, Value};
 
 use super::host::{active_world, agent, compiled, locator, run, wf, with_locators};
@@ -61,6 +63,15 @@ fn an_end_run_drops_the_facts_of_its_run() {
     let id = RunId::parse(&run(2)).expect("a run id");
     assert!(!w.handlers.facts.contains_key(&id));
     assert!(!w.handlers.starts.contains_key(&id));
+    assert!(w.host.runs().iter().any(|r| r.run.as_str() == run(2)
+        && matches!(
+            r.status,
+            RunStatus::Ended {
+                verdict: Verdict::Unverified(RunCause::Failed),
+                kept: 0,
+                ..
+            }
+        )));
 }
 
 #[test]

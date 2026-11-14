@@ -1,6 +1,7 @@
 mod bounds;
 mod coordinator;
 mod edges;
+mod ends;
 mod finish;
 mod host;
 mod kinds;

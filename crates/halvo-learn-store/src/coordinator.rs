@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
-use halvo_schema::executable::body::{CreateAgent, StartRun};
+use halvo_learn::RunCause;
+use halvo_schema::executable::body::{CreateAgent, EndRun, StartRun};
 use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, RunId};
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::{Mark, RefinementKind};
@@ -34,16 +35,11 @@ impl LearnHandlers {
             ));
         }
         let call = CoordinatorCall::parse(body).ok();
-        let now = host.agent_now();
-        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body);
         if let Some(CoordinatorCall::EndRun(b)) = &call {
-            let of_agent = self.facts.get(&b.run).is_some_and(|f| f.agent == b.agent)
-                || self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent);
-            if of_agent {
-                self.drop_run(&b.run);
-            }
+            return self.end_run(host, body, b);
         }
-        let reply = reply?;
+        let now = host.agent_now();
+        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body)?;
         match (&call, &reply) {
             (Some(CoordinatorCall::StartRun(b)), CoordinatorReply::Accepted(_)) => {
                 self.sweep(host)?;
@@ -55,6 +51,41 @@ impl LearnHandlers {
                 self.leave(outcome);
             }
             _ => {}
+        }
+        Ok(CoordinatorAnswer::Agent(reply))
+    }
+
+    /// `end_run` (contracts.md L4.3; the coordinator's ruling LM-61): for a run with facts under the body's agent the
+    /// handlers first read the agent's newest compile number by their own `load` of the run, then pass the body on;
+    /// where the agent store accepted, they make the commit that the `finish` of the run with the outcome `failed`
+    /// would make. The run's facts and remembered start go whatever the agent store answers, and the reply is the
+    /// agent store's. A refused own `load` drops the run before the body is passed on, and nothing is committed.
+    fn end_run(
+        &mut self,
+        host: &mut dyn LearnHost,
+        body: &[u8],
+        b: &EndRun,
+    ) -> Result<CoordinatorAnswer, Refused> {
+        let held = self.facts.get(&b.run).is_some_and(|f| f.agent == b.agent);
+        let newest = if held {
+            self.newest_of(host, &b.agent, &b.run)
+        } else {
+            Ok(None)
+        };
+        let now = host.agent_now();
+        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body);
+        let of_agent = self.facts.get(&b.run).is_some_and(|f| f.agent == b.agent)
+            || self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent);
+        let mut facts = None;
+        if of_agent {
+            facts = self.facts.remove(&b.run);
+            self.starts.remove(&b.run);
+        }
+        let reply = reply?;
+        if let (CoordinatorReply::Accepted(_), Some(facts), Ok(newest)) = (&reply, facts, newest) {
+            let outcome =
+                self.commit_ended(host, &b.run, &facts, newest, &[], Err(RunCause::Failed));
+            self.leave(outcome);
         }
         Ok(CoordinatorAnswer::Agent(reply))
     }

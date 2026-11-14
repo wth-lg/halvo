@@ -104,6 +104,9 @@ impl CoordinatorAnswer {
 /// refused another runner body of a run with facts, and for every run with facts at each `start_run` that the agent
 /// store accepts. At most `RUNS_HELD_MAX` runs are held; when one more would be made, the one made first goes first.
 /// A run whose `log` bodies would take the lines held for it past `LINES_HELD_MAX` is dropped and reads as a lost run.
+/// An `end_run` that the agent store accepts for a run with facts under its agent makes the commit that the `finish`
+/// of that run with the outcome `failed` would make, with the newest compile number that the handlers read by their
+/// own `load` of the run before they pass the body on (contracts.md L4.3; the coordinator's ruling LM-61).
 ///
 /// A row of the family `learn` that its parser refuses stops what rests on its kind in the workflow that it names, or
 /// in every workflow where that name cannot be read, and nothing else (contracts.md L4.2; the coordinator's ruling
