@@ -2602,9 +2602,6 @@ fn writer_refusal(error: &StoreError) -> Option<Refusal> {
     match error {
         StoreError::Locked => Some(Refusal::Locked),
         StoreError::Io(ErrorKind::PermissionDenied) if cfg!(windows) => Some(Refusal::AccessDenied),
-        StoreError::Io(kind) if cfg!(windows) && format!("{kind:?}") == "Uncategorized" => {
-            Some(Refusal::SharingViolation)
-        }
         _ => None,
     }
 }
