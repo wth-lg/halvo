@@ -119,13 +119,22 @@ pub const READ_STEP: Duration = Duration::from_millis(30);
 
 const MARKS_KEPT: usize = 256;
 
+/// Whether the element of an own read of the detector is the element of the
+/// own read before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Moved {
+    /// Both elements were read and compare equal.
+    Same,
+    /// Both elements were read and compare unequal.
+    Another,
+    /// An element is missing on either side, or the compare failed.
+    NotCompared,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     Field(FieldState),
-    Read {
-        state: FieldState,
-        moved: Option<bool>,
-    },
+    Read { state: FieldState, moved: Moved },
     Latch(LatchFrom),
     Started,
 }
@@ -266,7 +275,7 @@ fn latch_states(marks: &VecDeque<Entry>, first_read_after_start: Option<u64>) ->
                         && matches!(
                             read.mark,
                             Mark::Read {
-                                moved: Some(true),
+                                moved: Moved::Another,
                                 ..
                             }
                         )
@@ -496,10 +505,10 @@ impl Shared {
         began: u32,
         at: u32,
         state: FieldState,
-        moved: Option<bool>,
+        moved: Moved,
         seen: Option<String>,
     ) {
-        note_mark("read", Some(state), moved, Some(at), began, seen);
+        note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
@@ -539,7 +548,7 @@ impl Shared {
 fn note_mark(
     what: &'static str,
     state: Option<FieldState>,
-    moved: Option<bool>,
+    moved: Option<Moved>,
     at: Option<u32>,
     began: u32,
     seen: Option<String>,
@@ -687,7 +696,7 @@ impl PasswordGate {
     }
 
     #[cfg(test)]
-    pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Option<bool>) {
+    pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Moved) {
         self.shared.read_seen(began, began, state, moved, None);
     }
 
@@ -1155,7 +1164,7 @@ mod detector {
             state
         }
 
-        fn own(&self, moves: u64) -> (FieldState, Option<bool>) {
+        fn own(&self, moves: u64) -> (FieldState, super::Moved) {
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
             let mut last = self
@@ -1165,11 +1174,13 @@ mod detector {
             let moved = match (last.as_ref(), element.as_ref()) {
                 (Some(previous), Some(element)) => {
                     // SAFETY: both elements are live for the call.
-                    unsafe { self.automation.CompareElements(previous, element) }
-                        .ok()
-                        .map(|same| !same.as_bool())
+                    match unsafe { self.automation.CompareElements(previous, element) } {
+                        Ok(same) if same.as_bool() => super::Moved::Same,
+                        Ok(_) => super::Moved::Another,
+                        Err(_) => super::Moved::NotCompared,
+                    }
                 }
-                _ => None,
+                _ => super::Moved::NotCompared,
             };
             *last = element.clone();
             drop(last);
@@ -1489,7 +1500,7 @@ mod detector {
 
     #[cfg(test)]
     mod tests {
-        use super::super::{HeldKey, Judgment, Mark};
+        use super::super::{HeldKey, Judgment, Mark, Moved};
         use super::*;
         use crate::secure_input::{SecureInputReading, Withheld};
         use std::time::Duration;
@@ -1584,7 +1595,7 @@ mod detector {
         #[test]
         fn the_desktop_hook_callback_reads_unknown_and_closes_the_gate() {
             let gate = PasswordGate::new();
-            gate.read_at(1_000, FieldState::Clear, None);
+            gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
             let before = gate.hold(2_000, false, 0);
             DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(&gate.shared)));
             // SAFETY: the callback reads its thread's gate and no argument but
@@ -1603,7 +1614,7 @@ mod detector {
             DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
             let switched = gate.field_now();
             let after = gate.hold(2_020, false, 0);
-            gate.read_at(2_140, FieldState::Clear, Some(true));
+            gate.read_at(2_140, FieldState::Clear, Moved::Another);
             let decided = |key: &HeldKey| {
                 gate.decide(key, 2_150, 0, false)
                     .map(|(answer, _)| answer.map(|_| ()))
@@ -1812,7 +1823,11 @@ mod detector {
             }
             .into_interface();
             let start = tick();
-            gate.read_at(start.wrapping_sub(400), FieldState::Password, None);
+            gate.read_at(
+                start.wrapping_sub(400),
+                FieldState::Password,
+                Moved::NotCompared,
+            );
             let at_password = gate.field_now();
             // SAFETY: the handler and the element are live COM objects for
             // the call, which borrows both.
@@ -2137,7 +2152,7 @@ mod tests {
 
     fn plain() -> PasswordGate {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Clear, None);
+        gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
         gate
     }
 
@@ -2146,9 +2161,9 @@ mod tests {
         let gate = plain();
         let key = key(&gate, 2_000);
         assert_eq!(reading(&gate, &key, 2_200), None);
-        gate.read_at(2_000 + HOLD - 1, FieldState::Clear, Some(false));
+        gate.read_at(2_000 + HOLD - 1, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_200), None);
-        gate.read_at(2_000 + HOLD, FieldState::Clear, Some(false));
+        gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_200), Some(Ok(())));
         assert_eq!(rule(&gate, &key, 2_200), Some(Rule::ReadAfterTheHold));
     }
@@ -2174,7 +2189,7 @@ mod tests {
             let tab = key(&gate, 2_000);
             gate.latch(2_000);
             gate.field_at(2_040, mark);
-            gate.read_at(2_130, FieldState::Clear, Some(true));
+            gate.read_at(2_130, FieldState::Clear, Moved::Another);
             assert_eq!(reading(&gate, &tab, 2_200), Some(Err(withheld)), "{mark:?}");
         }
     }
@@ -2184,7 +2199,7 @@ mod tests {
         let gate = PasswordGate::new();
         let first = key(&gate, 10);
         assert_eq!(reading(&gate, &first, 10), Some(Err(Withheld::Unknown)));
-        gate.read_at(20, FieldState::Password, None);
+        gate.read_at(20, FieldState::Password, Moved::NotCompared);
         let key = key(&gate, 30);
         assert_eq!(reading(&gate, &key, 30), Some(Err(Withheld::Active)));
         assert_eq!(rule(&gate, &key, 30), Some(Rule::StateAtTheKey));
@@ -2209,7 +2224,7 @@ mod tests {
         let letter = key(&gate, 2_000);
         gate.latch(2_010);
         gate.field_at(2_040, FieldState::Password);
-        gate.read_at(2_130, FieldState::Clear, Some(true));
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &letter, 2_200), Some(Err(Withheld::Active)));
     }
 
@@ -2219,20 +2234,20 @@ mod tests {
         let letter = key(&gate, 2_000);
         gate.latch_after(2_010);
         gate.field_at(2_040, FieldState::Password);
-        gate.read_at(2_130, FieldState::Clear, Some(true));
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &letter, 2_200), Some(Err(Withheld::Active)));
     }
 
     #[test]
     fn the_last_key_of_a_password_field_stays_withheld_after_an_enter_moves_the_focus() {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Password, None);
+        gate.read_at(1_000, FieldState::Password, Moved::NotCompared);
         let last = key(&gate, 2_000);
         let enter = key(&gate, 2_010);
         gate.latch(2_010);
         gate.field_at(2_040, FieldState::Clear);
-        gate.read_at(2_130, FieldState::Clear, Some(true));
-        gate.read_at(2_260, FieldState::Clear, Some(false));
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
+        gate.read_at(2_260, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &last, 2_240), Some(Err(Withheld::Active)));
         assert_eq!(reading(&gate, &enter, 2_240), Some(Err(Withheld::Active)));
     }
@@ -2240,11 +2255,11 @@ mod tests {
     #[test]
     fn the_last_key_of_a_password_field_stays_withheld_after_a_click_moves_the_focus() {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Password, None);
+        gate.read_at(1_000, FieldState::Password, Moved::NotCompared);
         let last = key(&gate, 2_000);
         gate.latch_after(2_010);
         gate.field_at(2_040, FieldState::Clear);
-        gate.read_at(2_130, FieldState::Clear, Some(true));
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &last, 2_240), Some(Err(Withheld::Active)));
     }
 
@@ -2253,15 +2268,15 @@ mod tests {
         let gate = plain();
         gate.latch(2_000);
         let letter = key(&gate, 2_001);
-        gate.read_at(2_100, FieldState::Clear, Some(false));
-        gate.read_at(2_130, FieldState::Clear, Some(false));
-        gate.read_at(2_160, FieldState::Clear, Some(false));
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
+        gate.read_at(2_160, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_200), None);
-        gate.read_at(2_190, FieldState::Clear, Some(true));
+        gate.read_at(2_190, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &letter, 2_240), None);
-        gate.read_at(2_309, FieldState::Clear, Some(false));
+        gate.read_at(2_309, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
-        gate.read_at(2_310, FieldState::Clear, Some(false));
+        gate.read_at(2_310, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), Some(Ok(())));
     }
 
@@ -2270,10 +2285,10 @@ mod tests {
         let gate = plain();
         gate.latch(2_000);
         let letter = key(&gate, 2_001);
-        gate.read_at(2_050, FieldState::Clear, Some(false));
-        gate.read_at(2_060, FieldState::Clear, Some(true));
-        gate.read_at(2_100, FieldState::Clear, Some(false));
-        gate.read_at(2_180, FieldState::Clear, Some(false));
+        gate.read_at(2_050, FieldState::Clear, Moved::Same);
+        gate.read_at(2_060, FieldState::Clear, Moved::Another);
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_180, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
         assert_eq!(reading(&gate, &letter, 2_252), Some(Err(Withheld::Unknown)));
     }
@@ -2283,10 +2298,10 @@ mod tests {
         let gate = plain();
         gate.latch(2_000);
         let letter = key(&gate, 2_001);
-        gate.read_at(2_100, FieldState::Clear, Some(false));
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
         gate.field_at(2_105, FieldState::Clear);
-        gate.read_at(2_130, FieldState::Clear, Some(false));
-        gate.read_at(2_230, FieldState::Clear, Some(false));
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
+        gate.read_at(2_230, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
         assert_eq!(reading(&gate, &letter, 2_252), Some(Err(Withheld::Unknown)));
     }
@@ -2297,12 +2312,12 @@ mod tests {
         gate.latch(2_000);
         gate.latch(2_030);
         let letter = key(&gate, 2_060);
-        gate.read_at(2_130, FieldState::Clear, Some(false));
-        gate.read_at(2_160, FieldState::Clear, Some(true));
-        gate.read_at(2_285, FieldState::Clear, Some(false));
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
+        gate.read_at(2_160, FieldState::Clear, Moved::Another);
+        gate.read_at(2_285, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_290), None);
-        gate.read_at(2_290, FieldState::Clear, Some(true));
-        gate.read_at(2_305, FieldState::Clear, Some(false));
+        gate.read_at(2_290, FieldState::Clear, Moved::Another);
+        gate.read_at(2_305, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_305), None);
     }
 
@@ -2310,7 +2325,7 @@ mod tests {
     fn a_key_held_from_before_another_thread_came_in_front_reads_unknown() {
         let gate = plain();
         let key = key(&gate, 2_000);
-        gate.read_at(2_130, FieldState::Clear, Some(false));
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
         assert_eq!(
             gate.decide(&key, 2_140, FRONT + 1, false)
                 .map(|(answer, rule)| (answer.map(|_| ()), rule)),
@@ -2326,7 +2341,7 @@ mod tests {
         assert_eq!(reading(&gate, &key1, 1_700), None);
         assert_eq!(reading(&gate, &key1, 1_761), Some(Err(Withheld::Unknown)));
         let gate = plain();
-        gate.read_at(2_200, FieldState::Clear, Some(false));
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
         let late = key(&gate, 2_000);
         assert_eq!(reading(&gate, &late, 2_300), Some(Err(Withheld::Unknown)));
         assert_eq!(rule(&gate, &late, 2_300), Some(Rule::NotClearedInTime));
@@ -2336,7 +2351,7 @@ mod tests {
     fn a_password_edit_under_the_focus_at_the_key_or_at_the_end_of_its_hold_withholds_it() {
         let gate = plain();
         let at_key = gate.hold(2_000, true, FRONT);
-        gate.read_at(2_130, FieldState::Clear, Some(false));
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &at_key, 2_200), Some(Err(Withheld::Active)));
         let later = key(&gate, 2_000);
         assert_eq!(
@@ -2348,11 +2363,11 @@ mod tests {
 
     fn handled_late(behind: u32) -> Option<Result<(), Withheld>> {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Password, None);
+        gate.read_at(1_000, FieldState::Password, Moved::NotCompared);
         gate.field_at(2_030, FieldState::Clear);
-        gate.read_at(2_031, FieldState::Clear, Some(true));
+        gate.read_at(2_031, FieldState::Clear, Moved::Another);
         let key = key(&gate, 2_000);
-        gate.read_at(2_000 + behind.max(HOLD), FieldState::Clear, Some(false));
+        gate.read_at(2_000 + behind.max(HOLD), FieldState::Clear, Moved::Same);
         reading(&gate, &key, 2_000 + behind.max(HOLD))
     }
 
@@ -2366,24 +2381,24 @@ mod tests {
     #[test]
     fn a_mark_whose_time_is_not_known_opens_for_no_key() {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Password, None);
+        gate.read_at(1_000, FieldState::Password, Moved::NotCompared);
         gate.shared
             .lock()
             .push(None, 0, Mark::Field(FieldState::Clear));
         let key = key(&gate, 2_000);
-        gate.read_at(2_130, FieldState::Clear, Some(true));
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &key, 2_140), Some(Err(Withheld::Active)));
     }
 
     #[test]
     fn a_click_of_the_same_tick_after_a_password_key_does_not_clear_it() {
         let gate = PasswordGate::new();
-        gate.read_at(1_000, FieldState::Password, None);
+        gate.read_at(1_000, FieldState::Password, Moved::NotCompared);
         let key = key(&gate, 2_000);
         gate.latch_after(2_000);
-        gate.read_at(2_100, FieldState::Clear, Some(true));
-        gate.read_at(2_130, FieldState::Clear, Some(true));
-        gate.read_at(2_260, FieldState::Clear, Some(false));
+        gate.read_at(2_100, FieldState::Clear, Moved::Another);
+        gate.read_at(2_130, FieldState::Clear, Moved::Another);
+        gate.read_at(2_260, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_240), Some(Err(Withheld::Active)));
     }
 
@@ -2392,8 +2407,8 @@ mod tests {
         let gate = plain();
         gate.latch_after(2_000);
         let key = key(&gate, 2_000);
-        gate.read_at(2_100, FieldState::Clear, Some(false));
-        gate.read_at(2_130, FieldState::Clear, Some(false));
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_130, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_240), None);
     }
 
@@ -2402,11 +2417,11 @@ mod tests {
         let gate = plain();
         gate.latch(1_000);
         let key = key(&gate, 1_100);
-        gate.read_at(1_100, FieldState::Clear, Some(false));
-        gate.read_at(1_130, FieldState::Clear, Some(false));
-        gate.read_at(1_220, FieldState::Clear, Some(false));
+        gate.read_at(1_100, FieldState::Clear, Moved::Same);
+        gate.read_at(1_130, FieldState::Clear, Moved::Same);
+        gate.read_at(1_220, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_240), None);
-        gate.read_at(1_300, FieldState::Clear, Some(true));
+        gate.read_at(1_300, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &key, 1_351), Some(Err(Withheld::Unknown)));
     }
 
@@ -2424,9 +2439,9 @@ mod tests {
         assert_eq!(reading(&gate, &key2, 1_010), Some(Err(Withheld::Active)));
         let gate = PasswordGate::new();
         gate.started_at(1_000);
-        gate.read_at(1_004, FieldState::Clear, None);
+        gate.read_at(1_004, FieldState::Clear, Moved::NotCompared);
         let key3 = key(&gate, 1_010);
-        gate.read_at(1_130, FieldState::Clear, Some(false));
+        gate.read_at(1_130, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key3, 1_140), Some(Ok(())));
     }
 
@@ -2435,12 +2450,12 @@ mod tests {
         let gate = PasswordGate::new();
         gate.started_at(1_000);
         gate.latch(1_002);
-        gate.read_at(1_004, FieldState::Clear, None);
+        gate.read_at(1_004, FieldState::Clear, Moved::NotCompared);
         let key = key(&gate, 1_005);
-        gate.read_at(1_030, FieldState::Clear, Some(true));
-        gate.read_at(1_149, FieldState::Clear, Some(false));
+        gate.read_at(1_030, FieldState::Clear, Moved::Another);
+        gate.read_at(1_149, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_200), None);
-        gate.read_at(1_150, FieldState::Clear, Some(false));
+        gate.read_at(1_150, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_200), Some(Ok(())));
     }
 
@@ -2452,7 +2467,7 @@ mod tests {
         let after = key(&gate, 2_020);
         assert_eq!(reading(&gate, &before, 2_200), Some(Err(Withheld::Unknown)));
         assert_eq!(gate.field_now(), FieldState::Unknown);
-        gate.read_at(2_120, FieldState::Clear, Some(true));
+        gate.read_at(2_120, FieldState::Clear, Moved::Another);
         assert_eq!(reading(&gate, &after, 2_200), Some(Err(Withheld::Unknown)));
     }
 
@@ -2461,13 +2476,13 @@ mod tests {
         let gate = plain();
         let before = key(&gate, 1_800);
         let edge = key(&gate, 1_900);
-        gate.read_at(1_925, FieldState::Clear, Some(false));
+        gate.read_at(1_925, FieldState::Clear, Moved::Same);
         gate.clicks_lost(2_000);
         let inside = key(&gate, 2_050);
         let while_open = rule(&gate, &inside, 2_060);
         gate.clicks_back(2_100);
         let after = key(&gate, 2_101);
-        gate.read_at(2_221, FieldState::Clear, Some(false));
+        gate.read_at(2_221, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &before, 1_930), Some(Ok(())));
         assert_eq!(while_open, Some(Rule::NoClickRoute));
         assert_eq!(rule(&gate, &edge, 2_030), Some(Rule::NoClickRoute));
@@ -2479,11 +2494,11 @@ mod tests {
     #[test]
     fn the_hold_is_read_across_the_wrap_of_the_tick_count() {
         let gate = PasswordGate::new();
-        gate.read_at(u32::MAX - 100, FieldState::Clear, None);
+        gate.read_at(u32::MAX - 100, FieldState::Clear, Moved::NotCompared);
         let key = key(&gate, u32::MAX - 50);
-        gate.read_at(68, FieldState::Clear, Some(false));
+        gate.read_at(68, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 80), None);
-        gate.read_at(69, FieldState::Clear, Some(false));
+        gate.read_at(69, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 80), Some(Ok(())));
     }
 
@@ -2493,7 +2508,7 @@ mod tests {
         let key = key(&gate, 2_000);
         assert_eq!(reading(&gate, &key, 2_010), None);
         assert_eq!(gate.shared.lock().read_due, Some(2_000 + HOLD));
-        gate.read_at(2_000 + HOLD, FieldState::Clear, Some(false));
+        gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
         assert_eq!(gate.shared.lock().read_due, None);
     }
 
@@ -2501,7 +2516,7 @@ mod tests {
     fn the_gate_keeps_the_newest_256_marks() {
         let gate = PasswordGate::new();
         for at in 0..300u32 {
-            gate.read_at(at, FieldState::Clear, Some(false));
+            gate.read_at(at, FieldState::Clear, Moved::Same);
         }
         let marks = gate.shared.lock();
         assert_eq!(marks.entries.len(), 256);

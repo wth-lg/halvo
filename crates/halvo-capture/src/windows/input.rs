@@ -419,7 +419,7 @@ pub mod seam {
     use std::sync::{Mutex, PoisonError};
 
     pub use crate::floor::payload::KeyClass;
-    pub use crate::secure_input::windows::Rule;
+    pub use crate::secure_input::windows::{Moved, Rule};
     use crate::secure_input::{KeystrokeClearance, Withheld};
 
     /// What the keyboard source did with a key.
@@ -494,7 +494,7 @@ pub mod seam {
     pub struct MarkSeen {
         pub what: &'static str,
         pub state: Option<crate::secure_input::windows::FieldState>,
-        pub moved: Option<bool>,
+        pub moved: Option<Moved>,
         pub at: Option<u32>,
         pub began: u32,
         pub element: Option<String>,
@@ -506,7 +506,7 @@ pub mod seam {
     pub(crate) fn note_mark(
         what: &'static str,
         state: Option<crate::secure_input::windows::FieldState>,
-        moved: Option<bool>,
+        moved: Option<Moved>,
         at: Option<u32>,
         began: u32,
         element: Option<String>,
@@ -1225,7 +1225,7 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secure_input::windows::Rule;
+    use crate::secure_input::windows::{Moved, Rule};
 
     #[test]
     fn a_cleared_key_maps_to_a_keystroke_packet() {
@@ -1307,7 +1307,11 @@ mod tests {
 
     fn clear_gate() -> PasswordGate {
         let gate = PasswordGate::new();
-        gate.read_at(900, crate::secure_input::windows::FieldState::Clear, None);
+        gate.read_at(
+            900,
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
         gate
     }
 
@@ -1355,7 +1359,7 @@ mod tests {
             gate.read_at(
                 1_130,
                 crate::secure_input::windows::FieldState::Clear,
-                Some(false),
+                Moved::Same,
             );
             assert!(
                 matches!(gate.clearance(&key, 1_200), Some(Ok(_))),
@@ -1952,7 +1956,7 @@ mod tests {
         state.gate.read_at(
             now.wrapping_sub(200),
             crate::secure_input::windows::FieldState::Clear,
-            None,
+            Moved::NotCompared,
         );
         let early = now.wrapping_sub(160);
         let later = now.wrapping_sub(150);
@@ -1963,7 +1967,7 @@ mod tests {
         state.gate.read_at(
             now.wrapping_sub(25),
             crate::secure_input::windows::FieldState::Clear,
-            Some(false),
+            Moved::Same,
         );
         state.gate.latch(now);
         let waiting = state.gate.hold(now, false, front);
@@ -2044,7 +2048,7 @@ mod tests {
             state.gate.read_at(
                 tick.wrapping_sub(400),
                 crate::secure_input::windows::FieldState::Clear,
-                None,
+                Moved::NotCompared,
             );
             let key = state.gate.hold(tick, true, front);
             let answer = state
@@ -2096,7 +2100,7 @@ mod tests {
         state.gate.read_at(
             now.wrapping_sub(400),
             crate::secure_input::windows::FieldState::Password,
-            None,
+            Moved::NotCompared,
         );
         let before = numbers(&state, &handoff);
         handled(&mut state, &producer, now.wrapping_sub(300));
@@ -2123,15 +2127,17 @@ mod tests {
         let (mut state, handoff, writer) = lag_rig();
         let producer = handoff.producer();
         let now = super::super::now_tick();
-        state
-            .gate
-            .read_at(now.wrapping_sub(400), FieldState::Password, None);
+        state.gate.read_at(
+            now.wrapping_sub(400),
+            FieldState::Password,
+            Moved::NotCompared,
+        );
         state
             .gate
             .field_at(now.wrapping_sub(250), FieldState::Clear);
         state
             .gate
-            .read_at(now.wrapping_sub(240), FieldState::Clear, Some(true));
+            .read_at(now.wrapping_sub(240), FieldState::Clear, Moved::Another);
         for step in 0..5u32 {
             handled(
                 &mut state,
@@ -2151,7 +2157,7 @@ mod tests {
         let now = super::super::now_tick();
         state
             .gate
-            .read_at(now.wrapping_sub(400), FieldState::Clear, None);
+            .read_at(now.wrapping_sub(400), FieldState::Clear, Moved::NotCompared);
         state
             .gate
             .field_at(now.wrapping_sub(280), FieldState::Password);
@@ -2174,10 +2180,10 @@ mod tests {
         let now = super::super::now_tick();
         state
             .gate
-            .read_at(now.wrapping_sub(400), FieldState::Clear, None);
+            .read_at(now.wrapping_sub(400), FieldState::Clear, Moved::NotCompared);
         state
             .gate
-            .read_at(now.wrapping_sub(170), FieldState::Clear, Some(false));
+            .read_at(now.wrapping_sub(170), FieldState::Clear, Moved::Same);
         for step in 0..5u32 {
             handled(
                 &mut state,
@@ -2198,9 +2204,11 @@ mod tests {
         let (mut state, handoff, writer) = lag_rig();
         let producer = handoff.producer();
         let now = super::super::now_tick();
-        state
-            .gate
-            .read_at(now.wrapping_sub(2_400), FieldState::Clear, None);
+        state.gate.read_at(
+            now.wrapping_sub(2_400),
+            FieldState::Clear,
+            Moved::NotCompared,
+        );
         for step in 0..12u32 {
             handled(
                 &mut state,
@@ -2436,7 +2444,7 @@ mod tests {
                     tick.wrapping_add(1 + click_after_ms),
                 );
                 gate.field_at(tick.wrapping_add(40), FieldState::Clear);
-                gate.read_at(tick.wrapping_add(130), FieldState::Clear, Some(true));
+                gate.read_at(tick.wrapping_add(130), FieldState::Clear, Moved::Another);
                 matches!(gate.clearance(&key, tick.wrapping_add(200)), Some(Err(_)))
             })
         };
@@ -2446,11 +2454,11 @@ mod tests {
         let route_gate = clicks().gate.replace(Arc::clone(&detached));
         let key_after_a_click_waits = {
             let tick = super::super::now_tick();
-            detached.read_at(tick, FieldState::Clear, None);
+            detached.read_at(tick, FieldState::Clear, Moved::NotCompared);
             click_from_the_pointer_pump(RI_MOUSE_LEFT_BUTTON_DOWN as u16, tick.wrapping_add(20));
             let key = detached.hold(tick.wrapping_add(20), false, 0);
-            detached.read_at(tick.wrapping_add(120), FieldState::Clear, Some(false));
-            detached.read_at(tick.wrapping_add(150), FieldState::Clear, Some(false));
+            detached.read_at(tick.wrapping_add(120), FieldState::Clear, Moved::Same);
+            detached.read_at(tick.wrapping_add(150), FieldState::Clear, Moved::Same);
             detached
                 .decide(&key, tick.wrapping_add(260), 0, false)
                 .map(|(answer, _)| answer.is_ok())
@@ -2656,15 +2664,23 @@ mod tests {
             _ => FieldState::Clear,
         };
         let mut tick = 10_000u32;
-        state.gate.read_at(tick, FieldState::Clear, None);
+        state
+            .gate
+            .read_at(tick, FieldState::Clear, Moved::NotCompared);
         for key in 0..400u32 {
             let r = next();
             tick = tick.wrapping_add(r % 15);
             match (r >> 8) % 20 {
                 0 => state.gate.field_at(tick, state_of(r >> 12)),
-                1..=8 => state
-                    .gate
-                    .read_at(tick, state_of(r >> 12), Some((r >> 16) % 2 == 0)),
+                1..=8 => state.gate.read_at(
+                    tick,
+                    state_of(r >> 12),
+                    if (r >> 16) % 2 == 0 {
+                        Moved::Another
+                    } else {
+                        Moved::Same
+                    },
+                ),
                 9 => state.gate.latch(tick),
                 10 => state.gate.latch_after(tick.wrapping_sub(r % 20)),
                 _ => {
