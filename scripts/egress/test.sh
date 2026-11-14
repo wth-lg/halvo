@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|wfp|wfp-rules]...
+# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|wfp|wfp-rules|search]...
 set -u
 LC_ALL=C
 export LC_ALL
@@ -519,6 +519,7 @@ PY
   expect_refusal sandbox/self-test-unknown-argument usage sh scripts/egress/check.sh --self-test --verbose
   expect_refusal sandbox/pf-off-a-runner mode env -u GITHUB_ACTIONS sh scripts/egress/check.sh --mode pf "$e" -- sh "$pr" none
   expect_refusal sandbox/wfp-on-macos mode sh scripts/egress/check.sh --mode wfp "$e" -- sh "$pr" none
+  test_search
 }
 
 test_wfp() {
@@ -614,6 +615,7 @@ test_wfp_rules() {
   expect_run wfp/next-run-after-a-signal 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   result wfp/next-run-restores-what-a-signal-left "$before 0 left-before-next=yes" "$(wfp_state) $(wfp_rules) left-before-next=$([ "$left" != 0 ] && printf yes || printf no)"
   wfp_reap_case
+  test_search
 }
 
 wfp_reap_case() {
@@ -644,6 +646,88 @@ ps_run() {
   expect_run "$1" 1 5 "$2" sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- powershell.exe -NoProfile -NonInteractive -Command "$3"
 }
 
+search_tools() {
+  search_root=$work/search
+  search_bin=$work/search-bin
+  search_runs=0
+  real_mkdir=$(command -v mkdir)
+  mkdir -p "$search_root/scripts/egress/lists" "$search_bin"
+  cp scripts/egress/check.sh scripts/egress/list.awk scripts/egress/sandbox.awk scripts/egress/probe.sh scripts/egress/probe.rs scripts/egress/wfp.ps1 "$search_root/scripts/egress/"
+  cp scripts/egress/lists/empty.txt "$search_root/scripts/egress/lists/"
+  git init -q "$search_root"
+  cat >"$search_bin/rustc" <<'TOOL'
+#!/bin/sh
+out=
+while [ $# -gt 1 ]; do
+  [ "$1" != -o ] || out=$2
+  shift
+done
+printf 'stand-in\n' >"$out"
+TOOL
+  cat >"$search_bin/mkdir" <<'TOOL'
+#!/bin/sh
+[ $# -eq 1 ] || exec "$SEARCH_MKDIR" "$@"
+printf '%s\n' "${1##*/}" >>"$SEARCH_TRIED"
+if [ -n "$SEARCH_RACE" ] && [ ! -e "$SEARCH_RACE" ] && [ ! -e "$1" ]; then
+  : >"$SEARCH_RACE"
+  "$SEARCH_MKDIR" "$1"
+fi
+"$SEARCH_MKDIR" "$1" || exit
+exec "$SEARCH_MKDIR" "$1/state"
+TOOL
+  chmod +x "$search_bin/rustc" "$search_bin/mkdir"
+}
+
+search_case() {
+  label=$1
+  want=$2
+  want_tried=$3
+  race=$4
+  shift 4
+  search_runs=$((search_runs + 1))
+  if [ -d "$search_root/target" ]; then
+    mv "$search_root/target" "$search_root/target-$search_runs"
+  fi
+  for entry in "$@"; do
+    mkdir -p "$search_root/target/egress"
+    case $entry in
+      dir:*) mkdir "$search_root/target/egress/${entry#dir:}" ;;
+      file:*) : >"$search_root/target/egress/${entry#file:}" ;;
+    esac
+  done
+  mark=
+  [ "$race" != race ] || mark=$work/search-raced-$search_runs
+  tried_file=$work/search-tried-$search_runs
+  : >"$tried_file"
+  (cd "$search_root" && PATH="$search_bin:$PATH" SEARCH_MKDIR="$real_mkdir" SEARCH_RACE="$mark" SEARCH_TRIED="$tried_file" \
+    sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none) >"$work/out" 2>"$work/err"
+  code=$?
+  line=$(tail -n 1 "$work/err")
+  case $code:$line in
+    "2:REFUSED output: target/egress/"*/state)
+      got=${line#REFUSED output: target/egress/}
+      got="takes ${got%/state}"
+      ;;
+    "2:REFUSED output: target/egress/"*) got="refused ${line#REFUSED output: }" ;;
+    *) got="exit-$code:$line" ;;
+  esac
+  result "$label" "$want" "$got"
+  [ "$want_tried" != - ] || return 0
+  tried=
+  while read -r number; do
+    tried="$tried${tried:+ }$number"
+  done <"$tried_file"
+  result "$label-tries" "$want_tried" "$tried"
+}
+
+test_search() {
+  search_tools
+  search_case search/none-takes-1 'takes 1' - -
+  search_case search/another-run-claims-4-first-takes-5 'takes 5' - race dir:1 dir:2 dir:3
+  search_case search/a-file-at-the-number-is-refused 'refused target/egress/3' - - dir:1 dir:2 file:3
+  search_case search/names-that-are-no-number-passed-over 'takes 3' - - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:1234567890123456789 dir:12345678901234567890 file:50
+}
+
 [ $# -gt 0 ] || set -- probe lists
 for part in "$@"; do
   part_start=$((passed + failed))
@@ -653,6 +737,7 @@ for part in "$@"; do
     sandbox) test_sandbox ;;
     wfp) test_wfp ;;
     wfp-rules) test_wfp_rules ;;
+    search) test_search ;;
     *)
       printf 'FAIL test (unknown part %s)\n' "$part"
       exit 1
