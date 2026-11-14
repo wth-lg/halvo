@@ -286,7 +286,7 @@ fn every_wrong_call_is_refused_with_usage() {
             "drift", "--case", "x.jsonl", "--arm", "admit", "--link", "product",
         ],
         &["privacy", "--data-dir", "x"],
-        &["routine"],
+        &["routine", "--extra"],
     ];
     for call in calls {
         refused(&gate(call, &repo()), "usage");
