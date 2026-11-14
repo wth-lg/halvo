@@ -635,13 +635,14 @@ self_test() {
     "gate $held --store derived" "gate $held --store derived --restart-all"
 
   for at in first second; do
-    for form in other-detail second-line beside-output status-1; do
+    for form in other-detail second-line blank-line-after beside-output status-1; do
       fixture "derived-$at-$form"
       code=2
       : >"$FX/derived-$at.out" || broken
       case $form in
         other-detail) printf 'REFUSED store: the data directory cannot be opened\n' ;;
         second-line) printf 'a line before it\n%s\n' "$not_built" ;;
+        blank-line-after) printf '%s\n\n' "$not_built" ;;
         beside-output)
           printf 'drift result=ok\n' >"$FX/derived-$at.out" || broken
           printf '%s\n' "$not_built"
