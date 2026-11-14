@@ -6,7 +6,7 @@ use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, Act};
-use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owing};
+use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, Owing};
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
     ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply, RunId,
@@ -1340,18 +1340,31 @@ fn closes(w: &World, item: &ItemId) -> Vec<What> {
 
 fn never_ready_beside_check(w: &World) {
     let events = w.ports.events.borrow().clone();
-    let stored: Vec<Vec<Event>> = w
-        .ports
-        .tried
-        .borrow()
-        .iter()
-        .filter_map(|t| match (&t.call, &t.refused) {
-            (Call::Log(body), None) => Some(body.clone()),
-            _ => None,
+    let mut life = 0;
+    let mut logs: Vec<(usize, Vec<Event>, bool)> = Vec::new();
+    for t in w.ports.tried.borrow().iter() {
+        match (&t.call, &t.refused) {
+            (Call::Reap, _) => life += 1,
+            (Call::Log(body), refused) => logs.push((life, body.clone(), refused.is_none())),
+            _ => {}
+        }
+    }
+    let raised_in = |item: &ItemId| {
+        logs.iter().find_map(|(l, body, _)| {
+            body.iter()
+                .any(|e| matches!(&e.what, What::ItemRaised { item: i, .. } if i == item))
+                .then_some(*l)
         })
-        .collect();
-    for body in stored {
-        for e in &body {
+    };
+    let owed = |item: &ItemId| {
+        w.board
+            .owed
+            .iter()
+            .any(|o| matches!(&o.what, Owing::ItemLapsed { item: i, .. } if i == item))
+    };
+    for (life, body, _) in logs.iter().filter(|(_, _, stored)| *stored) {
+        let counts = |item: &ItemId| raised_in(item).is_none_or(|l| l == *life) && !owed(item);
+        for e in body {
             let upto: Vec<&Event> = events
                 .iter()
                 .filter(|x| x.agent == e.agent && x.seq <= e.seq)
@@ -1367,7 +1380,9 @@ fn never_ready_beside_check(w: &World) {
                 })
             };
             let ready = open(|r| matches!(r, Raised::Ready));
-            let check = open(|r| matches!(r, Raised::Check(None)));
+            let check = upto.iter().any(|x| {
+                matches!(&x.what, What::ItemRaised { item, raised: Raised::Check(None) } if !closed(item) && counts(item))
+            });
             let cleared = matches!(
                 &e.what,
                 What::HoldCleared {
@@ -1906,4 +1921,64 @@ fn a_start_whose_log_meets_seq_for_another_writers_event_answers_its_ready_item_
         whats(&bodies)
     );
     assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+}
+
+fn act_late(w: &mut World, turns: Vec<Turn>, act: Act) -> halvo_coord::run::Done {
+    let late = Late {
+        ports: &w.ports,
+        turns: std::cell::RefCell::new(turns.into()),
+    };
+    halvo_coord::run::drive(&late, &mut w.board, &mut w.table, &w.limits, act)
+}
+
+#[test]
+fn a_tick_may_raise_ready_beside_the_check_item_of_an_earlier_life_whose_lapse_is_owed() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    let earlier = match &w.facts(0).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Check => o.item.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(closes(&w, &ready).len(), 1);
+    let checked =
+        new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    assert_eq!(checked, vec![agent(0)]);
+    assert!(w.board.owed.iter().any(|o| matches!(
+        &o.what,
+        Owing::ItemLapsed { item, lapsed: Lapsed::Check(OtherLapse::AppEnded), .. } if *item == earlier
+    )));
+    assert_eq!(check_items(&w, 0), 2);
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    w.set_clock(T0 + 20_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    act_late(&mut w, vec![Turn::Refuse(PortError::NoService)], Act::Tick);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Ready, .. }])
+        ),
+        "the tick raises ready: {raised:?}"
+    );
+    assert!(
+        closes(&w, &earlier).is_empty(),
+        "the earlier check item is open"
+    );
+    assert!(
+        !holds(w.facts(0)).contains(&Hold::Check),
+        "the hold does not stand"
+    );
+    w.set_clock(T0 + 30_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        closes(&w, &earlier),
+        vec![What::ItemLapsed {
+            item: earlier.clone(),
+            lapsed: Lapsed::Check(OtherLapse::AppEnded),
+        }],
+        "after the payment the earlier item has one closing row"
+    );
+    never_ready_beside_check(&w);
 }
