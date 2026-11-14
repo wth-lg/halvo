@@ -2597,6 +2597,37 @@ mod tests {
     }
 
     #[test]
+    fn a_read_that_shows_a_move_after_the_keys_time_and_before_the_pump_took_it_withholds_the_key()
+    {
+        let gate = plain();
+        gate.read_at(2_050, FieldState::Clear, Moved::Another);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_125, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
+        assert_eq!(rule(&gate, &letter, 2_130), Some(Rule::ElementNotTheSame));
+    }
+
+    #[test]
+    fn a_key_at_a_gate_that_reads_unknown_is_withheld_at_once_and_asks_for_no_read() {
+        let gate = PasswordGate::new();
+        gate.started_at(1_000);
+        gate.read_at(1_005, FieldState::Unknown, Moved::NotCompared);
+        for at in [2_000, 2_300, 2_600] {
+            let withheld = key(&gate, at);
+            assert_eq!(
+                reading(&gate, &withheld, at + 1),
+                Some(Err(Withheld::Unknown))
+            );
+            assert_eq!(rule(&gate, &withheld, at + 1), Some(Rule::StateAtTheKey));
+        }
+        assert_eq!(gate.shared.lock().read_due, None);
+        let open = plain();
+        let waiting = key(&open, 2_000);
+        assert_eq!(reading(&open, &waiting, 2_001), None);
+        assert_eq!(open.shared.lock().read_due, Some(2_000 + HOLD));
+    }
+
+    #[test]
     fn a_key_before_the_read_that_closes_a_latch_behind_it_is_never_cleared() {
         for click in [false, true] {
             let gate = plain();
