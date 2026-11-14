@@ -140,19 +140,16 @@ struct Reading<'a, P, C> {
     ports: &'a P,
     board: &'a mut Board<C>,
     i: usize,
-    off_before: bool,
     made: bool,
     stopped: bool,
 }
 
 impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
     fn new(ports: &'a P, board: &'a mut Board<C>, i: usize) -> Reading<'a, P, C> {
-        let off_before = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
         Reading {
             ports,
             board,
             i,
-            off_before,
             made: false,
             stopped: false,
         }
@@ -165,7 +162,7 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
         l.take(&facts.events);
         let agent = facts.agent.clone();
         let off = schedule::holds(facts).contains(&schedule::Hold::Off);
-        self.stopped = !self.off_before && off && live_unstopped_run(self.board, &agent).is_some();
+        self.stopped = off && live_unstopped_run(self.board, &agent).is_some();
         match (read, self.stopped) {
             (Err(_), _) => items::Read::Failed,
             (Ok(()), true) => items::Read::Off,

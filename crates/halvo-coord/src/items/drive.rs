@@ -586,8 +586,8 @@ pub enum Read {
     Failed,
     /// The ledger took the events.
     Taken,
-    /// The ledger took the events, which show the agent's hold `off` standing beside its live
-    /// run where the coordinator did not know it: the run's stop comes first.
+    /// The ledger took the events, which show the agent's hold `off` standing beside a live run
+    /// of it that no stop has reached: the run's stop comes first.
     Off,
 }
 
