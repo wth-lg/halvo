@@ -9508,7 +9508,11 @@ fn an_open_beside_a_create_pending_of_another_root_destroys_that_root_and_keeps_
     assert!(!seen.pending_left, "create.pending stayed after the open");
 }
 
-#[cfg(unix)]
+/// The cleanup of a stopped create fails on a root file that no open reaches
+/// and whose mode the step cannot change: the user's immutable flag. A root
+/// file of mode 000 no longer makes it fail, because the step sets the mode
+/// to 0600 by its name before the open (ruling ST-45 H2).
+#[cfg(target_os = "macos")]
 #[test]
 fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it() {
     use std::os::unix::fs::PermissionsExt;
@@ -9530,15 +9534,22 @@ fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_cle
         &pending_root_file,
     )
     .unwrap();
+    let immutable = |on: bool| {
+        use std::os::unix::ffi::OsStrExt;
+        let c = std::ffi::CString::new(pending_root_file.as_os_str().as_bytes()).unwrap();
+        let flags = if on { libc::UF_IMMUTABLE } else { 0 };
+        // SAFETY: c is NUL-terminated and outlives the call, which reads only it.
+        assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
+    };
     std::fs::set_permissions(&pending_root_file, std::fs::Permissions::from_mode(0o000)).unwrap();
-    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    immutable(true);
     let opened = EncryptedStore::open_with(
         &store_dir,
         &roots_dir,
         DEFAULT_RETENTION,
         |_: &crate::custody::CustodyLocator| default_file_root_custody(&roots_dir, root_id),
     );
-    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    immutable(false);
     std::fs::set_permissions(&pending_root_file, std::fs::Permissions::from_mode(0o600)).unwrap();
     let mut store = opened.unwrap();
     let flag = store.pending_left();
