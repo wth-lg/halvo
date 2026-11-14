@@ -21,8 +21,12 @@ use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
 
-/// The most events that the owner holds while its drain fails: the 2,048
-/// slots of the sink and one batch.
+/// The slots of the sink's queue that the owner drains.
+pub const QUEUE_SLOTS: usize = 2_048;
+
+/// The most events that the owner holds while its drain fails. It is a count
+/// of its own and does not follow [`QUEUE_SLOTS`]; the spill is also bounded
+/// in bytes by [`HELD_MAX_BYTES`].
 pub const HELD_MAX_EVENTS: usize = 2_560;
 
 /// The most record bytes, with their line ends, that the owner holds while its
@@ -77,6 +81,17 @@ pub enum DrainCause {
     Db,
 }
 
+impl DrainCause {
+    /// The token of the status text and of the loss line.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            DrainCause::NoSpace => "no_space",
+            DrainCause::Io => "io",
+            DrainCause::Db => "db",
+        }
+    }
+}
+
 /// What the owner reports as it runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Report {
@@ -87,10 +102,15 @@ pub enum Report {
         since: SystemTime,
     },
     DrainHealthy,
-    /// A batch was refused, or failed the same way too often, and was dropped
-    /// with its events counted as lost.
+    /// A batch was refused or sealed, or failed the same way at three due
+    /// tries, and was dropped with its events counted as lost: their count,
+    /// the first and the last capture instant in signed unix nanoseconds, and
+    /// the fault of the last try.
     BatchRejected {
         events: u64,
+        first_capture: i64,
+        last_capture: i64,
+        fault: WriteFault,
     },
     MaintenanceFailing {
         fault: MaintFault,
@@ -134,6 +154,12 @@ impl Pending {
     /// The answer if the owner has given it.
     pub fn try_answer(&self) -> Option<Answer> {
         self.answer.try_recv().ok()
+    }
+
+    /// Waits for the answer at most `bound`; `None` when none came in it or
+    /// the owner is gone.
+    pub fn wait_for(&self, bound: Duration) -> Option<Answer> {
+        self.answer.recv_timeout(bound).ok()
     }
 }
 
@@ -282,13 +308,56 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         self.counters.tallies().clone()
     }
 
+    /// Appends a run-mark record to the batch that the owner fills, numbered
+    /// by the receiver at the append and placed by its `at` (contracts.md C18
+    /// item 8). False, with no number taken and no counter changed, while the
+    /// owner discards, and while the drain fails when the mark at the largest
+    /// record's length would pass either bound of what the owner holds.
+    #[cfg(feature = "r2")]
+    pub(crate) fn append_run_mark(&mut self, mark: crate::floor::record::RunMark) -> bool {
+        if self.gate.is_discarding() {
+            return false;
+        }
+        if self.frozen || !self.spill.is_empty() {
+            let events = self.batch.events() + self.spill.len() + 1;
+            let bytes = self.batch.record_bytes()
+                + self.spill_bytes
+                + crate::floor::record::LARGEST_RECORD_BYTES
+                + 1;
+            if events > HELD_MAX_EVENTS || bytes > HELD_MAX_BYTES {
+                return false;
+            }
+        }
+        let encoded = mark.encode(self.writer.number_next());
+        let Ok(decoded) = record::decode(encoded.as_str()) else {
+            return false;
+        };
+        self.counters.received(EntryKind::RUN_MARK);
+        self.hold(
+            EntryKind::RUN_MARK,
+            decoded.at(),
+            encoded.as_str().as_bytes(),
+        );
+        true
+    }
+
     /// One loop pass: the waiting commands, then at most one event received
     /// within `wait`, then the due work. Returns false once the owner has
     /// answered [`Command::Shutdown`].
     pub fn pass(&mut self, wait: Duration) -> bool {
+        self.receive_in_pass(wait);
+        self.finish_pass()
+    }
+
+    fn receive_in_pass(&mut self, wait: Duration) {
         self.handle_commands();
         if !self.stopping {
             self.inbox = self.receive(wait);
+        }
+    }
+
+    fn finish_pass(&mut self) -> bool {
+        if !self.stopping {
             self.handle_commands();
             if let Some(received) = self.inbox.take() {
                 self.take(received);
@@ -297,6 +366,8 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         if !self.stopping {
             let now = self.clocks.now();
             self.due_work(now);
+            #[cfg(feature = "r2")]
+            super::r2::owner_pass(self);
         }
         self.publish();
         !self.stopping
@@ -438,7 +509,8 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 
     fn take(&mut self, received: Received) {
-        self.counters.received(received.event().modality);
+        self.counters
+            .received(EntryKind::of(received.event().modality));
         if !self.gate.keeps(&received) {
             self.counters.discarded(DiscardReason::Barrier);
             return;
@@ -455,10 +527,11 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             return;
         }
         let Ok(encoded) = record::encode(&received, &self.filters) else {
-            self.counters.lost(1);
+            let at = received.event().at();
+            self.counters.lost(1, at, at);
             return;
         };
-        let kind = EntryKind::Kind(received.event().kind());
+        let kind = EntryKind::of(received.event().kind());
         self.hold(kind, received.event().at(), encoded.as_str().as_bytes());
     }
 
@@ -474,7 +547,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         let day = utc_day(at);
         match self.batch.admits(day, record.len()) {
             Admit::Fits => self.batch.push(kind, at, record, now.monotonic),
-            Admit::TooLarge => self.counters.lost(1),
+            Admit::TooLarge => self.counters.lost(1, at, at),
             Admit::FlushFirst => {
                 self.flush(now);
                 if self.frozen {
@@ -490,7 +563,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         let events = self.batch.events() + self.spill.len() + 1;
         let bytes = self.batch.record_bytes() + self.spill_bytes + record.len() + 1;
         if events > HELD_MAX_EVENTS || bytes > HELD_MAX_BYTES {
-            self.counters.lost(1);
+            self.counters.lost(1, at, at);
             return;
         }
         let mut copy = SpilledRecord(Vec::with_capacity(record.len()));
@@ -541,7 +614,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 Admit::TooLarge => {
                     if let Some(next) = self.spill.pop_front() {
                         self.spill_bytes -= next.record.len() + 1;
-                        self.counters.lost(1);
+                        self.counters.lost(1, next.at, next.at);
                     }
                 }
             }
@@ -580,7 +653,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 self.acknowledged(0, now);
                 self.read_usage();
             }
-            Err(WriteFault::Refused) => self.reject(now),
+            Err(fault @ (WriteFault::Refused | WriteFault::Sealed)) => self.reject(fault, now),
             Err(fault) => self.fail(fault, now),
         }
     }
@@ -592,10 +665,16 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         self.release(now);
     }
 
-    fn reject(&mut self, now: Instants) {
+    fn reject(&mut self, fault: WriteFault, now: Instants) {
         let events = self.batch.events() as u64;
-        self.counters.lost(events);
-        self.report(Report::BatchRejected { events });
+        let (first_capture, last_capture) = self.batch.captures();
+        self.counters.lost(events, first_capture, last_capture);
+        self.report(Report::BatchRejected {
+            events,
+            first_capture,
+            last_capture,
+            fault,
+        });
         self.release(now);
     }
 
@@ -612,33 +691,49 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     fn fail(&mut self, fault: WriteFault, now: Instants) {
         self.frozen = true;
         let counted = !matches!(fault, WriteFault::Io(_)) && !fault.is_no_space();
-        let same = match &self.drain {
-            Drain::Failing {
-                same: Some((last, count)),
-                ..
-            } if counted && *last == fault => Some((fault, count + 1)),
-            _ if counted => Some((fault, 1)),
-            _ => None,
-        };
-        if same.is_some_and(|(_, count)| count >= REJECT_AFTER_SAME_FAULTS) {
-            self.reject(now);
-            return;
-        }
         let cause = cause_of(fault);
-        let (delay, since, changed) = match self.drain {
+        let (retry_at, delay, same, since, changed) = match self.drain {
+            Drain::Healthy => (
+                now.monotonic + RETRY_FIRST,
+                RETRY_FIRST,
+                counted.then_some((fault, 1)),
+                now.wall,
+                true,
+            ),
             Drain::Failing {
+                retry_at,
                 delay,
+                same,
                 cause: before,
                 since,
-                ..
-            } => ((delay * 2).min(RETRY_MAX), since, before != cause),
-            Drain::Healthy => (RETRY_FIRST, now.wall, true),
+            } if now.monotonic >= retry_at => {
+                let same = match same {
+                    Some((last, count)) if counted && last == fault => Some((fault, count + 1)),
+                    _ => counted.then_some((fault, 1)),
+                };
+                let delay = (delay * 2).min(RETRY_MAX);
+                (now.monotonic + delay, delay, same, since, before != cause)
+            }
+            Drain::Failing {
+                retry_at,
+                delay,
+                same,
+                cause: before,
+                since,
+            } => {
+                let same = same.filter(|(last, _)| *last == fault);
+                (retry_at, delay, same, since, before != cause)
+            }
         };
+        if same.is_some_and(|(_, count)| count >= REJECT_AFTER_SAME_FAULTS) {
+            self.reject(fault, now);
+            return;
+        }
         if changed {
             self.report(Report::DrainFailing { cause, since });
         }
         self.drain = Drain::Failing {
-            retry_at: now.monotonic + delay,
+            retry_at,
             delay,
             same,
             cause,
@@ -1079,9 +1174,10 @@ mod tests {
         let snapshot = harness.owner.snapshot();
         assert_eq!(snapshot.events_lost, 5);
         assert_eq!(snapshot.events_pending, 0);
-        assert!(harness
-            .reports()
-            .contains(&Report::BatchRejected { events: 5 }));
+        assert!(harness.reports().iter().any(|report| matches!(
+            report,
+            Report::BatchRejected { events: 5, fault, .. } if *fault == db
+        )));
         harness.emit(foreground_now());
         let after = settled(&mut harness);
         assert_eq!(
@@ -1215,6 +1311,14 @@ mod tests {
         assert_eq!(recovered.events_pending, 0);
         assert_eq!(HELD_MAX_EVENTS, 2_560);
         assert_eq!(HELD_MAX_BYTES, 2_097_152);
+    }
+
+    #[test]
+    fn the_held_count_stays_2560_whatever_the_depth_of_the_queue() {
+        assert_eq!(
+            HELD_MAX_EVENTS, 2_560,
+            "the held count follows the queue's {QUEUE_SLOTS} slots"
+        );
     }
 
     #[test]
@@ -1965,5 +2069,440 @@ mod tests {
                 assert_eq!(snapshot.events_persisted, 3);
             }
         }
+    }
+
+    fn rejected(harness: &Harness) -> Vec<Report> {
+        harness
+            .reports()
+            .into_iter()
+            .filter(|report| matches!(report, Report::BatchRejected { .. }))
+            .collect()
+    }
+
+    #[test]
+    fn one_fault_and_two_settles_with_the_clock_still_drop_nothing() {
+        let db = WriteFault::Db(11);
+        let mut harness = Harness::new();
+        harness.store.script_writes([
+            WriteScript::Fail(db),
+            WriteScript::Fail(db),
+            WriteScript::Fail(db),
+        ]);
+        resumed(&mut harness);
+        for _ in 0..5 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        settled(&mut harness);
+        let snapshot = settled(&mut harness);
+        assert_eq!(snapshot.events_lost, 0, "an early try counted");
+        assert_eq!(snapshot.events_pending, 5);
+        assert!(rejected(&harness).is_empty());
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let after = settled(&mut harness);
+        assert_eq!(after.events_persisted, 5);
+        assert_eq!(after.events_lost, 0);
+        assert!(after.is_conserved());
+    }
+
+    #[test]
+    fn a_fault_that_does_not_end_drops_the_batch_at_its_third_due_try() {
+        let db = WriteFault::Db(11);
+        let mut harness = Harness::new();
+        harness.store.fail_every_write(Some(db));
+        resumed(&mut harness);
+        for _ in 0..5 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        settled(&mut harness);
+        assert_eq!(
+            harness.owner.snapshot().events_lost,
+            0,
+            "dropped before the third due try"
+        );
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.owner.snapshot().events_lost, 5);
+        assert_eq!(rejected(&harness).len(), 1);
+    }
+
+    #[test]
+    fn another_fault_at_an_early_try_ends_the_run_of_identical_failures() {
+        let db = WriteFault::Db(11);
+        let mut harness = Harness::new();
+        harness.store.script_writes([
+            WriteScript::Fail(db),
+            WriteScript::Fail(WriteFault::Db(5)),
+            WriteScript::Fail(db),
+            WriteScript::Fail(db),
+        ]);
+        resumed(&mut harness);
+        for _ in 0..5 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            snapshot.events_lost, 0,
+            "the run of identical failures went on"
+        );
+        assert_eq!(snapshot.events_pending, 5);
+        assert!(rejected(&harness).is_empty());
+    }
+
+    #[test]
+    fn settles_during_an_io_fault_leave_the_next_due_try_where_it_was() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        resumed(&mut harness);
+        for _ in 0..5 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        for _ in 0..3 {
+            settled(&mut harness);
+        }
+        harness.store.fail_every_write(None);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        assert_eq!(
+            harness.owner.snapshot().events_persisted,
+            5,
+            "the next due try moved past 1 s"
+        );
+    }
+
+    #[test]
+    fn a_sealed_batch_is_given_up_at_its_first_answer() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .script_writes([WriteScript::Fail(WriteFault::Sealed)]);
+        resumed(&mut harness);
+        for _ in 0..4 {
+            harness.emit(foreground_now());
+        }
+        let snapshot = settled(&mut harness);
+        assert_eq!(snapshot.events_lost, 4);
+        assert_eq!(snapshot.events_pending, 0);
+        assert_eq!(harness.store.write_calls().len(), 1);
+        assert!(matches!(
+            rejected(&harness)[..],
+            [Report::BatchRejected {
+                events: 4,
+                fault: WriteFault::Sealed,
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn a_drop_then_a_good_write_clears_the_count_since_the_last_acknowledged_write() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .script_writes([WriteScript::Fail(WriteFault::Refused)]);
+        resumed(&mut harness);
+        for _ in 0..3 {
+            harness.emit(foreground_now());
+        }
+        let dropped = settled(&mut harness);
+        assert_eq!(dropped.events_lost, 3);
+        assert_eq!(
+            dropped.lost_since_acknowledged, 3,
+            "the count was cleared at the drop"
+        );
+        harness.emit(foreground_now());
+        harness.emit(foreground_now());
+        let written = settled(&mut harness);
+        assert_eq!(written.events_persisted, 2);
+        assert_eq!(written.events_lost, 3);
+        assert_eq!(written.lost_since_acknowledged, 0);
+    }
+
+    #[test]
+    fn a_store_that_takes_nothing_keeps_the_count_between_two_drops() {
+        let mut harness = Harness::new();
+        harness.store.fail_every_write(Some(WriteFault::Refused));
+        resumed(&mut harness);
+        for _ in 0..3 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness.passes(3);
+        assert_eq!(harness.owner.snapshot().lost_since_acknowledged, 3);
+        harness.emit(foreground_now());
+        harness.emit(foreground_now());
+        let second = settled(&mut harness);
+        assert_eq!(second.lost_since_acknowledged, 5);
+        assert_eq!(rejected(&harness).len(), 2);
+    }
+
+    #[test]
+    fn a_dropped_batch_reports_its_instants_and_fault_and_the_snapshot_keeps_them() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .script_writes([WriteScript::Fail(WriteFault::Refused)]);
+        resumed(&mut harness);
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(3)));
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(1)));
+        let snapshot = settled(&mut harness);
+        let [Report::BatchRejected {
+            events,
+            first_capture,
+            last_capture,
+            fault,
+        }] = rejected(&harness)[..]
+        else {
+            panic!("no one BatchRejected");
+        };
+        assert_eq!((events, fault), (2, WriteFault::Refused));
+        assert!(first_capture <= last_capture);
+        assert_eq!(snapshot.lost_first_at, Some(first_capture));
+        assert_eq!(snapshot.lost_last_at, Some(last_capture));
+        harness
+            .store
+            .script_writes([WriteScript::Fail(WriteFault::Refused)]);
+        harness.emit(foreground_now());
+        let later = settled(&mut harness);
+        assert_eq!(later.lost_first_at, Some(first_capture));
+        assert!(later.lost_last_at >= Some(last_capture));
+    }
+
+    #[test]
+    fn an_event_in_the_hands_of_a_pass_at_open_pause_is_not_stored_and_is_discarded_by_the_barrier()
+    {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        harness.emit(foreground_now());
+        harness.owner.receive_in_pass(Duration::ZERO);
+        let pending = harness.handle.ask(Command::OpenPause).unwrap();
+        assert!(harness.owner.finish_pass());
+        assert!(matches!(pending.try_answer(), Some(Answer::Paused(_))));
+        let snapshot = settled(&mut harness);
+        assert_eq!(snapshot.discarded_by_barrier, 1);
+        assert_eq!(snapshot.events_lost, 0);
+        assert_eq!(snapshot.events_persisted, 0);
+        assert!(harness.store.batches().is_empty());
+        assert!(snapshot.is_conserved());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn two_million_floor_records_grow_the_owner_by_at_most_the_bound() {
+        const NAME: &str =
+            "daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound";
+        const CHILD: &str = "HALVO_DAEMON_GROWTH_CHILD";
+        const RECORDS: u64 = 2_000_000;
+        const OWNER_GROWTH_MAX_BYTES: u64 = 8_388_608;
+        if std::env::var_os(CHILD).is_some() {
+            let (sink, writer) = sink::channel(QUEUE_SLOTS);
+            let thread = spawn(OwnerParts {
+                writer,
+                store: crate::daemon::discard_port::DiscardPort::new(std::env::temp_dir()),
+                clocks: crate::daemon::maintenance::SystemClocks::new(),
+                floor: open_floor(),
+                cap: StorageCap::DEFAULT,
+                shred_chunk: SHRED_CHUNK,
+            })
+            .unwrap();
+            assert!(matches!(
+                thread.handle.call(Command::ClosePause),
+                Ok(Answer::Resumed(_))
+            ));
+            let ready = crate::daemon::signal::peak_rss_bytes().unwrap();
+            let started = std::time::Instant::now();
+            for _ in 0..RECORDS {
+                assert_eq!(
+                    sink.emit_event(title_of(
+                        crate::floor::text::TEXT_MAX_BYTES,
+                        crate::floor::text::TEXT_MAX_BYTES
+                    )),
+                    sink::Emitted::Queued
+                );
+            }
+            let Ok(Answer::Settled(settled)) = thread.handle.call(Command::Settle) else {
+                panic!("the owner did not settle");
+            };
+            let peak = crate::daemon::signal::peak_rss_bytes().unwrap();
+            assert_eq!(settled.events_persisted, RECORDS);
+            println!(
+                "owner_growth_bytes={} records={RECORDS} elapsed_ms={}",
+                peak.saturating_sub(ready),
+                started.elapsed().as_millis()
+            );
+            let _ = thread.handle.call(Command::Shutdown);
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "the child failed: {text}");
+        let line = text
+            .lines()
+            .find_map(|line| line.find("owner_growth_bytes=").map(|at| &line[at..]))
+            .expect("the child printed no growth line");
+        println!("{line}");
+        let growth: u64 = line["owner_growth_bytes=".len()..]
+            .split(' ')
+            .next()
+            .and_then(|n| n.parse().ok())
+            .expect("the growth is no number");
+        assert!(
+            growth <= OWNER_GROWTH_MAX_BYTES,
+            "the owner grew by {growth} bytes, above {OWNER_GROWTH_MAX_BYTES}"
+        );
+    }
+
+    #[cfg(all(test, feature = "r2"))]
+    fn run_mark(at: SystemTime, p: &str) -> crate::floor::record::RunMark {
+        crate::floor::record::RunMark::new(at, serde_json::from_str(p).unwrap()).unwrap()
+    }
+
+    #[cfg(all(test, feature = "r2"))]
+    #[test]
+    fn a_run_mark_record_pushed_through_the_entry_is_stored_and_counted_under_its_kind() {
+        use crate::floor::record::DecodedPayload;
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        let before = harness.owner.snapshot();
+        let at = noon() - Duration::from_secs(13 * 3600);
+        assert!(harness
+            .owner
+            .append_run_mark(run_mark(at, r#"{"phase":"start"}"#)));
+        let after = settled(&mut harness);
+        assert_eq!(after.events_received(), before.events_received() + 1);
+        assert_eq!(after.events_persisted, before.events_persisted + 1);
+        assert_eq!(
+            harness.owner.counters.received_under(EntryKind::RUN_MARK),
+            1
+        );
+        let batches = harness.store.batches();
+        let [batch] = &batches[..] else {
+            panic!("{} batches", batches.len());
+        };
+        let records = batch.records();
+        let [record] = &records[..] else {
+            panic!("{} records", records.len());
+        };
+        assert_eq!(record.kind(), "run_mark");
+        let DecodedPayload::RunMark(p) = record.payload() else {
+            panic!("no run-mark payload");
+        };
+        assert_eq!(p.get("phase").and_then(|v| v.as_str()), Some("start"));
+        assert_eq!(batch.entries.len(), 1);
+        assert_eq!(batch.entries[0].kind.as_str(), "run_mark");
+        assert_eq!(batch.entries[0].events, 1);
+        assert_eq!(batch.day, utc_day(record.at()));
+        assert_eq!(
+            (batch.first_capture, batch.last_capture),
+            (record.at(), record.at())
+        );
+        assert_ne!(batch.day, utc_day(crate::event::unix_nanos(noon())));
+
+        harness.emit(foreground(&AT_NOON, Duration::ZERO));
+        harness.pass();
+        assert!(harness.owner.append_run_mark(run_mark(noon(), "{}")));
+        harness.emit(foreground(&AT_NOON, Duration::ZERO));
+        harness.pass();
+        settled(&mut harness);
+        let batches = harness.store.batches();
+        let numbers: Vec<u64> = batches[1].records().iter().map(|r| r.seq()).collect();
+        let kinds: Vec<&str> = batches[1].records().iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, ["foreground_app", "run_mark", "foreground_app"]);
+        assert_eq!(numbers, [numbers[0], numbers[0] + 1, numbers[0] + 2]);
+    }
+
+    #[cfg(all(test, feature = "r2"))]
+    #[test]
+    fn the_entry_refuses_a_run_mark_record_while_the_owner_discards() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        harness.emit(foreground_now());
+        harness.pass();
+        assert!(matches!(harness.ask(Command::OpenPause), Answer::Paused(_)));
+        let before = harness.owner.snapshot();
+        assert!(!harness.owner.append_run_mark(run_mark(noon(), "{}")));
+        assert!(!harness.owner.append_run_mark(run_mark(noon(), "{}")));
+        assert_eq!(
+            harness.owner.snapshot(),
+            before,
+            "a refused offer changed a counter"
+        );
+        resumed(&mut harness);
+        harness.emit(foreground_now());
+        let snapshot = settled(&mut harness);
+        let numbers: Vec<u64> = harness.store.records().iter().map(|r| r.seq()).collect();
+        assert_eq!(numbers.len(), 2);
+        assert_eq!(numbers[1], numbers[0] + 1, "a refused mark took a number");
+        assert!(snapshot.is_conserved());
+    }
+
+    #[cfg(all(test, feature = "r2"))]
+    #[test]
+    fn the_entry_refuses_a_run_mark_record_past_the_bound_of_a_failing_drain() {
+        let mut harness = Harness::new();
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        resumed(&mut harness);
+        harness.emit(foreground_now());
+        harness.pass();
+        settled(&mut harness);
+        let within = harness.owner.snapshot();
+        assert!(harness.owner.append_run_mark(run_mark(noon(), "{}")));
+        let held = harness.owner.snapshot();
+        assert_eq!(held.events_received(), within.events_received() + 1);
+        assert_eq!(held.events_pending, within.events_pending + 1);
+        while (harness.owner.snapshot().events_pending as usize) < HELD_MAX_EVENTS {
+            harness.emit(foreground_now());
+            harness.pass();
+        }
+        let full = harness.owner.snapshot();
+        assert!(!harness.owner.append_run_mark(run_mark(noon(), "{}")));
+        assert_eq!(
+            harness.owner.snapshot(),
+            full,
+            "a refused offer changed a counter"
+        );
+        harness.store.fail_every_write(None);
+        harness.clocks.advance(RETRY_MAX);
+        let after = settled(&mut harness);
+        assert!(after.is_conserved());
+        let marks = harness
+            .store
+            .records()
+            .iter()
+            .filter(|record| record.kind() == "run_mark")
+            .count();
+        assert_eq!(marks, 1);
+    }
+
+    #[test]
+    fn a_pass_answers_the_waiting_commands_before_it_waits_for_an_event() {
+        let mut harness = Harness::new();
+        let pending = harness.handle.ask(Command::ClosePause).unwrap();
+        harness.owner.receive_in_pass(Duration::ZERO);
+        assert!(
+            matches!(pending.try_answer(), Some(Answer::Resumed(_))),
+            "the command waited for the receive"
+        );
+        assert!(harness.owner.finish_pass());
     }
 }

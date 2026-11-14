@@ -1,4 +1,5 @@
-//! Proof lines of the floor's boundaries and of the daemon's port, built only by
+//! Proof lines of the floor's boundaries, of the daemon's port and of the
+//! store's boundary, built only by
 //! scripts/r1/ci.d/30-core-boundary-proofs.sh. Each proof sits under its own
 //! `halvo_proof` cfg and must fail to build with the error code that the script
 //! names; its twin, under the same name with `_twin`, must build. This module is
@@ -309,7 +310,7 @@ fn segment_write_filled_outside_the_daemon_twin(
 #[cfg(halvo_proof = "batch_filled_outside_the_daemon")]
 fn batch_filled_outside_the_daemon(batch: &mut crate::daemon::batch::Batch) {
     batch.push(
-        crate::daemon::port::EntryKind::Kind(crate::event::Modality::Keystroke),
+        crate::daemon::port::EntryKind::of(crate::event::Modality::Keystroke),
         0,
         b"{}",
         std::time::Duration::ZERO,
@@ -319,6 +320,140 @@ fn batch_filled_outside_the_daemon(batch: &mut crate::daemon::batch::Batch) {
 #[cfg(halvo_proof = "batch_filled_outside_the_daemon_twin")]
 fn batch_filled_outside_the_daemon_twin(batch: &crate::daemon::batch::Batch) -> usize {
     batch.events()
+}
+
+#[cfg(halvo_proof = "store_database_named_by_its_path")]
+fn store_database_named_by_its_path() -> &'static str {
+    std::any::type_name::<crate::store::db::Db>()
+}
+
+#[cfg(halvo_proof = "store_database_named_by_its_path_twin")]
+fn store_database_named_by_its_path_twin() -> &'static str {
+    std::any::type_name::<crate::store::ShredReport>()
+}
+
+#[cfg(halvo_proof = "store_key_file_named_by_its_path")]
+fn store_key_file_named_by_its_path() -> &'static str {
+    std::any::type_name::<crate::store::db::KeyFile>()
+}
+
+#[cfg(halvo_proof = "store_key_file_named_by_its_path_twin")]
+fn store_key_file_named_by_its_path_twin() -> &'static str {
+    std::any::type_name::<crate::store::db::EncryptedStore>()
+}
+
+#[cfg(halvo_proof = "store_segment_files_named_by_their_module")]
+mod store_segment_files_named_by_their_module {
+    pub(crate) use crate::store::segment as files;
+}
+
+#[cfg(halvo_proof = "store_segment_files_named_by_their_module_twin")]
+mod store_segment_files_named_by_their_module_twin {
+    pub(crate) use crate::store::db as files;
+}
+
+#[cfg(halvo_proof = "store_database_named_after_a_glob_of_the_crate_root")]
+#[rustfmt::skip]
+mod store_database_named_after_a_glob_of_the_crate_root {
+    use super::super::super::*;
+    use self::store as backing;
+
+    fn name() -> &'static str {
+        std::any::type_name::<backing::db::Db>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_after_a_glob_of_the_crate_root_twin")]
+#[rustfmt::skip]
+mod store_database_named_after_a_glob_of_the_crate_root_twin {
+    use super::super::super::*;
+    use self::store as backing;
+
+    fn name() -> &'static str {
+        std::any::type_name::<backing::ShredReport>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_through_a_glob_of_the_store")]
+#[rustfmt::skip]
+mod store_database_named_through_a_glob_of_the_store {
+    use crate::{{*}};
+    use self::store::*;
+
+    fn name() -> &'static str {
+        std::any::type_name::<db::Db>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_through_a_glob_of_the_store_twin")]
+#[rustfmt::skip]
+mod store_database_named_through_a_glob_of_the_store_twin {
+    use crate::{{*}};
+    use self::store::*;
+
+    fn name() -> &'static str {
+        std::any::type_name::<ShredReport>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_by_a_macro_of_path_segments")]
+mod store_database_named_by_a_macro_of_path_segments {
+    macro_rules! joined {
+        ($($seg:tt),+) => { $($seg)::+ };
+    }
+
+    type Handle = joined!(crate, store, db, Db);
+
+    fn name() -> &'static str {
+        std::any::type_name::<Handle>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_by_a_macro_of_path_segments_twin")]
+mod store_database_named_by_a_macro_of_path_segments_twin {
+    macro_rules! joined {
+        ($($seg:tt),+) => { $($seg)::+ };
+    }
+
+    type Handle = joined!(crate, store, ShredReport);
+
+    fn name() -> &'static str {
+        std::any::type_name::<Handle>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_by_an_alias_in_a_brace_list")]
+#[rustfmt::skip]
+mod store_database_named_by_an_alias_in_a_brace_list {
+    use crate::/* x */*;
+    use {sink, store as backing};
+
+    fn name() -> &'static str {
+        let _ = sink::channel;
+        std::any::type_name::<backing::db::Db>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_named_by_an_alias_in_a_brace_list_twin")]
+#[rustfmt::skip]
+mod store_database_named_by_an_alias_in_a_brace_list_twin {
+    use crate::/* x */*;
+    use {sink, store as backing};
+
+    fn name() -> &'static str {
+        let _ = sink::channel;
+        std::any::type_name::<backing::ShredReport>()
+    }
+}
+
+#[cfg(halvo_proof = "store_database_re_exported_under_a_new_name")]
+mod store_database_re_exported_under_a_new_name {
+    pub(crate) use crate::store::db::Db as Backing;
+}
+
+#[cfg(halvo_proof = "store_database_re_exported_under_a_new_name_twin")]
+mod store_database_re_exported_under_a_new_name_twin {
+    pub(crate) use crate::store::ShredReport as Backing;
 }
 
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build")]
