@@ -10,7 +10,7 @@ use crate::agent;
 use crate::facts::{slot_values, RunFacts, Served};
 use crate::handlers::{LearnHandlers, Refused};
 use crate::host::LearnHost;
-use crate::rows::Edits;
+use crate::rows::{self, Edits, Read};
 
 /// The step with its target's description and locators replaced: the learned list, then the step's own locators
 /// that the list does not hold. None for a step with no web target.
@@ -85,14 +85,14 @@ impl LearnHandlers {
         let RunnerReply::Load(loaded) = &reply else {
             return Ok(reply);
         };
-        let Some(mode) = self
+        let Some(start) = self
             .starts
             .get(&b.run)
             .filter(|start| start.agent == b.agent)
-            .map(|start| start.mode)
         else {
             return Ok(reply);
         };
+        let mode = start.mode;
         match self.facts.get_mut(&b.run) {
             Some(facts) => {
                 for value in slot_values(loaded, mode) {
@@ -102,8 +102,11 @@ impl LearnHandlers {
                 }
             }
             None => {
-                let facts = RunFacts::new(&b.agent, loaded, mode);
-                self.facts.insert(b.run.clone(), facts);
+                let readable = matches!(rows::runs(host.rows(), &start.workflow), Read::Rows(_));
+                if start.row && readable {
+                    let facts = RunFacts::new(&b.agent, loaded, mode);
+                    self.facts.insert(b.run.clone(), facts);
+                }
             }
         }
         Ok(reply)
@@ -119,21 +122,29 @@ impl LearnHandlers {
         let RunnerReply::Steps(StepsReply { mut steps }) = reply else {
             return Ok(reply);
         };
-        let seen = self
+        let Some(workflow) = self
             .facts
             .get(&b.run)
-            .is_some_and(|f| f.agent == b.agent && f.loaded == Some(b.number));
-        if !seen {
+            .filter(|f| f.agent == b.agent && f.loaded == Some(b.number))
+            .map(|f| f.workflow.clone())
+        else {
+            return Ok(RunnerReply::Steps(StepsReply { steps }));
+        };
+        if let Read::Stopped = rows::runs(host.rows(), &workflow) {
+            self.facts.remove(&b.run);
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         }
         let newest = self.newest_of(host, &b.agent, &b.run)?;
-        let edits = Edits::read(host.rows())?;
+        let edits = match Edits::read(host.rows(), &workflow) {
+            Read::Rows(edits) if newest == Some(b.number) => Some(edits),
+            _ => None,
+        };
         let Some(facts) = self.facts.get_mut(&b.run) else {
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         };
         for step in &mut steps {
             let mut carried = None;
-            if newest == Some(b.number) {
+            if let Some(edits) = &edits {
                 if let Some(edit) = edits.in_force(&b.agent, b.number, step.n) {
                     if let Some(laid) = lay(step, edit) {
                         *step = laid;

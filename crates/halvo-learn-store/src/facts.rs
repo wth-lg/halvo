@@ -8,12 +8,16 @@ use halvo_schema::executable::{ExecutableStep, OwnText};
 use halvo_schema::learning::record::EditId;
 use halvo_schema::{AgentId, SeedCategory, WorkflowId};
 
-/// A run whose `learn_run` rev 1 this value stored at its `start_run`: its agent, its mode and the order in which
-/// the value made it, by which the first made goes first at the bound `RUNS_HELD_MAX`.
+/// A run whose `start_run` the agent store accepted while this value answered it: its workflow, its agent, its mode,
+/// whether this value stored its `learn_run` rev 1, and the order in which the value made it, by which the first made
+/// goes first at the bound `RUNS_HELD_MAX`. A `load` makes facts only for a run whose row this value stored; the mode
+/// serves a run whose row could not be stored or read (contracts.md L4.2; the coordinator's ruling LM-58 (a)).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Start {
+    pub(crate) workflow: WorkflowId,
     pub(crate) agent: AgentId,
     pub(crate) mode: Mode,
+    pub(crate) row: bool,
     pub(crate) made: u64,
 }
 

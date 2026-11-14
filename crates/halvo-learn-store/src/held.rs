@@ -1,7 +1,6 @@
 use std::num::NonZeroU32;
 
-use halvo_schema::executable::body::LoadReply;
-use halvo_schema::executable::names::Mode;
+use halvo_schema::executable::body::{LoadReply, StartRun};
 use halvo_schema::executable::RunId;
 use halvo_schema::{AgentId, ErrorName};
 
@@ -16,9 +15,9 @@ pub(crate) fn of_the_store(name: ErrorName) -> bool {
 }
 
 impl LearnHandlers {
-    /// Remembers the start of a run whose `learn_run` rev 1 this value stored; at `RUNS_HELD_MAX` runs held, the
-    /// one made first goes first.
-    pub(crate) fn remember_start(&mut self, run: &RunId, agent: &AgentId, mode: Mode) {
+    /// Remembers the start of a run, and whether this value stored its `learn_run` rev 1; at `RUNS_HELD_MAX` runs
+    /// held, the one made first goes first.
+    pub(crate) fn remember_start(&mut self, b: &StartRun, row: bool) {
         while self.starts.len() >= RUNS_HELD_MAX {
             let Some(first) = self
                 .starts
@@ -32,11 +31,13 @@ impl LearnHandlers {
         }
         self.made += 1;
         let start = Start {
-            agent: agent.clone(),
-            mode,
+            workflow: b.workflow.clone(),
+            agent: b.agent.clone(),
+            mode: b.mode,
+            row,
             made: self.made,
         };
-        self.starts.insert(run.clone(), start);
+        self.starts.insert(b.run.clone(), start);
     }
 
     /// Drops the run's facts and its remembered start; the run then reads as a lost run.

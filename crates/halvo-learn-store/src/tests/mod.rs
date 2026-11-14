@@ -3,6 +3,7 @@ mod coordinator;
 mod edges;
 mod finish;
 mod host;
+mod kinds;
 mod lines;
 mod pass;
 mod pins;

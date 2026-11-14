@@ -8,9 +8,9 @@ use halvo_schema::learning::record::{Day, EditState, LearnRoutine, LearnRun, Run
 use halvo_schema::{ErrorName, Workflow};
 
 use crate::agent;
-use crate::handlers::{CoordinatorAnswer, LearnHandlers, Refused};
+use crate::handlers::{CoordinatorAnswer, Fault, LearnHandlers, Refused};
 use crate::host::LearnHost;
-use crate::rows::{self, Edits};
+use crate::rows::{self, Edits, Read};
 
 pub(crate) fn today(host: &dyn LearnHost) -> Result<Day, ErrorName> {
     Day::new(host.today()).ok_or(ErrorName::Internal)
@@ -47,12 +47,12 @@ impl LearnHandlers {
         match (&call, &reply) {
             (Some(CoordinatorCall::StartRun(b)), CoordinatorReply::Accepted(_)) => {
                 self.sweep(host)?;
-                if started(host, b)? {
-                    self.remember_start(&b.run, &b.agent, b.mode);
-                }
+                let outcome = self.started(host, b);
+                self.leave(outcome);
             }
             (Some(CoordinatorCall::CreateAgent(b)), CoordinatorReply::Rev(_)) => {
-                created(host, b)?;
+                let outcome = created(host, b);
+                self.leave(outcome);
             }
             _ => {}
         }
@@ -73,7 +73,12 @@ impl LearnHandlers {
             });
         };
         let newest = loaded.playbook.map(|p| p.number);
-        let edits = Edits::read(host.rows())?;
+        let Read::Rows(edits) = Edits::read(host.rows(), &read.workflow) else {
+            return Err(ErrorName::Store);
+        };
+        let Read::Rows(routines) = rows::routines(host.rows(), &read.workflow) else {
+            return Err(ErrorName::Store);
+        };
         let mut entries: Vec<(Refinement, String)> = Vec::new();
         for edit in edits.of_agent(&read.agent) {
             if edit.workflow != read.workflow || Some(edit.base) != newest {
@@ -91,7 +96,7 @@ impl LearnHandlers {
             };
             entries.push((entry, edit.edit.as_str().to_owned()));
         }
-        let routine = rows::routines(host.rows())?
+        let routine = routines
             .into_iter()
             .filter(|r| r.workflow == read.workflow && r.agent == read.agent)
             .max_by_key(|r| r.rev);
@@ -120,26 +125,39 @@ impl LearnHandlers {
     }
 }
 
-/// Stores the run's `learn_run` rev 1 and answers whether this call stored it.
-fn started(host: &mut dyn LearnHost, b: &StartRun) -> Result<bool, ErrorName> {
-    let runs = rows::runs(host.rows())?;
-    if rows::newest_run(&runs, b.run.as_str()).is_some() {
-        return Ok(false);
+impl LearnHandlers {
+    /// At a `start_run` that the agent store accepted: stores the run's `learn_run` rev 1 and remembers the start
+    /// (contracts.md L4.3). A run whose row stands already changes nothing. Where the run rows of the workflow cannot
+    /// be read, or the commit is refused, the start is remembered with no row and the run is a lost run.
+    fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
+        let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
+            self.remember_start(b, false);
+            return Ok(());
+        };
+        if rows::newest_run(&runs, b.run.as_str()).is_some() {
+            return Ok(());
+        }
+        let stored = today(host).and_then(|day| {
+            let row = LearnRun {
+                workflow: b.workflow.clone(),
+                agent: b.agent.clone(),
+                run: b.run.clone(),
+                day,
+                mode: b.mode,
+                status: RunStatus::Started,
+            };
+            host.commit(vec![rows::run_record(&row)?])
+        });
+        self.remember_start(b, stored.is_ok());
+        Ok(stored?)
     }
-    let row = LearnRun {
-        workflow: b.workflow.clone(),
-        agent: b.agent.clone(),
-        run: b.run.clone(),
-        day: today(host)?,
-        mode: b.mode,
-        status: RunStatus::Started,
-    };
-    host.commit(vec![rows::run_record(&row)?])?;
-    Ok(true)
 }
 
-fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), ErrorName> {
-    let stored = rows::routines(host.rows())?
+fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
+    let Read::Rows(routines) = rows::routines(host.rows(), &b.workflow) else {
+        return Ok(());
+    };
+    let stored = routines
         .iter()
         .any(|r| r.workflow == b.workflow && r.agent == b.agent);
     if stored {
@@ -165,5 +183,5 @@ fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), ErrorName> {
         mark: Mark::None,
         since: None,
     };
-    host.commit(vec![rows::routine_record(&row)?])
+    Ok(host.commit(vec![rows::routine_record(&row)?])?)
 }

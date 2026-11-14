@@ -77,6 +77,7 @@ pub struct TestHost {
     pub day: u32,
     pub commits: Cell<u32>,
     pub run_workflow: Option<String>,
+    pub refuse: bool,
 }
 
 impl TestHost {
@@ -91,7 +92,13 @@ impl TestHost {
             day: DAY,
             commits: Cell::new(0),
             run_workflow: None,
+            refuse: false,
         }
+    }
+
+    /// Stores a row of the family `learn` as its text, with no check, as a row that its parser may refuse.
+    pub fn put_raw(&mut self, kind: &'static str, text: &str) {
+        self.learn.push((kind, text.to_owned()));
     }
 
     pub fn put_workflow(&mut self, workflow: Workflow) {
@@ -179,6 +186,9 @@ impl LearnHost for TestHost {
 
     fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
         self.commits.set(self.commits.get() + 1);
+        if self.refuse {
+            return Err(ErrorName::Store);
+        }
         for record in &records {
             if !KINDS.iter().any(|k| k.name == record.kind) {
                 return Err(ErrorName::Store);
@@ -287,6 +297,7 @@ pub struct World {
     pub host: TestHost,
     pub handlers: LearnHandlers,
     pub loaded: u32,
+    pub pair: u32,
 }
 
 impl World {
@@ -302,19 +313,19 @@ impl World {
 
     pub fn start(&mut self, r: u32, mode: &str) {
         let reply = self.coordinator(json!({
-            "op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": mode,
+            "op": "start_run", "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "mode": mode,
         }));
         assert!(reply.is_ok(), "start_run of run {r}: {reply:?}");
     }
 
     pub fn load(&mut self, r: u32) -> RunnerReply {
-        self.runner(json!({"op": "load", "agent": agent(1), "run": run(r)}))
+        self.runner(json!({"op": "load", "agent": agent(self.pair), "run": run(r)}))
             .expect("the load is answered")
     }
 
     pub fn load_steps(&mut self, r: u32, number: u32, from: u32) -> Vec<Value> {
         let reply = self
-            .runner(json!({"op": "load_steps", "agent": agent(1), "run": run(r), "number": number, "from": from}))
+            .runner(json!({"op": "load_steps", "agent": agent(self.pair), "run": run(r), "number": number, "from": from}))
             .expect("the load_steps is answered");
         let RunnerReply::Steps(steps) = reply else {
             panic!("a steps reply");
@@ -327,7 +338,7 @@ impl World {
     }
 
     pub fn put(&mut self, r: u32, number: u32, steps: Vec<Value>) -> Result<RunnerReply, Refused> {
-        self.runner(json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": steps}))
+        self.runner(json!({"op": "put_playbook", "agent": agent(self.pair), "run": run(r), "number": number, "steps": steps}))
     }
 
     pub fn log(&mut self, r: u32, lines: &[(u32, &str, u32, Option<&str>)]) {
@@ -335,21 +346,22 @@ impl World {
             .iter()
             .map(|(seq, event, step, cause)| {
                 json!({
-                    "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": seq,
+                    "v": 1, "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "seq": seq,
                     "day": self.host.day, "at": 1_794_500_000_000_000_000_i64, "event": event,
                     "step": step, "cause": cause, "model": null, "ms": null,
                     "tokens_in": null, "tokens_out": null,
                 })
             })
             .collect();
-        let reply =
-            self.runner(json!({"op": "log", "agent": agent(1), "run": run(r), "records": records}));
+        let reply = self.runner(
+            json!({"op": "log", "agent": agent(self.pair), "run": run(r), "records": records}),
+        );
         assert!(reply.is_ok(), "log of run {r}: {reply:?}");
     }
 
     pub fn finish(&mut self, r: u32, mode: &str, outcome: &str) -> Result<RunnerReply, Refused> {
         let record = json!({
-            "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "day": self.host.day,
+            "v": 1, "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "day": self.host.day,
             "mode": mode, "outcome": outcome, "playbook": null, "steps": 3, "prompts": 0,
             "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
             "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
@@ -357,7 +369,9 @@ impl World {
             "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
             "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
         });
-        self.runner(json!({"op": "finish", "agent": agent(1), "run": run(r), "record": record}))
+        self.runner(
+            json!({"op": "finish", "agent": agent(self.pair), "run": run(r), "record": record}),
+        )
     }
 
     pub fn compile(&mut self, r: u32, number: u32, steps: Vec<Value>) {
@@ -409,11 +423,9 @@ pub fn world() -> World {
         host: TestHost::new(),
         handlers: LearnHandlers::new(),
         loaded: 0,
+        pair: 1,
     };
-    w.host
-        .put_workflow(workflow(&wf(1), "utility_bill_payment", "approved", None));
-    let reply = w.coordinator(json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)}));
-    assert!(reply.is_ok(), "create_agent: {reply:?}");
+    w.create(1);
     w
 }
 
@@ -439,15 +451,41 @@ pub fn active_world() -> World {
 pub fn active_world_with(steps: Vec<Value>) -> World {
     let mut w = world();
     w.compile(1, 1, steps);
-    let reply = w.coordinator(json!({
-        "op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active",
-    }));
-    assert!(
-        matches!(
-            reply,
-            Ok(CoordinatorAnswer::Agent(CoordinatorReply::State(_)))
-        ),
-        "set_state: {reply:?}"
-    );
+    w.activate();
     w
+}
+
+impl World {
+    /// Stores workflow `n` and sends the `create_agent` of agent `n` for it.
+    pub fn create(&mut self, n: u32) {
+        self.host
+            .put_workflow(workflow(&wf(n), "utility_bill_payment", "approved", None));
+        let reply =
+            self.coordinator(json!({"op": "create_agent", "workflow": wf(n), "agent": agent(n)}));
+        assert!(reply.is_ok(), "create_agent: {reply:?}");
+    }
+
+    /// Workflow `n` with its agent `n` compiled under number 1 by run 1000 + `n` and active; the pair of the helpers
+    /// stays as it was.
+    pub fn add_pair(&mut self, n: u32) {
+        let pair = self.pair;
+        self.create(n);
+        self.pair = n;
+        self.compile(1000 + n, 1, compiled());
+        self.activate();
+        self.pair = pair;
+    }
+
+    fn activate(&mut self) {
+        let reply = self.coordinator(json!({
+            "op": "set_state", "workflow": wf(self.pair), "agent": agent(self.pair), "state": "active",
+        }));
+        assert!(
+            matches!(
+                reply,
+                Ok(CoordinatorAnswer::Agent(CoordinatorReply::State(_)))
+            ),
+            "set_state: {reply:?}"
+        );
+    }
 }

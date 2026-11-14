@@ -3,11 +3,11 @@ use std::num::NonZeroU32;
 
 use halvo_learn::{
     build_list, candidate_move, counted, use_move, verify_run, CandidateFacts, CandidateMove,
-    EditCause,
+    EditCause, RunCause,
 };
 use halvo_schema::executable::body::{Finish, PutLog};
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{ExecutableStep, RunnerReply};
+use halvo_schema::executable::{ExecutableStep, RunId, RunnerReply};
 use halvo_schema::learning::record::{
     EditId, EditState, LearnEdit, LearnRun, LearnedTarget, RunStatus, Verdict,
 };
@@ -15,10 +15,10 @@ use halvo_schema::learning::record::{
 use crate::agent;
 use crate::convert;
 use crate::facts::{Line, RunFacts};
-use crate::handlers::{LearnHandlers, Refused, LINES_HELD_MAX};
+use crate::handlers::{Fault, LearnHandlers, Refused, LINES_HELD_MAX};
 use crate::host::LearnHost;
 use crate::moves::{moved, withdrawals};
-use crate::rows::{self, Edits};
+use crate::rows::{self, Edits, Read};
 use crate::serve::{fits, with_target};
 use crate::sources;
 
@@ -112,35 +112,61 @@ impl LearnHandlers {
         if facts.agent != b.agent {
             return Ok(reply);
         }
-        let runs = rows::runs(host.rows())?;
-        let Some(started) = rows::newest_run(&runs, b.run.as_str()).cloned() else {
-            return Ok(reply);
+        let verdict = verify_run(&halvo_learn::RunFacts {
+            outcome: convert::outcome(b.record.outcome),
+            unknown: b.record.unknown,
+        });
+        let outcome = self.commit_ended(host, &b.run, &facts, newest, &compiled, verdict);
+        self.leave(outcome);
+        Ok(reply)
+    }
+
+    /// The one typed commit of a run that ended with facts (contracts.md L4.2): the run's `learn_run` rev 2 and the
+    /// rows that the moves of L3.7 and the kept candidates give, each `learn_edit` row checked by `check_sources`.
+    /// Nothing is committed for a run whose newest `learn_run` row is not `started` or whose run rows cannot be read,
+    /// and only the run's rev 2, with `kept` 0, where the edits of its workflow cannot be read.
+    pub(crate) fn commit_ended(
+        &mut self,
+        host: &mut dyn LearnHost,
+        run: &RunId,
+        facts: &RunFacts,
+        newest: Option<NonZeroU32>,
+        compiled: &[ExecutableStep],
+        verdict: Result<(), RunCause>,
+    ) -> Result<(), Fault> {
+        let Read::Rows(runs) = rows::runs(host.rows(), &facts.workflow) else {
+            return Ok(());
         };
-        if started.status != RunStatus::Started || started.agent != b.agent {
-            return Ok(reply);
+        let Some(started) = rows::newest_run(&runs, run.as_str()).cloned() else {
+            return Ok(());
+        };
+        if started.status != RunStatus::Started || started.agent != facts.agent {
+            return Ok(());
         }
         let ended = Ended {
-            facts: &facts,
+            facts,
             started: &started,
             newest,
-            compiled: &compiled,
-            verdict: verify_run(&halvo_learn::RunFacts {
-                outcome: convert::outcome(b.record.outcome),
-                unknown: b.record.unknown,
-            }),
+            compiled,
+            verdict,
         };
-        let stored = Edits::read(host.rows())?;
-        let (edits, run) = ended.rows(&stored, || EditId::from_random(self.ids.bytes()))?;
         let mut records = Vec::new();
-        for row in &edits {
-            if !sources::kept(row, stored.newest(&row.edit), Some(&run)) {
-                return Err(Refused::Source);
+        let run_row = match Edits::read(host.rows(), &facts.workflow) {
+            Read::Rows(stored) => {
+                let (edits, run_row) =
+                    ended.rows(&stored, || EditId::from_random(self.ids.bytes()))?;
+                for row in &edits {
+                    if !sources::kept(row, stored.newest(&row.edit), Some(&run_row)) {
+                        return Err(Fault::Source);
+                    }
+                    records.push(rows::edit_record(row)?);
+                }
+                run_row
             }
-            records.push(rows::edit_record(row)?);
-        }
-        records.push(rows::run_record(&run)?);
-        host.commit(records)?;
-        Ok(reply)
+            Read::Stopped => ended.run_row(0),
+        };
+        records.push(rows::run_record(&run_row)?);
+        Ok(host.commit(records)?)
     }
 }
 
@@ -149,7 +175,7 @@ struct Ended<'a> {
     started: &'a LearnRun,
     newest: Option<NonZeroU32>,
     compiled: &'a [ExecutableStep],
-    verdict: Result<(), halvo_learn::RunCause>,
+    verdict: Result<(), RunCause>,
 }
 
 impl Ended<'_> {
@@ -160,7 +186,7 @@ impl Ended<'_> {
         &self,
         stored: &Edits,
         mut mint: impl FnMut() -> EditId,
-    ) -> Result<(Vec<LearnEdit>, LearnRun), Refused> {
+    ) -> Result<(Vec<LearnEdit>, LearnRun), Fault> {
         let facts = self.facts;
         let agent = &facts.agent;
         let day = self.started.day;

@@ -24,23 +24,35 @@ pub const LINES_HELD_MAX: usize = 4_096;
 /// The class rule that admission compares with: `class_of` of halvo-policy (AG-A4.3).
 pub(crate) type ClassRule = fn(SeedCategory, &ExecutableStep) -> ActionClass;
 
-/// Why the handlers refused a request.
+/// Why the handlers refused a request. A fault of the family `learn` behind a body that the agent store answered is
+/// no refusal: the reply is the agent store's, and the learning commit is left out (contracts.md L4.2; the
+/// coordinator's ruling LM-58 (b)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refused {
     /// The error of the reply form (W-C3.2), the agent store's own or the handlers'.
     Error(ErrorName),
-    /// `check_sources` answered `source` for a row of the commit of a `finish` (contracts.md L1.5, L3.7): the
-    /// agent store's rows of the run are stored, the handlers made no commit, and the run reads as a lost run.
-    Source,
 }
 
 impl Refused {
-    /// The error name of the reply: the error itself, or `internal` for `Source`.
+    /// The error name of the reply.
     pub fn error_name(self) -> ErrorName {
         match self {
             Refused::Error(name) => name,
-            Refused::Source => ErrorName::Internal,
         }
+    }
+}
+
+/// Why the learning part of a request left its commit out: an error of a read, a write or the commit, or
+/// `check_sources` answered `source` for a row of the commit (contracts.md L1.5, L3.7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Fault {
+    Error(ErrorName),
+    Source,
+}
+
+impl From<ErrorName> for Fault {
+    fn from(name: ErrorName) -> Fault {
+        Fault::Error(name)
     }
 }
 
@@ -92,6 +104,14 @@ impl CoordinatorAnswer {
 /// refused another runner body of a run with facts, and for every run with facts at each `start_run` that the agent
 /// store accepts. At most `RUNS_HELD_MAX` runs are held; when one more would be made, the one made first goes first.
 /// A run whose `log` bodies would take the lines held for it past `LINES_HELD_MAX` is dropped and reads as a lost run.
+///
+/// A row of the family `learn` that its parser refuses stops what rests on its kind in the workflow that it names, or
+/// in every workflow where that name cannot be read, and nothing else (contracts.md L4.2; the coordinator's ruling
+/// LM-58 (a), (d)): a `learn_edit` row the edits of that workflow, whose runs are served the compiled steps, get no
+/// candidate and no move and store a rev 2 with `kept` 0; a `learn_run` row its run rows, its runs being lost runs whose
+/// mode comes from the remembered start; a `learn_routine` row its routine rows. A body that the agent store answered
+/// gets the agent store's reply whatever the learning part could read or store, and a replay `put_playbook` its count;
+/// `list_refinements` alone answers `store` (LM-58 (b)).
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
@@ -100,6 +120,8 @@ pub struct LearnHandlers {
     pub(crate) class_rule: ClassRule,
     #[cfg(test)]
     pub(crate) probes: Vec<RunId>,
+    #[cfg(test)]
+    pub(crate) faults: Vec<Fault>,
 }
 
 impl Default for LearnHandlers {
@@ -112,6 +134,8 @@ impl Default for LearnHandlers {
             class_rule: class_of,
             #[cfg(test)]
             probes: Vec::new(),
+            #[cfg(test)]
+            faults: Vec::new(),
         }
     }
 }
@@ -142,6 +166,16 @@ impl LearnHandlers {
             self.after_refusal(host, *name, call.agent(), call.run(), was_load);
         }
         answer
+    }
+
+    /// Leaves out the learning commit whose part ended with a fault; a test keeps the fault.
+    pub(crate) fn leave(&mut self, outcome: Result<(), Fault>) {
+        #[cfg(test)]
+        if let Err(fault) = outcome {
+            self.faults.push(fault);
+        }
+        #[cfg(not(test))]
+        let _ = outcome;
     }
 
     /// Answers one `coordinator_write` body (AG-A7.2, contracts.md L2.2), read from its bytes.

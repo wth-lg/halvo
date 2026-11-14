@@ -13,29 +13,56 @@ pub(crate) const LEARN_RUN: &str = "learn_run";
 pub(crate) const LEARN_EDIT: &str = "learn_edit";
 pub(crate) const LEARN_ROUTINE: &str = "learn_routine";
 
-fn parsed<T>(
+/// What the read of one kind gives for one workflow (contracts.md L4.2; the coordinator's ruling LM-58 (a), (d)): the
+/// rows of the kind that their parser takes, or `Stopped` where the parser refuses a row of the kind that names the
+/// workflow by `refused_workflow`, or that names no workflow that can be read. A refused row of another workflow
+/// stops nothing.
+pub(crate) enum Read<T> {
+    Rows(T),
+    Stopped,
+}
+
+fn read<T>(
     rows: &dyn RowRead,
     kind: &str,
     parse: fn(&[u8]) -> Result<T, Refusal>,
-) -> Result<Vec<T>, ErrorName> {
+    workflow: &WorkflowId,
+) -> Read<Vec<T>> {
     let mut out = Vec::new();
-    let mut unread = false;
+    let mut stopped = false;
     rows.for_each(kind, &mut |row| match parse(row.as_bytes()) {
         Ok(value) => out.push(value),
-        Err(_) => unread = true,
+        Err(_) => {
+            if refused_workflow(kind, row).is_none_or(|named| &named == workflow) {
+                stopped = true;
+            }
+        }
     });
-    if unread {
-        return Err(ErrorName::Store);
+    if stopped {
+        return Read::Stopped;
     }
-    Ok(out)
+    Read::Rows(out)
 }
 
-pub(crate) fn runs(rows: &dyn RowRead) -> Result<Vec<LearnRun>, ErrorName> {
-    parsed(rows, LEARN_RUN, LearnRun::parse)
+pub(crate) fn runs(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRun>> {
+    read(rows, LEARN_RUN, LearnRun::parse, workflow)
 }
 
-pub(crate) fn routines(rows: &dyn RowRead) -> Result<Vec<LearnRoutine>, ErrorName> {
-    parsed(rows, LEARN_ROUTINE, LearnRoutine::parse)
+pub(crate) fn routines(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRoutine>> {
+    read(rows, LEARN_ROUTINE, LearnRoutine::parse, workflow)
+}
+
+/// The workflow of a `learn_run` row of the run that its parser takes.
+pub(crate) fn workflow_of_run(rows: &dyn RowRead, run: &str) -> Option<WorkflowId> {
+    let mut found = None;
+    rows.for_each(LEARN_RUN, &mut |row| {
+        if let Ok(parsed) = LearnRun::parse(row.as_bytes()) {
+            if parsed.run.as_str() == run {
+                found = Some(parsed.workflow);
+            }
+        }
+    });
+    found
 }
 
 pub(crate) fn run_record(row: &LearnRun) -> Result<TypedRecord, ErrorName> {
@@ -140,15 +167,20 @@ pub(crate) struct Edits {
 }
 
 impl Edits {
-    pub(crate) fn read(rows: &dyn RowRead) -> Result<Edits, ErrorName> {
+    /// The one read of the edits that each of its callers branches on: every row of the kind, or `Stopped` for
+    /// the workflow.
+    pub(crate) fn read(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Edits> {
+        let Read::Rows(parsed) = read(rows, LEARN_EDIT, LearnEdit::parse, workflow) else {
+            return Read::Stopped;
+        };
         let mut by_id: BTreeMap<EditId, Vec<LearnEdit>> = BTreeMap::new();
-        for row in parsed(rows, LEARN_EDIT, LearnEdit::parse)? {
+        for row in parsed {
             by_id.entry(row.edit.clone()).or_default().push(row);
         }
         for revisions in by_id.values_mut() {
             revisions.sort_by_key(|r| r.rev);
         }
-        Ok(Edits { by_id })
+        Read::Rows(Edits { by_id })
     }
 
     pub(crate) fn contains(&self, id: &EditId) -> bool {

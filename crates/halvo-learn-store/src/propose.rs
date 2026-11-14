@@ -8,16 +8,15 @@ use halvo_schema::executable::body::{PutPlaybook, Stored};
 use halvo_schema::executable::names::{Mode, StepKind};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::{ExecutableStep, RunnerReply};
-use halvo_schema::learning::record::LearnEdit;
-use halvo_schema::ErrorName;
+use halvo_schema::{ErrorName, WorkflowId};
 
 use crate::agent;
 use crate::convert;
 use crate::facts::{Candidate, RunFacts};
-use crate::handlers::{ClassRule, LearnHandlers, Refused};
+use crate::handlers::{ClassRule, Fault, LearnHandlers, Refused};
 use crate::host::LearnHost;
 use crate::moves::withdrawals;
-use crate::rows::{self, Edits};
+use crate::rows::{self, Edits, Read};
 use crate::serve::{fits, with_target};
 use crate::sources;
 
@@ -132,30 +131,49 @@ impl LearnHandlers {
         body: &[u8],
         b: &PutPlaybook,
     ) -> Result<RunnerReply, Refused> {
-        let runs = rows::runs(host.rows())?;
-        let row = rows::newest_run(&runs, b.run.as_str())
-            .filter(|r| r.agent == b.agent)
-            .ok_or_else(binding)?;
-        match row.mode {
+        let (mode, workflow, readable) = self.mode_of(host, b).ok_or_else(binding)?;
+        match mode {
             Mode::Compile => {
                 let reply = agent::runner(host, body)?;
                 if let RunnerReply::Stored(_) = reply {
-                    let mut edits = Edits::read(host.rows())?;
-                    let rows = withdrawals(&mut edits, &b.agent, b.number)?;
-                    commit_edits(host, &rows)?;
+                    let outcome = withdraw(host, &workflow, b);
+                    self.leave(outcome);
                 }
                 Ok(reply)
             }
             Mode::Replay => {
-                let taken = self
-                    .propose(host, b)?
-                    .iter()
-                    .filter(|(_, answer)| answer.is_ok())
-                    .count();
+                let mut taken = 0;
+                if readable {
+                    taken = self
+                        .propose(host, b)?
+                        .iter()
+                        .filter(|(_, answer)| answer.is_ok())
+                        .count();
+                }
                 Ok(RunnerReply::Stored(Stored {
                     stored: u32::try_from(taken).unwrap_or(u32::MAX),
                 }))
             }
+        }
+    }
+
+    /// The mode of a run at its `put_playbook`, its workflow, and whether the run rows of that workflow can be read:
+    /// the mode of the run's `learn_run` row under the body's agent, else that of the start that this value remembers
+    /// for the run under that agent (contracts.md L4.2; the coordinator's ruling LM-58 (a)). None where neither
+    /// stands, which the handler answers `binding`.
+    fn mode_of(&self, host: &dyn LearnHost, b: &PutPlaybook) -> Option<(Mode, WorkflowId, bool)> {
+        let start = self.starts.get(&b.run).filter(|s| s.agent == b.agent);
+        let workflow = match start {
+            Some(start) => start.workflow.clone(),
+            None => rows::workflow_of_run(host.rows(), b.run.as_str())?,
+        };
+        match rows::runs(host.rows(), &workflow) {
+            Read::Rows(runs) => {
+                let row = rows::newest_run(&runs, b.run.as_str()).filter(|r| r.agent == b.agent);
+                let mode = row.map(|r| r.mode).or(start.map(|s| s.mode))?;
+                Some((mode, workflow, true))
+            }
+            Read::Stopped => start.map(|s| (s.mode, workflow, false)),
         }
     }
 
@@ -194,15 +212,21 @@ impl LearnHandlers {
         let Some(facts) = self.facts.get(&b.run) else {
             return Ok(refused(&changed));
         };
-        let runs = rows::runs(host.rows())?;
-        let mode = convert::run_mode(rows::newest_run(&runs, b.run.as_str()).map(|r| r.mode));
+        let mode = match rows::runs(host.rows(), &facts.workflow) {
+            Read::Rows(runs) => {
+                convert::run_mode(rows::newest_run(&runs, b.run.as_str()).map(|r| r.mode))
+            }
+            Read::Stopped => return Ok(refused(&changed)),
+        };
         let named = loaded.is_some_and(|l| b.number == l || l.checked_add(1) == Some(b.number));
         let current = newest.is_some() && loaded == newest && named;
         let (true, Some(number)) = (current, loaded) else {
             return Ok(refused(&changed));
         };
         let compiled = agent::compiled(host, &b.agent, &b.run, number)?;
-        let edits = Edits::read(host.rows())?;
+        let Read::Rows(edits) = Edits::read(host.rows(), &facts.workflow) else {
+            return Ok(refused(&changed));
+        };
         let reader = Facts {
             mode,
             facts,
@@ -229,16 +253,23 @@ impl LearnHandlers {
     }
 }
 
-/// One typed commit of `learn_edit` rows that add no run, each checked by `check_sources`; none for no row.
-pub(crate) fn commit_edits(host: &mut dyn LearnHost, rows: &[LearnEdit]) -> Result<(), Refused> {
+/// The withdrawal of a compile `put_playbook` that the agent store stored (contracts.md L4.2, Q9): the move
+/// `recompile` for every edit of the agent with a lower `base`, in one typed commit of rows that add no run, each
+/// checked by `check_sources`. It waits, as after a stop between a compile's two commits, where the edits of the
+/// workflow cannot be read.
+fn withdraw(host: &mut dyn LearnHost, workflow: &WorkflowId, b: &PutPlaybook) -> Result<(), Fault> {
+    let Read::Rows(stored) = Edits::read(host.rows(), workflow) else {
+        return Ok(());
+    };
+    let mut edits = stored.clone();
+    let rows = withdrawals(&mut edits, &b.agent, b.number)?;
     if rows.is_empty() {
         return Ok(());
     }
-    let stored = Edits::read(host.rows())?;
     let mut records = Vec::new();
-    for row in rows {
+    for row in &rows {
         if !sources::kept(row, stored.newest(&row.edit), None) {
-            return Err(Refused::Source);
+            return Err(Fault::Source);
         }
         records.push(rows::edit_record(row)?);
     }
