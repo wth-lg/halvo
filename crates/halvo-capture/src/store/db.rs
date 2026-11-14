@@ -802,10 +802,16 @@ pub(crate) fn code_answer(code: Option<i32>) -> StoreError {
 }
 
 #[cfg(windows)]
-fn hold_the_database_file(store_dir: &Dir) -> StoreResult<Option<std::fs::File>> {
+#[must_use = "the hold keeps store.db at its name only while it lives"]
+struct DatabaseHold {
+    _file: Option<std::fs::File>,
+}
+
+#[cfg(windows)]
+fn hold_the_database_file(store_dir: &Dir) -> StoreResult<DatabaseHold> {
     match store_dir.hold_file(OsStr::new(DATABASE_FILE)) {
-        Ok(held) => Ok(Some(held)),
-        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Ok(held) => Ok(DatabaseHold { _file: Some(held) }),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(DatabaseHold { _file: None }),
         Err(e) => Err(refused_at(StoreName::Database, e)),
     }
 }
