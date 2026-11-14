@@ -2488,6 +2488,105 @@ mod tests {
         assert_eq!(reading(&gate, &key, 1_200), Some(Ok(())));
     }
 
+    fn c5(armed: Moved, after_the_hold: Moved) -> (PasswordGate, HeldKey, HeldKey) {
+        let gate = plain();
+        gate.read_at(1_990, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, 2_000);
+        let tab = key(&gate, 2_050);
+        gate.latch(2_050);
+        gate.field_at(2_060, FieldState::Clear);
+        gate.read_at(2_065, FieldState::Clear, armed);
+        gate.read_at(2_120, FieldState::Clear, after_the_hold);
+        gate.read_at(2_170, FieldState::Clear, Moved::Same);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        (gate, letter, tab)
+    }
+
+    #[test]
+    fn a_letter_and_a_tab_before_the_read_that_their_move_armed_are_withheld_in_either_order() {
+        for (armed, after_the_hold) in
+            [(Moved::Another, Moved::Same), (Moved::Same, Moved::Another)]
+        {
+            let (gate, letter, tab) = c5(armed, after_the_hold);
+            assert_eq!(
+                reading(&gate, &letter, 2_210),
+                Some(Err(Withheld::Unknown)),
+                "letter {armed:?} {after_the_hold:?}"
+            );
+            assert_eq!(
+                reading(&gate, &tab, 2_210),
+                Some(Err(Withheld::Unknown)),
+                "tab {armed:?} {after_the_hold:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_before_the_read_that_closes_a_latch_behind_it_is_never_cleared() {
+        for click in [false, true] {
+            let gate = plain();
+            if click {
+                gate.latch_after(1_990);
+            } else {
+                gate.latch(1_990);
+            }
+            let letter = key(&gate, 2_000);
+            gate.read_at(2_100, FieldState::Clear, Moved::Same);
+            gate.read_at(2_130, FieldState::Clear, Moved::Another);
+            let after = key(&gate, 2_140);
+            gate.read_at(2_250, FieldState::Clear, Moved::Same);
+            gate.read_at(2_260, FieldState::Clear, Moved::Same);
+            assert_eq!(
+                reading(&gate, &letter, 2_250),
+                Some(Err(Withheld::Unknown)),
+                "click={click}"
+            );
+            assert_eq!(reading(&gate, &after, 2_265), Some(Ok(())), "click={click}");
+        }
+    }
+
+    #[test]
+    fn a_read_that_cannot_compare_from_the_key_to_its_deciding_read_withholds_the_key() {
+        let gate = plain();
+        gate.read_at(1_990, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_030, FieldState::Clear, Moved::NotCompared);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
+        let gate = plain();
+        gate.read_at(1_990, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, 2_000);
+        gate.read_at(2_120, FieldState::Clear, Moved::NotCompared);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
+        let gate = PasswordGate::new();
+        gate.started_at(1_000);
+        let first = key(&gate, 1_010);
+        gate.read_at(1_130, FieldState::Clear, Moved::NotCompared);
+        assert_eq!(reading(&gate, &first, 1_140), Some(Err(Withheld::Unknown)));
+        let after = key(&gate, 1_140);
+        gate.read_at(1_260, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &after, 1_270), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_focus_that_leaves_for_a_password_field_and_returns_within_one_read_step_withholds_the_key()
+    {
+        let gate = plain();
+        gate.read_at(1_990, FieldState::Clear, Moved::Same);
+        let letter = key(&gate, 2_000);
+        gate.field_at(2_010, FieldState::Password);
+        gate.field_at(2_040, FieldState::Clear);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Active)));
+        let gate = plain();
+        gate.read_at(1_990, FieldState::Clear, Moved::Same);
+        gate.field_at(1_995, FieldState::Password);
+        let letter = key(&gate, 2_000);
+        gate.field_at(2_040, FieldState::Clear);
+        gate.read_at(2_120, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Active)));
+    }
+
     #[test]
     fn a_desktop_switch_reads_unknown_and_closes_the_gate() {
         let gate = plain();
