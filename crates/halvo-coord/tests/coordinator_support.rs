@@ -23,8 +23,8 @@ pub const PERSON: A = A {
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
-/// make `start`, `cancel`, `answer_confirm`, `answer_bind` or the `log` of an `item_lapsed` row
-/// panic, and can fail one read of the clock.
+/// make `start`, `cancel`, `answer_confirm`, `answer_bind`, `agents` or the `log` of an
+/// `item_lapsed` row panic, and can fail one read of the clock.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -145,6 +145,9 @@ impl Owner for Both {
     }
 
     fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        if self.panics.get() == Some("agents") {
+            panic!("the port agents panics");
+        }
         self.ports.agents()
     }
 

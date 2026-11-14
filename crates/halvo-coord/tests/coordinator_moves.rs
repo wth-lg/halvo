@@ -7259,3 +7259,58 @@ fn a_tick_whose_confirmation_flush_reads_a_stored_switch_off_stops_the_run_at_it
         );
     }
 }
+
+#[test]
+fn a_press_whose_read_shows_a_known_switch_off_beside_a_live_run_stops_that_run() {
+    use halvo_coord::types::AgentState;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = waiting("stuck");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        c.ports().panics.set(Some("agents"));
+        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = c.answer(
+                &item,
+                Choice::Done,
+                None,
+                shown_step_mark_or_zero(&c, &item),
+            );
+        }));
+        c.ports().panics.set(None);
+        assert!(
+            out.is_err(),
+            "{case}: the rest of the switch-off panicked at its read"
+        );
+        assert_eq!(
+            c.off_beside_live(),
+            [agent(0)],
+            "{case}: the hold is known beside the run"
+        );
+        assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Nothing));
+        let _ = c.answer(
+            &item,
+            Choice::Done,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        c.ports().loss.set(None);
+        assert!(
+            calls_since(&c, m)
+                .iter()
+                .any(|call| matches!(call, Call::History(..))),
+            "{case}: the press reads"
+        );
+        assert!(
+            c.off_beside_live().is_empty(),
+            "{case}: the read stops the run"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{case}");
+        assert_eq!(states_sent(&c, m), [AgentState::Paused], "{case}");
+        assert!(
+            handed_back(&c, m).is_empty(),
+            "{case}: no done at the runner"
+        );
+    }
+}
