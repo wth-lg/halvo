@@ -322,8 +322,10 @@ pub(crate) fn write_record(path: &std::path::Path, act: &GuardAct) {
 /// (CP-126 E1 (b), `checks::Mark::owns` with `args`) and whose parent is a member that no longer
 /// runs, when it began at or after that member and that member's number names no running process
 /// that began at or before it (CP-170 E1); with no mark yet that last clause takes nothing. The
-/// guard's own number `me` is never a member. Gives the members that run now, each by number and
-/// creation time.
+/// guard's own number `me` is never a member. Gives the members that run now, each as the row of
+/// this read's table, found by number and creation time, so that the ask, the forced end, the
+/// cap's test, the return of `Trigger::Now` and the record read the program of this read; a member
+/// with no row at this read is not given (CP-189 G2).
 pub fn members(
     known: &mut Vec<Proc>,
     table: &[Proc],
@@ -378,7 +380,10 @@ pub fn members(
             known.push(p);
         }
     }
-    known.iter().filter(|k| alive(k)).cloned().collect()
+    known
+        .iter()
+        .filter_map(|k| table.iter().find(|t| procs::same(t, k)).cloned())
+        .collect()
 }
 
 /// The guard's loop. It keeps the port while a process of the run runs (`members`). A table that
