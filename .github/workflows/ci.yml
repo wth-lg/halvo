@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -16,7 +17,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,69 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-egress
+      - name: U0.1b search cases 200 times
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          set +e
+          want=16
+          job=macos
+          dir="$RUNNER_TEMP/u01b-loop"
+          mkdir -p "$dir"
+          started=$(date +%s)
+          per=${U01B_PER_WORKER:-50}
+          worker() {
+            i=0
+            while [ "$i" -lt "$per" ]; do
+              i=$((i + 1))
+              sh scripts/egress/test.sh search >"$dir/w$1-r$i.txt" 2>&1
+              echo "exit=$?" >>"$dir/w$1-r$i.txt"
+            done
+          }
+          workers=${U01B_WORKERS:-4}
+          w=0
+          while [ "$w" -lt "$workers" ]; do
+            w=$((w + 1))
+            worker "$w" &
+          done
+          wait
+          total=0
+          passed=0
+          for f in "$dir"/w*-r*.txt; do
+            total=$((total + 1))
+            if grep -qx "part search ran=$want" "$f" && grep -qx "tests passed=$want failed=0" "$f" && grep -qx 'exit=0' "$f"; then
+              passed=$((passed + 1))
+            else
+              echo "a run that missed: ${f##*/}"
+              cat "$f"
+            fi
+          done
+          echo "first run:"
+          cat "$dir/w1-r1.txt"
+          echo "U0.1b loop job=$job runs=$total passed=$passed tests_per_run=$want seconds=$(($(date +%s) - started))"
+          [ "$total" -eq $((workers * per)) ] && [ "$passed" -eq "$total" ]
+      - name: U0.1b 10-egress at the unit head with its long cases
+        if: always()
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          job=macos
+          part=sandbox
+          unit="$RUNNER_TEMP/u01b-unit"
+          git worktree add --detach "$unit" HEAD^1
+          cd "$unit" || exit 1
+          git log -1 --format='unit head %H %s'
+          sh scripts/ci/run-ci-d.sh "$job" 10-egress >"$RUNNER_TEMP/u01b-unit.txt" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/u01b-unit.txt"
+          echo "search lines of the long cases:"
+          grep -E '^(ok|not ok) search/|^part |^tests passed=' "target/ci-artifacts/10-egress/tests-$part.out"
+          echo "U0.1b unit-head 10-egress job=$job exit=$code"
+          grep -q '^long cases run' "$RUNNER_TEMP/u01b-unit.txt" && grep -qx 'PASS 10-egress' "$RUNNER_TEMP/u01b-unit.txt" && [ "$code" -eq 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -118,7 +155,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 200
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -137,6 +174,27 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: U0.1b snapshot of the restored run directories
+        shell: bash
+        run: |
+          set +e
+          snap="$RUNNER_TEMP/u01b-restored"
+          mkdir -p "$snap"
+          if [ -d target/egress ]; then
+            cp -R target/egress/. "$snap/"
+          fi
+          numbered=0
+          entries=0
+          for e in "$snap"/*; do
+            [ -e "$e" ] || continue
+            entries=$((entries + 1))
+            case ${e##*/} in
+              0* | *[!0-9]*) ;;
+              *) numbered=$((numbered + 1)) ;;
+            esac
+          done
+          echo "U0.1b restored run directories: numbered=$numbered entries=$entries"
+          exit 0
       - name: ci.d self-test
         shell: bash
         env:
@@ -144,21 +202,121 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-egress
+      - name: U0.1b search cases 200 times
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e
+          want=16
+          job=windows
+          dir="$RUNNER_TEMP/u01b-loop"
+          mkdir -p "$dir"
+          started=$(date +%s)
+          per=${U01B_PER_WORKER:-50}
+          worker() {
+            i=0
+            while [ "$i" -lt "$per" ]; do
+              i=$((i + 1))
+              sh scripts/egress/test.sh search >"$dir/w$1-r$i.txt" 2>&1
+              echo "exit=$?" >>"$dir/w$1-r$i.txt"
+            done
+          }
+          workers=${U01B_WORKERS:-4}
+          w=0
+          while [ "$w" -lt "$workers" ]; do
+            w=$((w + 1))
+            worker "$w" &
+          done
+          wait
+          total=0
+          passed=0
+          for f in "$dir"/w*-r*.txt; do
+            total=$((total + 1))
+            if grep -qx "part search ran=$want" "$f" && grep -qx "tests passed=$want failed=0" "$f" && grep -qx 'exit=0' "$f"; then
+              passed=$((passed + 1))
+            else
+              echo "a run that missed: ${f##*/}"
+              cat "$f"
+            fi
+          done
+          echo "first run:"
+          cat "$dir/w1-r1.txt"
+          echo "U0.1b loop job=$job runs=$total passed=$passed tests_per_run=$want seconds=$(($(date +%s) - started))"
+          [ "$total" -eq $((workers * per)) ] && [ "$passed" -eq "$total" ]
+      - name: U0.1b 10-egress at the unit head with its long cases
+        if: always()
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          job=windows
+          part=wfp
+          unit="$RUNNER_TEMP/u01b-unit"
+          git worktree add --detach "$unit" HEAD^1
+          cd "$unit" || exit 1
+          git log -1 --format='unit head %H %s'
+          sh scripts/ci/run-ci-d.sh "$job" 10-egress >"$RUNNER_TEMP/u01b-unit.txt" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/u01b-unit.txt"
+          echo "search lines of the long cases:"
+          grep -E '^(ok|not ok) search/|^part |^tests passed=' "target/ci-artifacts/10-egress/tests-$part.out"
+          echo "U0.1b unit-head 10-egress job=$job exit=$code"
+          grep -q '^long cases run' "$RUNNER_TEMP/u01b-unit.txt" && grep -qx 'PASS 10-egress' "$RUNNER_TEMP/u01b-unit.txt" && [ "$code" -eq 0 ]
+      - name: U0.1b samples of 10-egress with the base and the unit check.sh
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          want_base=fcf6c8bd8a68f44a921f7f25abe723e78fc27e4ff460ead1286adc04825bd142
+          pairs=${U01B_PAIRS:-6}
+          snap="$RUNNER_TEMP/u01b-restored"
+          s="$RUNNER_TEMP/u01b-samples"
+          mkdir -p "$s"
+          powershell.exe -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_Processor).Name"
+          numbered=0
+          for e in "$snap"/*; do
+            case ${e##*/} in
+              0* | *[!0-9]*) ;;
+              *) numbered=$((numbered + 1)) ;;
+            esac
+          done
+          echo "U0.1b numbered run directories in the snapshot: $numbered"
+          awk '/^  for taken in "\$root"\/target\/egress\/\[1-9\]\*; do$/ { skip = 1 } !skip { print } skip && /^  done$/ { skip = 0 }' scripts/egress/check.sh >"$s/check-base.sh"
+          base_sha=$(sha256sum "$s/check-base.sh" | cut -d' ' -f1)
+          echo "U0.1b side A check.sh sha256=$base_sha want=$want_base"
+          cp scripts/egress/check.sh "$s/check-unit.sh"
+          k=0
+          while [ "$k" -lt "$pairs" ]; do
+            k=$((k + 1))
+            for side in A B; do
+              [ ! -d target/egress ] || mv target/egress "$s/used-$side-$k"
+              mkdir -p target/egress
+              cp -R "$snap/." target/egress/
+              if [ "$side" = A ]; then
+                cp "$s/check-base.sh" scripts/egress/check.sh
+              else
+                cp "$s/check-unit.sh" scripts/egress/check.sh
+              fi
+              sha=$(sha256sum scripts/egress/check.sh | cut -c1-12)
+              sh scripts/ci/run-ci-d.sh windows 10-egress >"$s/$side-$k.txt" 2>&1
+              code=$?
+              git checkout -- scripts/egress/check.sh
+              secs=$(sed -n 's/^seconds 10-egress //p' "$s/$side-$k.txt" | head -n 1)
+              work=$(grep -v -e '^seconds ' "$s/$side-$k.txt" | sed 's/ lost=[0-9]*$//' | sha256sum | cut -c1-16)
+              passes=$(grep -c -x 'PASS 10-egress' "$s/$side-$k.txt")
+              echo "U0.1b sample side=$side k=$k exit=$code seconds=$secs check=$sha work=$work pass_lines=$passes"
+            done
+          done
+          echo "side A run 1:"
+          cat "$s/A-1.txt"
+          echo "side B run 1:"
+          cat "$s/B-1.txt"
+          green=$(grep -l -x 'PASS 10-egress' "$s"/[AB]-*.txt | wc -l)
+          echo "U0.1b samples green=$green of $((2 * pairs))"
+          [ "$base_sha" = "$want_base" ] && [ "$green" -eq $((2 * pairs)) ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
