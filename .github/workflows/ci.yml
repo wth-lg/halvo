@@ -16,7 +16,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,18 +30,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -68,11 +56,6 @@ jobs:
           else
             sh scripts/check-changelog.sh
           fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
       - name: Own-source reads
         shell: bash
         run: |
@@ -85,23 +68,61 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: daemon-1 check 26 at the head, then the three changed copies
         shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
+        run: |
+          set -u
+          set +e
+          step_start=$(date +%s)
+          faults=
+          out=$(mktemp)
+          sh scripts/ci/run-ci-d.sh macos 26-daemon-owner-growth || echo "daemon-1 copies: check 26 exited $?"
+          art=target/ci-artifacts/26-daemon-owner-growth/test.txt
+          field() { printf '%s\n' "$1" | sed -n "s/.* $2=\([-0-9]*\).*/\1/p"; }
+          head_heap=$(grep -m 1 -o 'owner_heap_bytes .*' "$art" 2>/dev/null || true)
+          head_growth=$(grep -m 1 -o 'owner_growth_bytes=[0-9]* records=[0-9]* elapsed_ms=[0-9]*' "$art" 2>/dev/null || true)
+          echo "daemon-1 copies: head: ${head_heap:-no heap line}"
+          echo "daemon-1 copies: head: ${head_growth:-no growth line}"
+          [ -n "$head_heap" ] || faults="$faults head-heap-line"
+          [ -n "$head_growth" ] || faults="$faults head-growth-line"
+          d=crates/halvo-capture/src/daemon
+          perl -0pi -e 's/(pub struct DiscardPort \{\n    dir: PathBuf,\n    next: u64,\n)/$1    kept: Vec<Vec<u8>>,\n/; s/DiscardPort \{ dir, next: 1 \}/DiscardPort { dir, next: 1, kept: Vec::new() }/; s/(        self\.next \+= 1;\n)/$1        if std::env::var("DM10_COPY").as_deref() == Ok("keep300") && self.next % 300 == 0 {\n            self.kept.push(write.payload().to_vec());\n        }\n/' "$d/discard_port.rs" || faults="$faults patch-port"
+          perl -0pi -e 's/(    fn acknowledged\(&mut self, disk_bytes: u64, now: Instants\) \{\n)/$1        if std::env::var("DM10_COPY").as_deref() == Ok("report") {\n            self.report(Report::DrainHealthy);\n        }\n/; s/(            let settled_heap = crate::daemon::signal::heap_bytes_in_use\(\)\.unwrap\(\);\n)/            let held: Vec<u8> = if std::env::var("DM10_COPY").as_deref() == Ok("hold") { vec![1u8; 1 << 20] } else { Vec::new() };\n$1/; s/(            println!\(\n                "owner_growth_bytes=)/            std::hint::black_box(&held);\n$1/' "$d/owner.rs" || faults="$faults patch-owner"
+          patched="keep300 $(grep -c 'Ok("keep300")' "$d/discard_port.rs" || true), report $(grep -c 'Ok("report")' "$d/owner.rs" || true), hold $(grep -c 'Ok("hold")' "$d/owner.rs" || true), held kept $(grep -c 'black_box(&held)' "$d/owner.rs" || true)"
+          echo "daemon-1 copies: patch lines: $patched"
+          [ "$patched" = "keep300 1, report 1, hold 1, held kept 1" ] || faults="$faults patch-lines"
+          b0=$(date +%s)
+          cargo test --release --locked -q -p halvo-capture --lib --no-run >"$out" 2>&1
+          code=$?
+          echo "daemon-1 copies: release build of the copy: exit=$code, $(( $(date +%s) - b0 )) s"
+          [ "$code" = 0 ] || { grep -m 5 '^error' "$out" || true; faults="$faults build"; }
+          echo "daemon-1 copies: copy | exit | all_zones_growth | default_zone_growth | footprint_growth | owner_growth_bytes | failure"
+          echo "daemon-1 copies: head | 0 | $(field "$head_heap" all_zones_growth) | $(field "$head_heap" default_zone_growth) | $(field "$head_heap" footprint_growth) | $(printf '%s\n' "$head_growth" | sed -n 's/owner_growth_bytes=\([0-9]*\).*/\1/p') | -"
+          for copy in keep300 report hold; do
+            DM10_COPY=$copy cargo test --release --locked -p halvo-capture --lib -- --ignored --exact daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound --nocapture >"$out" 2>&1
+            code=$?
+            heap=$(grep -m 1 -o 'owner_heap_bytes .*' "$out" || true)
+            growth=$(grep -m 1 -o 'owner_growth_bytes=[0-9]* records=[0-9]* elapsed_ms=[0-9]*' "$out" || true)
+            failure=$(grep -m 1 -o -E 'the owner grew by [0-9]+ bytes, above [0-9]+|the child failed' "$out" || true)
+            result=$(grep -m 1 '^test result' "$out" || true)
+            echo "daemon-1 copies: $copy: exit=$code"
+            echo "daemon-1 copies: $copy: ${heap:-no heap line}"
+            echo "daemon-1 copies: $copy: ${growth:-no growth line}"
+            echo "daemon-1 copies: $copy: ${failure:-no failure line}"
+            echo "daemon-1 copies: $copy: ${result:-no result line}"
+            echo "daemon-1 copies: $copy | $code | $(field "$heap" all_zones_growth) | $(field "$heap" default_zone_growth) | $(field "$heap" footprint_growth) | $(printf '%s\n' "$growth" | sed -n 's/owner_growth_bytes=\([0-9]*\).*/\1/p') | ${failure:--}"
+            [ -n "$heap" ] || faults="$faults $copy-heap-line"
+            [ -n "$growth" ] || faults="$faults $copy-growth-line"
+            [ -n "$result" ] || faults="$faults $copy-result-line"
+            if [ "$copy" = keep300 ]; then
+              case $failure in "the owner grew by"*) [ "$code" != 0 ] || faults="$faults keep300-exit-0" ;; *) faults="$faults keep300-did-not-fail-on-growth" ;; esac
+            fi
+          done
+          git checkout -- "$d/discard_port.rs" "$d/owner.rs"
+          echo "daemon-1 copies: restored, status lines $(git status --porcelain | grep -c '' || true)"
+          echo "daemon-1 copies: the step took $(( $(date +%s) - step_start )) s"
+          if [ -n "$faults" ]; then echo "daemon-1 copies: verdict FAIL:$faults"; exit 1; fi
+          echo "daemon-1 copies: verdict PASS (keep300 failed on the growth line; every line printed)"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: halvo-macos
@@ -120,82 +141,6 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: windows not run in this scratch copy
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+        run: echo 'the copies of DM-10 item 5 run in the macos job alone'
