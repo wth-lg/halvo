@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The check builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
+# rule: The check builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; no cargo command or binary of the check changes the tree; and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -137,6 +137,17 @@ judge() {
   elif [ "$derived_exit" -ne 0 ] || [ "$derived_line" != "$want_derived" ]; then
     cause=derived
   fi
+  if [ -z "$cause" ] && { wrote_at_0_or_1 "$memory_exit" "$1/memory.err" || wrote_at_0_or_1 "$derived_exit" "$1/derived.err"; }; then
+    cause=stderr
+  fi
+}
+
+# wrote_at_0_or_1 STATUS ERR: a play that ended with status 0 or 1 wrote to its standard error, the file ERR.
+wrote_at_0_or_1() {
+  case $1 in
+    0 | 1) [ -s "$2" ] ;;
+    *) return 1 ;;
+  esac
 }
 
 measure() {
@@ -165,7 +176,7 @@ fixture_gate() {
   cat <<'EOF'
 #!/bin/sh
 case $* in
-  routine) cat "$FIXTURE_DIR/fix-memory"; exit "$(cat "$FIXTURE_DIR/fix-memory.exit")" ;;
+  routine) cat "$FIXTURE_DIR/fix-memory"; cat "$FIXTURE_DIR/fix-memory.err" >&2; exit "$(cat "$FIXTURE_DIR/fix-memory.exit")" ;;
   *) cat "$FIXTURE_DIR/fix-derived"; cat "$FIXTURE_DIR/fix-derived.err" >&2; exit "$(cat "$FIXTURE_DIR/fix-derived.exit")" ;;
 esac
 EOF
@@ -176,14 +187,15 @@ broken() {
   exit 1
 }
 
-# self_case LABEL WANT_CAUSE MEMORY_LINES MEMORY_EXIT DERIVED_LINES DERIVED_ERR DERIVED_EXIT: judges the outputs that
-# the fixture gate prints from these values, and records whether the cause is the one wanted.
+# self_case LABEL WANT_CAUSE MEMORY_LINES MEMORY_EXIT DERIVED_LINES DERIVED_ERR DERIVED_EXIT [MEMORY_ERR]: judges the
+# outputs that the fixture gate prints from these values, and records whether the cause is the one wanted.
 self_case() {
   label=$1
   want=$2
   FIXTURE_DIR=$work/$label
   export FIXTURE_DIR
   mkdir -p "$FIXTURE_DIR" || broken
+  printf '%s' "${8:-}" >"$FIXTURE_DIR/fix-memory.err" || broken
   printf '%s' "$3" >"$FIXTURE_DIR/fix-memory" || broken
   printf '%s\n' "$4" >"$FIXTURE_DIR/fix-memory.exit" || broken
   printf '%s' "$5" >"$FIXTURE_DIR/fix-derived" || broken
@@ -380,7 +392,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=19
+  failing_fixtures=21
   passing_fixtures=2
   wrong=
   rejected=0
@@ -406,6 +418,8 @@ self_test() {
   self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
   self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
   self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
+  self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "warning: a line of the build$nl"
+  self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "warning: a line of the build$nl" 0
   tree_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
