@@ -1586,26 +1586,118 @@ mod driver {
             );
         }
 
+        struct StateStandIn {
+            port: u16,
+            stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+            thread: Option<std::thread::JoinHandle<()>>,
+        }
+
+        const ORG_VARS: [&str; 4] = [
+            "R3_ORG_CONTROL_BEFORE",
+            "R3_ORG_VALUE_READ",
+            "R3_ORG_VALUE_WANT",
+            "R3_ORG_PAGE_NAMED",
+        ];
+
+        impl StateStandIn {
+            fn start() -> StateStandIn {
+                use std::io::{Read, Write};
+                let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+                let port = listener.local_addr().unwrap().port();
+                let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let seen = stop.clone();
+                let thread = std::thread::spawn(move || {
+                    for conn in listener.incoming() {
+                        if seen.load(std::sync::atomic::Ordering::SeqCst) {
+                            break;
+                        }
+                        let Ok(mut c) = conn else { continue };
+                        let mut buf = [0u8; 4096];
+                        let mut got = Vec::new();
+                        while !got.windows(4).any(|w| w == b"\r\n\r\n") {
+                            match c.read(&mut buf) {
+                                Ok(0) | Err(_) => break,
+                                Ok(n) => got.extend_from_slice(&buf[..n]),
+                            }
+                        }
+                        let body = r#"{"requests":{"total":0}}"#;
+                        let _ = c.write_all(
+                            format!(
+                                "HTTP/1.0 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+                                body.len()
+                            )
+                            .as_bytes(),
+                        );
+                    }
+                });
+                StateStandIn {
+                    port,
+                    stop,
+                    thread: Some(thread),
+                }
+            }
+        }
+
+        impl Drop for StateStandIn {
+            fn drop(&mut self) {
+                self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+                let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+                if let Some(t) = self.thread.take() {
+                    let _ = t.join();
+                }
+                for v in ORG_VARS {
+                    std::env::remove_var(v);
+                }
+            }
+        }
+
+        fn facts(values: [Option<&str>; 4]) {
+            for (k, v) in ORG_VARS.iter().zip(values) {
+                match v {
+                    Some(v) => std::env::set_var(k, v),
+                    None => std::env::remove_var(k),
+                }
+            }
+        }
+
         #[test]
         fn a_page_read_without_the_setting_counts_neither_as_the_effect_nor_as_a_miss() {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap();
-            let (ctx, _tx) = ctx();
+            let state = StateStandIn::start();
+            let (mut ctx, _tx) = ctx();
+            ctx.control = Control { port: state.port };
             let fault = || Err(Fault::new("no_channel", NO_CHANNEL_MESSAGE));
-            std::env::set_var("R3_ORG_PAGE_NAMED", "no");
+            facts([Some("reply"), Some("0"), Some("0"), Some("yes")]);
+            let with_facts = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
+            facts([None, Some("0"), Some("0"), Some("yes")]);
+            let no_control = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
+            facts([Some("reply"), Some("0"), Some("0"), Some("no")]);
             let not_seen = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
-            std::env::set_var("R3_ORG_PAGE_NAMED", "yes");
-            let seen = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
-            std::env::remove_var("R3_ORG_PAGE_NAMED");
+            drop(state);
+            match with_facts {
+                Ok(r) => assert!(
+                    r.ok,
+                    "the effect with every fact did not count: {}",
+                    r.cause
+                ),
+                Err(n) => panic!("the effect with every fact gave no run: {}", n.cause),
+            }
+            match no_control {
+                Ok(r) => {
+                    assert!(!r.ok, "the effect without its control reply counted");
+                    assert_eq!(r.cause, "no_control_reply");
+                }
+                Err(n) => panic!(
+                    "the effect without its control reply gave no run: {}",
+                    n.cause
+                ),
+            }
             match not_seen {
                 Err(n) => assert_eq!(n.cause, "policy_not_seen reason=page_not_named"),
                 Ok(r) => panic!("a page without the setting gave a run, ok={}", r.ok),
-            }
-            match seen {
-                Ok(r) => assert!(!r.ok, "the control without its facts counted as the effect"),
-                Err(n) => panic!("the control with the page named gave no run: {}", n.cause),
             }
         }
     }
