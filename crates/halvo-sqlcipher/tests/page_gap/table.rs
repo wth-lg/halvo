@@ -27,8 +27,8 @@ fn every_byte_write_of_the_page_code_has_a_row_in_the_table_of_adr_0013() {
         if let Some(number) = cells.get(1).and_then(|cell| cell.parse::<usize>().ok()) {
             assert_eq!(
                 cells.len(),
-                9,
-                "the row of line {number} has not seven cells"
+                10,
+                "the row of line {number} has not eight cells"
             );
             assert!(rows.insert(number), "line {number} has two rows");
         }

@@ -221,6 +221,11 @@ fn rows_copied_by_insert_select_leave_no_text_after_their_removal() {
     crate::initialize().unwrap();
     let found = copied_rows(Mode::Plain);
     assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+#[test]
+fn with_secure_delete_off_the_search_finds_a_removed_copied_row() {
+    crate::initialize().unwrap();
     let control = copied_rows(Mode::Unsecured);
     assert!(
         control
@@ -235,6 +240,11 @@ fn rows_removed_before_a_vacuum_and_after_it_leave_no_text() {
     crate::initialize().unwrap();
     let found = vacuumed_rows(Mode::Plain);
     assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+#[test]
+fn with_secure_delete_off_the_search_finds_a_row_removed_around_a_vacuum() {
+    crate::initialize().unwrap();
     let control = vacuumed_rows(Mode::Unsecured);
     assert!(
         control
@@ -374,6 +384,11 @@ fn zero_blobs_and_same_length_replacements_leave_no_text() {
     crate::initialize().unwrap();
     let found = zero_blobs_and_same_length(Mode::Plain);
     assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+#[test]
+fn with_secure_delete_off_the_search_finds_a_removed_row_beside_zero_blobs() {
+    crate::initialize().unwrap();
     let control = zero_blobs_and_same_length(Mode::Unsecured);
     assert!(
         control

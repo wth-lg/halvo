@@ -630,8 +630,20 @@ fn a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_p
                 "seed {seed}: the index did not go to depth 3 and back to 1 {CYCLES} times"
             ),
         }
-        let plain_rounds = plain.round;
-        drop(plain);
+        println!(
+            "page gap seed {seed}: plain rounds {}, rows written {}, seconds {:.2}",
+            plain.round,
+            plain.serial,
+            started.elapsed().as_secs_f64()
+        );
+    }
+    assert!(failed.is_empty(), "{}", failed.join("\n"));
+}
+
+#[test]
+fn with_secure_delete_off_the_search_finds_a_removed_row_of_each_seed() {
+    crate::initialize().unwrap();
+    for seed in SEEDS {
         let mut control = Run::new(seed, Mode::Unsecured);
         let seen = control.checked_rounds();
         assert!(
@@ -639,18 +651,16 @@ fn a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_p
                 .is_some_and(|p| p.contains("the removed marker")),
             "seed {seed}: with secure delete off the search found no removed marker: {seen:?}"
         );
-        let control_rounds = control.round;
-        drop(control);
+    }
+}
+
+#[test]
+fn under_a_key_every_row_of_each_seed_reads_back_and_the_integrity_check_holds() {
+    crate::initialize().unwrap();
+    for seed in SEEDS {
         let mut keyed = Run::new(seed, Mode::Keyed);
         assert_eq!(keyed.checked_rounds(), None);
-        println!(
-            "page gap seed {seed}: plain rounds {plain_rounds}, control rounds {control_rounds}, keyed rounds {}, rows written {}, seconds {:.2}",
-            keyed.round,
-            keyed.serial,
-            started.elapsed().as_secs_f64()
-        );
     }
-    assert!(failed.is_empty(), "{}", failed.join("\n"));
 }
 
 #[test]
