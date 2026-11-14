@@ -174,17 +174,23 @@ fn names_a_link(arg: &str) -> bool {
 struct Walk {
     files: Vec<(String, PathBuf)>,
     bodies: Vec<PathBuf>,
+    numbered: usize,
 }
 
-fn walk(arg: &str, path: &Path, shown: String, skip: &Path, out: &mut Walk) -> Result<(), Refusal> {
-    let meta = fs::symlink_metadata(path).map_err(|_| Refusal::new("path", arg.to_owned()))?;
+/// Walks one PATH argument in byte order of name. Each file that is searched is shown as the argument followed
+/// by `#<n>`, its number in the walk from 1, so that no name below the argument reaches a printed line.
+fn walk(arg: &str, path: &Path, skip: &Path, out: &mut Walk) -> Result<(), Refusal> {
+    let fault = || Refusal::new("path", arg.to_owned());
+    let meta = fs::symlink_metadata(path).map_err(|_| fault())?;
     if meta.file_type().is_symlink() {
         return Ok(());
     }
     if meta.is_file() {
-        let real = fs::canonicalize(path).map_err(|_| Refusal::new("path", shown.clone()))?;
+        let real = fs::canonicalize(path).map_err(|_| fault())?;
         if !real.starts_with(skip) {
-            out.files.push((shown, path.to_path_buf()));
+            out.numbered += 1;
+            out.files
+                .push((format!("{arg}#{}", out.numbered), path.to_path_buf()));
         }
         return Ok(());
     }
@@ -200,24 +206,19 @@ fn walk(arg: &str, path: &Path, shown: String, skip: &Path, out: &mut Walk) -> R
         out.bodies.push(path.to_path_buf());
     }
     let mut names: Vec<String> = Vec::new();
-    for e in fs::read_dir(path).map_err(|_| Refusal::new("path", shown.clone()))? {
-        let e = e.map_err(|_| Refusal::new("path", shown.clone()))?;
-        let name = e
-            .file_name()
-            .to_str()
-            .map(str::to_owned)
-            .ok_or_else(|| Refusal::new("path", shown.clone()))?;
+    for e in fs::read_dir(path).map_err(|_| fault())? {
+        let e = e.map_err(|_| fault())?;
+        let name = e.file_name().to_str().map(str::to_owned).ok_or_else(fault)?;
         names.push(name);
     }
     names.sort();
     for name in names {
         let child = path.join(&name);
-        let child_shown = format!("{shown}/{name}");
         let is_dir = fs::symlink_metadata(&child).is_ok_and(|m| m.is_dir());
         if is_dir && (name == ".git" || name == "target") {
             continue;
         }
-        walk(arg, &child, child_shown, skip, out)?;
+        walk(arg, &child, skip, out)?;
     }
     Ok(())
 }
@@ -231,18 +232,14 @@ pub fn leak(tier: &Path, paths: &[String]) -> Result<(Vec<String>, bool), Refusa
     let mut w = Walk {
         files: Vec::new(),
         bodies: Vec::new(),
+        numbered: 0,
     };
     for p in paths {
         if names_a_link(p) {
             return Err(Refusal::new("path", p.clone()));
         }
-        walk(
-            p,
-            Path::new(p),
-            p.trim_end_matches('/').to_owned(),
-            &skip,
-            &mut w,
-        )?;
+        w.numbered = 0;
+        walk(p, Path::new(p), &skip, &mut w)?;
     }
     let dev: Vec<(PathBuf, BodyView)> = w
         .bodies

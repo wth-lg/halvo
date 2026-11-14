@@ -97,13 +97,13 @@ fn a_site_name_in_a_file_and_a_development_body_fail() {
     assert_eq!(o.code, 1);
     assert!(
         o.stdout
-            .contains(&format!("HIT site {}/b/target 1\n", s(&dir.join("repo")))),
+            .contains(&format!("HIT site {}#2 1\n", s(&dir.join("repo")))),
         "a file named target is searched: {}",
         o.stdout
     );
     assert!(
         o.stdout
-            .contains(&format!("HIT site {}/a/notes.md 1\n", s(&dir.join("repo")))),
+            .contains(&format!("HIT site {}#1 1\n", s(&dir.join("repo")))),
         "{}",
         o.stdout
     );
@@ -143,7 +143,7 @@ fn the_canaries_of_a_body_of_the_same_author_are_left_out() {
     let o = run(&["leak", &s(&t), &s(&h), &s(&dir.join("stray"))]);
     assert!(
         o.stdout
-            .contains(&format!("HIT canary {}/c.txt 1\n", s(&dir.join("stray")))),
+            .contains(&format!("HIT canary {}#1 1\n", s(&dir.join("stray")))),
         "{}",
         o.stdout
     );
@@ -325,4 +325,49 @@ fn a_path_below_a_directory_named_target_is_read_and_a_target_inside_a_walk_is_n
     assert_eq!(o.code, 0, "{}", o.stdout);
     assert!(o.stdout.contains(" bodies=0 files=0 "), "{}", o.stdout);
     assert!(o.stdout.ends_with("leak PASS\n"));
+}
+
+#[test]
+fn a_hit_line_names_a_file_by_its_number_in_the_walk_and_never_by_its_name() {
+    let dir = scratch("hit-numbers");
+    let t = sealed(&dir, "gen-check", "check");
+    let repo = dir.join("repo");
+    write(&repo.join("a-plain.txt"), "plain words\n");
+    write(&repo.join("goldfinch-cart.txt"), "Goldfinch-Cart and goldfinch-power\n");
+    write(&repo.join("m/goldfinch-rides/notes.md"), "goldfinch-rides\n");
+    write(&repo.join("m/plain.txt"), "plain words\n");
+    write(&repo.join("z.txt"), "c-two\n");
+    let r = s(&repo);
+    let o = run(&["leak", &s(&t), &r]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let hits: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("HIT ")).collect();
+    assert_eq!(
+        hits,
+        vec![
+            format!("HIT site {r}#2 2"),
+            format!("HIT site {r}#3 1"),
+            format!("HIT canary {r}#5 1"),
+        ],
+        "{}",
+        o.stdout
+    );
+    assert!(o.stdout.contains(" bodies=0 files=5 "), "{}", o.stdout);
+    for line in o.stdout.lines() {
+        let below = line.replace(&r, "");
+        assert!(
+            !below.to_ascii_lowercase().contains("goldfinch") && !below.contains("plain") && !below.contains(".txt"),
+            "a printed line names a file below the argument: {line}"
+        );
+    }
+    let o = run(&["leak", &s(&t), &s(&repo.join("goldfinch-cart.txt")), &s(&repo.join("m"))]);
+    let hits: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("HIT ")).collect();
+    assert_eq!(
+        hits,
+        vec![
+            format!("HIT site {}#1 2", s(&repo.join("goldfinch-cart.txt"))),
+            format!("HIT site {}#1 1", s(&repo.join("m"))),
+        ],
+        "{}",
+        o.stdout
+    );
 }
