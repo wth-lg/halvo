@@ -125,14 +125,20 @@ in the draws of the tests", with the limits below.
   statement out. A narrowing of the editPage statement to the bytes of line
   81461 is caught by the structural check alone: the byte search does not see
   it in the draws.
-- The table below has one row for every line of the page code (lines 75174
-  to 83341 of the pinned file) that holds memcpy, memmove, memset, put2byte or
-  put4byte, and a test of the crate fails when such a line has no row or a row
-  names no such line. Its columns are the builder's reading of each line, not
+- The table below has one row for every line of btree.c in the pinned file
+  (between its marker lines "Begin file btree.c" and "End of btree.c", lines
+  73561 to 85152, each found exactly once by the test) that holds memcpy,
+  memmove, memset, put2byte or put4byte, and a test of the crate fails when
+  such a line has no row or a row names no such line. The five words do not
+  match a header byte or a varint written in another form (a byte stored
+  through an index, putVarint, a 4-byte copy by assignment): those lines have
+  no row. Its columns are the builder's reading of each line, not
   a proof: what it writes and where, whether its source or destination can
   pass its object, what it can leave in the file, what zeroes or writes over
   that, and how often the tests' draws ran it, from line counts of the
-  compiled copy under clang's coverage with llvm-cov's rounding, in two
+  compiled copy under clang's coverage with llvm-cov's rounding, made at the
+  head ab8282d6 of the branch (the lines of this round's new rows read at the
+  same head), in two
   columns: the secured keyless draws alone (the eleven tests of page_gap that
   run with secure delete on and without a key and search the files or check
   their pages: the main test, the three of second_place, the three of
@@ -168,10 +174,13 @@ in the draws of the tests", with the limits below.
 - ADR 0006's "the shared SQLCipher build" stands: crates/halvo-sqlcipher is
   still the one build of the database.
 
-## The table of byte writes in the page code
+## The table of byte writes in btree.c
 
 | line | function | what it writes, from where to where | can a range pass its object | what it can leave in the file | zeroed or written over by | runs in the secured keyless draws | runs in all draws |
 |---|---|---|---|---|---|---|---|
+| 74297 | saveCursorKey | a buffer of the process | no | nothing in the file (a saved key) | - | 112 | 112 |
+| 74563 | sqlite3BtreeCursorHint | a buffer of the process | no | nothing in the file | - | not compiled | not compiled |
+| 74665 | ptrmapPut | a 4-byte page number or count into a pointer-map page (auto-vacuum) | no | nothing; pointer-map pages exist only under auto-vacuum | - | 0: not tested | 0: not tested |
 | 75205 | defragmentPage | comment | - | - | - | comment | comment |
 | 75227 | defragmentPage | cells between two freeblocks, moved up inside the content area | no: both inside [top, usableSize) by the corruption checks before it | the old bytes of the moved cells below the new content start | the zeroing of [iCellFirst, cbrk) at 75289 | 212 | 390 |
 | 75235 | defragmentPage | the content block [top, iFree) moved up to cbrk | no: top < iFree and iFree+sz <= usableSize are checked before it | the old bytes of the block below cbrk | 75289 | 397 | 732 |
@@ -300,6 +309,10 @@ in the draws of the tests", with the limits below.
 | 83260 | sqlite3BtreeInsert | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
 | 83309 | sqlite3BtreeTransferRow | the payload of a row into a new cell buffer (a transfer) | no: aIn+nIn is checked against the page before it | nothing in the file | - | 104 | 208 |
 | 83341 | sqlite3BtreeTransferRow | a part of a payload into a cell buffer or an overflow page (a transfer) | no | as 80748 | 80434 | 108 | 216 |
+| 83364 | sqlite3BtreeTransferRow | a 4-byte page number or count (the next overflow page of a copied row) into a cell or an overflow page | no | nothing | - | 72 | 144 |
+| 83372 | sqlite3BtreeTransferRow | a 4-byte page number or count (zero, the end of a copied row's chain) into an overflow page | no | nothing | - | 72 | 144 |
+| 84044 | sqlite3BtreeUpdateMeta | a 4-byte page number or count (a meta value) into the file header | no | nothing | - | 85 | 162 |
+| 84738 | sqlite3BtreeIntegrityCheck | a buffer of the process | no | nothing in the file (the integrity check's state) | - | 352 | 684 |
 
 ## Amendments
 
