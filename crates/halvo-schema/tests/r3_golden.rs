@@ -826,7 +826,7 @@ fn runner_bodies() -> Vec<RunnerCall> {
         RunnerCall::LoadReplies(LoadReplies {
             agent: agent(),
             run: run(),
-            messages: ["0001", "0002", "0003", "0004", "0005"]
+            message_ids: ["0001", "0002", "0003", "0004", "0005"]
                 .iter()
                 .map(|m| ProviderId::parse(&format!("msg-{m}")).unwrap())
                 .collect(),

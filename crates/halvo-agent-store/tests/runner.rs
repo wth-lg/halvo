@@ -3,7 +3,7 @@ mod common;
 use common::*;
 use halvo_agent_store::MemoryStore;
 use halvo_schema::executable::body::LoadReply;
-use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerReply};
+use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerCall, RunnerReply};
 use halvo_schema::ErrorName;
 use serde_json::{json, Value};
 
@@ -468,8 +468,12 @@ fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothin
     assert!(before.iter().any(|(_, rows)| !rows.is_empty()));
     for body in [
         json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record}),
-        json!({"op": "load_replies", "agent": agent(1), "run": run(1), "messages": ["msg-1", "msg-2"]}),
+        json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]}),
     ] {
+        assert!(
+            RunnerCall::parse(body.to_string().as_bytes()).is_ok(),
+            "the schema reads the body, so the store's arm answers it: {body}"
+        );
         assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
         assert_eq!(every_row(&store), before);
     }

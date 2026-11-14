@@ -589,7 +589,7 @@ fn replies_text(rows: &[String], blocked: &[&str], withheld: &[&str]) -> String 
 
 fn load_replies_body(messages: &[&str]) -> String {
     format!(
-        r#"{{"op":"load_replies","agent":"{A}","run":"{R}","messages":[{}]}}"#,
+        r#"{{"op":"load_replies","agent":"{A}","run":"{R}","message_ids":[{}]}}"#,
         ids(messages)
     )
 }
@@ -626,7 +626,7 @@ fn the_body_load_replies_names_1_to_25_message_ids_each_once_and_travels_in_a_ru
         let RunnerCall::LoadReplies(body) = travels(&text, "load_replies") else {
             panic!("not load_replies")
         };
-        assert_eq!(body.messages.len(), count);
+        assert_eq!(body.message_ids.len(), count);
         assert_eq!(LoadReplies::parse(text.as_bytes()).unwrap(), body);
     }
     let one = load_replies_body(&["m1"]);
@@ -635,31 +635,31 @@ fn the_body_load_replies_names_1_to_25_message_ids_each_once_and_travels_in_a_ru
             load_replies_body(&[]),
             "LoadReplies",
             "no_message",
-            "messages",
+            "message_ids",
         ),
         (
             load_replies_body(&all),
             "LoadReplies",
             "messages_max",
-            "messages",
+            "message_ids",
         ),
         (
             load_replies_body(&["m1", "m2", "m1"]),
             "LoadReplies",
             "repeated_name",
-            "messages",
+            "message_ids",
         ),
         (
             load_replies_body(&[""]),
             "ProviderId",
             "empty_id",
-            "messages",
+            "message_ids",
         ),
         (
             swap(&one, r#"["m1"]"#, r#"[["m1"]]"#),
             "ProviderId",
             "not_a_string",
-            "messages",
+            "message_ids",
         ),
         (
             swap(&one, r#""run""#, &format!(r#""workflow":"{W}","run""#)),
@@ -668,7 +668,11 @@ fn the_body_load_replies_names_1_to_25_message_ids_each_once_and_travels_in_a_ru
             "-",
         ),
         (
-            swap(&one, r#""messages""#, r#""subjects":["Bill"],"messages""#),
+            swap(
+                &one,
+                r#""message_ids""#,
+                r#""subjects":["Bill"],"message_ids""#,
+            ),
             "LoadReplies",
             "unknown_key",
             "-",
@@ -727,6 +731,17 @@ fn the_body_reply_row_holds_one_reply_row_of_its_own_agent_and_run() {
     ] {
         expect(RunnerCall::parse(text.as_bytes()), type_name, rule, key);
     }
+}
+
+#[test]
+fn a_load_replies_body_that_names_its_ids_under_the_key_messages_is_refused() {
+    let text = format!(r#"{{"op":"load_replies","agent":"{A}","run":"{R}","messages":["m1"]}}"#);
+    expect(
+        RunnerCall::parse(text.as_bytes()),
+        "LoadReplies",
+        "unknown_key",
+        "-",
+    );
 }
 
 #[test]

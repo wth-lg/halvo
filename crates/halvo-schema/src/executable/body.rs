@@ -345,22 +345,24 @@ object_type! {
 }
 
 object_type! {
-    /// `load_replies`: 1 to 25 message ids, each once, those of one page of the run's list, whose rows the run reads.
+    /// `load_replies`: `message_ids` holds the provider's ids of 1 to 25 mail messages, each once, those of one page of
+    /// the run's list, whose rows the run reads, and never a message's text; each id is the value that `agent_reply`
+    /// holds under `message`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadReplies [op = "load_replies"] {
         pub agent: AgentId = "agent" => json::agent_id,
         pub run: RunId = "run" => from_json,
-        pub messages: Vec<ProviderId> = "messages" => list(from_json),
+        pub message_ids: Vec<ProviderId> = "message_ids" => list(from_json),
     }
     rules(b) {
-        let fail = |rule| Err(Refusal::malformed("LoadReplies", rule).at("messages"));
-        if b.messages.is_empty() {
+        let fail = |rule| Err(Refusal::malformed("LoadReplies", rule).at("message_ids"));
+        if b.message_ids.is_empty() {
             return fail("no_message");
         }
-        if b.messages.len() > REPLY_IDS_MAX {
+        if b.message_ids.len() > REPLY_IDS_MAX {
             return fail("messages_max");
         }
-        each_once("LoadReplies", &b.messages).map_err(|e| e.at("messages"))
+        each_once("LoadReplies", &b.message_ids).map_err(|e| e.at("message_ids"))
     }
 }
 
@@ -582,7 +584,7 @@ impl LoadRepliesReply {
         }
         let mut last = None;
         for row in &self.replies {
-            let Some(at) = body.messages.iter().position(|id| *id == row.message) else {
+            let Some(at) = body.message_ids.iter().position(|id| *id == row.message) else {
                 return fail("replies", "not_asked");
             };
             if last.is_some_and(|last| at <= last) {
@@ -594,7 +596,7 @@ impl LoadRepliesReply {
             ("blocked", &self.blocked),
             ("blocked_withheld", &self.blocked_withheld),
         ] {
-            if ids.iter().any(|id| !body.messages.contains(id)) {
+            if ids.iter().any(|id| !body.message_ids.contains(id)) {
                 return fail(key, "not_asked");
             }
         }
