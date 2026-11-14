@@ -208,16 +208,22 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
         }
     }
     pending.sort_by_key(|p| (p.at, p.rank));
+    lines_of(pending, &mut draw)
+}
+
+fn lines_of(pending: Vec<Pending>, draw: &mut Draw) -> BTreeMap<u32, Vec<u8>> {
     let mut days: BTreeMap<u32, Vec<u8>> = BTreeMap::new();
-    for (n, p) in pending.into_iter().enumerate() {
+    let mut seq = 0u64;
+    for p in pending {
         let (w1, w2) = (draw.word(), draw.word());
         let id = RecordId::parse(&record_id(p.at, w1, w2));
         let app = p.app.as_deref().and_then(|a| AppId::parse(a).ok());
         let record = id.and_then(|id| {
-            CaptureRecord::new(id, Instant(p.at), Seq::new(n as u64)?, app, p.payload).ok()
+            CaptureRecord::new(id, Instant(p.at), Seq::new(seq)?, app, p.payload).ok()
         });
         if let Some(r) = record {
             days.entry(p.day).or_default().extend(r.to_line());
+            seq += 1;
         }
     }
     days
@@ -440,4 +446,31 @@ fn tally(bytes: &[u8]) -> (u64, u64, u64, i64) {
     }
     let span = first.map_or(0, |f| (last - f) / SECOND);
     (n, t, c, span)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_record_that_cannot_be_made_takes_no_seq() {
+        let pending = |app: Option<&str>, payload: Payload, at: i64| Pending {
+            at,
+            rank: 0,
+            day: 1,
+            app: app.map(str::to_owned),
+            payload,
+        };
+        let records = vec![
+            pending(None, Payload::RunMark(SeamEdge::Start), SECOND),
+            pending(Some("org.chromium.Chromium"), Payload::RunMark(SeamEdge::End), 2 * SECOND),
+            pending(None, Payload::RunMark(SeamEdge::End), 3 * SECOND),
+        ];
+        let days = lines_of(records, &mut Draw::named("seq"));
+        let seqs: Vec<u64> = days[&1]
+            .split_inclusive(|b| *b == b'\n')
+            .map(|l| CaptureRecord::read_line(l).expect("a record").seq().get())
+            .collect();
+        assert_eq!(seqs, vec![0, 1]);
+    }
 }
