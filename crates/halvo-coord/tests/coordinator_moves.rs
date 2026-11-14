@@ -6624,3 +6624,131 @@ fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_send
         }
     }
 }
+
+#[test]
+fn a_wait_limit_lapse_between_two_clock_reads_of_a_tick_holds_the_boards_stop() {
+    let limits = Limits::PRODUCT;
+    let limit = T0 + limits.wait_limit_s * 1000;
+    let mut window = Vec::new();
+    for k in 1..400u64 {
+        let c = coordinator(&[MANUAL], limits);
+        let run = start(&c, 0);
+        c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+        let (item, _) = open_item(&c);
+        let m = mark(&c);
+        c.ports().ports.set_clock(limit - k, DAY);
+        c.ports().ports.step_reads(1);
+        c.tick();
+        c.ports().ports.step_reads(0);
+        let lapsed = events(&c).contains(&What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::Confirm(LapseCause::WaitLimit),
+        });
+        if !lapsed {
+            continue;
+        }
+        let line = row_line(&c.snapshot(), 0);
+        let cancels = cancels_of(&c, m, &run);
+        if line != text("line.working.stopping") {
+            let m2 = mark(&c);
+            c.ports()
+                .ports
+                .set_clock(limit + limits.cancel_grace_s * 1000 + 1_000, DAY);
+            c.tick();
+            window.push(format!(
+                "k={k}: lapsed with wait_limit, cancels={cancels}, row line {line:?}, kills at grace {}, live after grace {}",
+                kills_of(&c, m2, &run),
+                c.live()
+            ));
+        }
+    }
+    assert!(
+        window.is_empty(),
+        "a lapse at wait_limit that cancelled its run with no stop on the board: {window:#?}"
+    );
+}
+
+fn tick_with_one_failed_clock_read(at: u64, p: u32) -> (Coordinator<Both>, RunId, ItemId, usize) {
+    let (c, run, item) = run_waiting_on_a_confirmation(false);
+    c.ports().ports.set_clock(at, DAY);
+    let m = mark(&c);
+    c.ports().fail_read_at.set(Some(p));
+    c.tick();
+    c.ports().fail_read_at.set(None);
+    (c, run, item, m)
+}
+
+fn confirmation_tick_outcome(
+    c: &Coordinator<Both>,
+    run: &RunId,
+    item: &ItemId,
+    m: usize,
+) -> (bool, bool, usize, Vec<String>) {
+    let s = c.snapshot();
+    let stopping = row_line(&s, 0) == text("line.working.stopping");
+    let card = s.items.iter().any(|i| i.item() == item);
+    (stopping, card, cancels_of(c, m, run), step_rows(c, item))
+}
+
+#[test]
+fn a_tick_at_the_wait_limit_with_one_failed_clock_read_holds_no_stop_without_its_lapse() {
+    let at = T0 + Limits::PRODUCT.wait_limit_s * 1000;
+    for p in 0..40u32 {
+        let (c, run, item, m) = tick_with_one_failed_clock_read(at, p);
+        let outcome = confirmation_tick_outcome(&c, &run, &item, m);
+        let whole = outcome == (true, false, 1, vec!["lapsed:wait_limit".to_string()]);
+        let none = outcome == (false, true, 0, Vec::<String>::new());
+        assert!(whole || none, "read {p} failed: {outcome:?}");
+    }
+}
+
+#[test]
+fn a_tick_past_the_wait_limit_whose_reading_fails_makes_no_move_and_the_next_tick_lapses() {
+    let at = T0 + Limits::PRODUCT.wait_limit_s * 1000 + 5_000;
+    let mut no_move = 0;
+    for p in 0..40u32 {
+        let (c, run, item, m) = tick_with_one_failed_clock_read(at, p);
+        let outcome = confirmation_tick_outcome(&c, &run, &item, m);
+        if outcome == (false, true, 0, Vec::<String>::new()) {
+            no_move += 1;
+            c.ports().ports.set_clock(at + 1_000, DAY);
+            c.tick();
+            assert_eq!(
+                confirmation_tick_outcome(&c, &run, &item, m),
+                (true, false, 1, vec!["lapsed:wait_limit".to_string()]),
+                "read {p} failed, then the next tick"
+            );
+        } else {
+            assert_eq!(
+                outcome,
+                (true, false, 1, vec!["lapsed:wait_limit".to_string()]),
+                "read {p} failed"
+            );
+        }
+    }
+    assert!(no_move > 0, "no failed read made the tick hold back");
+}
+
+#[test]
+fn a_second_mark_of_a_stopping_run_keeps_the_time_of_its_first_stop() {
+    let limits = Limits::PRODUCT;
+    let (c, run, _item) = waiting("second_step");
+    let at = T0 + limits.wait_limit_s * 1000;
+    c.ports().ports.set_clock(at, DAY);
+    c.ports().panics.set(Some("answer_bind"));
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.tick()));
+    c.ports().panics.set(None);
+    assert!(out.is_err(), "the port's answer_bind panicked");
+    c.ports().ports.set_clock(at + 1_000, DAY);
+    c.tick();
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(at + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        1,
+        "the grace counts from the first stop"
+    );
+}
