@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 set -u
 name=46-r4-dialog-ran
 off='hosted alone: not run on this machine'
@@ -82,6 +82,9 @@ measure() {
   code=$?
   tracked after
   tr -d '\r' <"$work/out" >"$CI_D_ARTIFACTS/dialog-targets.txt" || fail "the output of the run cannot be written to the artifacts directory"
+  if grep -q '^guard_hosted inconclusive: ' "$CI_D_ARTIFACTS/dialog-targets.txt"; then
+    fail "inconclusive: guard_hosted's app did not become active within 20 s on this runner, so the run is no result; run the job again"
+  fi
   broken=
   decide "$CI_D_ARTIFACTS/dialog-targets.txt" "$code" "$want"
   [ -z "$broken" ] || fail "$broken"
@@ -194,6 +197,11 @@ EOF
   check macos-zero-of-zero FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output failed 'dialog_hosted end: cases ran 4 of 4, failed 1' "$mac_guard"
   check macos-a-failed-case FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
+  output inconclusive "$mac_dialog" 'guard_hosted inconclusive: the app did not become active within 20 s; active=false key_window=false asks=21'
+  STUB_EXIT=101
+  check macos-inconclusive FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
+  output inconclusive-in-a-line "$mac_dialog" "x guard_hosted inconclusive: is no line of the target" "$mac_guard"
+  check macos-inconclusive-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 1, moments at a press 0, retries 0'
