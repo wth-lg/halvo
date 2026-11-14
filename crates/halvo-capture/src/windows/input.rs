@@ -2388,17 +2388,31 @@ mod tests {
                         }
                     }
                 };
-                // SAFETY: the calls take this thread's window handle and a
-                // slice of one live INPUT value with the size of one INPUT.
+                // The order of the detector test's own edit, which came to
+                // the front in 20 of 20 runs: SetForegroundWindow first, the
+                // Alt key only when that fails, then joined input.
+                // SAFETY: the calls take this thread's window handle.
                 unsafe {
                     let _ = ShowWindow(hwnd, SW_SHOW);
-                    let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
                     let _ = SetForegroundWindow(hwnd);
-                    let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
                 }
                 for _ in 0..30 {
                     pump();
                     std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                // SAFETY: GetForegroundWindow takes no argument.
+                if unsafe { GetForegroundWindow() } != hwnd {
+                    // SAFETY: a slice of one live INPUT value with the size of
+                    // one INPUT, and this thread's window handle.
+                    unsafe {
+                        let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
+                        let _ = SetForegroundWindow(hwnd);
+                        let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
+                    }
+                    for _ in 0..30 {
+                        pump();
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
                 }
                 // SAFETY: GetForegroundWindow takes no argument.
                 if unsafe { GetForegroundWindow() } != hwnd {

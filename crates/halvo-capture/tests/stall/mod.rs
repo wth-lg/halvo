@@ -1134,9 +1134,17 @@ impl Decisions {
 /// It answers how many of them the source recorded.
 fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u32 {
     let reset = fixture.ask(CMD_RESET, 0, "reset");
-    let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
-    std::thread::sleep(Duration::from_millis(250));
-    let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
+    // Three moves of the fixture's own there and back, each 250 ms after
+    // the one before, so that an own read sees each move apart and closes a
+    // latch that the keys of the rounds left open (each move closes at most
+    // one). The last move is the fixture's, with no focus key and no click
+    // after it (W3-7's correction (3)).
+    for _ in 0..3 {
+        std::thread::sleep(Duration::from_millis(250));
+        let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
+        std::thread::sleep(Duration::from_millis(250));
+        let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
+    }
     let _ = events.drain_for(Duration::from_millis(400));
     let _ = seam::take();
     let mut accepted = 0;
