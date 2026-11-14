@@ -1112,7 +1112,13 @@ What the code does since store-3, each sentence with the test that shows it.
   with a `DeleteReport` when the root reads destroyed or unnamed, no root
   file that the step counted stays and nothing is left, and
   `DeleteIncomplete` with the same report otherwise; a root that reads left
-  never gives `Ok` (ruling ST-44 F1). Tests:
+  never gives `Ok` (ruling ST-44 F1). A call after a delete-all that
+  answered `DeleteIncomplete` resumes; once a call answered `Ok`, every call
+  but delete-all answers `Sealed`, `size_bytes` among them (also while the
+  delete runs), and delete-all answers `Ok` with the kept report of the call
+  that finished and touches nothing on disk or in the custody (ruling ST-44
+  F6; test `calls_on_a_sealed_handle_answer_sealed_and_touch_nothing`).
+  Tests:
   `delete_all_answers_ok_only_when_no_root_unwraps_after_the_roots_directory_moved`,
   `delete_all_answers_ok_only_when_no_root_unwraps_after_an_empty_directory_took_the_roots_name`,
   `delete_all_answers_ok_only_when_no_root_unwraps_after_the_data_directory_moved`,

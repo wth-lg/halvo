@@ -114,14 +114,22 @@ impl EncryptedStore {
     /// the segments tree. `Ok` with the report when the root reads destroyed
     /// and nothing is left, [`StoreError::DeleteIncomplete`] with it otherwise. A
     /// second call on the same handle runs the steps again where they are
-    /// left. It runs no bulk key delete, no checkpoint and no keyless sweep.
+    /// left, after an answer of [`StoreError::DeleteIncomplete`]. Once a call
+    /// answered `Ok`, the handle is in the deleted state: every call but
+    /// `delete_all` answers [`StoreError::Sealed`], and `delete_all` answers
+    /// `Ok` with the report of the call that finished and touches nothing on
+    /// disk or in the custody. It runs no bulk key delete, no checkpoint and no
+    /// keyless sweep.
     pub fn delete_all(&mut self) -> StoreResult<DeleteReport> {
+        if let Some(finished) = self.finished_report() {
+            return Ok(finished);
+        }
         let keyed_segments = self.db().ok().and_then(|db| db.keyed_segments());
         self.destroy_store_key()?;
         let mut report = self.deleting_report().unwrap_or_else(|| self.untouched());
         report.keyed_segments = keyed_segments;
         if report.complete() {
-            self.mark_deleted();
+            self.mark_deleted(report.clone());
             Ok(report)
         } else {
             Err(StoreError::DeleteIncomplete(Box::new(report)))
@@ -148,6 +156,9 @@ impl SegmentExpiry for EncryptedStore {
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
+        if self.finished_report().is_some() {
+            return Ok(ShredReport::default());
+        }
         let report = self.delete_all()?;
         Ok(match report.keyed_segments {
             Some(segments_shredded) => ShredReport {

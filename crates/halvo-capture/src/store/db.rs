@@ -1759,7 +1759,7 @@ fn held_look(_conn: &Connection, store_dir: &Dir, _form: NameForm) -> StoreResul
 enum Keyed {
     Open { db: Db, store_key: StoreKey },
     Deleting(Option<Box<DeleteReport>>),
-    Deleted,
+    Deleted(Box<DeleteReport>),
 }
 
 /// The encrypted store: the SQLCipher database, the per-segment files
@@ -2023,7 +2023,7 @@ impl EncryptedStore {
     fn keyed(&self) -> StoreResult<(&Db, &StoreKey)> {
         match &self.keyed {
             Keyed::Open { db, store_key } => Ok((db, store_key)),
-            Keyed::Deleting(_) | Keyed::Deleted => Err(StoreError::Sealed),
+            Keyed::Deleting(_) | Keyed::Deleted(_) => Err(StoreError::Sealed),
         }
     }
 
@@ -2196,8 +2196,15 @@ impl EncryptedStore {
         &self._writer_lock.file
     }
 
-    pub(crate) fn mark_deleted(&mut self) {
-        self.keyed = Keyed::Deleted;
+    pub(crate) fn mark_deleted(&mut self, report: DeleteReport) {
+        self.keyed = Keyed::Deleted(Box::new(report));
+    }
+
+    pub(crate) fn finished_report(&self) -> Option<DeleteReport> {
+        match &self.keyed {
+            Keyed::Deleted(report) => Some((**report).clone()),
+            _ => None,
+        }
     }
 
     /// The delete tail on a store directory that no handle holds: it takes
@@ -2380,6 +2387,9 @@ impl SegmentStore for EncryptedStore {
     }
 
     fn size_bytes(&self) -> StoreResult<u64> {
+        if !matches!(self.keyed, Keyed::Open { .. }) {
+            return Err(StoreError::Sealed);
+        }
         dir_size(&self.dir)
     }
 }
