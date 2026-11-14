@@ -75,7 +75,8 @@ descriptor or a handle from a reply.
   "capture service not running" then. The ways left are a signal to the daemon and the
   app's end of a child that does not answer. An entry planted at the data directory's
   path that is no directory (a FIFO, a file, a socket or a link to one), or a link there
-  whose target is away, makes the read and the take of the lock an error at once, which ctl
+  whose target is away, or such a link or a file as the nearest part that stands above a
+  missing data directory, makes the read and the take of the lock an error at once, which ctl
   prints with exit 1 and never as not running.
 - Point a link to a directory at the data directory's path elsewhere: the link is followed,
   so the store, its roots and the socket lie where it leads, and the check of the data

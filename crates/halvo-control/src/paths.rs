@@ -31,16 +31,19 @@ pub enum PathError {
     SocketPathTooLong,
 }
 
-/// What stands at a data directory's own name when it is no directory that a link at that name
-/// leads to or that stands there itself (ruling ST-36 (e)).
+/// Why a data directory cannot be used: the nearest name that stands on its path, its own name or,
+/// when that name is missing, the nearest name above it, is a link that leads nowhere or is no
+/// directory (rulings ST-36 (e) and CT-13). A missing data directory below a directory is no cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EntryAtDataDir {
-    #[error("the data directory's name is a link whose target is away")]
+    #[error("the data directory's path meets a link that leads nowhere")]
     LinkLeadsNowhere,
-    #[error("the entry at the data directory's name is no directory")]
+    #[error("the data directory's path meets an entry that is no directory")]
     NotADirectory,
 }
 
+/// The cause at `dir`. When nothing stands at its name, the nearest name above it that an lstat
+/// finds is read instead, following its links; a directory there is no cause.
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
     let Ok(named) = std::fs::symlink_metadata(dir) else {
         return dir.parent().and_then(entry_fault);
@@ -408,8 +411,10 @@ impl DataDir {
         &self.0
     }
 
-    /// Whether the state file stands. An entry at the directory's own name that leads nowhere or
-    /// is no directory answers its cause, never a first run (ruling ST-36 (e)).
+    /// Whether the state file stands. A missing data directory is a first run unless the nearest
+    /// name that stands above it is a link that leads nowhere or is no directory; that, and an
+    /// entry at the directory's own name that leads nowhere or is no directory, answers its cause
+    /// (rulings ST-36 (e) and CT-13).
     pub fn is_provisioned(&self) -> Result<bool, EntryAtDataDir> {
         if let Some(cause) = entry_fault(self.path()) {
             return Err(cause);
@@ -1339,6 +1344,10 @@ mod tests {
         std::fs::write(&path, b"x").unwrap();
         let data = DataDir::from_flag(&path).unwrap();
         assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::NotADirectory));
+        assert_eq!(
+            EntryAtDataDir::NotADirectory.to_string(),
+            "the data directory's path meets an entry that is no directory"
+        );
     }
 
     #[cfg(unix)]
@@ -1350,6 +1359,10 @@ mod tests {
         std::os::unix::fs::symlink(root.path().join("unplugged"), &away).unwrap();
         let data = DataDir::from_flag(&away).unwrap();
         assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::LinkLeadsNowhere));
+        assert_eq!(
+            EntryAtDataDir::LinkLeadsNowhere.to_string(),
+            "the data directory's path meets a link that leads nowhere"
+        );
         let target = root.path().join("moved");
         std::fs::create_dir(&target).unwrap();
         let linked = root.path().join("l");
