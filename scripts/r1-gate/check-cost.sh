@@ -132,11 +132,16 @@ end_check_group() {
 
 signal_ends_the_child() {
   mini_shell=$1; shift
-  mini_dir=$gate_scratch/mini-$mini_shell-$1
+  mini_dir=$gate_scratch/mini-$mini_shell-$1${3:+-slow}
   mini=$mini_dir.sh
   mkdir -p "$mini_dir" || return 1
-  standin_words="$standin --timed-run $2 --store-dir $mini_dir"
-  mini_run="timed_child 60 \"$mini_dir\" \"$standin\" --timed-run \"$2\" --store-dir \"$mini_dir\""
+  if [ -n "${3:-}" ]; then
+    standin_words="$standin deaf $2"
+    mini_run="timed_child 60 \"$mini_dir\" \"$standin\" deaf \"$2\""
+  else
+    standin_words="$standin --timed-run $2 --store-dir $mini_dir"
+    mini_run="timed_child 60 \"$mini_dir\" \"$standin\" --timed-run \"$2\" --store-dir \"$mini_dir\""
+  fi
   cat > "$mini" <<MINI
 #!/bin/sh
 set -u
@@ -191,7 +196,7 @@ MINI
     *) printf 'pgrep could not read the processes after the check ended with exit %s\n' "$mini_status"; return 1 ;;
   esac
   if [ -n "$left" ]; then
-    for one in $left; do kill -TERM "$one" 2>/dev/null; done
+    for one in $left; do kill -KILL "$one" 2>/dev/null; done
     printf 'a stand-in process is left after the check ended with exit %s\n' "$mini_status"
     return 1
   fi
@@ -381,6 +386,7 @@ cases() {
   t deadline-zero FAIL deadline_run 0 sleep 1
   t term-ends-the-child PASS signal_ends_the_child sh TERM 33.25
   t hup-ends-the-child PASS signal_ends_the_child sh HUP 34.25
+  t hup-waits-for-a-slow-child PASS signal_ends_the_child sh HUP 5.75 slow
   if command -v dash > /dev/null 2>&1; then
     t term-ends-the-child-under-dash PASS signal_ends_the_child dash TERM 35.25
     t hup-ends-the-child-under-dash PASS signal_ends_the_child dash HUP 37.25

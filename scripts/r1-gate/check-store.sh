@@ -41,7 +41,7 @@ end_check_group() {
 
 hup_leaves_no_child() {
   command -v "$1" > /dev/null 2>&1 || return 1
-  hup_root=$gate_scratch/hup-$1
+  hup_root=$gate_scratch/hup-$1${2:+-slow}
   mkdir -p "$hup_root" || return 1
   mkfifo "$hup_root/ready" || return 1
   cat > "$hup_root/standin" <<'WRAPPER'
@@ -53,11 +53,12 @@ for word in "$@"; do
   flag=$word
 done
 printf '%s %s\n' "$$" "$store_dir" >&3
+[ -z "$HUP_SLOW_S" ] || exec "$HUP_STANDIN" deaf "$HUP_SLOW_S"
 exec "$HUP_STANDIN" "$@"
 WRAPPER
   chmod 755 "$hup_root/standin" || return 1
   hup_start=$(date +%s)
-  HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
+  HUP_SLOW_S=${2:-} HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
     "$1" -c "hup_wrapper=\$1; set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; standin=\$hup_wrapper; against_the_standin hang none" \
     "$DIR/check-$name.sh" "$hup_root/standin" > "$hup_root/check.out" 2>&1 3> "$hup_root/ready" &
   hup_pid=$!
@@ -115,7 +116,7 @@ WRAPPER
   esac
   ! kill -0 "$hup_child" 2> /dev/null || hup_left="$hup_left $hup_child"
   if [ -n "$hup_left" ]; then
-    for hup_one in $hup_left; do kill -TERM "$hup_one" 2> /dev/null; done
+    for hup_one in $hup_left; do kill -KILL "$hup_one" 2> /dev/null; done
     printf 'the child of the check is left after the check ended with exit %s\n' "$hup_status"
     return 1
   fi
@@ -182,6 +183,7 @@ cases() {
   t standin-verify-past-its-deadline FAIL fails_saying 'verify-store ran past its deadline of 1s and was ended' past_the_deadline
   t term-ends-the-verify-child PASS signal_leaves_no_child sh TERM
   t hup-ends-the-verify-child PASS hup_leaves_no_child sh
+  t hup-waits-for-a-slow-verify-child PASS hup_leaves_no_child sh 5.25
   if command -v dash > /dev/null 2>&1; then
     t term-ends-the-verify-child-under-dash PASS signal_leaves_no_child dash TERM
   fi
