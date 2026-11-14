@@ -188,15 +188,26 @@ in the draws of the tests", with the limits below.
   requires that line, and a test fails when a line of rules.rs has no control
   (`page_gap::lines::every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list`,
   a closed list as the table below has). The parts of rules that have no
-  control: page 1 read as a b-tree page (every plant is on a later page), the
-  last 1 to 3 bytes of a range of words that is no multiple of 4, a cell whose
-  payload or rowid takes a varint of 9 bytes, bytes 0 to 3 of the last
-  overflow page of a chain and the bytes of the file past its last whole
-  page, which no rule reads, and the three walks that stop without a line of
-  their own (the trunks past the page count or seen twice, a chain that leaves
-  the file before its payload ends, a freeblock chain longer than the page),
-  whose pages the line of a page in no tree and the sum of the four kinds
-  then name. The tests page_gap::controls plant the four rules of a tree page
+  control, each with what an unseen fault there could hide:
+  page 1 read as a b-tree page (every plant is on a later page): page 1 holds
+  the rows of sqlite_schema, so the SQL of a dropped table or index in its
+  gap and freeblocks;
+  the last 1 to 3 bytes of a range of words that is no multiple of 4 (they
+  are read as the high bytes of a word): 1 to 3 bytes past the last whole word
+  of an overflow tail or of a trunk;
+  a cell whose payload or rowid takes a varint of 9 bytes (a rowid below 0 or
+  of 2^56 and above): by reading, a cell read too long covers the 1 to 3
+  bytes after it, which a leftover could hold;
+  bytes 0 to 3 of the last overflow page of a chain, which no rule reads: the
+  4 bytes of the next-page number that the database writes as 0;
+  the bytes of the file past its last whole page, which no rule reads: the
+  fragment of a page that a short write left;
+  and the three walks that stop without a line of their own (the trunks past
+  the page count or seen twice, a chain that leaves the file before its
+  payload ends, a freeblock chain longer than the page): the pages behind the
+  stop, which the line of a page in no tree and the sum of the four kinds
+  then name, and the bytes of a freeblock past the stop, which the rule of
+  the content area then reads. The tests page_gap::controls plant the four rules of a tree page
   on an interior index page, an interior table page, an index leaf and a
   table leaf with a byte of 0x01 and one of 0x80 (the last byte of a gap
   among them), a low and a high byte in a freelist leaf and in the header,

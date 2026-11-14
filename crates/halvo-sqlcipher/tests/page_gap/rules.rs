@@ -41,8 +41,8 @@ use rusqlite::Connection;
 /// What [`check`] found and what it read: the lines of the rules that a page
 /// breaks, the pages of the image, and how many of them it read as a b-tree
 /// page, an overflow page, a freelist trunk and a freelist leaf, and how many
-/// overflow tails it read. A caller requires `problems` to be empty and the
-/// four kinds to add up to `pages`.
+/// overflow tails it read. A caller requires `problems` to be empty; a sum of
+/// the four kinds other than `pages` is a line of `problems` itself.
 pub struct Checked {
     pub problems: Vec<String>,
     pub pages: usize,
@@ -377,8 +377,9 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
 /// size; and a page size of 8,192. Returns one line for each plant that no
 /// line names, and for each such page that the image lacks; an empty answer
 /// is the pass. On a connection whose log holds frames it answers with the
-/// log's line alone and plants nothing. It shows that the check sees these plants on the caller's
-/// image, not that the caller's draw would leave anything.
+/// log's line alone and plants nothing. It shows that the check sees these
+/// plants on the caller's image, not that the caller's draw would leave
+/// anything.
 pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
     let log = log_problems(conn);
     if !log.is_empty() {
