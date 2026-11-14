@@ -5,7 +5,7 @@ use halvo_schema::executable::step::Locator;
 
 use halvo_schema::learning::record::{EditId, EditState, LearnEdit, LearnRoutine, LearnRun};
 use halvo_schema::learning::Refusal;
-use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
+use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord, WorkflowId};
 
 use crate::convert;
 
@@ -64,6 +64,21 @@ pub(crate) fn newest_run<'a>(runs: &'a [LearnRun], run: &str) -> Option<&'a Lear
     runs.iter()
         .filter(|r| r.run.as_str() == run)
         .max_by_key(|r| r.rev())
+}
+
+/// The newest `learn_routine` row of the workflow and agent (contracts.md L1.1, the coordinator's ruling LM-56 (f)):
+/// the row of the highest `rev`, of two rows of one `rev` the one of the later `day`, and of two rows of one `rev`
+/// and one `day` the one that stands later in `routines`, which holds the rows in the order in which the read
+/// visited them. The step, `list_refinements` and the writes at a `start_run` take the newest row from it alone.
+pub(crate) fn newest_routine<'a>(
+    routines: &'a [LearnRoutine],
+    workflow: &WorkflowId,
+    agent: &AgentId,
+) -> Option<&'a LearnRoutine> {
+    routines
+        .iter()
+        .filter(|r| &r.workflow == workflow && &r.agent == agent)
+        .max_by_key(|r| (r.rev, r.day))
 }
 
 /// Every row of the family's kind `learn_edit`, by edit, each edit's rows in the order of `rev`.

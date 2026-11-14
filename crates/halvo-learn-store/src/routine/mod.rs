@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::num::NonZeroU32;
 
 use halvo_learn::{routine_step, Mark as RuleMark, RoutineState};
 use halvo_schema::learning::names::Mark;
 use halvo_schema::learning::record::{Day, LearnRoutine};
-use halvo_schema::{RowRead, Summary, SummaryRead, TypedRecord, WriterStep};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, TypedRecord, WorkflowId, WriterStep};
 
 use crate::host::Clock;
 use crate::rows;
@@ -50,23 +50,20 @@ fn written(
     let day = Day::new(today)?;
     let routines = rows::routines(rows).ok()?;
     let runs = rows::runs(rows).ok()?;
-    let mut newest: BTreeMap<(&str, &str), &LearnRoutine> = BTreeMap::new();
-    for row in &routines {
-        let slot = newest
-            .entry((row.workflow.as_str(), row.agent.as_str()))
-            .or_insert(row);
-        if row.rev > slot.rev {
-            *slot = row;
-        }
-    }
+    let pairs: BTreeSet<(&WorkflowId, &AgentId)> =
+        routines.iter().map(|r| (&r.workflow, &r.agent)).collect();
+    let newest: Vec<&LearnRoutine> = pairs
+        .into_iter()
+        .filter_map(|(workflow, agent)| rows::newest_routine(&routines, workflow, agent))
+        .collect();
     let mut theirs: Vec<Summary> = Vec::new();
     summaries.for_each(&mut |s| {
-        if newest.values().any(|row| days::users_doing(row, s)) {
+        if newest.iter().any(|row| days::users_doing(row, s)) {
             theirs.push(s.clone());
         }
     });
     let mut out = Vec::new();
-    for row in newest.values() {
+    for row in newest {
         let prev = figures(row);
         let next = routine_step(Some(&prev), &days::occurrences(row, &theirs, &runs), today);
         let due = next.mark != prev.mark

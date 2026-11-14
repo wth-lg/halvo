@@ -259,6 +259,43 @@ fn the_newest_row_is_the_one_with_the_highest_rev_whatever_the_order_of_the_rows
 }
 
 #[test]
+fn of_two_rows_of_one_rev_the_step_goes_on_from_the_one_of_the_later_day() {
+    let today = DAY + 30;
+    let earlier = settled(5, DAY - 2, 7, DAY - 14, DAY);
+    let later = settled(5, DAY, 9, DAY - 18, DAY);
+    let mut store = Store::default();
+    store.put_routine(&later);
+    store.put_routine(&earlier);
+    let mut order = Vec::new();
+    halvo_schema::RowRead::for_each(&store, "learn_routine", &mut |r| order.push(r.to_owned()));
+    assert!(order[0].contains(&format!("\"day\":{},", DAY - 2)));
+    let expected = routine_step(Some(&figures(&later)), &[], today);
+    assert_eq!(
+        only_row(&store.step(today)),
+        with_figures(&later, 6, today, &expected)
+    );
+}
+
+#[test]
+fn of_two_rows_of_one_rev_and_one_day_the_step_goes_on_from_the_one_visited_last() {
+    let today = DAY + 30;
+    let seven = settled(5, DAY, 7, DAY - 14, DAY);
+    let nine = settled(5, DAY, 9, DAY - 18, DAY);
+    let mut store = Store::default();
+    store.put_routine(&nine);
+    store.put_routine(&seven);
+    let mut order = Vec::new();
+    halvo_schema::RowRead::for_each(&store, "learn_routine", &mut |r| order.push(r.to_owned()));
+    assert!(order[0].contains("\"period\":7,"));
+    assert!(order[1].contains("\"period\":9,"));
+    let expected = routine_step(Some(&figures(&nine)), &[], today);
+    assert_eq!(
+        only_row(&store.step(today)),
+        with_figures(&nine, 6, today, &expected)
+    );
+}
+
+#[test]
 fn each_routine_reads_the_days_of_its_own_key() {
     let today = DAY + 10;
     let one = fresh(1, DAY);
