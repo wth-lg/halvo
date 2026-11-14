@@ -6,6 +6,7 @@ name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
 failing_fixtures=27
+shutdown_line='TF shutdown source='
 fixtures_at_once=4
 LC_ALL=C
 export LC_ALL
@@ -21,6 +22,19 @@ fail() {
 expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing
+a_timed_out_stop_reads_no_input_posted_after_its_answer
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge
+browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing
+browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing
+browser::cold_and_warm_orders_in_chrome
+browser::cold_and_warm_orders_in_edge
+browser::stall_phases_of_the_page_in_chrome
+browser::stall_phases_of_the_page_in_edge
+browser::swap_phases_of_the_page_in_chrome
+browser::swap_phases_of_the_page_in_edge
 c1_raw_input_delivers_keystrokes_and_pointer_events
 c2_screen_source_delivers_a_frame
 c3_foreground_source_reports_an_activated_window
@@ -33,18 +47,58 @@ capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
 keys_queued_before_a_stop_are_delivered_or_counted
+known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2
+known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2
+known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i
+known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
-known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
-known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
-known_defect::x15_a_held_key RR-windows-16
+known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2
 known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
-known_defect::x1_keystrokes_typed_into_a_password_field RR-windows-01
-known_defect::x2_window_title_events_for_other_windows_and_controls RR-windows-08
-known_defect::x3_attribution_before_the_first_foreground_change RR-windows-10
+password_field_fixture_chrome
+password_field_fixture_edge
+password_field_fixture_firefox
+password_field_fixture_native_dialog_phases_a_to_f
 pointer_moves_coalesce
+stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing
+stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing
+stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask
+stall::click_then_letters_while_the_program_serves_sent_messages_150_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_200_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_300_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_600_ms
+stall::click_then_letters_while_the_program_sleeps_150_ms
+stall::click_then_letters_while_the_program_sleeps_2000_ms
+stall::click_then_letters_while_the_program_sleeps_200_ms
+stall::click_then_letters_while_the_program_sleeps_300_ms
+stall::click_then_letters_while_the_program_sleeps_600_ms
+stall::enter_with_no_focus_move_then_five_letters_records_no_letter
+stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded
+stall::helper_stall_fixture
+stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front
+stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab
+stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms
+stall::tab_then_letters_while_the_program_sleeps_150_ms
+stall::tab_then_letters_while_the_program_sleeps_2000_ms
+stall::tab_then_letters_while_the_program_sleeps_200_ms
+stall::tab_then_letters_while_the_program_sleeps_300_ms
+stall::tab_then_letters_while_the_program_sleeps_600_ms
+stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded
 stop_with_a_full_sink
+the_fault_line_allocates_nothing
+the_first_own_read_after_a_start_reads_the_focused_password_field
+title_event_on_a_switch_to_a_window_with_a_fixed_title
 x12_screen_source_fifteen_start_stop_cycles
 x13_frames_on_a_static_screen
+x14_foreground_app_of_a_hosted_app
+x15_a_held_key
+x1_keystrokes_typed_into_a_password_field
+x2_window_title_events_for_other_windows_and_controls
+x3_attribution_before_the_first_foreground_change
 x5_screen_source_stop_and_start_again
 x7_capture_border_on_the_screen
 x8_raw_input_across_the_integrity_boundary
@@ -262,6 +316,18 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
 
+  for source in keyboard pointer window_title foreground screen; do
+    not_ok=0
+    for log in "$work"/test-*.log; do
+      [ -f "$log" ] || continue
+      found=$(tr -d '\r' <"$log" | grep -c "$shutdown_line$source ok=false")
+      not_ok=$((not_ok + found))
+    done
+    line="shutdown_not_ok source=$source count=$not_ok"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  done
+
   line="WF total=$total pass=$passed known_defect=$known fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
@@ -285,7 +351,9 @@ launch() {
     STUB_SPEC=$work/spec-$1
     STUB_TF=$work/bin/tf-stub
     WF_EXPECTED_FILE=$expected_file
+    STUB_SHUTDOWN_LINE=$test_file_shutdown_line
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
+    export STUB_SHUTDOWN_LINE
     if [ -n "$limit" ]; then
       WF_TEST_LIMIT_S=$limit
       export WF_TEST_LIMIT_S
@@ -418,6 +486,10 @@ case $kind in
     printf 'TF %s source_built_by_test=keyboard\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
     ;;
+  shutdown-not-ok)
+    printf '%skeyboard ok=false\ntest %s ... ok\n\n%s\n\n' "$STUB_SHUTDOWN_LINE" "$test" "$ok"
+    exit 0
+    ;;
   fakes)
     printf 'WF ghost_test_not_in_the_file result=pass\nWF %s result=known-defect id=RR-windows-99\n' "$test"
     printf 'WF total=99 pass=99 known_defect=0 fail=0\nPASS 50-windows-functional\n'
@@ -475,6 +547,8 @@ EOF
 }
 
 self_test() {
+  test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
+  test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/bin" "$work/repo" || exit 2
   write_stubs
@@ -508,10 +582,16 @@ fixtures() {
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
   real=$(expected_tests | awk '{ if (NF == 2) print $1 "|defect|" $2; else print $1 "|pass" }')
+  real_total=$(expected_tests | grep -c '')
+  real_known=$(expected_tests | awk 'NF == 2' | grep -c '')
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
-    "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=29 pass=21 known_defect=8 fail=0${nl}PASS $name"
+    "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" \
+    "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
+    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}PASS $name"
+  check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

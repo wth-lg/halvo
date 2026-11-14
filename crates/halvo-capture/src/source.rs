@@ -104,7 +104,6 @@ impl Drop for DefaultPairCall {
 /// started is [`CaptureError::AlreadyStarted`], whatever the source answers
 /// itself. A `shutdown` that returns `Ok` or [`CaptureError::ThreadEnded`]
 /// ends the started state; after any other answer the source counts as started.
-/// The daemon starts every source through it.
 pub struct StartGuard {
     source: Box<dyn CaptureSource>,
     started: bool,
@@ -226,6 +225,10 @@ pub enum HealthReason {
     StreamBlank,
     StreamSuspended,
     ThreadEnded,
+    /// The writer of the source's events is gone; a restart cannot help.
+    WriterGone,
+    /// The system closed the source's capture item; a restart can help.
+    ItemClosed,
     Timeout,
     OsError,
     NotImplemented,
@@ -306,7 +309,7 @@ pub struct HeldSamples {
 pub trait EventSink: sealed::Sealed {
     /// The old emit. It takes any `CaptureStreamEvent`, with no keep verdict,
     /// no clearance and no text filter point, and stays the remaining route of
-    /// a capture event to a stored record until core-3 removes it.
+    /// a capture event to a stored record.
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
 }
 

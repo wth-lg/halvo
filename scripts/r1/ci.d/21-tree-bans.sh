@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No package of the workspace links openssl-sys, and halvo, halvo-control and halvo-capture link no network client on the shipped targets.
+# rule: No package of the workspace links openssl-sys, and halvo, halvo-control and halvo-capture link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)).
 set -u
 name=21-tree-bans
 clients='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys'
@@ -21,12 +21,33 @@ judge() {
     fail "$1: ${cause:-predicate_tree_lines of scripts/r1-gate/lib.sh gave no cause}"
 }
 
+seam_manifests() {
+  own=crates/halvo-capture/Cargo.toml
+  manifests=$(git ls-files --cached --others --exclude-standard -- '*Cargo.toml') ||
+    fail "git cannot list the manifests"
+  for manifest in $manifests; do
+    [ "$manifest" != "$own" ] || continue
+    if grep -q 'test-seam' "$manifest"; then
+      fail "the feature test-seam stands in another manifest: $manifest"
+    fi
+  done
+  [ -f "$own" ] || fail "$own is missing"
+  lines=$(grep -c 'test-seam' "$own")
+  features=$(grep -c '^test-seam = \[\]$' "$own")
+  itself=$(grep -c '^halvo-capture = { path = "\.", features = \["test-seam"\] }$' "$own")
+  [ "$lines" -eq 2 ] && [ "$features" -eq 1 ] && [ "$itself" -eq 1 ] ||
+    fail "$own names test-seam on $lines lines, and not on its features line and its own dev-dependency line alone"
+  printf 'manifests that name test-seam: 1 (%s, %s lines)\n' "$own" "$lines"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
   GATE_ROOT=$CI_D_REPO
   export GATE_ROOT
   . scripts/r1-gate/lib.sh
+
+  seam_manifests
 
   tree=$(cargo tree --workspace --target all --all-features --prefix none --locked) ||
     fail "cargo tree failed for the workspace"
@@ -137,6 +158,10 @@ esac
 EOF
   chmod +x "$work/bin/cargo"
   : >"$work/repo/fixture-root"
+  git -C "$work/repo" init -q || exit 2
+  mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/src-tauri" || exit 2
+  printf '[features]\nr2 = []\ntest-seam = []\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["test-seam"] }\n' >"$work/repo/crates/halvo-capture/Cargo.toml"
+  printf '[dependencies]\nhalvo-capture = { path = "../crates/halvo-capture" }\n' >"$work/repo/src-tauri/Cargo.toml"
   printf 'halvo v0.0.0 (/w/src-tauri)\nhalvo-capture v0.0.0 (/w/crates/halvo-capture)\ntauri v2.12.5\nreqwest v0.13.5\nhyper v1.9.0\n' >"$work/main/workspace.txt"
   printf '{"packages":[{"name":"halvo","version":"0.0.0","id":"path+file:///w/src-tauri#halvo@0.0.0","dependencies":[{"name":"halvo-capture","source":null,"req":"*"}],"targets":[{"kind":["bin"],"crate_types":["bin"],"name":"halvo","src_path":"/w/src-tauri/src/main.rs"}]},{"name":"halvo-capture","version":"0.0.0","id":"path+file:///w/crates/halvo-capture#0.0.0","dependencies":[],"targets":[{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture","src_path":"/w/crates/halvo-capture/src/lib.rs"}]}],"version":1}\n' >"$work/main/metadata.json"
   for triple in aarch64-apple-darwin x86_64-pc-windows-msvc; do
@@ -190,6 +215,18 @@ EOF
     printf '%s v1.0.0\n' "$client" >>"$work/$client-in-the-app/halvo-aarch64-apple-darwin.txt"
     check "$client-in-the-app" FAIL "halvo on aarch64-apple-darwin: forbidden crate line: $client v1.0.0)"
   done
+  trees seam-in-another-manifest
+  repo=$work/seam-repo
+  mkdir -p "$repo" || exit 2
+  cp -R "$work/repo/." "$repo/"
+  printf '[dependencies]\nhalvo-capture = { path = "../crates/halvo-capture", features = ["test-seam"] }\n' >"$repo/src-tauri/Cargo.toml"
+  check seam-in-another-manifest FAIL 'the feature test-seam stands in another manifest: src-tauri/Cargo.toml)'
+  trees seam-as-a-default-feature
+  repo=$work/seam-default-repo
+  mkdir -p "$repo" || exit 2
+  cp -R "$work/repo/." "$repo/"
+  printf 'default = ["test-seam"]\n' >>"$repo/crates/halvo-capture/Cargo.toml"
+  check seam-as-a-default-feature FAIL 'crates/halvo-capture/Cargo.toml names test-seam on 3 lines, and not on its features line and its own dev-dependency line alone)'
   trees control-crate-links-hyper
   sed 's/{"name":"halvo-capture","version"/{"name":"halvo-control","version":"0.0.0","id":"path+file:\/\/\/w\/crates\/halvo-control#0.0.0","dependencies":[],"targets":[]},&/' "$work/main/metadata.json" >"$work/control-crate-links-hyper/metadata.json"
   printf 'halvo-control v0.0.0 (/w/crates/halvo-control)\n' >"$work/control-crate-links-hyper/halvo-control-aarch64-apple-darwin.txt"
