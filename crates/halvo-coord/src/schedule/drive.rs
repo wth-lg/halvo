@@ -966,16 +966,23 @@ fn revealed(events: &[Event], after: u32) -> Option<OwnItem> {
         })
 }
 
-/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, ruling RD-12 (b)): the facts
-/// take the owner's events after their last one, and an agent that is idle with no item holds
-/// the newest item of the coordinator's own kinds that those events raised and left open,
-/// whichever log was refused: the check's own or a debt's.
+/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, rulings RD-12 (b) and RD-5):
+/// the facts take the owner's events after their last one; the agent's own item leaves the board
+/// when those events close it, as a skip, a start or a lapse that the owner stored with a lost
+/// acknowledgement does; and an agent that is then idle with no item holds the newest item of
+/// the coordinator's own kinds that those events raised and left open, whichever log was
+/// refused: the check's own or a debt's.
 pub(crate) fn read_after_seq<P: Owner, C>(
     ports: &P,
     facts: &mut Facts<C>,
 ) -> Result<(), PortError> {
     let after = facts.events.last().map_or(0, |e| e.seq.get());
     resync(ports, &facts.agent, &mut facts.events)?;
+    if let Doing::Idle(Some(own)) | Doing::Queued(Some(own)) = &facts.doing {
+        if item_closed(&facts.events, &own.item) {
+            facts.doing = without_item(&facts.doing);
+        }
+    }
     if let Some(own) = revealed(&facts.events, after).filter(|_| facts.doing == Doing::Idle(None)) {
         facts.doing = Doing::Idle(Some(own));
     }

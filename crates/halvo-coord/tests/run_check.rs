@@ -2,11 +2,15 @@
 mod support;
 
 use halvo_coord::guard::Table;
+use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::{recover, Act};
 use halvo_coord::schedule::{drive as schedule_drive, Answer, Move};
-use halvo_coord::types::{Cause, CheckAnswer, Doing, Outcome, OwnItemKind, Raised, RunId, What};
+use halvo_coord::types::{
+    Answered, Cause, CheckAnswer, Doing, ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind,
+    Raised, ReadyAnswer, RunId, What,
+};
 use support::{agent, world, World, A, DAY, MANUAL, T0};
 
 const SLOTTED: A = A {
@@ -113,15 +117,61 @@ fn the_answer_to_the_check_closes_its_item_and_ends_the_hold() {
     );
 }
 
-#[test]
-fn no_check_item_for_an_agent_with_an_open_item_or_a_failed_store() {
-    let mut w = world(&[PERSON]);
+/// The open `ready` item of agent `n`.
+fn ready_item(w: &World, n: usize) -> ItemId {
+    match &w.facts(n).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready => o.item.clone(),
+        other => panic!("no open ready item: {other:?}"),
+    }
+}
+
+/// The owner's `item_lapsed` rows of agent `n`, with the item and the lapse.
+fn lapses(w: &World, n: usize) -> Vec<(ItemId, Lapsed)> {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .filter_map(|e| match &e.what {
+            What::ItemLapsed { item, lapsed } => Some((item.clone(), *lapsed)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The owner's `slot_skipped` rows of agent `n`.
+fn skips(w: &World, n: usize) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n) && matches!(e.what, What::SlotSkipped { .. }))
+        .count()
+}
+
+/// Agent `n` needs the person and holds an open `ready` item, and the agent store's newest
+/// record of it has `unknown` above 0, which no move has read yet.
+fn ready_beside_an_unread_check(w: &mut World, n: usize) -> ItemId {
     w.act(Act::Tick);
-    assert!(matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready));
+    let item = ready_item(w, n);
     let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
-    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    w.store_end(n, &run, Outcome::EffectUnknown, 1);
+    item
+}
+
+#[test]
+fn a_check_lapses_an_open_ready_item_and_waits_for_a_failed_store() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
     let tick = w.act(Act::Tick);
-    assert!(tick.checked.is_empty(), "the agent holds its ready item");
+    assert_eq!(tick.checked, vec![agent(0)], "the tick reads the record");
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(
+        lapses(&w, 0),
+        vec![(ready, Lapsed::Ready(OtherLapse::Check))],
+        "the ready item lapses with the cause check (I7.1, ruling RD-5)"
+    );
+    assert_eq!(check_items(&w, 0), 1);
     let mut w = world(&[MANUAL]);
     let run = ended_unknown(&mut w, 0);
     w.store_end(0, &run, Outcome::Failed, 1);
@@ -371,7 +421,7 @@ fn a_check_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held_and_no
 }
 
 #[test]
-fn an_open_ready_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held() {
+fn an_open_ready_item_that_the_owner_stored_with_a_lost_acknowledgement_lapses_for_the_check() {
     let mut w = world(&[MANUAL]);
     let run = ended_unknown(&mut w, 0);
     w.store_end(0, &run, Outcome::Failed, 1);
@@ -384,15 +434,17 @@ fn an_open_ready_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held(
             raised: Raised::Ready,
         },
     );
-    w.act(Act::Tick);
-    assert_eq!(
-        w.facts(0).doing,
-        Doing::Idle(Some(halvo_coord::types::OwnItem {
-            item,
-            kind: OwnItemKind::Ready,
-        })),
-        "the board holds the open item that the owner holds"
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert!(
+        holds_check_item(&w, 0),
+        "the read shows the ready item open, and the move writes the body once more with its lapse"
     );
+    assert_eq!(
+        lapses(&w, 0),
+        vec![(item, Lapsed::Ready(OtherLapse::Check))]
+    );
+    assert_eq!(check_items(&w, 0), 1);
 }
 
 #[test]
@@ -555,4 +607,186 @@ fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
         take(&w, before, start, 2);
     }
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)), "{days:?}");
+}
+
+/// The tick that first reads the record lapses the open `ready` item with the cause `check` and
+/// raises the item `check` in one log, the lapse first (I5.4, ruling RD-5).
+#[test]
+fn one_body_lapses_the_ready_item_before_it_raises_the_check() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let before = w.ports.tried.borrow().len();
+    w.act(Act::Tick);
+    let bodies: Vec<Vec<halvo_coord::types::Event>> = w.ports.tried.borrow()[before..]
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), None) if events.iter().any(|e| e.agent == agent(0)) => {
+                Some(events.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        bodies.len(),
+        1,
+        "one log of the agent in the tick: {bodies:?}"
+    );
+    let body = &bodies[0];
+    assert_eq!(body.len(), 2, "{body:?}");
+    assert!(
+        matches!(&body[0].what, What::ItemLapsed { item, lapsed: Lapsed::Ready(OtherLapse::Check) } if *item == ready),
+        "{body:?}"
+    );
+    assert!(
+        matches!(
+            &body[1].what,
+            What::ItemRaised {
+                raised: Raised::Check(None),
+                ..
+            }
+        ),
+        "{body:?}"
+    );
+    assert_eq!(body[1].seq.get(), body[0].seq.get() + 1);
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(skips(&w, 0), 0, "the lapse stores no slot_skipped");
+}
+
+/// After a refusal `seq` the move reads the open item anew from the owner's events: a skip of the
+/// `ready` item that the owner stored with a lost acknowledgement closed it, so the body that the
+/// move writes once more raises the check alone and lapses nothing (I5.4, ruling RD-5).
+#[test]
+fn after_a_refusal_seq_the_check_reads_the_ready_item_anew_and_lapses_none_that_a_skip_closed() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemAnswered {
+            item: ready,
+            answer: Answered::Ready(ReadyAnswer::Skip),
+        },
+    );
+    stored_unacknowledged(&w, 0, What::SlotSkipped { slot: None });
+    let before = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert!(
+        lapses(&w, 0).is_empty(),
+        "the skip closed the ready item, so no lapse is stored for it"
+    );
+    assert_eq!(check_items(&w, 0), 1);
+    let refused_seq = w.ports.tried.borrow()[before..]
+        .iter()
+        .filter(|t| matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq"))
+        .count();
+    assert_eq!(refused_seq, 1, "the first body met seq");
+}
+
+/// The owner stored the move's body, the lapse and the raise, with a lost acknowledgement: the
+/// read after the refusal `seq` shows the `ready` item closed and the check open, and the board
+/// holds that check with nothing written again.
+#[test]
+fn a_lapse_body_that_the_owner_stored_with_a_lost_acknowledgement_is_held_and_not_written_again() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let check = ItemId::parse(&format!("{:032x}", 0x7301)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: ready.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        },
+    );
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
+    );
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(OwnItem {
+            item: check,
+            kind: OwnItemKind::Check,
+        }))
+    );
+    assert_eq!(
+        lapses(&w, 0),
+        vec![(ready, Lapsed::Ready(OtherLapse::Check))],
+        "one lapse"
+    );
+    assert_eq!(check_items(&w, 0), 1, "one check");
+}
+
+/// Sets what agent `n` is doing on the board, as the move that opened or closed its item left it.
+fn set_doing(w: &mut World, n: usize, doing: Doing) {
+    let member = w
+        .board
+        .members
+        .iter_mut()
+        .find(|m| m.facts.agent == agent(n));
+    member.expect("a member").facts.doing = doing;
+}
+
+/// An agent that holds an open `setup` item gets no check, and its item no lapse: the check waits
+/// until that item is closed, and the next move after it raises the check (I5.4).
+#[test]
+fn the_check_waits_behind_an_open_setup_item() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    let setup = OwnItem {
+        item: ItemId::parse(&format!("{:032x}", 0x7401)).unwrap(),
+        kind: OwnItemKind::Setup,
+    };
+    set_doing(&mut w, 0, Doing::Idle(Some(setup.clone())));
+    assert!(w.act(Act::Tick).checked.is_empty());
+    assert_eq!(w.facts(0).doing, Doing::Idle(Some(setup)));
+    assert_eq!((check_items(&w, 0), lapses(&w, 0).len()), (0, 0));
+    set_doing(&mut w, 0, Doing::Idle(None));
+    w.set_clock(T0 + 10_000, DAY);
+    assert_eq!(
+        w.act(Act::Tick).checked,
+        vec![agent(0)],
+        "raised once the setup item is closed"
+    );
+    assert!(lapses(&w, 0).is_empty());
+}
+
+/// The lapse stores no `slot_skipped`: after the answer `try_again` the next tick raises `ready`
+/// again (I5.4, ruling RD-5).
+#[test]
+fn the_lapse_stores_no_slot_skipped_and_after_try_again_the_next_tick_raises_ready_again() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    w.set_clock(T0 + 1_000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert_eq!(skips(&w, 0), 0);
+    let answered = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Check {
+            agent: agent(0),
+            answer: CheckAnswer::TryAgain,
+        },
+    );
+    assert_eq!(answered.answer, Ok(Answer::Ok));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    w.set_clock(T0 + 2_000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.report.raised, vec![agent(0)], "ready again");
+    assert_ne!(ready_item(&w, 0), ready);
+    assert_eq!(
+        skips(&w, 0),
+        0,
+        "neither the lapse nor try_again stores slot_skipped"
+    );
 }
