@@ -1,5 +1,7 @@
 use super::*;
 use halvo_capture::secure_input::windows::FieldState;
+
+mod evidence;
 use halvo_capture::source::Started;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -459,20 +461,61 @@ fn marks_seen(file: &str) -> (String, String) {
         })
         .unwrap_or("element=none")
         .to_string();
+    (element, newest_marks(&marks))
+}
+
+fn part_of<'a>(mark: &'a seam::MarkSeen, key: &str, none: &'a str) -> &'a str {
+    mark.element
+        .as_deref()
+        .and_then(|e| e.split(' ').find(|part| part.starts_with(key)))
+        .unwrap_or(none)
+}
+
+fn newest_marks(marks: &[seam::MarkSeen]) -> String {
     let newest: Vec<String> = marks
         .iter()
         .rev()
         .take(3)
         .map(|mark| {
-            let file = mark
-                .element
-                .as_deref()
-                .and_then(|e| e.split(' ').find(|part| part.starts_with("file=")))
-                .unwrap_or("file=none");
-            format!("{}:{:?}:{file}", mark.what, mark.state)
+            format!(
+                "{}:{:?}:{}:{}:{}",
+                mark.what,
+                mark.state,
+                part_of(mark, "file=", "file=none"),
+                part_of(mark, "pid_read=", "pid_read=none"),
+                part_of(mark, "file_read=", "file_read=none"),
+            )
         })
         .collect();
-    (element, newest.join(","))
+    newest.join(",")
+}
+
+fn file_reads(marks: &[seam::MarkSeen]) -> String {
+    let (mut ok, mut failed, mut not_read, mut none) = (0, 0, 0, 0);
+    for mark in marks
+        .iter()
+        .filter(|m| m.what == "read" || m.what == "event")
+    {
+        match part_of(mark, "file_read=", "") {
+            "file_read=ok" => ok += 1,
+            "" => none += 1,
+            read if read.starts_with("file_read=error") => failed += 1,
+            _ => not_read += 1,
+        }
+    }
+    format!("file_reads=ok:{ok},failed:{failed},not_read:{not_read},no_element:{none}")
+}
+
+fn seen_of(marks: &[seam::MarkSeen]) -> Vec<evidence::Seen> {
+    marks
+        .iter()
+        .map(|mark| evidence::Seen {
+            what: mark.what,
+            password: mark.state == Some(FieldState::Password),
+            element: mark.element.clone(),
+            at: mark.at.unwrap_or(mark.began),
+        })
+        .collect()
 }
 
 fn reset(keyboard: &Keyboard, hwnd: HWND) -> Option<PageRead> {
@@ -1039,18 +1082,38 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             .expect("INCONCLUSIVE: no page window");
         let cold_front = foreground_window() == cold;
         let cold_state = keyboard.state_within(FieldState::Password, Duration::from_secs(5));
-        let (cold_element, cold_newest) = marks_seen(&file);
+        let mut cold_marks = seam::take_marks();
+        let cold_newest = newest_marks(&cold_marks);
         let cold_page = page_read(cold).unwrap_or_default();
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(3) / 2);
-        let cold_round = end_round(&keyboard, cold, sent, cold_front);
+        keyboard.settle(Duration::from_millis(800));
+        let cold_keys = seam::take();
+        cold_marks.extend(seam::take_marks());
+        let cold_round = Round {
+            counted: cold_front,
+            sent,
+            page: page_read(cold).unwrap_or_default(),
+            keys: decisions_of(&cold_keys),
+        };
+        let cold_seen = seen_of(&cold_marks);
+        let cold_evidence = cold_keys
+            .iter()
+            .find(|key| key.class == seam::KeyClass::Printable)
+            .ok_or_else(|| "no letter was decided".to_string())
+            .and_then(|key| evidence::cold_evidence(&cold_seen, key.os_tick, key.decided_tick));
+        let cold_older = evidence::newest_mark_of(&cold_seen, &file);
         say(
             test,
             format!(
                 "browser={name} order=cold foreground={cold_front} focus_before={} gate_while_focused={cold_state:?} \
-                 {} newest_marks=[{cold_newest}] {cold_element}",
+                 {} evidence_marks={} newest_marks=[{cold_newest}] {} older_mark_of_the_page=[{cold_older}]",
                 cold_page.focus,
-                cold_round.line()
+                cold_round.line(),
+                cold_evidence
+                    .as_ref()
+                    .map_or_else(|why| why.replace(' ', "_"), usize::to_string),
+                file_reads(&cold_marks),
             ),
         );
 
@@ -1071,6 +1134,7 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         let control_marks = seam::take_marks();
         super::control_reads(test, "warm-control", &control_marks, &control_keys);
         let plain_element = element_in(&control_marks, &file);
+        let control_reads = file_reads(&control_marks);
         let control = Round {
             counted: warm_front,
             sent,
@@ -1079,7 +1143,10 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         };
         key(VK_F22);
         let warm_state = keyboard.state_within(FieldState::Password, Duration::from_secs(3));
-        let warm_element = element_seen(&file);
+        let warm_marks = seam::take_marks();
+        let warm_element = element_in(&warm_marks, &file);
+        let warm_newest = newest_marks(&warm_marks);
+        let warm_reads = file_reads(&warm_marks);
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(3) / 2);
         let warm_round = end_round(&keyboard, warm, sent, warm_front);
@@ -1088,7 +1155,7 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             test,
             format!(
                 "browser={name} order=warm-control foreground={warm_front} focus_before={} \
-                 gate_while_focused={plain_state:?} {} {plain_element}",
+                 gate_while_focused={plain_state:?} {} {control_reads} {plain_element}",
                 start.focus,
                 control.line()
             ),
@@ -1096,7 +1163,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         say(
             test,
             format!(
-                "browser={name} order=warm gate_while_focused={warm_state:?} {} {warm_element} keyboard_stop={}",
+                "browser={name} order=warm gate_while_focused={warm_state:?} {} newest_marks=[{warm_newest}] \
+                 {warm_reads} {warm_element} keyboard_stop={}",
                 warm_round.line(),
                 show(&stopped)
             ),
@@ -1114,8 +1182,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             "cold: the gate did not read Password while the input had the focus"
         );
         assert!(
-            cold_element.contains("is_password=1"),
-            "cold: the gate's reading was not of the password input"
+            cold_evidence.is_ok(),
+            "cold: the marks that decided the letters were not a reading of the password input: {cold_evidence:?}"
         );
         assert_eq!(
             cold_round.keys.letters, 0,
