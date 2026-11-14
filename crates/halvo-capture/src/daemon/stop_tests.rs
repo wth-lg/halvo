@@ -17,7 +17,7 @@ use super::port::{
 use super::scripted::{ScriptedRun, ScriptedSource};
 use super::{
     run_timed, stop_bound, DaemonError, FailedSource, LossCause, RunOutcome, RunSources,
-    SecureInput, SourceName, SwitchFlags, TimedRun, SETTLE_BOUND,
+    SecureInput, SourceName, StopBounds, SwitchFlags, TimedRun, DRAIN_BOUND, SETTLE_BOUND,
 };
 use crate::source::{CaptureError, HeldSamples, SourceContext, SourceCounters, SuppressedKeys};
 
@@ -745,4 +745,195 @@ fn an_outcome_with_a_loss_prints_its_report_and_line_and_returns_its_status() {
     assert_eq!(status, exit::ERROR);
     assert_eq!(String::from_utf8(out).unwrap(), outcome.report.render());
     assert_eq!(String::from_utf8(err).unwrap(), format!("{line}\n"));
+}
+
+/// A model store whose first expiry after `armed` sleeps `sleep`, and says so
+/// by `entered`.
+struct ExpiryArmed {
+    inner: ModelStore,
+    armed: Arc<AtomicBool>,
+    entered: Arc<AtomicBool>,
+    sleep: Duration,
+}
+
+impl MaintainStore for ExpiryArmed {
+    fn expire_due(&mut self, now: SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        if self.armed.load(Ordering::SeqCst) && !self.entered.swap(true, Ordering::SeqCst) {
+            std::thread::sleep(self.sleep);
+        }
+        self.inner.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for ExpiryArmed {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    /// After the window, before the drain wait and the pause.
+    Wait,
+    /// After the pause's answer, before the settle.
+    Stop,
+    /// After the last settle, before the Shutdown.
+    Figures,
+}
+
+/// Sources that run a hook at one phase of the stop path.
+struct PhaseHook<F: FnMut()> {
+    inner: ScriptedRun,
+    phase: Phase,
+    hook: std::cell::RefCell<F>,
+}
+
+impl<F: FnMut()> RunSources for PhaseHook<F> {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        wanted: &[SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        self.inner.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        let signalled = self.inner.wait(window, stop);
+        if self.phase == Phase::Wait {
+            (self.hook.borrow_mut())();
+        }
+        signalled
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        if self.phase == Phase::Stop {
+            (self.hook.borrow_mut())();
+        }
+        self.inner.stop()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        if self.phase == Phase::Figures {
+            (self.hook.borrow_mut())();
+        }
+        self.inner.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        self.inner.hold_refusal()
+    }
+}
+
+/// A run whose owner is held in an expiry of `held` from `phase` on, with
+/// `bound` as the settle bound.
+fn owner_held_at(phase: Phase, held: Duration, bound: Duration) -> RunOutcome {
+    let clocks = ManualClocks::at(noon());
+    let armed = Arc::new(AtomicBool::new(false));
+    let entered = Arc::new(AtomicBool::new(false));
+    let store = ExpiryArmed {
+        inner: ModelStore::new(),
+        armed: Arc::clone(&armed),
+        entered: Arc::clone(&entered),
+        sleep: held,
+    };
+    let hook_clocks = clocks.clone();
+    let hook = move || {
+        std::thread::sleep(Duration::from_millis(100));
+        armed.store(true, Ordering::SeqCst);
+        hook_clocks.advance(Duration::from_secs(61));
+        let until = Instant::now() + Duration::from_secs(5);
+        while !entered.load(Ordering::SeqCst) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(entered.load(Ordering::SeqCst), "the owner ran no expiry");
+    };
+    let mut sources = PhaseHook {
+        inner: four_events(),
+        phase,
+        hook: std::cell::RefCell::new(hook),
+    };
+    let stop = AtomicBool::new(false);
+    run_timed(&run_of(5), &mut sources, store, clocks, &stop, bound).unwrap()
+}
+
+/// Ruling DM-13 (3): the named waits of the stop path take their bounds from
+/// one value. Its parts at the product's values sum to 17 s, and each wait
+/// gives up at its own part: the drain wait and the pause of an owner parked
+/// in a write, and the pause, the settle and the Shutdown of an owner held for
+/// half a second past its part; a pause answered inside its part is taken.
+#[test]
+fn each_named_wait_of_the_stop_path_gives_up_at_its_own_part() {
+    assert_eq!(
+        StopBounds::of(SETTLE_BOUND),
+        StopBounds {
+            drain: Duration::from_secs(2),
+            pause: Duration::from_secs(5),
+            settle: Duration::from_secs(5),
+            shutdown: Duration::from_secs(5),
+        }
+    );
+    assert_eq!(stop_bound(SETTLE_BOUND), Duration::from_secs(17));
+    assert_eq!(StopBounds::of(SETTLE_BOUND).sum(), stop_bound(SETTLE_BOUND));
+
+    let bound = Duration::from_secs(1);
+    let tick = Duration::from_millis(500);
+    let cause = |outcome: &RunOutcome| outcome.loss.as_ref().map(|loss| loss.cause);
+
+    let (store, parked) = ParkingStore::parked(ModelStore::new());
+    let mut scripted = keys(1_200);
+    let stop = AtomicBool::new(false);
+    let started = Instant::now();
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        bound,
+    )
+    .unwrap();
+    let took = started.elapsed();
+    parked.store(false, Ordering::SeqCst);
+    assert_eq!(cause(&outcome), Some(LossCause::PauseUnanswered));
+    assert!(
+        took >= DRAIN_BOUND + bound && took < DRAIN_BOUND + bound + Duration::from_secs(1),
+        "the drain wait and the pause of a parked owner took {took:?}"
+    );
+
+    let outcome = owner_held_at(Phase::Wait, bound + tick, bound);
+    assert_eq!(
+        cause(&outcome),
+        Some(LossCause::PauseUnanswered),
+        "{outcome:?}"
+    );
+    let outcome = owner_held_at(Phase::Wait, bound - tick / 2, bound);
+    assert!(
+        outcome.loss.is_none(),
+        "a pause answered inside its part was not taken: {outcome:?}"
+    );
+    let outcome = owner_held_at(Phase::Stop, bound + tick, bound);
+    assert_eq!(
+        cause(&outcome),
+        Some(LossCause::SettleUnanswered),
+        "{outcome:?}"
+    );
+    let outcome = owner_held_at(Phase::Figures, bound + tick, bound);
+    assert_eq!(
+        cause(&outcome),
+        Some(LossCause::ShutdownUnanswered),
+        "{outcome:?}"
+    );
 }

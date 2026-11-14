@@ -49,12 +49,41 @@ pub const SETTLE_BOUND: Duration = Duration::from_secs(5);
 /// for the owner to receive the events that the sink took inside the window.
 pub const DRAIN_BOUND: Duration = Duration::from_secs(2);
 
-/// The sum of the named bounds of a timed run's stop path: the drain wait and
-/// one `settle_bound` each for the pause, the settle and the Shutdown. The
-/// owner's open, the sources' stop and the join of the owner's thread have
-/// no bound of their own.
+/// The bounds of the named waits of a timed run's stop path, which
+/// `run_timed` reads from this one value and from nowhere else: the drain
+/// wait, and the waits for the owner's answers to the pause, the settle and
+/// the Shutdown. The owner's open, the ClosePause before the window, the
+/// sources' stop and the join of the owner's thread have no bound of their
+/// own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StopBounds {
+    pub drain: Duration,
+    pub pause: Duration,
+    pub settle: Duration,
+    pub shutdown: Duration,
+}
+
+impl StopBounds {
+    /// The bounds of a run whose waits for the owner's answers take
+    /// `settle_bound` each.
+    pub fn of(settle_bound: Duration) -> StopBounds {
+        StopBounds {
+            drain: DRAIN_BOUND,
+            pause: settle_bound,
+            settle: settle_bound,
+            shutdown: settle_bound,
+        }
+    }
+
+    /// The whole bound of the named waits: the sum of the four parts.
+    pub fn sum(self) -> Duration {
+        self.drain + self.pause + self.settle + self.shutdown
+    }
+}
+
+/// The sum of the named bounds of a timed run's stop path, `StopBounds::sum`.
 pub fn stop_bound(settle_bound: Duration) -> Duration {
-    DRAIN_BOUND + 3 * settle_bound
+    StopBounds::of(settle_bound).sum()
 }
 
 /// The text that a refused command line prints after its reason.
@@ -418,8 +447,9 @@ pub trait RunSources {
 /// sources start and run for the window, the owner receives what the sink took
 /// in the window (at most [`DRAIN_BOUND`]), the owner pauses, the sources stop
 /// and the owner settles.
-/// The pause and the shutdown each wait at most `settle_bound`
-/// for the owner's answer, and an owner that gives none is not joined.
+/// The named waits of the stop path take their bounds from
+/// `StopBounds::of(settle_bound)`, and an owner that gives no answer is not
+/// joined.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
     run: &TimedRun,
@@ -442,6 +472,7 @@ where
     use crate::floor::exclude::{FloorHandle, NoLineage};
     use owner::{Answer, Command, OwnerParts};
 
+    let bounds = StopBounds::of(settle_bound);
     let switches = run.switches.applied();
     let floor = FloorHandle::new(None, Arc::new(NoLineage), switches);
     let (handle, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
@@ -469,18 +500,18 @@ where
         .into_iter()
         .map(|kind| counts.of(kind).accepted)
         .sum();
-    let drained_by = std::time::Instant::now() + DRAIN_BOUND;
+    let drained_by = std::time::Instant::now() + bounds.drain;
     while owner.snapshot().events_received() < emitted && std::time::Instant::now() < drained_by {
         std::thread::sleep(Duration::from_millis(5));
     }
-    let paused = answer_within(&owner.handle, Command::OpenPause, settle_bound);
+    let paused = answer_within(&owner.handle, Command::OpenPause, bounds.pause);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
     let before = owner.snapshot();
     let last = match paused {
         Some(Answer::Paused(_)) => {
-            settle_within(&owner.handle, settle_bound).ok_or(LossCause::SettleUnanswered)
+            settle_within(&owner.handle, bounds.settle).ok_or(LossCause::SettleUnanswered)
         }
         _ => Err(LossCause::PauseUnanswered),
     };
@@ -489,7 +520,7 @@ where
         return Err(refusal);
     }
     let last = match last {
-        Ok(_) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
+        Ok(_) => match answer_within(&owner.handle, Command::Shutdown, bounds.shutdown) {
             Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
             _ => Err(LossCause::ShutdownUnanswered),
         },
