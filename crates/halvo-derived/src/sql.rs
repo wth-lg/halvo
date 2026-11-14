@@ -22,6 +22,7 @@ CREATE INDEX rows_kind_day ON rows(kind, day, summary);
 CREATE UNIQUE INDEX rows_workflow_id ON rows(workflow) WHERE kind = 'workflow';
 CREATE UNIQUE INDEX rows_workflow_key ON rows(wkey) WHERE kind = 'workflow';
 CREATE INDEX rows_read ON rows(kind, body) WHERE family <> 'workflow';
+CREATE INDEX rows_read_workflow ON rows(kind, workflow, body) WHERE family <> 'workflow';
 ";
 
 pub(crate) const MASTER: &str = "SELECT type, name, tbl_name, sql FROM sqlite_master";

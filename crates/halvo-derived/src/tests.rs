@@ -339,13 +339,66 @@ fn plan_of(statement: sql::Sql) -> Vec<String> {
     details
 }
 
-/// DS-4 H2: the keyed row read searches the index of the read of the whole kind by its kind, as that read does, so it
-/// walks no more than that read and sorts nothing.
+/// S-67, part 2: the keyed row read searches the index `rows_read_workflow` by its kind and its workflow and sorts
+/// nothing, so it walks the rows of one workflow of one kind and no row of another workflow; the read of the whole kind
+/// keeps its search of `rows_read` by the kind.
 #[test]
-fn the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing() {
-    let whole = plan_of(sql::ROWS_READ);
-    assert_eq!(whole, ["SEARCH rows USING INDEX rows_read (kind=?)"]);
-    assert_eq!(plan_of(sql::ROWS_READ_UNDER), whole);
+fn the_keyed_row_read_searches_its_index_by_kind_and_workflow_and_the_whole_read_searches_rows_read_by_kind(
+) {
+    assert_eq!(
+        plan_of(sql::ROWS_READ),
+        ["SEARCH rows USING INDEX rows_read (kind=?)"]
+    );
+    assert_eq!(
+        plan_of(sql::ROWS_READ_UNDER),
+        ["SEARCH rows USING INDEX rows_read_workflow (kind=? AND workflow=?)"]
+    );
+}
+
+/// The steps of the database's own machine that the keyed row read of the workflow `w1`, with its three rows of the
+/// kind `k`, takes on the store's schema in memory when `others` rows of the same kind and family name other
+/// workflows, read to its end.
+fn keyed_read_steps(others: usize) -> i32 {
+    let conn = memory();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    let insert =
+        "INSERT INTO rows (kind, family, class, workflow, body) VALUES ('k', 'test', 2, ?1, ?2)";
+    for n in 0..3 {
+        conn.execute(insert, rusqlite::params!["w1", format!("w1 row {n}")])
+            .unwrap();
+    }
+    for n in 0..others {
+        let workflow = format!("w{}", 2 + n % 50);
+        conn.execute(
+            insert,
+            rusqlite::params![workflow, format!("other row {n:06}")],
+        )
+        .unwrap();
+    }
+    let mut statement = conn.prepare(sql::ROWS_READ_UNDER.text()).unwrap();
+    let read: Vec<String> = statement
+        .query_map(
+            crate::db::reading!(NOW, ":kind" => "k", ":workflow" => "w1"),
+            |r| r.get(0),
+        )
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(read, ["w1 row 0", "w1 row 1", "w1 row 2"]);
+    statement.get_status(rusqlite::StatementStatus::VmStep)
+}
+
+/// S-67, part 3, the cost without a clock: the keyed row read of one workflow takes the same number of the database's
+/// own steps with 10 and with 2,000 rows of its kind under other workflows.
+#[test]
+fn the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold() {
+    let few = keyed_read_steps(10);
+    let many = keyed_read_steps(2_000);
+    assert!(few > 0);
+    assert_eq!(
+        few, many,
+        "steps with 10 and with 2,000 rows of other workflows"
+    );
 }
 
 /// RD-64 (a) and DS-4 at the level of the statement: the keyed row read hands out the rows of its kind whose workflow

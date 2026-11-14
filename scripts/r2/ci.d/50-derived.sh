@@ -19,7 +19,7 @@ esac
 #= src/lib.rs tests::a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it_is_not
 #= src/lib.rs tests::the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open
 #= src/lib.rs tests::rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one
-#= src/lib.rs tests::the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing
+#= src/lib.rs tests::the_keyed_row_read_searches_its_index_by_kind_and_workflow_and_the_whole_read_searches_rows_read_by_kind
 #= src/lib.rs tests::rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone
 #= src/lib.rs tests::the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing
 #= src/lib.rs tests::held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead
@@ -175,6 +175,7 @@ esac
 #= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
 #= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
 #= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
+#= src/lib.rs tests::the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
