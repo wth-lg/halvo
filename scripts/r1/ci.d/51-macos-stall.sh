@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the measured lines and the loop are named and run in steps of their own, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the measured lines and the loop are named and run in steps of their own, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
 set -u
 name=51-macos-stall
 test_limit_s=${MS_TEST_LIMIT_S:-900}
@@ -132,11 +132,17 @@ run_test() {
 proof_build() {
   build_list=$1
   build_log=$2
+  build_features=${3:-}
   set --
   for proof in $build_list; do
     set -- "$@" --cfg "halvo_proof=\"$proof\""
   done
-  cargo rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off "$@" >"$build_log" 2>&1
+  if [ -n "$build_features" ]; then
+    cargo rustc --locked -p halvo-capture --lib --profile check --message-format short --features "$build_features" \
+      -- -C debug-assertions=off "$@" >"$build_log" 2>&1
+  else
+    cargo rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off "$@" >"$build_log" 2>&1
+  fi
 }
 
 twelve_test() {
@@ -191,7 +197,7 @@ measure() {
   [ "$status" -eq 0 ] || fail "the twins of the proofs did not build: cargo rustc exited $status"
   proof_build "$proofs" "$work/proofs.txt"
   status=$?
-  [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions passed another bound or printed a held key"
+  [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions has with_hold_bound, with_seam or Debug for a held key"
   cut -d ' ' -f 2 "$work/proofs" >"$work/proof-codes" || fail "the list of proofs cannot be read"
   while read -r proof code; do
     wanted=$(grep -c -x -e "$code" "$work/proof-codes")
@@ -199,6 +205,14 @@ measure() {
     [ "$found" -ge "$wanted" ] || fail "the proof $proof did not fail with $code ($found errors $code for $wanted proofs)"
     printf 'proof %s: refused with %s\n' "$proof" "$code"
   done <"$work/proofs"
+  proof_build seam_in_a_release_build_twin "$work/seam-twin.txt" stall-seam
+  status=$?
+  [ "$status" -eq 0 ] || fail "the twin of the seam proof did not build with the feature stall-seam: cargo rustc exited $status"
+  proof_build seam_in_a_release_build "$work/seam-proof.txt" stall-seam
+  status=$?
+  [ "$status" -ne 0 ] || fail "the seam proof built with the feature stall-seam: a build without debug assertions has with_seam"
+  grep -q 'error\[E0599\]' "$work/seam-proof.txt" || fail "the seam proof with the feature stall-seam did not fail with E0599"
+  printf 'proof seam_in_a_release_build with the feature stall-seam: refused with E0599\n'
 
   fixture=$work/stall-fixture
   clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics \
@@ -343,6 +357,16 @@ case $* in
     printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
     exit 101
     ;;
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin"')
+    spec seam-twin-fails && exit 101
+    exit 0
+    ;;
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build"')
+    spec seam-proof-builds && exit 0
+    spec seam-proof-other-code && { printf 'error[E0308]: mismatched types\n'; exit 101; }
+    printf 'error[E0599]: no function named `with_seam`\n'
+    exit 101
+    ;;
   'test --locked -p halvo-capture --test macos_stall_fixture --no-run --message-format json')
     spec test-build-fails && exit 101
     printf '{"reason":"compiler-artifact","target":{"kind":["test"],"crate_types":["bin"],"name":"macos_stall_fixture","test":true},"executable":"%s","fresh":true}\n' "$STUB_EXE"
@@ -364,7 +388,8 @@ EOF
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 if [ "$*" = --list ]; then
-  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\nlaunch_one: test\nmeasured_one: test\nloop_one: test\n'
+  spec missing-test || printf 'the_probe: test\n'
+  printf 'phase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\nlaunch_one: test\nmeasured_one: test\nloop_one: test\n'
   spec extra-test && printf 'unlisted: test\n'
   exit 0
 fi
@@ -382,6 +407,7 @@ spec "hang-$test" && sleep 5
 spec "fail-$test" && { printf "thread 'x' panicked at y:\n%s: rounds that did not count: wait 150 ms\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"; exit 101; }
 spec "leak-$test" && { printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 150 ms: 3\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"; exit 101; }
 spec "empty-$test" && { printf 'test result: ok. 0 passed; 0 failed; 1 ignored\n'; exit 0; }
+spec "crash-$test" && { printf 'test result: FAILED. 0 passed; 1 failed; 0 ignored\n'; exit 134; }
 case $test in
   three_*)
     if spec "silent-$test"; then :
@@ -443,10 +469,16 @@ test a_rule ... ok'
   check known-fault-fails-otherwise FAIL 'failed without its assertion of a recorded key' 'fail-known_one'
   check phase-leaks FAIL 'phase_one result=FAIL' 'leak-phase_one'
   check extra-test FAIL 'lists tests that this script' 'extra-test'
+  check listed-test-missing FAIL 'does not list these tests of this script'"'"'s list: the_probe' 'missing-test'
+  check known-fault-other-exit FAIL 'known_one: exit 134, and not the exit 101 of one failed test' 'crash-known_one'
+  check known-fault-runs-no-test FAIL 'known_one: exit 0, and not one test ran and passed' 'empty-known_one'
   check twins-fail FAIL 'the twins of the proofs did not build' 'twins-fail'
   check proofs-build FAIL 'the proofs built' 'proofs-build'
   check proof-fails-with-another-code FAIL 'did not fail with E0599' 'proof-other-code'
   check one-error-for-two-proofs FAIL '(1 errors E0599 for 2 proofs)' 'proof-one-e0599'
+  check seam-twin-fails FAIL 'the twin of the seam proof did not build with the feature stall-seam' 'seam-twin-fails'
+  check seam-proof-builds FAIL 'the seam proof built with the feature stall-seam' 'seam-proof-builds'
+  check seam-proof-other-code FAIL 'the seam proof with the feature stall-seam did not fail with E0599' 'seam-proof-other-code'
   check fixture-fails FAIL 'the fixture did not compile' 'fixture-fails'
   check test-build-fails FAIL 'the test build failed' 'test-build-fails'
   check tracked-file-changed FAIL 'a tracked file differs from HEAD after the run' 'touch-phase_two'
