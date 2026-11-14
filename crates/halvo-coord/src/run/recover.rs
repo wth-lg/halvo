@@ -211,7 +211,7 @@ impl<C> Found<C> {
 }
 
 /// The recovery of a new life of the app (I5.8, I5.10), the coordinator's first move: it
-/// calls `Runs::reap` before anything else, so that no `Runs::start` comes before it, and
+/// calls `Runs::reap` so that no `Runs::start` comes before it, and
 /// answers that call's error with no board, so that no start can come before `reap` has
 /// answered. It reads the owner's list of workflows and every agent of `Owner::agents` whose
 /// workflow the list holds, with every ledger event of the agent, page by page of at most 64,
@@ -224,7 +224,8 @@ impl<C> Found<C> {
 /// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
 /// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
 /// with no item, an empty queue and no live run; then recovery raises the item `check` where
-/// `check_due` holds, since it read the store's records.
+/// `check_due` holds, since it read the store's records, and that raise lapses with the cause
+/// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
@@ -355,7 +356,7 @@ where
         .collect();
     let mut board = Board::new(day, members);
     board.owed = owed;
-    let checked = raise_checks(ports, &mut board, None);
+    let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {
         board,
         ended,

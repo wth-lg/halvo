@@ -21,7 +21,7 @@ import {
 const PENDING = { accountId: ACCOUNT, credentialHash: HASH, cap: CAP, sessionId: "cs_1", url: "http://127.0.0.1:1/c/1", expiresAt: 10_000 };
 const SESSION = { sessionId: "cs_1", customerId: "cus_1", subscriptionId: "sub_1", payment: "paid" as const };
 const WEEK_MS = 604_800_000;
-const ACCOUNT_COLUMNS =["account_id", "cancel_first", "credential_hash", "customer_id", "ended_at", "period_end", "period_start", "provider_time", "state", "subscription_id"];
+const ACCOUNT_COLUMNS =["account_id", "cancel_first", "credential_hash", "customer_id", "ended_at", "m1_count", "m1_newest", "m2_count", "m2_newest", "period_end", "period_start", "provider_time", "state", "subscription_id"];
 
 function withSql<T>(run: (sql: Sql, accounts: Accounts) => T): T {
   const db = openSql();
@@ -89,11 +89,11 @@ describe("complete", () => {
   test("makes the account once for a session id, and a second call or another session changes nothing", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
-      expect(accounts.complete(sql, { ...SESSION, sessionId: "cs_other" })).toEqual({ kind: "none" });
+      expect(accounts.complete(sql, { ...SESSION, sessionId: "cs_other" })).toEqual({ kind: "none", overrode: false });
       expect(accounts.pending(sql)?.sessionId).toBe("cs_1");
       expect(accounts.complete(sql, SESSION)).toEqual({ kind: "account-made", cap: CAP, period: null });
       const made = account(sql);
-      expect(accounts.complete(sql, SESSION)).toEqual({ kind: "none" });
+      expect(accounts.complete(sql, SESSION)).toEqual({ kind: "none", overrode: false });
       expect(account(sql)).toEqual(made);
       expect(made).toEqual([
         {
@@ -107,6 +107,10 @@ describe("complete", () => {
           provider_time: null,
           ended_at: null,
           cancel_first: null,
+          m1_count: 0,
+          m1_newest: null,
+          m2_count: 0,
+          m2_newest: null,
         },
       ]);
     });
@@ -128,7 +132,7 @@ describe("complete", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
       const event = subscriptionEvent({ state: "payment-failed" });
-      expect(accounts.applyEvent(sql, event, 600)).toEqual({ kind: "kept" });
+      expect(accounts.applyEvent(sql, event, 600)).toEqual({ kind: "kept", overrode: false });
       expect(accounts.complete(sql, SESSION)).toEqual({ kind: "account-made", cap: CAP, period: { start: 1_000, end: 2_592_001_000 } });
       expect(account(sql)[0]).toEqual(
         expect.objectContaining({ state: "payment-failed", provider_time: 3_000, period_start: 1_000, period_end: 2_592_001_000 }),
@@ -173,9 +177,9 @@ describe("applyEvent", () => {
       expect(accounts.applyEvent(sql, completed(), 600).kind).toBe("account-made");
       const once = { account: account(sql), ids: sql.exec("SELECT * FROM processed_event") };
       expect(once.ids).toEqual([{ event_id: "evt_completed", received_at: 600 }]);
-      expect(accounts.applyEvent(sql, completed(), 700)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, completed(), 700)).toEqual({ kind: "none", overrode: false });
       expect({ account: account(sql), ids: sql.exec("SELECT * FROM processed_event") }).toEqual(once);
-      expect(accounts.applyEvent(sql, { kind: "ignored" }, 800)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, { kind: "ignored" }, 800)).toEqual({ kind: "none", overrode: false });
       expect(sql.exec("SELECT * FROM processed_event")).toEqual(once.ids);
     });
   });
@@ -183,25 +187,25 @@ describe("applyEvent", () => {
   test("a completed event with no pending checkout of its session is kept as an id and changes nothing", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
-      expect(accounts.applyEvent(sql, completed({ sessionId: "cs_other" }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, completed({ sessionId: "cs_other" }), 600)).toEqual({ kind: "none", overrode: false });
       expect(accounts.pending(sql)?.sessionId).toBe("cs_1");
       expect(sql.exec("SELECT event_id FROM processed_event")).toEqual([{ event_id: "evt_completed" }]);
     });
   });
 
-  test("a subscription event replaces the state only when it is newer: a later time, or the same time and a higher rank", () => {
+  test("a cancel replaces every state that is not cancelled whatever the times, nothing but a cancel replaces cancelled, and among cancels the newer replaces: a later time, or the same time and a higher rank", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
       accounts.complete(sql, SESSION);
       const at = (eventId: string, providerTime: number, state: "active" | "payment-failed" | "cancelled", period = null) =>
         accounts.applyEvent(sql, subscriptionEvent({ eventId, providerTime, state, period }), 600);
-      expect(at("e1", 100, "payment-failed")).toEqual({ kind: "state", state: "payment-failed", was: "active", period: null });
-      expect(at("e2", 99, "cancelled")).toEqual({ kind: "none" });
-      expect(at("e3", 100, "active")).toEqual({ kind: "state", state: "active", was: "payment-failed", period: null });
-      expect(at("e4", 100, "payment-failed")).toEqual({ kind: "none" });
-      expect(at("e5", 100, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "active", period: null });
-      expect(at("e6", 100, "active")).toEqual({ kind: "none" });
-      expect(at("e7", 101, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "cancelled", period: null });
+      expect(at("e1", 100, "payment-failed")).toEqual({ kind: "state", state: "payment-failed", was: "active", period: null, overrode: false });
+      expect(at("e2", 99, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "payment-failed", period: null, overrode: true });
+      expect(at("e3", 100, "active")).toEqual({ kind: "none", overrode: true });
+      expect(at("e4", 100, "payment-failed")).toEqual({ kind: "none", overrode: true });
+      expect(at("e5", 100, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "cancelled", period: null, overrode: false });
+      expect(at("e6", 100, "active")).toEqual({ kind: "none", overrode: false });
+      expect(at("e7", 101, "cancelled")).toEqual({ kind: "state", state: "cancelled", was: "cancelled", period: null, overrode: false });
       expect(account(sql)[0]).toEqual(expect.objectContaining({ state: "cancelled", provider_time: 101 }));
     });
   });
@@ -216,10 +220,12 @@ describe("applyEvent", () => {
         state: "payment-failed",
         was: "active",
         period: null,
+        overrode: false,
       });
       expect(account(sql)[0]).toEqual(expect.objectContaining({ period_start: null, period_end: null, provider_time: 20 }));
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e3", providerTime: 30, subscriptionId: "sub_other", state: "cancelled" }), 600)).toEqual({
         kind: "none",
+        overrode: false,
       });
       expect(accounts.subscription(sql)?.state).toBe("payment-failed");
     });
@@ -229,18 +235,18 @@ describe("applyEvent", () => {
     withSql((sql, accounts) => {
       accounts.seed(sql, { accountId: ACCOUNT, credentialHash: HASH, state: "active", customerId: "cus_1" }, 5);
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e1", subscriptionId: "sub_first", state: "payment-failed" }), 6).kind).toBe("state");
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", subscriptionId: "sub_second", providerTime: 9_999 }), 6)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", subscriptionId: "sub_second", providerTime: 9_999 }), 6)).toEqual({ kind: "none", overrode: false });
       expect(accounts.subscription(sql)).toEqual({ accountId: ACCOUNT, state: "payment-failed", customerId: "cus_1", subscriptionId: "sub_first" });
     });
   });
 
-  test("a subscription event for a pending checkout is kept for its own subscription id, only when newer", () => {
+  test("a subscription event for a pending checkout is kept for its own subscription id, only when newer, and a cancel is newer than a kept state that is not cancelled", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e1", providerTime: 10 }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", providerTime: 9, state: "cancelled" }), 600)).toEqual({ kind: "none" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e3", providerTime: 11, subscriptionId: "sub_other" }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e4", providerTime: 10, state: "cancelled", period: null }), 600)).toEqual({ kind: "kept" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e1", providerTime: 10 }), 600)).toEqual({ kind: "kept", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e2", providerTime: 9, state: "cancelled" }), 600)).toEqual({ kind: "kept", overrode: true });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e3", providerTime: 11, subscriptionId: "sub_other" }), 600)).toEqual({ kind: "kept", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "e4", providerTime: 10, state: "cancelled", period: null }), 600)).toEqual({ kind: "kept", overrode: false });
       expect(accounts.subscription(sql)).toBeNull();
       expect(sql.exec("SELECT subscription_id, state, period_start, provider_time, kept_order FROM kept_event WHERE subscription_id = ?", "sub_1")).toEqual([
         { subscription_id: "sub_1", state: "cancelled", period_start: null, provider_time: 10, kept_order: 0 },
@@ -254,12 +260,12 @@ describe("applyEvent", () => {
   test("an event of the same provider time and the same state is not newer, on an account and on a pending checkout", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k1" }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k2", period: { start: 7, end: 8 } }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k1" }), 600)).toEqual({ kind: "kept", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k2", period: { start: 7, end: 8 } }), 600)).toEqual({ kind: "none", overrode: false });
       expect(sql.exec("SELECT period_start FROM kept_event")).toEqual([{ period_start: 1_000 }]);
       accounts.complete(sql, SESSION);
       expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a1", providerTime: 5_000 }), 600).kind).toBe("state");
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a2", providerTime: 5_000, period: { start: 7, end: 8 } }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a2", providerTime: 5_000, period: { start: 7, end: 8 } }), 600)).toEqual({ kind: "none", overrode: false });
       expect(account(sql)[0]).toEqual(expect.objectContaining({ period_start: 1_000, provider_time: 5_000 }));
     });
   });
@@ -267,22 +273,22 @@ describe("applyEvent", () => {
   test("of two events of one second and one state, the one whose period ends later is newer, and with equal periods neither is", () => {
     withSql((sql, accounts) => {
       accounts.keepPending(sql, PENDING, 500);
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k1", period: { start: 3_000, end: 9_000 } }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k2", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "kept" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k3", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k1", period: { start: 3_000, end: 9_000 } }), 600)).toEqual({ kind: "kept", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k2", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "kept", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "k3", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "none", overrode: false });
       expect(sql.exec("SELECT period_start, period_end FROM kept_event")).toEqual([{ period_start: 9_000, period_end: 15_000 }]);
       accounts.complete(sql, SESSION);
       const later = { start: 15_000, end: 21_000 };
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a1", period: later }), 600)).toEqual({ kind: "state", state: "active", was: "active", period: later });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a2", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "none" });
-      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a3", period: later }), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a1", period: later }), 600)).toEqual({ kind: "state", state: "active", was: "active", period: later, overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a2", period: { start: 9_000, end: 15_000 } }), 600)).toEqual({ kind: "none", overrode: false });
+      expect(accounts.applyEvent(sql, subscriptionEvent({ eventId: "a3", period: later }), 600)).toEqual({ kind: "none", overrode: false });
       expect(account(sql)[0]).toEqual(expect.objectContaining({ period_start: 15_000, period_end: 21_000, provider_time: 3_000 }));
     });
   });
 
   test("a subscription event for an id that holds nothing answers none and keeps only its id", () => {
     withSql((sql, accounts) => {
-      expect(accounts.applyEvent(sql, subscriptionEvent(), 600)).toEqual({ kind: "none" });
+      expect(accounts.applyEvent(sql, subscriptionEvent(), 600)).toEqual({ kind: "none", overrode: false });
       expect(sql.exec("SELECT * FROM kept_event")).toEqual([]);
       expect(sql.exec("SELECT * FROM pending_checkout")).toEqual([]);
       expect(sql.exec("SELECT * FROM account")).toEqual([]);

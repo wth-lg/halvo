@@ -1,20 +1,11 @@
-//! Who holds a socket or a pipe end: the system's tables that the relay's peer check (A11.1,
-//! CP-89 (e), CP-93 (6)) and the checks of a session (CP-89 (c)) read. On macOS the descriptors of
-//! each process of this user through `proc_pidinfo` and `proc_pidfdinfo`, a private interface of
-//! the system that reads a process of the same user alone; on Windows the tables of the IP helper
-//! with owner process ids.
-
 use std::net::IpAddr;
 
-/// The protocol of a socket that a table names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Proto {
     Tcp,
     Udp,
 }
 
-/// One socket of a process: its protocol, its local and remote address, and for TCP whether it
-/// accepts connections.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Socket {
     pub pid: u32,
@@ -24,10 +15,6 @@ pub struct Socket {
     pub listening: bool,
 }
 
-/// The processes that hold the TCP connection whose local end is 127.0.0.1:`peer_port` and whose
-/// remote end is 127.0.0.1:`relay_port`, the relay's address, as the system's table reads them now, each
-/// process once. `candidates` are the processes whose descriptors are read on macOS; Windows
-/// reads its one table and takes no candidates.
 pub fn owners_of_connection(peer_port: u16, relay_port: u16, candidates: &[u32]) -> Vec<u32> {
     let mut owners: Vec<u32> = sockets(candidates)
         .into_iter()
@@ -46,13 +33,10 @@ pub fn owners_of_connection(peer_port: u16, relay_port: u16, candidates: &[u32])
     owners
 }
 
-/// The sockets of the processes `pids` (macOS) or of every process (Windows) that the system
-/// lets this process read.
 pub fn sockets(pids: &[u32]) -> Vec<Socket> {
     sys::sockets(pids)
 }
 
-/// Every process number of the system.
 pub fn all_pids() -> Vec<u32> {
     sys::all_pids()
 }
@@ -116,7 +100,6 @@ mod sys {
             .collect()
     }
 
-    /// The descriptors of `pid` with their types, or none when the system refuses the read.
     pub fn fds_of(pid: u32) -> Option<Vec<(i32, u32)>> {
         // SAFETY: a null buffer asks for the size in bytes of the descriptor list.
         let size = unsafe {
@@ -152,8 +135,6 @@ mod sys {
         Some(list.iter().map(|e| (e.proc_fd, e.proc_fdtype)).collect())
     }
 
-    /// Reads the information of flavour `flavor` of descriptor `fd` of `pid` into a buffer of
-    /// `size` bytes, aligned for 8-byte fields.
     fn fd_info(pid: u32, fd: i32, flavor: i32, size: usize) -> Option<Vec<u64>> {
         let mut buf = vec![0u64; size.div_ceil(8)];
         // SAFETY: the buffer holds at least `size` bytes, which the call is told.
@@ -203,13 +184,11 @@ mod sys {
         }
     }
 
-    /// The system's handle of the pipe end at descriptor `fd` of `pid`.
     pub fn pipe_handle_of(pid: u32, fd: i32) -> Option<u64> {
         let buf = fd_info(pid, fd, PROC_PIDFDPIPEINFO, PIPE_FDINFO_SIZE)?;
         Some(u64_at(bytes(&buf), PIPE_HANDLE))
     }
 
-    /// The descriptors of `pid` that are pipe ends, each with the system's handle of its end.
     pub fn pipe_handles_of(pid: u32) -> Option<Vec<(i32, u64)>> {
         let fds = fds_of(pid)?;
         Some(
@@ -286,7 +265,6 @@ mod sys {
             .unwrap_or_default()
     }
 
-    /// Reads one table of the IP helper into a buffer aligned for its rows.
     fn table(read: impl Fn(*mut core::ffi::c_void, *mut u32) -> u32) -> Option<Vec<u64>> {
         let mut size = 0u32;
         read(std::ptr::null_mut(), &mut size);
@@ -301,7 +279,6 @@ mod sys {
         None
     }
 
-    /// The rows of a table that starts with a count of `u32` and an array of `T`.
     fn rows<T: Copy>(buf: &[u64]) -> Vec<T> {
         let base = buf.as_ptr() as *const u8;
         // SAFETY: the table starts with a u32 count followed, at the alignment of `T`, by that
@@ -321,13 +298,10 @@ mod sys {
 
     pub fn sockets(_pids: &[u32]) -> Vec<Socket> {
         let mut out = Vec::new();
-        // SAFETY, for this closure and the three below it (TCP and UDP, IPv4 and IPv6): `table`
-        // gives each closure a buffer and its size in bytes, and each passes both on to a call of
-        // the one IP Helper family (GetExtendedTcpTable or GetExtendedUdpTable) that writes at most
-        // `*size` bytes into the buffer and reports a larger need through `size`. The four calls
-        // differ only in the family and the row type, so one reason holds for all four.
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedTcpTable(p, size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: `table` gives a buffer and its size in bytes; the call writes at most `*size`
+            // bytes into the buffer and reports a larger need through `size`.
+            unsafe { GetExtendedTcpTable(p, size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0) }
         }) {
             for r in rows::<MIB_TCPROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -345,8 +319,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedTcpTable(p, size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the IPv4 table above: a buffer and its size from `table`.
+            unsafe { GetExtendedTcpTable(p, size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0) }
         }) {
             for r in rows::<MIB_TCP6ROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -364,8 +339,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedUdpTable(p, size, 0, AF_INET as u32, UDP_TABLE_OWNER_PID, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the TCP tables above: a buffer and its size from `table`.
+            unsafe { GetExtendedUdpTable(p, size, 0, AF_INET as u32, UDP_TABLE_OWNER_PID, 0) }
         }) {
             for r in rows::<MIB_UDPROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -380,8 +356,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedUdpTable(p, size, 0, AF_INET6 as u32, UDP_TABLE_OWNER_PID, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the TCP tables above: a buffer and its size from `table`.
+            unsafe { GetExtendedUdpTable(p, size, 0, AF_INET6 as u32, UDP_TABLE_OWNER_PID, 0) }
         }) {
             for r in rows::<MIB_UDP6ROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -399,11 +376,6 @@ mod sys {
         out
     }
 
-    /// The handle values among `values` of process `pid` that name the same object as one of
-    /// `ours`, handles of this process: each value is duplicated into this process and compared
-    /// with `CompareObjectHandles`, which makes no request of the object, so a pipe with a pending
-    /// read in `pid` cannot hold the check up. None when the process cannot be opened for
-    /// duplication.
     pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {
         // SAFETY: OpenProcess returns a new handle or null.
         let process = unsafe { OpenProcess(PROCESS_DUP_HANDLE, 0, pid) };
@@ -413,7 +385,10 @@ mod sys {
         let mut found = Vec::new();
         for v in values {
             let mut dup: HANDLE = std::ptr::null_mut();
-            // SAFETY: the duplicate is made in this process and closed below.
+            // SAFETY: `process` is open with PROCESS_DUP_HANDLE (null was refused above). The call
+            // looks `*v` up in that process's handle table and fails with 0 when it names no
+            // handle; on success it writes a new handle of this process, with the source's access,
+            // to `dup`, a live local, and leaves the source handle open (no DUPLICATE_CLOSE_SOURCE).
             let ok = unsafe {
                 DuplicateHandle(
                     process,
@@ -428,12 +403,11 @@ mod sys {
             if ok == 0 {
                 continue;
             }
-            // SAFETY: both handles are open handles of this process; the call reads the objects
-            // that they name and nothing else.
-            if ours
-                .iter()
-                .any(|o| unsafe { CompareObjectHandles(dup, *o as HANDLE) } != 0)
-            {
+            if ours.iter().any(|o| {
+                // SAFETY: both handles are open handles of this process; the call reads the objects
+                // that they name and nothing else.
+                unsafe { CompareObjectHandles(dup, *o as HANDLE) != 0 }
+            }) {
                 found.push(*v);
             }
             // SAFETY: the duplicate is owned here and closed once.

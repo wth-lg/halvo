@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/accounts/index.ts",
-      "find": "  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: \"none\" };",
-      "replace": "  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: \"none\" };\n  if (s.payment !== \"paid\") return { kind: \"none\" };"
+      "find": "  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: \"none\", overrode: false };",
+      "replace": "  if (pending === null || text(pending.session_id) !== s.sessionId) return { kind: \"none\", overrode: false };\n  if (s.payment !== \"paid\") return { kind: \"none\", overrode: false };"
     }
   ],
   "line": [

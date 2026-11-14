@@ -4,7 +4,7 @@
     {
       "file": "src/accounts/index.ts",
       "find": "    keepPending(sql, p) {\n      if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();",
-      "replace": "    keepPending(sql, p) {\n      if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();\n      sql.exec(\"INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)\", p.accountId, p.credentialHash, \"active\", null, null, null, null, null);"
+      "replace": "    keepPending(sql, p) {\n      if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();\n      sql.exec(\"INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time, m1_count, m1_newest, m2_count, m2_newest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\", p.accountId, p.credentialHash, \"active\", null, null, null, null, null, 0, null, 0, null);"
     }
   ],
   "line": [

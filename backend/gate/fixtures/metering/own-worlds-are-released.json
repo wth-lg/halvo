@@ -1,0 +1,8 @@
+{
+  "args": [
+    "--memory-self-check"
+  ],
+  "line": [
+    "PASS metering-memory: setting=25 rounds=4 "
+  ]
+}

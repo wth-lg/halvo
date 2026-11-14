@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/accounts/index.ts",
-      "find": "      if (sql.exec(\"SELECT event_id FROM processed_event WHERE event_id = ?\", event.eventId).length > 0) return { kind: \"none\" };",
-      "replace": "      if (sql.exec(\"SELECT event_id FROM processed_event WHERE event_id = ?\", event.eventId).length > 0) {\n        if (event.kind === \"checkout-completed\" && event.payment === \"paid\") sql.exec(\"UPDATE processed_event SET received_at = ? WHERE event_id = ?\", now, event.eventId);\n        return { kind: \"none\" };\n      }"
+      "find": "      if (sql.exec(\"SELECT event_id FROM processed_event WHERE event_id = ?\", event.eventId).length > 0) return { kind: \"none\", overrode: false };",
+      "replace": "      if (sql.exec(\"SELECT event_id FROM processed_event WHERE event_id = ?\", event.eventId).length > 0) {\n        if (event.kind === \"checkout-completed\" && event.payment === \"paid\") sql.exec(\"UPDATE processed_event SET received_at = ? WHERE event_id = ?\", now, event.eventId);\n        return { kind: \"none\", overrode: false };\n      }"
     }
   ],
   "line": [

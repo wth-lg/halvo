@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "if (answer.totalMinor !== others) return { call: null, notBillable: 0 };",
+      "replace": "if (answer.totalMinor < others) return { call: null, notBillable: 0 };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "23"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "unexplained-total=failed",
+    "first failure: the test \"case 14: an event at the meter that no interval of the module owns, of 5 minor units"
+  ]
+}

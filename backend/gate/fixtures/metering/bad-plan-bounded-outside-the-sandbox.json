@@ -1,0 +1,16 @@
+{
+  "edits": [],
+  "env": {
+    "HALVO_METERING_PLAN": "bounded"
+  },
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: plan=refused; ",
+    "first failure: HALVO_METERING_PLAN=bounded is refused outside the sandbox's run of check 90: OUTBOUND_RUN is not set"
+  ]
+}

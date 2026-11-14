@@ -931,7 +931,7 @@ pub fn answer_from_check<P: Runs>(
 /// `item_answered` row, which for a `link_account` item holds the request's whole origin (I7.1,
 /// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
 /// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
-/// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
+/// no acknowledgement the run gets nothing; a run that ended
 /// (`ended`) takes nothing back. Where the read after a refusal `seq` shows the item answered
 /// already, by an earlier choice whose acknowledgement was lost, nothing is stored: the same
 /// choice counts as stored and goes on, and another choice leaves the stored answer deciding,
@@ -1175,7 +1175,7 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
     let run = held.ask.run.clone();
     let lives = match cause {
         OtherLapse::WaitLimit | OtherLapse::Cancelled => true,
-        OtherLapse::RunEnded | OtherLapse::AppEnded => false,
+        OtherLapse::RunEnded | OtherLapse::AppEnded | OtherLapse::Check => false,
     };
     if lives {
         let _ = ports.answer_bind(&run, BindResult::Decline);

@@ -364,7 +364,7 @@ where
         report,
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
-        checked: raise_checks(ports, board, None),
+        checked: raise_checks(ports, board, limits, None),
         killed: Vec::new(),
     }
 }
@@ -416,7 +416,7 @@ where
                     agent: agent.clone(),
                 },
             ));
-            done.checked = raise_checks(ports, board, Some(&agent));
+            done.checked = raise_checks(ports, board, limits, Some(&agent));
             done
         }
         Act::SwitchOff { agent } => {
@@ -459,7 +459,7 @@ where
                 limits,
                 Move::End { run, outcome },
             ));
-            done.checked = raise_checks(ports, board, None);
+            done.checked = raise_checks(ports, board, limits, None);
             done
         }
         Act::StopAll => stop_all(ports, board, table),

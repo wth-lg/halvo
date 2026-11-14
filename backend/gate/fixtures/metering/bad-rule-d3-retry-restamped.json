@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "return { kind: \"send\", interval: interval.start, identifier: interval.identifier, amountMinor: interval.amount, timestamp: interval.timestamp };",
+      "replace": "return { kind: \"send\", interval: interval.start, identifier: interval.identifier, amountMinor: interval.amount, timestamp: interval.firstAttempt === null ? interval.timestamp : interval.timestamp + 1 };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "33"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 33, faults [",
+    "]: one identifier with two contents ("
+  ]
+}
