@@ -16,6 +16,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
+      - name: daemon-1 DM-9 job start
+        shell: bash
+        run: date +%s | tee "$RUNNER_TEMP/dm9-job-start"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -28,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -66,11 +57,6 @@ jobs:
           else
             sh scripts/check-changelog.sh
           fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
       - name: Own-source reads
         shell: bash
         run: |
@@ -82,23 +68,54 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: daemon-1 DM-9 measure, three readings at 1024 and three at 768, then repeats while time allows
         shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
+        run: |
+          set -u
+          start=$(cat "$RUNNER_TEMP/dm9-job-start")
+          grep -n 'pub const QUEUE_SLOTS\|DM9_QUEUE_SLOTS' crates/halvo-capture/src/daemon/owner.rs
+          bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | python3 -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])")
+          echo "daemon-1 dm9 binary: $(basename "$bin") at $(( $(date +%s) - start )) s of the job"
+          out=$(mktemp)
+          notes=$(mktemp)
+          reading() {
+            depth=$1
+            label=$2
+            DM9_QUEUE_SLOTS=$depth "$bin" --exact daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound --nocapture --test-threads=1 >"$out" 2>&1 || true
+            line=$(grep -o 'owner_growth_bytes=[0-9]* records=[0-9]* elapsed_ms=[0-9]*' "$out" | head -n 1)
+            detail=$(grep -o 'owner_growth_detail .*' "$out" | head -n 1)
+            echo "daemon-1 dm9 depth $depth $label: $line"
+            echo "daemon-1 dm9 depth $depth $label: $detail"
+            growth=$(printf '%s\n' "$line" | sed -n 's/.*owner_growth_bytes=\([0-9]*\).*/\1/p')
+            before=$(printf '%s\n' "$detail" | sed -n 's/.*peak_before_first_record=\([0-9]*\).*/\1/p')
+            high=$(printf '%s\n' "$detail" | sed -n 's/.*queued_high_water=\([0-9]*\).*/\1/p')
+            slots=$(printf '%s\n' "$detail" | sed -n 's/.*queue_slots=\([0-9]*\).*/\1/p')
+            if [ -z "$growth" ] || [ -z "$before" ] || [ -z "$high" ]; then
+              verdict="does not count: no line"
+              tail -n 30 "$out"
+            elif [ "$slots" != "$depth" ]; then
+              verdict="does not count: the child's depth is $slots"
+            elif [ "$high" -ne $((depth + 1)) ]; then
+              verdict="does not count: high water $high is not $((depth + 1))"
+            elif [ "$before" -gt 8400000 ]; then
+              verdict="does not count: peak before $before is above 8400000"
+            else
+              verdict="counts"
+            fi
+            echo "daemon-1 dm9 depth $depth $label: verdict $verdict; growth ${growth:-none} against 8388608; at $(( $(date +%s) - start )) s of the job"
+            case $verdict in counts) ;; *) printf '%s %s\n' "$depth" "$label" >>"$notes" ;; esac
+          }
+          for round in 1 2 3; do reading 1024 "round $round"; done
+          for round in 1 2 3; do reading 768 "round $round"; done
+          while read -r depth label; do
+            used=$(( $(date +%s) - start ))
+            if [ $((used + 660)) -le 5160 ]; then
+              reading "$depth" "repeat of $label"
+            else
+              echo "daemon-1 dm9 depth $depth: no repeat of $label, the job has run $used s and a reading takes up to 660 s of the 5160 s it may use"
+            fi
+          done <"$notes"
+          echo "daemon-1 dm9 measure done at $(( $(date +%s) - start )) s of the job"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: halvo-macos
@@ -117,81 +134,6 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: windows not run in this scratch copy
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+        run: echo 'the measure of DM-9 (4) runs in the macos job alone'
