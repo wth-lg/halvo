@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,6 +71,79 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: U0.3 round 3 clippy, tests, loops and self-tests (scratch branch, never merged)
+        if: always()
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          #!/bin/bash
+          # The U0.3 round-3 step of the scratch workflow (never merged): both trials' clippy and tests once,
+          # each new test of the round 200 times by exact name, and the two self-tests. Prints counts.
+          set +e
+          code=0
+          case "$(uname -s)" in
+            Darwin) machine=hosted-mac ;;
+            *) machine=hosted-win ;;
+          esac
+          echo "u03r3 machine=$machine at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for crate in web profile; do
+            m=tools/r3-trials/$crate/Cargo.toml
+            cargo clippy --locked --quiet --manifest-path "$m" --all-targets -- -D warnings
+            e=$?
+            echo "u03r3_clippy machine=$machine crate=$crate exit=$e"
+            [ "$e" -eq 0 ] || code=1
+            cargo test --locked --manifest-path "$m" --no-fail-fast >"$RUNNER_TEMP/u03r3-test-$crate.log" 2>&1
+            e=$?
+            grep -E '^test result:' "$RUNNER_TEMP/u03r3-test-$crate.log" | awk -v c="$crate" '{ p += $4; f += $6 } END { print "u03r3_tests crate=" c " passed=" p " failed=" f }'
+            grep -E '^test .* FAILED$' "$RUNNER_TEMP/u03r3-test-$crate.log"
+            echo "u03r3_tests crate=$crate exit=$e"
+            [ "$e" -eq 0 ] || code=1
+          done
+
+          bin_of() {
+            cargo test --locked --manifest-path "tools/r3-trials/$1/Cargo.toml" "$2" --no-run --message-format=json 2>/dev/null |
+              grep '"test":true' | grep "\"name\":\"$3\"" |
+              sed -n 's/.*"executable":"\([^"]*\)".*/\1/p' | sed 's|\\\\|/|g' | head -1
+          }
+
+          loop() {
+            bin=$1
+            name=$2
+            n=0
+            ok=0
+            zero=0
+            while [ "$n" -lt 200 ]; do
+              out=$("$bin" --exact "$name" --test-threads=1 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+                *"test result: ok. 0 passed;"*) zero=$((zero + 1)) ;;
+              esac
+              n=$((n + 1))
+            done
+            echo "u03r3_loop machine=$machine test=$name runs=$n passed=$ok ran_no_test=$zero"
+            [ "$ok" -eq 200 ] || code=1
+          }
+
+          web_bin=$(bin_of web --bin=web-trial web-trial)
+          web_guard=$(bin_of web --test=fixture_guard fixture_guard)
+          echo "u03r3_bins web_bin=$([ -x "$web_bin" ] && echo yes || echo no) web_guard=$([ -x "$web_guard" ] && echo yes || echo no)"
+          loop "$web_bin" driver::org_tests::a_page_read_without_the_setting_counts_neither_as_the_effect_nor_as_a_miss
+          [ "$machine" = hosted-mac ] && loop "$web_bin" driver::leftover_tests::of_the_run_counts_a_member_born_after_the_kill
+          loop "$web_guard" the_bound_is_the_fixtures_own_gone_ms
+
+          sh tools/r3-trials/web/hosted/harness.sh --self-test >"$RUNNER_TEMP/u03r3-harness.log" 2>&1
+          e=$?
+          echo "u03r3_harness_self_test exit=$e $(tail -1 "$RUNNER_TEMP/u03r3-harness.log")"
+          [ "$e" -eq 0 ] || code=1
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          "$py" -I tools/r3-trials/web/hosted/collect.py --self-test >"$RUNNER_TEMP/u03r3-collect.log" 2>&1
+          e=$?
+          grep -c ' ok=yes' "$RUNNER_TEMP/u03r3-collect.log" | sed 's/^/u03r3_collect_cases_ok=/'
+          grep ' ok=no' "$RUNNER_TEMP/u03r3-collect.log"
+          echo "u03r3_collect_self_test exit=$e $(tail -1 "$RUNNER_TEMP/u03r3-collect.log")"
+          [ "$e" -eq 0 ] || code=1
+          exit "$code"
       - name: ci.d self-test
         shell: bash
         env:
@@ -89,21 +151,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r3-layout 16-shell-lint 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-r3-layout 16-shell-lint 19-home-paths
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,6 +184,79 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: U0.3 round 3 clippy, tests, loops and self-tests (scratch branch, never merged)
+        if: always()
+        timeout-minutes: 80
+        shell: bash
+        run: |
+          #!/bin/bash
+          # The U0.3 round-3 step of the scratch workflow (never merged): both trials' clippy and tests once,
+          # each new test of the round 200 times by exact name, and the two self-tests. Prints counts.
+          set +e
+          code=0
+          case "$(uname -s)" in
+            Darwin) machine=hosted-mac ;;
+            *) machine=hosted-win ;;
+          esac
+          echo "u03r3 machine=$machine at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for crate in web profile; do
+            m=tools/r3-trials/$crate/Cargo.toml
+            cargo clippy --locked --quiet --manifest-path "$m" --all-targets -- -D warnings
+            e=$?
+            echo "u03r3_clippy machine=$machine crate=$crate exit=$e"
+            [ "$e" -eq 0 ] || code=1
+            cargo test --locked --manifest-path "$m" --no-fail-fast >"$RUNNER_TEMP/u03r3-test-$crate.log" 2>&1
+            e=$?
+            grep -E '^test result:' "$RUNNER_TEMP/u03r3-test-$crate.log" | awk -v c="$crate" '{ p += $4; f += $6 } END { print "u03r3_tests crate=" c " passed=" p " failed=" f }'
+            grep -E '^test .* FAILED$' "$RUNNER_TEMP/u03r3-test-$crate.log"
+            echo "u03r3_tests crate=$crate exit=$e"
+            [ "$e" -eq 0 ] || code=1
+          done
+
+          bin_of() {
+            cargo test --locked --manifest-path "tools/r3-trials/$1/Cargo.toml" "$2" --no-run --message-format=json 2>/dev/null |
+              grep '"test":true' | grep "\"name\":\"$3\"" |
+              sed -n 's/.*"executable":"\([^"]*\)".*/\1/p' | sed 's|\\\\|/|g' | head -1
+          }
+
+          loop() {
+            bin=$1
+            name=$2
+            n=0
+            ok=0
+            zero=0
+            while [ "$n" -lt 200 ]; do
+              out=$("$bin" --exact "$name" --test-threads=1 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+                *"test result: ok. 0 passed;"*) zero=$((zero + 1)) ;;
+              esac
+              n=$((n + 1))
+            done
+            echo "u03r3_loop machine=$machine test=$name runs=$n passed=$ok ran_no_test=$zero"
+            [ "$ok" -eq 200 ] || code=1
+          }
+
+          web_bin=$(bin_of web --bin=web-trial web-trial)
+          web_guard=$(bin_of web --test=fixture_guard fixture_guard)
+          echo "u03r3_bins web_bin=$([ -x "$web_bin" ] && echo yes || echo no) web_guard=$([ -x "$web_guard" ] && echo yes || echo no)"
+          loop "$web_bin" driver::org_tests::a_page_read_without_the_setting_counts_neither_as_the_effect_nor_as_a_miss
+          [ "$machine" = hosted-mac ] && loop "$web_bin" driver::leftover_tests::of_the_run_counts_a_member_born_after_the_kill
+          loop "$web_guard" the_bound_is_the_fixtures_own_gone_ms
+
+          sh tools/r3-trials/web/hosted/harness.sh --self-test >"$RUNNER_TEMP/u03r3-harness.log" 2>&1
+          e=$?
+          echo "u03r3_harness_self_test exit=$e $(tail -1 "$RUNNER_TEMP/u03r3-harness.log")"
+          [ "$e" -eq 0 ] || code=1
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          "$py" -I tools/r3-trials/web/hosted/collect.py --self-test >"$RUNNER_TEMP/u03r3-collect.log" 2>&1
+          e=$?
+          grep -c ' ok=yes' "$RUNNER_TEMP/u03r3-collect.log" | sed 's/^/u03r3_collect_cases_ok=/'
+          grep ' ok=no' "$RUNNER_TEMP/u03r3-collect.log"
+          echo "u03r3_collect_self_test exit=$e $(tail -1 "$RUNNER_TEMP/u03r3-collect.log")"
+          [ "$e" -eq 0 ] || code=1
+          exit "$code"
       - name: ci.d self-test
         shell: bash
         env:
@@ -140,21 +264,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r3-layout 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-r3-layout 19-home-paths
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
