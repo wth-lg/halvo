@@ -305,8 +305,11 @@ measure_fixture() {
   fixture "$case_name"
   mkdir -p "$dir/$records_dir" || exit 2
   printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
-  for line in "$@"; do printf 'console.log("%s");\n' "$line"; done >"$dir/$records_script"
-  printf 'process.exit(%s);\n' "$records_exit" >>"$dir/$records_script"
+  {
+    printf 'import { writeFileSync } from "node:fs";\nwriteFileSync(process.env.GATE_STATE + "/written", "");\n'
+    for line in "$@"; do printf 'console.log("%s");\n' "$line"; done
+    printf 'console.error("a line on standard error");\nprocess.exit(%s);\n' "$records_exit"
+  } >"$dir/$records_script"
   git -C "$dir" init -q >/dev/null 2>&1 || exit 2
   git -C "$dir" add backend scripts || exit 2
   git -C "$dir" -c maintenance.auto=false commit -q -m "$case_name" >/dev/null || exit 2
@@ -326,6 +329,9 @@ expect_measure() {
   last_line=$(sed -n 3p "$dir/measure.txt")
   [ "$records_line" = "$3" ] || got=$got-with-another-records-line
   [ "$last_line" = "$4" ] || got=$got-with-another-last-line
+  top=$(cd "$dir/backend" && pwd -P)
+  grep -q -x -F "with-env|$top|node gate/fixtures/concurrency/records.mjs" "$dir/state/calls" || got=$got-without-with-env
+  [ -f "$dir/out/records-state/written" ] || got=$got-without-the-state-under-the-artifacts
   verdict "$1" "$got" "$case_name"
 }
 
@@ -435,6 +441,12 @@ self_test() {
 
   records_fixture records-of-head
   expect_records PASS records-of-head ''
+
+  records_fixture a-file-that-is-no-record-at-head
+  printf 'not a record\n' >"$scratch/a-file-that-is-no-record-at-head/$records_dir/notes.txt" || exit 2
+  git -C "$scratch/a-file-that-is-no-record-at-head" add "$records_dir/notes.txt" || exit 2
+  commit_fixture a-file-that-is-no-record-at-head
+  expect_records PASS a-file-that-is-no-record-at-head ''
 
   records_fixture a-good-record-expects-another-count
   break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted'
