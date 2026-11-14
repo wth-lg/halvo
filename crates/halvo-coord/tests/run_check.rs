@@ -1228,3 +1228,31 @@ fn the_end_of_a_run_reads_the_check_of_every_agent() {
         }
     ));
 }
+
+/// The board's events of the agent after the raise are the owner's, the stored body among them,
+/// so that the agent's next log follows it with no refusal `seq` (I7.2).
+#[test]
+fn the_board_holds_the_body_that_the_raise_stored() {
+    let mut w = world(&[PERSON]);
+    ready_beside_an_unread_check(&mut w, 0);
+    w.act(Act::Tick);
+    let owner: Vec<halvo_coord::types::Event> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .cloned()
+        .collect();
+    assert_eq!(w.facts(0).events, owner);
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    let refused = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| t.refused.is_some())
+        .count();
+    assert_eq!(
+        refused, 0,
+        "the answer's log follows the body with no refusal"
+    );
+}
