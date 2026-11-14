@@ -5844,6 +5844,23 @@ fn confirming(native: bool) -> (Coordinator<Both>, RunId, ItemId) {
     (c, run, item)
 }
 
+/// I3.4 with U3.6's report (reports/builder-35.md): the composer of the snapshot names the agent
+/// of a confirmation with `Item::said_by`, so that its `say_new` and `say_gone` are the
+/// sentences of `say.item.new` and `say.item.gone` with the agent's name, for both presenters.
+#[test]
+fn a_confirmations_say_new_and_say_gone_name_its_agent() {
+    for native in [false, true] {
+        let (c, _run, _item) = confirming(native);
+        let s = c.snapshot();
+        let name = s.rows[0].name.clone();
+        let item = &s.items[0];
+        let new = words::text("say.item.new", &[("name", &name)]).unwrap();
+        let gone = words::text("say.item.gone", &[("name", &name)]).unwrap();
+        assert_eq!(item.say_new(), new, "native={native}");
+        assert_eq!(item.say_gone(), gone, "native={native}");
+    }
+}
+
 /// RD-80 5.3 and 5.7: a page confirmation arms in the move of its answer, `arm_ms` after the
 /// page's report that it opened it, with no tick between: answers at 100, 499 and 500 ms after
 /// the report are `early`, `early`, and armed and taken.

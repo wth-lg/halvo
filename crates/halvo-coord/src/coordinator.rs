@@ -1623,7 +1623,9 @@ where
         let agent = &facts.agent;
         let plain = |p: Plain| compose_plain(item, agent, p, name).ok();
         match kind {
-            ItemKind::Confirm => held.and_then(|h| h.page_item().ok()),
+            ItemKind::Confirm => held
+                .and_then(|h| h.page_item().ok())
+                .and_then(|i| i.said_by(name).ok()),
             ItemKind::SignIn => match st.binds.iter().find(|b| b.item() == item) {
                 Some(b) => b.page_item(name).ok(),
                 None => plain(Plain::SignIn),
