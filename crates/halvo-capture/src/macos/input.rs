@@ -229,7 +229,15 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
     )
 }
 
-const MODIFIER_BITS: u64 = 0x00DF_0000 | 0x0000_207F;
+/// The device-independent masks of the modifier keys in an event's flags: caps
+/// lock, shift, control, option, command, help and fn; not the numeric pad.
+const MODIFIER_KEY_MASKS: u64 = 0x00DF_0000;
+
+/// The device-dependent bits of the left and right modifier keys in an event's
+/// flags.
+const MODIFIER_SIDE_BITS: u64 = 0x0000_207F;
+
+const MODIFIER_BITS: u64 = MODIFIER_KEY_MASKS | MODIFIER_SIDE_BITS;
 
 fn modifier_pressed(flags: u64, before: Option<u64>) -> bool {
     before.is_some_and(|before| flags & !before & MODIFIER_BITS != 0)
@@ -268,8 +276,12 @@ const TAP_OPTIONS: CGEventTapOptions = CGEventTapOptions::ListenOnly;
 
 #[derive(Clone, Copy)]
 struct Clocks {
-    monotonic: fn() -> Monotonic,
-    uptime: fn() -> Uptime,
+    /// The clock of every stamp of the hold (CLOCK_MONOTONIC_RAW, which goes
+    /// on through sleep): readings, arrivals, releases and drops.
+    stamps: fn() -> Monotonic,
+    /// The clock of an event's OS time (CLOCK_UPTIME_RAW, which stops in
+    /// sleep): an event's entry and the wake check.
+    os_time: fn() -> Uptime,
 }
 
 fn monotonic_raw() -> Monotonic {
@@ -284,8 +296,8 @@ fn uptime_raw() -> Uptime {
 }
 
 const CLOCKS: Clocks = Clocks {
-    monotonic: monotonic_raw,
-    uptime: uptime_raw,
+    stamps: monotonic_raw,
+    os_time: uptime_raw,
 };
 
 fn os_time(event: &CGEvent) -> Uptime {
@@ -749,7 +761,7 @@ pub struct StallSeam {
 impl TapContext {
     fn read_session(&self, state: &mut HoldState) {
         state.session = (self.session)();
-        state.session_at = Some((self.clocks.monotonic)());
+        state.session_at = Some((self.clocks.stamps)());
         if state.offset.is_none() {
             state.offset = self.clock_pair().map(|(difference, _)| difference);
         }
@@ -758,9 +770,9 @@ impl TapContext {
     fn clock_pair(&self) -> Option<(i128, Uptime)> {
         let width = u64::try_from(PAIR_WIDTH.as_nanos()).unwrap_or(u64::MAX);
         for _ in 0..PAIR_TRIES {
-            let first = (self.clocks.uptime)();
-            let monotonic = (self.clocks.monotonic)();
-            let second = (self.clocks.uptime)();
+            let first = (self.clocks.os_time)();
+            let monotonic = (self.clocks.stamps)();
+            let second = (self.clocks.os_time)();
             if second.0.saturating_sub(first.0) <= width {
                 return Some((i128::from(monotonic.0) - i128::from(first.0), second));
             }
@@ -770,7 +782,7 @@ impl TapContext {
 
     fn woke(&self, state: &mut HoldState) -> bool {
         let Some((difference, at)) = self.clock_pair() else {
-            state.wake_mark = Some((self.clocks.uptime)());
+            state.wake_mark = Some((self.clocks.os_time)());
             return true;
         };
         let margin = i128::try_from(WAKE_MARGIN.as_nanos()).unwrap_or(i128::MAX);
@@ -792,16 +804,16 @@ impl TapContext {
     }
 
     fn reading(&self, state: &mut HoldState, key: bool) -> (Reading, Stamps) {
-        let now = (self.clocks.monotonic)();
+        let now = (self.clocks.stamps)();
         let stale = state
             .session_at
             .is_none_or(|at| now < at || Duration::from_nanos(now.0 - at.0) >= SESSION_STEP);
         if stale && (key || !state.keys.is_empty()) {
             self.read_session(state);
         }
-        let before = (self.clocks.monotonic)();
+        let before = (self.clocks.stamps)();
         let reading = (self.secure)(state.session);
-        let after = (self.clocks.monotonic)();
+        let after = (self.clocks.stamps)();
         let woke = self.woke(state);
         #[cfg(feature = "stall-seam")]
         if let Some(drops) = &self.drops {
@@ -845,7 +857,7 @@ impl TapContext {
         if keys > 0 {
             if let Some(drops) = &self.drops {
                 drops.count(cause);
-                let own = unread.then(|| (self.clocks.monotonic)().0);
+                let own = unread.then(|| (self.clocks.stamps)().0);
                 drops.dropped(cause, keys, own);
             }
         }
@@ -1101,9 +1113,22 @@ fn tap_context(
     }
 }
 
+/// An event of the tests stamped by the real clocks, in the order of tap_event.
+#[cfg(test)]
+fn event_now(etype: CGEventType, flags: u64) -> TapEvent {
+    let monotonic = monotonic_raw();
+    let uptime = uptime_raw();
+    TapEvent {
+        etype,
+        flags,
+        os_time: uptime,
+        entry: Entry { monotonic, uptime },
+    }
+}
+
 fn tap_event(ctx: &TapContext, etype: CGEventType, event: &CGEvent) -> TapEvent {
-    let monotonic = (ctx.clocks.monotonic)();
-    let uptime = (ctx.clocks.uptime)();
+    let monotonic = (ctx.clocks.stamps)();
+    let uptime = (ctx.clocks.os_time)();
     TapEvent {
         etype,
         flags: event.get_flags().bits(),
@@ -1536,7 +1561,7 @@ impl InputSource {
             #[cfg(feature = "stall-seam")]
             drops: ctx.drops.clone(),
             #[cfg(feature = "stall-seam")]
-            clock: ctx.clocks.monotonic,
+            clock: ctx.clocks.stamps,
         };
         let started = TapThread::spawn(
             move || install_tap(ctx, settings, maker),
@@ -1775,8 +1800,8 @@ mod tests {
     }
 
     const STAND_IN_CLOCKS: Clocks = Clocks {
-        monotonic: stand_in_monotonic,
-        uptime: stand_in_uptime,
+        stamps: stand_in_monotonic,
+        os_time: stand_in_uptime,
     };
 
     fn advance(ms: u64) {
@@ -1866,14 +1891,7 @@ mod tests {
     }
 
     fn real_event(etype: CGEventType) -> TapEvent {
-        let monotonic = monotonic_raw();
-        let uptime = uptime_raw();
-        TapEvent {
-            etype,
-            flags: 0,
-            os_time: uptime,
-            entry: Entry { monotonic, uptime },
-        }
+        event_now(etype, 0)
     }
 
     fn timed(etype: CGEventType, timing: Timing) -> TapEvent {
@@ -2118,8 +2136,8 @@ mod tests {
     fn a_step_between_the_two_uptime_reads_may_add_a_drop_and_never_hides_a_sleep() {
         let mut held = slow_held(100);
         held.ctx.clocks = Clocks {
-            monotonic: stand_in_monotonic,
-            uptime: stepped_uptime,
+            stamps: stand_in_monotonic,
+            os_time: stepped_uptime,
         };
         stall(MS);
         let os_time = now_uptime();
@@ -2346,7 +2364,7 @@ mod tests {
                 counters: held.counters.clone(),
                 stop: held.ctx.stop.clone(),
                 drops: held.ctx.drops.clone(),
-                clock: held.ctx.clocks.monotonic,
+                clock: held.ctx.clocks.stamps,
             }),
         };
         slot.take();
@@ -2408,7 +2426,7 @@ mod tests {
                         counters: held.counters.clone(),
                         stop: held.ctx.stop.clone(),
                         drops: held.ctx.drops.clone(),
-                        clock: held.ctx.clocks.monotonic,
+                        clock: held.ctx.clocks.stamps,
                     }
                     .taken();
                     (Cause::OwnTake, 2, true)
@@ -2658,7 +2676,7 @@ mod tests {
             counters: held.counters.clone(),
             stop: held.ctx.stop.clone(),
             drops: held.ctx.drops.clone(),
-            clock: held.ctx.clocks.monotonic,
+            clock: held.ctx.clocks.stamps,
         }
         .taken();
         assert!(!held.counters.figures().keys_withheld);
@@ -2793,8 +2811,8 @@ mod tests {
     fn a_key_events_stamps_come_in_their_order() {
         let mut held = held(100);
         held.ctx.clocks = Clocks {
-            monotonic: order_monotonic,
-            uptime: order_uptime,
+            stamps: order_monotonic,
+            os_time: order_uptime,
         };
         held.ctx.session = order_session;
         held.ctx.secure = order_reader;
@@ -3251,7 +3269,7 @@ mod tests {
                 counters: held.counters.clone(),
                 stop: held.ctx.stop.clone(),
                 drops: held.ctx.drops.clone(),
-                clock: held.ctx.clocks.monotonic,
+                clock: held.ctx.clocks.stamps,
             }),
         };
         slot.take();
@@ -3549,16 +3567,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         ));
         ctx.read_session(&mut lock(&ctx.hold));
-        let key = || {
-            let monotonic = monotonic_raw();
-            let uptime = uptime_raw();
-            TapEvent {
-                etype: CGEventType::KeyDown,
-                flags: 0,
-                os_time: uptime,
-                entry: Entry { monotonic, uptime },
-            }
-        };
+        let key = || event_now(CGEventType::KeyDown, 0);
         READ_TIMES.with(|times| times.borrow_mut().clear());
         let mut spacing = Vec::new();
         let mut drops = 0u64;
@@ -4499,11 +4508,11 @@ mod tests {
             read_session as fn() -> Session
         ));
         assert!(std::ptr::fn_addr_eq(
-            settings.clocks.monotonic,
+            settings.clocks.stamps,
             monotonic_raw as fn() -> Monotonic
         ));
         assert!(std::ptr::fn_addr_eq(
-            settings.clocks.uptime,
+            settings.clocks.os_time,
             uptime_raw as fn() -> Uptime
         ));
     }
@@ -5691,14 +5700,7 @@ mod secure_input_invariant {
     }
 
     fn event(etype: CGEventType, flags: u64) -> TapEvent {
-        let monotonic = monotonic_raw();
-        let uptime = uptime_raw();
-        TapEvent {
-            etype,
-            flags,
-            os_time: uptime,
-            entry: Entry { monotonic, uptime },
-        }
+        event_now(etype, flags)
     }
 
     #[test]
