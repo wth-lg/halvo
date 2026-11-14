@@ -220,3 +220,5 @@ timeout-reads-os-error
 screen-stop-wait-from-the-reply
 key-served-from-the-last-pointer-reading
 reader-asks-the-system-seven-calls-in-eight
+rebuilt-page-gap-not-zeroed
+edited-page-gap-not-zeroed
