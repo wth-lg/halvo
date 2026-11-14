@@ -298,7 +298,7 @@ outside() {
         value = $0
         sub(/^[^=]*=/, "", value)
         path = (table == "") ? key : table "." key
-        lint = "(dead_code|unused[a-z_]*|warnings)"
+        lint = "(dead[-_]code|unused[-a-z_]*|warnings)"
         if (path ~ ("^(workspace[.])?lints[.]rust[.]" lint "$") && value ~ /allow/) bad = 1
         if (path ~ /^(workspace[.])?lints([.]rust)?$/ && value ~ (lint "[\"'"'"'[:space:]]*=[[:space:]]*([\"'"'"']allow|[{][^}]*level[[:space:]]*=[[:space:]]*[\"'"'"']allow)")) bad = 1
         if (bad) {
@@ -327,7 +327,7 @@ outside() {
           value = rest
           if (substr(value, 1, 1) == "[") sub(/[]].*$/, "", value)
           else sub(/\n.*$/, "", value)
-          if (value ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
+          if (value ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead[-_]code|unused[-a-z_]*|warnings)|--cap-lints/) {
             print "a key that gives rustc its flags allows dead_code, an unused lint or warnings, or caps the lints"
             exit 1
           }
@@ -361,7 +361,7 @@ EOF
       line = $0
       sub(/\r$/, "", line)
       if (line ~ /(^|[^A-Za-z0-9_])(RUST[F]LAGS|CARGO_BUILD_RUST[F]LAGS|CARGO_ENCODED_RUST[F]LAGS|CARGO_TARGET_[A-Z0-9_]+_RUST[F]LAGS)[[:space:]]*[:=]/ &&
-        line ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
+        line ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead[-_]code|unused[-a-z_]*|warnings)|--cap-lints/) {
         file = FILENAME
         if (index(file, root) == 1) file = substr(file, length(root) + 1)
         print file ":" FNR ": a line sets the compiler flags so that dead_code, an unused lint or warnings are allowed, or the lints are capped"
@@ -626,6 +626,16 @@ self_test() {
   put lints-that-deny crates/halvo-capture/Cargo.toml '[lints]' 'workspace = true' '[lints.rust]' 'dead_code = "forbid"'
   put lints-that-deny .cargo/config.toml '[build]' "$flags_key"' = ["-D", "warnings"]'
   case_of lints-that-deny PASS
+  fixture lints-table-hyphen
+  put lints-table-hyphen crates/halvo-capture/Cargo.toml '[lints.rust]' 'dead-code = "allow"' '[package]' 'name = "x"'
+  case_of lints-table-hyphen FAIL
+  fixture config-hyphen
+  put config-hyphen .cargo/config.toml '[build]' "$flags_key"' = ["-A", "dead-code"]'
+  case_of config-hyphen FAIL
+  fixture workflow-hyphen
+  mkdir -p "$work/workflow-hyphen/.github/workflows" || exit 2
+  printf '%s%s\n' '      RUSTF' 'LAGS: "-A dead-code"' >"$work/workflow-hyphen/.github/workflows/ci.yml" || exit 2
+  case_of workflow-hyphen FAIL
   fixture config-allow
   put config-allow .cargo/config.toml '[build]' "$flags_key"' = ["-A", "dead_code"]'
   case_of config-allow FAIL
