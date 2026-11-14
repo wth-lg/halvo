@@ -858,9 +858,11 @@ mod cases {
     }
 
     /// Makes the target's app active once at its start and waits for it before the first case
-    /// (ruling RD-107): asks, and while the app does not read active on the main thread, lets the
-    /// main run loop run for a second and asks again, for at most 20 s. Not active then, the target
-    /// runs no case, prints its inconclusive line with the pair as read and ends as failed.
+    /// (ruling RD-107 and its Addition 1): orders its own panel to the front once, asks, and while
+    /// the app does not read active on the main thread, lets the main run loop run for a second and
+    /// asks again, for at most 20 s; then orders the panel out, before any dialog. Not active then,
+    /// the target runs no case, prints its inconclusive line with the pair as read and ends as
+    /// failed.
     fn activate() {
         // SAFETY: this runs on the main thread, before any window of the target exists.
         unsafe {
@@ -868,7 +870,12 @@ mod cases {
             let _: bool = msg_send![app, setActivationPolicy: 0isize];
             let _: () = msg_send![app, finishLaunching];
         }
-        let waited = super::activation::wait(
+        let waited = super::activation::start(
+            // SAFETY: as above; the panel is the target's own.
+            || unsafe {
+                let _: () =
+                    msg_send![panel(), makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
+            },
             // SAFETY: as above.
             || unsafe { activate_app(app()) },
             // SAFETY: as above.
@@ -884,12 +891,16 @@ mod cases {
                     let _: () = msg_send![run_loop, runUntilDate: date];
                 }
             },
+            // SAFETY: as above.
+            || unsafe {
+                let _: () = msg_send![panel(), orderOut: std::ptr::null_mut::<AnyObject>()];
+            },
             Duration::from_secs(1),
             Duration::from_secs(20),
         );
         match waited {
             super::activation::Waited::Active { asks } => {
-                println!("guard_hosted start: the app read active after {asks} asks");
+                println!("guard_hosted start: brought its own panel to the front once, the app read active after {asks} asks, and the panel is ordered out");
             }
             super::activation::Waited::Inactive { asks } => {
                 // SAFETY: as above.

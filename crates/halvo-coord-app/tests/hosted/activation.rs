@@ -32,3 +32,21 @@ pub fn wait(
     }
     Waited::Active { asks }
 }
+
+/// The hosted target's start (ruling RD-107, its Addition 1): brings its own panel forward once
+/// through `front`, waits as `wait` does over `ask`, `active` and `pass`, then orders the panel
+/// out through `out`, whatever the wait gave.
+pub fn start(
+    front: impl FnOnce(),
+    ask: impl FnMut(),
+    active: impl FnMut() -> bool,
+    pass: impl FnMut(Duration),
+    out: impl FnOnce(),
+    every: Duration,
+    limit: Duration,
+) -> Waited {
+    front();
+    let waited = wait(ask, active, pass, every, limit);
+    out();
+    waited
+}

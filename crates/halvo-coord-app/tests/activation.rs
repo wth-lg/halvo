@@ -68,3 +68,51 @@ fn activation_an_app_active_after_n_asks_is_asked_every_second_until_it_is() {
 fn activation_an_app_never_active_is_inactive_after_twenty_seconds_and_21_asks() {
     assert_eq!(run(None), (Waited::Inactive { asks: 21 }, 21, LIMIT));
 }
+
+/// Runs the start over an app that reads active at its read number `after`, or never: the result
+/// and the steps in the order in which they came.
+fn started(after: Option<u32>) -> (Waited, Vec<&'static str>) {
+    let steps = std::cell::RefCell::new(Vec::new());
+    let reads = Cell::new(0u32);
+    let result = activation::start(
+        || steps.borrow_mut().push("front"),
+        || steps.borrow_mut().push("ask"),
+        || {
+            steps.borrow_mut().push("read");
+            let n = reads.get();
+            reads.set(n + 1);
+            after.is_some_and(|after| n >= after)
+        },
+        |_| steps.borrow_mut().push("pass"),
+        || steps.borrow_mut().push("out"),
+        EVERY,
+        LIMIT,
+    );
+    (result, steps.into_inner())
+}
+
+#[test]
+fn activation_the_start_brings_the_panel_forward_once_before_the_first_ask_and_out_after_the_last_read(
+) {
+    for after in [Some(0), Some(3), Some(20), None] {
+        let (result, steps) = started(after);
+        let label = format!("{after:?}: {steps:?}");
+        assert_eq!(steps.first(), Some(&"front"), "{label}");
+        assert_eq!(
+            steps.iter().filter(|s| **s == "front").count(),
+            1,
+            "{label}"
+        );
+        assert_eq!(steps.get(1), Some(&"ask"), "{label}");
+        assert_eq!(steps.last(), Some(&"out"), "{label}");
+        assert_eq!(steps.iter().filter(|s| **s == "out").count(), 1, "{label}");
+        let reads = steps.iter().filter(|s| **s == "read").count() as u32;
+        match after {
+            Some(n) => {
+                assert_eq!(result, Waited::Active { asks: n + 1 }, "{label}");
+                assert_eq!(reads, n + 1, "{label}");
+            }
+            None => assert_eq!(result, Waited::Inactive { asks: 21 }, "{label}"),
+        }
+    }
+}
