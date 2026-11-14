@@ -1620,7 +1620,7 @@ pub struct EncryptedStore {
     fs: Arc<dyn DurableFs>,
     unwrap_time: Duration,
     #[cfg_attr(
-        not(test),
+        not(all(test, unix)),
         expect(
             dead_code,
             reason = "a test reads whether the open's cleanup of a stopped create failed"
@@ -1982,7 +1982,7 @@ impl EncryptedStore {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn pending_left(&self) -> bool {
         self.pending_left
     }
