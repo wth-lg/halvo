@@ -1411,20 +1411,45 @@ mod driver {
 
     #[cfg(all(test, target_os = "macos"))]
     mod leftover_tests {
+        struct StandIns(Vec<std::process::Child>);
+
+        impl StandIns {
+            fn perl(&mut self, profile: &std::path::Path) -> usize {
+                use r3_web::start::Start;
+                let child = std::process::Command::new("/usr/bin/perl")
+                    .args(["-e", "alarm 30; 1 while <STDIN>", "--"])
+                    .arg(format!("--user-data-dir={}", profile.display()))
+                    .stdin(std::process::Stdio::piped())
+                    .start()
+                    .unwrap();
+                self.0.push(child);
+                self.0.len() - 1
+            }
+
+            fn alive(&mut self, i: usize) -> bool {
+                matches!(self.0[i].try_wait(), Ok(None))
+            }
+
+            fn id(&self, i: usize) -> u32 {
+                self.0[i].id()
+            }
+        }
+
+        impl Drop for StandIns {
+            fn drop(&mut self) {
+                for c in &mut self.0 {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                }
+            }
+        }
+
         #[test]
         fn a_process_that_names_a_longer_profile_is_left_alone() {
-            use r3_web::start::Start;
             let dir = std::env::temp_dir().join(format!("r3-web-p10-{}", std::process::id()));
-            let mut other = std::process::Command::new("/usr/bin/perl")
-                .args(["-e", "sleep 30", "--"])
-                .arg(format!("--user-data-dir={}", dir.join("p-10").display()))
-                .start()
-                .unwrap();
-            let mut own = std::process::Command::new("/usr/bin/perl")
-                .args(["-e", "sleep 30", "--"])
-                .arg(format!("--user-data-dir={}", dir.join("p-1").display()))
-                .start()
-                .unwrap();
+            let mut children = StandIns(Vec::new());
+            let other = children.perl(&dir.join("p-10"));
+            let own = children.perl(&dir.join("p-1"));
             std::thread::sleep(std::time::Duration::from_millis(300));
             let since = r3_web::procs::table()
                 .unwrap()
@@ -1438,12 +1463,9 @@ mod driver {
                 since,
             );
             let ended = r3_web::checks::end_runs_own(&mark);
-            let alive = matches!(other.try_wait(), Ok(None));
-            let own_alive = matches!(own.try_wait(), Ok(None));
-            for c in [&mut other, &mut own] {
-                let _ = c.kill();
-                let _ = c.wait();
-            }
+            let alive = children.alive(other);
+            let own_alive = children.alive(own);
+            drop(children);
             assert!(
                 alive,
                 "a process that names p-10 was ended for the run of p-1"
@@ -1495,7 +1517,6 @@ mod driver {
 
         #[test]
         fn of_the_run_counts_a_member_born_after_the_kill() {
-            use r3_web::start::Start;
             let dir = std::env::temp_dir().join(format!("r3-web-born-{}", std::process::id()));
             let killed_at = r3_web::procs::table()
                 .unwrap()
@@ -1508,29 +1529,20 @@ mod driver {
                 std::path::Path::new("/usr/bin/perl"),
                 killed_at,
             );
-            let mut born = std::process::Command::new("/usr/bin/perl")
-                .args(["-e", "sleep 30", "--"])
-                .arg(format!("--user-data-dir={}", dir.join("p-1").display()))
-                .start()
-                .unwrap();
-            let mut other = std::process::Command::new("/usr/bin/perl")
-                .args(["-e", "sleep 30", "--"])
-                .arg(format!("--user-data-dir={}", dir.join("p-2").display()))
-                .start()
-                .unwrap();
+            let mut children = StandIns(Vec::new());
+            let born = children.perl(&dir.join("p-1"));
+            let other = children.perl(&dir.join("p-2"));
+            let (born, other) = (children.id(born), children.id(other));
             std::thread::sleep(std::time::Duration::from_millis(300));
             let found = super::of_the_run(&[], &mark).unwrap_or_default();
             let pids: Vec<u32> = found.iter().map(|p| p.pid).collect();
-            for c in [&mut born, &mut other] {
-                let _ = c.kill();
-                let _ = c.wait();
-            }
+            drop(children);
             assert!(
-                pids.contains(&born.id()),
+                pids.contains(&born),
                 "a process of the run born after the kill was not counted: {pids:?}"
             );
             assert!(
-                !pids.contains(&other.id()),
+                !pids.contains(&other),
                 "a process of another profile was counted: {pids:?}"
             );
         }
