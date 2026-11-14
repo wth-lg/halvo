@@ -499,9 +499,6 @@ fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
     Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
-/// `store_once` whose one read after a refusal `seq` is `read`: false where that read showed the
-/// agent switched off beside its run, after which nothing is stored; a read that failed is the
-/// refusal.
 fn store_once_reading<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
