@@ -212,11 +212,11 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
     let sm_fault = || Refusal::new("script-manifest", sm_path.display().to_string());
     let sm_bytes = fs::read(&sm_path).map_err(|_| sm_fault())?;
     let steps: Vec<StepLine> = parse_script_manifest(&sm_bytes).ok_or_else(sm_fault)?;
-    let dirs = stream_dirs(dir)
-        .filter(|d| !d.is_empty())
+    let listing = stream_dirs(dir)
+        .filter(|l| !l.dirs.is_empty() || !l.links.is_empty())
         .ok_or_else(|| Refusal::new("batches", dir.join("streams").display().to_string()))?;
     let mut streams = Vec::new();
-    for d in &dirs {
+    for d in &listing.dirs {
         if !d.labels.is_file() {
             return Err(Refusal::new("labels", d.labels.display().to_string()));
         }
@@ -229,10 +229,10 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
             records,
         });
     }
-    Ok(check_streams(rule, &steps, &streams))
+    Ok(check_streams(rule, &steps, &listing.links, &streams))
 }
 
-fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked {
+fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[Stream]) -> Checked {
     let by_id: BTreeMap<&str, &StepLine> = steps.iter().map(|s| (s.step.as_str(), s)).collect();
     let step_ids: BTreeSet<&str> = by_id.keys().copied().collect();
     let mut episode_category: BTreeMap<&str, (Category, TaskKind)> = BTreeMap::new();
@@ -269,7 +269,8 @@ fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked 
         .filter(|s| seed_steps.contains(s.step.as_str()))
         .collect();
     let mut lines = vec![format!("rule {}", rule.as_str())];
-    let mut fails = 0usize;
+    lines.extend(links.iter().map(|id| format!("FAIL link {id}")));
+    let mut fails = links.len();
     let (mut marked_ranges, mut unmarked) = (0u64, 0u64);
     let (mut password_ranges, mut password_keys) = (0u64, 0u64);
     let (mut card_masked, mut card_scripted) = (0u64, 0u64);

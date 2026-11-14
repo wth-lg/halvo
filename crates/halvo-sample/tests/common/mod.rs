@@ -167,3 +167,11 @@ pub fn write(path: &Path, text: &str) {
 }
 
 pub const SEC: i64 = 1_000_000_000;
+
+/// Makes `link` a symbolic link to the directory `target`, which need not exist.
+pub fn link_dir(target: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).expect("a symbolic link");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(target, link).expect("a symbolic link");
+}

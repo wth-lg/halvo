@@ -40,7 +40,15 @@ fn read_body(dir: &Path, cause: &'static str) -> Result<BodyView, Refusal> {
         canaries = m.canaries;
     }
     let mut streams = Vec::new();
-    for d in stream_dirs(dir).unwrap_or_default() {
+    let root = dir.join("streams");
+    if fs::symlink_metadata(&root).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(fault(&root));
+    }
+    let listing = stream_dirs(dir).unwrap_or_default();
+    if let Some(link) = listing.links.first() {
+        return Err(fault(&dir.join("streams").join(link)));
+    }
+    for d in listing.dirs {
         let bytes = fs::read(&d.labels).map_err(|_| fault(&d.labels))?;
         let rows: Vec<Row> = text_lines(&bytes)
             .ok_or_else(|| fault(&d.labels))?
@@ -137,6 +145,32 @@ fn names_in<'a>(hay: &[u8], names: &[&'a str]) -> BTreeSet<&'a str> {
     found
 }
 
+/// True when a PATH argument names a symbolic link, also when it names one with separators or `.` components
+/// after its name.
+fn names_a_link(arg: &str) -> bool {
+    let is_link = |p: &str| fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink());
+    let mut named = arg;
+    loop {
+        if is_link(named) {
+            return true;
+        }
+        let next = match named.strip_suffix(std::path::is_separator) {
+            Some(t) => t,
+            None => match named
+                .strip_suffix('.')
+                .filter(|t| t.ends_with(std::path::is_separator))
+            {
+                Some(t) => t,
+                None => return false,
+            },
+        };
+        if next.is_empty() {
+            return false;
+        }
+        named = next;
+    }
+}
+
 struct Walk {
     files: Vec<(String, PathBuf)>,
     bodies: Vec<PathBuf>,
@@ -199,6 +233,9 @@ pub fn leak(tier: &Path, paths: &[String]) -> Result<(Vec<String>, bool), Refusa
         bodies: Vec::new(),
     };
     for p in paths {
+        if names_a_link(p) {
+            return Err(Refusal::new("path", p.clone()));
+        }
         walk(
             p,
             Path::new(p),

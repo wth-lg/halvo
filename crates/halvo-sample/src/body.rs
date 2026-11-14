@@ -24,18 +24,34 @@ pub struct StreamDir {
     pub labels: PathBuf,
 }
 
-/// The directories under `dir/streams/`, in byte order of name, each with its day files. None when
-/// `dir/streams` is missing or cannot be read.
-pub fn stream_dirs(dir: &Path) -> Option<Vec<StreamDir>> {
+/// What `dir/streams/` holds: its stream directories, and the names of its entries that are symbolic links,
+/// which are not followed (contracts.md C12.6, C12.8). Both in byte order of name.
+#[derive(Clone, Debug, Default)]
+pub struct Streams {
+    pub dirs: Vec<StreamDir>,
+    pub links: Vec<String>,
+}
+
+/// The directories under `dir/streams/`, in byte order of name, each with its day files, and the links there.
+/// None when `dir/streams` is missing, is itself a symbolic link or cannot be read.
+pub fn stream_dirs(dir: &Path) -> Option<Streams> {
     let root = dir.join("streams");
+    if fs::symlink_metadata(&root).ok()?.file_type().is_symlink() {
+        return None;
+    }
     let mut names: Vec<String> = Vec::new();
+    let mut links: Vec<String> = Vec::new();
     for entry in fs::read_dir(&root).ok()? {
         let entry = entry.ok()?;
-        if entry.file_type().ok()?.is_dir() {
+        let kind = entry.file_type().ok()?;
+        if kind.is_symlink() {
+            links.push(entry.file_name().to_str()?.to_owned());
+        } else if kind.is_dir() {
             names.push(entry.file_name().to_str()?.to_owned());
         }
     }
     names.sort();
+    links.sort();
     let mut out = Vec::new();
     for id in names {
         let sd = root.join(&id);
@@ -53,7 +69,7 @@ pub fn stream_dirs(dir: &Path) -> Option<Vec<StreamDir>> {
             days,
         });
     }
-    Some(out)
+    Some(Streams { dirs: out, links })
 }
 
 /// Calls `each` with every record of a batch file in line order. Err with the line number, counted from 1,
