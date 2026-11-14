@@ -1584,6 +1584,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-learn-gate"
+version = "0.0.0"
+dependencies = [
+ "halvo-agent-store",
+ "halvo-learn",
+ "halvo-learn-store",
+ "halvo-policy",
+ "halvo-schema",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-learn-store"
 version = "0.0.0"
 dependencies = [

@@ -1,0 +1,2 @@
+ledger process=daemon name=payload_buffer bytes=1048576 kind=by-construction source=batch::tests::the_payload_buffer_never_grows
+ledger process=daemon name=spill bytes=2097152 kind=by-construction source=owner::tests::the_spill_stops_at_its_bounds
