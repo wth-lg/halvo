@@ -414,3 +414,28 @@ fn a_learning_commit_that_the_store_refuses_leaves_the_agent_stores_reply() {
     assert!(rows_of(&w, "learn_routine", 3).is_empty());
     assert!(edits(&w).iter().all(|e| e.state == EditState::Provisional));
 }
+
+#[test]
+fn a_start_run_that_arrives_again_at_runs_held_max_drops_no_other_held_run() {
+    let mut w = active_world();
+    let last = 2 + crate::RUNS_HELD_MAX as u32 - 1;
+    for r in 2..last {
+        w.replay(r);
+    }
+    w.host.refuse = true;
+    w.start(42, "replay");
+    let held = |w: &World, r: u32| {
+        w.handlers
+            .starts
+            .contains_key(&RunId::parse(&run(r)).expect("a run id"))
+    };
+    assert!((2..last).all(|r| held(&w, r)));
+    assert!(held(&w, 42));
+
+    w.start(42, "replay");
+    assert!(
+        held(&w, 2),
+        "the start of run 42 that arrived again dropped run 2, the run made first"
+    );
+    assert!((2..last).all(|r| held(&w, r)));
+}
