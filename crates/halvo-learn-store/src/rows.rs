@@ -96,8 +96,9 @@ pub(crate) fn newest_run<'a>(runs: &'a [LearnRun], run: &str) -> Option<&'a Lear
 /// The newest `learn_routine` row of the workflow and agent (contracts.md L1.1, the coordinator's ruling LM-56 (f)):
 /// the row of the highest `rev`, of two rows of one `rev` the one of the later `day`, and of two rows of one `rev`
 /// and one `day` the one that stands later in `routines`, which holds the rows in the order in which the read
-/// visited them. The step takes the newest row from it alone.
-pub(crate) fn newest_routine<'a>(
+/// visited them. The step, `list_refinements`, the writes at an accepted `start_run` and every other reader of the
+/// rows take the newest row from it alone (contracts.md L4.5; the coordinator's ruling LM-79, item 2).
+pub fn newest_routine<'a>(
     routines: &'a [LearnRoutine],
     workflow: &WorkflowId,
     agent: &AgentId,
