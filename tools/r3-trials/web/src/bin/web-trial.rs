@@ -1541,11 +1541,15 @@ mod driver {
         use super::*;
 
         fn ctx() -> (Ctx, tokio::sync::watch::Sender<bool>) {
+            ctx_of("chrome", "mac")
+        }
+
+        fn ctx_of(kind: &'static str, machine: &str) -> (Ctx, tokio::sync::watch::Sender<bool>) {
             let (tx, rx) = tokio::sync::watch::channel(false);
             let ctx = Ctx {
                 browser: PathBuf::from("browser"),
-                kind: "chrome",
-                machine: "mac".into(),
+                kind,
+                machine: machine.into(),
                 port: 9,
                 control: Control { port: 9 },
                 seed: Seed(serde_json::Value::Null),
@@ -1566,6 +1570,20 @@ mod driver {
                 siblings: std::cell::RefCell::new(Vec::new()),
             };
             (ctx, tx)
+        }
+
+        #[test]
+        fn the_kill_line_names_the_browser_of_its_context() {
+            let (ctx, _tx) = ctx_of("edge", "hosted-win");
+            let line = kill_line_of(&ctx, "driver_killed_pipe_relay", 20, 20);
+            assert_eq!(
+                line,
+                "kill machine=hosted-win browser=edge form=pipe_relay kills=20 arrived=0"
+            );
+            assert_eq!(
+                line,
+                r3_web::kill_line("hosted-win", "edge", "pipe_relay", 20, 0)
+            );
         }
 
         #[test]
@@ -1590,6 +1608,16 @@ mod driver {
                 Err(n) => panic!("the control with the page named gave no run: {}", n.cause),
             }
         }
+    }
+
+    fn kill_line_of(ctx: &Ctx, name: &str, runs: u32, ok: u32) -> String {
+        r3_web::kill_line(
+            &ctx.machine,
+            ctx.kind,
+            name.trim_start_matches("driver_killed_"),
+            runs,
+            runs - ok,
+        )
     }
 
     fn check_processes() -> String {
@@ -4000,13 +4028,7 @@ mod driver {
         } else {
             String::new()
         };
-        out(&r3_web::kill_line(
-            &ctx.machine,
-            ctx.kind,
-            name.trim_start_matches("driver_killed_"),
-            runs,
-            runs - ok,
-        ));
+        out(&kill_line_of(ctx, name, runs, ok));
         out(&format!(
             "cell {head} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{miss_bytes}{relay_key}",
             median(&mut gone)
