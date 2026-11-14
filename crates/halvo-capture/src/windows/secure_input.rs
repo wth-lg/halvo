@@ -201,6 +201,9 @@ pub enum Rule {
     /// No mouse registration routed the clicks to the gate during the key's
     /// hold.
     NoClickRoute,
+    /// An own read from the key to its deciding read, that read included,
+    /// showed another element or could not compare the elements.
+    ElementNotTheSame,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -387,6 +390,11 @@ fn judge(
         .filter(|entry| after_key(entry) && entry.seq <= upto)
         .filter_map(|entry| entry.mark.state())
         .fold(FieldState::Clear, most_restrictive);
+    let moved = marks.iter().any(|entry| {
+        after_key(entry)
+            && entry.seq <= upto
+            && matches!(entry.mark, Mark::Read { moved, .. } if moved != Moved::Same)
+    });
     let rule = if opening == FieldState::Clear {
         Rule::MarkAfterTheKey
     } else {
@@ -395,6 +403,9 @@ fn judge(
     match most_restrictive(opening, later) {
         FieldState::Password => Judgment::Decided(SecureInputReading::Active, rule),
         FieldState::Unknown => Judgment::Decided(SecureInputReading::Unknown, rule),
+        FieldState::Clear if deciding.is_some() && moved => {
+            Judgment::Decided(SecureInputReading::Unknown, Rule::ElementNotTheSame)
+        }
         FieldState::Clear if deciding.is_some() => {
             Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
         }
@@ -2306,7 +2317,7 @@ mod tests {
         gate.read_at(2_309, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
         gate.read_at(2_310, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &letter, 2_240), Some(Ok(())));
+        assert_eq!(reading(&gate, &letter, 2_240), Some(Err(Withheld::Unknown)));
     }
 
     #[test]
@@ -2485,7 +2496,7 @@ mod tests {
         gate.read_at(1_149, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_200), None);
         gate.read_at(1_150, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &key, 1_200), Some(Ok(())));
+        assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Unknown)));
     }
 
     fn c5(armed: Moved, after_the_hold: Moved) -> (PasswordGate, HeldKey, HeldKey) {
@@ -2519,6 +2530,13 @@ mod tests {
                 "tab {armed:?} {after_the_hold:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_read_that_shows_a_move_withholds_the_key_by_a_rule_of_its_own() {
+        let (gate, letter, tab) = c5(Moved::Another, Moved::Same);
+        assert_eq!(rule(&gate, &letter, 2_210), Some(Rule::ElementNotTheSame));
+        assert_eq!(rule(&gate, &tab, 2_210), Some(Rule::ElementNotTheSame));
     }
 
     #[test]
