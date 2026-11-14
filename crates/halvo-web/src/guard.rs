@@ -2126,4 +2126,48 @@ mod tests {
             }
         }
     }
+
+    /// CP-189 G1 at the guard: a member of the bundle whose arguments name the run's profile `/p`
+    /// otherwise than by the two exact forms (`/p word`, `/q/p`, a file below `/p` with no profile
+    /// argument) is neither asked nor ended; the first process with `--user-data-dir=/p` is.
+    #[test]
+    fn g1_a_member_that_names_the_profile_otherwise_is_not_asked() {
+        // On Windows one command line with the quotes that it holds; on macOS each argument apart.
+        let cases: Vec<Vec<String>> = if cfg!(windows) {
+            vec![
+                vec![r#"b.exe "--user-data-dir=/p word""#.to_string()],
+                vec!["b.exe --user-data-dir=/q/p".to_string()],
+                vec!["b.exe /p/Downloads/report.pdf".to_string()],
+            ]
+        } else {
+            vec![
+                vec!["--user-data-dir=/p word".to_string()],
+                vec!["--user-data-dir=/q/p".to_string()],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "/p/Downloads/report.pdf".to_string(),
+                ],
+            ]
+        };
+        for other in cases {
+            let args = |pid: u32, _t: u128| {
+                if pid == 40 {
+                    Some(other.clone())
+                } else {
+                    every_marked(pid)
+                }
+            };
+            let (_, _, ends, _) = run_timed(
+                executor(50),
+                100,
+                &g7_table(row(ROOT, 1, 7, ROOT), Some(row(40, ROOT, 20, 0)), false),
+                &args,
+            );
+            assert!(!ends.iter().any(|e| e.0 == 40), "{other:?}: {ends:?}");
+            assert!(
+                ends.iter().any(|e| e.0 == ROOT && e.1),
+                "{other:?}: {ends:?}"
+            );
+        }
+    }
 }

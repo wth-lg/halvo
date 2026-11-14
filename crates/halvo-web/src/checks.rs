@@ -1802,4 +1802,114 @@ mod tests {
         let name = me.file_name().unwrap().to_string_lossy().into_owned();
         assert!(line.contains(&name), "{name}");
     }
+
+    /// The processes that `end_runs_own_with` hands to its kill for the mark of the run with the
+    /// profile `profile` and the bundle `/B.app`, from a table of one process of the bundle,
+    /// begun after the mark, with the arguments `args`.
+    fn g1_kills(profile: &str, args: Vec<String>) -> Vec<u32> {
+        let mark = Mark {
+            profile: profile.to_string(),
+            since_us: 10,
+            root: std::path::PathBuf::from("/B.app"),
+        };
+        let row = Proc {
+            pid: 40,
+            ppid: 1,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(std::path::PathBuf::from("/B.app/Contents/MacOS/b")),
+        };
+        let killed = std::cell::RefCell::new(Vec::new());
+        let gone = std::cell::Cell::new(false);
+        end_runs_own_with(
+            &mark,
+            &|| {
+                Ok(if gone.get() {
+                    Vec::new()
+                } else {
+                    vec![row.clone()]
+                })
+            },
+            &|_| Some(args.clone()),
+            &|_| !gone.get(),
+            &|p| {
+                killed.borrow_mut().push(p.pid);
+                gone.set(true);
+                true
+            },
+        );
+        killed.into_inner()
+    }
+
+    /// CP-189 G1: a process bears the run's mark by its profile only through `--user-data-dir=`
+    /// with the profile, or `--database=` with the profile's Crashpad directory, each as the whole
+    /// value. The end of a run's own processes hands none of these to its kill: the profile with a
+    /// word after it, a profile that ends with the run's (`/q/p` for `/p`), and a file below the
+    /// profile with no profile argument.
+    #[test]
+    fn g1_a_process_that_names_the_profile_otherwise_is_not_the_run_s() {
+        // On Windows the system gives a process's command line as one argument, with the quotes
+        // that the line holds; on macOS each argument apart.
+        let cases: Vec<Vec<String>> = if cfg!(windows) {
+            vec![
+                vec![r#"b.exe "--user-data-dir=/base/agent 2""#.to_string()],
+                vec!["b.exe --user-data-dir=/q/base/agent".to_string()],
+                vec!["b.exe /base/agent/Downloads/report.pdf".to_string()],
+            ]
+        } else {
+            vec![
+                vec!["--user-data-dir=/base/agent 2".to_string()],
+                vec!["--user-data-dir=/q/base/agent".to_string()],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "/base/agent/Downloads/report.pdf".to_string(),
+                ],
+            ]
+        };
+        for args in cases {
+            assert_eq!(
+                g1_kills("/base/agent", args.clone()),
+                Vec::<u32>::new(),
+                "{args:?}"
+            );
+        }
+        // Windows gives a process's command line as one argument; a quoted profile with a word
+        // after it is another profile.
+        let line = vec![r#"chrome.exe "--user-data-dir=C:\a b\p 2" --type=gpu"#.to_string()];
+        assert_eq!(g1_kills(r"C:\a b\p", line), Vec::<u32>::new());
+    }
+
+    /// CP-189 G1, the control of the Windows line: the run's own process, whose command line is
+    /// one argument with the profile quoted, bears the mark once the line is split.
+    #[cfg(windows)]
+    #[test]
+    fn g1_the_run_s_own_quoted_line_bears_the_mark_on_windows() {
+        let line = vec![r#"chrome.exe "--user-data-dir=C:\a b\p" --type=gpu"#.to_string()];
+        assert_eq!(g1_kills(r"C:\a b\p", line), vec![40]);
+    }
+
+    /// CP-189 G1, the controls, which hold before and after: another profile whose name begins
+    /// with the run's is not the run's; the run's own `--user-data-dir=` and `--database=` are.
+    #[test]
+    fn g1_the_run_s_own_forms_are_the_run_s_and_another_profile_is_not() {
+        assert!(g1_kills(
+            "/base/agent",
+            vec!["--user-data-dir=/base/agent2".to_string()]
+        )
+        .is_empty());
+        assert_eq!(
+            g1_kills(
+                "/base/agent",
+                vec!["--user-data-dir=/base/agent".to_string()]
+            ),
+            vec![40]
+        );
+        assert_eq!(
+            g1_kills(
+                "/base/agent",
+                vec!["--database=/base/agent/Crashpad".to_string()]
+            ),
+            vec![40]
+        );
+    }
 }
