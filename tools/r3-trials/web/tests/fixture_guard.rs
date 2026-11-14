@@ -2,7 +2,7 @@
 //! bound, `GONE_MS` of tools/fixture-server/variants/selftest.mjs, when its trial process is
 //! killed, and at once when the trial drops its `Server`, also by a panic.
 
-use r3_web::fixture::{fixture_program, Server};
+use r3_web::fixture::{fixture_program, Control, Server};
 use r3_web::procs::{self, Proc};
 use r3_web::start::Start;
 use std::io::{BufRead, BufReader};
@@ -119,7 +119,38 @@ fn a_server_that_its_trial_drops_without_a_stop_is_gone_when_the_drop_returns() 
         child: None,
         server: Some(p.clone()),
     };
+    assert!(
+        Control { port: server.port }.state().is_ok(),
+        "the server serves while its trial holds it"
+    );
     drop(server);
+    assert!(!procs::running(&p), "the server runs after its drop");
+}
+
+#[test]
+fn a_server_that_ignores_its_input_is_gone_when_the_drop_returns() {
+    let program = Path::new(env!("CARGO_TARGET_TMPDIR")).join("r3-ignores-its-input.mjs");
+    std::fs::write(
+        &program,
+        "process.stdout.write('listening 127.0.0.1:1\\n');\nsetInterval(() => {}, 1000);\n",
+    )
+    .expect("program");
+    let server = Server::start(&program, &[]).expect("server");
+    let p = row(server.pid());
+    let _ends = Ends {
+        child: None,
+        server: Some(p.clone()),
+    };
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        drop(server);
+        let _ = tx.send(());
+    });
+    assert!(
+        rx.recv_timeout(GONE).is_ok(),
+        "the drop did not return within {} ms",
+        GONE.as_millis()
+    );
     assert!(!procs::running(&p), "the server runs after its drop");
 }
 
