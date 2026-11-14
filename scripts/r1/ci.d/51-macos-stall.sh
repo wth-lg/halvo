@@ -478,7 +478,9 @@ write_measured_ledger() {
   done
   printf 'measured run=1 commit=0 figures=none\n' >"$ledger_file" || exit 2
   measured_files | while read -r path; do
-    printf 'measured blob path=%s id=%s\n' "$path" "$(git -C "$work/repo" ls-files --stage -- "$path" | cut -d ' ' -f 2)"
+    entry=$(git -C "$work/repo" ls-files --stage -- "$path") || exit 2
+    blob=${entry#* }
+    printf 'measured blob path=%s id=%s\n' "$path" "${blob%% *}"
   done >>"$ledger_file" || exit 2
   git -C "$work/repo" add docs || exit 2
 }

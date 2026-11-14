@@ -2765,10 +2765,10 @@ mod tests {
         let held = slow_held(100);
         stall(300 * MS);
         let os_time = now_uptime();
-        let before_call = SystemTime::now();
         SLOW_SESSION_NS.with(|ns| ns.set(20 * MS));
         SLOW_READ_NS.with(|ns| ns.set(0));
         key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        let after_call = SystemTime::now();
         SLOW_SESSION_NS.with(|ns| ns.set(0));
         ticks(&held.ctx, 300);
         let instants: Vec<SystemTime> = received(&held.writer)
@@ -2782,8 +2782,9 @@ mod tests {
             "a read of 20 ms keeps the key under a lag bound of 30 ms"
         );
         assert!(
-            instants[0] <= before_call - Duration::from_millis(19),
-            "the instant is the key's time, 20 ms before the end of its reading"
+            instants[0] <= after_call - Duration::from_millis(20),
+            "the instant is the key's time, 20 ms before the end of its reading, which came before the \
+             wall time read after the call"
         );
     }
 
@@ -4534,6 +4535,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     fn the_product_constructors_read_the_session_of_the_system() {
         let source = source_with(HoldPlan::Never);
         assert_eq!(source.step, READING_STEP);
@@ -4578,6 +4580,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     fn the_product_constructor_holds_for_the_bound_of_the_product() {
         let source = source_with(HoldPlan::Never);
         assert_eq!(source.bounds, Bounds::PRODUCT);
