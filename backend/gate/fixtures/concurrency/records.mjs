@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -164,12 +164,13 @@ async function readExitCode(record) {
   return { good: true, problems };
 }
 
+const MAIN_GUARD_ARGV1 = { check: CHECK, records: fileURLToPath(import.meta.url), none: undefined };
+
 async function readMainGuard(record) {
   const check = await loadCheck();
   if (typeof check?.isMainScript !== "function") return { good: true, problems: ["stress/check.mjs exports no isMainScript"] };
-  const paths = { check: CHECK, records: fileURLToPath(import.meta.url), none: undefined };
   const problems = record.cases
-    .filter((each) => check.isMainScript(paths[each.argv1], pathToFileURL(CHECK).href) !== each.main)
+    .filter((each) => check.isMainScript(MAIN_GUARD_ARGV1[each.argv1], pathToFileURL(CHECK).href) !== each.main)
     .map((each) => `started as ${each.argv1}, main runs is ${!each.main}, expected ${each.main}`);
   return { good: true, problems };
 }
@@ -210,6 +211,75 @@ const READINGS = {
   "script-run": readScriptRun,
   "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt, "kept-body": readKeptBody };
 
+const EXPECT_KEYS = {
+  judge: ["counted", "violations", "facts"],
+  send: ["resend"],
+  "sends-again": ["sendsAgain"],
+  receipt: ["now"],
+  line: ["line", "lostInTransport"],
+  attempts: ["discarded", "reported", "halted", "runs"],
+  "lost-attempt": ["entry"],
+  "attempt-line": ["line"],
+  gateway: ["holdLifeMs", "deadlineMs", "marginMs"],
+  "kept-body": ["body"],
+  "server-options": ["holdLifeMs"],
+  "script-run": ["status", "text"],
+  "main-guard": [],
+  "gateway-default": [],
+  "exit-code": [],
+};
+const RUN_KEYS = ["key", "rigUnbuilt", "discarded", "countedAtTheDraw"];
+const READS_CASES = new Set(["main-guard", "gateway-default", "exit-code"]);
+
+function refusalsOf(record) {
+  const keys = EXPECT_KEYS[record.kind] ?? [];
+  const refusals = Object.keys(record.expect ?? {})
+    .filter((key) => !keys.includes(key))
+    .map((key) => `its expect holds the key ${key}, which the reading of ${record.kind} does not read`);
+  if (record.kind === "attempts") {
+    for (const run of record.expect?.runs ?? []) {
+      for (const key of Object.keys(run).filter((each) => !RUN_KEYS.includes(each))) refusals.push(`a run of its expect holds the key ${key}, which the reading of attempts does not read`);
+    }
+  }
+  if (READS_CASES.has(record.kind) && !(Array.isArray(record.cases) && record.cases.length > 0)) refusals.push("its case list is empty, so it pins nothing");
+  if (record.kind === "main-guard") {
+    for (const each of record.cases ?? []) {
+      if (!Object.hasOwn(MAIN_GUARD_ARGV1, each.argv1)) refusals.push(`the argv1 ${JSON.stringify(each.argv1)} of a case is none of ${Object.keys(MAIN_GUARD_ARGV1).join(", ")}`);
+    }
+  }
+  if (record.kind === "script-run" && !(typeof record.expect?.text === "string" && record.expect.text !== "")) refusals.push("its expected text is empty, and every output includes an empty text");
+  return refusals;
+}
+
+const REFUSED = join(HERE, "refused");
+const refusedFiles = existsSync(REFUSED)
+  ? readdirSync(REFUSED)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+  : [];
+let failed = 0;
+if (refusedFiles.length === 0) {
+  failed++;
+  console.log("self-test concurrency: refused records: no record under gate/fixtures/concurrency/refused");
+}
+for (const file of refusedFiles) {
+  const name = file.slice(0, -".json".length);
+  let refusals;
+  try {
+    refusals = refusalsOf(JSON.parse(readFileSync(join(REFUSED, file), "utf8")));
+  } catch (error) {
+    refusals = [];
+    console.log(`self-test concurrency: refused record ${name} threw: ${String(error?.message ?? error).split("\n")[0]}`);
+  }
+  if (refusals.length > 0) {
+    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${refusals.join("; ")}`);
+  } else {
+    failed++;
+    console.log(`self-test concurrency: refused record ${name}: not refused, where it pins nothing`);
+  }
+}
+console.log(`concurrency: refused records: ${refusedFiles.length - failed} of ${refusedFiles.length} refused as expected`);
+
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
   .sort();
@@ -217,7 +287,7 @@ if (files.length === 0) {
   console.log("self-test concurrency: records: no record under gate/fixtures/concurrency/records");
   process.exit(1);
 }
-let failed = 0;
+const failedRefusals = failed;
 for (const file of files) {
   const name = file.slice(0, -".json".length);
   const said = name.startsWith("good-") ? "good" : name.startsWith("bad-") ? "bad" : null;
@@ -225,7 +295,9 @@ for (const file of files) {
   try {
     const record = JSON.parse(readFileSync(join(RECORDS, file), "utf8"));
     const reading = READINGS[record.kind];
-    result = reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
+    const refusals = refusalsOf(record);
+    if (refusals.length > 0) result = { good: null, problems: refusals.map((refusal) => `refused: ${refusal}`) };
+    else result = reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
   } catch (error) {
     result = { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
   }
@@ -238,5 +310,5 @@ for (const file of files) {
     console.log(`self-test concurrency: record ${name}: ${result.problems.join("; ")}`);
   }
 }
-console.log(`concurrency: records: ${files.length - failed} of ${files.length} as expected`);
+console.log(`concurrency: records: ${files.length - (failed - failedRefusals)} of ${files.length} as expected`);
 process.exit(failed === 0 ? 0 : 1);

@@ -1,0 +1,14 @@
+{
+  "kind": "script-run",
+  "ruling": "the planner's Addition 27, section 1 (plan.md line 239), from reports/builder-54.md lines 102 to 107",
+  "about": "a script-run record whose expected text is empty: every output includes the empty text, so the text pins nothing; records.mjs refuses it",
+  "source": "the review cases of builder-54 (evidence/builder-54/review/), written again by hand",
+  "args": [
+    "--no-such-flag",
+    "x"
+  ],
+  "expect": {
+    "status": 64,
+    "text": ""
+  }
+}
