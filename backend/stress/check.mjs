@@ -105,7 +105,7 @@ export function lineOf({ selected, runs, halted, attempts }) {
         .map(([bound, waits]) => `${nearestRank(waits, 0.5)} ms, over the bound of ${bound} ms`)
         .join(", and ");
       failure = `${slowAttempts.length} attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was ${medians}; ${neverCounted.key} did not count in ${attempts} attempts`;
-    } else if (neverCounted && neverCounted.kind === "wave" && attemptsOf(neverCounted).every((attempt) => attempt.held === false)) {
+    } else if (neverCounted && attemptsOf(neverCounted).every((attempt) => attempt.held === false)) {
       const end = neverCounted.facts.firstEndBeforeTheLastAnswer;
       const cause =
         end === null
