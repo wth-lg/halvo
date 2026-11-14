@@ -127,10 +127,10 @@ impl EncryptedStore {
     }
 
     fn destroy_store_key(&mut self) -> StoreResult<()> {
-        let roots = self.root_step();
+        let root_step = self.root_step();
         #[cfg(test)]
         super::failpoint::seam(super::db::SEAM_AFTER_THE_ROOT_STEP);
-        self.remove_files_after(roots);
+        self.remove_files_after(root_step);
         Ok(())
     }
 }

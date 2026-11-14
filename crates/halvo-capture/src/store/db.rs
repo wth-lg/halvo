@@ -1631,6 +1631,8 @@ enum Keyed {
 
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
+pub(crate) struct RootStep(RootsLeft);
+
 pub struct EncryptedStore {
     dir: Dir,
     retention: Duration,
@@ -1958,16 +1960,16 @@ impl EncryptedStore {
         ))
     }
 
-    pub(crate) fn root_step(&self) -> RootsLeft {
+    pub(crate) fn root_step(&self) -> RootStep {
         let destroyed = self.custody.destroy_root();
         let named = self.custody.root_id();
-        match self.custody.roots() {
+        RootStep(match self.custody.roots() {
             Some(roots) => file_root::destroy_every_root(roots, Some(named)),
             None => RootsLeft {
                 left: destroyed.err().map(|_| named).into_iter().collect(),
                 listed: true,
             },
-        }
+        })
     }
 
     pub(crate) fn untouched(&self) -> DeleteReport {
@@ -1985,9 +1987,9 @@ impl EncryptedStore {
         }
     }
 
-    pub(crate) fn remove_files_after(&mut self, roots: RootsLeft) {
+    pub(crate) fn remove_files_after(&mut self, root_step: RootStep) {
         self.keyed = Keyed::Deleting(None);
-        let mut report = remove_the_store_files(&self.dir, None, roots);
+        let mut report = remove_the_store_files(&self.dir, None, root_step.0);
         if !matches!(self.dir.still_named(), Ok(true)) {
             report.not_followed += 1;
         }
