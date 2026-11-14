@@ -1,7 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: The account backend's stand-in under account/stub/ locks no package and its self-test passes on Node 26 or later, with at least 40 tests and none failed, skipped, cancelled or left to do: each request that the vendored schema or route table refuses gets the rejection of contract 1.4, each accepted request an answer that the schema allows, and the scripted states, the recorder and the TLS form with a test authority made in a temp directory each hold.
-# lane: free
+# lane: alone
 set -u
 name=20-r7-stub
 min_tests=40
