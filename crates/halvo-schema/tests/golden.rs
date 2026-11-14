@@ -882,3 +882,105 @@ fn leaf_lies_under_the_target_directory() {
         held.path().display()
     );
 }
+
+const LEAF_CHILD: &str = "HALVO_LEAF_CHILD";
+
+fn leaf_child(test: &str, role: &str, nocapture: bool) -> std::process::Output {
+    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .args([test, "--exact", "--test-threads=1"])
+        .env(LEAF_CHILD, role);
+    if nocapture {
+        command.arg("--nocapture");
+    }
+    let out = command.output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success() && stdout.contains("test result: ok. 1 passed;"),
+        "{role}: {}\n{stdout}\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    out
+}
+
+fn leaf_parts(path: &Path) -> (String, u32, u128, u64) {
+    let name = path.file_name().unwrap().to_str().unwrap();
+    let mut parts = name.rsplitn(4, '-');
+    let count = parts.next().unwrap_or_default().parse();
+    let clock = parts.next().unwrap_or_default().parse();
+    let pid = parts.next().unwrap_or_default().parse();
+    let word = parts.next().unwrap_or_default().to_owned();
+    match (pid, clock, count) {
+        (Ok(pid), Ok(clock), Ok(count)) => (word, pid, clock, count),
+        _ => panic!("not word-pid-clock-count: {name}"),
+    }
+}
+
+fn leaf_clock_now() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+}
+
+#[test]
+fn leaf_from_leaf_holds_the_word_the_process_id_and_the_clock() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("clock") {
+        leaf_child(
+            "leaf_from_leaf_holds_the_word_the_process_id_and_the_clock",
+            "clock",
+            false,
+        );
+        return;
+    }
+    let before = leaf_clock_now();
+    let held = leaf("golden-leaf-clock");
+    let after = leaf_clock_now();
+    let (word, pid, clock, _) = leaf_parts(held.path());
+    assert_eq!(word, "golden-leaf-clock");
+    assert_eq!(pid, std::process::id());
+    assert!(
+        before <= clock && clock <= after,
+        "{before} {clock} {after}"
+    );
+}
+
+#[test]
+fn leaf_refuses_the_directory_that_the_next_leaf_names() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("next") {
+        leaf_child(
+            "leaf_refuses_the_directory_that_the_next_leaf_names",
+            "next",
+            false,
+        );
+        return;
+    }
+    let first = leaf("golden-leaf-next");
+    let (word, pid, clock, count) = leaf_parts(first.path());
+    let next = first
+        .path()
+        .with_file_name(format!("{word}-{pid}-{clock}-{}", count + 1));
+    std::fs::create_dir(&next).unwrap();
+    let _next = Leaf(next.clone());
+    std::fs::write(next.join("kept"), "kept\n").unwrap();
+    let caught = std::panic::catch_unwind(|| leaf("golden-leaf-next"));
+    let message = caught
+        .err()
+        .and_then(|payload| payload.downcast::<String>().ok())
+        .expect("leaf() fails on the directory that it names");
+    assert!(message.contains(&next.display().to_string()), "{message}");
+    assert_eq!(
+        std::fs::read_to_string(next.join("kept")).unwrap(),
+        "kept\n"
+    );
+    assert_eq!(std::fs::read_dir(&next).unwrap().count(), 1);
+}
+
+#[test]
+fn leaf_whose_path_is_gone_drops_without_a_panic() {
+    let held = leaf("golden-leaf-gone");
+    std::fs::remove_dir_all(held.path()).unwrap();
+    let dropped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || drop(held)));
+    assert!(dropped.is_ok());
+}
