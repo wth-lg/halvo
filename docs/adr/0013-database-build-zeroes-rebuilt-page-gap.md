@@ -205,8 +205,12 @@ in the draws of the tests", with the limits below.
   leaf whose type byte is 0 on disk (dbstat reads it corrupted), a log with
   frames, and a draw that frees a second freelist trunk, with plants in its
   last leaf, past its count and in its first entry; `plants` holds a page
-  appended to the file, a b-tree page that a trunk names, a trunk that names
-  page 0, a page past the count and itself, and a leaf whose type byte is 0.
+  appended to the file (with the line of a page in no tree, the sum's line
+  for a page that the check read as no kind), a b-tree page that a trunk
+  names (the sum's line for a page read twice), a trunk that names page 0, a
+  page past the count and itself, and a leaf whose type byte is 0. The sum's
+  line for a page read as no kind never prints alone: each such page also
+  prints the line of a page in no tree or of a page type.
   The rule on a log is one function that the three searches call, each with a
   control, and the searches of rewrites and second_place each have a control
   of their structural check.

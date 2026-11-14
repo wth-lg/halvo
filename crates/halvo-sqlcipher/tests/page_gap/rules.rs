@@ -358,7 +358,8 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
 /// leaf of the first freelist trunk at byte 100 and at its last usable byte;
 /// that trunk's last 4 bytes, its first entry set to 0, to the page count
 /// plus 1 and to the trunk itself, and a b-tree page added to its entries; a
-/// page appended to the file; the type byte of the first leaf after page 1
+/// page appended to the file (the line of a page in no tree and the sum's
+/// line); the type byte of the first leaf after page 1
 /// set to 0; the last 4 bytes of an overflow tail with room; a byte past the
 /// header of the first freeblock longer than 4 bytes; text in a freeblock of
 /// 8 bytes or more shortened by 4; in the first leaf with 8 bytes of gap past
@@ -427,11 +428,15 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
     let mut longer = db.to_vec();
     longer.resize(db.len() + size, 0);
     let found = check(conn, &longer).problems;
-    let named = format!("page {}: in no tree and not on the freelist", count + 1);
-    if !found.iter().any(|line| line.contains(&named)) {
-        misses.push(format!(
-            "a page appended to the file: no line names {named:?}: {found:?}"
-        ));
+    for named in [
+        format!("page {}: in no tree and not on the freelist", count + 1),
+        format!("page 1: the check read {count} of the {} pages", count + 1),
+    ] {
+        if !found.iter().any(|line| line.contains(&named)) {
+            misses.push(format!(
+                "a page appended to the file: no line names {named:?}: {found:?}"
+            ));
+        }
     }
     match (2..=count).find(|&number| matches!(db[page(number)], 10 | 13)) {
         Some(number) => misses.extend(planted(
