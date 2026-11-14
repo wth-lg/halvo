@@ -493,7 +493,8 @@ impl Harness {
             .root_id;
         let stands = |name: &str| std::fs::symlink_metadata(self.dir.join(name)).is_ok();
         Left {
-            root: !matches!(crate::store::roots::custody(root_id).root_bytes(), Ok(None)),
+            root: !crate::store::roots::roots_of(root_id).is_dir()
+                || !matches!(crate::store::roots::custody(root_id).root_bytes(), Ok(None)),
             key_file: stands("store.key"),
             database: DATABASE_FILES.iter().any(|name| stands(name)),
             segment_files: files_below(&self.dir.join("segments")),
@@ -1280,9 +1281,14 @@ impl Harness {
             .latest_created_key_file
             .as_ref()
             .expect("the deleted store's key file");
+        let roots = crate::store::roots::roots_of(key_file.root_id);
+        if !roots.is_dir() {
+            return Err(TestCaseError::fail(
+                "after delete-all the roots directory no longer stands at its path, so a missing root there does not show the root destroyed",
+            ));
+        }
         let custody =
-            custody_for(&key_file.locator(&crate::store::roots::roots_of(key_file.root_id)))
-                .expect("the dev-fallback custody rebuilds");
+            custody_for(&key_file.locator(&roots)).expect("the dev-fallback custody rebuilds");
         let wrapped = key_file
             .wrapped_store_key()
             .expect("the retained wrapped key decodes");

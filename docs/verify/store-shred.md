@@ -1233,7 +1233,17 @@ What the code does since store-3, each sentence with the test that shows it.
 - The kill table `a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind`
   ends a child before each counted file-system call of write, write then a
   pass, shred, delete-all, create and open (216 calls in the last run of
-  the builder on the Mac of the team) and finds each end state true.
+  the builder on the Mac of the team) and finds each end state true. It
+  reads the end state of the unkilled run of each operation too, and of a
+  finished delete-all: `store.key` gone, the named root gone and the old
+  wrapped key no longer unwraps. A partial root file counts as a root
+  file, and a pending mark that reads owed names no root; a row of a create
+  killed between its `create_root` and the second write of its mark is the
+  named limit (i) of ruling ST-44 F3 and prints it, and one row that starts
+  from such a stopped create asserts that limit by name. P1 and P2 read the
+  roots directory on disk, and the first formal check counts a missing
+  root as destroyed only while the roots directory still stands at its path
+  (ruling ST-44 F7).
 - On macOS SQLite opens the database under the name
   `/.vol/<device>/<file number>/store.db` of the handle's directory, with
   the two numbers read from the handle at each open and kept nowhere, after

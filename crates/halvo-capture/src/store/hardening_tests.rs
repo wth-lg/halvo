@@ -6281,6 +6281,11 @@ fn delete_all_acts_through_its_handle_and_leaves_a_directory_put_at_the_store_na
     );
     assert_eq!(report.not_followed, 1, "{report:?}");
     assert!(report.root_destroyed(), "{report:?}");
+    assert_eq!(
+        root_files_in(&roots_dir),
+        Vec::<String>::new(),
+        "the roots directory on disk still holds a root file: {report:?}"
+    );
 }
 
 #[cfg(unix)]
@@ -6308,6 +6313,11 @@ fn delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_nam
         .is_symlink());
     assert_eq!(store_files_in(&moved), Vec::<String>::new(), "{report:?}");
     assert_eq!(report.not_followed, 1, "{report:?}");
+    assert_eq!(
+        root_files_in(&roots_dir),
+        Vec::<String>::new(),
+        "the roots directory on disk still holds a root file: {report:?}"
+    );
 }
 
 #[cfg(unix)]
@@ -8005,6 +8015,10 @@ struct EndStates {
     no_shredded_decrypts: bool,
     no_unnamed_root: bool,
     no_keyless_file: bool,
+    /// A root file of a create stopped between its create_root and the second
+    /// write of its mark stands: the mark reads owed and no key file names the
+    /// root, the named limit (i) of ruling ST-44 F3.
+    under_the_limit_of_a_stopped_create: bool,
 }
 
 #[cfg(target_os = "macos")]
@@ -8017,22 +8031,36 @@ impl EndStates {
 #[cfg(target_os = "macos")]
 fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates {
     let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let read_json = |path: PathBuf| {
+        std::fs::read(path)
+            .ok()
+            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
+    };
+    let key_file = read_json(KeyFile::path(&store_dir));
+    let mark = read_json(store_dir.join("create.pending"));
+    let mark_root = mark
+        .as_ref()
+        .and_then(|v| v["root_id"].as_str().and_then(RootId::parse));
+    let mark_reads_made = mark.as_ref().is_some_and(|v| v["reading"] == "made");
     let named: Vec<RootId> = [
-        std::fs::read(KeyFile::path(&store_dir))
-            .ok()
-            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
+        key_file
+            .as_ref()
             .and_then(|v| v["root_id"].as_str().and_then(RootId::parse)),
-        std::fs::read(store_dir.join("create.pending"))
-            .ok()
-            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
-            .and_then(|v| v["root_id"].as_str().and_then(RootId::parse)),
+        mark_root.filter(|_| mark_reads_made),
     ]
     .into_iter()
     .flatten()
     .collect();
-    let no_unnamed_root = root_files_in(&roots_dir).iter().all(|name| {
-        name.ends_with(".root.tmp") || named.iter().any(|id| name == &format!("{id}.root"))
-    });
+    let id_of = |name: &str| RootId::parse(name.get(..32)?);
+    let unnamed: Vec<String> = root_files_in(&roots_dir)
+        .into_iter()
+        .filter(|name| !id_of(name).is_some_and(|id| named.contains(&id)))
+        .collect();
+    let under_the_limit_of_a_stopped_create = key_file.is_none()
+        && !mark_reads_made
+        && !unnamed.is_empty()
+        && unnamed.iter().all(|name| id_of(name) == mark_root);
+    let no_unnamed_root = unnamed.is_empty() || under_the_limit_of_a_stopped_create;
     let root_id = named.first().copied();
     let root_file = root_id.map(|id| roots_dir.join(format!("{id}.root")).exists());
     let opened = root_id.map(|id| open_over_file_root(&store_dir, &roots_dir, id));
@@ -8084,6 +8112,7 @@ fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates 
         no_shredded_decrypts,
         no_unnamed_root,
         no_keyless_file,
+        under_the_limit_of_a_stopped_create,
     }
 }
 
@@ -8121,10 +8150,32 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
     let mut rows = 0;
     let mut wrong = Vec::new();
     for op in KILL_OPS {
-        let (dir, _) = prepare(op);
+        let (dir, expired) = prepare(op);
+        let before_the_run = finished_delete_all_reading(dir.path());
         let trace = work.path().join(format!("trace-{op}.txt"));
         let code = kill_table_child(dir.path(), op, 0, Some(&trace), &dylib);
         assert_eq!(code, 0, "the {op} child failed without a kill");
+        let unkilled = end_states_after_a_kill(dir.path(), op, &expired);
+        println!("KILL op={op} unkilled states={unkilled:?}");
+        assert!(
+            unkilled.all_true() && !unkilled.under_the_limit_of_a_stopped_create,
+            "the unkilled {op} run left {unkilled:?}"
+        );
+        if op == "delete_all" {
+            let after = finished_delete_all_reading(dir.path());
+            println!(
+                "KILL op=delete_all unkilled store_key_gone={} named_root_gone={} unwraps={}",
+                after.store_key_gone,
+                after.named_root_gone(dir.path(), before_the_run.root_id),
+                before_the_run.unwraps_now(dir.path())
+            );
+            assert!(
+                after.store_key_gone
+                    && after.named_root_gone(dir.path(), before_the_run.root_id)
+                    && !before_the_run.unwraps_now(dir.path()),
+                "the unkilled delete-all left its key file, its root or a root that unwraps"
+            );
+        }
         let calls = std::fs::read_to_string(&trace).unwrap().lines().count();
         assert!(calls > 0, "the {op} child made no counted call");
         for at in 1..=calls {
@@ -8132,7 +8183,14 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
             let code = kill_table_child(dir.path(), op, at, None, &dylib);
             let states = end_states_after_a_kill(dir.path(), op, &expired);
             rows += 1;
-            println!("KILL op={op} before_call={at} exit={code} states={states:?}");
+            println!(
+                "KILL op={op} before_call={at} exit={code} states={states:?}{}",
+                if states.under_the_limit_of_a_stopped_create {
+                    " named-limit=ST-44 F3 (i)"
+                } else {
+                    ""
+                }
+            );
             if code != CRASHPOINT_EXIT || !states.all_true() {
                 wrong.push(format!("{op} at call {at}: exit {code}, states {states:?}"));
             }
@@ -8141,6 +8199,113 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
     }
     println!("KILL rows={rows}");
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    let roots_dir = dir.path().join("roots");
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        EncryptedStore::create(
+            &store_dir,
+            Box::new(StopsAfterItsRoot(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                RootId::fresh().unwrap(),
+            ))),
+            DEFAULT_RETENTION,
+        )
+        .map(drop)
+    }));
+    let states = end_states_after_a_kill(dir.path(), "create", &[]);
+    println!("KILL op=stopped_create states={states:?} named-limit=ST-44 F3 (i)");
+    assert!(
+        stopped.is_err(),
+        "the stand-in custody did not stop the create"
+    );
+    assert!(
+        states.under_the_limit_of_a_stopped_create && states.all_true(),
+        "a create stopped between its create_root and the second write of its mark left {states:?}, not the named limit (i)"
+    );
+}
+
+/// The store's state before and after a delete-all of the kill table: the
+/// root that its key file names and its wrapped key.
+#[cfg(target_os = "macos")]
+struct DeleteAllReading {
+    root_id: Option<RootId>,
+    wrapped: Option<WrappedKey>,
+    store_key_gone: bool,
+}
+
+#[cfg(target_os = "macos")]
+impl DeleteAllReading {
+    fn named_root_gone(&self, dir: &Path, root_id: Option<RootId>) -> bool {
+        root_id.is_some_and(|id| {
+            !root_files_in(&dir.join("roots"))
+                .iter()
+                .any(|name| name.starts_with(&id.to_string()))
+        })
+    }
+
+    fn unwraps_now(&self, dir: &Path) -> bool {
+        match (self.root_id, &self.wrapped) {
+            (Some(root_id), Some(wrapped)) => {
+                file_root_custody(&dir.join("roots"), TestProtector::new(0x5a).0, root_id)
+                    .unwrap_store_key(wrapped, crate::custody::KeyLabel::STORE)
+                    .is_ok()
+            }
+            _ => false,
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn finished_delete_all_reading(dir: &Path) -> DeleteAllReading {
+    let store_dir = dir.join("store");
+    let key_file = KeyFile::read(&store_dir).ok();
+    DeleteAllReading {
+        root_id: key_file.as_ref().map(|k| k.root_id),
+        wrapped: key_file.and_then(|k| k.wrapped_store_key().ok()),
+        store_key_gone: !store_dir.join("store.key").exists(),
+    }
+}
+
+/// A custody whose create_root makes the root and then stops the create, as a
+/// process killed between its create_root and the second write of its mark.
+#[cfg(target_os = "macos")]
+struct StopsAfterItsRoot<C>(C);
+
+#[cfg(target_os = "macos")]
+impl<C: KeyCustody> KeyCustody for StopsAfterItsRoot<C> {
+    fn kind(&self) -> CustodyKind {
+        self.0.kind()
+    }
+    fn root_id(&self) -> RootId {
+        self.0.root_id()
+    }
+    fn roots(&self) -> Option<&std::path::Path> {
+        self.0.roots()
+    }
+    fn wrap_store_key(
+        &self,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<WrappedKey, CustodyError> {
+        self.0.wrap_store_key(key, label)
+    }
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.0.create_root()?;
+        panic!("the create stops after its root, before the second write of its mark");
+    }
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<StoreKey, CustodyError> {
+        self.0.unwrap_store_key(wrapped, label)
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        self.0.destroy_root()
+    }
 }
 
 #[cfg(target_os = "macos")]
