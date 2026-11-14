@@ -2951,6 +2951,29 @@ mod tests {
     }
 
     #[test]
+    fn a_started_source_reads_the_session_through_its_own_reader() {
+        let kept = Arc::new(Mutex::new(None));
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let counters = InputCounters::new();
+        let mut source = InputSource::new(reader, counters.clone(), HoldPlan::Never);
+        source.session = || Session::NoDictionary;
+        let _ = source.begin_with(handle, KeepingMaker(kept.clone()), || {});
+        let callback = kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .expect("the maker was given a callback");
+        let event = event_object(CGEventType::KeyDown, 0);
+        set_stamp(&event, uptime_raw().0);
+        let _ = callback(std::ptr::null(), CGEventType::KeyDown, &event);
+        assert!(
+            counters.figures().keys_withheld,
+            "a key under a session with no dictionary is withheld"
+        );
+    }
+
+    #[test]
     fn the_product_constructor_holds_for_the_bound_of_the_product() {
         let source = source_with(HoldPlan::Never);
         assert_eq!(source.bounds, Bounds::PRODUCT);
