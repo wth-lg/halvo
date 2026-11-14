@@ -42,6 +42,17 @@ impl Guard {
         self.from = Some(self.from.map_or(now, |from| from.max(now)));
     }
 
+    /// A press at `now` that a check outside the hold refused (ruling RD-103 item 3): it answers
+    /// nothing, and like a press that the hold refuses it starts an existing hold anew at `now`;
+    /// a show with no start keeps none.
+    #[cfg(any(test, target_os = "macos"))]
+    pub fn refuse(&mut self, now: Instant) -> bool {
+        if let Some(from) = self.from {
+            self.from = Some(from.max(now));
+        }
+        false
+    }
+
     /// A press of any control at `now`: whether it answers. A press that the hold refuses
     /// answers nothing and starts the hold anew.
     pub fn press(&mut self, now: Instant) -> bool {

@@ -266,3 +266,48 @@ fn show_a_whole_show_holds_every_control_alike() {
     );
     assert!(show.click(false, clock.at(1_099)));
 }
+
+#[test]
+fn refuse_moves_an_existing_start_to_the_press_after_the_hold_had_passed() {
+    let t0 = Instant::now();
+    let mut guard = reported_at(t0);
+    assert!(!guard.refuse(t0 + ms(600)), "a refusal answers nothing");
+    assert!(!answers(guard, t0 + ms(601)), "1 ms after a refused press");
+    assert!(!answers(guard, t0 + ms(1_099)));
+    assert!(answers(guard, t0 + ms(1_100)));
+}
+
+#[test]
+fn refuse_inside_the_hold_starts_it_anew_as_a_refused_press_does() {
+    let t0 = Instant::now();
+    let mut guard = reported_at(t0);
+    assert!(!guard.refuse(t0 + ms(100)));
+    assert!(!answers(guard, t0 + ms(599)));
+    assert!(answers(guard, t0 + ms(600)));
+}
+
+#[test]
+fn refuse_leaves_a_show_with_no_report_with_no_start() {
+    let t0 = Instant::now();
+    let mut guard = Guard::new(ARM);
+    assert!(!guard.refuse(t0 + ms(400)));
+    assert!(guard.active(t0 + ms(450)));
+    guard.reported(t0 + ms(500));
+    assert!(!answers(guard, t0 + ms(999)));
+    assert!(
+        answers(guard, t0 + ms(1_000)),
+        "the hold counts from the report alone"
+    );
+}
+
+#[test]
+fn refuse_never_moves_the_start_back() {
+    let t0 = Instant::now();
+    let mut guard = reported_at(t0 + ms(1_000));
+    assert!(
+        !guard.refuse(t0 + ms(500)),
+        "a reading earlier than the start"
+    );
+    assert!(!answers(guard, t0 + ms(1_499)));
+    assert!(answers(guard, t0 + ms(1_500)));
+}
