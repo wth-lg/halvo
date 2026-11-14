@@ -733,6 +733,7 @@ fn round(
             (!round.counted).then_some(round.why_not),
             round.ahead,
             &found,
+            bound,
         ));
     }
     round
@@ -1492,6 +1493,8 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
     fixture.focus("plain");
     if !state_reads(false, Duration::from_secs(2)) {
         control.why_not = "secure input did not read off after the secure field";
+        std::thread::sleep(bound + MARGIN);
+        control.secure = recorder.between(secure_from, SystemTime::now());
         return control;
     }
     let after_from = SystemTime::now();
@@ -1604,22 +1607,41 @@ impl Line for HostedLine {
     }
 }
 
-fn product_verdict(rounds: &[Round], controls: &[Control], gap_drops: u64) -> &'static str {
-    let failed = rounds.iter().any(|round| round.counted && round.ahead > 0)
-        || controls
-            .iter()
-            .any(|control| control.counted && control.secure > 0);
+fn gap_after_first_arrival(entries: &[RawEntry]) -> bool {
+    let Some(first) = entries.iter().find_map(|entry| match *entry {
+        RawEntry::Arrival { at, .. } => Some(at),
+        _ => None,
+    }) else {
+        return false;
+    };
+    entries.iter().any(|entry| {
+        matches!(*entry, RawEntry::Dropped { at, cause: Cause::Gap, keys, .. } if at >= first && keys > 0)
+    })
+}
+
+fn product_verdict(rounds: &[Round], controls: &[Control], control_gap_drops: u64) -> &'static str {
+    let failed = rounds
+        .iter()
+        .any(|round| round.ahead > 0 && round.secure > 0)
+        || controls.iter().any(|control| control.secure > 0);
+    let exact = |control: &Control| control.counted && (control.plain, control.after) == (5, 3);
     let held = rounds
         .iter()
         .all(|round| round.counted && round.markers == MARKERS.len())
-        && controls
-            .iter()
-            .all(|control| control.counted && (control.plain, control.after) == (5, 3));
+        && controls.iter().all(exact);
+    let rounds_not_kept = rounds.iter().filter(|round| !round.counted).all(|round| {
+        round.why_not == "the markers were not recorded"
+            && round.ahead == 0
+            && gap_after_first_arrival(&round.entries)
+    });
+    let controls_not_kept = controls
+        .iter()
+        .all(|control| exact(control) || control_gap_drops > 0);
     if failed {
         "failed"
     } else if held {
         "held"
-    } else if gap_drops > 0 {
+    } else if rounds_not_kept && controls_not_kept {
         "notkept"
     } else {
         "failed"
@@ -1637,7 +1659,7 @@ fn product_line(name: &str, line: &mut impl Line) -> &'static str {
         .chain([drops.widest_gap()])
         .max()
         .unwrap_or_default();
-    let verdict = product_verdict(&rounds, &controls, gap_drops);
+    let verdict = product_verdict(&rounds, &controls, drops.of("gap"));
     println!(
         "{name} verdict={verdict} widest_gap_us={} gap_drops={gap_drops}",
         widest.as_micros()
@@ -1725,20 +1747,146 @@ fn the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_c
         [("phase", 1), ("control", 1)],
         "the phase and then the control ran on the one fixture"
     );
-    let counted = [stand_in_round(true, 0)];
-    let not_counted = [stand_in_round(false, 0)];
-    let control = [stand_in_control(true, 5, 0)];
-    assert_eq!(product_verdict(&counted, &control, 0), "held");
-    assert_eq!(product_verdict(&not_counted, &control, 6), "notkept");
-    assert_eq!(product_verdict(&not_counted, &control, 0), "failed");
-    assert_eq!(
-        product_verdict(&[stand_in_round(true, 1)], &control, 6),
-        "failed"
-    );
-    assert_eq!(
-        product_verdict(&not_counted, &[stand_in_control(true, 5, 1)], 6),
-        "failed"
-    );
+}
+
+fn not_counted_round(why_not: &'static str, ahead: usize, entries: Vec<RawEntry>) -> Round {
+    Round {
+        why_not,
+        entries,
+        ..stand_in_round(false, ahead)
+    }
+}
+
+type ProductRow = (&'static str, Vec<Round>, Vec<Control>, u64, &'static str);
+
+#[test]
+fn the_verdict_at_the_products_constants_holds_each_rule_on_a_table() {
+    const MARKERS_NOT_RECORDED: &str = "the markers were not recorded";
+    let gap_after = || vec![arrived_at(10), gap_drop_at(40)];
+    let control = || vec![stand_in_control(true, 5, 0)];
+    let not_exact = || {
+        vec![Control {
+            why_not: "secure input did not read off after the secure field",
+            ..stand_in_control(false, 5, 0)
+        }]
+    };
+    let rows: [ProductRow; 13] = [
+        (
+            "counted exact rounds and an exact control",
+            vec![stand_in_round(true, 0)],
+            control(),
+            0,
+            "held",
+        ),
+        (
+            "a round whose markers were not recorded, with a gap drop after its first arrival",
+            vec![not_counted_round(MARKERS_NOT_RECORDED, 0, gap_after())],
+            control(),
+            0,
+            "notkept",
+        ),
+        (
+            "that round with no gap drop in its entries",
+            vec![not_counted_round(
+                MARKERS_NOT_RECORDED,
+                0,
+                vec![arrived_at(10)],
+            )],
+            control(),
+            6,
+            "failed",
+        ),
+        (
+            "that round with its gap drop before its first arrival",
+            vec![not_counted_round(
+                MARKERS_NOT_RECORDED,
+                0,
+                vec![gap_drop_at(5), arrived_at(10)],
+            )],
+            control(),
+            0,
+            "failed",
+        ),
+        (
+            "that round with a key recorded ahead of the markers",
+            vec![not_counted_round(MARKERS_NOT_RECORDED, 1, gap_after())],
+            control(),
+            0,
+            "failed",
+        ),
+        (
+            "a counted round with a key recorded ahead of the markers",
+            vec![stand_in_round(true, 1)],
+            control(),
+            6,
+            "failed",
+        ),
+        (
+            "a counted control with a record of the secure field",
+            vec![stand_in_round(true, 0)],
+            vec![stand_in_control(true, 5, 1)],
+            6,
+            "failed",
+        ),
+        (
+            "T2: a round not counted for its markers with 8 letters recorded and landed in the \
+             secure field",
+            vec![not_counted_round(MARKERS_NOT_RECORDED, 8, gap_after())],
+            control(),
+            1,
+            "failed",
+        ),
+        (
+            "a round not counted for another cause, with a gap drop in another round and in the \
+             control's counts",
+            vec![
+                not_counted_round(
+                    "the letters did not land in the secure field",
+                    0,
+                    Vec::new(),
+                ),
+                not_counted_round(MARKERS_NOT_RECORDED, 0, gap_after()),
+            ],
+            control(),
+            1,
+            "failed",
+        ),
+        (
+            "a control that did not count with a record of the secure field",
+            vec![stand_in_round(true, 0)],
+            vec![stand_in_control(false, 5, 1)],
+            1,
+            "failed",
+        ),
+        (
+            "a control that is not exact with a gap drop in its own counts",
+            vec![not_counted_round(MARKERS_NOT_RECORDED, 0, gap_after())],
+            not_exact(),
+            1,
+            "notkept",
+        ),
+        (
+            "a control that is not exact with no gap drop in its own counts",
+            vec![not_counted_round(MARKERS_NOT_RECORDED, 0, gap_after())],
+            not_exact(),
+            0,
+            "failed",
+        ),
+        (
+            "counted exact rounds and a control that is not exact with no gap drop of its own",
+            vec![stand_in_round(true, 0)],
+            not_exact(),
+            0,
+            "failed",
+        ),
+    ];
+    for (what, rounds, controls, control_gap_drops, want) in rows {
+        assert_eq!(
+            product_verdict(&rounds, &controls, control_gap_drops),
+            want,
+            "{what}"
+        );
+    }
 }
 
 fn side(fixture: &mut Fixture, gap: Duration, step: Duration) -> (usize, bool, DropCounts) {
@@ -1953,6 +2101,7 @@ struct Evidence {
     readings: Vec<(u64, u64, Reading)>,
     first_release: Option<u64>,
     on_drops: Vec<u64>,
+    releases: Vec<(Option<u64>, u64)>,
 }
 
 fn evidence(stamps: &[Stamp], entries: &[RawEntry], since: u64) -> Evidence {
@@ -1993,7 +2142,29 @@ fn evidence(stamps: &[Stamp], entries: &[RawEntry], since: u64) -> Evidence {
             _ => {}
         }
     }
+    found.releases = released_keys(entries);
     found
+}
+
+fn released_keys(entries: &[RawEntry]) -> Vec<(Option<u64>, u64)> {
+    let mut held: std::collections::VecDeque<u64> = std::collections::VecDeque::new();
+    let mut releases = Vec::new();
+    for entry in entries {
+        match *entry {
+            RawEntry::Arrival {
+                at,
+                admission: Arrived::Held,
+            } => held.push_back(at),
+            RawEntry::Arrival {
+                admission: Arrived::Withheld { dropped, .. },
+                ..
+            } => held.drain(..dropped.min(held.len())).for_each(drop),
+            RawEntry::Dropped { keys, .. } => held.drain(..keys.min(held.len())).for_each(drop),
+            RawEntry::Released { at } => releases.push((held.pop_front(), at)),
+            _ => {}
+        }
+    }
+    releases
 }
 
 fn proof_run(found: &Evidence) -> Option<&Run> {
@@ -2102,6 +2273,7 @@ fn mended_verdict(
     why_not: Option<&'static str>,
     ahead: usize,
     found: &Evidence,
+    bound: Duration,
 ) -> Verdict {
     if never_on {
         return Verdict::NeverOn;
@@ -2110,16 +2282,27 @@ fn mended_verdict(
         return Verdict::NotCounted("the round's first stamp read on");
     }
     let run = proof_run(found);
-    if let (Some(run), Some(release)) = (run, found.first_release) {
-        if run.span().0 > release {
-            return Verdict::LateClick;
+    let cut = run.and_then(|run| run.first_off_after);
+    let recorded: Vec<(Option<u64>, u64)> = found
+        .releases
+        .iter()
+        .copied()
+        .filter(|&(arrival, _)| arrival.is_none_or(|arrival| cut.is_none_or(|cut| arrival < cut)))
+        .collect();
+    if ahead > 0 || !recorded.is_empty() {
+        let bound = u64::try_from(bound.as_nanos()).unwrap_or(u64::MAX);
+        let last_off = run.and_then(|run| run.last_off_before);
+        let excused = |&(arrival, release): &(Option<u64>, u64)| {
+            last_off.is_some_and(|off| release < off)
+                && arrival.is_some_and(|arrival| release.saturating_sub(arrival) >= bound)
+        };
+        if recorded.is_empty() || !recorded.iter().all(excused) {
+            return Verdict::Recorded;
         }
+        return why_not.map_or(Verdict::LateClick, Verdict::NotCounted);
     }
     if let Some(why) = why_not {
         return Verdict::NotCounted(why);
-    }
-    if ahead > 0 {
-        return Verdict::Recorded;
     }
     if run.is_some_and(|run| {
         on_in_span(found, run)
@@ -2319,6 +2502,24 @@ fn released_at(ms: u64) -> RawEntry {
     RawEntry::Released { at: ms_ns(ms) }
 }
 
+fn arrived_at(ms: u64) -> RawEntry {
+    RawEntry::Arrival {
+        at: ms_ns(ms),
+        admission: Arrived::Held,
+    }
+}
+
+fn gap_drop_at(ms: u64) -> RawEntry {
+    RawEntry::Dropped {
+        at: ms_ns(ms),
+        cause: Cause::Gap,
+        keys: 1,
+        unread: false,
+    }
+}
+
+const TABLE_BOUND: Duration = Duration::from_millis(50);
+
 type MendedRow = (
     &'static str,
     bool,
@@ -2336,7 +2537,7 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
             &[reading_at(before, after, Reading::On), on_drop_at(before)],
         )
     };
-    let rows: [MendedRow; 17] = [
+    let rows: [MendedRow; 23] = [
         (
             "a reading of on inside the narrow span and its drop",
             false,
@@ -2431,7 +2632,11 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
             8,
             table_evidence(
                 &ROUND,
-                &[released_at(80), reading_at(150, 151, Reading::On)],
+                &[
+                    arrived_at(20),
+                    released_at(80),
+                    reading_at(150, 151, Reading::On),
+                ],
             ),
             Verdict::LateClick,
         ),
@@ -2442,7 +2647,92 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
             8,
             table_evidence(
                 &ROUND,
-                &[released_at(95), reading_at(150, 151, Reading::On)],
+                &[
+                    arrived_at(20),
+                    released_at(95),
+                    reading_at(150, 151, Reading::On),
+                ],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "T3: a first release before the last stamp of off and a second inside the on-run",
+            false,
+            None,
+            8,
+            table_evidence(
+                &ROUND,
+                &[
+                    released_at(80),
+                    reading_at(150, 151, Reading::On),
+                    on_drop_at(150),
+                    released_at(200),
+                ],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "T3 with the arrivals of both keys",
+            false,
+            None,
+            8,
+            table_evidence(
+                &ROUND,
+                &[
+                    arrived_at(20),
+                    arrived_at(25),
+                    released_at(80),
+                    reading_at(150, 151, Reading::On),
+                    released_at(200),
+                ],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "T4: the entries of T3 in a round whose markers were not recorded",
+            false,
+            Some("the markers were not recorded"),
+            8,
+            table_evidence(
+                &ROUND,
+                &[
+                    released_at(80),
+                    reading_at(150, 151, Reading::On),
+                    on_drop_at(150),
+                    released_at(200),
+                ],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "T5: one release before the last stamp of off, with no arrival in the entries, in a round \
+             that did not read off before the markers",
+            false,
+            Some("secure input did not read off before the markers"),
+            0,
+            table_evidence(&ROUND, &[released_at(80)]),
+            Verdict::Recorded,
+        ),
+        (
+            "T5 with the key's arrival: every recorded key excused and another cause of not counting",
+            false,
+            Some("secure input did not read off before the markers"),
+            0,
+            table_evidence(&ROUND, &[arrived_at(20), released_at(80)]),
+            Verdict::NotCounted("secure input did not read off before the markers"),
+        ),
+        (
+            "a release before the last stamp of off but under the bound after its arrival",
+            false,
+            None,
+            8,
+            table_evidence(
+                &ROUND,
+                &[
+                    arrived_at(50),
+                    released_at(80),
+                    reading_at(150, 151, Reading::On),
+                ],
             ),
             Verdict::Recorded,
         ),
@@ -2508,7 +2798,7 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
     ];
     for (what, never_on, why_not, ahead, found, want) in rows {
         assert_eq!(
-            mended_verdict(never_on, why_not, ahead, &found),
+            mended_verdict(never_on, why_not, ahead, &found, TABLE_BOUND),
             want,
             "{what}"
         );
