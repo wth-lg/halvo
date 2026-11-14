@@ -472,7 +472,7 @@ mode=${STUB_MODE:-ok}
 if [ "$cfg" = Export.cfg ]; then
   [ "$mode" != export-fails ] || exit 1
   awk 'BEGIN { FS = "\t"; OFS = " " } { $1 = $1; printf "\"T %s\"\n", $0 }' "$STUB_DIR/policy-table.tsv"
-  printf '"D 304"\n'
+  printf '"D 377"\n'
   awk '{ gsub(/"/, "\\\""); printf "\"J %04d %s\"\n", NR - 1, $0 }' "$STUB_DIR/traces.jsonl"
   exit 0
 fi
