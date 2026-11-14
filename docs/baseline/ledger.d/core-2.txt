@@ -1,1 +1,1 @@
-ledger process=daemon name=sink_queue bytes=6291456 kind=by-construction source=sink::tests::a_full_queue_of_the_largest_events_stays_under_the_byte_bound
+ledger process=daemon name=sink_queue bytes=4194304 kind=by-construction source=sink::tests::a_full_queue_of_the_largest_events_stays_under_the_byte_bound

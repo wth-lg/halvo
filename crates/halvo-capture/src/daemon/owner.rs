@@ -21,8 +21,11 @@ use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
 
-/// The slots of the sink's queue that the owner drains.
-pub const QUEUE_SLOTS: usize = 2_048;
+/// The slots of the sink's queue that the owner drains: the largest depth at
+/// which 2,000,000 window-title records grow the owner by at most 8,388,608
+/// bytes on a hosted Mac, measured with room for the noise of that reading
+/// (ruling DM-9).
+pub const QUEUE_SLOTS: usize = 1_024;
 
 /// The most events that the owner holds while its drain fails. It is a count
 /// of its own and does not follow [`QUEUE_SLOTS`]; the spill is also bounded
