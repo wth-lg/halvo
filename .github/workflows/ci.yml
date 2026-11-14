@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r4-layout 45-r4-words 23-licences
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-r4-layout 45-r4-words 23-licences
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -112,6 +90,97 @@ jobs:
         with:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
+      - name: U4.2 join loop of the round's tests, counted by the result lines
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          cargo test -p halvo-coord-app --locked --no-run --message-format=json > "$RUNNER_TEMP/u42-build.json" 2> "$RUNNER_TEMP/u42-build.err"
+          echo "u42 loop build exit=$?"
+          exe() { grep -o '"executable":"[^"]*"' "$RUNNER_TEMP/u42-build.json" | sed 's/"executable":"//; s/"$//; s/\\\\/\//g' | grep "/deps/$1-" | head -1; }
+          loop() {
+            label=$1; n=$2; want=$3; shift 3
+            pass=0; i=0
+            while [ "$i" -lt "$n" ]; do
+              i=$((i + 1))
+              "$@" > "$RUNNER_TEMP/u42-loop.out" 2>&1
+              if grep -q "$want" "$RUNNER_TEMP/u42-loop.out"; then pass=$((pass + 1)); fi
+            done
+            echo "u42 loop $label runs=$n passed=$pass by the line: $want"
+            if [ "$pass" -lt "$n" ]; then tail -20 "$RUNNER_TEMP/u42-loop.out"; fi
+          }
+          lib=$(exe halvo_coord_app); hub=$(exe presenter_hub); gate=$(exe hosted_gate); dlg=$(exe dialog_hosted); cmd=$(exe commands)
+          echo "u42 loop binaries: lib=${lib:+found} hub=${hub:+found} gate=${gate:+found} dialog=${dlg:+found}"
+          new="present::tests::system::seams present::tests::serve::present_returns_at_once present::tests::serve::the_mark_on_screen present::tests::outcome::task_dialog_the_two_ids present::tests::card::a_value_cut present::tests::card::a_piece_keeps present::tests::card::each_field_is_one_line"
+          if [ "$RUNNER_OS" = macOS ]; then cases=4; else cases=5; fi
+          # shellcheck disable=SC2086
+          loop new-lib-tests 200 'test result: ok. 14 passed; 0 failed' "$lib" $new
+          loop presenter-hub 200 'test result: ok. 8 passed; 0 failed' "$hub"
+          loop hosted-gate 200 'test result: ok. 4 passed; 0 failed' "$gate"
+          loop dialog-hosted 20 "dialog_hosted end: cases ran $cases of $cases, failed 0" "$dlg"
+          loop rd95-day 200 'test result: ok. 1 passed; 0 failed' "$cmd" the_day_of_an_instant_on_another_day_than_the_clocks_is_the_day_of_that_instant
+      - name: U4.2 RD-79 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          file=crates/halvo-coord-app/src/present/system.rs
+          change() {
+            id=$1; lib=$2
+            OLD=$3 NEW=$4 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+            if git diff --quiet -- "$file"; then echo "u42 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --test dialog_hosted > "$RUNNER_TEMP/u42-$id.txt" 2>&1
+            target=$?
+            libcode=-
+            if [ "$lib" = lib ]; then
+              cargo test -p halvo-coord-app --locked --lib present::tests::system > "$RUNNER_TEMP/u42-$id-lib.txt" 2>&1
+              libcode=$?
+            fi
+            failed=$(grep -ho 'dialog_hosted case [^:]* FAIL\|test [^ ]* \.\.\. FAILED\|dialog_hosted watchdog FAIL\|error\[E[0-9]*\]' "$RUNNER_TEMP/u42-$id.txt" "$RUNNER_TEMP/u42-$id-lib.txt" 2>/dev/null | tr '\n' ';')
+            echo "u42 change $id applied=yes target_exit=$target lib_exit=$libcode failed: ${failed:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change F25-Y02 - 'for title in &titles {' 'for title in titles.iter().rev() {'
+            change F26-Y03 - 'Step::Response(alert.runModal())' 'Step::Response({ let _ = alert.runModal(); 1001 })'
+            change F27 - "            let _ = tx.send(Step::Shown);
+          " ''
+          else
+            change W4 - 'pfCallback: Some(created),' 'pfCallback: None,'
+            change W5 - 'if msg == TDN_CREATED {' 'if msg != TDN_CREATED {'
+            change W1 lib 'nDefaultButton: TASK_REJECT,' 'nDefaultButton: TASK_ALLOW,'
+            change W2 lib 'dwFlags: FLAGS,' 'dwFlags: TASKDIALOG_FLAGS(TDF_SIZE_TO_CONTENT.0),'
+          fi
+          echo "u42 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
+      - name: U4.2 RD-92 the target under the changed copies of its guard
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          file=crates/halvo-coord-app/tests/hosted/gate.rs
+          bad=0
+          guard() {
+            id=$1
+            OLD=$2 NEW=$3 perl -pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/ if !$done && /\Q$ENV{OLD}\E/ && ($done = 1)' "$file"
+            if git diff --quiet -- "$file"; then echo "u42 guard $id applied=no"; bad=1; return; fi
+            cargo test -p halvo-coord-app --locked --test dialog_hosted > "$RUNNER_TEMP/u42-guard-$id.txt" 2>&1
+            code=$?
+            failline=$(grep -c 'dialog_hosted FAIL: the first read said that this is no hosted runner' "$RUNNER_TEMP/u42-guard-$id.txt")
+            offline=$(grep -c 'hosted alone: not run on this machine' "$RUNNER_TEMP/u42-guard-$id.txt")
+            cases=$(grep -c 'dialog_hosted case ' "$RUNNER_TEMP/u42-guard-$id.txt")
+            echo "u42 guard $id applied=yes target_exit=$code fail_line=$failline one_line=$offline cases=$cases"
+            grep 'dialog_hosted FAIL' "$RUNNER_TEMP/u42-guard-$id.txt" | head -1
+            if [ "$code" -eq 0 ] || [ "$failline" -ne 1 ] || [ "$offline" -ne 0 ] || [ "$cases" -ne 0 ]; then bad=1; fi
+            git checkout -- "$file"
+          }
+          guard G3 '    hosted(actions.as_deref(), environment.as_deref())' '    false && hosted(actions.as_deref(), environment.as_deref())'
+          guard G3b '    let environment = read("RUNNER_ENVIRONMENT");' '    let environment = read("RUNNER_ENVIRONMENTS");'
+          guard G4 '    if hosted_by(read) {' '    if false && hosted_by(read) {'
+          echo "u42 guard tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
+          if [ "$bad" -ne 0 ]; then echo "u42 guard FAIL: the target did not fail under every changed copy of its guard"; exit 1; fi
+          echo "u42 guard PASS: the target failed under every changed copy of its guard, with the line that names what it read"
 
   windows:
     runs-on: windows-2025
@@ -140,21 +209,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r4-layout 45-r4-words
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r4-layout 45-r4-words
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -195,3 +253,94 @@ jobs:
         with:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
+      - name: U4.2 join loop of the round's tests, counted by the result lines
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          cargo test -p halvo-coord-app --locked --no-run --message-format=json > "$RUNNER_TEMP/u42-build.json" 2> "$RUNNER_TEMP/u42-build.err"
+          echo "u42 loop build exit=$?"
+          exe() { grep -o '"executable":"[^"]*"' "$RUNNER_TEMP/u42-build.json" | sed 's/"executable":"//; s/"$//; s/\\\\/\//g' | grep "/deps/$1-" | head -1; }
+          loop() {
+            label=$1; n=$2; want=$3; shift 3
+            pass=0; i=0
+            while [ "$i" -lt "$n" ]; do
+              i=$((i + 1))
+              "$@" > "$RUNNER_TEMP/u42-loop.out" 2>&1
+              if grep -q "$want" "$RUNNER_TEMP/u42-loop.out"; then pass=$((pass + 1)); fi
+            done
+            echo "u42 loop $label runs=$n passed=$pass by the line: $want"
+            if [ "$pass" -lt "$n" ]; then tail -20 "$RUNNER_TEMP/u42-loop.out"; fi
+          }
+          lib=$(exe halvo_coord_app); hub=$(exe presenter_hub); gate=$(exe hosted_gate); dlg=$(exe dialog_hosted); cmd=$(exe commands)
+          echo "u42 loop binaries: lib=${lib:+found} hub=${hub:+found} gate=${gate:+found} dialog=${dlg:+found}"
+          new="present::tests::system::seams present::tests::serve::present_returns_at_once present::tests::serve::the_mark_on_screen present::tests::outcome::task_dialog_the_two_ids present::tests::card::a_value_cut present::tests::card::a_piece_keeps present::tests::card::each_field_is_one_line"
+          if [ "$RUNNER_OS" = macOS ]; then cases=4; else cases=5; fi
+          # shellcheck disable=SC2086
+          loop new-lib-tests 200 'test result: ok. 14 passed; 0 failed' "$lib" $new
+          loop presenter-hub 200 'test result: ok. 8 passed; 0 failed' "$hub"
+          loop hosted-gate 200 'test result: ok. 4 passed; 0 failed' "$gate"
+          loop dialog-hosted 20 "dialog_hosted end: cases ran $cases of $cases, failed 0" "$dlg"
+          loop rd95-day 200 'test result: ok. 1 passed; 0 failed' "$cmd" the_day_of_an_instant_on_another_day_than_the_clocks_is_the_day_of_that_instant
+      - name: U4.2 RD-79 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          file=crates/halvo-coord-app/src/present/system.rs
+          change() {
+            id=$1; lib=$2
+            OLD=$3 NEW=$4 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+            if git diff --quiet -- "$file"; then echo "u42 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --test dialog_hosted > "$RUNNER_TEMP/u42-$id.txt" 2>&1
+            target=$?
+            libcode=-
+            if [ "$lib" = lib ]; then
+              cargo test -p halvo-coord-app --locked --lib present::tests::system > "$RUNNER_TEMP/u42-$id-lib.txt" 2>&1
+              libcode=$?
+            fi
+            failed=$(grep -ho 'dialog_hosted case [^:]* FAIL\|test [^ ]* \.\.\. FAILED\|dialog_hosted watchdog FAIL\|error\[E[0-9]*\]' "$RUNNER_TEMP/u42-$id.txt" "$RUNNER_TEMP/u42-$id-lib.txt" 2>/dev/null | tr '\n' ';')
+            echo "u42 change $id applied=yes target_exit=$target lib_exit=$libcode failed: ${failed:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change F25-Y02 - 'for title in &titles {' 'for title in titles.iter().rev() {'
+            change F26-Y03 - 'Step::Response(alert.runModal())' 'Step::Response({ let _ = alert.runModal(); 1001 })'
+            change F27 - "            let _ = tx.send(Step::Shown);
+          " ''
+          else
+            change W4 - 'pfCallback: Some(created),' 'pfCallback: None,'
+            change W5 - 'if msg == TDN_CREATED {' 'if msg != TDN_CREATED {'
+            change W1 lib 'nDefaultButton: TASK_REJECT,' 'nDefaultButton: TASK_ALLOW,'
+            change W2 lib 'dwFlags: FLAGS,' 'dwFlags: TASKDIALOG_FLAGS(TDF_SIZE_TO_CONTENT.0),'
+          fi
+          echo "u42 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
+      - name: U4.2 RD-92 the target under the changed copies of its guard
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          file=crates/halvo-coord-app/tests/hosted/gate.rs
+          bad=0
+          guard() {
+            id=$1
+            OLD=$2 NEW=$3 perl -pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/ if !$done && /\Q$ENV{OLD}\E/ && ($done = 1)' "$file"
+            if git diff --quiet -- "$file"; then echo "u42 guard $id applied=no"; bad=1; return; fi
+            cargo test -p halvo-coord-app --locked --test dialog_hosted > "$RUNNER_TEMP/u42-guard-$id.txt" 2>&1
+            code=$?
+            failline=$(grep -c 'dialog_hosted FAIL: the first read said that this is no hosted runner' "$RUNNER_TEMP/u42-guard-$id.txt")
+            offline=$(grep -c 'hosted alone: not run on this machine' "$RUNNER_TEMP/u42-guard-$id.txt")
+            cases=$(grep -c 'dialog_hosted case ' "$RUNNER_TEMP/u42-guard-$id.txt")
+            echo "u42 guard $id applied=yes target_exit=$code fail_line=$failline one_line=$offline cases=$cases"
+            grep 'dialog_hosted FAIL' "$RUNNER_TEMP/u42-guard-$id.txt" | head -1
+            if [ "$code" -eq 0 ] || [ "$failline" -ne 1 ] || [ "$offline" -ne 0 ] || [ "$cases" -ne 0 ]; then bad=1; fi
+            git checkout -- "$file"
+          }
+          guard G3 '    hosted(actions.as_deref(), environment.as_deref())' '    false && hosted(actions.as_deref(), environment.as_deref())'
+          guard G3b '    let environment = read("RUNNER_ENVIRONMENT");' '    let environment = read("RUNNER_ENVIRONMENTS");'
+          guard G4 '    if hosted_by(read) {' '    if false && hosted_by(read) {'
+          echo "u42 guard tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
+          if [ "$bad" -ne 0 ]; then echo "u42 guard FAIL: the target did not fail under every changed copy of its guard"; exit 1; fi
+          echo "u42 guard PASS: the target failed under every changed copy of its guard, with the line that names what it read"
