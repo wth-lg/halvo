@@ -1,0 +1,16 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1; verifier-10 K4",
+  "about": "the alarm ended the row 20 ms after its expiry and the answer came between the two: line 1 reads the expiry, not the end",
+  "source": "by hand",
+  "row": {
+    "ended_at": 4030
+  },
+  "request": {
+    "headersAt": 4020
+  },
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

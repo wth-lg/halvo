@@ -140,6 +140,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return earliest(times);
   }
 
+  function armAlarm(at: Ms | null): void {
+    try {
+      host.setAlarm(at);
+    } catch (caught) {
+      log({ event: "alarm-error", error: errorName(caught) });
+    }
+  }
+
   function step<T>(run: (open: Open) => T): T {
     let arm = false;
     let due: Ms | null = null;
@@ -165,7 +173,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       return result;
     });
-    if (arm) host.setAlarm(tested ? null : due);
+    if (arm) armAlarm(tested ? null : due);
     return value;
   }
 
@@ -189,6 +197,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     ledger.setCap(sql, made.cap, now);
     metering.begin(sql, accountId, now);
     if (made.period !== null) metering.billingPeriod(sql, made.period, now);
+    const cancelledAt = accounts.subscription(sql)?.cancelledAt;
+    if (cancelledAt !== undefined) metering.cut(sql, "cancel", cancelledAt, now);
   }
 
   async function removeAll(removal: Removal): Promise<void> {
@@ -331,11 +341,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       count = ALARM_RETRY_LIMIT;
     }
     if (count < ALARM_RETRY_LIMIT) {
-      host.setAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
+      armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
       return;
     }
     log({ event: "alarm-stopped", error: name });
-    host.setAlarm(null);
+    armAlarm(null);
   }
 
   function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T): T {
@@ -457,29 +467,34 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
     async webhookEvent(event) {
       if (event.kind === "ignored") return;
-      const noRecord = step((open) => {
-        if (!holds(open.sql)) return event.kind === "checkout-completed";
+      const after = step((open): { noRecord: boolean; overrode: boolean } => {
+        if (!holds(open.sql)) return { noRecord: event.kind === "checkout-completed", overrode: false };
         const now = open.begin();
         const applied = accounts.applyEvent(open.sql, event, now);
         if (applied.kind === "account-made") {
           accountMade(open.sql, applied, event.accountId, now);
-          return false;
+          return { noRecord: false, overrode: false };
         }
         if (applied.kind === "state") {
-          if (!isMetered(open.sql)) return false;
+          if (!isMetered(open.sql)) return { noRecord: false, overrode: applied.overrode };
           if (applied.period !== null) metering.billingPeriod(open.sql, applied.period, now);
           if (applied.state === "cancelled" && applied.was !== "cancelled") {
-            metering.cut(open.sql, "cancel", event.providerTime, now);
+            metering.cut(open.sql, "cancel", accounts.subscription(open.sql)?.cancelledAt ?? event.providerTime, now);
           }
-          return false;
+          return { noRecord: false, overrode: applied.overrode };
+        }
+        if (applied.kind === "cancel-time") {
+          if (isMetered(open.sql)) metering.cut(open.sql, "cancel", applied.at, now);
+          return { noRecord: false, overrode: false };
         }
         if (event.kind === "checkout-completed" && applied.kind === "none") {
           const pending = accounts.pending(open.sql);
-          return pending !== null && pending.sessionId !== event.sessionId;
+          return { noRecord: pending !== null && pending.sessionId !== event.sessionId, overrode: false };
         }
-        return false;
+        return { noRecord: false, overrode: applied.overrode };
       });
-      if (noRecord) log({ event: "completed-no-record" });
+      if (after.noRecord) log({ event: "completed-no-record" });
+      if (after.overrode) log({ event: "cancel-overrides-order" });
     },
 
     async status(hash) {
@@ -628,7 +643,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return "stored" as const;
       });
       if (stored !== "stored") return { result: stored };
-      host.setAlarm(null);
+      armAlarm(null);
       let before: Ms | null = null;
       for (let runs = 0; runs < CLOCK_RUN_LIMIT; runs += 1) {
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));

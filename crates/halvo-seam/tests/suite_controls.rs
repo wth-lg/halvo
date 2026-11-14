@@ -731,33 +731,175 @@ impl Subject for Control {
     }
 }
 
+fn reason(text: &str) -> &str {
+    text.rsplit(": ").next().unwrap_or(text)
+}
+
+fn holds(want: Want, got: &Result<(), String>) -> bool {
+    match (want, got) {
+        (Pass, Ok(())) => true,
+        (Fail(text), Err(e)) => {
+            !reason(text).trim().is_empty() && e.contains(text) && reason(e) == reason(text)
+        }
+        _ => false,
+    }
+}
+
 fn check(fault: Fault, want: [Want; 4]) {
     let mut subject = Control::new(fault);
     let results = conformance::run(&mut subject);
     let names: Vec<&str> = results.iter().map(|(name, _)| *name).collect();
     assert_eq!(names, CASES);
     for ((name, got), want) in results.iter().zip(want) {
-        match (want, got) {
-            (Pass, Ok(())) => {}
-            (Fail(text), Err(e)) if e.contains(text) => {}
-            _ => panic!("{fault:?}, case {name}: want {want:?}, got {got:?}"),
-        }
+        assert!(
+            holds(want, got),
+            "{fault:?}, case {name}: want {want:?}, got {got:?}"
+        );
     }
 }
 
 #[test]
+fn an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure() {
+    let next_fell =
+        "check filtered_stops: the filter window_title from {seg 2, idx 139}: next fell";
+    let no_reach = "check filtered_stops: the read from {seg 2, idx 139} did not reach the watermark in 64 reads";
+    let no_colon = "the read of set D did not reach the watermark in 64 reads";
+    let other_cause = "the filter keystroke: read_batch got the error: bad-position";
+    let count = "the filter foreground_app: 44 entries served, want 8";
+    let count_80 = "the filter foreground_app: 44 entries served, want 80";
+    let rows: [(&str, Want, Option<&str>, bool); 23] = [
+        ("the last part", Fail("next fell"), Some(next_fell), true),
+        ("the whole failure", Fail(next_fell), Some(next_fell), true),
+        (
+            "a tail of the last part",
+            Fail("idx 139}: next fe"),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "an end of the last part",
+            Fail("fell"),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "a check alone",
+            Fail("check filtered_stops: "),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "a place alone",
+            Fail("the filter window_title from {seg 2, idx 139}: "),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "a place with no reason",
+            Fail("check filtered_stops: the filter window_title"),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "another place",
+            Fail("the filter keystroke: next fell"),
+            Some(next_fell),
+            false,
+        ),
+        ("another reason", Fail("next rose"), Some(next_fell), false),
+        (
+            "r1 a check and one letter",
+            Fail("check filtered_stops: t"),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "r4 a place alone",
+            Fail("{seg 2, idx 139}"),
+            Some(no_reach),
+            false,
+        ),
+        (
+            "r6 no colon in the failure",
+            Fail("the read of set D"),
+            Some(no_colon),
+            false,
+        ),
+        (
+            "r9 a one-letter tail of another cause",
+            Fail("the filter keystroke: read_batch got the error: b"),
+            Some(other_cause),
+            false,
+        ),
+        (
+            "r10 a digit tail",
+            Fail("the filter foreground_app: 4"),
+            Some(count),
+            false,
+        ),
+        ("want 8 for want 8", Fail(count), Some(count), true),
+        ("want 8 for want 80", Fail(count), Some(count_80), false),
+        ("want 80 for want 8", Fail(count_80), Some(count), false),
+        ("a last part of spaces", Fail("x:   "), Some("x:   "), false),
+        ("an empty last part", Fail("x: "), Some("x: "), false),
+        (
+            "a whole failure with no colon",
+            Fail(no_colon),
+            Some(no_colon),
+            true,
+        ),
+        ("a pass for a failure", Pass, Some(next_fell), false),
+        ("a failure for a pass", Fail("next fell"), None, false),
+        ("a pass for a pass", Pass, None, true),
+    ];
+    let mut off = Vec::new();
+    for (label, want, failure, answer) in rows {
+        let got = failure.map_or(Ok(()), |f| Err(f.to_owned()));
+        if holds(want, &got) != answer {
+            off.push(format!("{label}: holds is not {answer}"));
+        }
+    }
+    assert!(off.is_empty(), "{}", off.join("\n"));
+}
+
+#[test]
 fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_shows_it() {
-    let shown = "entries served, want the";
     check(Conforming, [Pass, Pass, Pass, Pass]);
-    check(RestartLosesASegment, [Fail(shown), Pass, Pass, Pass]);
-    check(ShredNothing, [Pass, Fail(shown), Pass, Pass]);
+    check(
+        RestartLosesASegment,
+        [
+            Fail("33 entries served, want the 44 entries of the reference read at or after it"),
+            Pass,
+            Pass,
+            Pass,
+        ],
+    );
+    check(
+        ShredNothing,
+        [
+            Pass,
+            Fail("34 entries served, want the 33 entries above segment 1"),
+            Pass,
+            Pass,
+        ],
+    );
     check(
         IgnoreKinds,
-        [Pass, Pass, Fail("the filter foreground_app: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter foreground_app: 44 entries served, want 8"),
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 178 records of that store that pass the filter from its position up to next, each once"),
+        ],
     );
     check(
         IgnoreRange,
-        [Pass, Pass, Fail("the filter the range: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter the range: 44 entries served, want 19"),
+            Fail("check filtered_stops: the filter the range on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 86 records of that store that pass the filter from its position up to next, each once"),
+        ],
     );
     check(
         LoadKeepsTheOldStore,
@@ -768,7 +910,7 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
             Fail("an open_cursor with the old store id got another reply than an error"),
         ],
     );
-    let short = "the reference read served 43 entries";
+    let short = "the reference read served 43 entries; want the 44 records of set A of a served kind, in order";
     check(
         LoadDropsALine,
         [Fail(short), Fail(short), Fail(short), Fail(short)],
@@ -781,7 +923,10 @@ fn everywhere(text: &'static str) -> [Want; 4] {
 
 #[test]
 fn control_a_reply_frame_over_the_server_limit() {
-    check(OversizeBatch, everywhere("outside 1 to 262,144"));
+    check(
+        OversizeBatch,
+        everywhere("a reply frame of 262145 payload bytes, outside 1 to 262,144"),
+    );
 }
 
 #[test]
@@ -805,7 +950,7 @@ fn control_a_next_that_falls() {
             Fail("next fell"),
             Fail("next fell"),
             Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Pass,
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: next fell"),
         ],
     );
 }
@@ -820,7 +965,10 @@ fn control_a_next_above_the_watermark() {
 
 #[test]
 fn control_a_position_that_repeats_inside_a_batch() {
-    check(RepeatsARecord, everywhere("does not rise"));
+    check(
+        RepeatsARecord,
+        everywhere("the position {seg 1, idx 0} does not rise"),
+    );
 }
 
 #[test]
@@ -828,8 +976,8 @@ fn control_an_entry_below_the_cursor_position() {
     check(
         ServesBelowTheCursor,
         [
-            Fail("does not rise"),
-            Fail("does not rise"),
+            Fail("the position {seg 1, idx 10} does not rise"),
+            Fail("the position {seg 1, idx 10} does not rise"),
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} does not rise"),
             Pass,
         ],
@@ -838,14 +986,17 @@ fn control_an_entry_below_the_cursor_position() {
 
 #[test]
 fn control_an_entry_at_next() {
-    check(RecordAtNext, everywhere("is not below next"));
+    check(
+        RecordAtNext,
+        everywhere("the position {seg 4, idx 11} is not below next"),
+    );
 }
 
 #[test]
 fn control_an_expiry_that_misses_a_segment_of_its_records() {
     check(
         ExpiryDropped,
-        everywhere("expiry does not name exactly the segments of the records"),
+        everywhere("expiry does not name exactly the segments of the records, in rising order"),
     );
 }
 
@@ -853,7 +1004,7 @@ fn control_an_expiry_that_misses_a_segment_of_its_records() {
 fn control_an_expiry_that_names_a_segment_with_no_record() {
     check(
         ExpiryNamesAnotherSegment,
-        everywhere("expiry does not name exactly the segments of the records"),
+        everywhere("expiry does not name exactly the segments of the records, in rising order"),
     );
 }
 
@@ -861,13 +1012,16 @@ fn control_an_expiry_that_names_a_segment_with_no_record() {
 fn control_an_expiry_out_of_rising_order() {
     check(
         ExpiryOutOfOrder,
-        everywhere("expiry does not name exactly the segments of the records"),
+        everywhere("expiry does not name exactly the segments of the records, in rising order"),
     );
 }
 
 #[test]
 fn control_an_expiry_instant_not_after_its_records() {
-    check(ExpiryAtZero, everywhere("is not after its records"));
+    check(
+        ExpiryAtZero,
+        everywhere("the expiry instant of segment 1 is not after its records"),
+    );
 }
 
 #[test]
@@ -888,7 +1042,10 @@ fn control_an_empty_batch_whose_next_does_not_rise() {
 
 #[test]
 fn control_an_open_reply_frame_over_the_server_limit() {
-    check(OversizeOpenReply, everywhere("outside 1 to 262,144"));
+    check(
+        OversizeOpenReply,
+        everywhere("a reply frame of 262145 payload bytes, outside 1 to 262,144"),
+    );
 }
 
 #[test]
@@ -909,12 +1066,15 @@ fn control_an_open_reply_with_an_expiry_entry() {
 
 #[test]
 fn control_an_open_reply_whose_next_is_not_the_position_asked_for() {
-    check(OpenNextElsewhere, everywhere("has next"));
+    check(
+        OpenNextElsewhere,
+        everywhere("the reply to open_cursor at {seg 0, idx 0} has next {seg 0, idx 1}"),
+    );
 }
 
 #[test]
 fn control_an_open_reply_of_another_store_than_the_one_asked_for() {
-    let text = "names another store than the one asked for";
+    let text = "the reply to open_cursor names another store than the one asked for";
     check(
         OpenNamesAnotherStore,
         [Fail(text), Fail(text), Fail(text), Fail(text)],
@@ -925,7 +1085,12 @@ fn control_an_open_reply_of_another_store_than_the_one_asked_for() {
 fn control_an_error_of_another_cause_than_bad_position() {
     check(
         BadPositionGetsStoreError,
-        [Fail("got store-error; want bad-position"), Pass, Pass, Pass],
+        [
+            Fail("an open_cursor at {seg 6, idx 0} got store-error; want bad-position"),
+            Pass,
+            Pass,
+            Pass,
+        ],
     );
 }
 
@@ -1039,7 +1204,7 @@ fn control_replies_of_the_wrong_message() {
 fn control_a_read_that_never_reaches_the_watermark() {
     check(
         NeverReachesTheWatermark,
-        everywhere("did not reach the watermark in 1000 reads"),
+        everywhere("the read from {seg 0, idx 0} did not reach the watermark in 1000 reads"),
     );
 }
 
@@ -1048,7 +1213,7 @@ fn control_a_server_without_look_ahead() {
     check(
         NoLookAhead,
         everywhere(
-            "the reply that serves the last entry of the reference read has next {seg 4, idx 12}",
+            "the reply that serves the last entry of the reference read has next {seg 4, idx 12}; want its watermark {seg 5, idx 0}",
         ),
     );
 }
@@ -1074,7 +1239,7 @@ fn control_a_server_that_ignores_the_byte_bound() {
             Pass,
             Pass,
             Pass,
-            Fail("the read of set C: a reply frame of "),
+            Fail("the read of set C: a reply frame of 521617 payload bytes, outside 1 to 262,144"),
         ],
     );
 }
@@ -1087,7 +1252,7 @@ fn control_a_server_that_repeats_the_record_at_a_stop() {
             Pass,
             Pass,
             Pass,
-            Fail("the read of set C served 420 entries, the first that differs at {seg 1, idx "),
+            Fail("the read of set C served 420 entries, the first that differs at {seg 1, idx 176}; want the 420 records of C in order, each once"),
         ],
     );
 }
@@ -1100,7 +1265,7 @@ fn control_a_server_that_skips_the_record_at_a_stop() {
             Pass,
             Pass,
             Pass,
-            Fail("at the stop of the read of set C at {seg 1, idx "),
+            Fail("at the stop of the read of set C at {seg 1, idx 176}, the next Batch starts at {seg 1, idx 177}"),
         ],
     );
 }
@@ -1144,7 +1309,7 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
             Pass,
             Pass,
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
-            Pass,
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} does not rise"),
         ],
     );
 }
@@ -1170,7 +1335,7 @@ fn control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request() {
             Pass,
             Pass,
             Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
-            Pass,
+            Fail("check filtered_stops: the filter keystroke and window_title on the fourth text of set A and set C from {seg 0, idx 0}: open_cursor at {seg 0, idx 0} got the error bad-request"),
         ],
     );
 }
@@ -1208,7 +1373,7 @@ fn control_a_read_before_the_replace_that_gets_closed() {
         [
             Pass,
             Pass,
-            Pass,
+            Fail("check open_while_open: the read before an open_cursor while a cursor stands at the watermark: read_batch got a reply other than batch or error"),
             Fail("the read before replace_live got a reply other than batch or error"),
         ],
     );
@@ -1300,7 +1465,7 @@ fn control_a_server_that_drops_the_last_record_of_set_c() {
             Pass,
             Pass,
             Pass,
-            Fail("the read of set C served 419 entries, the first that differs at its end"),
+            Fail("the read of set C served 419 entries, the first that differs at its end; want the 420 records of C in order, each once"),
         ],
     );
 }

@@ -2,8 +2,8 @@
   "edits": [
     {
       "file": "src/ledger/ledger.ts",
-      "find": "\"SELECT COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS reported,",
-      "replace": "\"SELECT COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS reported,"
+      "find": "\"SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS TEXT) AS reported,",
+      "replace": "\"SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS TEXT) AS reported,"
     }
   ],
   "only": "replay",

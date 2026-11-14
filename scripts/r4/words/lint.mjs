@@ -26,6 +26,8 @@ const STATES = [
   'queue',
   'no_service',
   'needs_sign_in_bind',
+  'needs_confirm_mixed',
+  'needs_confirm_changed',
 ];
 const FIXTURES = 'ui/tests/fixtures/coord';
 const WORDS = `${FIXTURES}/words.json`;
@@ -58,6 +60,13 @@ const FIXTURE_KEYS = [
   'card.lines.*.text',
   'card.runs.*.day',
   'card.runs.*.text',
+  'card.runs.*.effects.*.text',
+  'card.runs.*.effects.*.fields.*.label',
+  'card.runs.*.effects.*.fields.*.from_text',
+  'snapshot.items.*.say_new',
+  'snapshot.items.*.say_gone',
+  'snapshot.items.*.params.*.full',
+  'snapshot.items.*.params.*.too_long',
 ];
 const CONTROL_TEXT = 'snapshot.rows.*.controls.*.text';
 
@@ -535,7 +544,19 @@ function baseState() {
       agent: ID(2),
       name: 'Paying a bill on Site1',
       lines: [{ key: 'level', text: 'Standard' }],
-      runs: [{ day: '3 November 2026', text: 'It finished the task.' }],
+      runs: [
+        {
+          day: '3 November 2026',
+          text: 'It finished the task.',
+          effects: [
+            {
+              key: 'run.effect.payment',
+              text: 'It made this payment.',
+              fields: [{ label: 'Pay to', value: ['City Power'], from: 'you', from_text: 'You gave this' }],
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -615,7 +636,7 @@ function selfTest(dir, repo) {
   const base = fixture('base');
   expect(base, 'PASS', {
     lines: [
-      `words sentences=${5 + STATES.length * 19} never_read=0 long=0 clash=0`,
+      `words sentences=${5 + STATES.length * 22} never_read=0 long=0 clash=0`,
       'words other_views files=0 findings=0',
     ],
   });
@@ -656,6 +677,8 @@ function selfTest(dir, repo) {
     'snapshot.items.*.choices.*.safe',
     'card.agent',
     'card.lines.*.key',
+    'card.runs.*.effects.*.key',
+    'card.runs.*.effects.*.fields.*.from',
   ];
   const longText = Array.from({ length: 21 }, () => 'word').join(' ');
   expect(
@@ -746,7 +769,7 @@ function selfTest(dir, repo) {
     'FAIL:never_read',
     {
       findings: ['finding file=ui/app/views/agents.js line=2 rule=never_read class=model key=-'],
-      lines: [`words sentences=${5 + STATES.length * 19 + 2} never_read=1 long=0 clash=0`],
+      lines: [`words sentences=${5 + STATES.length * 22 + 2} never_read=1 long=0 clash=0`],
       secret: [NEVER],
     },
   );
@@ -787,7 +810,7 @@ function selfTest(dir, repo) {
     'FAIL:view',
     {
       lines: [
-        `words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`,
+        `words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`,
         'words other_views files=0 findings=0',
         'words view file=ui/app/views/needs.js line=3',
       ],
@@ -800,7 +823,7 @@ function selfTest(dir, repo) {
       files: (f) => (f['ui/app/views/needs.js'] = view("  id: 'needs',\n  // \"Ask the model now\"\n")),
     }),
     'PASS',
-    { lines: [`words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('a-view-string-with-a-no-break-space-ends-with-view', {
@@ -1012,12 +1035,12 @@ function selfTest(dir, repo) {
       },
     }),
     'PASS',
-    { lines: [`words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('two-classes-in-one-sentence-count-twice', { words: say('Claude saved it to /Users/ann/x.') }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + STATES.length * 19} never_read=2 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=2 long=0 clash=0`] },
   );
   expect(fixture('ui-app-that-is-a-file', { files: (f) => (f['ui/app'] = 'x\n') }), 'FAIL:input');
   if (process.platform !== 'win32') {
@@ -1057,12 +1080,12 @@ function selfTest(dir, repo) {
   expect(
     fixture('never-read-comes-before-long', { words: (w) => (w['line.time'] = `${NEVER} ${longText}`) }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + STATES.length * 19} never_read=1 long=1 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=1 long=1 clash=0`] },
   );
   expect(
     fixture('long-comes-before-clash', { words: (w) => (w['line.time'] = `It is paused ${longText}`) }),
     'FAIL:long',
-    { lines: [`words sentences=${5 + STATES.length * 19} never_read=0 long=1 clash=1`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=0 long=1 clash=1`] },
   );
   for (const [name, space] of [
     ['a-tab', '\t'],
@@ -1191,6 +1214,23 @@ function selfTest(dir, repo) {
     fixture('allowed-with-a-second-pair', { files: (f) => (f[ALLOWED] = `${copies[ALLOWED]}control.stop\tpaused\n`) }),
     'FAIL:allowed',
   );
+  for (const [spec, state] of [
+    ['snapshot.items.*.say_new', 'needs_ready'],
+    ['snapshot.items.*.say_gone', 'needs_stuck'],
+    ['snapshot.items.*.params.*.full', 'setup_three'],
+    ['snapshot.items.*.params.*.too_long', 'setup_three'],
+  ]) {
+    const place = spec.replaceAll('*', '1');
+    expect(
+      fixture(`the-item-key-${place}-is-read`, {
+        state: (s, doc) => {
+          if (s === state) setAt(doc, spec, NEVER);
+        },
+      }),
+      'FAIL:never_read',
+      { findings: [`finding file=${FIXTURES}/state-${state}.json line=1 rule=never_read class=model key=${place}`], secret: [NEVER] },
+    );
+  }
 
   return { lines, wrong, rejected };
 }

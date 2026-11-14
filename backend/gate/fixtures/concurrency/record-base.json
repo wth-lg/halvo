@@ -1,0 +1,78 @@
+{
+  "cell": { "name": "usage-last@1", "kind": "matrix", "level": 1, "switch": "usage-last" },
+  "cap": 10000,
+  "price": { "input": 3100000, "output": 15700000 },
+  "gateway": { "holdLifeMs": 3000, "deadlineMs": 1500, "marginMs": 400 },
+  "requests": [
+    {
+      "id": "first",
+      "index": 0,
+      "status": 403,
+      "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+      "sentAt": 900,
+      "headersAt": 950,
+      "endedAt": 951,
+      "hold": 100,
+      "receipt": null,
+      "trailer": null,
+      "abortedAt": null,
+      "error": null,
+      "lost": [],
+      "behavior": "normal",
+      "fault": "usage-last"
+    },
+    {
+      "id": "r",
+      "index": 1,
+      "status": 409,
+      "body": "{\"result\":\"stopped\"}",
+      "sentAt": 1000,
+      "headersAt": 4050,
+      "endedAt": 4060,
+      "hold": 100,
+      "receipt": { "requestId": "r", "amount": 100, "now": 1010, "expiresAt": 4010 },
+      "trailer": null,
+      "abortedAt": null,
+      "error": null,
+      "lost": [],
+      "behavior": "normal",
+      "fault": "usage-last"
+    }
+  ],
+  "mockEvents": [],
+  "final": {
+    "now": 9000,
+    "account": { "cap": 10000, "clock_ms": 9000, "seq": 2 },
+    "periods": [{ "period_start": 1000, "reported": 0, "unreported": 0, "open": 0 }],
+    "holds": [
+      {
+        "request_id": "r",
+        "period_start": 1000,
+        "amount": 100,
+        "expires_at": 4010,
+        "state": "voided",
+        "dispatched": 0,
+        "created_at": 1010,
+        "created_seq": 1,
+        "ended_at": 4010,
+        "ended_seq": 2,
+        "ended_by": "expire",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost": null,
+        "overrun": 0,
+        "late_at": null,
+        "late_seq": null
+      }
+    ],
+    "alarm": null,
+    "databaseSize": null
+  },
+  "afterRestart": null,
+  "kill": null,
+  "firstLedgerReadAt": 9000,
+  "restartReadyAt": null,
+  "serverErrors": [],
+  "anchor": 1000,
+  "periodMs": 604800000
+}

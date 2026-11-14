@@ -1,0 +1,31 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1; B-51, condition no upstream event",
+  "about": "the mock logged an end event, and no request event, under the id: line 1 needs no event at all",
+  "source": "by hand; written from the record bad-b51-line1-needs-no-upstream-event for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "mockEvents": [
+    {
+      "t": 2000,
+      "id": "r",
+      "ev": "end",
+      "clean": false
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "voided-clean",
+        "id": "r"
+      },
+      {
+        "clause": "voided-at-expiry",
+        "id": "r"
+      }
+    ]
+  }
+}

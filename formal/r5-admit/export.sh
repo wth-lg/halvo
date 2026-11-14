@@ -19,15 +19,28 @@ the path, and its major version is 17 or later.
 Exit status: 0 when both files are written. 1 when the export ran and a check
 missed: one line says which, and no file is written. 2 on a refusal: one line
 "REFUSED <cause>: <detail>" on standard error, with the cause usage, java or jar.
-A refusal writes no file and leaves none: where the script fetched the jar, it
-removes its temporary directory before it refuses.
+A refusal writes no file. The script makes its temporary directories under TMPDIR,
+or /tmp when TMPDIR is not set, and removes them when it ends, on every path out.
 EOF
 }
 
 fetched=
+work=
+
+tidy() {
+    case $fetched in
+        */r5-export.??????) rm -rf -- "$fetched" ;;
+    esac
+    case $work in
+        */r5-export.??????) rm -rf -- "$work" ;;
+    esac
+}
+trap tidy EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 refuse() {
-    test -z "$fetched" || rm -rf -- "$fetched"
     printf 'REFUSED %s: %s\n' "$1" "$2" >&2
     exit 2
 }
@@ -111,7 +124,7 @@ if test -n "${TLA2TOOLS_JAR:-}"; then
     test -f "$jar" || refuse jar "TLA2TOOLS_JAR names no file"
 else
     command -v curl >/dev/null 2>&1 || refuse jar "no TLA2TOOLS_JAR and no curl to fetch the jar"
-    fetched=$(mktemp -d) || refuse jar "no temporary directory for the jar"
+    fetched=$(mktemp -d "${TMPDIR:-/tmp}/r5-export.XXXXXX") || refuse jar "no temporary directory for the jar"
     jar=$fetched/tla2tools.jar
     curl -fsSL --retry 2 -o "$jar" "$url" 2>/dev/null || refuse jar "the fetch of the jar failed"
 fi
@@ -120,7 +133,7 @@ test "$size" = "$bytes" || refuse jar "the jar has $size bytes and README.md pin
 test "$(digest "$jar")" = "$sha" || refuse jar "the SHA-256 of the jar is not the one that README.md pins"
 jar=$(cd "$(dirname "$jar")" && pwd)/$(basename "$jar")
 
-work=$(mktemp -d) || miss "check=scratch"
+work=$(mktemp -d "${TMPDIR:-/tmp}/r5-export.XXXXXX") || miss "check=scratch"
 cp "$here/Admit.tla" "$here/Export.tla" "$work/" || miss "check=scratch"
 sed -e "s/^    Seed = .*/    Seed = $seed/" -e "s/^    Count = .*/    Count = $count/" \
     "$here/Export.cfg" >"$work/Export.cfg" || miss "check=scratch"

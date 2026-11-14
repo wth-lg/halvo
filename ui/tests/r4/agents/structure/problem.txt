@@ -1,0 +1,24 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"name":"Problem","role":"region"}
+      - {"level":3,"name":"Problem","role":"heading"}
+      - {"role":"list"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Filling in a spreadsheet on Site6","role":"heading"}
+            - {"name":"Filling in a spreadsheet on Site6","role":"button"}
+          - {"role":"paragraph","text":"Problem"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it took too long, so Halvo stopped it."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
+            - {"name":"Ordering from a shop on Site7","role":"button"}
+          - {"role":"paragraph","text":"Problem"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"It failed several times in a row, so Halvo switched it off."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch on","role":"button"}

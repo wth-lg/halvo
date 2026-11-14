@@ -1,6 +1,6 @@
 import { makeAccounts } from "../../src/accounts/index.ts";
 import type { ProviderPort } from "../../src/billing/port.ts";
-import { type Entries, makeEntries } from "../../src/do/entries.ts";
+import { type Entries, type Host, makeEntries } from "../../src/do/entries.ts";
 import { type EndResult, makeLedger, type Price, type ReserveResult, type Usage } from "../../src/ledger/index.ts";
 import { makeMetering } from "../../src/metering/index.ts";
 import type { Cap, Micro, Ms, Sql, Tier } from "../../src/types.ts";
@@ -54,11 +54,39 @@ export interface Rig {
   close(): void;
 }
 
-export async function seededRig(o: { cap?: Cap; anchor?: Ms; at: Ms; subscription?: "active" | "payment-failed" | "cancelled"; holdLifeMs?: number }): Promise<Rig> {
+export interface AlarmFault {
+  throws: boolean;
+}
+
+export function injectedAlarmError(): Error {
+  const error = new Error("the host's alarm call failed");
+  error.name = "InjectedAlarmError";
+  return error;
+}
+
+export async function seededRig(o: {
+  cap?: Cap;
+  anchor?: Ms;
+  at: Ms;
+  subscription?: "active" | "payment-failed" | "cancelled";
+  holdLifeMs?: number;
+  alarmFault?: AlarmFault;
+}): Promise<Rig> {
   let now = o.at;
   const made = makeTestHost({ port: failingPort, clock: () => now, config: { holdLifeMs: o.holdLifeMs ?? HOLD_LIFE_MS, testClock: true } });
+  const fault = o.alarmFault;
+  const host: Host =
+    fault === undefined
+      ? made.host
+      : {
+          ...made.host,
+          setAlarm(at) {
+            if (fault.throws) throw injectedAlarmError();
+            made.host.setAlarm(at);
+          },
+        };
   const fresh = () =>
-    makeEntries(made.host, {
+    makeEntries(host, {
       accounts: makeAccounts(),
       ledger: makeLedger({ holdLifeMs: made.host.config.holdLifeMs }),
       metering: makeMetering({ intervalSeconds: 3600, marginSeconds: 300 }),

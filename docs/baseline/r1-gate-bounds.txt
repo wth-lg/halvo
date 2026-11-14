@@ -32,10 +32,11 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: the coordinator's ruling of 2026-11-11 08:25Z, after the
-# macos job took 1159 s at cdde6c8; the first value 30 was RD-45, 1.45 times
-# 1243 s. The workflow lint compares each job's timeout-minutes with it.
-ci_job_timeout_min=60
+# ci_job_timeout_min: 90 by ruling JB-6 (2) of 2026-11-13: by measured parts
+# the windows job of main, with its cache save, comes to about 3,346 to 3,623 s
+# after land-34 and 3,509 to 3,896 s after land-36. Before it: 60 (2026-11-11
+# 08:25Z), 30 (RD-45). The workflow lint compares each job's timeout with it.
+ci_job_timeout_min=90
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
 # this many seconds before the gate ends it and prints FAIL: each timed run,
@@ -54,3 +55,25 @@ maintenance_interval_s=60
 # its length stay at or under it, and a product test pins the constant to this
 # key.
 screen_frames_max_per_s=2
+# lease_bound_s: not a measurement: three missed 3 s polls plus 1 s (RD-26,
+# RD-45; INDICATOR_LEASE_MS of contracts C14.6). The service checks (f) and (g)
+# stop their claims and require capture=no_indicator and no growth of the event
+# total within this many seconds plus 2 s after the last claim. A product test
+# pins INDICATOR_LEASE_MS to this key.
+lease_bound_s=10
+# stop_deadline_s: a first value, the client's stop wait (RD-28, RD-45;
+# STOP_WAIT_MS of contracts C14.6). The service checks require the daemon to
+# exit 0 within this many seconds of ctl stop, one run. A product test pins
+# STOP_WAIT_MS to this key.
+stop_deadline_s=20
+# prefill_events: not a measurement: the store size that the design sketch
+# (section 12) sets for the memory line, the count of
+# reports/verifier-remeasure-1.md. Sub-check (g) passes it to --prefill-store
+# and (j) times the delete-all on that store; a lower value goes only through a
+# plan Revision with the measured prefill time.
+prefill_events=2000000
+# expiry_bound_s: a first value, not a measurement: one maintenance interval of
+# 60 s plus one interval of slack. Sub-check (h) measures the time from the
+# daemon's start to the last expired day gone from the inventory, one machine
+# and one run.
+expiry_bound_s=120

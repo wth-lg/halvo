@@ -1,0 +1,8 @@
+store_id=0123456789abcdef0123456789abcdef
+row day=2026-11-11 modality=keystroke events=5 bytes=160
+row day=2026-11-11 modality=pointer events=7 bytes=266
+row day=2026-11-11 modality=foreground_app events=3 bytes=144
+row day=2026-11-11 modality=window_title events=2 bytes=230
+row day=2026-11-12 modality=keystroke events=4 bytes=128
+row day=2026-11-12 modality=foreground_app events=1 bytes=48
+total events=22 bytes=976 disk_bytes=1048576

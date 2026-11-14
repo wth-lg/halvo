@@ -1,0 +1,20 @@
+{
+  "kind": "main-guard",
+  "ruling": "P7-69 F7 (the review's m10)",
+  "about": "check.mjs runs its main code when node was started with it, and not when another module imports it",
+  "source": "by hand",
+  "cases": [
+    {
+      "argv1": "check",
+      "main": true
+    },
+    {
+      "argv1": "records",
+      "main": false
+    },
+    {
+      "argv1": "none",
+      "main": false
+    }
+  ]
+}

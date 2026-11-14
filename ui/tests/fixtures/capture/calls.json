@@ -1,0 +1,18 @@
+[
+  { "command": "capture_status", "args": {}, "reply": "capture_status-running" },
+  { "command": "inventory", "args": {}, "reply": "inventory-two-rows-one-day" },
+  { "command": "onboarding_state", "args": {}, "probe": { "input_monitoring": "not_determined" }, "reply": "onboarding_state-missing", "reply_off_macos": "onboarding_state-none" },
+  { "command": "request_permission", "args": { "permission": "input_monitoring" }, "probe": { "input_monitoring": "not_determined" }, "reply": "request_permission-requested" },
+  { "command": "request_permission", "args": { "permission": "accessibility" }, "reply": "request_permission-already-granted" },
+  { "command": "open_permission_pane", "args": { "permission": "input_monitoring" }, "reply": "open_permission_pane-opened" },
+  { "command": "onboarding_state", "args": {}, "reply": "onboarding_state-granted", "reply_off_macos": "onboarding_state-none" },
+  { "command": "onboarding_state", "args": {}, "probe": { "accessibility": "not_granted" }, "reply": "onboarding_state-lost", "reply_off_macos": "onboarding_state-none" },
+  { "command": "set_capture_state", "args": { "capture": "paused" }, "reply": "set_capture_state-paused" },
+  { "command": "capture_status", "args": {}, "reply": "capture_status-paused" },
+  { "command": "set_storage_cap", "args": { "capBytes": 10737418240 }, "reply": "set_storage_cap-10-gib" },
+  { "command": "set_storage_cap", "args": { "capBytes": 0 }, "error": "set_storage_cap-zero-error" },
+  { "command": "set_capture_state", "args": { "capture": "running" }, "reply": "set_capture_state-running" },
+  { "command": "delete_all", "args": {}, "reply": "delete_all-deleted" },
+  { "command": "inventory", "args": {}, "reply": "inventory-empty" },
+  { "command": "capture_status", "args": {}, "reply": "capture_status-after-delete" }
+]

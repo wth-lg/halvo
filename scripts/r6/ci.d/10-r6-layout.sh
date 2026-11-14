@@ -106,7 +106,7 @@ measure() {
       sp = index($0, " ")
       p = substr($0, 1, sp - 1)
       u = substr($0, sp + 1)
-      if (u !~ /^U[0-9]+\.[0-9]+$/) { problem("unit"); next }
+      if (u !~ /^U[0-9]+\.[0-9]+[a-z]?$/) { problem("unit"); next }
       if (p in seen) { problem("pattern twice"); next }
       seen[p] = 1
       if (!under_root(p)) { problem("under no root"); next }
@@ -294,6 +294,8 @@ docs/r6/log-* U0.5'
   printf '%s' "$good" >"$l/no-final-lf.txt"
   printf '%s\ndocs/r6/b\377r.md U1.2\n' "$good" >"$l/not-utf8.txt"
   printf '%s\n%s\n' "$good" 'docs/r6/hypothesis.md u1.2' >"$l/unit.txt"
+  printf '%s\n%s\n' "$good" 'docs/r6/hypothesis.md U1.2d' >"$l/letter-unit.txt"
+  printf '%s\n%s\n' "$good" 'docs/r6/hypothesis.md U1.2dd' >"$l/two-letter-unit.txt"
   : >"$l/empty-file.txt"
 
   head='layout patterns=6 files=4 outside=0'
@@ -357,6 +359,10 @@ layout stray=scripts/r6/layout.txt" ;;
     check "list-$fixture" FAIL a "$fixture.txt" "$text
 FAIL $name (list)"
   done
+  check unit-with-a-letter PASS a letter-unit.txt "layout patterns=7 files=4 outside=0 empty=-
+PASS $name"
+  check list-unit-with-two-letters FAIL a two-letter-unit.txt "layout patterns=7 files=4 outside=0 empty=-
+FAIL $name (list)"
   check list-missing-file FAIL missing - "layout patterns=0 files=4 outside=4 empty=-
 layout stray=docs/r6/README.md
 layout stray=docs/r6/gateway/sequences.jsonl

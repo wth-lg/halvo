@@ -1,0 +1,14 @@
+{
+  "kind": "script-run",
+  "ruling": "P7-69 F7 (the review's m10)",
+  "about": "node stress/check.mjs with an unknown flag runs its main code, which refuses the flag with the usage and exit 64 before it starts anything: no stack is needed",
+  "source": "by hand",
+  "args": [
+    "--no-such-flag",
+    "x"
+  ],
+  "expect": {
+    "status": 64,
+    "text": "node stress/check.mjs [--cells REGEX] [--runs N]"
+  }
+}

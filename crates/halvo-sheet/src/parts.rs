@@ -128,8 +128,7 @@ fn part() -> Error {
     Error::Workbook(Refusal::Part)
 }
 
-/// The bound of a workbook file (CP-56).
-pub(crate) const FILE_MAX: u64 = 64 << 20;
+pub(crate) const FILE_MAX: u64 = halvo_checkpoint::FILE_MAX;
 /// The bound of one entry, uncompressed.
 pub(crate) const ENTRY_MAX: u64 = 32 << 20;
 /// The bound of all entries together, uncompressed.
@@ -149,7 +148,15 @@ pub(crate) fn package_file(path: &Path) -> Result<Vec<u8>, Error> {
     if std::fs::metadata(path)?.len() > FILE_MAX {
         return Err(size());
     }
-    let file = File::open(path)?;
+    package_of(&File::open(path)?)
+}
+
+/// The bytes of the workbook that `file` has open, read through that handle under the bound
+/// of a file.
+pub(crate) fn package_of(file: &File) -> Result<Vec<u8>, Error> {
+    if file.metadata()?.len() > FILE_MAX {
+        return Err(size());
+    }
     let mut bytes = Vec::new();
     file.take(FILE_MAX + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > FILE_MAX {
@@ -689,11 +696,6 @@ struct Linked {
     kinds: BTreeSet<Kind>,
 }
 
-/// Reads every relationship of the package. Refuses a target that does not decode, a type that
-/// equals a type of [`READ`] only when ASCII case is ignored, and a relationship of a type of
-/// [`READ`] whose target names no entry. Collects the kinds that relationships link, and the
-/// sheet parts that the element rules scan: each target of a sheet type and each part that the
-/// workbook names as a sheet.
 fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error> {
     let mut linked = Linked::default();
     for (name, xml) in entries {
@@ -704,6 +706,9 @@ fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error
         let source = source_of(&folded).unwrap_or_default();
         for rel in relationships(xml)? {
             if rel.external {
+                if READ.iter().any(|read| read.eq_ignore_ascii_case(&rel.tail)) {
+                    return Err(relationship());
+                }
                 continue;
             }
             let target = named(names, &source, &rel.target)?;

@@ -1,0 +1,88 @@
+{
+  "kind": "judge",
+  "ruling": "B-33",
+  "about": "a first burst whose median wait is the bound, 2,600 ms, is not slow",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "usage-last@3",
+      "kind": "matrix",
+      "level": 3,
+      "switch": "usage-last"
+    },
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 3600,
+        "endedAt": 3601,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q1",
+        "index": 1,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 3600,
+        "endedAt": 3601,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q2",
+        "index": 2,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 3600,
+        "endedAt": 3601,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "slow": false,
+      "burstMedianMs": 2600,
+      "slowBoundMs": 2600
+    }
+  }
+}

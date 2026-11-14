@@ -11,7 +11,8 @@ const JSON_TYPE = "application/json";
 const PATHS = ["/test/clock", "/test/seed", "/test/inspect"];
 
 const account = z.string().refine((value) => ACCOUNT_PATTERN.test(value));
-const instant = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
+const DATE_MAX_MS = 8_640_000_000_000_000;
+const instant = z.int().min(0).max(DATE_MAX_MS);
 const ClockBody = z.strictObject({ account, time: instant });
 const SeedBody = z.strictObject({
   account,

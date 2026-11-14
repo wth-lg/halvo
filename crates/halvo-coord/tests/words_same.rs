@@ -90,6 +90,7 @@ fn expected_keys() -> BTreeSet<String> {
         "working.working",
         "working.stopping",
         "waiting_turn.queued",
+        "waiting_turn.store",
         "problem.failed",
         "problem.limit",
         "problem.class_mismatch",
@@ -218,6 +219,28 @@ fn expected_keys() -> BTreeSet<String> {
     for m in 1..=12 {
         k.insert(format!("month.{m}"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "delete",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}"));
+    }
+    for n in ["file", "range"] {
+        k.insert(format!("field.local_edit.{n}"));
+    }
+    for key in [
+        "say.item.new",
+        "say.item.gone",
+        "param_typed.full",
+        "param_typed.too_long",
+    ] {
+        k.insert(key.to_owned());
+    }
     k
 }
 
@@ -236,7 +259,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 200);
+    assert_eq!(seen.len(), 214);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -270,6 +293,8 @@ fn placeholders_are_the_ones_that_the_contract_names() {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
+    want.insert("say.item.new".into(), vec!["name"]);
+    want.insert("say.item.gone".into(), vec!["name"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want
@@ -390,7 +415,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 26);
+    assert_eq!(keys.len(), 27);
 }
 
 #[test]

@@ -37,6 +37,7 @@ crates/halvo-route-gate/tests/product_*.rs U1.2
 docs/r6/bar.md U1.2
 docs/r6/hypothesis.md U1.2
 scripts/r6/ci.d/40-r6-policy.sh U1.2
+scripts/r6/required-tests.txt U1.2d
 formal/r6-spend/** U2.1
 formal/r6-spend/.gitattributes U2.1
 scripts/r6/ci.d/55-r6-formal.sh U2.1

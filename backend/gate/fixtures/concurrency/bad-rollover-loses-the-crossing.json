@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "file": "stress/driver.mjs",
+      "find": "setAt + cfg.rolloverAfterMs",
+      "replace": "setAt - cfg.rolloverAfterMs"
+    }
+  ],
+  "cells": "^rollover@20$",
+  "line": ["FAIL concurrency: ", "rollover-redrawn=5", "first failure: the rollover cell built no crossing: 5 attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72)"]
+}

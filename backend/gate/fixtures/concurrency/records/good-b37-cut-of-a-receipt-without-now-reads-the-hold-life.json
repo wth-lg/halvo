@@ -1,0 +1,37 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "with no now in the receipt the life of the hold is the gateway's hold life: the cut came 2,700 ms after the send, the bound is 3,000 less 400",
+  "source": "by hand",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"upstream-failed\",\"why\":\"AbortError\"}",
+    "headersAt": 3700,
+    "endedAt": 3770,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "expiresAt": 4589
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "created_at": 1589,
+    "expires_at": 4589,
+    "ended_at": 4591,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

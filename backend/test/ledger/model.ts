@@ -13,6 +13,7 @@ interface ModelHold {
   periodStart: Ms;
   state: "open" | "settled" | "voided" | "expired";
   dispatched: boolean;
+  voidedAtExpiry: boolean;
   cost: number | null;
   overrun: number;
   late: boolean;
@@ -58,10 +59,15 @@ export class Model {
   private expire(now: Ms): void {
     for (const hold of this.holds.values()) {
       if (hold.state === "open" && hold.expiresAt <= now) {
-        hold.state = "expired";
         const totals = this.totals(hold.periodStart);
         totals.open -= hold.amount;
-        totals.unreported += hold.amount;
+        if (hold.dispatched) {
+          hold.state = "expired";
+          totals.unreported += hold.amount;
+        } else {
+          hold.state = "voided";
+          hold.voidedAtExpiry = true;
+        }
       }
     }
   }
@@ -126,7 +132,7 @@ export class Model {
     if (totals.reported + totals.unreported + totals.open + call.amount > this.capAmount * MICRO_PER_MINOR) return { outcome: "refused", reason: "over-cap" };
     this.totals(start).open += call.amount;
     const expiresAt = now + this.holdLifeMs;
-    this.holds.set(call.requestId, { amount: call.amount, price, tier, expiresAt, periodStart: start, state: "open", dispatched: false, cost: null, overrun: 0, late: false });
+    this.holds.set(call.requestId, { amount: call.amount, price, tier, expiresAt, periodStart: start, state: "open", dispatched: false, voidedAtExpiry: false, cost: null, overrun: 0, late: false });
     return { outcome: "admitted", receipt: { requestId: call.requestId, amount: call.amount, now, expiresAt } };
   }
 
@@ -156,7 +162,7 @@ export class Model {
   private void(requestId: string): EndResult {
     const hold = this.holds.get(requestId);
     if (hold === undefined) return { outcome: "refused", reason: "unknown-request" };
-    if (hold.state === "voided") return { outcome: "voided" };
+    if (hold.state === "voided" && !hold.voidedAtExpiry) return { outcome: "voided" };
     if (hold.state !== "open") return { outcome: "refused", reason: "already-ended" };
     if (hold.dispatched) return { outcome: "refused", reason: "dispatched" };
     hold.state = "voided";

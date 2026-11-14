@@ -1,0 +1,17 @@
+{
+  "kind": "server-options",
+  "ruling": "P7-69 F7 (the verifier's D10, the review's d07)",
+  "about": "the driver starts the server of the void cell with the void hold life, 1,700 ms, from serverOptionsOf",
+  "source": "by hand",
+  "cell": {
+    "name": "void@20",
+    "kind": "void",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "expect": {
+    "holdLifeMs": 1700
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4",
+  "about": "a 409 whose body is neither stopped nor repeat, for an id sent twice",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ],
+    "body": "{\"result\":\"conflict\"}"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

@@ -17,12 +17,14 @@ export interface Subscription {
   state: SubscriptionState;
   customerId: string | null;
   subscriptionId: string | null;
+  cancelledAt?: Ms;
 }
 export type Applied =
   | { kind: "account-made"; cap: Cap; period: BillingPeriod | null }
-  | { kind: "state"; state: SubscriptionState; was: SubscriptionState; period: BillingPeriod | null }
-  | { kind: "kept" }
-  | { kind: "none" };
+  | { kind: "state"; state: SubscriptionState; was: SubscriptionState; period: BillingPeriod | null; overrode: boolean }
+  | { kind: "kept"; overrode: boolean }
+  | { kind: "cancel-time"; at: Ms }
+  | { kind: "none"; overrode: boolean };
 export interface Accounts {
   init(sql: Sql): void;
   look(sql: Sql, credentialHash: string): Look;

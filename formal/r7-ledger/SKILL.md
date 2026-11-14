@@ -21,9 +21,9 @@ trace maps to the object.
 | `src/do/entries.ts` | `reserve`, `dispatch`, `settle`, `void`, `alarm`, `rearm`, `capSet`, `capGet`: the step's time and the alarm after it |
 | `src/gateway/chat.ts` | the order reserve, then void or dispatch, then the upstream call only on `go`, then settle |
 
-The sync commit is 677c053acf001ef05d3cac105979f0ef07a0bc4f: the model was last confirmed to
-describe the code at that commit. Read `git diff 677c053 -- src/ledger src/gateway/chat.ts
-src/do/entries.ts` first. Move the sync commit forward, here and nowhere else, only after the
+The sync commit is 5b4be87df64da0d3a6f8889bccb2922075bfc03c: the model was last confirmed to
+describe the code at that commit, where unit 4.5 ends a due hold without the dispatch mark as
+voided. Read `git diff 5b4be87 -- src/ledger src/gateway/chat.ts src/do/entries.ts` first. Move the sync commit forward, here and nowhere else, only after the
 check passes at the new commit and you have read that diff against the model's steps.
 
 ## Run
@@ -31,7 +31,7 @@ check passes at the new commit and you have read that diff against the model's s
 ```sh
 sh scripts/prerequisites.sh          # once: fetches the pinned tla2tools.jar into .tools/
 sh gate/checks/95-model.sh           # the checker on the eight properties, then the replay
-node ../formal/r7-ledger/controls.mjs             # after a change of the model: 17 reachability controls, 11 breaks, the control of the view
+node ../formal/r7-ledger/controls.mjs             # after a change of the model: 19 reachability controls, 16 breaks, the control of the view
 ```
 
 `MODEL_WORKERS=6` in front of either command gives TLC six worker threads in place of 12.

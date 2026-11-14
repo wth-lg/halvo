@@ -42,8 +42,6 @@ pub fn parse_entry(raw: &RawUninstallEntry) -> Option<InstalledApp> {
     })
 }
 
-/// A point-in-time list of installed applications, deduplicated and sorted so two
-/// scans of an unchanged system compare equal.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InstalledSoftwareSnapshot {
     pub apps: Vec<InstalledApp>,
@@ -75,7 +73,6 @@ impl InstalledSoftwareSnapshot {
     }
 }
 
-/// A registry root the installed-software scan reads.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UninstallRoot {
@@ -104,10 +101,6 @@ const UNINSTALL_PATHS: &[&str] = &[
     "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
 ];
 
-/// Every (registry root, subkey path) the installed-software scan reads. The
-/// scan and the change watch both iterate this one list, so the set the watcher
-/// arms on cannot drift from the set the scan reads: an install under any root or
-/// path wakes the watcher.
 #[cfg(target_os = "windows")]
 fn scan_targets() -> Vec<(UninstallRoot, &'static str)> {
     let mut targets = Vec::new();
@@ -151,11 +144,6 @@ pub fn scan_installed() -> io::Result<InstalledSoftwareSnapshot> {
     Ok(InstalledSoftwareSnapshot::from_entries(entries))
 }
 
-/// Block until something under any scanned `Uninstall` key changes, so the caller
-/// can rescan only when the installed set actually moves rather than polling. Arms
-/// an asynchronous change notification on every root and path [`scan_installed`]
-/// reads and waits for the first to signal, so an install under HKLM or a
-/// `WOW6432Node` mirror wakes the caller, not only one under HKCU.
 #[cfg(target_os = "windows")]
 pub fn wait_for_change() -> io::Result<()> {
     use windows_sys::Win32::Foundation::{
@@ -169,13 +157,13 @@ pub fn wait_for_change() -> io::Result<()> {
     use winreg::RegKey;
 
     let filter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET;
-    // Keep the opened keys alive for the whole wait: the async notification is
-    // tied to the key handle.
     let mut keys = Vec::new();
     let mut events: Vec<HANDLE> = Vec::new();
 
     let close_all = |events: &[HANDLE]| {
         for event in events {
+            // SAFETY: each handle is an event that this function created and
+            // has not closed; each is closed once here.
             unsafe {
                 let _ = CloseHandle(*event);
             }
@@ -186,16 +174,21 @@ pub fn wait_for_change() -> io::Result<()> {
         let Ok(key) = RegKey::predef(root.hkey()).open_subkey_with_flags(path, KEY_NOTIFY) else {
             continue;
         };
-        // A manual-reset event, initially non-signaled, armed for one async change.
+        // SAFETY: CreateEventW with null attributes and a null name makes a new
+        // unnamed manual-reset event, initially unset.
         let event = unsafe { CreateEventW(std::ptr::null(), TRUE, FALSE, std::ptr::null()) };
         if event.is_null() {
             let err = io::Error::last_os_error();
             close_all(&events);
             return Err(err);
         }
+        // SAFETY: `key` is an open registry key that outlives the wait, and
+        // `event` is the live event created above.
         let status =
             unsafe { RegNotifyChangeKeyValue(key.raw_handle(), TRUE, filter, event, TRUE) };
         if status != ERROR_SUCCESS {
+            // SAFETY: `event` is the live event created above, not yet in
+            // `events`, so it is closed once here.
             unsafe {
                 let _ = CloseHandle(event);
             }
@@ -210,6 +203,8 @@ pub fn wait_for_change() -> io::Result<()> {
         return Ok(());
     }
 
+    // SAFETY: the pointer and the count describe `events`, which holds live
+    // event handles and outlives the wait.
     let wait =
         unsafe { WaitForMultipleObjects(events.len() as u32, events.as_ptr(), FALSE, INFINITE) };
     close_all(&events);
@@ -281,7 +276,6 @@ mod tests {
     #[test]
     fn the_watch_covers_every_root_and_path_the_scan_reads() {
         let targets = scan_targets();
-        // Both roots times both paths: HKLM and HKCU, native and WOW6432Node.
         assert_eq!(targets.len(), UNINSTALL_ROOTS.len() * UNINSTALL_PATHS.len());
         for root in UNINSTALL_ROOTS {
             for path in UNINSTALL_PATHS {
@@ -291,7 +285,6 @@ mod tests {
                 );
             }
         }
-        // An HKLM path is in the set: the bug was watching HKCU only.
         assert!(targets
             .iter()
             .any(|(root, _)| *root == UninstallRoot::LocalMachine));

@@ -4,7 +4,7 @@ import { providerPort } from "../billing/index.ts";
 import type { ProviderEvent, SubscriptionState } from "../billing/port.ts";
 import type { Price, Usage } from "../ledger/index.ts";
 import { makeLedger } from "../ledger/index.ts";
-import { numberVariable } from "../log.ts";
+import { errorName, log, numberVariable } from "../log.ts";
 import { makeMetering } from "../metering/index.ts";
 import type { Cap, Env, Micro, Ms, Step, Tier } from "../types.ts";
 import { type Entries, type Host, makeEntries } from "./entries.ts";
@@ -13,6 +13,22 @@ function semicolonRefused(): never {
   const error = new Error("one call of exec holds one statement and no semicolon");
   error.name = "SqlSemicolonError";
   throw error;
+}
+
+const HOLD_LIFE_MAX_MS = 30_000;
+const SYNC_INTERVAL_MAX_SECONDS = 86_400;
+
+function boundedVariable(name: string, value: string | undefined, max: number): number {
+  const read = numberVariable(name, value);
+  if (read <= max) return read;
+  log({ event: "bad-variable", variable: name });
+  const error = new Error("a number variable is above its bound");
+  error.name = name;
+  throw error;
+}
+
+function alarmCallRejected(caught: unknown): void {
+  log({ event: "alarm-error", error: errorName(caught) });
 }
 
 export function stepOf(storage: DurableObjectStorage): Step {
@@ -28,23 +44,24 @@ export function stepOf(storage: DurableObjectStorage): Step {
 }
 
 export class AccountObject extends DurableObject<Env> {
+  private readonly host: Host;
   private readonly entries: Entries;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     const config: Host["config"] = {
-      holdLifeMs: numberVariable("HOLD_LIFE_MS", env.HOLD_LIFE_MS),
-      intervalSeconds: numberVariable("SYNC_INTERVAL_SECONDS", env.SYNC_INTERVAL_SECONDS),
+      holdLifeMs: boundedVariable("HOLD_LIFE_MS", env.HOLD_LIFE_MS, HOLD_LIFE_MAX_MS),
+      intervalSeconds: boundedVariable("SYNC_INTERVAL_SECONDS", env.SYNC_INTERVAL_SECONDS, SYNC_INTERVAL_MAX_SECONDS),
       marginSeconds: numberVariable("SYNC_MARGIN_SECONDS", env.SYNC_MARGIN_SECONDS),
       publicOrigin: env.PUBLIC_ORIGIN ?? "",
       testClock: env.TEST_CLOCK === "1",
     };
-    const host: Host = {
+    this.host = {
       step: stepOf(ctx.storage),
       clock: () => Date.now(),
       setAlarm(at) {
-        if (at === null) void ctx.storage.deleteAlarm();
-        else void ctx.storage.setAlarm(at);
+        const call = at === null ? ctx.storage.deleteAlarm() : ctx.storage.setAlarm(at);
+        void call.catch(alarmCallRejected);
       },
       getAlarm: () => ctx.storage.getAlarm(),
       async deleteAll() {
@@ -54,7 +71,7 @@ export class AccountObject extends DurableObject<Env> {
       port: providerPort(env),
       config,
     };
-    this.entries = makeEntries(host, {
+    this.entries = makeEntries(this.host, {
       accounts: makeAccounts(),
       ledger: makeLedger({ holdLifeMs: config.holdLifeMs }),
       metering: makeMetering({ intervalSeconds: config.intervalSeconds, marginSeconds: config.marginSeconds }),

@@ -1,3 +1,6 @@
 {"rev":1}
 {"state":"paused"}
 {"ok":"yes"}
+{"checkpoints":[{"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","folder":["/data/books"],"workbook":["/data/books/bills.xlsx"],"copy":["bills.halvo-checkpoint-50505050505050505050505050505050.xlsx"],"state":"planned","sha256":null,"bytes":null,"at":1794339000000000001,"ended":"no","effect":null,"superseded":"no"},{"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","folder":["/data/books"],"workbook":["/data/books/rent.xlsx"],"copy":["rent.halvo-checkpoint-50505050505050505050505050505050.xlsx"],"state":"made","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","bytes":18432,"at":1794339000000000001,"ended":"yes","effect":"committed","superseded":"no"}],"next":"50505050505050505050505050505050"}
+{"checkpoints":[],"next":null}
+{"stored":1}

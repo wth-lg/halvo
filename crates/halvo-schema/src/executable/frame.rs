@@ -11,8 +11,12 @@ use crate::request::{self, Decoded, ErrorName, RunnerRequest};
 use super::body::{RunnerCall, RunnerReply};
 use super::bound::Bound;
 use super::json::{self, each_once, from_json, list, object_type, opt, FromJson};
-use super::names::{ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome};
-use super::text::{ApprovalId, Digest, EffectId, Endpoint, Name, RunId, SecretText, WebOrigin, V1};
+use super::names::{
+    ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome, SecretAnswer, Unreadable, YesNo,
+};
+use super::text::{
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, RunId, SecretText, WebOrigin, V1,
+};
 use super::{Refusal, ERROR_NAMES};
 
 /// The most bytes of the JSON of one frame.
@@ -45,12 +49,14 @@ object_type! {
 }
 
 object_type! {
-    /// A confirmation request: one or more effects, each once; an effect of a request of the browser stands alone.
+    /// A confirmation request: whether the run's list was cut, `yes` or `no`, or null where the run made no list; and
+    /// one or more effects, each once; an effect of a request of the browser stands alone.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ConfirmRequest {
         pub v: V1 = "v" => from_json,
         pub run: RunId = "run" => from_json,
         pub agent: AgentId = "agent" => json::agent_id,
+        pub cut: Option<YesNo> = "cut" => opt(from_json),
         pub effects: Vec<ConfirmEffect> = "effects" => list(ConfirmEffect::from_raw),
     }
     rules(r) {
@@ -393,6 +399,7 @@ object_type! {
         pub reply: StoreReply = "reply" => from_json,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -402,6 +409,7 @@ object_type! {
         pub decision: ConfirmDecision = "decision" => ConfirmDecision::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 object_type! {
@@ -411,15 +419,123 @@ object_type! {
         pub result: HandbackResult = "result" => HandbackResult::from_raw,
     }
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
-object_type! {
-    /// `{"t":"secret_reply","value":"<text>"|null}`.
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct SecretReply [t = "secret_reply"] {
-        pub value: Option<SecretText> = "value" => opt(from_json),
+/// `secret_reply`, one of the three answers of `Secrets::read`: `{"t":"secret_reply","answer":"stored","value":"<text>"}`,
+/// `{"t":"secret_reply","answer":"none"}` or `{"t":"secret_reply","answer":"unreadable","member":"locked"|"fault"}`.
+/// Only `None` says that no secret is stored; a store that could not be read is `Unreadable`. A value stands only
+/// with the answer `stored` and a member only with the answer `unreadable`, so the type has no form of the other
+/// pairs, and the parser refuses them. `Debug` prints no value.
+///
+/// What must not compile, a value with the answer `none` and a member with the answer `stored`:
+///
+/// ```compile_fail
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::text::SecretText;
+/// let _ = SecretReply::None(SecretText::parse("tok").unwrap());
+/// ```
+///
+/// ```compile_fail
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::names::Unreadable;
+/// let _ = SecretReply::Stored(Unreadable::Locked);
+/// ```
+///
+/// Their twins, which differ in the one name and compile:
+///
+/// ```
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::text::SecretText;
+/// let _ = SecretReply::Stored(SecretText::parse("tok").unwrap());
+/// ```
+///
+/// ```
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::names::Unreadable;
+/// let _ = SecretReply::Unreadable(Unreadable::Locked);
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SecretReply {
+    Stored(SecretText),
+    None,
+    Unreadable(Unreadable),
+}
+
+impl json::Arrives for SecretReply {
+    const MAX: usize = FRAME_JSON_MAX;
+}
+
+impl SecretReply {
+    const KEYS: &'static [&'static str] = &["t", "answer", "value", "member"];
+
+    /// The answer.
+    pub fn answer(&self) -> SecretAnswer {
+        match self {
+            SecretReply::Stored(_) => SecretAnswer::Stored,
+            SecretReply::None => SecretAnswer::None,
+            SecretReply::Unreadable(_) => SecretAnswer::Unreadable,
+        }
     }
-    rules(_f) { Ok(()) }
+
+    fn from_raw(raw: &RawValue) -> Result<SecretReply, Refusal> {
+        let fail = |key, rule| Err(Refusal::malformed("SecretReply", rule).at(key));
+        let obj = json::object("SecretReply", raw)?;
+        obj.known(Self::KEYS)?;
+        let tag = obj.read("t", |raw| json::string("SecretReply", raw))?;
+        if tag != "secret_reply" {
+            return fail("t", "tag");
+        }
+        let answer = obj.read("answer", SecretAnswer::from_json)?;
+        if obj.has("value") && answer != SecretAnswer::Stored {
+            return fail("value", "value_without_stored");
+        }
+        if obj.has("member") && answer != SecretAnswer::Unreadable {
+            return fail("member", "member_without_unreadable");
+        }
+        match answer {
+            SecretAnswer::Stored if !obj.has("value") => fail("value", "stored_without_value"),
+            SecretAnswer::Stored => obj
+                .read("value", SecretText::from_json)
+                .map(SecretReply::Stored),
+            SecretAnswer::None => Ok(SecretReply::None),
+            SecretAnswer::Unreadable if !obj.has("member") => {
+                fail("member", "unreadable_without_member")
+            }
+            SecretAnswer::Unreadable => obj
+                .read("member", Unreadable::from_json)
+                .map(SecretReply::Unreadable),
+        }
+    }
+
+    /// Reads one JSON value of this type and refuses every other input. An input of more than `FRAME_JSON_MAX`
+    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
+    /// `frame_length`.
+    pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        if bytes.len() > FRAME_JSON_MAX {
+            return Err(Refusal::length("SecretReply", "frame_length"));
+        }
+        Self::from_raw(json::whole("SecretReply", bytes)?)
+    }
+
+    /// The compact JSON of the frame.
+    pub fn to_json(&self) -> Result<String, Refusal> {
+        json::write_json("SecretReply", self)
+    }
+}
+
+impl Serialize for SecretReply {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("t", "secret_reply")?;
+        map.serialize_entry("answer", &self.answer())?;
+        match self {
+            SecretReply::Stored(value) => map.serialize_entry("value", value)?,
+            SecretReply::None => {}
+            SecretReply::Unreadable(member) => map.serialize_entry("member", member)?,
+        }
+        map.end()
+    }
 }
 
 object_type! {
@@ -427,9 +543,66 @@ object_type! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Cancel [t = "cancel"] {}
     rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
+}
+
+object_type! {
+    /// `{"t":"bind","origin":<origin>}`: the origin of the address that the runner read once after the result `done`
+    /// of a handback of the reasons `sign_in`, `second_factor` or `captcha`, made by `WebOrigin::of_address`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Bind [t = "bind"] {
+        pub origin: WebOrigin = "origin" => from_json,
+    }
+    rules(_f) { Ok(()) }
+}
+
+object_type! {
+    /// `{"t":"browser","pid":<count>,"created":"<creation time>","group":<count>|null}`: the process of the browser
+    /// that the runner started, its creation time as the process table records it, and its process group on macOS
+    /// (null on Windows), sent once the browser runs and before it loads any page.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Browser [t = "browser"] {
+        pub pid: NonZeroU32 = "pid" => from_json,
+        pub created: CreationTime = "created" => from_json,
+        pub group: Option<NonZeroU32> = "group" => opt(from_json),
+    }
+    rules(_f) { Ok(()) }
+}
+
+object_type! {
+    /// `{"t":"bind_reply","bound":"yes"|"no"}`: `yes` only once the origin is bound, `no` only after the person's
+    /// `decline`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BindReply [t = "bind_reply"] {
+        pub bound: YesNo = "bound" => from_json,
+    }
+    rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
+}
+
+object_type! {
+    /// `{"t":"browser_reply"}`, written once the mark of the run holds the browser's line.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BrowserReply [t = "browser_reply"] {}
+    rules(_f) { Ok(()) }
+    arrives(FRAME_JSON_MAX, "frame_length")
 }
 
 macro_rules! frame_enum {
+    (
+        bounded($max:expr)
+        $(#[$meta:meta])*
+        pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
+    ) => {
+        frame_enum! {
+            $(#[$meta])*
+            pub enum $name { $( $variant($ty) = $t ),+ }
+        }
+
+        const _: () = {
+            $( assert!(<$ty as json::Arrives>::MAX == $max); )+
+        };
+    };
     (
         $(#[$meta:meta])*
         pub enum $name:ident { $( $variant:ident($ty:ident) = $t:literal ),+ $(,)? }
@@ -481,16 +654,22 @@ frame_enum! {
         Secret(Secret) = "secret",
         Progress(Progress) = "progress",
         Done(Done) = "done",
+        Bind(Bind) = "bind",
+        Browser(Browser) = "browser",
     }
 }
 
 frame_enum! {
-    /// A frame from the supervisor to the runner.
+    bounded(FRAME_JSON_MAX)
+    /// A frame from the supervisor to the runner. Each variant's type has a bound of `FRAME_JSON_MAX` bytes as they
+    /// arrive in its own `parse`, or the crate does not compile.
     pub enum ToRunner {
         StoreReply(StoreReplyFrame) = "store_reply",
         ConfirmReply(ConfirmReply) = "confirm_reply",
         HandbackReply(HandbackReply) = "handback_reply",
         SecretReply(SecretReply) = "secret_reply",
         Cancel(Cancel) = "cancel",
+        BindReply(BindReply) = "bind_reply",
+        BrowserReply(BrowserReply) = "browser_reply",
     }
 }

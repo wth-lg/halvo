@@ -1,0 +1,19 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 lines 1 and 4",
+  "about": "a void step ended the row before its expiry, for an id sent once (the review's C4)",
+  "source": "by hand",
+  "row": {
+    "ended_at": 2000,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

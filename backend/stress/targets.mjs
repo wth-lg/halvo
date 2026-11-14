@@ -16,6 +16,7 @@ export const Snapshot = z.object({
       amount: int,
       expires_at: int,
       state: z.enum(["open", "settled", "voided", "expired"]),
+      dispatched: z.union([z.literal(0), z.literal(1)]).optional(),
       created_at: int,
       created_seq: int,
       ended_at: int.nullable(),
@@ -38,7 +39,7 @@ export const WEEK_MS = 604_800_000;
 
 export const spikeApi = {
   chatStatus: { refused: 402, voided: 503, upstreamFailed: 502 },
-  ledger: { alarmMark: "alarm", lateSettleAddsOverrun: true },
+  ledger: { alarmMark: "alarm", lateSettleAddsOverrun: true, voidsUnmarkedAtExpiry: false },
   health: (port) => call(port, "GET", "/health"),
   async setCap(port, run, cap, anchor, periodMs) {
     await mustCall(port, "POST", `/cap?account=${run.account}`, JSON.stringify({ cap, period_ms: periodMs, anchor_ms: anchor }));
@@ -78,7 +79,7 @@ export function fromInspect(answer) {
 
 export const testEntryApi = {
   chatStatus: { refused: 403, voided: 503, upstreamFailed: 502 },
-  ledger: { alarmMark: "expire", lateSettleAddsOverrun: false },
+  ledger: { alarmMark: "expire", lateSettleAddsOverrun: false, voidsUnmarkedAtExpiry: true },
   health: (port) => call(port, "POST", "/test/inspect", JSON.stringify({ account: HEALTH_ACCOUNT })),
   async setCap(port, run, cap, anchor, periodMs) {
     if (periodMs !== WEEK_MS) throw new Error(`the test entry's cap period is a week, not ${periodMs} ms`);

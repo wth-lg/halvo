@@ -1,0 +1,37 @@
+[package]
+name = "r4-driver-trial"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+name = "r4_driver_trial"
+path = "src/lib.rs"
+
+[[bin]]
+name = "r4-driver-trial"
+path = "src/main.rs"
+
+[features]
+webdriver = ["dep:tauri-plugin-webdriver"]
+wdio = ["dep:tauri-plugin-wdio-webdriver"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+r4-trial-app = { path = "../app" }
+tauri = { version = "=2.12.5", features = ["tray-icon"] }
+tauri-plugin-dialog = "=2.8.4"
+tauri-plugin-webdriver = { version = "=0.2.4", optional = true }
+tauri-plugin-wdio-webdriver = { version = "=1.5.1", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.5"
+objc2-foundation = { version = "=0.3.2", features = ["NSString"] }
+objc2-app-kit = { version = "=0.3.2", features = ["NSAlert", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSApplication", "NSRunningApplication"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging"] }

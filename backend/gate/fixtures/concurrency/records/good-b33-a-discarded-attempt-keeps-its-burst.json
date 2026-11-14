@@ -1,0 +1,65 @@
+{
+  "kind": "attempts",
+  "ruling": "B-33, B-39",
+  "about": "the driver keeps the slow facts of an attempt that it discards, so that the line can count slow attempts and the median of every first burst",
+  "source": "by hand",
+  "cell": {
+    "name": "usage-last@200",
+    "kind": "matrix",
+    "level": 200,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "slow": true,
+        "burstWaits": [
+          2700,
+          2800
+        ],
+        "burstMedianMs": 2700,
+        "slowBoundMs": 2600,
+        "lateSettles": 1,
+        "lostInTransport": 2,
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0,
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {
+    "discarded": [
+      {
+        "key": "attempt-1",
+        "slow": true,
+        "burstWaits": [
+          2700,
+          2800
+        ],
+        "burstMedianMs": 2700,
+        "slowBoundMs": 2600,
+        "lateSettles": 1,
+        "lostInTransport": 2
+      }
+    ]
+  }
+}

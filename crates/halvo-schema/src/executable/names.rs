@@ -199,7 +199,12 @@ impl EffectState {
 }
 
 names! {
-    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`.
+    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`. `secret` ends a run whose token
+    /// store could not be read, with the outcome `failed`. `unauthorized` stands in a `step_failed` line, the line of
+    /// a step whose adapter call the service answered with 401; `not_selected` stands in a `stopped` line, the line of
+    /// a send whose message the reply rule no longer selects at the load before its `begin`; `no_start` stands in a
+    /// `stopped` line, the line of the list step of a run whose load holds no start row. None of the three stands in
+    /// a row of an effect while the states of an effect have no `not_made` (A7.4).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -224,6 +229,27 @@ names! {
         Effect = "effect",
         Ended = "ended",
         Changed = "changed",
+        Secret = "secret",
+        Unauthorized = "unauthorized",
+        NotSelected = "not_selected",
+        NoStart = "no_start",
+    }
+}
+
+names! {
+    /// The state of a row of `agent_reply`, one state of the reply to one message: `drafted` when its draft is made,
+    /// `begun` when its send begins, `committed` when the send is committed, `unknown` when the outcome of the send is
+    /// not known, `lost` when a later PATCH of the draft answers 404 or fails its checks, and `withheld` when the
+    /// draft that the mail service made in the same call is not a plain reply to the sender alone: its one recipient
+    /// is not, byte for byte, the sender, it has no recipient or more than one, it holds a copy or blind-copy address,
+    /// or it stands in another conversation.
+    pub enum ReplyState {
+        Drafted = "drafted",
+        Begun = "begun",
+        Committed = "committed",
+        Unknown = "unknown",
+        Lost = "lost",
+        Withheld = "withheld",
     }
 }
 
@@ -251,8 +277,10 @@ names! {
 }
 
 names! {
-    /// The events of a line of a run's log.
+    /// The events of a line of a run's log. `start_accepted` is the line that A7.4 gives the handler of `start_run` to
+    /// build, line 1 of its run, with no step, cause, model or figure; it says that the store accepted the start.
     pub enum LogEvent {
+        StartAccepted = "start_accepted",
         StepOk = "step_ok",
         StepFailed = "step_failed",
         Recovered = "recovered",
@@ -286,10 +314,77 @@ names! {
 }
 
 names! {
+    /// The answer of a `secret_reply`: the secret is `stored`, `none` is stored, or the store is `unreadable`. Only
+    /// `none` says that no secret is stored.
+    pub enum SecretAnswer {
+        Stored = "stored",
+        None = "none",
+        Unreadable = "unreadable",
+    }
+}
+
+names! {
+    /// The member of the answer `unreadable`: the secret store was `locked`, or a `fault` kept it from being read.
+    pub enum Unreadable {
+        Locked = "locked",
+        Fault = "fault",
+    }
+}
+
+names! {
     /// The answer of an approval, which lasts for one effect.
     pub enum Answer {
         AllowOnce = "allow_once",
         RejectOnce = "reject_once",
+    }
+}
+
+names! {
+    /// The way by which an `add_origin` body adds an origin to the bindings, after an act with the person's answer:
+    /// the sign-in that the person finished and allowed, the account that the person linked, or the confirmation
+    /// that the person allowed for a request to a new origin.
+    pub enum Way {
+        SignIn = "sign_in",
+        AccountLink = "account_link",
+        NewOrigin = "new_origin",
+    }
+}
+
+names! {
+    /// The state of a row of a checkpoint, kind `agent_checkpoint`: `planned` before `prepare`, `made` once the copy
+    /// is made, and `gone` or `left` as the supervisor library marks it.
+    pub enum CheckpointState {
+        Planned = "planned",
+        Made = "made",
+        Gone = "gone",
+        Left = "left",
+    }
+}
+
+names! {
+    /// The state of a checkpoint in the reply of `list_checkpoints`, whose newest row is `planned` or `made`.
+    pub enum ListedState {
+        Planned = "planned",
+        Made = "made",
+    }
+}
+
+names! {
+    /// The state that a `mark_checkpoint` body stores: the copy is `gone`, removed or found absent, or `left`.
+    pub enum MarkState {
+        Gone = "gone",
+        Left = "left",
+    }
+}
+
+names! {
+    /// Why the check of a checkpoint's copy missed, so that the copy is `left`.
+    pub enum LeftReason {
+        Changed = "changed",
+        Link = "link",
+        NotFile = "not_file",
+        Name = "name",
+        Unreadable = "unreadable",
     }
 }
 

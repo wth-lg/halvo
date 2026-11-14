@@ -1,0 +1,25 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 2",
+  "about": "a 409 stopped for an id sent twice whose row another attempt voided before its expiry, without the mark and with no upstream event",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "ended_at": 2000,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "voided": 1
+    }
+  }
+}

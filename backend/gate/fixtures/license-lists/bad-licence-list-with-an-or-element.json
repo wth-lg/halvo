@@ -1,0 +1,16 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: a-tool-with-an-or-element@1.0.0 has the license (MIT OR GPL-3.0-only) AND (GPL-2.0-only), which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "a-tool-with-an-or-element@1.0.0",
+      "manifest": {
+        "name": "a-tool-with-an-or-element",
+        "version": "1.0.0",
+        "licenses": [
+          "MIT OR GPL-3.0-only",
+          "GPL-2.0-only"
+        ]
+      }
+    }
+  ]
+}

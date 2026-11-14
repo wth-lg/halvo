@@ -1,0 +1,23 @@
+modality=screen_frame count=10
+modality=keystroke count=3
+modality=pointer count=15
+modality=foreground_app count=3
+modality=window_title count=2
+modality=system_audio count=0
+modality=microphone count=0
+modality=camera count=0
+secure_input_keystrokes=0
+segments_written=4
+events_received=33
+events_persisted=33
+events_discarded=0
+tap_disabled_timeout=0
+tap_disabled_user_input=0
+rss_peak_bytes=25264128
+failed_sources=0
+secure_released_keystrokes=3
+secure_held_keystrokes=0
+secure_held_suppressed=0/0/0
+secure_input_held=40/40
+secure_window_pointer=12
+secure_window_keys_typed=yes

@@ -1,0 +1,19 @@
+[package]
+name = "halvo-agent-gate"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[features]
+default = ["memory-store"]
+memory-store = []
+
+[dependencies]
+halvo-agent-store = { path = "../halvo-agent-store" }
+halvo-policy = { path = "../halvo-policy" }
+halvo-schema = { path = "../halvo-schema" }
+serde_json = "1"
+
+[[bin]]
+name = "agent-gate"
+path = "src/bin/agent-gate.rs"

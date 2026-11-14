@@ -1,0 +1,61 @@
+protocol=1
+daemon_version=0.0.0
+pid=4242
+started_at=2026-11-12T09:00:00Z
+rss_peak_bytes=25264128
+parent=watched
+desired=running
+capture=faulted
+capture_reason=store
+lease=fresh
+store=unsupported_version
+store_id=0123456789abcdef0123456789abcdef
+store_error=older
+store_retry_in_s=-
+store_bytes=-
+store_logical_bytes=-
+cap_bytes=26843545600
+drain=healthy
+drain_error=-
+drain_since=-
+events_pending=0
+events_lost=0
+dropped_frames=0
+pointer_coalesced=0
+tap_disabled_timeout=0
+tap_disabled_user_input=0
+late_events=0
+max_lag_ms=0
+secure_input_keystrokes=0
+title_read_errors=0
+last_flush_at=-
+expiry=healthy
+expiry_error=-
+last_expiry_at=-
+last_eviction_at=-
+last_stop=clean
+last_stop_newest_capture=-
+state_file=ok
+platform=macos
+enabled_sources=foreground,input
+switch name=title_text value=on
+switch name=key_class value=on
+switch name=pointer_class value=on
+switch name=screen_activity value=off
+switch name=site_read value=off
+permission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes
+permission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes
+permission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes
+source name=foreground state=stopped
+source name=screen state=off
+source name=input state=stopped
+source name=system_audio state=off
+source name=microphone state=off
+kind name=screen_frame dropped=0 refused=0
+kind name=keystroke dropped=0 refused=0
+kind name=pointer dropped=0 refused=0
+kind name=foreground_app dropped=0 refused=0
+kind name=window_title dropped=0 refused=0
+kind name=system_audio dropped=0 refused=0
+kind name=microphone dropped=0 refused=0
+kind name=camera dropped=0 refused=0

@@ -1,0 +1,2 @@
+{"v":1,"n":1,"kind":"file","verb":"read","target":{"file":"source","sheet":null,"range":null},"args":[{"name":"as","from":"const","value":"rows","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}
+{"v":1,"n":2,"kind":"file","verb":"write","target":{"file":"workbook","sheet":"sheet","range":"range"},"args":[{"name":"values","from":"extract","value":null,"key":"rows"}],"pre":[],"post":[],"effect":"none","class":"local_edit"}

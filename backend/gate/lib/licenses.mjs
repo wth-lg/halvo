@@ -134,7 +134,13 @@ export function permits(spdxExpression, permitted) {
   }
 }
 
-const covers = (pattern, name) => (pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : pattern === name);
+const names = (exception) =>
+  typeof exception.package === "string" &&
+  !exception.package.includes("*") &&
+  Array.isArray(exception.versions) &&
+  exception.versions.length > 0 &&
+  exception.versions.every((version) => typeof version === "string" && version !== "");
+const covers = (exception, entry) => names(exception) && exception.package === entry.name && exception.versions.includes(entry.version);
 
 export function evaluate({ packages, untied, bundled, allowlist, exceptions }) {
   const problems = [];
@@ -149,12 +155,15 @@ export function evaluate({ packages, untied, bundled, allowlist, exceptions }) {
   }
   for (const id of untied) {
     problems.push(
-      `the cached license of ${id} does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.`,
+      `the cached license of ${id} does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.`,
     );
   }
   for (const exception of exceptions) {
     if (!exception.package || !exception.license || !exception.reason) {
       problems.push(`an exception lacks its package, license or reason: ${JSON.stringify(exception)}`);
+    }
+    if (!names(exception)) {
+      problems.push(`an exception does not name one package by its exact name, without *, and its versions: ${JSON.stringify(exception)}`);
     }
   }
   const used = new Set();
@@ -163,13 +172,15 @@ export function evaluate({ packages, untied, bundled, allowlist, exceptions }) {
       problems.push(`${entry.id} is an error-tracking, analytics or crash-upload package`);
     }
     if (entry.license === undefined || permits(entry.license, permitted)) continue;
-    const exception = exceptions.find((each) => covers(each.package, entry.name) && each.license === entry.license);
-    if (exception) used.add(exception);
+    const exception = exceptions.find((each) => covers(each, entry) && each.license === entry.license);
+    if (exception) used.add(`${exceptions.indexOf(exception)}@${entry.version}`);
     else problems.push(`${entry.id} has the license ${entry.license}, which is neither on the allowlist nor in the exceptions`);
   }
-  for (const exception of exceptions) {
-    if (!used.has(exception)) {
-      problems.push(`the exception for ${exception.package} (${exception.license}) covers no lockfile package: remove it`);
+  for (const [index, exception] of exceptions.entries()) {
+    for (const version of names(exception) ? exception.versions : []) {
+      if (!used.has(`${index}@${version}`)) {
+        problems.push(`the exception for ${exception.package}@${version} (${exception.license}) covers no lockfile package: remove it`);
+      }
     }
   }
   const byId = new Map(packages.map((entry) => [entry.id, entry]));
@@ -263,7 +274,11 @@ function checkoutAt(checkout) {
 
 function fixture(path) {
   const data = readJson(path);
-  const packages = data.packages.map((entry) => ({ ...entry, name: entry.id.slice(0, entry.id.lastIndexOf("@")) }));
+  const packages = data.packages.map((entry) => ({
+    ...entry,
+    name: entry.id.slice(0, entry.id.lastIndexOf("@")),
+    version: entry.id.slice(entry.id.lastIndexOf("@") + 1),
+  }));
   return {
     expect: data.expect,
     input: { packages, untied: data.untied ?? [], bundled: data.bundled ?? [], exceptions: data.exceptions ?? [] },

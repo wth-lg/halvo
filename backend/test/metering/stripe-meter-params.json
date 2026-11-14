@@ -1,0 +1,5 @@
+{
+  "about": "The parameter names that the meter mapping sends on each endpoint, in the order it sends them. The meter mapping's tests compare every recorded request with this list.",
+  "POST /v1/billing/meter_events": ["event_name", "payload[stripe_customer_id]", "payload[value]", "identifier", "timestamp"],
+  "GET /v1/billing/meters/{id}/event_summaries": ["customer", "start_time", "end_time"]
+}

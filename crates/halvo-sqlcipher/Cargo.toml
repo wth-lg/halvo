@@ -1,6 +1,6 @@
 [package]
 name = "halvo-sqlcipher"
-version = "0.0.0"
+version.workspace = true
 description = "SQLCipher built from the pinned source for every Halvo crate that opens an encrypted database"
 edition = "2021"
 publish = false

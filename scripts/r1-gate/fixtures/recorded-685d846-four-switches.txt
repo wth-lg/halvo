@@ -1,0 +1,6 @@
+modality=screen_frame count=150
+modality=keystroke count=0
+modality=pointer count=0
+modality=foreground_app count=1
+modality=window_title count=1
+secure_input_keystrokes=0

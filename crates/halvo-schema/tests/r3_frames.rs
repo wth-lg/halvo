@@ -1,9 +1,11 @@
 use halvo_schema::executable::body::RunnerCall;
 use halvo_schema::executable::frame::{
-    ConfirmDecision, ConfirmRequest, FromRunner, HandbackRequest, HandbackResult, ReplyError,
-    RunError, StoreRequest, ToRunner, FRAME_JSON_MAX,
+    BindReply, BrowserReply, ConfirmDecision, ConfirmReply, ConfirmRequest, FromRunner,
+    HandbackReply, HandbackRequest, HandbackResult, ReplyError, RunError, SecretReply,
+    StoreReplyFrame, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
-use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES};
+use halvo_schema::executable::names::{SecretAnswer, Unreadable, YesNo};
+use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES, NAMES};
 use halvo_schema::request::{
     CoordinatorRole, CoordinatorWrite, ErrorName, RunnerRequest, RunnerRole,
 };
@@ -34,7 +36,7 @@ fn confirm_effect(effect: &str, class: &str, bound: &str, new_origin: Option<&st
 
 fn confirm(effects: &[String]) -> String {
     format!(
-        r#"{{"v":1,"run":"{R}","agent":"{A}","effects":[{}]}}"#,
+        r#"{{"v":1,"run":"{R}","agent":"{A}","cut":null,"effects":[{}]}}"#,
         effects.join(",")
     )
 }
@@ -89,8 +91,13 @@ fn from_runner() -> Vec<String> {
         r#"{"t":"progress","step":1,"of":9}"#.to_owned(),
         r#"{"t":"progress","step":9,"of":9}"#.to_owned(),
         r#"{"t":"done","outcome":"completed"}"#.to_owned(),
+        r#"{"t":"bind","origin":"https://pay.test:443"}"#.to_owned(),
+        BROWSER.to_owned(),
+        r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null}"#.to_owned(),
     ]
 }
+
+const BROWSER: &str = r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":4242}"#;
 
 fn to_runner() -> Vec<String> {
     vec![
@@ -103,9 +110,15 @@ fn to_runner() -> Vec<String> {
         ),
         format!(r#"{{"t":"handback_reply","result":{RESULT}}}"#),
         r#"{"t":"handback_reply","result":{"v":1,"outcome":"timeout","secret":null}}"#.to_owned(),
-        r#"{"t":"secret_reply","value":"tok_fixture"}"#.to_owned(),
-        r#"{"t":"secret_reply","value":null}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":"tok_fixture"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":"t"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"none"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"unreadable","member":"locked"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#.to_owned(),
         r#"{"t":"cancel"}"#.to_owned(),
+        r#"{"t":"bind_reply","bound":"yes"}"#.to_owned(),
+        r#"{"t":"bind_reply","bound":"no"}"#.to_owned(),
+        r#"{"t":"browser_reply"}"#.to_owned(),
     ]
 }
 
@@ -236,7 +249,7 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         "-",
     );
     expect(
-        ToRunner::parse(br#"{"t":"secret_reply","value":1}"#),
+        ToRunner::parse(br#"{"t":"secret_reply","answer":"stored","value":1}"#),
         "SecretText",
         "not_a_string",
         "value",
@@ -245,13 +258,13 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         ToRunner::parse(br#"{"t":"secret_reply"}"#),
         "SecretReply",
         "missing_key",
-        "value",
+        "answer",
     );
 
     assert_eq!(FRAME_JSON_MAX, 65_536);
-    let shell = r#"{"t":"secret_reply","value":""}"#.len();
+    let shell = r#"{"t":"secret_reply","answer":"stored","value":""}"#.len();
     let exact = format!(
-        r#"{{"t":"secret_reply","value":"{}"}}"#,
+        r#"{{"t":"secret_reply","answer":"stored","value":"{}"}}"#,
         "s".repeat(65_536 - shell)
     );
     assert_eq!(exact.len(), 65_536);
@@ -263,7 +276,7 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         exact
     );
     let over = format!(
-        r#"{{"t":"secret_reply","value":"{}"}}"#,
+        r#"{{"t":"secret_reply","answer":"stored","value":"{}"}}"#,
         "s".repeat(65_536 - shell + 1)
     );
     let refusal = ToRunner::parse(over.as_bytes()).unwrap_err();
@@ -276,12 +289,13 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         ToRunner::parse(spaced.as_bytes()).unwrap_err().cause(),
         RefusalCause::Length
     );
-    let ToRunner::SecretReply(mut frame) = ToRunner::parse(exact.as_bytes()).unwrap() else {
+    let ToRunner::SecretReply(SecretReply::Stored(_)) = ToRunner::parse(exact.as_bytes()).unwrap()
+    else {
         panic!()
     };
-    frame.value = Some(halvo_schema::executable::text::SecretText::new(
-        &"s".repeat(65_536 - shell + 1),
-    ));
+    let frame = SecretReply::Stored(
+        halvo_schema::executable::text::SecretText::parse(&"s".repeat(65_536 - shell + 1)).unwrap(),
+    );
     let refusal = ToRunner::SecretReply(frame).to_json().unwrap_err();
     assert_eq!(
         (refusal.cause(), refusal.rule()),
@@ -412,7 +426,7 @@ fn a_confirmation_request_holds_confirm_classes_whose_bound_object_fits() {
             "-",
         ),
         (
-            format!(r#"{{"v":1,"run":"{R}","agent":"{A}","effects":{pay}}}"#),
+            format!(r#"{{"v":1,"run":"{R}","agent":"{A}","cut":null,"effects":{pay}}}"#),
             "list",
             "not_a_list",
             "effects",
@@ -852,7 +866,8 @@ fn a_store_reply_takes_the_nine_error_names_and_the_six_of_this_run() {
 
 #[test]
 fn debug_of_a_frame_prints_no_secret_and_no_value_of_the_user() {
-    let secret = ToRunner::parse(br#"{"t":"secret_reply","value":"tok_4711"}"#).unwrap();
+    let secret =
+        ToRunner::parse(br#"{"t":"secret_reply","answer":"stored","value":"tok_4711"}"#).unwrap();
     let confirm_frame = FromRunner::parse(from_runner()[2].as_bytes()).unwrap();
     let put_session = RunnerCall::parse(format!(r#"{{"op":"put_session","agent":"{A}","run":"{R}","origin":"http://utility.test:18090","rev":1,"part":1,"of":1,"data":["c2VjcmV0NDcxMQ=="]}}"#).as_bytes()).unwrap();
     let request = RunnerRequest::new(
@@ -865,4 +880,907 @@ fn debug_of_a_frame_prints_no_secret_and_no_value_of_the_user() {
     for value in ["4711", "Northwind", "card", "c2VjcmV0"] {
         assert!(!shown.contains(value), "{value}: {shown}");
     }
+}
+
+#[test]
+fn the_frames_bind_and_browser_and_their_replies_hold_the_keys_of_the_contract() {
+    let FromRunner::Bind(bind) =
+        FromRunner::parse(br#"{"t":"bind","origin":"http://pay.test:18090"}"#).unwrap()
+    else {
+        panic!("bind")
+    };
+    assert_eq!(bind.origin.as_str(), "http://pay.test:18090");
+    let FromRunner::Browser(browser) = FromRunner::parse(BROWSER.as_bytes()).unwrap() else {
+        panic!("browser")
+    };
+    assert_eq!(
+        (
+            browser.pid.get(),
+            browser.created.micros().get(),
+            browser.created.to_string(),
+            browser.group.map(|g| g.get())
+        ),
+        (
+            4242,
+            1_794_339_000_123_456,
+            "1794339000123456".to_owned(),
+            Some(4242)
+        )
+    );
+    let windows = r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null}"#;
+    let FromRunner::Browser(windows) = FromRunner::parse(windows.as_bytes()).unwrap() else {
+        panic!("browser")
+    };
+    assert_eq!(windows.group, None);
+    for (text, yes) in [
+        (r#"{"t":"bind_reply","bound":"yes"}"#, YesNo::Yes),
+        (r#"{"t":"bind_reply","bound":"no"}"#, YesNo::No),
+    ] {
+        let ToRunner::BindReply(reply) = ToRunner::parse(text.as_bytes()).unwrap() else {
+            panic!("bind_reply")
+        };
+        assert_eq!(reply.bound, yes);
+    }
+    assert!(matches!(
+        ToRunner::parse(br#"{"t":"browser_reply"}"#),
+        Ok(ToRunner::BrowserReply(_))
+    ));
+    let largest =
+        r#"{"t":"browser","pid":4294967295,"created":"18446744073709551615","group":4294967295}"#;
+    assert_eq!(
+        FromRunner::parse(largest.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        largest
+    );
+
+    let from: Vec<(&str, &str, &str, &str)> = vec![
+        (
+            r#"["bind","http://pay.test:18090"]"#,
+            "FromRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","origin":"http://pay.test:18090"}"#,
+            "FromRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":null}"#,
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (r#"{"t":"bind"}"#, "Bind", "missing_key", "origin"),
+        (
+            r#"{"t":"bind","origin":"https://pay.test"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090/"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://PAY.test:18090"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":["http://pay.test:18090"]}"#,
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","way":"sign_in"}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","bound":"yes"}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origins":["http://pay.test:18090"]}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"[4242,"1794339000123456",4242]"#,
+            "FromRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"pid":4243,"created":"1794339000123456","group":null}"#,
+            "FromRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":"4242","created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":0,"created":"1794339000123456","group":null}"#,
+            "number",
+            "zero",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":-1,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242.0,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4294967296,"created":"1794339000123456","group":null}"#,
+            "number",
+            "range",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":null,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":1794339000123456,"group":null}"#,
+            "CreationTime",
+            "not_a_string",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"0","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"01794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"+1794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":" 1794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"-1","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000 123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"18446744073709551616","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"2026-11-12T05:00:00Z","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":null,"group":null}"#,
+            "CreationTime",
+            "not_a_string",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":0}"#,
+            "number",
+            "zero",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":"job"}"#,
+            "number",
+            "not_a_count",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456"}"#,
+            "Browser",
+            "missing_key",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","created":"1794339000123456","group":null}"#,
+            "Browser",
+            "missing_key",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null,"run":null}"#,
+            "Browser",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null,"origin":"http://pay.test:18090"}"#,
+            "Browser",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"yes"}"#,
+            "FromRunner",
+            "unknown_frame",
+            "t",
+        ),
+        (
+            r#"{"t":"browser_reply"}"#,
+            "FromRunner",
+            "unknown_frame",
+            "t",
+        ),
+    ];
+    for (text, type_name, rule, key) in from {
+        expect(FromRunner::parse(text.as_bytes()), type_name, rule, key);
+    }
+
+    let to: Vec<(&str, &str, &str, &str)> = vec![
+        (r#"["bind_reply","yes"]"#, "ToRunner", "not_an_object", "-"),
+        (
+            r#"{"t":"bind_reply","bound":"yes","bound":"no"}"#,
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":null}"#,
+            "YesNo",
+            "not_a_string",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":true}"#,
+            "YesNo",
+            "not_a_string",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"Yes"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"true"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"allow"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"declined"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (r#"{"t":"bind_reply"}"#, "BindReply", "missing_key", "bound"),
+        (
+            r#"{"t":"bind_reply","bound":"yes","origin":"http://pay.test:18090"}"#,
+            "BindReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"yes","rev":2}"#,
+            "BindReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","pid":4242}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","ok":"yes"}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","group":null}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090"}"#,
+            "ToRunner",
+            "unknown_frame",
+            "t",
+        ),
+        (BROWSER, "ToRunner", "unknown_frame", "t"),
+    ];
+    for (text, type_name, rule, key) in to {
+        expect(ToRunner::parse(text.as_bytes()), type_name, rule, key);
+    }
+}
+
+fn secret_reply(keys: &str) -> String {
+    format!(r#"{{"t":"secret_reply",{keys}}}"#)
+}
+
+#[test]
+fn a_secret_reply_tells_the_secret_none_stored_and_a_store_that_could_not_be_read_apart() {
+    let answers: Vec<&str> = SecretAnswer::ALL.iter().map(|a| a.as_str()).collect();
+    assert_eq!(answers, ["stored", "none", "unreadable"]);
+    let members: Vec<&str> = Unreadable::ALL.iter().map(|m| m.as_str()).collect();
+    assert_eq!(members, ["locked", "fault"]);
+    let read = |keys: &str| match ToRunner::parse(secret_reply(keys).as_bytes()) {
+        Ok(ToRunner::SecretReply(reply)) => reply,
+        other => panic!("{keys}: {other:?}"),
+    };
+    let stored = read(r#""answer":"stored","value":"tok_fixture""#);
+    let SecretReply::Stored(value) = &stored else {
+        panic!("stored")
+    };
+    assert_eq!(value.expose(), "tok_fixture");
+    assert_eq!(stored.answer(), SecretAnswer::Stored);
+    assert_eq!(read(r#""answer":"none""#), SecretReply::None);
+    assert_eq!(read(r#""answer":"none""#).answer(), SecretAnswer::None);
+    for member in Unreadable::ALL {
+        let keys = format!(r#""answer":"unreadable","member":"{}""#, member.as_str());
+        let reply = read(&keys);
+        assert_eq!(reply, SecretReply::Unreadable(*member));
+        assert_eq!(reply.answer(), SecretAnswer::Unreadable);
+        assert_ne!(reply, SecretReply::None);
+        assert_eq!(
+            ToRunner::SecretReply(reply).to_json().unwrap(),
+            secret_reply(&keys)
+        );
+    }
+    let reordered = r#"{"value":"tok_fixture","answer":"stored","t":"secret_reply"}"#;
+    assert_eq!(
+        ToRunner::parse(reordered.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        secret_reply(r#""answer":"stored","value":"tok_fixture""#)
+    );
+    let written: Vec<String> = [
+        SecretReply::Stored(
+            halvo_schema::executable::text::SecretText::parse("tok_fixture").unwrap(),
+        ),
+        SecretReply::None,
+        SecretReply::Unreadable(Unreadable::Locked),
+        SecretReply::Unreadable(Unreadable::Fault),
+    ]
+    .into_iter()
+    .map(|r| ToRunner::SecretReply(r).to_json().unwrap())
+    .collect();
+    assert_eq!(
+        written,
+        [
+            secret_reply(r#""answer":"stored","value":"tok_fixture""#),
+            secret_reply(r#""answer":"none""#),
+            secret_reply(r#""answer":"unreadable","member":"locked""#),
+            secret_reply(r#""answer":"unreadable","member":"fault""#),
+        ]
+    );
+}
+
+#[test]
+fn a_secret_reply_with_a_value_and_an_answer_other_than_stored_is_refused() {
+    for keys in [
+        r#""answer":"none","value":"tok_fixture""#,
+        r#""answer":"none","value":"""#,
+        r#""answer":"none","value":null"#,
+        r#""value":null,"answer":"none""#,
+        r#""answer":"unreadable","member":"locked","value":"tok_fixture""#,
+        r#""answer":"unreadable","member":"fault","value":null"#,
+        r#""answer":"unreadable","value":"tok_fixture""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "value_without_stored",
+            "value",
+        );
+    }
+}
+
+#[test]
+fn a_secret_reply_with_a_member_and_an_answer_other_than_unreadable_is_refused() {
+    for keys in [
+        r#""answer":"none","member":"locked""#,
+        r#""answer":"none","member":"fault""#,
+        r#""answer":"none","member":null"#,
+        r#""answer":"stored","value":"tok_fixture","member":"locked""#,
+        r#""answer":"stored","value":"tok_fixture","member":null"#,
+        r#""answer":"stored","member":"fault""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "member_without_unreadable",
+            "member",
+        );
+    }
+}
+
+#[test]
+fn a_secret_reply_whose_stored_value_is_empty_is_refused_and_one_byte_is_taken() {
+    let empty = secret_reply(r#""answer":"stored","value":"""#);
+    expect(
+        ToRunner::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    expect(
+        SecretReply::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    let one = secret_reply(r#""answer":"stored","value":"t""#);
+    assert_eq!(
+        ToRunner::parse(one.as_bytes()).unwrap().to_json().unwrap(),
+        one
+    );
+    let ToRunner::SecretReply(SecretReply::Stored(value)) =
+        ToRunner::parse(one.as_bytes()).unwrap()
+    else {
+        panic!("{one}")
+    };
+    assert_eq!(value.expose(), "t");
+}
+
+#[test]
+fn a_secret_reply_with_the_answer_stored_and_no_value_is_refused() {
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"stored""#).as_bytes()),
+        "SecretReply",
+        "stored_without_value",
+        "value",
+    );
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"stored","value":null"#).as_bytes()),
+        "SecretText",
+        "not_a_string",
+        "value",
+    );
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"unreadable""#).as_bytes()),
+        "SecretReply",
+        "unreadable_without_member",
+        "member",
+    );
+}
+
+#[test]
+fn a_secret_reply_is_refused_for_each_form_that_the_contract_does_not_give() {
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            r#"["secret_reply","stored","tok_fixture"]"#.to_owned(),
+            "ToRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","answer":"none""#),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":"a","value":"b""#),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":null"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":1"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"1""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"Stored","value":"x""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"locked""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"not_stored""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":["none"]"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""value":"tok_fixture""#),
+            "SecretReply",
+            "missing_key",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"Locked""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"none""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"failed""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":null"#),
+            "Unreadable",
+            "not_a_string",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":0"#),
+            "Unreadable",
+            "not_a_string",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":["tok"]"#),
+            "SecretText",
+            "not_a_string",
+            "value",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":12345"#),
+            "SecretText",
+            "not_a_string",
+            "value",
+        ),
+        (
+            secret_reply(r#""answer":"none","secret":null"#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"none","ref":"fixture_token""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"none","outcome":"done""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":"tok","name":"x""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""value":null"#),
+            "SecretReply",
+            "missing_key",
+            "answer",
+        ),
+        (
+            r#"{"t":"secret_reply","answer":"none","t":"secret_reply"}"#.to_owned(),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(ToRunner::parse(text.as_bytes()), type_name, rule, key);
+    }
+    expect(
+        FromRunner::parse(secret_reply(r#""answer":"none""#).as_bytes()),
+        "FromRunner",
+        "unknown_frame",
+        "t",
+    );
+    let error =
+        ToRunner::parse(secret_reply(r#""answer":"none","value":"zq_secret_4711""#).as_bytes())
+            .unwrap_err()
+            .to_string();
+    assert!(!error.contains("4711"), "{error}");
+}
+
+#[test]
+fn a_secret_reply_read_alone_checks_its_own_tag() {
+    assert_eq!(
+        SecretReply::parse(br#"{"t":"secret_reply","answer":"none"}"#),
+        Ok(SecretReply::None)
+    );
+    for text in [
+        r#"{"t":"secret","answer":"none"}"#,
+        r#"{"t":"bind_reply","answer":"none"}"#,
+        r#"{"t":"Secret_reply","answer":"none"}"#,
+    ] {
+        expect(
+            SecretReply::parse(text.as_bytes()),
+            "SecretReply",
+            "tag",
+            "t",
+        );
+    }
+    expect(
+        SecretReply::parse(br#"{"t":1,"answer":"none"}"#),
+        "SecretReply",
+        "not_a_string",
+        "t",
+    );
+    expect(
+        SecretReply::parse(br#"{"answer":"none"}"#),
+        "SecretReply",
+        "missing_key",
+        "t",
+    );
+}
+
+#[test]
+fn a_secret_reply_with_a_key_that_the_contract_does_not_name_is_refused_for_each_answer() {
+    for keys in [
+        r#""answer":"stored","value":"tok_fixture","x":1"#,
+        r#""answer":"none","origin":"http://pay.test:18090""#,
+        r#""answer":"unreadable","member":"locked","bound":"yes""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        );
+    }
+    let mut names: Vec<&str> = NAMES.to_vec();
+    names.extend([
+        "x", "", "T", "Answer", "Value", "Member", "answers", "values", "members", "t2", "bound",
+        "pid", "created", "group", "ref", "secret", "request", "result", "decision", "reply",
+        "endpoint", "reason", "outcome", "origin",
+    ]);
+    names.retain(|name| !["t", "answer", "value", "member"].contains(name));
+    for answer in [
+        r#""answer":"stored","value":"tok_fixture""#,
+        r#""answer":"none""#,
+        r#""answer":"unreadable","member":"fault""#,
+    ] {
+        for name in &names {
+            let after = secret_reply(&format!(r#"{answer},"{name}":null"#));
+            expect(
+                SecretReply::parse(after.as_bytes()),
+                "SecretReply",
+                "unknown_key",
+                "-",
+            );
+            let before = secret_reply(&format!(r#""{name}":"x",{answer}"#));
+            expect(
+                ToRunner::parse(before.as_bytes()),
+                "SecretReply",
+                "unknown_key",
+                "-",
+            );
+        }
+    }
+}
+
+#[test]
+fn every_reply_frame_is_counted_on_the_bytes_given_by_its_own_parse() {
+    type Parse = fn(&[u8]) -> Result<(), Refusal>;
+    let parses: [(&str, &str, Parse); 6] = [
+        ("store_reply", "StoreReplyFrame", |b| {
+            StoreReplyFrame::parse(b).map(drop)
+        }),
+        ("confirm_reply", "ConfirmReply", |b| {
+            ConfirmReply::parse(b).map(drop)
+        }),
+        ("handback_reply", "HandbackReply", |b| {
+            HandbackReply::parse(b).map(drop)
+        }),
+        ("secret_reply", "SecretReply", |b| {
+            SecretReply::parse(b).map(drop)
+        }),
+        ("bind_reply", "BindReply", |b| BindReply::parse(b).map(drop)),
+        ("browser_reply", "BrowserReply", |b| {
+            BrowserReply::parse(b).map(drop)
+        }),
+    ];
+    let mut read = 0;
+    for text in to_runner() {
+        let Some((_, type_name, parse)) = parses
+            .iter()
+            .find(|(t, _, _)| text.starts_with(&format!(r#"{{"t":"{t}""#)))
+        else {
+            continue;
+        };
+        read += 1;
+        let room = FRAME_JSON_MAX - text.len();
+        let at = format!("{{{}{}", " ".repeat(room), &text[1..]);
+        assert_eq!(at.len(), FRAME_JSON_MAX);
+        assert!(parse(at.as_bytes()).is_ok(), "{text}");
+        assert!(ToRunner::parse(at.as_bytes()).is_ok(), "{text}");
+        for over in [
+            format!("{}{text}", " ".repeat(room + 1)),
+            format!("{text}{}", "\n".repeat(room + 1)),
+            format!("{{{}{}", "\t".repeat(room + 1), &text[1..]),
+        ] {
+            let refusal = parse(over.as_bytes()).expect_err(&text);
+            assert_eq!(
+                (refusal.cause(), refusal.type_name(), refusal.rule()),
+                (RefusalCause::Length, *type_name, "frame_length"),
+                "{text}"
+            );
+        }
+    }
+    assert_eq!(read, 14);
+}
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_secret_reply_one_byte_over_the_frame_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"t":"secret_reply","answer":"none"}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [FRAME_JSON_MAX, FRAME_JSON_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = SecretReply::parse(input.as_bytes());
+            if len > FRAME_JSON_MAX {
+                refused_with(parsed, RefusalCause::Length, "SecretReply", "frame_length");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "SecretReply", "json");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_reply_frame_is_counted_in_bytes_and_every_carriage_return_counts() {
+    let head = r#"{"t":"secret_reply","answer":"stored","value":""#;
+    let wide = |len: usize| {
+        let room = len - head.len() - 2;
+        format!(
+            "{head}{}{}\"}}",
+            "c".repeat(room % 2),
+            "\u{e9}".repeat(room / 2)
+        )
+    };
+    let at = wide(FRAME_JSON_MAX);
+    assert_eq!(at.len(), FRAME_JSON_MAX);
+    assert!(SecretReply::parse(at.as_bytes()).is_ok());
+    let over = wide(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    assert!(over.chars().count() <= FRAME_JSON_MAX / 2 + head.len());
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let browser = r#"{"t":"browser_reply"}"#;
+    let returns = |len: usize| format!("{browser}{}", "\r".repeat(len - browser.len()));
+    assert!(BrowserReply::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    assert!(ToRunner::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    let over = returns(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    refused_with(
+        BrowserReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "BrowserReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let secret = r#"{"t":"secret_reply","answer":"none"}"#;
+    let over = format!("{secret}{}", "\r".repeat(FRAME_JSON_MAX + 1 - secret.len()));
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
 }

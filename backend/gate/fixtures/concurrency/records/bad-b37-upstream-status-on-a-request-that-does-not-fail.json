@@ -1,0 +1,56 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a 502 upstream-failed with an upstream status for a request whose mock answers normally",
+  "source": "by hand",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"upstream-failed\",\"status\":500}",
+    "headersAt": 1800,
+    "endedAt": 1870,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1589,
+      "expiresAt": 4589
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "created_at": 1589,
+    "expires_at": 4589,
+    "ended_at": 4591,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1700,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 1750,
+      "id": "r",
+      "ev": "end",
+      "clean": false
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

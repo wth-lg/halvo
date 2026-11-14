@@ -1,0 +1,77 @@
+{
+  "expect": "FAIL licenses: 25 problems; first: an exception does not name one package by its exact name, without *, and its versions: {\"package\":\"@img/sharp-libvips-*\",\"versions\":[\"1.3.4\"],\"license\":\"LGPL-3.0-or-later\",\"reason\":\"A test tool.\"}",
+  "exceptions": [
+    {
+      "package": "@img/sharp-libvips-*",
+      "versions": [
+        "1.3.4"
+      ],
+      "license": "LGPL-3.0-or-later",
+      "reason": "A test tool."
+    },
+    {
+      "package": "@img/sharp-wasm32",
+      "versions": [
+        "0.35.5"
+      ],
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "reason": "A test tool."
+    },
+    {
+      "package": "@img/sharp-win32-arm64",
+      "versions": [
+        "0.35.5"
+      ],
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "A test tool."
+    },
+    {
+      "package": "@img/sharp-win32-ia32",
+      "versions": [
+        "0.35.5"
+      ],
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "A test tool."
+    },
+    {
+      "package": "@img/sharp-win32-x64",
+      "versions": [
+        "0.35.5"
+      ],
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "A test tool."
+    },
+    {
+      "package": "@speed-highlight/core",
+      "versions": [
+        "1.2.24"
+      ],
+      "license": "CC0-1.0",
+      "reason": "A test tool."
+    },
+    {
+      "package": "lightningcss*",
+      "versions": [
+        "1.33.0"
+      ],
+      "license": "MPL-2.0",
+      "reason": "A test tool."
+    },
+    {
+      "package": "tslib",
+      "versions": [
+        "1.14.1",
+        "2.9.1"
+      ],
+      "license": "0BSD",
+      "reason": "A test tool."
+    }
+  ],
+  "packages": [
+    {
+      "id": "lightningcss-linux-riscv64-gnu@1.33.0",
+      "license": "MPL-2.0",
+      "cached": true
+    }
+  ]
+}

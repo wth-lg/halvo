@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "bytes": 10,
+      "day": "2026-11-08",
+      "events": 1,
+      "modality": "screen_frame"
+    },
+    {
+      "bytes": 20,
+      "day": "2026-11-08",
+      "events": 2,
+      "modality": "keystroke"
+    },
+    {
+      "bytes": 30,
+      "day": "2026-11-08",
+      "events": 3,
+      "modality": "pointer"
+    },
+    {
+      "bytes": 40,
+      "day": "2026-11-08",
+      "events": 4,
+      "modality": "foreground_app"
+    },
+    {
+      "bytes": 50,
+      "day": "2026-11-08",
+      "events": 5,
+      "modality": "window_title"
+    },
+    {
+      "bytes": 60,
+      "day": "2026-11-08",
+      "events": 6,
+      "modality": "system_audio"
+    },
+    {
+      "bytes": 70,
+      "day": "2026-11-08",
+      "events": 7,
+      "modality": "microphone"
+    },
+    {
+      "bytes": 80,
+      "day": "2026-11-08",
+      "events": 8,
+      "modality": "camera"
+    }
+  ]
+}

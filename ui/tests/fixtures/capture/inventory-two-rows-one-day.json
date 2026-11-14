@@ -1,0 +1,16 @@
+{
+  "rows": [
+    {
+      "bytes": 300,
+      "day": "2026-11-08",
+      "events": 3,
+      "modality": "screen_frame"
+    },
+    {
+      "bytes": 70,
+      "day": "2026-11-08",
+      "events": 7,
+      "modality": "keystroke"
+    }
+  ]
+}

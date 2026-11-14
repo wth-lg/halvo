@@ -1,0 +1,45 @@
+{
+  "kind": "judge",
+  "ruling": "B-36",
+  "about": "a request lost in transport whose earlier attempt left a hold that is still open after its expiry: the row is read by every clause",
+  "source": "evidence/researcher-check50/runs: the body of 320 lost attempts, its scratch directory masked as SCRATCH",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+      }
+    ]
+  },
+  "row": {
+    "state": "open",
+    "ended_at": null,
+    "ended_seq": null,
+    "ended_by": null
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 0,
+      "open": 100
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "no-open-after-expiry",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

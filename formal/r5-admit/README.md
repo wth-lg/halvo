@@ -31,6 +31,10 @@ runs the jar. Nothing of the product links it and no bundle ships it (L0.8).
 |---|---|
 | `Admit.tla` | the model: the step relation of one edit, the system, the properties Q1 to Q14 |
 | `Admit.cfg` | the configuration that TLC checks |
+| `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push: `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
+| `record.txt` | the record of the runs that are too long for a push (see "The record") |
+| `runs.txt` | the wrong designs and the reach runs, one run per line with its bound (see "The record") |
+| `record.sh` | the writer of `record.txt`, one TLC run for each call (see "Writing the record") |
 | `Reach.tla` | states and steps that the system must be able to reach, each with its negation for TLC to violate |
 | `Export.tla`, `Export.cfg` | the module and the configuration under which TLC prints the table and the traces |
 | `export.sh` | the only writer of the two files below |
@@ -149,59 +153,61 @@ the newest.
 ## The wrong designs
 
 `Fault` is `"none"` in `Admit.cfg`. Each other value puts one wrong design in place of
-the rule. The table gives what TLC reports when it checks such a copy with every
-property of `Admit.cfg` and one worker: the first property that the search meets. A
-design may break others too. In the column of the bound, `3 runs` is `RunsMax` 3 with
-`RunsOnBothSteps` 2, `4 runs` is `RunsMax` 4 with `RunsOnBothSteps` 2, and `one step` is
-`RunsOnBothSteps` 0; each is a part of the bound of `Admit.cfg`. The outputs are kept in
-the learning run's ledger, under `evidence/formal-verification-3/`.
+the rule. The table gives each design, where it comes from and what it changes.
+`runs.txt` gives each design as one line `design <Fault> <RunsMax> <RunsOnBothSteps>
+<EditMax> <property>`: its bound, a part of the bound of `Admit.cfg`, and the property
+that TLC reports when it checks such a copy with every property of `Admit.cfg` and one
+worker, the first that the search meets. A design may break others too. `record.txt`
+gives the distinct states of each run, and the check reads those two files and not this
+table. The outputs of an earlier form of the model are kept in the learning run's ledger
+under `evidence/formal-verification-3/`.
 
-| `Fault` | from | what it changes | TLC reports | distinct states | bound | output |
-|---|---|---|---|---|---|---|
-| `serve_reverted` | L12, the first control copy; review `load_serves_reverted` | `load_steps` may serve a `reverted` edit | Q1 | 1,980 | 3 runs | `runs/w-serve_reverted.txt` |
-| `serve_lower` | review `load_serves_lower` | `load_steps` also reads edits of a lower compile number | Q1 | 603 | 3 runs | `runs/w-serve_lower.txt` |
-| `stale_top` | verifier b1 | `load_steps` chooses the edit under compile number 1, whatever the newest is | Q1 | 603 | 3 runs | `runs/w-stale_top.txt` |
-| `revert_compiled` | review revert-2 | after a revert `load_steps` serves the compiled step, not the `active` edit that the reverted one was built on | Q1 | 88,829 | 5 runs, one step | `runs/w-revert_compiled.txt` |
-| `keep_unverified` | first round | a candidate of a run that is not verified is kept | Q2 | 32 | 3 runs | `runs/w-keep_unverified.txt` |
-| `keep_unrecovered` | first round | a candidate is kept without a `recovered` line | Q2 | 32 | 3 runs | `runs/w-keep_unrecovered.txt` |
-| `no_scope` | first round | `admit` does not answer `scope` | Q3 | 362 | 3 runs | `runs/w-no_scope.txt` |
-| `base_any_state` | first round | the base of a new edit is the newest edit of the step in any state | Q4 | 1,964 | 3 runs | `runs/w-base_any_state.txt` |
-| `no_bar_at_finish` | first round | `admit` bars a locator, the check at `finish` does not | Q5 | 6,889 | 5 runs, one step | `runs/w-no_bar_at_finish.txt` |
-| `revert_active` | first round | `active` with `use_fail_counted` answers `reverted` | Q6 | 13,327 | 5 runs, one step | `runs/w-revert_active.txt` |
-| `double_use` | review uses-1 | one run makes two `use_ok` moves on the edit that it was served | Q6 | 599 | 3 runs | `runs/w-double_use.txt` |
-| `no_pending` | first round | a candidate is kept while the step has a `provisional` edit | Q7 | 821 | 3 runs | `runs/w-no_pending.txt` |
-| `repeat_kept` | first round | a locator that a proposal names twice is new twice | Q7 | 45 | 3 runs | `runs/w-repeat_kept.txt` |
-| `no_cut` | first round | a list is not cut to `ListMax` | Q7 | 9,907 | 3 runs | `runs/w-no_cut.txt` |
-| `stale_base` | first round | a candidate is kept after the compile number changed | Q7Step | 155 | 3 runs | `runs/w-stale_base.txt` |
-| `counted_ignored` | first round, gap 1 | a counted failure makes no move | Q8 | 597 | 3 runs | `runs/w-counted_ignored.txt` |
-| `counted_verified` | review revert-3 | a counted failure reverts only in a verified run | Q8 | 597 | 3 runs | `runs/w-counted_verified.txt` |
-| `ok_first` | review uses-4 | `step_ok` in a verified run wins over a counted line of the same log | Q8 | 600 | 3 runs | `runs/w-ok_first.txt` |
-| `revert_gone` | review revert-1 | a revert writes a row that is not a `reverted` row, so nothing is barred | Q8 | 597 | 3 runs | `runs/w-revert_gone.txt` |
-| `withdraw_last` | first round, gap 2 | `finish` withdraws the edits of a lower number after its use moves | Q9 | 1,993 | 3 runs | `runs/w-withdraw_last.txt` |
-| `no_finish_withdraw` | review restart-2 | `finish` withdraws nothing | Q9 | 1,070 | 3 runs | `runs/w-no_finish_withdraw.txt` |
-| `withdraw_below_loaded` | review restart-2, verifier b9 | `finish` withdraws only below the number that its run loaded | Q9 | 1,070 | 3 runs | `runs/w-withdraw_below_loaded.txt` |
-| `withdraw_newest_too` | review restart-1 | `finish` also withdraws the edits of the newest number | Q9 | 281 | 3 runs | `runs/w-withdraw_newest_too.txt` |
-| `second_commit_provisional_only` | review restart-4 | the compile's second commit withdraws only `provisional` edits | Q9 | 1,981 | 3 runs | `runs/w-second_commit_provisional_only.txt` |
-| `reverted_returns` | second round | a `reverted` edit with `use_ok` answers `provisional` | Q10 | 5,124 | 3 runs | `runs/w-reverted_returns.txt` |
-| `base_first` | review admit-2 | `build_list` puts the base edit's list first | Q11 | 9,858 | 3 runs | `runs/w-base_first.txt` |
-| `cut_front` | review admit-3 | `build_list` cuts from the front | Q11 | 10,850 | 3 runs | `runs/w-cut_front.txt` |
-| `left_ignores_base` | review B4 | `finish` does not take away the locators that the base edit lists | Q11 | 17,280 | 5 runs, one step | `runs/w-left_ignores_base.txt` |
-| `no_full` | review B4, the edit limit | neither `admit` nor the check at `finish` reads the edit limit | Q11 | 13,784 | 3 runs, `EditMax` 2 | `runs/w-no_full.txt` |
-| `compiled_new` | first round | a compiled locator counts as new | Q11Step | 7 | 3 runs | `runs/w-compiled_new.txt` |
-| `no_bar_admit` | review admit-1 | `admit` never answers `rejected`; the check at `finish` stays | Q11Step | 3,193 | 3 runs | `runs/w-no_bar_admit.txt` |
-| `held_compiled_only` | review admit-4 | `new_locators` is taken against the compiled locators alone | Q11Step | 593 | 3 runs | `runs/w-held_compiled_only.txt` |
-| `admit_stale` | LM-9, the model as it stood | `admit` takes a candidate of a run whose compile number is no longer the newest | Q11Step | 52 | 3 runs | `runs/w-admit_stale.txt` |
-| `no_bar` | L12, the second control copy | neither `admit` nor the check at `finish` bars a locator that a `reverted` edit brought | Q11Step | 3,193 | 3 runs | `runs/w-no_bar.txt` |
-| `bar_newest_revert` | verifier b5b | the rule's barred set holds what the newest `reverted` edit brought and no more | Q11Step | 26,343 | 4 runs | `runs/w-bar_newest_revert.txt` |
-| `ok_unverified` | review uses-3, verifier b6 | `use_ok` for a run that is not verified | Q12Step | 598 | 3 runs | `runs/w-ok_unverified.txt` |
-| `other_as_ok` | verifier b6b | `use_ok` for a verified run whose log holds a failure that does not count and no `step_ok` | Q12Step | 598 | 3 runs | `runs/w-other_as_ok.txt` |
-| `never_active` | reader `d12b_never_active` | the clean use that reaches K writes no row, so no edit becomes `active` | Q12Move | 5,143 | 3 runs | `runs/w-never_active.txt` |
-| `use_in_force` | review uses-2, verifier b10 | the use move goes to the edit in force at `finish`, not to the edit that was served | Q13 | 739 | 3 runs | `runs/w-use_in_force.txt` |
-| `lost_finish_moves` | review restart-3 | the `finish` of a lost run makes the use moves | Q13 | 1,099 | 3 runs | `runs/w-lost_finish_moves.txt` |
-| `lost_finish_withdraws` | review restart-3 | the `finish` of a lost run withdraws the edits of a lower number | Q13 | 1,073 | 3 runs | `runs/w-lost_finish_withdraws.txt` |
-| `keep_across_restart` | review restart-3 | a run keeps its facts and its candidates across a restart | Q13 | 11 | 3 runs | `runs/w-keep_across_restart.txt` |
-| `counted_of_either_step` | reader `d13b` | a counted line of one step also counts against the edit that was served on the other step | Q14 | 1,892 | 3 runs | `runs/w-counted_of_either_step.txt` |
-| `never_keep` | reader `dk_never_keep` | `finish` never keeps a candidate, so nothing is learned | nothing | 2,395 | 3 runs | `runs/w-never_keep.txt` |
+| `Fault` | from | what it changes |
+|---|---|---|
+| `serve_reverted` | L12, the first control copy; review `load_serves_reverted` | `load_steps` may serve a `reverted` edit |
+| `serve_lower` | review `load_serves_lower` | `load_steps` also reads edits of a lower compile number |
+| `stale_top` | verifier b1 | `load_steps` chooses the edit under compile number 1, whatever the newest is |
+| `revert_compiled` | review revert-2 | after a revert `load_steps` serves the compiled step, not the `active` edit that the reverted one was built on |
+| `keep_unverified` | first round | a candidate of a run that is not verified is kept |
+| `keep_unrecovered` | first round | a candidate is kept without a `recovered` line |
+| `no_scope` | first round | `admit` does not answer `scope` |
+| `base_any_state` | first round | the base of a new edit is the newest edit of the step in any state |
+| `no_bar_at_finish` | first round | `admit` bars a locator, the check at `finish` does not |
+| `revert_active` | first round | `active` with `use_fail_counted` answers `reverted` |
+| `double_use` | review uses-1 | one run makes two `use_ok` moves on the edit that it was served |
+| `no_pending` | first round | a candidate is kept while the step has a `provisional` edit |
+| `repeat_kept` | first round | a locator that a proposal names twice is new twice |
+| `no_cut` | first round | a list is not cut to `ListMax` |
+| `stale_base` | first round | a candidate is kept after the compile number changed |
+| `counted_ignored` | first round, gap 1 | a counted failure makes no move |
+| `counted_verified` | review revert-3 | a counted failure reverts only in a verified run |
+| `ok_first` | review uses-4 | `step_ok` in a verified run wins over a counted line of the same log |
+| `revert_gone` | review revert-1 | a revert writes a row that is not a `reverted` row, so nothing is barred |
+| `withdraw_last` | first round, gap 2 | `finish` withdraws the edits of a lower number after its use moves |
+| `no_finish_withdraw` | review restart-2 | `finish` withdraws nothing |
+| `withdraw_below_loaded` | review restart-2, verifier b9 | `finish` withdraws only below the number that its run loaded |
+| `withdraw_newest_too` | review restart-1 | `finish` also withdraws the edits of the newest number |
+| `second_commit_provisional_only` | review restart-4 | the compile's second commit withdraws only `provisional` edits |
+| `reverted_returns` | second round | a `reverted` edit with `use_ok` answers `provisional` |
+| `base_first` | review admit-2 | `build_list` puts the base edit's list first |
+| `cut_front` | review admit-3 | `build_list` cuts from the front |
+| `left_ignores_base` | review B4 | `finish` does not take away the locators that the base edit lists |
+| `no_full` | review B4, the edit limit | neither `admit` nor the check at `finish` reads the edit limit |
+| `compiled_new` | first round | a compiled locator counts as new |
+| `no_bar_admit` | review admit-1 | `admit` never answers `rejected`; the check at `finish` stays |
+| `held_compiled_only` | review admit-4 | `new_locators` is taken against the compiled locators alone |
+| `admit_stale` | LM-9, the model as it stood | `admit` takes a candidate of a run whose compile number is no longer the newest |
+| `no_bar` | L12, the second control copy | neither `admit` nor the check at `finish` bars a locator that a `reverted` edit brought |
+| `bar_newest_revert` | verifier b5b | the rule's barred set holds what the newest `reverted` edit brought and no more |
+| `ok_unverified` | review uses-3, verifier b6 | `use_ok` for a run that is not verified |
+| `other_as_ok` | verifier b6b | `use_ok` for a verified run whose log holds a failure that does not count and no `step_ok` |
+| `never_active` | reader `d12b_never_active` | the clean use that reaches K writes no row, so no edit becomes `active` |
+| `use_in_force` | review uses-2, verifier b10 | the use move goes to the edit in force at `finish`, not to the edit that was served |
+| `lost_finish_moves` | review restart-3 | the `finish` of a lost run makes the use moves |
+| `lost_finish_withdraws` | review restart-3 | the `finish` of a lost run withdraws the edits of a lower number |
+| `keep_across_restart` | review restart-3 | a run keeps its facts and its candidates across a restart |
+| `counted_of_either_step` | reader `d13b` | a counted line of one step also counts against the edit that was served on the other step |
+| `never_keep` | reader `dk_never_keep` | `finish` never keeps a candidate, so nothing is learned |
 
 | run | TLC reports | distinct states | bound | output |
 |---|---|---|---|---|
@@ -258,7 +264,8 @@ violated` for one that is checked on states, `Action property Q9 is violated` fo
 that is checked on steps.
 
 For a wrong design, change the line `Fault = "none"` in the copy of `Admit.cfg` and run
-with `-workers 1`. For a control copy, also put the one line `PROPERTY Q1` (with
+with `-workers 1`; `record.sh run DIR design <Fault>` makes that run with the bound
+that `runs.txt` gives the design. For a control copy, also put the one line `PROPERTY Q1` (with
 `serve_reverted`) or `PROPERTY Q5` (with `no_bar`) in place of the `PROPERTIES` block.
 
 The check has two parts: the run above, in which TLC must report none of Q1 to Q14,
@@ -280,33 +287,18 @@ Not<Name> is violated` or `Action property Never<Name> is violated`. Its trace i
 behaviour that reaches the state or makes the step. A name that its run does not
 report is a move that the model no longer makes, and the check fails.
 
+`runs.txt` holds each reach run as one line `reach <name> <RunsMax> <RunsOnBothSteps>`.
+The run sets the two bounds in a copy of `Admit.cfg`, puts the one line `INVARIANT <name>`
+(a name that starts with `Not`) or `PROPERTY <name>` (`Never`) in place of its
+`PROPERTIES` block, and checks `Reach.tla` with one worker. It reaches its target when TLC
+reports that line violated:
+
 ```sh
-reach() {
-    sed -e "s/RunsMax = 5/RunsMax = $3/" -e "s/RunsOnBothSteps = 3/RunsOnBothSteps = $4/" \
-        -e '/^PROPERTIES$/,$d' Admit.cfg >"$2.cfg"
-    printf '%s %s\n' "$1" "$2" >>"$2.cfg"
-    java -Xmx2g -XX:+UseParallelGC -cp "$TLA2TOOLS_JAR" tlc2.TLC -workers 1 \
-        -metadir "meta-$2" -config "$2.cfg" Reach >"$2.out" 2>&1
-    grep -q " $2 is violated" "$2.out" || echo "not reached: $2"
-}
-cd "$d"
-for name in TwoRunsHoldCandidates CompileUnderCandidate StopLeavesEdits LoadBeforeWithdrawal \
-    ProposalBeforeWithdrawal ProposalHoldsCompiled ProposalHoldsBarred EditsOnBothSteps \
-    StaleProposalRefused CauseBase CauseScope CauseLocator CauseRejected; do
-    reach INVARIANT "Not$name" 3 2
-done
-for name in RestartDropsCandidate FinishWithdrawsLeftEdits LostFinishBeforeWithdrawal \
-    UnverifiedRunReverts LowerServedNoMove; do
-    reach PROPERTY "Never$name" 3 2
-done
-for name in ProposalHoldsListed CandidateListedByBase ListCut EditLimit ActiveInForceAgain \
-    CauseFull; do
-    reach INVARIANT "Not$name" 5 0
-done
-reach PROPERTY NeverCountedOnActive 5 0
+grep '^reach ' formal/r5-admit/runs.txt
+TLA2TOOLS_JAR=/path/to/tla2tools.jar sh formal/r5-admit/record.sh run DIR reach NotTwoRunsHoldCandidates 3 2
 ```
 
-`$d` is the copy of the run above. The table gives each name with its line, its bound
+The table gives each name with its line, its bound
 and the distinct states that TLC had found when it reported the line, with one worker.
 
 | name | line of the configuration | bound | what is reached | distinct states |
@@ -341,6 +333,98 @@ With `Fault = "never_keep"` the run of `NotStopLeavesEdits` ends with no error, 
 2,395 distinct states: the model that never learns is seen by this run and by no
 property of `Admit.cfg`.
 
+## The record
+
+The run of `Admit.cfg` (section "Running TLC"), the runs of the wrong designs and the
+reach runs take too long for a push. `runs.txt` lists the designs and the reach runs,
+one run per line, in these two forms:
+
+```
+design <Fault> <RunsMax> <RunsOnBothSteps> <EditMax> <the property that TLC reports, or nothing>
+reach <Not name or Never name> <RunsMax> <RunsOnBothSteps>
+```
+
+Its first lines are:
+
+```
+design serve_reverted 3 2 3 Q1
+design serve_lower 3 2 3 Q1
+design stale_top 3 2 3 Q1
+```
+
+A person runs them on a development machine with `record.sh` (section "Writing the
+record"), and `record.txt` holds their result. The record has these lines, no others
+and no empty line:
+
+```
+stamp=<hex>
+full config=Admit.cfg states=<distinct states> properties=14 violated=0 workers=<n> run=<helper|nice19> seconds=<n>
+small config=Small.cfg states=<distinct states>
+design fault=<Fault> bound=<RunsMax>-<RunsOnBothSteps>-<EditMax> reports=<property or nothing> states=<distinct states>
+reach property=<Not name or Never name> bound=<RunsMax>-<RunsOnBothSteps> reached=yes states=<distinct states>
+```
+
+`stamp` is the hash of the model's files: the SHA-256 of one line per tracked file
+under `formal/r5-admit/` whose name ends in `.tla` or `.cfg`, each line the 64 hex
+digits of the file's bytes, two spaces and the file's path from the root of the
+repository, the lines sorted by path (item L0.4 of the contract). The `full` line says
+how the run of `Admit.cfg` ran: `workers` is TLC's `-workers`, `run` is `helper` for a
+run through the machine's queue of timed runs and `nice19` for a run beside it at the
+lowest priority, and `seconds` is the wall time, an observation and not a measurement.
+The `small` line holds the count of distinct states of `Small.cfg`, which the check finds
+again in every push. There is one `design` line and one `reach` line for each line of
+`runs.txt`, with the bound of that line.
+
+The stamp shows which files the record names: a change of a `.tla` or `.cfg` file gives
+another stamp, and the check then fails. It does not show that the runs took place. The
+check cannot tell a record written from runs from one written by hand. The committed
+writer, `record.sh`, is what lets a reader make the record again from the files and
+compare it line by line.
+
+`scripts/r5/ci.d/30-r5-formal.sh` computes the stamp from the files in the tree and reads
+`runs.txt`; it reads no list of this file. It fails with `record` when the record is
+missing, holds no stamp or another stamp, lacks one of these lines, holds a line of
+another form, one line twice or an empty line, or has a `small` line whose count is not
+the count of the push's small run, and when `runs.txt` is missing, holds a line of
+another form or one run twice, or lists no design or no reach run. So a change of a
+`.tla` or `.cfg` file, and a line added to or changed in `runs.txt`, each need a new
+record from runs at those files. The check reads the form of `workers`, `run` and
+`seconds` and not their values, and of all the `states` fields it reads the `small`
+line's alone. On every failure the check writes `fix.txt` into its artifacts directory
+(`target/ci-artifacts/30-r5-formal/` when no driver gives one): the cause, the file and
+the section to read, and the command to run again.
+
+## Writing the record
+
+`record.sh` writes the record from the files of this directory and from nothing else:
+
+```sh
+d=$(mktemp -d)
+export TLA2TOOLS_JAR=/path/to/tla2tools.jar
+sh formal/r5-admit/record.sh list
+sh formal/r5-admit/record.sh run "$d" full 4 nice19
+sh formal/r5-admit/record.sh run "$d" small
+sh formal/r5-admit/record.sh run "$d" design serve_reverted
+sh formal/r5-admit/record.sh run "$d" reach NotTwoRunsHoldCandidates 3 2
+sh formal/r5-admit/record.sh write "$d"
+```
+
+`list` prints the arguments of every run that the record needs: `full`, `small`, then one
+line for each line of `runs.txt`. Each call of `run` is one TLC run and nothing more, so
+a machine that queues its long runs takes one call for each entry of its queue. A run
+writes three files into the directory: TLC's output, the record's line and the stamp of
+the files when the run started. `write` puts the lines together: the stamp of the files
+now, the `full` line, the `small` line, then the design and reach lines in the order of
+`runs.txt`, and it writes nothing when a line is missing or a run's stamp is not the
+stamp now. Keep the directory with the evidence of the pull request that commits the
+record: a reviewer reads the outputs and can make any run again.
+
+Seconds that one run took on a machine of 16 cores under the load of other work
+(2026-11-12), in two rounds of all the runs: a design 1 to 524 and a reach run 1 to 62
+with one worker (the longest, `revert_compiled`, at a 1-minute load of 82), `small` 44
+with 3 workers, `full` 2,193 with 4 workers at the lowest priority. `sh
+formal/r5-admit/record.sh --help` states the arguments and the exit statuses.
+
 ## `edit-table.tsv`
 
 One line per row of L3.7, `<state>\t<move>\t<guard>\t<answer>\t<clean>`, sorted in byte
@@ -368,7 +452,8 @@ test of `edit_step` in the learning code holds it (L12).
 
 The first line is `{"seed":<n>,"count":<n>}`. Every later line is one trace,
 `{"moves":[{"move":"<move>","guard":"<guard>","answer":"<state or edit>","clean":<count or null>},...]}`,
-of 6 to 16 moves. `clean` is the next `clean`, and null where the answer is `edit`.
+of at most 16 moves, and the file holds at least 200 traces (L12); the committed file
+holds 200. `clean` is the next `clean`, and null where the answer is `edit`.
 
 To replay a trace, start with the state `none` and a `clean` of 0, and for each element
 of `moves` in order:
@@ -397,7 +482,8 @@ refuse. So the traces meet each of the 57 rows whatever the seed, and `export.sh
 when one is not met. In the committed file 199 of the 200 traces hold an `edit` answer.
 The numbers come from a generator that the
 module computes with whole numbers (`Lcg`), and not from TLC's or Java's random numbers.
-The export has run on macOS alone; nobody has compared its bytes with a run on Windows.
+The windows job of hosted run 43200258818 exported both files with the same bytes as the
+committed ones (`same=yes`), as its macos job did.
 
 ## `export.sh`
 
@@ -411,5 +497,5 @@ that file is not there. A file that is there and whose first line has another fo
 empty file among them, is refused with `usage`. To draw other traces, change the first
 line and run it again. A second run with the same first line writes the same bytes.
 `sh formal/r5-admit/export.sh --help` states the refusals `usage`, `java` and `jar`. A
-refusal writes no file and leaves none: where the script fetched the jar, it removes
-its temporary directory before it refuses.
+refusal writes no file. The script makes its temporary directories under `TMPDIR`, or
+`/tmp` when that is not set, and removes them when it ends, on every path out.

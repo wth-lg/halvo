@@ -357,7 +357,7 @@ async function wait(h) {
   for (;;) {
     const left = end - Date.now();
     if (left <= 0) break;
-    if (h.inflight > 0) {
+    if (h.inflight > 0 || h.writing > 0) {
       await sleep(10);
       continue;
     }
@@ -365,7 +365,7 @@ async function wait(h) {
     const moving = await h.page.evaluate(FINISH);
     const quiet = await h.page.evaluate(QUIET, [QUIET_MS, Math.max(1, end - Date.now())]);
     if (quiet === 'limit') break;
-    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
+    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.writing === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
   }
   h.flags.add('unsettled');
 }
@@ -383,19 +383,43 @@ function markup(value, key) {
   return value;
 }
 
+function note(h, line) {
+  h.trail.push(line);
+}
+
+function why(err) {
+  const c = err && (err.code || (err.cause && err.cause.code));
+  return String(c || (err && err.name) || 'unknown').replace(/\s+/g, '_');
+}
+
+/** Waits until the page has settled as a check reads it, the stub's own writes of calls.jsonl among what it waits for. */
+export async function settled(h) {
+  await settle(h);
+}
+
+/** The stub's lines for one page: each call that it rejected, refused or could not answer, and each fixture that it could not read. */
+export function trail(h) {
+  return h && Array.isArray(h.trail) ? h.trail.slice() : [];
+}
+
 async function fixture(h, name) {
   if (h.cache.has(name)) return h.cache.get(name);
   let res;
   try {
     res = await fetch(h.origin + '/__fixtures/' + name);
-  } catch {
+  } catch (err) {
+    note(h, 'stub fixture=' + name + ' cause=fetch_' + why(err));
     throw new Refusal('fixture', 'the fixtures directory could not be read at ' + name);
   }
-  if (!res.ok) throw new Refusal('fixture', 'no fixture ' + name);
+  if (!res.ok) {
+    note(h, 'stub fixture=' + name + ' cause=status_' + res.status);
+    throw new Refusal('fixture', 'no fixture ' + name);
+  }
   let value;
   try {
     value = JSON.parse(await res.text());
-  } catch {
+  } catch (err) {
+    note(h, 'stub fixture=' + name + ' cause=json_' + why(err));
     throw new Refusal('fixture', name + ' is no JSON');
   }
   h.cache.set(name, value);
@@ -428,6 +452,8 @@ function flush(h) {
   }
 }
 
+const REJECT = Symbol('reject');
+
 function fromTranscript(h, name, args) {
   const t = h.transcript;
   const line = t.lines[t.i];
@@ -452,12 +478,20 @@ function fromTranscript(h, name, args) {
   }
   t.i++;
   setImmediate(() => flush(h));
+  if (line.reject === true) return REJECT;
+  if (line.hold === true) return new Promise((wake) => h.held.push(wake));
   return h.transform ? h.transform(line.reply) : line.reply;
 }
 
 async function record(h, name, a) {
   h.calls++;
-  if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  if (!h.out) return;
+  h.writing++;
+  try {
+    await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  } finally {
+    h.writing--;
+  }
 }
 
 function unheld(h, fn) {
@@ -472,10 +506,25 @@ async function stub(h, name, args) {
   if (h.transcript) {
     const wrong = h.mismatch.length;
     const reply = fromTranscript(h, name, a);
-    if (logged && h.mismatch.length === wrong) await record(h, name, a);
+    if (h.mismatch.length !== wrong) note(h, 'stub call=' + name + ' refused cause=not_next_in_transcript');
+    try {
+      if (logged && h.mismatch.length === wrong) await record(h, name, a);
+    } catch (err) {
+      note(h, 'stub call=' + name + ' unanswered cause=record_' + why(err));
+      throw err;
+    }
+    if (reply === REJECT) {
+      note(h, 'stub call=' + name + ' rejected by=transcript');
+      throw new Error('the transcript rejects this call');
+    }
     return reply;
   }
-  if (logged) await record(h, name, a);
+  try {
+    if (logged) await record(h, name, a);
+  } catch (err) {
+    note(h, 'stub call=' + name + ' unanswered cause=record_' + why(err));
+    throw err;
+  }
   if (name === 'agents_next') {
     h.nexts++;
     if (h.nexts > 1 || h.closed) return h.closed ? { closed: 'yes' } : new Promise((wake) => h.held.push(wake));
@@ -493,6 +542,9 @@ async function stub(h, name, args) {
       return reply;
     }
     return await fixture(h, 'reply-ok.json');
+  } catch (err) {
+    note(h, 'stub call=' + name + ' unanswered cause=' + why(err));
+    throw err;
   } finally {
     h.inflight--;
   }
@@ -542,6 +594,8 @@ async function openWith(options, context, transform, inner) {
       actions: 0,
       errors: 0,
       mismatch: [],
+      trail: [],
+      writing: 0,
       closed: false,
       modes: null,
       word: false,
@@ -633,6 +687,12 @@ export async function act(h, { act: name, param, n, text } = {}) {
   } else if (name === 'typed') {
     await loc.pressSequentially(String(text === undefined || text === null ? '' : text));
     type = 'type';
+  } else if (await loc.evaluate((el) => Boolean(el.closest('[role="alertdialog"]') && el.closest('[role="alertdialog"]').matches(':modal')))) {
+    const on = () => loc.evaluate((el) => el === document.activeElement);
+    for (let i = 0; i < 40 && !(await on()); i++) await h.page.keyboard.press(h.build.walkKey);
+    if (!(await on())) throw new Error('act: the walk key does not reach data-act=' + name + ' in its confirmation');
+    await h.page.keyboard.press('Enter');
+    type = 'key';
   } else {
     await loc.click();
     type = 'click';
@@ -854,8 +914,11 @@ const HELPER = () => {
       const list = controls().filter((el) => (d ? d.contains(el) : !el.closest('[inert]')));
       const a = document.activeElement;
       const active = a && a !== document.body && a !== document.documentElement ? idOf(a) : 0;
+      const own = d ? d.querySelector('[data-param]') : null;
       return {
         dialog: Boolean(d),
+        dialogId: d ? idOf(d) : 0,
+        dialogParam: own ? own.getAttribute('data-param') : null,
         dialogs: dialogs().map(props),
         active,
         controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + (el.form ? idOf(el.form) : 0) + ':' + el.name : null, name: name(el) })),
@@ -871,6 +934,9 @@ const HELPER = () => {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       return list.map((id) => (byId.has(id) && byId.get(id).isConnected ? style(byId.get(id)) : null));
     },
+    element(id) {
+      return byId.get(id) || null;
+    },
     focus(id) {
       const el = byId.get(id);
       if (el) el.focus();
@@ -884,18 +950,19 @@ const HELPER = () => {
       const d = dialog();
       return d ? [d, ...d.querySelectorAll('*')].map(idOf) : [];
     },
-    closed(ids) {
+    closed(ids, more) {
       const gone = ids.every((id) => {
         const el = byId.get(id);
         return !el || !el.isConnected || !rendered(el);
       });
-      let modal = false;
+      let modals = [];
       try {
-        modal = document.querySelector(':modal') !== null;
+        modals = [...document.querySelectorAll(':modal')];
       } catch {
-        modal = false;
+        modals = [document.body];
       }
-      return gone && !modal && document.querySelector('[inert]') === null;
+      const next = modals.every((m) => more && role(m) === 'alertdialog');
+      return gone && next && document.querySelector('[inert]') === null;
     },
     sizes() {
       const small = [];
@@ -992,22 +1059,25 @@ async function walkCheck(h) {
   const b = await page.evaluate(() => window.__r4w.begin());
   const misses = new Set();
   const confirms = confirmItems(h);
-  if (confirms.length > b.dialogs.length) misses.add('dialog_missing');
+  if (confirms.length > 0 && b.dialogs.length === 0) misses.add('dialog_missing');
   for (const p of b.dialogs) {
     if (!p.modal) misses.add('dialog_not_modal');
     if (!p.label) misses.add('dialog_no_label');
     if (!p.description) misses.add('dialog_no_description');
     if (!p.inert) misses.add('dialog_not_inert');
   }
-  const safeAct = safeChoice(confirms[b.dialogs.length - 1]);
+  const safeAct = safeChoice(confirms.find((i) => i.item === b.dialogParam) || confirms[0]);
+  let safeId = null;
   if (b.dialog) {
     const idx = safeAct === null ? 0 : b.controls.findIndex((c) => c.name === safeAct);
     if (idx !== 0) misses.add('dialog_safe_not_first');
-    if (idx < 0 || b.active !== b.controls[idx].id) misses.add('dialog_not_taken');
+    if (idx >= 0) safeId = b.controls[idx].id;
+    if (b.active !== b.dialogId) misses.add('dialog_not_taken');
   }
   const stops = new Map();
   const first = b.active;
-  let start = first;
+  let start = b.dialog && first === b.dialogId ? 0 : first;
+  let firstStop = null;
   let back = false;
   let body = false;
   const max = b.controls.length * 2 + 8;
@@ -1024,6 +1094,10 @@ async function walkCheck(h) {
     if (s.outside) misses.add('dialog_focus_lost');
     if (b.dialog && body && b.controls.length && s.id !== b.controls[0].id) misses.add('dialog_focus_lost');
     body = false;
+    if (firstStop === null) {
+      firstStop = s.id;
+      if (b.dialog && s.id !== safeId) misses.add('dialog_safe_not_first');
+    }
     if (!stops.has(s.id)) stops.set(s.id, { style: s.style, ring: s.ring });
     if (start === 0) {
       start = s.id;
@@ -1085,14 +1159,15 @@ async function walkCheck(h) {
       await fresh.page.evaluate(HELPER);
       const fb = await fresh.page.evaluate(() => window.__r4w.begin());
       const target = safeAct === null ? fb.controls[0] : fb.controls.find((c) => c.name === safeAct);
-      const focused = fb.dialog && target ? await fresh.page.evaluate((id) => window.__r4w.focus(id), target.id) : false;
-      if (!focused) {
+      if (fb.dialog) await fresh.page.keyboard.press(key);
+      const reached = fb.dialog && target ? await fresh.page.evaluate((id) => document.activeElement === window.__r4w.element(id), target.id) : false;
+      if (!reached) {
         misses.add('dialog_not_closed');
       } else {
         const marks = await fresh.page.evaluate(() => window.__r4w.mark());
         await fresh.page.keyboard.press('Enter');
         await settle(fresh);
-        if (!(await fresh.page.evaluate((ids) => window.__r4w.closed(ids), marks))) misses.add('dialog_not_closed');
+        if (!(await fresh.page.evaluate((args) => window.__r4w.closed(args[0], args[1]), [marks, confirms.length > 1]))) misses.add('dialog_not_closed');
       }
     } finally {
       await fresh.close();

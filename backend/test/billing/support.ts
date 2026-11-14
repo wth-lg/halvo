@@ -102,6 +102,7 @@ export function subscriptionEvent(over: Partial<Extract<ProviderEvent, { kind: "
     customerId: "cus_1",
     state: "active",
     period: { start: 1_000, end: 2_592_001_000 },
+    endedAt: null,
     ...over,
   };
 }

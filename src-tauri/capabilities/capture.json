@@ -1,0 +1,18 @@
+{
+  "identifier": "capture",
+  "description": "The capture commands and the app version, for the window main of the app's own origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-capture-status",
+    "allow-inventory",
+    "allow-set-capture-state",
+    "allow-delete-all",
+    "allow-set-storage-cap",
+    "allow-onboarding-state",
+    "allow-request-permission",
+    "allow-open-permission-pane",
+    "core:app:allow-version"
+  ]
+}

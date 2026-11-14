@@ -1,0 +1,20 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1",
+  "about": "the base record judged with the S1 spike's ledger, which ends no hold voided at its expiry: line 1 does not hold, and the void after the expiry is the spike's violation",
+  "source": "by hand; written from the record good-b34-line1-voided-at-expiry-answered-after-it for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "no-open-after-expiry",
+        "id": "r"
+      }
+    ]
+  },
+  "ledger": "spike"
+}

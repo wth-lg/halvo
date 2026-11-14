@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "if (after.overrode) log({ event: \"cancel-overrides-order\" });",
+      "replace": "if (after.overrode) await host.deleteAll();"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "31"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 31, faults [",
+    "]: storage ("
+  ]
+}

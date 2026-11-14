@@ -1,0 +1,15 @@
+{
+  "kind": "sends-again",
+  "ruling": "B-35",
+  "about": "an attempt lost while the driver pauses the traffic for the kill is not sent again",
+  "source": "by hand",
+  "attempt": {
+    "status": null,
+    "error": "ECONNRESET",
+    "lost": []
+  },
+  "paused": true,
+  "expect": {
+    "sendsAgain": false
+  }
+}

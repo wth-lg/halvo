@@ -1,3 +1,4 @@
+use halvo_schema::executable::record::RUN_LIST_KEYS;
 use halvo_schema::executable::{self, AgentConfig, AgentRun};
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, FieldType, KindEntry, Origin,
@@ -24,13 +25,33 @@ fn keys(entry: &KindEntry) -> Vec<&'static str> {
 #[test]
 fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
     let names: Vec<&str> = executable::KINDS.iter().map(|k| k.name).collect();
-    assert_eq!(names, ["agent_config", "agent_run"]);
+    assert_eq!(
+        names,
+        [
+            "agent_config",
+            "agent_run",
+            "agent_playbook",
+            "agent_bindings",
+            "agent_effect",
+            "agent_log",
+            "agent_session",
+            "agent_checkpoint",
+            "agent_reply",
+            "agent_start",
+        ]
+    );
     let config = entry("agent_config");
     assert_eq!(config.class, RetentionClass::Kept);
     let run = entry("agent_run");
     assert_eq!(run.class, RetentionClass::Bounded { days: 93 });
     for kind in executable::KINDS {
-        assert_eq!(kind.origin, Origin::Capture, "{}", kind.name);
+        let capture = ["agent_config", "agent_run"].contains(&kind.name);
+        let origin = if capture {
+            Origin::Capture
+        } else {
+            Origin::Own
+        };
+        assert_eq!(kind.origin, origin, "{}", kind.name);
         assert_eq!(kind.family, "agent", "{}", kind.name);
         assert_eq!(kind.workflow_key, Some("workflow"), "{}", kind.name);
     }
@@ -91,16 +112,157 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
         expected.push((key, Count));
     }
     expected.push(("model", Name));
-    assert_eq!(run, expected);
+    assert_eq!(run[..expected.len()], expected);
+    let list: Vec<&str> = run[expected.len()..].iter().map(|(key, _)| *key).collect();
+    assert_eq!(list, RUN_LIST_KEYS);
+    let own_fields: [(&str, &[(&str, FieldType)]); 8] = [
+        (
+            "agent_playbook",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("number", Count),
+                ("n", Count),
+                ("step", Count),
+                ("step", Name),
+                ("step", OwnText),
+            ],
+        ),
+        (
+            "agent_bindings",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("rev", Count),
+                ("origins", OwnText),
+                ("slots", Name),
+                ("slots", OwnText),
+            ],
+        ),
+        (
+            "agent_effect",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("run", Id),
+                ("effect", Id),
+                ("seq", Count),
+                ("day", Day),
+                ("at", Instant),
+                ("state", Name),
+                ("class", Name),
+                ("digest", Hash),
+                ("kept", Name),
+                ("kept", OwnText),
+                ("fields", Count),
+                ("approval", Id),
+                ("cause", Name),
+            ],
+        ),
+        (
+            "agent_log",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("run", Id),
+                ("seq", Count),
+                ("day", Day),
+                ("at", Instant),
+                ("event", Name),
+                ("step", Count),
+                ("cause", Name),
+                ("model", Name),
+                ("ms", Count),
+                ("tokens_in", Count),
+                ("tokens_out", Count),
+            ],
+        ),
+        (
+            "agent_session",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("origin", OwnText),
+                ("rev", Count),
+                ("part", Count),
+                ("of", Count),
+                ("day", Day),
+                ("data", OwnText),
+            ],
+        ),
+        (
+            "agent_checkpoint",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("run", Id),
+                ("seq", Count),
+                ("day", Day),
+                ("at", Instant),
+                ("folder", OwnText),
+                ("workbook", OwnText),
+                ("copy", OwnText),
+                ("sha256", Hash),
+                ("bytes", Count),
+                ("state", Name),
+                ("left", Name),
+            ],
+        ),
+        (
+            "agent_reply",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("run", Id),
+                ("seq", Count),
+                ("day", Day),
+                ("at", Instant),
+                ("message", OwnText),
+                ("draft", OwnText),
+                ("effect", Id),
+                ("state", Name),
+            ],
+        ),
+        (
+            "agent_start",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("day", Day),
+                ("at", Instant),
+            ],
+        ),
+    ];
     for kind in executable::KINDS {
-        for (_, field_type) in kind.fields {
-            assert!(
-                ![Instant, Ordinal, Token, Text, OwnText].contains(field_type),
-                "{}",
-                kind.name
-            );
+        match kind.origin {
+            Origin::Capture => {
+                for (_, field_type) in kind.fields {
+                    assert!(
+                        ![Instant, Ordinal, Token, Text, OwnText].contains(field_type),
+                        "{}",
+                        kind.name
+                    );
+                }
+            }
+            Origin::Own => {
+                let (_, fields) = own_fields
+                    .iter()
+                    .find(|(name, _)| *name == kind.name)
+                    .unwrap_or_else(|| panic!("{}", kind.name));
+                assert_eq!(kind.fields, *fields, "{}", kind.name);
+            }
         }
     }
+    let own = executable::KINDS.iter().filter(|k| k.origin == Origin::Own);
+    assert_eq!(own.count(), own_fields.len());
 }
 
 #[test]
@@ -120,7 +282,7 @@ fn each_example_is_one_record_that_the_store_and_the_strict_reader_take_alike() 
             .unwrap(),
         run.example
     );
-    assert_eq!(keys(run).len(), 19);
+    assert_eq!(keys(run).len(), 19 + RUN_LIST_KEYS.len());
 }
 
 #[test]

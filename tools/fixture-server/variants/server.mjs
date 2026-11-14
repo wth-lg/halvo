@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { Socket } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VARIANTS, createFixture, loadSeeds, startDayOf } from './fixture.mjs';
@@ -76,3 +77,9 @@ function stop() {
 
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
+
+if (process.stdin instanceof Socket && !process.stdin.isTTY) {
+  process.stdin.on('end', stop);
+  process.stdin.on('error', stop);
+  process.stdin.resume();
+}

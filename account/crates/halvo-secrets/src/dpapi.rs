@@ -216,6 +216,16 @@ impl Fs for WindowsFs {
     fn sync_dir(&self, _dir: &PathBuf) -> io::Result<()> {
         Ok(())
     }
+
+    fn names(&self, dir: &PathBuf) -> io::Result<Vec<String>> {
+        let mut names = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            if let Ok(name) = entry?.file_name().into_string() {
+                names.push(name);
+            }
+        }
+        Ok(names)
+    }
 }
 
 pub(crate) struct Dpapi;

@@ -1,0 +1,10 @@
+sides = "seen,unseen"
+seed = 20261113
+browser = "org.chromium.Chromium"
+streams = 240
+planted = 300
+interleave = 3
+noise = 3
+near_miss = 3
+day1 = 1767225600000000000
+canaries = []

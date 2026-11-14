@@ -19,6 +19,11 @@ defects_are() {
   [ "$defects" = "$2" ]
 }
 
+link_line() {
+  link_found=$(marker_defect "$1" "$2" "$gate_scratch/clean/store.db") || { emit_fail "$name" "$link_found"; return 1; }
+  emit_pass "$name"
+}
+
 cases() {
   scratch_root
   marker=HALVOMARKERselftest
@@ -44,6 +49,9 @@ cases() {
   t marker-dir-empty FAIL predicate_marker_absent "$gate_scratch/empty" "$marker"
   t no-store-key FAIL predicate_marker_absent "$gate_scratch/no-key" "$marker"
   t no-store-db FAIL predicate_marker_absent "$gate_scratch/no-db" "$marker"
+  mkdir -p "$gate_scratch/linked" && cp "$gate_scratch/clean/store.db" "$gate_scratch/clean/store.key" "$gate_scratch/linked/" && printf '%s\n' "$marker" > "$gate_scratch/outside-the-store" && ln -s "$gate_scratch/outside-the-store" "$gate_scratch/linked/note"
+  t symbolic-link-below-the-store FAIL predicate_marker_absent "$gate_scratch/linked" "$marker"
+  t symbolic-link-is-named FAIL fails_saying 'a symbolic link below the store directory' link_line "$gate_scratch/linked" "$marker"
   t unreadable-file-in-dir FAIL predicate_marker_absent "$gate_scratch/unreadable" "$marker"
   t marker-empty FAIL predicate_marker_absent "$gate_scratch/clean" ""
   t clean-capture PASS predicate_marker_not_printed "$marker" "$gate_scratch/stdout" "$gate_scratch/stderr"
@@ -103,6 +111,7 @@ cases() {
   line=$(printf '%s\nevents=0' "$good"); t events-0-on-a-second-line FAIL predicate_store_report "$line"
   line=$(printf '%s\nxrecords=1999' "$good"); t key-inside-another-word PASS predicate_store_report "$line"
   line=$(printf '%s\n\trecords=1999' "$good"); t records-1999-after-a-tab FAIL predicate_store_report "$line"
+  line=$(printf '%s\n\rrecords=1999' "$good"); t records-1999-after-a-carriage-return FAIL predicate_store_report "$line"
   no_prompt=$(with 's/ prompt=none//')
   line=$(printf '%s\tprompt=none' "$no_prompt"); t prompt-none-after-a-tab-is-read PASS predicate_store_report "$line"
 }

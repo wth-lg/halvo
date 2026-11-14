@@ -1,12 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { HERE, Refusal, refuse, installed } from './machine.mjs';
-import { serve, open, check } from './index.mjs';
+import { serve, open, check, act, trail } from './index.mjs';
 
 const SAMPLE = join(HERE, 'sample');
-const STATES = ['a', 'b'];
-const FILES = ['state-a.json', 'state-b.json', 'reply-ok.json', 'reply-next-same.json'];
+const STATES = ['a', 'b', 'c'];
+const FILES = ['state-a.json', 'state-b.json', 'state-c.json', 'reply-ok.json', 'reply-next-same.json'];
 const MODES = ['reduced_motion', 'forced_colors', 'width_320'];
 
 const FAULTS = {
@@ -30,6 +31,9 @@ const FAULTS = {
     { fault: 'dialog_role', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'inert_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'modal_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
+    { fault: 'alert_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
+    { fault: 'plain_next', state: 'c', want: (r) => r.names.includes('dialog_not_closed') },
+    { fault: 'skip_first', state: 'c', want: (r) => r.names.includes('dialog_safe_not_first') },
     { fault: 'safe_second', state: 'b', want: (r) => r.names.includes('dialog_safe_not_first') },
     { fault: 'body_stays', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
     { fault: 'dialog_plain', state: 'b', want: (r) => r.names.includes('dialog_missing') },
@@ -155,6 +159,28 @@ async function engine(origin) {
   }
 }
 
+async function stubLines(origin) {
+  const agent = JSON.parse(readFileSync(join(SAMPLE, 'state-a.json'), 'utf8')).snapshot.rows[0].agent;
+  const first = { state: JSON.parse(readFileSync(join(SAMPLE, 'state-a.json'), 'utf8')).snapshot };
+  const has = async (o, word, how) => {
+    const page = await open({ origin: o, views: ['/view.js'], ...how });
+    try {
+      await act(page, { act: 'delete', param: agent }).catch(() => {});
+      return trail(page).some((l) => l.includes(word));
+    } finally {
+      await page.close();
+    }
+  };
+  const rejected = await has(origin, 'rejected by=transcript', { replies: [first, { call: 'agents_control', args: { agent, action: 'delete' }, reject: true }] });
+  const refused = await has(origin, 'refused cause=not_next_in_transcript', { replies: [first, { call: 'agents_control', args: { agent, action: 'stop' }, reply: { ok: 'yes' } }] });
+  const dir = mkdtempSync(join(tmpdir(), 'r4-selftest-'));
+  for (const name of ['state-a.json', 'reply-next-same.json']) copyFileSync(join(SAMPLE, name), join(dir, name));
+  const bare = await serve({ ui: SAMPLE, fixtures: dir });
+  const unread = await has(bare, 'stub fixture=reply-ok.json cause=status_404', { state: 'a' });
+  const unanswered = await has(bare, 'stub call=agents_control unanswered', { state: 'a' });
+  return rejected && refused && unread && unanswered;
+}
+
 async function main() {
   if (process.argv.length > 2) throw new Refusal('usage', 'node tools/r4-page/selftest.mjs');
   installed();
@@ -198,8 +224,10 @@ async function main() {
     if (sample === 'ok' && fault === 'caught') passed++;
     process.stdout.write('selftest check=' + n + ' sample=' + sample + ' fault=' + fault + '\n');
   }
+  const lines = await stubLines(origin);
+  process.stdout.write('selftest stub_lines=' + (lines ? 'ok' : 'miss') + '\n');
   process.stdout.write('page self-test: ' + passed + ' of ' + checks.length + ' ok engine=' + (none ? 'none' : 'offline') + '\n');
-  process.exitCode = passed === checks.length ? 0 : 1;
+  process.exitCode = passed === checks.length && lines ? 0 : 1;
 }
 
 main().catch((err) => {

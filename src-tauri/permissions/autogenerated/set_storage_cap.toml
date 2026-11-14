@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-storage-cap"
+description = "Enables the set_storage_cap command without any pre-configured scope."
+commands.allow = ["set_storage_cap"]
+
+[[permission]]
+identifier = "deny-set-storage-cap"
+description = "Denies the set_storage_cap command without any pre-configured scope."
+commands.deny = ["set_storage_cap"]

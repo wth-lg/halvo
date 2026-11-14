@@ -30,9 +30,9 @@ fn names(dir: &Path) -> BTreeSet<String> {
 #[test]
 fn fixtures_same() {
     let dir = fresh_dir("fixtures_same");
-    assert_eq!(fixtures::write(&dir).unwrap(), 36);
+    assert_eq!(fixtures::write(&dir).unwrap(), 38);
     let written = names(&dir);
-    assert_eq!(written.len(), 36);
+    assert_eq!(written.len(), 38);
     assert_eq!(
         names(Path::new(TRACKED)),
         written,
@@ -65,7 +65,7 @@ fn a_second_write_changes_no_file() {
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
         .collect();
-    assert_eq!(fixtures::write(&dir).unwrap(), 36);
+    assert_eq!(fixtures::write(&dir).unwrap(), 38);
     let second: Vec<Vec<u8>> = names(&dir)
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
@@ -84,7 +84,7 @@ fn json(name: &str) -> Value {
 }
 
 #[test]
-fn the_files_are_the_35_of_i8_3() {
+fn the_files_are_those_of_i8_3() {
     let mut want: BTreeSet<String> = ["commands.json", "words.json", "reply-ok.json"]
         .iter()
         .map(|s| s.to_string())
@@ -110,8 +110,8 @@ fn the_files_are_the_35_of_i8_3() {
     ] {
         want.insert(format!("reply-error-{c}.json"));
     }
-    assert_eq!(State::ALL.len(), 19);
-    assert_eq!(want.len(), 36);
+    assert_eq!(State::ALL.len(), 21);
+    assert_eq!(want.len(), 38);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {
@@ -206,6 +206,8 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "kind",
                     "presenter",
                     "armed",
+                    "say_new",
+                    "say_gone",
                     "title",
                     "text",
                     "fields",
@@ -213,16 +215,26 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "choices",
                 ],
                 Some("label") => &["label", "value", "from", "from_text"],
-                Some("name") => &["name", "label", "candidates", "typed"],
+                Some("name") => &["name", "label", "candidates", "typed", "full", "too_long"],
                 Some("n") => &["n", "value", "from"],
                 Some("choice") => &["choice", "text", "safe"],
+                Some("key") if keys.get(2).map(String::as_str) == Some("fields") => {
+                    &["key", "text", "fields"]
+                }
                 Some("key") => &["key", "text"],
-                Some("day") => &["day", "text"],
+                Some("day") => &["day", "text", "effects"],
                 _ => panic!("{state}: an object with the keys {keys:?}"),
             };
             assert_eq!(keys, want, "{state}");
         }
         assert_eq!(o["card"].is_null(), *state != State::Card, "{state}");
+        for line in o["card"]["lines"].as_array().into_iter().flatten() {
+            let keys: Vec<&String> = line.as_object().unwrap().keys().collect();
+            assert!(
+                keys.len() == 2 && line["key"].is_string() && line["text"].is_string(),
+                "{state}: a card line holds {keys:?}"
+            );
+        }
         let snap = o["snapshot"].as_object().unwrap();
         assert_eq!(snap["seq"], 1);
         let rows = snap["rows"].as_array().unwrap();
@@ -377,7 +389,7 @@ fn labels(class: &str, fields: &[&str], effects: usize) -> Vec<String> {
 
 #[test]
 fn the_states_hold_the_counts_of_i9_4() {
-    assert_eq!(State::ALL.len(), 19, "That is 19 states.");
+    assert_eq!(State::ALL.len(), 21, "That is 21 states.");
 
     let empty = snapshot("empty");
     assert_eq!(empty["rows"].as_array().unwrap().len(), 0);
@@ -467,4 +479,49 @@ fn the_states_hold_the_counts_of_i9_4() {
         words::text("note.no_service", &[]).unwrap().as_str(),
         "and the note"
     );
+}
+
+/// Every item of every state says that it comes and that it goes with the name of its agent's
+/// row, and each parameter holds the sentence for a full line only where it is typed (I3.4).
+#[test]
+fn every_item_says_its_coming_and_going_with_its_agents_name() {
+    let full = words::text("param_typed.full", &[]).unwrap();
+    let too_long = words::text("param_typed.too_long", &[]).unwrap();
+    let mut items = 0;
+    for state in State::ALL {
+        let snap = snapshot(state.name());
+        for item in snap["items"].as_array().unwrap() {
+            let row = snap["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["agent"] == item["agent"])
+                .unwrap();
+            let name = [("name", row["name"].as_str().unwrap())];
+            assert_eq!(
+                item["say_new"],
+                words::text("say.item.new", &name).unwrap().as_str()
+            );
+            assert_eq!(
+                item["say_gone"],
+                words::text("say.item.gone", &name).unwrap().as_str()
+            );
+            for p in item["params"].as_array().unwrap() {
+                let want = if p["typed"] == "yes" {
+                    full.as_str()
+                } else {
+                    ""
+                };
+                assert_eq!(p["full"], want, "{}", state.name());
+                let want = if p["typed"] == "yes" {
+                    too_long.as_str()
+                } else {
+                    ""
+                };
+                assert_eq!(p["too_long"], want, "{}", state.name());
+            }
+            items += 1;
+        }
+    }
+    assert!(items > 0);
 }

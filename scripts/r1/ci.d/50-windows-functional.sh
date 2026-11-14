@@ -6,8 +6,12 @@ name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
 failing_fixtures=27
+fixtures_at_once=4
 LC_ALL=C
 export LC_ALL
+cr=$(printf '\r')
+nl='
+'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -16,19 +20,20 @@ fail() {
 
 expected_tests() {
   cat <<'EOF'
+a_dropped_keyboard_source_stops_capturing
 c1_raw_input_delivers_keystrokes_and_pointer_events
 c2_screen_source_delivers_a_frame
 c3_foreground_source_reports_an_activated_window
 c4_window_title_source_reports_a_title_change
 c5_installed_software_returns_registry_entries
 c8_display_affinity_exclude_from_capture_is_set_and_read_back
+c8b_window_destroyed_after_the_last_capture_session
 c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
-known_defect::a_dropped_keyboard_source_keeps_capturing RR-windows-11
+keys_queued_before_a_stop_are_delivered_or_counted
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
-known_defect::pointer_moves_are_not_coalesced RR-windows-09
-known_defect::stop_with_a_full_sink RR-windows-11
 known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
 known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
 known_defect::x15_a_held_key RR-windows-16
@@ -36,21 +41,64 @@ known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
 known_defect::x1_keystrokes_typed_into_a_password_field RR-windows-01
 known_defect::x2_window_title_events_for_other_windows_and_controls RR-windows-08
 known_defect::x3_attribution_before_the_first_foreground_change RR-windows-10
+pointer_moves_coalesce
+stop_with_a_full_sink
+x12_screen_source_fifteen_start_stop_cycles
 x13_frames_on_a_static_screen
+x5_screen_source_stop_and_start_again
 x7_capture_border_on_the_screen
 x8_raw_input_across_the_integrity_boundary
 x9_screen_source_across_a_display_mode_change
 EOF
 }
 
+scan_log() {
+  summary=
+  panics=0
+  panic_lines=
+  markers=0
+  marker=
+  before_marker=
+  timed_out=no
+  prev=
+  while IFS= read -r line || [ -n "$line" ]; do
+    while :; do
+      case $line in
+        *"$cr"*) line=${line%%"$cr"*}${line#*"$cr"} ;;
+        *) break ;;
+      esac
+    done
+    printf '    | %s\n' "$line"
+    case $line in
+      'test result: '*) summary=${line#'test result: '} ;;
+    esac
+    case $line in
+      "thread '"*" panicked at "*)
+        panics=$((panics + 1))
+        panic_lines=$panic_lines$line$nl
+        ;;
+    esac
+    case $line in
+      'KNOWN-DEFECT '*)
+        markers=$((markers + 1))
+        if [ "$markers" -eq 1 ]; then
+          marker=$line
+          before_marker=$prev
+        fi
+        ;;
+    esac
+    case $line in
+      'TF '*' result=TIMEOUT'*) timed_out=yes ;;
+    esac
+    prev=$line
+  done <"$1"
+}
+
 judge() {
   verdict=FAIL
   id=
   cause=
-  out=$(tr -d '\r' <"$3")
-  summary=$(printf '%s\n' "$out" | sed -n 's/^test result: //p' | tail -n 1)
-  panics=$(printf '%s\n' "$out" | grep -c "^thread '.* panicked at ")
-  markers=$(printf '%s\n' "$out" | grep -c '^KNOWN-DEFECT ')
+  scan_log "$3"
   case $1 in
     known_defect::*) ;;
     *)
@@ -102,7 +150,6 @@ judge() {
       return 0
       ;;
   esac
-  marker=$(printf '%s\n' "$out" | grep '^KNOWN-DEFECT ')
   got=${marker#KNOWN-DEFECT }
   case $got in
     '' | *[!A-Za-z0-9-]*)
@@ -114,18 +161,32 @@ judge() {
     cause="the marker names $got, and the list of this script gives ${4:-no id} for the test"
     return 0
   fi
-  owner=$(printf '%s\n' "$out" | awk '/^KNOWN-DEFECT /{print prev; exit} {prev=$0}' |
-    sed -n "s/^thread '\([^']*\)'.* panicked at .*/\1/p")
+  owner=
+  case $before_marker in
+    "thread '"*"'"*" panicked at "*)
+      owner=${before_marker#"thread '"}
+      owner=${owner%%"'"*}
+      ;;
+  esac
   if [ -z "$owner" ]; then
     cause='a KNOWN-DEFECT line that no panic line comes right before'
     return 0
   fi
-  others=$(printf '%s\n' "$out" | grep "^thread '.* panicked at " | grep -c -v -F "thread '$owner'")
+  others=0
+  rest=$panic_lines
+  while [ -n "$rest" ]; do
+    panic=${rest%%"$nl"*}
+    rest=${rest#*"$nl"}
+    case $panic in
+      *"thread '$owner'"*) ;;
+      *) others=$((others + 1)) ;;
+    esac
+  done
   if [ "$others" -gt 0 ]; then
     cause="a panic on another thread than the thread $owner of the marker"
     return 0
   fi
-  if printf '%s\n' "$out" | grep -q '^TF .* result=TIMEOUT'; then
+  if [ "$timed_out" = yes ]; then
     cause='the test reached its time limit'
     return 0
   fi
@@ -188,7 +249,6 @@ measure() {
     want_id=$(awk -v test="$test" '$1 == test { print $2 }' "$work/expected")
     run_test "$test" "$log"
     code=$?
-    tr -d '\r' <"$log" | sed 's/^/    | /'
     judge "$test" "$code" "$log" "$want_id"
     case $verdict in
       pass) passed=$((passed + 1)) ;;
@@ -210,21 +270,19 @@ measure() {
   printf 'PASS %s\n' "$name"
 }
 
-check() {
-  case_name=$1
-  want=$2
-  printf '%s\n' "$3" >"$work/spec"
+launch() {
+  printf '%s\n' "$3" >"$work/spec-$1"
   if [ "$expected" = real ]; then
     expected_file=
   else
-    expected_file=$work/expected-$case_name
+    expected_file=$work/expected-$1
     printf '%s\n' "$expected" >"$expected_file"
   fi
-  out=$(
+  (
     PATH=$work/bin:$PATH
     CI_D_REPO=$work/repo
-    CI_D_ARTIFACTS=$work/artifacts-$case_name
-    STUB_SPEC=$work/spec
+    CI_D_ARTIFACTS=$work/artifacts-$1
+    STUB_SPEC=$work/spec-$1
     STUB_TF=$work/bin/tf-stub
     WF_EXPECTED_FILE=$expected_file
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
@@ -236,9 +294,26 @@ check() {
       WF_TIMEOUT_TOOL=$tool
       export WF_TIMEOUT_TOOL
     fi
-    sh "$0" 2>&1
-  )
-  code=$?
+    sh "$0" >"$work/out-$1" 2>&1
+    printf '%s\n' "$?" >"$work/code-$1"
+  ) &
+  running=$((running + 1))
+  if [ "$running" -ge "$fixtures_at_once" ]; then
+    wait
+    running=0
+  fi
+}
+
+check() {
+  case_name=$1
+  want=$2
+  if [ "$pass" = launch ]; then
+    launch "$@"
+    reset_knobs
+    return 0
+  fi
+  out=$(cat "$work/out-$case_name") || exit 2
+  code=$(cat "$work/code-$case_name") || exit 2
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
     "0:PASS $name") got=PASS ;;
@@ -267,6 +342,10 @@ check() {
   elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
+  reset_knobs
+}
+
+reset_knobs() {
   expected=$small
   STUB_EXE=one
   STUB_LIST_EXIT=0
@@ -309,9 +388,24 @@ if [ "$*" = --list ]; then
 fi
 [ "$#" -eq 4 ] && [ "$1 $2 $3" = '--ignored --exact --nocapture' ] || exit 97
 test=$4
-line=$(grep -F "$test|" "$STUB_SPEC" | head -n 1)
-kind=$(printf '%s\n' "$line" | cut -d '|' -f 2)
-id=$(printf '%s\n' "$line" | cut -d '|' -f 3)
+line=
+while IFS= read -r spec; do
+  case $spec in
+    *"$test|"*)
+      line=$spec
+      break
+      ;;
+  esac
+done <"$STUB_SPEC"
+rest=${line#*|}
+kind=${rest%%|*}
+id=
+case $rest in
+  *'|'*)
+    id=${rest#*|}
+    id=${id%%|*}
+    ;;
+esac
 thread=tf-${test##*::}
 ok="test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s"
 failed="test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s"
@@ -386,16 +480,28 @@ self_test() {
   write_stubs
   rejected=0
   wrong=
-  nl='
-'
   small="c1_raw_input${nl}helper_child_window${nl}known_defect::x1_password RR-windows-01"
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
-  expected=$small
-  STUB_EXE=one
-  STUB_LIST_EXIT=0
-  limit=
-  tool=
+  reset_knobs
+  running=0
+  pass=launch
+  fixtures
+  wait
+  pass=judge
+  fixtures
 
+  if [ -n "$wrong" ]; then
+    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+    exit 1
+  fi
+  if [ "$rejected" -ne "$failing_fixtures" ]; then
+    printf 'FAIL self-test:%s (rejected %s failing fixtures, and the self-test holds %s)\n' "$name" "$rejected" "$failing_fixtures"
+    exit 1
+  fi
+  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+}
+
+fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
@@ -405,7 +511,7 @@ self_test() {
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=24 pass=13 known_defect=11 fail=0${nl}PASS $name"
+    "${nl}WF total=29 pass=21 known_defect=8 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \
@@ -471,16 +577,6 @@ self_test() {
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
-
-  if [ -n "$wrong" ]; then
-    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
-    exit 1
-  fi
-  if [ "$rejected" -ne "$failing_fixtures" ]; then
-    printf 'FAIL self-test:%s (rejected %s failing fixtures, and the self-test holds %s)\n' "$name" "$rejected" "$failing_fixtures"
-    exit 1
-  fi
-  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 
 case ${1:-} in

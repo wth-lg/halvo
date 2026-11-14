@@ -1,0 +1,8 @@
+{"v":1,"id":"019bbc69-acae-7837-8655-da67454442be","at":1768392600750000000,"seq":58,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bbc69-acae-78c3-9609-acda1107f34e","at":1768392600750000000,"seq":59,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Goldfinch Rides","cut":false,"why":"app_change","site":{"domain":"goldfinch-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bbc69-ada8-761f-81ae-5636a7449a20","at":1768392601000000000,"seq":60,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bbc69-e746-75bb-ad61-4bb6e52d69a6","at":1768392615750000000,"seq":61,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fares - Goldfinch Rides","cut":false,"why":"title_change","site":{"domain":"goldfinch-rides.test","source":"address_field"}}}
+{"v":1,"id":"019bbc69-e840-7347-a1c3-578041d70255","at":1768392616000000000,"seq":62,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019bbc69-f7e0-737d-8939-e712b0927450","at":1768392620000000000,"seq":63,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
+{"v":1,"id":"019bbc6a-55a0-7c97-a816-86c770665157","at":1768392644000000000,"seq":64,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019bbc6a-5988-7a89-9464-6d936879fb3c","at":1768392645000000000,"seq":65,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

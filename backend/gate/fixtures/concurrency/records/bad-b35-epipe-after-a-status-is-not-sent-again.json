@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "B-35",
+  "about": "an attempt that had its status before EPIPE came is no lost send",
+  "source": "by hand",
+  "attempt": {
+    "status": 200,
+    "error": "EPIPE"
+  },
+  "expect": {
+    "resend": false
+  }
+}

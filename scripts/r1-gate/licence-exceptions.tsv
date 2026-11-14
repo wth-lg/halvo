@@ -1,0 +1,8 @@
+crate	licence	reason	confirmed
+cssparser	MPL-2.0	MPL-2.0 is file-level copyleft, and Halvo ships the crate unmodified with its notice	open: the owner confirms (units/gate-2.md, owner ask)
+cssparser-macros	MPL-2.0	MPL-2.0 is file-level copyleft, and Halvo ships the crate unmodified with its notice	open: the owner confirms (units/gate-2.md, owner ask)
+dtoa-short	MPL-2.0	MPL-2.0 is file-level copyleft, and Halvo ships the crate unmodified with its notice	open: the owner confirms (units/gate-2.md, owner ask)
+option-ext	MPL-2.0	MPL-2.0 is file-level copyleft, and Halvo ships the crate unmodified with its notice	open: the owner confirms (units/gate-2.md, owner ask)
+selectors	MPL-2.0	MPL-2.0 is file-level copyleft, and Halvo ships the crate unmodified with its notice	open: the owner confirms (units/gate-2.md, owner ask)
+sqlcipher-src	blessing	blessing is the public-domain dedication of SQLite, which asks nothing of a binary that ships it	open: the owner confirms (units/gate-2.md, owner ask)
+sqlcipher-src	WTFPL	WTFPL covers one bundled file and asks nothing of a binary that ships it	open: the owner confirms (units/gate-2.md, owner ask)

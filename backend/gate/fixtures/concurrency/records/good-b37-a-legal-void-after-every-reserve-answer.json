@@ -1,0 +1,170 @@
+{
+  "kind": "judge",
+  "ruling": "B-37, read by P7-69 F1",
+  "about": "K is 2. A stream and a void were admitted, their receipts carry 1,010 and 1,011 ms, and the refusal came at 950 ms. The void ended its hold at 2,195 ms, after every reserve was answered and before its 503 reached the driver at 2,200 ms: the wave was held, and it counts with its K rows",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 3,
+      "switch": "usage-last",
+      "k": 2
+    },
+    "requests": [
+      {
+        "index": 0,
+        "sentAt": 1000,
+        "endedAt": 3005,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w0",
+          "amount": 100,
+          "now": 1010,
+          "expiresAt": 4010
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "",
+        "id": "w0",
+        "status": 200,
+        "headersAt": 1100
+      },
+      {
+        "index": 1,
+        "sentAt": 1000,
+        "endedAt": 2205,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w1",
+          "amount": 100,
+          "now": 1011,
+          "expiresAt": 4011
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"voided\"}",
+        "id": "w1",
+        "status": 503,
+        "headersAt": 2200
+      },
+      {
+        "index": 2,
+        "sentAt": 900,
+        "endedAt": 955,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "id": "w2",
+        "status": 403,
+        "headersAt": 950
+      }
+    ],
+    "mockEvents": [
+      {
+        "t": 1050,
+        "id": "w0",
+        "ev": "request"
+      },
+      {
+        "t": 2950,
+        "id": "w0",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 2990,
+        "id": "w0",
+        "ev": "end",
+        "clean": true
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 20
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 19,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 1,
+          "created_seq": 1,
+          "ended_seq": 11,
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w0",
+          "expires_at": 4010,
+          "state": "settled",
+          "created_at": 1010,
+          "ended_at": 3000,
+          "ended_by": "settle"
+        },
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 0,
+          "created_seq": 2,
+          "ended_seq": 10,
+          "input_tokens": null,
+          "output_tokens": null,
+          "cost": null,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w1",
+          "expires_at": 4011,
+          "state": "voided",
+          "created_at": 1011,
+          "ended_at": 2195,
+          "ended_by": "void"
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "held": true,
+      "streams": 1
+    }
+  }
+}

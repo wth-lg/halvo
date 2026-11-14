@@ -1,0 +1,39 @@
+{
+  "kind": "judge",
+  "ruling": "P7-69 F7 (the verifier's R59, the review's m6)",
+  "about": "a stream answered 200 with the receipt header, and no row under its id: the gateway streamed with no stored hold",
+  "source": "by hand",
+  "request": {
+    "status": 200,
+    "body": "",
+    "headersAt": 1100,
+    "endedAt": 2100,
+    "trailer": {
+      "settled": false,
+      "why": "the stream ended with no final usage"
+    }
+  },
+  "top": {
+    "final": {
+      "now": 9000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 9000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

@@ -522,6 +522,26 @@ const PAYMENT: [&str; 4] = [
     "site1.example",
 ];
 
+const MIXED_SEND: [&str; 3] = [
+    "Ann Lee",
+    "Rent receipt for October",
+    "Thank you. Your rent for October came in.",
+];
+
+const MIXED_DELETE: [&str; 1] = ["Draft to Ann Lee from October"];
+
+const CHANGED_BEFORE: [&str; 3] = [
+    "Ben Ola",
+    "Viewing on Friday",
+    "Friday at 10 works for the viewing.",
+];
+
+const CHANGED_SEND: [&str; 3] = [
+    "Ben Ola",
+    "Viewing on Friday",
+    "Friday at 11 works for the viewing.",
+];
+
 /// The items of the fixture states, composed from what each state holds, equal the items that
 /// the fixture files hold (I8.3).
 #[test]
@@ -538,6 +558,8 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
         "needs_check",
         "needs_confirm_page",
         "needs_confirm_native",
+        "needs_confirm_mixed",
+        "needs_confirm_changed",
     ];
     for state in states {
         let file = fixture(state);
@@ -642,6 +664,31 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                 .unwrap();
                 compose_confirm(&item, &ask, &armed(&ask), &Table::new())
             }
+            "confirm" if state == "needs_confirm_mixed" => {
+                let ask = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    vec![
+                        effect(1, Class::Send, bound(Class::Send, &MIXED_SEND)),
+                        effect(2, Class::Delete, bound(Class::Delete, &MIXED_DELETE)),
+                    ],
+                )
+                .unwrap();
+                compose_confirm(&item, &ask, &armed(&ask), &Table::new())
+            }
+            "confirm" if state == "needs_confirm_changed" => {
+                let earlier = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    vec![effect(1, Class::Send, bound(Class::Send, &CHANGED_BEFORE))],
+                )
+                .unwrap();
+                let table = released_table(&Table::new(), 9, &earlier, EffectAnswer::AllowOnce);
+                let mut again = effect(1, Class::Send, bound(Class::Send, &CHANGED_SEND));
+                again.digest = digest(2);
+                let ask = ConfirmAsk::new(run_id(1), agent.clone(), vec![again]).unwrap();
+                compose_confirm(&item, &ask, &armed(&ask), &table)
+            }
             "confirm" => {
                 let ask = ConfirmAsk::new(
                     run_id(1),
@@ -653,9 +700,92 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
             }
             other => panic!("{state}: kind {other}"),
         };
+        let composed = if want["kind"] == "confirm" {
+            composed.and_then(|i| i.said_by(name))
+        } else {
+            composed
+        };
         let composed = composed.unwrap_or_else(|e| panic!("{state}: {e}"));
         assert_eq!(&serde_json::to_value(&composed).unwrap(), want, "{state}");
     }
+}
+
+/// Every item that a compose function makes with the agent's name says it arrives and that it
+/// goes with that name, in the place of I3.4, after `armed` and before `title`; a confirmation
+/// gets both from `said_by`; a typed parameter says when its answer is full, and a parameter
+/// with candidates says nothing.
+#[test]
+fn an_item_says_its_coming_and_going_with_the_agents_name_and_a_typed_line_its_end() {
+    let new = words::text("say.item.new", &[("name", NAME)]).unwrap();
+    let gone = words::text("say.item.gone", &[("name", NAME)]).unwrap();
+    assert!(new.contains(NAME) && gone.contains(NAME) && new != gone);
+    let params = [
+        SetupParam {
+            param: Param::Start,
+            candidates: vec![(vec!["site1.example".to_owned()], CandidateFrom::Records)],
+        },
+        SetupParam {
+            param: Param::Instrument,
+            candidates: vec![],
+        },
+    ];
+    let origin = Origin::parse("https://site7.example:443").unwrap();
+    let mut items = vec![
+        compose_bind(&item_id(1), &agent_id(1), NAME, &origin).unwrap(),
+        compose_link_account(&item_id(1), &agent_id(1), NAME, &origin).unwrap(),
+        compose_check(&item_id(1), &agent_id(1), NAME, &[]).unwrap(),
+        compose_setup(
+            &item_id(1),
+            &agent_id(1),
+            NAME,
+            &params,
+            false,
+            &Limits::PRODUCT,
+        )
+        .unwrap(),
+    ];
+    for plain in [Plain::SignIn, Plain::Stuck, Plain::Ready, Plain::Show] {
+        items.push(compose_plain(&item_id(1), &agent_id(1), plain, NAME).unwrap());
+    }
+    let ask = ConfirmAsk::new(
+        run_id(1),
+        agent_id(1),
+        vec![effect(1, Class::Payment, bound(Class::Payment, &PAYMENT))],
+    )
+    .unwrap();
+    let confirm = compose_confirm(&item_id(1), &ask, &shown(&ask), &Table::new()).unwrap();
+    assert_eq!((confirm.say_new(), confirm.say_gone()), ("", ""));
+    items.push(confirm.said_by(NAME).unwrap());
+    for item in &items {
+        assert_eq!(
+            (item.say_new(), item.say_gone()),
+            (new.as_str(), gone.as_str())
+        );
+        let text = serde_json::to_string(item).unwrap();
+        let armed = format!(r#""armed":"{}","say_new":"#, item.armed().name());
+        let title = format!(
+            r#""say_gone":{},"title":"#,
+            serde_json::to_string(&gone).unwrap()
+        );
+        assert!(text.contains(&armed) && text.contains(&title), "{text}");
+        let json = serde_json::to_value(item).unwrap();
+        assert_eq!(json["say_new"], new.as_str());
+        assert_eq!(json["say_gone"], gone.as_str());
+    }
+    let setup = &items[3];
+    let full = words::text("param_typed.full", &[]).unwrap();
+    let got: Vec<(&str, &str)> = setup
+        .params()
+        .iter()
+        .map(|p| (p.typed.name(), p.full.as_str()))
+        .collect();
+    assert_eq!(got, vec![("no", ""), ("yes", full.as_str())]);
+    let json = serde_json::to_value(setup).unwrap();
+    assert_eq!(json["params"][1]["full"], full.as_str());
+    assert_eq!(json["params"][0]["full"], "");
+    let too_long = words::text("param_typed.too_long", &[]).unwrap();
+    assert_eq!(json["params"][1]["too_long"], too_long.as_str());
+    assert_eq!(json["params"][0]["too_long"], "");
 }
 
 /// The text of a key of the table with the count.

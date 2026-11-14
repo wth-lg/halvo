@@ -1,0 +1,114 @@
+{
+  "kind": "attempts",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (c): a cell is drawn at most five times",
+  "about": "two runs of one cell: the first draws three times and counts, the second draws twice and then meets the limit of the cell",
+  "source": "by hand",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 2
+  },
+  "attemptsByRun": [
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -100,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      }
+    ],
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      },
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -100,
+          "openAtKill": 0,
+          "streamAtKill": false
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-4",
+        "rigUnbuilt": false,
+        "discarded": 3
+      },
+      {
+        "key": "attempt-3",
+        "rigUnbuilt": true,
+        "discarded": 2
+      }
+    ]
+  }
+}

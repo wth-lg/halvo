@@ -1,0 +1,44 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4",
+  "about": "a 409 stopped for an id sent twice whose row settled without the mark before its expiry and with no upstream event: line 2 needs a void",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "state": "settled",
+    "dispatched": 0,
+    "ended_at": 2000,
+    "ended_by": "settle",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cost": 19
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 19,
+      "unreported": 0,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "settled-exact",
+        "id": "r"
+      }
+    ]
+  }
+}

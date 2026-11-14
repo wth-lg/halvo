@@ -1,0 +1,30 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1; B-51, condition no upstream event",
+  "about": "the mock logged a request under the id",
+  "source": "by hand",
+  "mockEvents": [
+    {
+      "t": 2000,
+      "id": "r",
+      "ev": "request"
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "voided-clean",
+        "id": "r"
+      },
+      {
+        "clause": "voided-at-expiry",
+        "id": "r"
+      }
+    ]
+  }
+}

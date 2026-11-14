@@ -18,15 +18,17 @@ function orderings(left: Record<End, number>): End[][] {
 function expected(order: End[], dispatched: boolean) {
   let state: "open" | "settled" | "voided" | "expired" = "open";
   let late = false;
+  let voidedAtExpiry = false;
   const totals = { reported: 0, unreported: 0, open: AMOUNT };
   const steps = order.map((end) => {
     let answer: unknown;
     if (end === "expire") {
       answer = state === "open" ? 1 : 0;
       if (state === "open") {
-        state = "expired";
+        state = dispatched ? "expired" : "voided";
+        voidedAtExpiry = !dispatched;
         totals.open = 0;
-        totals.unreported = AMOUNT;
+        totals.unreported = dispatched ? AMOUNT : 0;
       }
     } else if (end === "settle") {
       if (state === "open") {
@@ -44,7 +46,7 @@ function expected(order: End[], dispatched: boolean) {
       state = "voided";
       totals.open = 0;
       answer = { outcome: "voided" };
-    } else answer = state === "voided" ? { outcome: "voided" } : { outcome: "refused", reason: "already-ended" };
+    } else answer = state === "voided" && !voidedAtExpiry ? { outcome: "voided" } : { outcome: "refused", reason: "already-ended" };
     return { end, answer, totals: { ...totals }, state };
   });
   return { steps, late };

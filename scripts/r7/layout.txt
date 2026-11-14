@@ -59,7 +59,6 @@ P2	backend/test/contract/**
 P2	backend/gate/fixtures/schema/**
 P2	backend/gate/fixtures/contract/**
 P2	backend/scripts/contract-rules
-P2	backend/scripts/names-v0.sh
 P2	backend/stack.d/vars.env
 P2	backend/docs/baseline/first-fail/schema.txt
 P2	backend/docs/baseline/first-fail/contract.txt
@@ -83,5 +82,11 @@ P4	backend/docs/baseline/first-fail/cap.txt
 P4	backend/docs/baseline/first-fail/concurrency.txt
 P4	backend/docs/baseline/first-fail/model.txt
 P4	formal/r7-ledger/**
+P5	backend/src/metering/sync.ts
+P5	backend/src/metering/stripe-meter.ts
+P5	backend/test/metering/**
+P5	backend/gate/fixtures/metering/**
+P5	backend/docs/baseline/first-fail/metering.txt
 F.1	backend/.shellcheckrc
 F.1	formal/r7-ledger/.gitattributes
+F.4	backend/gate/fixtures/license-lists/**

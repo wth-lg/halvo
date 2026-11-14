@@ -1,7 +1,13 @@
 use crate::answer::{Delete, Fault, Locked, Read, Write};
 use crate::{Name, Secret};
 
-#[cfg(all(target_os = "macos", feature = "keychain"))]
+#[cfg(all(
+    target_os = "macos",
+    feature = "hosted-store-tests",
+    feature = "keychain"
+))]
+pub(crate) mod failing;
+#[cfg(target_os = "macos")]
 pub(crate) mod system;
 
 pub(crate) const ITEM_NOT_FOUND: i32 = -25300;
@@ -15,6 +21,24 @@ pub(crate) trait Keychain {
     fn data(&self, service: &str, account: &str) -> Result<Vec<u8>, i32>;
     fn add(&self, service: &str, account: &str, bytes: &[u8]) -> Result<(), i32>;
     fn delete(&self, service: &str, account: &str) -> Result<(), i32>;
+}
+
+impl<K: Keychain + ?Sized> Keychain for Box<K> {
+    fn count(&self, service: &str, account: &str) -> Result<usize, i32> {
+        (**self).count(service, account)
+    }
+
+    fn data(&self, service: &str, account: &str) -> Result<Vec<u8>, i32> {
+        (**self).data(service, account)
+    }
+
+    fn add(&self, service: &str, account: &str, bytes: &[u8]) -> Result<(), i32> {
+        (**self).add(service, account, bytes)
+    }
+
+    fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
+        (**self).delete(service, account)
+    }
 }
 
 pub(crate) struct KeychainItem<K> {
@@ -52,7 +76,7 @@ impl<K: Keychain> KeychainItem<K> {
         (self.service.as_str(), self.account.as_str())
     }
 
-    fn count(&self) -> Result<usize, Result<Locked, Fault>> {
+    pub(crate) fn count(&self) -> Result<usize, Result<Locked, Fault>> {
         let (service, account) = self.names();
         match self.keychain.count(service, account) {
             Ok(n) => Ok(n),

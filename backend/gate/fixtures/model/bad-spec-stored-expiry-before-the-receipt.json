@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "../formal/r7-ledger/CapLedger.tla",
+      "find": "interval |-> IntervalOf(now), expiresAt |-> now + Life,",
+      "replace": "interval |-> IntervalOf(now), expiresAt |-> now + Life - 1,"
+    }
+  ],
+  "line": ["FAIL model: ", "violated=StepB", "first failure: TLC reports that (b) is violated at the bounds of formal/r7-ledger/CapLedger.cfg"]
+}

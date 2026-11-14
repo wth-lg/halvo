@@ -14,7 +14,7 @@ fn refused_before_any_write(scratch: &Scratch, file: &str, sheet: &str, cell: &s
     let path = scratch.path(file);
     let before = fs::read(&path).expect("read");
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse(cell).expect("a range");
     let values = vec![vec![Value::Number(1.0)]];
@@ -48,7 +48,7 @@ fn a_cell_in_the_header_row_of_a_table_is_refused_and_the_body_is_not() {
     for cell in ["A1", "B1"] {
         refused_before_any_write(&scratch, "chart.xlsx", "Sales", cell, Refusal::TableHeader);
     }
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     for cell in ["C1", "B2"] {
         let range = Range::parse(cell).expect("a range");
@@ -63,7 +63,7 @@ fn a_range_that_holds_a_header_cell_and_body_cells_is_refused() {
     let scratch = Scratch::new("refuse-header-and-body");
     fs::copy(corpus("chart.xlsx"), scratch.path("chart.xlsx")).expect("copy");
     let before = fs::read(scratch.path("chart.xlsx")).expect("read");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     for cells in ["A1:A3", "B1:C2", "A1:B9"] {
         let range = Range::parse(cells).expect("a range");
@@ -95,7 +95,7 @@ fn a_table_with_no_header_row_takes_a_write_into_its_first_row_and_a_table_of_an
         &scratch.path("chart.xlsx"),
         &[no_header],
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let a1 = Range::parse("A1").expect("a range");
     let got = folder.prepare(

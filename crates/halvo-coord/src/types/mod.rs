@@ -19,8 +19,9 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event, Lapsed,
-    LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer, SignInAnswer, Slot, What,
+    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event,
+    ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,
+    SignInAnswer, Slot, What,
 };
 pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
 pub use ids::{
@@ -34,15 +35,18 @@ pub use names::{
     Reasoning, RunEnd, Runtime, Status, Tier, Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
 pub use reply::{
-    Candidate, Card, CardLine, CardRun, ChoiceText, ClosedReply, ControlText, ErrorReply, Field,
-    Item, OkReply, ParamEntry, Row, Snapshot,
+    Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply, ControlText,
+    ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot,
 };
 pub use run::{
     Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,
     Progress, RunEvent, RunSpec,
 };
 pub use status::StatusLine;
-pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};
+pub use workflow::{
+    Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, Unknown,
+    Workflow,
+};
 
 #[cfg(test)]
 mod tests;

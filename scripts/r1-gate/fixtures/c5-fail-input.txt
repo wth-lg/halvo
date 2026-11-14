@@ -1,0 +1,18 @@
+modality=screen_frame count=10
+modality=keystroke count=0
+modality=pointer count=0
+modality=foreground_app count=3
+modality=window_title count=2
+modality=system_audio count=0
+modality=microphone count=0
+modality=camera count=0
+secure_input_keystrokes=0
+segments_written=4
+events_received=15
+events_persisted=15
+events_discarded=0
+tap_disabled_timeout=0
+tap_disabled_user_input=0
+rss_peak_bytes=25264128
+failed_sources=1
+failed_source=input: the capture permission for keystroke is not granted

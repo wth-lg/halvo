@@ -3,13 +3,15 @@
   "productName": "Halvo",
   "identifier": "com.halvo.desktop",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui/app"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "label": "main",
+        "create": false,
+        "incognito": true,
         "title": "Halvo",
         "width": 620,
         "height": 720,
@@ -19,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }
   },
   "bundle": {

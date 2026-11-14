@@ -1,4 +1,4 @@
-//! Dev-fallback key custody for unsigned builds.
+//! Dev-fallback key custody.
 
 use aead::{Aead, KeyInit};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
@@ -10,12 +10,11 @@ const XNONCE_LEN: usize = size_of::<XNonce>();
 
 impl CustodyKind {
     /// Whether a release build accepts this custody kind: only a kind whose
-    /// root this build can destroy and whose custody it can rebuild, so that a
-    /// delete-all of its store can finish.
+    /// custody this build can rebuild and whose root it can destroy.
     pub fn is_acceptable_for_release(self) -> bool {
         match self {
             CustodyKind::DevFallback | CustodyKind::SecureEnclave => false,
-            CustodyKind::Dpapi => true,
+            CustodyKind::Dpapi => cfg!(target_os = "windows"),
         }
     }
 
@@ -579,11 +578,44 @@ mod tests {
         assert_eq!(sealed.len(), 72, "a seal of a 32-byte key");
     }
 
+    fn every_custody_kind() -> Vec<CustodyKind> {
+        let kinds = vec![
+            CustodyKind::DevFallback,
+            CustodyKind::SecureEnclave,
+            CustodyKind::Dpapi,
+        ];
+        for kind in &kinds {
+            match kind {
+                CustodyKind::DevFallback | CustodyKind::SecureEnclave | CustodyKind::Dpapi => {}
+            }
+        }
+        kinds
+    }
+
+    #[test]
+    fn a_release_accepts_only_a_kind_whose_custody_this_build_can_rebuild() {
+        let mut wrong = Vec::new();
+        for kind in every_custody_kind() {
+            if !kind.is_acceptable_for_release() {
+                continue;
+            }
+            if let Err(e) = crate::custody::custody_for(kind, RootId::fresh()) {
+                wrong.push(format!(
+                    "{kind:?} is accepted for a release and custody_for answers {e:?}"
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
     #[test]
     fn a_release_accepts_only_a_kind_whose_delete_all_can_finish() {
         assert!(!CustodyKind::DevFallback.is_acceptable_for_release());
         assert!(!CustodyKind::SecureEnclave.is_acceptable_for_release());
-        assert!(CustodyKind::Dpapi.is_acceptable_for_release());
+        assert_eq!(
+            CustodyKind::Dpapi.is_acceptable_for_release(),
+            cfg!(target_os = "windows")
+        );
     }
 
     fn destroying_its_root_twice_is_no_error(custody: &dyn KeyCustody) {
@@ -639,7 +671,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn mac_wrap_unwrap_roundtrips_with_no_prompt() {
-        let custody = DevFallbackCustody::new(RootId::fresh());
+        let root = crate::store::roots::RootGuard::fresh();
+        let custody = DevFallbackCustody::new(root.id());
         let key = StoreKey::from_bytes([42u8; 32]);
         let wrapped = custody.wrap_store_key(&key).unwrap();
         let unwrapped = custody.unwrap_store_key(&wrapped).unwrap();
