@@ -213,9 +213,11 @@ fn a_fault_of_another_kind_at_the_shutdown_settle_is_the_kind_of_the_line() {
 }
 
 /// Ruling DM-12 A2 (K2), adversary 2's third sequence: the first try stores
-/// and answers Io, the Shutdown's try answers AlreadyWritten.
+/// and answers Io, and a later try of the last settle answers AlreadyWritten,
+/// which the owner acknowledges. Each wait takes 2 s: with the sequence's 90 ms
+/// a hosted macOS runner answered the pause later in 117 of 200 runs.
 #[test]
-fn an_already_written_answer_at_the_shutdown_settle_gives_no_loss() {
+fn an_already_written_answer_at_the_last_settle_gives_no_loss() {
     let mut scripted = four_events();
     let store = ModelStore::new();
     store.script_writes([WriteScript::KeepThenFail(WriteFault::Io(
@@ -228,7 +230,7 @@ fn an_already_written_answer_at_the_shutdown_settle_gives_no_loss() {
         store.clone(),
         ManualClocks::at(noon()),
         &stop,
-        Duration::from_millis(90),
+        Duration::from_secs(2),
     )
     .unwrap();
     assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
