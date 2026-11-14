@@ -1,10 +1,9 @@
+# scratch: the macos job alone with the long form of 51-macos-stall and the rows of MA-24 by name (ruling MA-24, scratch-14); the windows job is kept for its text and switched off; never merged
 name: ci
 
 on:
   push:
   pull_request:
-  schedule:
-    - cron: '17 3 * * 0'
 
 permissions:
   contents: read
@@ -16,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,21 +91,56 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 51-macos-stall
+      - name: Processor
+        shell: bash
+        run: sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        env:
+          HALVO_STALL_FORM: long
+        run: sh scripts/ci/run-ci-d.sh macos 51-macos-stall
+      - name: The rows of MA-24 by name (scratch copy alone)
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          runner=${RUNNER:-scripts/r1-gate/mutation-test.sh}
+          rows="ma24-read-session-keeps-a-difference-after-the-start ma24-start-keeps-a-pair-that-did-not-come-close ma24-unset-difference-taken-as-no-wake ma24-mark-not-set-at-the-first-close-pair ma24-failed-pair-read-as-a-sleep ma24-stop-not-read-after-the-own-reading ma24-release-loop-reads-after-an-emit-before-the-stop ma24-unclocked-as-no-timing-fault ma24-asleep-read-after-the-lag own-take-reads-no-stop l5-own-take-enters-no-drop l4-own-take-withholds-with-no-key"
+          scratch="$RUNNER_TEMP/ma24-rows"
+          mkdir -p "$scratch/tmp" "$scratch/outs"
+          set --
+          for row in $rows; do set -- "$@" --only "$row"; done
+          TMPDIR="$scratch/tmp" sh "$runner" "$@" >"$scratch/rows.log" 2>&1 &
+          pid=$!
+          n=0
+          last=
+          while kill -0 "$pid" 2>/dev/null; do
+            for out in $(find "$scratch/tmp" -name test.out 2>/dev/null); do
+              if grep -q '^test result:' "$out" 2>/dev/null; then
+                sum=$(cksum <"$out")
+                if [ "$sum" != "$last" ]; then
+                  n=$((n + 1))
+                  cp "$out" "$scratch/outs/$n.out"
+                  last=$sum
+                fi
+              fi
+            done
+            sleep 1
+          done
+          wait "$pid"
+          code=$?
+          grep -E '^(PASS|FAIL|OPEN|NOT-RUN) mutation:|^mutation rows:' "$scratch/rows.log"
+          for out in $(ls "$scratch/outs" | sort -n); do
+            if grep -q '^test result: FAILED' "$scratch/outs/$out"; then
+              awk '/^---- .* stdout ----$/ { print; next } /panicked at/ { print; shown = 3; next } shown > 0 { print; shown-- }' "$scratch/outs/$out" | head -n 12
+            fi
+          done
+          caught=$(grep -c '^PASS mutation:' "$scratch/rows.log")
+          echo "rows of MA-24: runner exit=$code caught=$caught of 12"
+          [ "$code" -eq 0 ] && [ "$caught" -eq 12 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -117,6 +151,7 @@ jobs:
           path: target/ci-artifacts/
 
   windows:
+    if: ${{ false }}
     runs-on: windows-2025
     timeout-minutes: 90
     steps:
