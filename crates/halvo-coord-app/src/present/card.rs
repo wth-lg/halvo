@@ -129,10 +129,12 @@ impl Card {
     }
 }
 
-/// The most lines that a card holds.
+/// The most lines that a card holds: a placeholder, not proven on a screen, until the proven
+/// bounds of U2.4l (ruling RD-90 items 7 and 9) replace it.
 pub const LINES: usize = 16;
 
-/// The most characters that a card's title, one of its lines or one of its control texts holds.
+/// The most characters that a card's title, one of its lines or one of its control texts holds:
+/// a placeholder, not proven on a screen, until the proven bounds of U2.4l replace it.
 pub const LINE_CHARS: usize = 120;
 
 /// The marks of an access key in a control text of the task dialog of Windows.
