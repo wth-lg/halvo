@@ -6,7 +6,7 @@
 //   state            front=<0|1> key=<0|1> focus=<plain|secure|other> plain=<n> secure=<n>
 //   plain | secure   moves the focus, with the insertion point after the field's
 //                    text; answers focus=<field> at=<uptime ns>
-//   clear            empties both fields; answers cleared
+//   clear            empties both fields and the stamps; answers cleared
 //   which <c>...     answers which=<w>, one letter of <w> for each character
 //                    <c>: p when only the plain field holds it, s when only
 //                    the secure field holds it, b when both do, - when neither
@@ -25,10 +25,25 @@
 //                    d or u for its down or its up alone; <ms> lies between two
 //                    of them; answers posted=<n> at=<ns>
 //   click <x> <y>    posts a click of the left button there; answers clicked at=<ns>
+//   autoleave <ms>   from now on the secure field gives the focus to the plain
+//                    field by itself <ms> after it became first responder; -1
+//                    stops it; answers autoleave=<ms>
+//   stamps           answers one line: stamps n=<count> lost=<count>, then for
+//                    each stamp kind:detail:ns:on, oldest first; ns on
+//                    CLOCK_MONOTONIC_RAW, on the state of secure input read there
 //   quit             ends the program
+// Stamps are taken on the main thread alone: each command as it is handled
+// (cmd_<verb>), the stall (waiting, woke, self_before, self_after), each event
+// as the application dequeues it (ev, detail the event's type), the secure
+// field becoming first responder (fr_secure), each change of a field's text
+// (land_plain, land_secure, detail the length), each focus move
+// (focus_before_<field>, focus_after_<field>), the leave by Return
+// (left_before, left_after) and by autoleave (autoleave_before,
+// autoleave_after). clear empties them.
 // Return in the secure field moves the focus to the plain field and writes
 // left_secure at=<ns>.
 #import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -40,6 +55,45 @@ static NSSecureTextField *secureField;
 
 static unsigned long long uptime_ns(void) {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
+typedef struct {
+    const char *kind;
+    long detail;
+    unsigned long long ns;
+    int on;
+} Stamp;
+
+enum { STAMP_CAP = 16384 };
+static Stamp stamps[STAMP_CAP];
+static int stampCount;
+static int stampLost;
+static long autoleaveMs = -1;
+
+static void stamp(const char *kind, long detail) {
+    int on = IsSecureEventInputEnabled() ? 1 : 0;
+    unsigned long long ns = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+    if (stampCount >= STAMP_CAP) {
+        stampLost++;
+        return;
+    }
+    stamps[stampCount++] = (Stamp){kind, detail, ns, on};
+}
+
+static const char *commandKind(NSString *verb) {
+    static const char *const known[] = {
+        "state", "plain", "secure", "clear", "which", "where", "stall", "hide",
+        "away", "activate", "autoleave", "stamps", "quit",
+    };
+    static const char *const kinds[] = {
+        "cmd_state", "cmd_plain", "cmd_secure", "cmd_clear", "cmd_which", "cmd_where",
+        "cmd_stall", "cmd_hide", "cmd_away", "cmd_activate", "cmd_autoleave", "cmd_stamps",
+        "cmd_quit",
+    };
+    for (size_t i = 0; i < sizeof known / sizeof known[0]; i++) {
+        if (strcmp(verb.UTF8String, known[i]) == 0) return kinds[i];
+    }
+    return "cmd_other";
 }
 
 static void say(NSString *line) {
@@ -103,8 +157,11 @@ static NSString *focusName(void) {
 }
 
 static void focus(NSControl *field, NSString *name) {
+    BOOL secure = field == secureField;
+    stamp(secure ? "focus_before_secure" : "focus_before_plain", 0);
     [window makeFirstResponder:field];
     [field.currentEditor setSelectedRange:NSMakeRange(field.stringValue.length, 0)];
+    stamp(secure ? "focus_after_secure" : "focus_after_plain", 0);
     say([NSString stringWithFormat:@"focus=%@ at=%llu", name, uptime_ns()]);
 }
 
@@ -115,14 +172,70 @@ static void focus(NSControl *field, NSString *name) {
 @implementation Leaver
 - (void)left:(id)sender {
     (void)sender;
+    stamp("left_before", 0);
     [window makeFirstResponder:plainField];
+    stamp("left_after", 0);
     say([NSString stringWithFormat:@"left_secure at=%llu", uptime_ns()]);
 }
 @end
 
+@interface StallApp : NSApplication
+@end
+
+@implementation StallApp
+- (void)sendEvent:(NSEvent *)event {
+    stamp("ev", (long)event.type);
+    [super sendEvent:event];
+}
+@end
+
+@interface StallSecureField : NSSecureTextField
+@end
+
+@implementation StallSecureField
+- (BOOL)becomeFirstResponder {
+    BOOL became = [super becomeFirstResponder];
+    stamp("fr_secure", became ? 1 : 0);
+    if (became && autoleaveMs >= 0) {
+        long after = autoleaveMs;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)after * (int64_t)NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{
+                           stamp("autoleave_before", after);
+                           [window makeFirstResponder:plainField];
+                           stamp("autoleave_after", after);
+                       });
+    }
+    return became;
+}
+@end
+
+@interface Lander : NSObject <NSTextFieldDelegate>
+@end
+
+@implementation Lander
+- (void)controlTextDidChange:(NSNotification *)note {
+    NSTextField *field = note.object;
+    stamp(field == secureField ? "land_secure" : "land_plain", (long)field.stringValue.length);
+}
+@end
+
+static void giveStamps(void) {
+    NSMutableString *line = [NSMutableString stringWithFormat:@"stamps n=%d lost=%d", stampCount, stampLost];
+    for (int i = 0; i < stampCount; i++) {
+        [line appendFormat:@" %s:%ld:%llu:%d", stamps[i].kind, stamps[i].detail, stamps[i].ns,
+                           stamps[i].on];
+    }
+    say(line);
+}
+
 static void handle(NSString *line) {
     NSArray<NSString *> *words = [line componentsSeparatedByString:@" "];
     NSString *verb = words.firstObject;
+    if ([verb isEqualToString:@"clear"]) {
+        stampCount = 0;
+        stampLost = 0;
+    }
+    stamp(commandKind(verb), 0);
     if ([verb isEqualToString:@"state"]) {
         BOOL front = NSApp.isActive &&
             NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid();
@@ -158,9 +271,15 @@ static void handle(NSString *line) {
     } else if ([verb isEqualToString:@"stall"] && words.count >= 2) {
         int ms = words[1].intValue;
         BOOL itself = words.count >= 3 && [words[2] isEqualToString:@"self"];
+        stamp("waiting", ms);
         say([NSString stringWithFormat:@"waiting at=%llu", uptime_ns()]);
         usleep((useconds_t)ms * 1000);
-        if (itself) [window makeFirstResponder:secureField];
+        stamp("woke", ms);
+        if (itself) {
+            stamp("self_before", 0);
+            [window makeFirstResponder:secureField];
+            stamp("self_after", 0);
+        }
         say([NSString stringWithFormat:@"woke at=%llu", uptime_ns()]);
     } else if ([verb isEqualToString:@"hide"]) {
         [NSApp hide:nil];
@@ -179,6 +298,11 @@ static void handle(NSString *line) {
         [NSApp activateIgnoringOtherApps:YES];
         [window makeKeyAndOrderFront:nil];
         say(@"asked");
+    } else if ([verb isEqualToString:@"autoleave"] && words.count >= 2) {
+        autoleaveMs = words[1].intValue;
+        say([NSString stringWithFormat:@"autoleave=%ld", autoleaveMs]);
+    } else if ([verb isEqualToString:@"stamps"]) {
+        giveStamps();
     } else if ([verb isEqualToString:@"quit"]) {
         exit(0);
     } else {
@@ -188,14 +312,17 @@ static void handle(NSString *line) {
 
 int main(void) {
     @autoreleasepool {
-        [NSApplication sharedApplication];
+        [StallApp sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
         window = [[NSWindow alloc] initWithContentRect:NSMakeRect(200, 200, 420, 160)
                                              styleMask:NSWindowStyleMaskTitled
                                                backing:NSBackingStoreBuffered
                                                  defer:NO];
         plainField = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 100, 380, 24)];
-        secureField = [[NSSecureTextField alloc] initWithFrame:NSMakeRect(20, 40, 380, 24)];
+        secureField = [[StallSecureField alloc] initWithFrame:NSMakeRect(20, 40, 380, 24)];
+        Lander *lander = [Lander new];
+        plainField.delegate = lander;
+        secureField.delegate = lander;
         Leaver *leaver = [Leaver new];
         secureField.target = leaver;
         secureField.action = @selector(left:);

@@ -20,9 +20,12 @@ use std::time::{Duration, Instant, SystemTime};
 use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType};
 use halvo_capture::event::Modality;
 use halvo_capture::macos::foreground::ForegroundReader;
-use halvo_capture::macos::input::{DropCounts, HoldPlan, InputCounters, InputSource, StallSeam};
+use halvo_capture::macos::input::{
+    Arrived, Caller, DropCounts, HoldPlan, InputCounters, InputSource, RawEntry, StallSeam,
+};
+use halvo_capture::secure_input_macos::hold::Cause;
 use halvo_capture::secure_input_macos::hold::{GAP_BOUND, HOLD_BOUND, READING_STEP};
-use halvo_capture::secure_input_macos::{read_session, secure_input_active, Session};
+use halvo_capture::secure_input_macos::{read_session, secure_input_active, Reading, Session};
 use halvo_capture::sink;
 use halvo_capture::source::{CaptureSource, HealthReason, SourceContext, SourceState};
 use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
@@ -52,8 +55,23 @@ const ROUNDS: usize = 3;
 const FAULT_ROUNDS: usize = 5;
 const MARGIN: Duration = Duration::from_millis(750);
 const LAUNCH_WAIT: Duration = Duration::from_secs(20);
+const KEPT_MARGIN: Duration = Duration::from_millis(130);
+const NEVER_ON_WAIT: Duration = Duration::from_secs(2);
+const WINDOW_MARGIN: u64 = 200_000_000;
+const SHORT_WINDOW_AT_150: usize = 320;
+const SHORT_WINDOW_AT_2000: usize = 62;
+const SET_ON_TIMES: [i64; 7] = [0, 5, 10, 20, 40, 80, 200];
+const SET_ON_TIME_ROUNDS: usize = 20;
+const LOOP_COUNTED: usize = 62;
+const LOOP_CAP: usize = 68;
 const BURST_STEP: Duration = Duration::from_millis(2);
 const LETTER_TEXT: &str = "asdfhgzx";
+
+fn raw_ns() -> u64 {
+    // SAFETY: clock_gettime_nsec_np takes a clock id by value and returns a
+    // number; it touches no memory of the caller.
+    unsafe { clock_gettime_nsec_np(libc::CLOCK_MONOTONIC_RAW) }
+}
 
 fn uptime_ns() -> u64 {
     // SAFETY: clock_gettime_nsec_np takes a clock id by value and returns a
@@ -434,6 +452,10 @@ impl Fixture {
         self.reply("posted=", Duration::from_secs(20));
     }
 
+    fn stamps(&mut self) -> Vec<Stamp> {
+        parse_stamps(&self.ask("stamps", "stamps n="))
+    }
+
     fn click(&mut self, at: &str) {
         self.send(&format!("click {at}"));
         self.reply("clicked", Duration::from_secs(10));
@@ -637,6 +659,13 @@ enum Move {
     WholePasswordBurst,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Keep {
+    Mended,
+    AsIs,
+    Autoleave,
+}
+
 #[derive(Debug)]
 struct Round {
     wait_ms: u64,
@@ -647,6 +676,42 @@ struct Round {
     plain: usize,
     secure: usize,
     which: String,
+    never_on: bool,
+    from: u64,
+    stamps: Vec<Stamp>,
+    entries: Vec<RawEntry>,
+    case: Case,
+    verdict: Option<Verdict>,
+}
+
+fn return_start(stamps: &[Stamp]) -> u64 {
+    stamps
+        .iter()
+        .position(|stamp| stamp.kind == "cmd_away")
+        .and_then(|away| stamps[away..].iter().find(|stamp| !stamp.on))
+        .map_or(0, |stamp| stamp.ns)
+}
+
+fn keep_the_field(fixture: &mut Fixture, how: Move) -> bool {
+    if !state_reads(true, NEVER_ON_WAIT) {
+        return false;
+    }
+    let stamps = fixture.stamps();
+    let since = if how == Move::Return {
+        return_start(&stamps)
+    } else {
+        0
+    };
+    let first_on = stamps
+        .iter()
+        .find(|stamp| stamp.on && stamp.ns >= since)
+        .map_or_else(raw_ns, |stamp| stamp.ns);
+    let kept = u64::try_from((test_gap() + KEPT_MARGIN).as_nanos()).unwrap_or(u64::MAX);
+    let until = first_on.saturating_add(kept);
+    while raw_ns() < until {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    true
 }
 
 fn letter_step(wait_ms: u64) -> Duration {
@@ -659,6 +724,34 @@ fn round(
     how: Move,
     wait_ms: u64,
     bound: Duration,
+    keep: Keep,
+) -> Round {
+    let _ = recorder.drops.take_entries();
+    let from = raw_ns();
+    let mut round = round_inner(fixture, recorder, how, wait_ms, bound, keep);
+    round.from = from;
+    round.stamps = fixture.stamps();
+    round.entries = recorder.drops.take_entries();
+    let found = evidence(on_runs(&round.stamps), &round.entries);
+    round.case = short_case(&found);
+    if keep == Keep::Mended {
+        round.verdict = Some(mended_verdict(
+            round.never_on,
+            (!round.counted).then_some(round.why_not),
+            round.ahead,
+            &found,
+        ));
+    }
+    round
+}
+
+fn round_inner(
+    fixture: &mut Fixture,
+    recorder: &Recorder,
+    how: Move,
+    wait_ms: u64,
+    bound: Duration,
+    keep: Keep,
 ) -> Round {
     let mut round = Round {
         wait_ms,
@@ -669,6 +762,12 @@ fn round(
         plain: 0,
         secure: 0,
         which: String::from("-"),
+        never_on: false,
+        from: 0,
+        stamps: Vec::new(),
+        entries: Vec::new(),
+        case: Case::C,
+        verdict: None,
     };
     fixture.ask("clear", "cleared");
     if how == Move::Return {
@@ -737,7 +836,7 @@ fn round(
         let state = fixture.state();
         round.secure = state.secure;
         state.secure == LETTERS.len()
-            && (whole || state.focus == "secure")
+            && (whole || keep == Keep::Autoleave || state.focus == "secure")
             && (how != Move::Return || state.front)
     });
     round.which = fixture
@@ -748,6 +847,14 @@ fn round(
         std::thread::sleep(bound + MARGIN);
         round.ahead = recorder.between(ahead_from, SystemTime::now());
         round.why_not = "the letters did not land in the secure field";
+        return round;
+    }
+    if keep == Keep::Mended && !keep_the_field(fixture, how) {
+        round.never_on = true;
+        round.why_not = "never_on";
+        std::thread::sleep(bound + MARGIN);
+        round.ahead = recorder.between(ahead_from, SystemTime::now());
+        fixture.focus("plain");
         return round;
     }
     if how == Move::LeavingKeyUp {
@@ -797,15 +904,131 @@ fn started_fixture(name: &str) -> Fixture {
     fixture
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Plan {
+    count: usize,
+    cap: usize,
+    keep: Keep,
+}
+
+const AS_IS_ONCE: Plan = Plan {
+    count: 1,
+    cap: 1,
+    keep: Keep::AsIs,
+};
+
+fn as_is(count: usize) -> Plan {
+    Plan {
+        count,
+        cap: count,
+        keep: Keep::AsIs,
+    }
+}
+
+fn mended(count: usize, cap: usize) -> Plan {
+    Plan {
+        count,
+        cap,
+        keep: Keep::Mended,
+    }
+}
+
 fn phase_with(
     name: &str,
     how: Move,
     waits: &[(u64, Duration)],
     source: fn(Duration) -> (InputSource, DropCounts),
-    count: usize,
+    plan: Plan,
 ) -> Vec<Round> {
     let mut fixture = started_fixture(name);
-    phase_on(&mut fixture, name, how, waits, source, count).0
+    phase_on(&mut fixture, name, how, waits, source, plan).0
+}
+
+fn round_line(name: &str, number: usize, round: &Round, bound: Duration, keep: Keep) -> String {
+    let found = evidence(on_runs(&round.stamps), &round.entries);
+    let (inside_on, inside_off) = inside(&found);
+    let runs: Vec<String> = found
+        .on_runs
+        .iter()
+        .map(|&(on_from, on_to)| {
+            format!(
+                "{}..{}",
+                relative_us(on_from, round.from),
+                relative_us(on_to, round.from)
+            )
+        })
+        .collect();
+    let off = found
+        .on_runs
+        .first()
+        .and_then(|&(_, on_to)| first_off_after(&round.stamps, on_to))
+        .map_or_else(
+            || String::from("-"),
+            |at| relative_us(at, round.from).to_string(),
+        );
+    let release = found.first_release.map_or_else(
+        || String::from("-"),
+        |at| relative_us(at, round.from).to_string(),
+    );
+    let verdict = round.verdict.map_or_else(
+        || String::from("-"),
+        |verdict| format!("{verdict:?}").to_lowercase(),
+    );
+    format!(
+        "{name} round={number} wait_ms={} bound_ms={} counted={} ahead={} markers={} plain={} \
+         secure={} which={} keep={keep:?} never_on={} on_runs_us={} off_us={off} \
+         inside_on={inside_on} inside_off={inside_off} first_release_us={release} \
+         on_drops={} case={:?} rv={verdict}",
+        round.wait_ms,
+        bound.as_millis(),
+        u8::from(round.counted),
+        round.ahead,
+        round.markers,
+        round.plain,
+        round.secure,
+        round.which,
+        u8::from(round.never_on),
+        if runs.is_empty() {
+            String::from("-")
+        } else {
+            runs.join(",")
+        },
+        found.on_drops,
+        round.case,
+    )
+}
+
+fn whole_entries(round: &Round) -> bool {
+    round.ahead > 0
+        || !round.counted
+        || round
+            .verdict
+            .is_some_and(|verdict| verdict != Verdict::Held)
+}
+
+fn print_entries(name: &str, number: usize, round: &Round) {
+    let runs = on_runs(&round.stamps);
+    let window = if whole_entries(round) {
+        None
+    } else {
+        runs.first().map(|&(on_from, on_to)| {
+            let off = first_off_after(&round.stamps, on_to).unwrap_or(on_to);
+            (
+                on_from.saturating_sub(WINDOW_MARGIN),
+                off.saturating_add(WINDOW_MARGIN),
+            )
+        })
+    };
+    for line in entry_lines(
+        name,
+        number,
+        round.from,
+        &round.stamps,
+        &round.entries,
+        window,
+    ) {
+        println!("{line}");
+    }
 }
 
 fn phase_on(
@@ -814,7 +1037,7 @@ fn phase_on(
     how: Move,
     waits: &[(u64, Duration)],
     source: fn(Duration) -> (InputSource, DropCounts),
-    count: usize,
+    plan: Plan,
 ) -> (Vec<Round>, Vec<DropCounts>) {
     println!(
         "{name} gap_ms={} step_ms={}",
@@ -832,23 +1055,21 @@ fn phase_on(
             running = Some((bound, recorder));
         }
         let recorder = &running.as_ref().expect("a source for the bound").1;
-        for number in 0..count {
-            let round = round(fixture, recorder, how, wait_ms, bound);
-            println!(
-                "{name} round={number} wait_ms={wait_ms} bound_ms={} counted={} ahead={} \
-                 markers={} plain={} secure={} which={}",
-                bound.as_millis(),
-                u8::from(round.counted),
-                round.ahead,
-                round.markers,
-                round.plain,
-                round.secure,
-                round.which
-            );
+        let mut good = 0;
+        let mut run = 0;
+        while run < plan.cap && good < plan.count {
+            let round = round(fixture, recorder, how, wait_ms, bound, plan.keep);
+            let number = rounds.len();
+            println!("{}", round_line(name, number, &round, bound, plan.keep));
             println!(
                 "{name} drops round={number} {}",
                 drops_line(&recorder.drops)
             );
+            print_entries(name, number, &round);
+            run += 1;
+            if plan.keep != Keep::Mended || round.verdict == Some(Verdict::Held) {
+                good += 1;
+            }
             rounds.push(round);
         }
     }
@@ -856,7 +1077,104 @@ fn phase_on(
 }
 
 fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
-    phase_with(name, how, waits, source_for, ROUNDS)
+    phase_with(name, how, waits, source_for, mended(ROUNDS, ROUNDS + 1))
+}
+
+fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
+    let of = |want: fn(Verdict) -> bool| -> Vec<String> {
+        rounds
+            .iter()
+            .filter(|round| round.verdict.is_some_and(want))
+            .map(|round| format!("wait {} ms: ahead {}", round.wait_ms, round.ahead))
+            .collect()
+    };
+    for round in rounds
+        .iter()
+        .filter(|round| round.verdict == Some(Verdict::LateClick))
+    {
+        println!(
+            "{name} late_click wait_ms={} ahead={}",
+            round.wait_ms, round.ahead
+        );
+    }
+    let recorded = of(|verdict| verdict == Verdict::Recorded);
+    assert!(
+        recorded.is_empty(),
+        "{name}: recorded keys beside the markers in rounds that counted: {}",
+        recorded.join(", ")
+    );
+    let never_on = of(|verdict| verdict == Verdict::NeverOn);
+    assert!(
+        never_on.is_empty(),
+        "{name}: never_on: the state did not read on within 2 s of the landing: {}",
+        never_on.join(", ")
+    );
+    let not_counted: Vec<String> = rounds
+        .iter()
+        .filter_map(|round| match round.verdict {
+            Some(Verdict::NotCounted(why)) => Some(format!("wait {} ms: {why}", round.wait_ms)),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        not_counted.is_empty(),
+        "{name}: rounds that did not count: {}",
+        not_counted.join(", ")
+    );
+    let no_proof = of(|verdict| verdict == Verdict::NoProof);
+    assert!(
+        no_proof.is_empty(),
+        "{name}: counted rounds whose entries show no reading of on inside the on-time and \
+         a drop for on: {}",
+        no_proof.join(", ")
+    );
+    let short: Vec<String> = waits
+        .iter()
+        .filter_map(|&(wait_ms, _)| {
+            let held = rounds
+                .iter()
+                .filter(|round| round.wait_ms == wait_ms && round.verdict == Some(Verdict::Held))
+                .count();
+            (held < count).then(|| format!("wait {wait_ms} ms: {held} of {count}"))
+        })
+        .collect();
+    assert!(
+        short.is_empty(),
+        "{name}: rounds that did not count by the cap of rounds run: {}",
+        short.join(", ")
+    );
+}
+
+fn measured(name: &str, form: &str, rounds: &[Round]) {
+    let count = |case: Case| rounds.iter().filter(|round| round.case == case).count();
+    let recorded: Vec<&Round> = rounds
+        .iter()
+        .filter(|round| round.counted && round.ahead > 0)
+        .collect();
+    let uncounted_with_keys = rounds
+        .iter()
+        .filter(|round| !round.counted && round.ahead > 0)
+        .count();
+    let recorded_case = |case: Case| recorded.iter().filter(|round| round.case == case).count();
+    println!(
+        "{name} measured form={form} wait_ms={} rounds={} counted={} recorded_rounds={} \
+         recorded_cases=A:{},B:{},C:{},D:{},seen:{} uncounted_with_keys={uncounted_with_keys} \
+         cases=A:{},B:{},C:{},D:{},seen:{}",
+        rounds.first().map_or(0, |round| round.wait_ms),
+        rounds.len(),
+        rounds.iter().filter(|round| round.counted).count(),
+        recorded.len(),
+        recorded_case(Case::A),
+        recorded_case(Case::B),
+        recorded_case(Case::C),
+        recorded_case(Case::D),
+        recorded_case(Case::Seen),
+        count(Case::A),
+        count(Case::B),
+        count(Case::C),
+        count(Case::D),
+        count(Case::Seen),
+    );
 }
 
 fn judge(name: &str, rounds: &[Round]) {
@@ -906,7 +1224,8 @@ fn stall_waits() -> Vec<(u64, Duration)> {
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn a_key_typed_ahead_into_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_ahead_into_a_secure_field_is_not_recorded";
-    judge(name, &phase(name, Move::Tab, &stall_waits()));
+    let waits = stall_waits();
+    judge_mended(name, &phase(name, Move::Tab, &waits), &waits, ROUNDS);
 }
 
 #[test]
@@ -920,87 +1239,120 @@ fn known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorde
             Move::Tab,
             &[(1_500, SHORT_BOUND)],
             source_for,
-            FAULT_ROUNDS,
+            as_is(FAULT_ROUNDS),
         ),
     );
 }
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
-fn a_password_typed_whole_ahead_at_machine_speed_is_not_recorded() {
-    let name = "a_password_typed_whole_ahead_at_machine_speed_is_not_recorded";
-    judge_counted(
+fn measured_a_password_typed_whole_ahead_at_machine_speed() {
+    let name = "measured_a_password_typed_whole_ahead_at_machine_speed";
+    let rounds = phase_with(
         name,
-        &phase_with(
-            name,
-            Move::WholePasswordBurst,
-            &[(300, SHORT_BOUND)],
-            source_for,
-            FAULT_ROUNDS,
-        ),
-        FAULT_ROUNDS - 1,
+        Move::WholePasswordBurst,
+        &[(300, SHORT_BOUND)],
+        source_for,
+        as_is(FAULT_ROUNDS),
     );
+    measured(name, "burst_2ms", &rounds);
 }
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
-fn a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded() {
-    let name = "a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded";
-    judge(
+fn measured_a_password_typed_whole_ahead_at_a_persons_pace() {
+    let name = "measured_a_password_typed_whole_ahead_at_a_persons_pace";
+    let rounds = phase_with(
         name,
-        &phase_with(
-            name,
-            Move::WholePassword,
-            &[(300, SHORT_BOUND)],
-            source_for,
-            ROUNDS,
-        ),
+        Move::WholePassword,
+        &[(300, SHORT_BOUND)],
+        source_for,
+        as_is(FAULT_ROUNDS),
     );
+    measured(name, "pace_26ms", &rounds);
 }
 
-fn judge_counted(name: &str, rounds: &[Round], least: usize) {
-    let leaked: Vec<String> = rounds
-        .iter()
-        .filter(|round| round.counted && round.ahead > 0)
-        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.ahead))
-        .collect();
-    assert!(
-        leaked.is_empty(),
-        "{name}: recorded keys beside the markers in rounds that counted: {}",
-        leaked.join(", ")
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn short_window_a_the_click_round_as_it_was_at_wait_150_ms() {
+    let name = "short_window_a_the_click_round_as_it_was_at_wait_150_ms";
+    let rounds = phase_with(
+        name,
+        Move::Click,
+        &[(150, SHORT_BOUND)],
+        source_for,
+        as_is(SHORT_WINDOW_AT_150),
     );
-    for round in rounds.iter().filter(|round| !round.counted) {
-        println!(
-            "{name} notcounted wait_ms={} why={}",
-            round.wait_ms,
-            round.why_not.replace(' ', "_")
+    measured(name, "a", &rounds);
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn short_window_a_the_click_round_as_it_was_at_wait_2000_ms() {
+    let name = "short_window_a_the_click_round_as_it_was_at_wait_2000_ms";
+    let rounds = phase_with(
+        name,
+        Move::Click,
+        &[(2_000, LONG_BOUND)],
+        source_for,
+        as_is(SHORT_WINDOW_AT_2000),
+    );
+    measured(name, "a", &rounds);
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn short_window_b_a_set_on_time() {
+    let name = "short_window_b_a_set_on_time";
+    let mut fixture = started_fixture(name);
+    for on_time in SET_ON_TIMES {
+        fixture.ask(&format!("autoleave {on_time}"), "autoleave=");
+        let (rounds, _) = phase_on(
+            &mut fixture,
+            name,
+            Move::Click,
+            &[(150, SHORT_BOUND)],
+            source_for,
+            Plan {
+                count: SET_ON_TIME_ROUNDS,
+                cap: SET_ON_TIME_ROUNDS,
+                keep: Keep::Autoleave,
+            },
         );
+        measured(name, &format!("b_{on_time}ms"), &rounds);
     }
-    let counted = rounds.iter().filter(|round| round.counted).count();
-    println!(
-        "{name} verdict={} counted={counted} rounds={} least={least}",
-        if counted >= least { "held" } else { "toofew" },
-        rounds.len()
+    fixture.ask("autoleave -1", "autoleave=");
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn the_mended_click_phase_counts_62_rounds_at_wait_2000_ms() {
+    let name = "the_mended_click_phase_counts_62_rounds_at_wait_2000_ms";
+    let waits = [(2_000, LONG_BOUND)];
+    let rounds = phase_with(
+        name,
+        Move::Click,
+        &waits,
+        source_for,
+        mended(LOOP_COUNTED, LOOP_CAP),
     );
-    assert!(
-        counted >= least,
-        "{name}: {counted} of {} rounds counted, fewer than {least}",
-        rounds.len()
-    );
+    judge_mended(name, &rounds, &waits, LOOP_COUNTED);
 }
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded";
-    judge(name, &phase(name, Move::Click, &stall_waits()));
+    let waits = stall_waits();
+    judge_mended(name, &phase(name, Move::Click, &waits), &waits, ROUNDS);
 }
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded() {
     let name = "a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded";
-    judge(name, &phase(name, Move::Itself, &stall_waits()));
+    let waits = stall_waits();
+    judge_mended(name, &phase(name, Move::Itself, &waits), &waits, ROUNDS);
 }
 
 #[test]
@@ -1009,7 +1361,7 @@ fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_on_a_return_to_a_secure_field_is_not_recorded";
     judge_three_ways(
         name,
-        &phase_with(name, Move::Return, &stall_waits(), source_for, 1),
+        &phase_with(name, Move::Return, &stall_waits(), source_for, mended(1, 1)),
     );
 }
 
@@ -1050,7 +1402,13 @@ fn judge_three_ways(name: &str, rounds: &[Round]) {
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded() {
     let name = "the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded";
-    judge(name, &phase(name, Move::LeavingKeyUp, &stall_waits()));
+    let waits = stall_waits();
+    judge_mended(
+        name,
+        &phase(name, Move::LeavingKeyUp, &waits),
+        &waits,
+        ROUNDS,
+    );
 }
 
 #[derive(Debug)]
@@ -1197,7 +1555,7 @@ impl Line for HostedLine {
             Move::Tab,
             &[(300, HOLD_BOUND)],
             product_source,
-            1,
+            AS_IS_ONCE,
         )
     }
 
@@ -1270,6 +1628,12 @@ fn stand_in_round(counted: bool, ahead: usize) -> Round {
         plain: MARKERS.len(),
         secure: LETTERS.len(),
         which: String::from("ssssssss"),
+        never_on: false,
+        from: 0,
+        stamps: Vec::new(),
+        entries: Vec::new(),
+        case: Case::C,
+        verdict: None,
     }
 }
 
@@ -1456,6 +1820,616 @@ fn the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out() {
             "the stand-in {case} ended within its deadlines"
         );
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Stamp {
+    kind: String,
+    detail: i64,
+    ns: u64,
+    on: bool,
+}
+
+fn parse_stamps(line: &str) -> Vec<Stamp> {
+    line.split(' ')
+        .skip(3)
+        .filter_map(|word| {
+            let mut parts = word.split(':');
+            let kind = parts.next()?.to_owned();
+            let detail = parts.next()?.parse().ok()?;
+            let ns = parts.next()?.parse().ok()?;
+            let on = parts.next()? == "1";
+            Some(Stamp {
+                kind,
+                detail,
+                ns,
+                on,
+            })
+        })
+        .collect()
+}
+
+fn on_runs(stamps: &[Stamp]) -> Vec<(u64, u64)> {
+    let mut runs = Vec::new();
+    let mut open: Option<(u64, u64)> = None;
+    for stamp in stamps {
+        match (stamp.on, open) {
+            (true, None) => open = Some((stamp.ns, stamp.ns)),
+            (true, Some((from, _))) => open = Some((from, stamp.ns)),
+            (false, Some(run)) => {
+                runs.push(run);
+                open = None;
+            }
+            (false, None) => {}
+        }
+    }
+    runs.extend(open);
+    runs
+}
+
+fn first_off_after(stamps: &[Stamp], at: u64) -> Option<u64> {
+    stamps
+        .iter()
+        .find(|stamp| stamp.ns > at && !stamp.on)
+        .map(|stamp| stamp.ns)
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Evidence {
+    on_runs: Vec<(u64, u64)>,
+    readings: Vec<(u64, u64, Reading)>,
+    first_release: Option<u64>,
+    on_drops: usize,
+}
+
+fn evidence(runs: Vec<(u64, u64)>, entries: &[RawEntry]) -> Evidence {
+    let mut found = Evidence {
+        on_runs: runs,
+        ..Evidence::default()
+    };
+    for entry in entries {
+        match *entry {
+            RawEntry::Reading {
+                before,
+                after,
+                value,
+                ..
+            } => found.readings.push((before, after, value)),
+            RawEntry::Released { at } => {
+                found.first_release = Some(found.first_release.map_or(at, |first| first.min(at)));
+            }
+            RawEntry::Dropped {
+                cause: Cause::On, ..
+            } => found.on_drops += 1,
+            _ => {}
+        }
+    }
+    found
+}
+
+fn inside(found: &Evidence) -> (usize, usize) {
+    let within = |before: u64, after: u64| {
+        found
+            .on_runs
+            .iter()
+            .any(|&(from, to)| before >= from && after <= to)
+    };
+    let mut counts = (0, 0);
+    for &(before, after, value) in &found.readings {
+        if within(before, after) {
+            match value {
+                Reading::On => counts.0 += 1,
+                Reading::Off => counts.1 += 1,
+                Reading::Unknown => {}
+            }
+        }
+    }
+    counts
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Case {
+    A,
+    B,
+    C,
+    D,
+    Seen,
+}
+
+fn short_case(found: &Evidence) -> Case {
+    let Some(&(first_on, _)) = found.on_runs.first() else {
+        return Case::C;
+    };
+    let (on_inside, off_inside) = inside(found);
+    if off_inside > 0 {
+        Case::D
+    } else if found
+        .first_release
+        .is_some_and(|release| first_on > release)
+    {
+        Case::B
+    } else if on_inside == 0 {
+        Case::A
+    } else {
+        Case::Seen
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    Held,
+    LateClick,
+    NeverOn,
+    NotCounted(&'static str),
+    NoProof,
+    Recorded,
+}
+
+fn mended_verdict(
+    never_on: bool,
+    why_not: Option<&'static str>,
+    ahead: usize,
+    found: &Evidence,
+) -> Verdict {
+    if never_on {
+        return Verdict::NeverOn;
+    }
+    let first_on = found.on_runs.first().map(|&(from, _)| from);
+    if let (Some(on), Some(release)) = (first_on, found.first_release) {
+        if on > release {
+            return Verdict::LateClick;
+        }
+    }
+    if let Some(why) = why_not {
+        return Verdict::NotCounted(why);
+    }
+    if ahead > 0 {
+        return Verdict::Recorded;
+    }
+    if inside(found).0 > 0 && found.on_drops > 0 {
+        Verdict::Held
+    } else {
+        Verdict::NoProof
+    }
+}
+
+fn key_fates(entries: &[RawEntry]) -> Vec<(u64, String, Option<u64>)> {
+    let mut fates: Vec<(u64, String, Option<u64>)> = Vec::new();
+    let mut held: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
+    let resolve = |fates: &mut Vec<(u64, String, Option<u64>)>,
+                   held: &mut std::collections::VecDeque<usize>,
+                   count: usize,
+                   fate: String,
+                   at: u64| {
+        for _ in 0..count {
+            if let Some(index) = held.pop_front() {
+                fates[index].1.clone_from(&fate);
+                fates[index].2 = Some(at);
+            }
+        }
+    };
+    for entry in entries {
+        match *entry {
+            RawEntry::Arrival { at, admission } => match admission {
+                Arrived::Held => {
+                    held.push_back(fates.len());
+                    fates.push((at, String::from("open"), None));
+                }
+                Arrived::Suppressed => fates.push((at, String::from("suppressed"), Some(at))),
+                Arrived::Withheld { cause, dropped } => {
+                    let fate = format!("dropped_{cause:?}").to_lowercase();
+                    resolve(&mut fates, &mut held, dropped, fate.clone(), at);
+                    fates.push((at, format!("withheld_{cause:?}").to_lowercase(), Some(at)));
+                }
+            },
+            RawEntry::Released { at } => {
+                resolve(&mut fates, &mut held, 1, String::from("released"), at);
+            }
+            RawEntry::Dropped { at, cause, keys } => {
+                let fate = format!("dropped_{cause:?}").to_lowercase();
+                resolve(&mut fates, &mut held, keys, fate, at);
+            }
+            RawEntry::Reading { .. } => {}
+        }
+    }
+    fates
+}
+
+fn relative_us(ns: u64, from: u64) -> i64 {
+    let micros = |value: u64| i64::try_from(value / 1_000).unwrap_or(i64::MAX);
+    if ns >= from {
+        micros(ns - from)
+    } else {
+        -micros(from - ns)
+    }
+}
+
+fn value_word(value: Reading) -> &'static str {
+    match value {
+        Reading::Off => "off",
+        Reading::On => "on",
+        Reading::Unknown => "unknown",
+    }
+}
+
+fn caller_word(caller: Caller) -> &'static str {
+    match caller {
+        Caller::Event => "event",
+        Caller::Tick => "tick",
+        Caller::ReleaseLoop => "release",
+    }
+}
+
+fn entry_lines(
+    name: &str,
+    number: usize,
+    from: u64,
+    stamps: &[Stamp],
+    entries: &[RawEntry],
+    window: Option<(u64, u64)>,
+) -> Vec<String> {
+    let fixture: Vec<String> = stamps
+        .iter()
+        .map(|stamp| {
+            format!(
+                "{}:{}:{}:{}",
+                stamp.kind,
+                stamp.detail,
+                relative_us(stamp.ns, from),
+                u8::from(stamp.on)
+            )
+        })
+        .collect();
+    let keys: Vec<String> = key_fates(entries)
+        .iter()
+        .map(|(arrival, fate, at)| {
+            format!(
+                "{}:{fate}:{}",
+                relative_us(*arrival, from),
+                at.map_or_else(|| String::from("-"), |at| relative_us(at, from).to_string())
+            )
+        })
+        .collect();
+    let readings: Vec<String> = entries
+        .iter()
+        .filter_map(|entry| match *entry {
+            RawEntry::Reading {
+                before,
+                after,
+                value,
+                caller,
+                held,
+            } if window.is_none_or(|(low, high)| after >= low && before <= high) => Some(format!(
+                "{}+{}:{}:{}:{held}",
+                relative_us(before, from),
+                after.saturating_sub(before) / 1_000,
+                value_word(value),
+                caller_word(caller)
+            )),
+            _ => None,
+        })
+        .collect();
+    let part = if window.is_some() {
+        "readings_window"
+    } else {
+        "readings"
+    };
+    vec![
+        format!(
+            "{name} entries round={number} part=fixture {}",
+            fixture.join(" ")
+        ),
+        format!("{name} entries round={number} part=keys {}", keys.join(" ")),
+        format!(
+            "{name} entries round={number} part={part} {}",
+            readings.join(" ")
+        ),
+    ]
+}
+
+fn ms_ns(ms: u64) -> u64 {
+    ms * 1_000_000
+}
+
+fn reading_at(before_ms: u64, after_ms: u64, value: Reading) -> RawEntry {
+    RawEntry::Reading {
+        before: ms_ns(before_ms),
+        after: ms_ns(after_ms),
+        value,
+        caller: Caller::Tick,
+        held: 1,
+    }
+}
+
+fn table_evidence(runs: &[(u64, u64)], entries: &[RawEntry]) -> Evidence {
+    evidence(
+        runs.iter()
+            .map(|&(from, to)| (ms_ns(from), ms_ns(to)))
+            .collect(),
+        entries,
+    )
+}
+
+type MendedRow = (
+    &'static str,
+    bool,
+    Option<&'static str>,
+    usize,
+    Evidence,
+    Verdict,
+);
+
+#[test]
+fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
+    let on_drop = RawEntry::Dropped {
+        at: ms_ns(120),
+        cause: Cause::On,
+        keys: 8,
+    };
+    let seen = table_evidence(&[(100, 400)], &[reading_at(110, 111, Reading::On), on_drop]);
+    let rows: [MendedRow; 9] = [
+        (
+            "a reading of on inside the on-time and a drop for on",
+            false,
+            None,
+            0,
+            seen.clone(),
+            Verdict::Held,
+        ),
+        (
+            "no reading of on inside the on-time",
+            false,
+            None,
+            0,
+            table_evidence(
+                &[(100, 400)],
+                &[
+                    reading_at(90, 95, Reading::Off),
+                    reading_at(450, 451, Reading::On),
+                    on_drop,
+                ],
+            ),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of on that straddles the start of the on-time",
+            false,
+            None,
+            0,
+            table_evidence(&[(100, 400)], &[reading_at(99, 101, Reading::On), on_drop]),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of on inside and no drop for on in the round",
+            false,
+            None,
+            0,
+            table_evidence(&[(100, 400)], &[reading_at(110, 111, Reading::On)]),
+            Verdict::NoProof,
+        ),
+        (
+            "the test's read never said on",
+            true,
+            None,
+            0,
+            seen.clone(),
+            Verdict::NeverOn,
+        ),
+        (
+            "the first stamp of on after the first release",
+            false,
+            None,
+            8,
+            table_evidence(
+                &[(5_000, 5_400)],
+                &[
+                    RawEntry::Released { at: ms_ns(3_011) },
+                    reading_at(5_010, 5_011, Reading::On),
+                ],
+            ),
+            Verdict::LateClick,
+        ),
+        (
+            "the first stamp of on before the first release",
+            false,
+            None,
+            1,
+            table_evidence(
+                &[(100, 400)],
+                &[
+                    RawEntry::Released { at: ms_ns(3_011) },
+                    reading_at(110, 111, Reading::On),
+                    on_drop,
+                ],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "a key recorded in a round that kept the on-time",
+            false,
+            None,
+            2,
+            seen.clone(),
+            Verdict::Recorded,
+        ),
+        (
+            "a round that did not count for a cause of F6",
+            false,
+            Some("the markers were not recorded"),
+            0,
+            seen,
+            Verdict::NotCounted("the markers were not recorded"),
+        ),
+    ];
+    for (what, never_on, why_not, ahead, found, want) in rows {
+        assert_eq!(
+            mended_verdict(never_on, why_not, ahead, &found),
+            want,
+            "{what}"
+        );
+    }
+}
+
+#[test]
+fn the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries() {
+    let rows: [(&str, Evidence, Case); 6] = [
+        (
+            "no on-time at all",
+            table_evidence(&[], &[reading_at(10, 11, Reading::Off)]),
+            Case::C,
+        ),
+        (
+            "no reading inside the on-time",
+            table_evidence(
+                &[(100, 130)],
+                &[
+                    reading_at(90, 95, Reading::Off),
+                    reading_at(140, 145, Reading::Off),
+                ],
+            ),
+            Case::A,
+        ),
+        (
+            "a reading that straddles the end of the on-time",
+            table_evidence(&[(100, 130)], &[reading_at(125, 135, Reading::Off)]),
+            Case::A,
+        ),
+        (
+            "an on-time that begins after the first release",
+            table_evidence(
+                &[(5_000, 5_300)],
+                &[
+                    RawEntry::Released { at: ms_ns(3_011) },
+                    reading_at(5_010, 5_011, Reading::On),
+                ],
+            ),
+            Case::B,
+        ),
+        (
+            "a reading of off with both stamps inside the on-time",
+            table_evidence(
+                &[(100, 130)],
+                &[
+                    reading_at(110, 112, Reading::Off),
+                    reading_at(115, 116, Reading::On),
+                ],
+            ),
+            Case::D,
+        ),
+        (
+            "a reading of on inside the on-time",
+            table_evidence(&[(100, 130)], &[reading_at(110, 112, Reading::On)]),
+            Case::Seen,
+        ),
+    ];
+    for (what, found, want) in rows {
+        assert_eq!(short_case(&found), want, "{what}");
+    }
+}
+
+#[test]
+fn the_on_time_and_the_fates_of_the_keys_are_read_from_the_raw_entries() {
+    let stamp = |ns: u64, on: bool| Stamp {
+        kind: String::from("ev"),
+        detail: 10,
+        ns,
+        on,
+    };
+    let stamps = [
+        stamp(10, false),
+        stamp(20, true),
+        stamp(30, true),
+        stamp(40, false),
+        stamp(50, true),
+    ];
+    assert_eq!(on_runs(&stamps), [(20, 30), (50, 50)]);
+    assert_eq!(first_off_after(&stamps, 30), Some(40));
+    let parsed = parse_stamps("stamps n=2 lost=0 fr_secure:1:2000500:1 cmd_plain:0:3000000:0");
+    assert_eq!(
+        parsed,
+        [
+            Stamp {
+                kind: String::from("fr_secure"),
+                detail: 1,
+                ns: 2_000_500,
+                on: true
+            },
+            Stamp {
+                kind: String::from("cmd_plain"),
+                detail: 0,
+                ns: 3_000_000,
+                on: false
+            }
+        ]
+    );
+    let entries = [
+        RawEntry::Arrival {
+            at: 1,
+            admission: Arrived::Held,
+        },
+        RawEntry::Arrival {
+            at: 2,
+            admission: Arrived::Held,
+        },
+        RawEntry::Released { at: 5 },
+        RawEntry::Arrival {
+            at: 6,
+            admission: Arrived::Held,
+        },
+        RawEntry::Dropped {
+            at: 7,
+            cause: Cause::On,
+            keys: 2,
+        },
+        RawEntry::Arrival {
+            at: 8,
+            admission: Arrived::Suppressed,
+        },
+        RawEntry::Arrival {
+            at: 9,
+            admission: Arrived::Held,
+        },
+    ];
+    assert_eq!(
+        key_fates(&entries),
+        [
+            (1, String::from("released"), Some(5)),
+            (2, String::from("dropped_on"), Some(7)),
+            (6, String::from("dropped_on"), Some(7)),
+            (8, String::from("suppressed"), Some(8)),
+            (9, String::from("open"), None),
+        ]
+    );
+}
+
+#[test]
+fn the_fixture_gives_out_its_stamps_on_a_command_through_the_launch_path() {
+    let fixture_body = "exec 3>\"$2\" 4<\"$1\"\nprintf 'ready pid=%s\\n' \"$$\" >&3\n\
+        while IFS= read -r line <&4; do\n  case $line in\n    \
+        stamps) printf 'stamps n=3 lost=0 cmd_clear:0:1000:0 fr_secure:1:2000500:1 cmd_stamps:0:3000000:1\\n' >&3 ;;\n    \
+        quit) exit 0 ;;\n    *) printf 'unknown\\n' >&3 ;;\n  esac\ndone";
+    let fixture_script = stand_in("stamps-fixture", fixture_body);
+    let opener = stand_in(
+        "stamps-opener",
+        &format!("\"{}\" \"$3\" \"$5\" &\nexit 0", fixture_script.display()),
+    );
+    let bundle = Path::new(env!("CARGO_TARGET_TMPDIR")).join("NoBundle.app");
+    let mut fixture = launched(&opener, &bundle, "stand-in-stamps-", Duration::from_secs(5))
+        .expect("the stand-in fixture answers ready");
+    let stamps = fixture.stamps();
+    println!(
+        "stand-in stamps n={} on_runs={:?}",
+        stamps.len(),
+        on_runs(&stamps)
+    );
+    assert_eq!(
+        stamps
+            .iter()
+            .map(|stamp| stamp.kind.as_str())
+            .collect::<Vec<_>>(),
+        ["cmd_clear", "fr_secure", "cmd_stamps"]
+    );
+    assert_eq!(on_runs(&stamps), [(2_000_500, 3_000_000)]);
 }
 
 type Seen = Arc<Mutex<Vec<(u32, u64, u64, u64)>>>;
