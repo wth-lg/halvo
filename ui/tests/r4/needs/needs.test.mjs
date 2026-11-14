@@ -2153,6 +2153,7 @@ async function holds(origin, dir) {
     } finally {
       await h.close();
     }
+    if (process.env.R4_CASES) console.log('holds case ran ' + tag);
   };
   const expect = (tag, got, want) => {
     if (JSON.stringify(got) !== JSON.stringify(want)) faults.push(tag + ':says=' + (got.map((s) => (s === B ? 'B' : s === p.full ? 'A' : s)).join('|') || '-'));
@@ -2312,6 +2313,75 @@ async function holds(origin, dir) {
     await answerOpen(h);
     await afterClose(h);
     if ((await k.says()).includes(B)) faults.push(h11 + ':added_at_the_release');
+  });
+  const h12 = 'h12_a_reply_that_drops_an_answered_confirmation_and_another_item';
+  await flow(h12, [{ state: snap(1, [stuck, ready]) }, gate, { state: snap(2, [stuck, ready, confirm]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+    await pass(h, [stuck, ready, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    await pass(h, [stuck]);
+    await afterClose(h);
+    expect(h12, await k.says(), ['Ready went.']);
+  });
+  const h13 = 'h13_a_refusal_in_the_task_that_closes_a_confirmation_shown_again';
+  await flow(h13, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm, { hold: true }), answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    h.held.shift()({ error: 'busy' });
+    await h.page.waitForFunction(() => Boolean([...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'))), null, { timeout: 5000 });
+    await frames(h);
+    const inTask = await h.page.evaluate(([s, more]) => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+      const t = document.querySelector(s);
+      t.value = t.value + more;
+      t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+      return [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+    }, [line, 'y'.repeat(30)]);
+    expect(h13 + '_in_the_closing_task', inTask, []);
+    await afterClose(h);
+    expect(h13 + '_after_the_close', await k.says(), [B]);
+  });
+  const h14 = 'h14_a_reply_that_drops_the_waiting_confirmation_before_the_first_close';
+  await flow(h14, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+    await pass(h, [stuck, confirm, second]);
+    await h.page.evaluate(() => {
+      window.__r4closes = [];
+      for (const d of document.querySelectorAll('[role="alertdialog"]')) {
+        d.closest('li').addEventListener(
+          'close',
+          (e) => {
+            if (!e.isTrusted || e.target !== d) return;
+            e.stopImmediatePropagation();
+            window.__r4closes.push(d);
+          },
+          true,
+        );
+      }
+    });
+    const heldIds = () => h.page.evaluate(() => window.__r4closes.map((d) => d.querySelector('[data-param]').getAttribute('data-param')));
+    await answerOpen(h);
+    await h.page.waitForFunction(() => window.__r4closes.length === 1, null, { timeout: 5000 });
+    expect(h14 + '_the_first_close_held', await heldIds(), [confirm.item]);
+    await pass(h, [stuck]);
+    await h.page.waitForFunction(() => window.__r4closes.length === 2, null, { timeout: 5000 });
+    expect(h14 + '_the_second_close_held', await heldIds(), [confirm.item, second.item]);
+    const steps = await h.page.evaluate(() => {
+      const read = () => [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+      const out = [read()];
+      window.__r4closes.forEach((d) => {
+        d.dispatchEvent(new Event('close'));
+        out.push(read());
+      });
+      return out;
+    });
+    expect(h14 + '_before_the_closes', steps[0], []);
+    expect(h14 + '_after_the_first_close', steps[1], ['Second went.']);
+    expect(h14 + '_after_the_second_close', steps[2], ['Second went.']);
+    await afterClose(h);
+    expect(h14 + '_after_the_turn', await k.says(), ['Second went.']);
   });
   return faults;
 }
