@@ -71,7 +71,10 @@ pub fn adoption_roots(command_exe: Option<&std::path::Path>, exes: &[PathBuf]) -
 
 #[cfg(target_os = "macos")]
 pub fn footprints(pid: u32) -> Option<(u64, u64)> {
+    // SAFETY: rusage_info_v4 is a C struct of integers, for which all-zero bytes are a valid value.
     let mut info: libc::rusage_info_v4 = unsafe { std::mem::zeroed() };
+    // SAFETY: the flavor RUSAGE_INFO_V4 writes one rusage_info_v4 into `info`, a live local of that
+    // type.
     let r = unsafe {
         libc::proc_pid_rusage(
             pid as libc::c_int,
@@ -95,8 +98,9 @@ pub trait Stopper {
 pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measured> {
     let start = now_us();
     let child: Child = cmd.spawn()?;
-    follow(child, start, stop, &mut |pid| unsafe {
-        libc::kill(pid as libc::c_int, libc::SIGTERM);
+    follow(child, start, stop, &mut |pid| {
+        // SAFETY: kill takes a pid and a signal number and touches no memory of this process.
+        unsafe { libc::kill(pid as libc::c_int, libc::SIGTERM) };
     })
 }
 
@@ -230,12 +234,18 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
     use windows_sys::Win32::System::Threading::{
         OpenThread, ResumeThread, CREATE_SUSPENDED, THREAD_SUSPEND_RESUME,
     };
+    // SAFETY: two null pointers ask for no security attributes and no name; the call returns a
+    // new job handle or null, which is checked.
     let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
     if job.is_null() {
         return Err(std::io::Error::last_os_error());
     }
+    // SAFETY: JOBOBJECT_EXTENDED_LIMIT_INFORMATION is a C struct of integers, for which all-zero
+    // bytes are a valid value.
     let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    // SAFETY: `job` is the open job handle, and the call reads the size that it is told from
+    // `limits`, a live local of that type.
     unsafe {
         SetInformationJobObject(
             job,
@@ -246,36 +256,55 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
     };
     cmd.creation_flags(CREATE_SUSPENDED);
     let mut child: Child = cmd.spawn()?;
+    // SAFETY: `job` is the open job handle, and the process handle is the one that `child` owns and
+    // keeps open.
     let assigned = unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as _) };
     if assigned == 0 {
         let e = std::io::Error::last_os_error();
         let _ = child.kill();
+        // SAFETY: `job` is the open job handle, closed once here before the return.
         unsafe { CloseHandle(job) };
         return Err(e);
     }
     let pid = child.id();
+    // SAFETY: the call takes plain values; an invalid handle makes Thread32First below fail, which
+    // ends the loop.
     let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+    // SAFETY: THREADENTRY32 is a C struct of integers, for which all-zero bytes are a valid value;
+    // its dwSize is set next.
     let mut entry: THREADENTRY32 = unsafe { std::mem::zeroed() };
     entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+    // SAFETY: `snap` is the snapshot (an invalid one makes the call fail), and `entry` is a live
+    // THREADENTRY32 whose dwSize is its size.
     let mut ok = unsafe { Thread32First(snap, &mut entry) };
     while ok != 0 {
         if entry.th32OwnerProcessID == pid {
+            // SAFETY: the call takes plain values and returns a thread handle or null, which is
+            // checked.
             let h = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
             if !h.is_null() {
+                // SAFETY: `h` is the thread handle that OpenThread gave just above, opened to resume;
+                // it is resumed, then closed once.
                 unsafe {
                     ResumeThread(h);
                     CloseHandle(h);
                 }
             }
         }
+        // SAFETY: as for Thread32First: the snapshot and the same live entry.
         ok = unsafe { Thread32Next(snap, &mut entry) };
     }
+    // SAFETY: `snap` was made above and is closed once here, not used after.
     unsafe { CloseHandle(snap) };
     let mut m = Measured::default();
     let mut exited: Option<(ExitStatus, Instant)> = None;
     let mut signalled = false;
     loop {
+        // SAFETY: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION is a C struct of integers, for which
+        // all-zero bytes are a valid value.
         let mut basic: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { std::mem::zeroed() };
+        // SAFETY: `job` is the open job handle; the call writes at most the size that it is told into
+        // `basic`, a live local of that type, and takes a null pointer for the length that it wrote.
         unsafe {
             QueryInformationJobObject(
                 job,
@@ -304,7 +333,11 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
         }
         std::thread::sleep(PERIOD);
     }
+    // SAFETY: as for `limits`: a C struct of integers.
     let mut ext: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: `job` is the open job handle; the query writes at most the size that it is told into
+    // `ext`, a live local; TerminateJobObject ends the processes of this job alone; the handle is
+    // closed once and not used after.
     unsafe {
         QueryInformationJobObject(
             job,
@@ -398,6 +431,7 @@ mod tests {
         let m = follow(child, start, &stop, &mut |pid| {
             sent.push(pid);
             if pid != root {
+                // SAFETY: kill takes a pid and a signal number and touches no memory of this process.
                 unsafe { libc::kill(pid as libc::c_int, libc::SIGTERM) };
             }
         })

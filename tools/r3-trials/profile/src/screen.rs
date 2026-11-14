@@ -119,6 +119,8 @@ mod mac {
     impl Key {
         fn new(name: &str) -> Key {
             let c = CString::new(name).unwrap_or_default();
+            // SAFETY: `c` is a live NUL-terminated string; the null allocator is the default one, and
+            // the new string that the call returns, or null, is released by the Key's drop.
             Key(unsafe { CFStringCreateWithCString(std::ptr::null(), c.as_ptr(), UTF8) })
         }
     }
@@ -126,37 +128,50 @@ mod mac {
     impl Drop for Key {
         fn drop(&mut self) {
             if !self.0.is_null() {
+                // SAFETY: the string was created by CFStringCreateWithCString in `Key::new`, is owned
+                // by this Key alone and is released once, here.
                 unsafe { CFRelease(self.0) };
             }
         }
     }
 
     fn number(dict: *const c_void, key: &Key) -> Option<i64> {
+        // SAFETY: `dict` is a dictionary of the window list that `windows` holds until its release,
+        // and the call only reads the key; the value that it returns is borrowed and not released.
         let v = unsafe { CFDictionaryGetValue(dict, key.0) };
         if v.is_null() {
             return None;
         }
         let mut out = 0i64;
+        // SAFETY: `v` is a non-null value of a number key of the window list (a CFNumber), and the
+        // type SINT64 writes eight bytes into `out`, a live i64.
         let ok = unsafe { CFNumberGetValue(v, SINT64, (&mut out as *mut i64).cast()) };
         (ok != 0).then_some(out)
     }
 
     fn text(dict: *const c_void, key: &Key) -> String {
+        // SAFETY: as in `number`: a dictionary that `windows` holds, a key that the call only reads,
+        // and a borrowed value.
         let v = unsafe { CFDictionaryGetValue(dict, key.0) };
         if v.is_null() {
             return String::new();
         }
         let mut buf = vec![0 as c_char; 512];
+        // SAFETY: `v` is a non-null value of the owner-name key (a CFString), and the call writes at
+        // most `buf.len()` bytes, the size that it is told, into `buf`, a live buffer.
         let ok = unsafe { CFStringGetCString(v, buf.as_mut_ptr(), buf.len() as isize, UTF8) };
         if ok == 0 {
             return String::new();
         }
+        // SAFETY: the call above returned true, so it wrote a NUL-terminated string inside `buf`.
         unsafe { CStr::from_ptr(buf.as_ptr()) }
             .to_string_lossy()
             .into_owned()
     }
 
     pub fn windows() -> Option<Vec<Window>> {
+        // SAFETY: the call takes plain values and returns a new array or null, which is checked; the
+        // array is owned here and released below.
         let list = unsafe { CGWindowListCopyWindowInfo(ON_SCREEN_ONLY | EXCLUDE_DESKTOP, 0) };
         if list.is_null() {
             return None;
@@ -165,8 +180,11 @@ mod mac {
         let owner_key = Key::new("kCGWindowOwnerName");
         let number_key = Key::new("kCGWindowNumber");
         let mut out = Vec::new();
+        // SAFETY: `list` is the non-null array copied above and not yet released.
         let n = unsafe { CFArrayGetCount(list) };
         for i in 0..n {
+            // SAFETY: `i` is below the count of `list`, which is not yet released; the value is
+            // borrowed and not released.
             let dict = unsafe { CFArrayGetValueAtIndex(list, i) };
             if dict.is_null() {
                 continue;
@@ -177,6 +195,7 @@ mod mac {
                 owner: text(dict, &owner_key),
             });
         }
+        // SAFETY: `list` was copied above, so it is owned here; it is released once and not used after.
         unsafe { CFRelease(list) };
         Some(out)
     }
@@ -238,6 +257,8 @@ mod win {
 
     pub fn windows() -> Option<Vec<Window>> {
         let mut list: Vec<(u64, u32)> = Vec::new();
+        // SAFETY: `collect` reads its LPARAM as the Vec<(u64, u32)> that `list` is, which lives on
+        // this frame until EnumWindows returns, and EnumWindows calls it on this thread alone.
         let ok =
             unsafe { EnumWindows(Some(collect), (&mut list as *mut Vec<(u64, u32)>) as LPARAM) };
         if ok == 0 {
@@ -260,11 +281,14 @@ mod win {
     }
 
     pub fn front() -> Option<String> {
+        // SAFETY: the call takes no argument and returns a window handle or null, which is checked.
         let hwnd = unsafe { GetForegroundWindow() };
         if hwnd.is_null() {
             return Some("none".into());
         }
         let mut pid = 0u32;
+        // SAFETY: the call only reads `hwnd` (a window closed since gives 0) and writes `pid`, a live
+        // u32.
         unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
         Some(format!("{} {}", hwnd as u64, pid))
     }

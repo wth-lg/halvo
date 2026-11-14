@@ -1,0 +1,9 @@
+disallowed-methods = [
+  { path = "chromiumoxide::Browser::launch", reason = "starts a browser process through chromiumoxide's tokio::process child; start a child through r3_web::start, so that no runtime holds a child that the start's hard kill could meet reaped (start.rs, hard_kill)" },
+  { path = "chromiumoxide::BrowserConfig::launch", reason = "starts a browser process through chromiumoxide's tokio::process child; start a child through r3_web::start, so that no runtime holds a child that the start's hard kill could meet reaped (start.rs, hard_kill)" },
+  { path = "chromiumoxide::async_process::Command::spawn", reason = "starts a browser process through chromiumoxide's tokio::process child; start a child through r3_web::start, so that no runtime holds a child that the start's hard kill could meet reaped (start.rs, hard_kill)" },
+]
+disallowed-types = [
+  { path = "chromiumoxide::async_process::Command", reason = "starts a browser process through chromiumoxide's tokio::process child; start a child through r3_web::start, so that no runtime holds a child that the start's hard kill could meet reaped (start.rs, hard_kill)" },
+  { path = "tokio::process::Command", reason = "start no child through tokio::process in a program that runs r3_web's hard kill (start.rs, hard_kill)" },
+]

@@ -953,6 +953,8 @@ async fn measure_shape(
             _ = stop_rx.wait_for(|s| *s), if !signalled => {
                 signalled = true;
                 #[cfg(unix)]
+                // SAFETY: kill takes a pid and a signal number and touches no memory of this process; `child` is this program's own child, waited for only after
+                // this loop, so its pid names it and no other process.
                 unsafe { libc_kill(child.id() as i32, 15) };
             }
         }
@@ -1158,6 +1160,8 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
             _ = stop_rx.wait_for(|s| *s), if !signalled => {
                 signalled = true;
                 #[cfg(unix)]
+                // SAFETY: kill takes a pid and a signal number and touches no memory of this process; `child` is this program's own child, waited for only after
+                // this loop, so its pid names it and no other process.
                 unsafe { libc_kill(child.id() as i32, 15) };
             }
         }
