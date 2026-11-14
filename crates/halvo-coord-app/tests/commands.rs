@@ -665,3 +665,36 @@ fn the_day_is_the_day_of_one_read_of_now_and_follows_the_memory_clock() {
         "the day follows the instant"
     );
 }
+
+#[test]
+fn the_day_of_an_instant_on_another_day_than_the_clocks_is_the_day_of_that_instant() {
+    use halvo_coord::ports::Clock;
+    const ONE_DAY: u64 = 86_400_000;
+    let hub = hub(1);
+    let wired = hub.coordinator().ports();
+    let shared = wired.inner();
+    let (t0, day) = (support::T0, support::DAY);
+    for (who, clock) in [
+        ("Wired", wired as &dyn Clock),
+        ("Shared", shared as &dyn Clock),
+    ] {
+        assert_eq!(
+            clock.day(t0 + ONE_DAY),
+            Ok(day + 1),
+            "{who}: the day after now"
+        );
+        assert_eq!(
+            clock.day(t0 + 3 * ONE_DAY),
+            Ok(day + 3),
+            "{who}: three days after now"
+        );
+    }
+    shared.with(|p| p.set_now(t0 + 3 * ONE_DAY));
+    for (who, clock) in [
+        ("Wired", wired as &dyn Clock),
+        ("Shared", shared as &dyn Clock),
+    ] {
+        assert_eq!(clock.day(t0), Ok(day), "{who}: a day before now");
+        assert_eq!(clock.today(), Ok(day + 3), "{who}: today follows now");
+    }
+}
