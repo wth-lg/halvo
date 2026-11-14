@@ -165,8 +165,6 @@ impl Clock for TestHost {
     }
 }
 
-/// The store's bound rule (W-C2.5; the workflow run's rulings DS-2 and DS-4): the read withholds a row of a bounded
-/// kind whose `day` lies its bound or more days before today, or more than two days after it, or that has no `day`.
 fn withheld(kind: &str, json: &str, today: u32) -> bool {
     let Some(RetentionClass::Bounded { days }) =
         registry().find(|e| e.name == kind).map(|e| e.class)

@@ -14,7 +14,6 @@ fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
 }
 
-/// The lines of run 3: a counted failure of step 2, a recovered step 3, then `step_ok` lines of step 1 up to `total`.
 fn lines(total: usize) -> Vec<Sent> {
     let mut out: Vec<Sent> = vec![
         (1, "step_failed", 2, Some("step_failed")),
@@ -29,8 +28,6 @@ fn lines(total: usize) -> Vec<Sent> {
     out
 }
 
-/// Run 2 learns an edit of step 2; run 3 is served it, proposes a target for step 3, sends `total` lines in bodies
-/// of 2,048, then the first body again `again` times.
 fn play(total: usize, again: usize) -> World {
     let mut w = active_world();
     w.learn(

@@ -121,10 +121,6 @@ impl LearnHandlers {
         Ok(reply)
     }
 
-    /// The one typed commit of a run that ended with facts (contracts.md L4.2): the run's `learn_run` rev 2 and the
-    /// rows that the moves of L3.7 and the kept candidates give, each `learn_edit` row checked by `check_sources`.
-    /// Nothing is committed for a run whose newest `learn_run` row is not `started` or whose run rows cannot be read,
-    /// and only the run's rev 2, with `kept` 0, where the edits of its workflow cannot be read.
     pub(crate) fn commit_ended(
         &mut self,
         host: &mut dyn LearnHost,

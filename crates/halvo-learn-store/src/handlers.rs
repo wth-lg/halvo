@@ -43,8 +43,6 @@ impl Refused {
     }
 }
 
-/// Why the learning part of a request left its commit out: an error of a read, a write or the commit, or
-/// `check_sources` answered `source` for a row of the commit (contracts.md L1.5, L3.7).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Fault {
     Error(ErrorName),
@@ -176,7 +174,6 @@ impl LearnHandlers {
         answer
     }
 
-    /// Leaves out the learning commit whose part ended with a fault; a test keeps the fault.
     pub(crate) fn leave(&mut self, outcome: Result<(), Fault>) {
         #[cfg(test)]
         if let Err(fault) = outcome {

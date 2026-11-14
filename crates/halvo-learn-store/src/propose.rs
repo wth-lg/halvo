@@ -157,10 +157,6 @@ impl LearnHandlers {
         }
     }
 
-    /// The mode of a run at its `put_playbook`, its workflow, and whether the run rows of that workflow can be read:
-    /// the mode of the run's own `learn_run` row under the body's agent where its parser takes it, else that of the
-    /// start that this value remembers for the run under that agent (contracts.md L4.2; the coordinator's ruling
-    /// LM-58 (a), (g)). None where neither stands, which the handler answers `binding`.
     fn mode_of(&self, host: &dyn LearnHost, b: &PutPlaybook) -> Option<(Mode, WorkflowId, bool)> {
         let start = self.starts.get(&b.run).filter(|s| s.agent == b.agent);
         let row = rows::run_row(host.rows(), b.run.as_str()).filter(|r| r.agent == b.agent);
@@ -250,10 +246,6 @@ impl LearnHandlers {
     }
 }
 
-/// The withdrawal of a compile `put_playbook` that the agent store stored (contracts.md L4.2, Q9): the move
-/// `recompile` for every edit of the agent with a lower `base`, in one typed commit of rows that add no run, each
-/// checked by `check_sources`. It waits, as after a stop between a compile's two commits, where the edits of the
-/// workflow cannot be read.
 fn withdraw(host: &mut dyn LearnHost, workflow: &WorkflowId, b: &PutPlaybook) -> Result<(), Fault> {
     let Read::Rows(stored) = Edits::read(host.rows(), workflow) else {
         return Ok(());

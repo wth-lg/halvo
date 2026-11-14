@@ -8,10 +8,6 @@ use halvo_schema::executable::{ExecutableStep, OwnText};
 use halvo_schema::learning::record::EditId;
 use halvo_schema::{AgentId, SeedCategory, WorkflowId};
 
-/// A run whose `start_run` the agent store accepted while this value answered it: its workflow, its agent, its mode,
-/// whether this value stored its `learn_run` rev 1, and the order in which the value made it, by which the first made
-/// goes first at the bound `RUNS_HELD_MAX`. A `load` makes facts only for a run whose row this value stored; the mode
-/// serves a run whose row could not be stored or read (contracts.md L4.2; the coordinator's ruling LM-58 (a)).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Start {
     pub(crate) workflow: WorkflowId,
@@ -51,9 +47,6 @@ pub(crate) struct RunFacts {
     pub(crate) loaded: Option<NonZeroU32>,
     pub(crate) slots: Vec<String>,
     pub(crate) served: BTreeMap<NonZeroU32, Served>,
-    /// The steps whose `load_steps` replies to the run, under the number that it loaded, carried different edits:
-    /// another edit id, or an edit where the reply before carried none or the reverse. A mark stays once set, and a
-    /// marked step gets no `use_ok` (contracts.md L3.7; the coordinator's ruling LM-60 (c)).
     pub(crate) marked: BTreeSet<NonZeroU32>,
     pub(crate) candidates: BTreeMap<NonZeroU32, Candidate>,
     pub(crate) lines: Vec<(NonZeroU32, Line)>,

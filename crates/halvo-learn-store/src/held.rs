@@ -15,8 +15,6 @@ pub(crate) fn of_the_store(name: ErrorName) -> bool {
 }
 
 impl LearnHandlers {
-    /// Remembers the start of a run, and whether this value stored its `learn_run` rev 1; at `RUNS_HELD_MAX` runs
-    /// held, the one made first goes first.
     pub(crate) fn remember_start(&mut self, b: &StartRun, row: bool) {
         while !self.starts.contains_key(&b.run) && self.starts.len() >= RUNS_HELD_MAX {
             let Some(first) = self

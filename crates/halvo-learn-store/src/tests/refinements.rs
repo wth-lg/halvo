@@ -9,8 +9,6 @@ use crate::{Clock, CoordinatorAnswer, LearnHost, LearnStep};
 
 const LATER: u32 = 100_000;
 
-/// A `learn_routine` row of rev 2 of workflow 1 and agent 1 on `on`: stale since that day after a last occurrence
-/// 70 days before it, or not stale with its last occurrence on that day.
 fn rev_2(w: &mut World, on: u32, stale: bool) {
     let last = if stale { on - 70 } else { on };
     let row = json!({

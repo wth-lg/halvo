@@ -55,11 +55,6 @@ impl LearnHandlers {
         Ok(CoordinatorAnswer::Agent(reply))
     }
 
-    /// `end_run` (contracts.md L4.3; the coordinator's ruling LM-61): for a run with facts under the body's agent the
-    /// handlers first read the agent's newest compile number by their own `load` of the run, then pass the body on;
-    /// where the agent store accepted, they make the commit that the `finish` of the run with the outcome `failed`
-    /// would make. The run's facts and remembered start go whatever the agent store answers, and the reply is the
-    /// agent store's. A refused own `load` drops the run before the body is passed on, and nothing is committed.
     fn end_run(
         &mut self,
         host: &mut dyn LearnHost,
@@ -153,11 +148,6 @@ impl LearnHandlers {
 }
 
 impl LearnHandlers {
-    /// At a `start_run` that the agent store accepted (contracts.md L4.3): stores the run's `learn_run` rev 1 and
-    /// remembers the start; in the same typed commit, or alone where the run's row stands already, the `learn_routine`
-    /// row that `routine_due` gives. A run whose row stands already changes nothing else. Where the run rows of the
-    /// workflow cannot be read, nothing is stored and the start is remembered with no row; where the commit is
-    /// refused, the start is remembered with no row too, and the run is a lost run.
     fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
         let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
             if !self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent) {
@@ -200,11 +190,6 @@ fn start_rows(host: &mut dyn LearnHost, b: &StartRun, stands: bool) -> Result<()
     host.commit(records)
 }
 
-/// The `learn_routine` row that an accepted `start_run` stores for the body's workflow and agent (contracts.md L4.3;
-/// the workflow run's ruling S-69; the coordinator's ruling LM-57): where a read of the routine rows that succeeded
-/// holds no row of the pair, rev 1 as at `create_agent`; where the pair's newest row by `rows::newest_routine` is at
-/// least `REWRITE_DAYS` days old and holds the mark `none`, that row again with `rev` + 1 and `day` today; else none,
-/// also where the read stops the workflow. A row that holds `stale` is not written again.
 fn routine_due(
     host: &dyn LearnHost,
     workflow: &WorkflowId,
@@ -230,10 +215,8 @@ fn routine_due(
     }
 }
 
-/// The age in days at which an accepted `start_run` writes the pair's newest routine row again.
 const REWRITE_DAYS: u32 = 30;
 
-/// Rev 1 of the pair's routine row from the stored workflow's key, or none where the workflow is not stored whole.
 fn first_routine(
     host: &dyn LearnHost,
     workflow: &WorkflowId,

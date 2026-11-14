@@ -13,10 +13,6 @@ pub(crate) const LEARN_RUN: &str = "learn_run";
 pub(crate) const LEARN_EDIT: &str = "learn_edit";
 pub(crate) const LEARN_ROUTINE: &str = "learn_routine";
 
-/// What the read of one kind gives for one workflow (contracts.md L4.2; the coordinator's ruling LM-58 (a), (d)): the
-/// rows of the kind that their parser takes, or `Stopped` where the parser refuses a row of the kind that names the
-/// workflow by `refused_workflow`, or that names no workflow that can be read. A refused row of another workflow
-/// stops nothing.
 pub(crate) enum Read<T> {
     Rows(T),
     Stopped,
@@ -52,7 +48,6 @@ pub(crate) fn routines(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<Le
     read(rows, LEARN_ROUTINE, LearnRoutine::parse, workflow)
 }
 
-/// The newest `learn_run` row of the run among the rows of every workflow that their parser takes.
 pub(crate) fn run_row(rows: &dyn RowRead, run: &str) -> Option<LearnRun> {
     let mut found: Vec<LearnRun> = Vec::new();
     rows.for_each(LEARN_RUN, &mut |row| {
@@ -168,8 +163,6 @@ pub(crate) struct Edits {
 }
 
 impl Edits {
-    /// The one read of the edits that each of its callers branches on: every row of the kind, or `Stopped` for
-    /// the workflow.
     pub(crate) fn read(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Edits> {
         let Read::Rows(parsed) = read(rows, LEARN_EDIT, LearnEdit::parse, workflow) else {
             return Read::Stopped;

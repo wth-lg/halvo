@@ -34,7 +34,6 @@ fn names(step: &Value) -> Vec<String> {
         .collect()
 }
 
-/// The texts of the rows of `kind` that name workflow `n`, the refused ones too.
 fn rows_of(w: &World, kind: &str, n: u32) -> Vec<String> {
     w.host
         .learn_rows(kind)
@@ -45,7 +44,6 @@ fn rows_of(w: &World, kind: &str, n: u32) -> Vec<String> {
         .collect()
 }
 
-/// The `learn_edit` rows that their parser takes.
 fn edits(w: &World) -> Vec<LearnEdit> {
     w.host
         .learn_rows("learn_edit")
@@ -108,7 +106,6 @@ impl Clock for Today {
     }
 }
 
-/// The `learn_routine` rows that the step returns for workflow `n` after the rows of the host.
 fn stepped(w: &World, n: u32) -> Vec<LearnRoutine> {
     LearnStep::new(Today(w.host.day))
         .after_commit(&NoSummaries, &w.host)

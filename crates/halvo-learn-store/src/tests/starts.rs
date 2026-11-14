@@ -7,8 +7,6 @@ use serde_json::{json, Value};
 use super::host::{active_world, agent, run, wf, world_with_no_routine_row, World, DAY};
 use crate::{CoordinatorAnswer, LearnHost};
 
-/// Every stored `learn_routine` row of workflow 1 that its parser takes, those that the read withholds too, by `rev`
-/// and `day`.
 fn routines(w: &World) -> Vec<LearnRoutine> {
     let mut rows: Vec<LearnRoutine> = w
         .host
@@ -25,8 +23,6 @@ fn day(d: u32) -> Day {
     Day::new(d).expect("a day")
 }
 
-/// The row of workflow 1 and agent 1 with `rev`, `day` and `mark`, and the figures of a monthly routine: last done
-/// on `day`, or 70 days before it and missed twice where the mark is `stale`.
 fn planted(w: &mut World, rev: u32, on: u32, mark: &str) {
     let stale = mark == "stale";
     let last = if stale { on - 70 } else { on };
@@ -250,8 +246,6 @@ fn a_start_run_that_arrives_again_after_both_rows_stand_changes_nothing() {
     assert_eq!(w.handlers.starts, starts);
 }
 
-/// A row of rev 2 of workflow 1 and agent 1 written on `on`: stale since that day after a last occurrence 70 days
-/// before it with a period of 31, or not stale with its last occurrence on that day and a period of 30.
 fn rev_2_on(w: &mut World, on: u32, stale: bool) {
     let (last, period) = if stale { (on - 70, 31) } else { (on, 30) };
     let row = json!({
@@ -271,8 +265,6 @@ fn rev_2_on(w: &mut World, on: u32, stale: bool) {
         .expect("the row is stored");
 }
 
-/// The newest row of two rows of rev 2 and different days, the later one `none` and the earlier one `stale`, is
-/// written again at a start whatever the order in which the read visits them.
 fn the_later_of_two_rows_of_one_rev_is_written_again(later: u32, later_visited_first: bool) {
     let mut w = active_world();
     rev_2_on(&mut w, later, false);

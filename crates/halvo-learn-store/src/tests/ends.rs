@@ -56,7 +56,6 @@ fn holds_nothing_of(w: &World, r: u32) -> bool {
     !w.handlers.facts.contains_key(&id) && !w.handlers.starts.contains_key(&id)
 }
 
-/// Run 2 learns an edit of step 2; run 3 is served it and logs a counted failure of that step.
 fn served_and_failed() -> World {
     let mut w = active_world();
     w.learn(
