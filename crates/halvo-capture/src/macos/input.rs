@@ -2110,6 +2110,14 @@ mod tests {
     }
 
     #[test]
+    fn an_os_time_of_0_is_untimed_and_not_late() {
+        let (held, drops) = seam_held(1_000);
+        advance(1);
+        on_tap_event(&held.ctx, timed(CGEventType::KeyDown, Timing::Untimed));
+        assert_eq!((drops.of("untimed"), drops.of("late")), (1, 0));
+    }
+
+    #[test]
     fn a_stand_in_that_moves_the_monotonic_clock_alone_by_more_than_the_bound_is_a_wake() {
         let (held, drops) = seam_held(1_000);
         key_down(&held.ctx);
