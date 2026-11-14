@@ -872,8 +872,10 @@ Readings that refuse an honest line, with the form to write in its place:
   "$(dirname "$0")/../gate/prompt-budget.json";
 - in the app, a comment that names a path under backend/ is refused: write it
   in a .md file;
-- on either side, a line that holds a run of more than 64 strings joined by
-  a comma, ").join(" or "/" is refused, because the chains of a run take
+- on either side, a line that the check reads (one that git grep hands on
+  because it holds a climb, an anchor or a name of the other side) and that
+  holds a run of more than 64 strings joined by a comma, ").join(" or "/" is
+  refused, because the chains of a run take
   time that grows with the square of its strings (400 strings took minutes):
   put the strings on several lines. A line of many strings in shorter runs
   is read whole;
@@ -907,9 +909,10 @@ Readings that refuse an honest line, with the form to write in its place:
   pattern, as case $f in */test/*) return 0 ;; esac, is refused, because a
   line that opens a block is not read as an arm: write the case over
   several lines, one arm to a line;
-- in a shell script of the app, an esac in a string of an arm closes the
-  block early (the limit case-in-text), so a later arm with a glob pattern
-  is refused: word the string without esac.
+- in a shell script of the app, an esac in a string or in a trailing
+  comment of an arm closes the block early (the limit case-in-text), so a
+  later arm with a glob pattern is refused: word the string or the comment
+  without esac.
 
 What it does not refuse, the 15 named limits, each held by a passing fixture
 known-limit-<name> of the self-test:
@@ -925,9 +928,9 @@ known-limit-<name> of the self-test:
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
   known limit name-in-a-variable: in backend/, a part of a path held in a variable between the strings, as join(root, "crates", crate, "src", "lib.rs") after crate = "halvo-capture": the variable breaks the run of strings, so the reading from the top sees no path of the app.
-  known limit case-in-text: in a shell script, text that is no code moves the tracking of a case block: a string or a here-document that holds case ... in opens a block, a trailing comment that ends in ;; ends an arm, so the next line, a glob command before | and a backslash, is read as a pattern and its glob is not counted; an esac in a string closes a block early, so an honest arm after it is refused.
+  known limit case-in-text: in a shell script, text that is no code moves the tracking of a case block: a string or a here-document that holds case ... in opens a block, a trailing comment that ends in ;; ends an arm, so the next line, a glob command before | and a backslash, is read as a pattern and its glob is not counted; an esac in a string or in a trailing comment closes a block early, so an honest arm after it is refused.
   known limit quote-before-glob: an unquoted glob right after a closing quote, as "$repo"/*/test/ledger/cases.ts, is taken as quoted, so it is not counted when the path after it is a file of backend/.
-  known limit backend-glob: in backend/, a glob whose first part is a glob, as */halvo-capture/src/lib.rs, which the shell can open as a path of the app.
+  known limit backend-glob: in backend/, a glob whose first part is a glob, as */halvo-capture/src/lib.rs, which the shell can open as a path of the app, and a glob whose only glob characters are none of *, ? and [, as an extglob crates/halvo-capture/src/@(lib|event).rs or a brace group crates/{halvo-capture,halvo-route}/src/lib.rs.
 A glob without a letter, as */test/x, is counted when it can stand for
 backend and the path after it is a directory of backend/ or, in a word that
 the shell opens (no quote before it), a tracked file of backend/ (P7-89).
@@ -1796,6 +1799,8 @@ const files = globSync("crates/halvo-capture/src/*.rs", { cwd: root });' 'backen
   pairs=$(awk 'BEGIN { printf "{"; for (i = 1; i <= 300; i++) printf "%s\"k%d\":\"../v%d\"", (i > 1 ? "," : ""), i, i; printf "}" }') || exit 2
   pass_with f1c-l3-a-line-of-600-strings-in-short-runs-is-read backend/test/fixtures/pairs.json "$pairs" 'read:backend/test/fixtures/pairs.json'
   case_with f1c-l3-a-long-run-before-a-short-one-is-refused backend/src/list.ts "$run65 const one = \"../z\";" 'backend/src/list.ts:1: holds a run of 65 strings joined by'
+  run65plain=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"l%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  pass_with f1c-l3-a-run-of-65-on-a-line-that-the-search-skips-is-not-read backend/src/labels.ts "$run65plain" 'unread:backend/src/labels.ts'
   pass_with f1c-an-app-line-with-the-word-names-an-app-file-in-full scripts/note.sh 'echo "the backend reads nothing of crates/halvo-capture/src/lib.rs"' 'read:scripts/note.sh'
 
   fixture known-limit-names-v0
@@ -1856,6 +1861,13 @@ esac' 'read:scripts/b9.sh'
 }' 'scripts/n2.sh:4: reads under backend/ by a glob'
   case_with f1c-k7-a-one-line-case-with-a-glob-pattern scripts/k7.sh 'kind_of() { case $1 in a) return 1 ;; */test/*) return 0 ;; esac; }' 'scripts/k7.sh:1: reads under backend/ by a glob'
   case_with f1c-n5-a-one-line-case-with-two-glob-patterns scripts/n5.sh 'case $f in */test/*) return 0 ;; */spec/*) return 1 ;; esac' 'scripts/n5.sh:1: reads under backend/ by a glob'
+  pass_with f1c-backend-glob-an-extglob-or-a-brace-group backend/scripts/ext.sh 'cd .. && cd .. && cat crates/halvo-capture/src/@(lib|event).rs crates/{halvo-capture,halvo-route}/src/lib.rs' 'read:backend/scripts/ext.sh'
+  case_with f1c-an-esac-in-a-trailing-comment-closes-the-block-early scripts/esac-comment.sh 'kind_of() {
+  case $1 in
+    --help) usage ;; # see esac below
+    */test/*) return 0 ;;
+  esac
+}' 'scripts/esac-comment.sh:4: reads under backend/ by a glob'
 
   case_repo=$scratch/no-tracked-file
   case_index=$case_repo/.git/index
