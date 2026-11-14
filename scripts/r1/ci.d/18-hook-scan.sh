@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: The source scan of the R1 gate finds no banned input-hook, event-tap or audio-capture call in the tracked Rust sources.
+# lane: free
 set -u
 name=18-hook-scan
 

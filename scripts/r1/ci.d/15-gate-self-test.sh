@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: The last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file, the self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash.
+# lane: alone
 set -u
 name=15-gate-self-test
 nl='

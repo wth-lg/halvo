@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: The backend's typecheck (tsc --noEmit in backend/, over the files that backend/tsconfig.json includes) reports no error, and biome lint, with backend/biome.json, exits 0, prints no count of errors, warnings or infos, and reads at least one file, in backend/ and in the model formal/r7-ledger/.
+# lane: free
 set -u
 name=20-r7-backend-static
 

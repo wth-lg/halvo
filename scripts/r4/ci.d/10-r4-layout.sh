@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every tracked file under a root of I14 of the interface run matches a pattern of scripts/r4/layout.txt, which holds the thirteen roots of I14 and lines of its form.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL

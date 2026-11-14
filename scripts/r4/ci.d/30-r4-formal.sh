@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: TLC finds no invariant of the coordinator's two models broken in the small configurations that formal/r4-coordinator/README.md names for CI, the committed traces are what the committed models export, and each of two control copies breaks its invariant.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: windows
 # rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker
+# lane: alone
 set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}

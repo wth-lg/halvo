@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every tracked file under the routing run's seven roots matches a line of scripts/r6/layout.txt, the file of path patterns that name the unit owning each file.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL
