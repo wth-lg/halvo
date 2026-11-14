@@ -20,9 +20,21 @@ pub const READING_STEP: Duration = Duration::from_millis(10);
 /// taken before the earlier read to the time taken after the later one.
 pub const GAP_BOUND: Duration = Duration::from_millis(30);
 
-/// The widest lag of a key at the callback, after its OS time, that keeps the
-/// held keys. No change of the gap bound moves it.
+/// The widest lag of a key event that keeps the held keys: from the event's
+/// OS time to the end of the event's own reading of the state. No change of the
+/// gap bound moves it.
 pub const LAG_BOUND: Duration = Duration::from_millis(30);
+
+/// The widest distance between the two uptime reads around a monotonic read
+/// for the pair of clocks to be used.
+pub const PAIR_WIDTH: Duration = Duration::from_micros(100);
+
+/// How many times a reading tries to take the pair of clocks.
+pub const PAIR_TRIES: usize = 3;
+
+/// How far the difference of the two clocks may rise above the largest one
+/// seen before a reading reads a wake of the Mac.
+pub const WAKE_MARGIN: Duration = Duration::from_millis(1);
 
 /// The step at which the session is read again while keys are held.
 pub const SESSION_STEP: Duration = Duration::from_millis(250);
@@ -70,6 +82,7 @@ pub enum Cause {
     TapSwitchedOff,
     OwnTake,
     Full,
+    Sleep,
     Stop,
     Refused,
 }
@@ -138,22 +151,68 @@ pub enum Timing {
     InTime { lag: Duration },
     Late { lag: Duration },
     Untimed,
+    Asleep,
+}
+
+impl Timing {
+    /// The cause for which a key event of this timing is withheld, if any.
+    pub fn refusal(self) -> Option<Cause> {
+        match self {
+            Self::InTime { .. } => None,
+            Self::Late { .. } => Some(Cause::LateKey),
+            Self::Untimed => Some(Cause::UntimedKey),
+            Self::Asleep => Some(Cause::Sleep),
+        }
+    }
+}
+
+/// The two stamps of a key event at the callback's entry, the monotonic one
+/// taken first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Entry {
+    pub monotonic: Monotonic,
+    pub uptime: Uptime,
 }
 
 /// The timing of a key whose OS time is `os_time` and which reached the
-/// callback at `arrival`, both on CLOCK_UPTIME_RAW. An OS time of 0, after the
-/// arrival or that could not be read is untimed.
-pub fn timing(arrival: Uptime, os_time: Option<Uptime>, gap: Duration) -> Timing {
-    match os_time {
-        Some(os_time) if os_time.0 != 0 && os_time <= arrival => {
-            let lag = Duration::from_nanos(arrival.0 - os_time.0);
-            if lag > gap {
-                Timing::Late { lag }
-            } else {
-                Timing::InTime { lag }
-            }
-        }
-        _ => Timing::Untimed,
+/// callback at `arrival`, both on CLOCK_UPTIME_RAW: its lag at the entry. An OS
+/// time of 0 or after the arrival is untimed.
+pub fn timing(arrival: Uptime, os_time: Uptime, lag_bound: Duration) -> Timing {
+    if os_time.0 == 0 || os_time > arrival {
+        return Timing::Untimed;
+    }
+    let lag = Duration::from_nanos(arrival.0 - os_time.0);
+    if lag > lag_bound {
+        Timing::Late { lag }
+    } else {
+        Timing::InTime { lag }
+    }
+}
+
+/// The timing of a key event at the end of its own reading of the state,
+/// whose after stamp is `after`. Untimed as at the entry; asleep when its OS
+/// time is not after `wake_mark`; otherwise its lag is the lag at the entry and
+/// the time from the entry's monotonic stamp to `after`, late above
+/// `lag_bound`.
+pub fn timing_at_reading(
+    entry: Entry,
+    os_time: Uptime,
+    after: Monotonic,
+    wake_mark: Option<Uptime>,
+    lag_bound: Duration,
+) -> Timing {
+    if os_time.0 == 0 || os_time > entry.uptime {
+        return Timing::Untimed;
+    }
+    if wake_mark.is_some_and(|mark| os_time <= mark) {
+        return Timing::Asleep;
+    }
+    let lag = Duration::from_nanos(entry.uptime.0 - os_time.0)
+        + Duration::from_nanos(after.0.saturating_sub(entry.monotonic.0));
+    if lag > lag_bound {
+        Timing::Late { lag }
+    } else {
+        Timing::InTime { lag }
     }
 }
 
@@ -167,7 +226,7 @@ pub enum Step<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Admission {
     Held,
-    Suppressed,
+    Suppressed { dropped: usize },
     Withheld { cause: Cause, dropped: usize },
 }
 
@@ -235,13 +294,16 @@ impl<T> HeldKeys<T> {
         }
     }
 
-    /// Takes the reading of a key event that came late or untimed: the
-    /// callback ran late, so every held key is dropped and none is released.
-    pub fn late_reading(&mut self, at: Stamps, cause: Cause) -> Step<T> {
+    /// Takes the reading of a key event that came late, untimed or from before
+    /// a wake: every held key is dropped and none is released.
+    pub fn late_reading(&mut self, at: Stamps, timing: Timing) -> Step<T> {
         self.previous = Some(at.before);
-        Step::Dropped {
-            keys: self.drop_all(),
-            cause,
+        match timing.refusal() {
+            Some(cause) => Step::Dropped {
+                keys: self.drop_all(),
+                cause,
+            },
+            None => Step::Waiting,
         }
     }
 
@@ -254,17 +316,16 @@ impl<T> HeldKeys<T> {
         arrival: Monotonic,
         key: T,
     ) -> Admission {
-        let refused = match (timing, reading) {
-            (Timing::Untimed, _) => Cause::UntimedKey,
-            (Timing::Late { .. }, _) => Cause::LateKey,
-            (Timing::InTime { .. }, Reading::On) => {
-                return Admission::Suppressed;
+        let refused = match (timing.refusal(), reading) {
+            (Some(cause), _) => cause,
+            (None, Reading::On) => {
+                return Admission::Suppressed {
+                    dropped: self.drop_all(),
+                };
             }
-            (Timing::InTime { .. }, Reading::Unknown) => Cause::Unknown,
-            (Timing::InTime { .. }, Reading::Off) if self.keys.len() >= self.bounds.cap => {
-                Cause::Full
-            }
-            (Timing::InTime { .. }, Reading::Off) => {
+            (None, Reading::Unknown) => Cause::Unknown,
+            (None, Reading::Off) if self.keys.len() >= self.bounds.cap => Cause::Full,
+            (None, Reading::Off) => {
                 self.keys.push_back(Held { arrival, key });
                 return Admission::Held;
             }
@@ -376,7 +437,12 @@ mod tests {
     fn a_late_reading_drops_a_key_that_is_due_and_releases_none() {
         let mut hold = held(&[0, 1]);
         assert_eq!(
-            hold.late_reading(both(at(1_000)), Cause::LateKey),
+            hold.late_reading(
+                both(at(1_000)),
+                Timing::Late {
+                    lag: Duration::from_millis(31)
+                }
+            ),
             Step::Dropped {
                 keys: 2,
                 cause: Cause::LateKey
@@ -543,19 +609,19 @@ mod tests {
     fn a_key_in_time_is_in_time_up_to_the_gap_bound() {
         let gap = Duration::from_millis(30);
         assert_eq!(
-            timing(Uptime(100 * MS), Some(Uptime(70 * MS)), gap),
+            timing(Uptime(100 * MS), Uptime(70 * MS), gap),
             Timing::InTime {
                 lag: Duration::from_millis(30)
             }
         );
         assert_eq!(
-            timing(Uptime(100 * MS), Some(Uptime(100 * MS)), gap),
+            timing(Uptime(100 * MS), Uptime(100 * MS), gap),
             Timing::InTime {
                 lag: Duration::ZERO
             }
         );
         assert_eq!(
-            timing(Uptime(100 * MS), Some(Uptime(70 * MS - 1)), gap),
+            timing(Uptime(100 * MS), Uptime(70 * MS - 1), gap),
             Timing::Late {
                 lag: Duration::from_nanos(30 * MS + 1)
             }
@@ -563,17 +629,13 @@ mod tests {
     }
 
     #[test]
-    fn a_key_with_an_os_time_of_0_after_its_arrival_or_unread_is_untimed() {
+    fn a_key_with_an_os_time_of_0_or_after_its_arrival_is_untimed() {
         let gap = Duration::from_millis(30);
+        assert_eq!(timing(Uptime(100 * MS), Uptime(0), gap), Timing::Untimed);
         assert_eq!(
-            timing(Uptime(100 * MS), Some(Uptime(0)), gap),
+            timing(Uptime(100 * MS), Uptime(100 * MS + 1), gap),
             Timing::Untimed
         );
-        assert_eq!(
-            timing(Uptime(100 * MS), Some(Uptime(100 * MS + 1)), gap),
-            Timing::Untimed
-        );
-        assert_eq!(timing(Uptime(100 * MS), None, gap), Timing::Untimed);
     }
 
     #[test]
@@ -610,7 +672,17 @@ mod tests {
         let mut hold = held(&[]);
         assert_eq!(
             hold.admit(Reading::On, IN_TIME, at(0), 0),
-            Admission::Suppressed
+            Admission::Suppressed { dropped: 0 }
+        );
+        assert!(hold.is_empty());
+    }
+
+    #[test]
+    fn a_key_in_time_under_on_drops_every_held_key_inside_the_module() {
+        let mut hold = held(&[0, 1]);
+        assert_eq!(
+            hold.admit(Reading::On, IN_TIME, at(2), 2),
+            Admission::Suppressed { dropped: 2 }
         );
         assert!(hold.is_empty());
     }

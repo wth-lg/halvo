@@ -160,6 +160,7 @@ fn drops_line(drops: &DropCounts) -> String {
         .into_iter()
         .map(|(name, count)| format!("{name}={count}"))
         .collect();
+    line.push(format!("late_by_the_entry={}", drops.late_by_the_entry()));
     line.push(format!("widest_gap_us={}", drops.widest_gap().as_micros()));
     line.join(" ")
 }

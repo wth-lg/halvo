@@ -20,8 +20,8 @@ use crate::event::Modality;
 use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
-    timing, Admission, Bounds, Cause, HeldKeys, Monotonic, Stamps, Step, Timing, Uptime,
-    READING_STEP, SESSION_STEP,
+    timing, timing_at_reading, Admission, Bounds, Cause, Entry, HeldKeys, Monotonic, Stamps, Step,
+    Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
 };
 use crate::secure_input_macos::{
     hold_secure_input, read_session, secure_input_reading, Reading, SecureInputHold,
@@ -287,13 +287,12 @@ const CLOCKS: Clocks = Clocks {
     uptime: uptime_raw,
 };
 
-fn os_time(event: &CGEvent) -> Option<Uptime> {
+fn os_time(event: &CGEvent) -> Uptime {
     let event: &CGEventRef = event;
     // SAFETY: a reference to a foreign-types borrowed type is the pointer of the
     // C object, here the live event that the tap hands to its callback; the
     // call only reads it.
-    let stamp = unsafe { CGEventGetTimestamp(std::ptr::from_ref(event).cast()) };
-    Some(Uptime(stamp))
+    Uptime(unsafe { CGEventGetTimestamp(std::ptr::from_ref(event).cast()) })
 }
 
 struct TapSettings {
@@ -413,6 +412,8 @@ struct HoldState {
     session: Session,
     session_at: Option<Monotonic>,
     timer: Option<ReadingTimer>,
+    offset: Option<i128>,
+    wake_mark: Option<Uptime>,
 }
 
 type SharedHold = Arc<Mutex<HoldState>>;
@@ -471,7 +472,8 @@ const TIMER_CALLS: TimerCalls = TimerCalls {
 struct TapEvent {
     etype: CGEventType,
     flags: u64,
-    timing: Timing,
+    os_time: Uptime,
+    entry: Entry,
 }
 
 struct TapContext {
@@ -497,8 +499,9 @@ pub struct DropCounts(Arc<DropFigures>);
 #[cfg(feature = "stall-seam")]
 #[derive(Default)]
 struct DropFigures {
-    by_cause: [AtomicU64; 10],
+    by_cause: [AtomicU64; 11],
     widest_gap_ns: AtomicU64,
+    late_at_entry: AtomicU64,
     log: Mutex<RawLog>,
 }
 
@@ -569,7 +572,7 @@ impl Default for RawLog {
 pub const RAW_LOG_CAP: usize = 65_536;
 
 #[cfg(feature = "stall-seam")]
-const CAUSES: [(Cause, &str); 10] = [
+const CAUSES: [(Cause, &str); 11] = [
     (Cause::On, "on"),
     (Cause::Unknown, "unknown"),
     (Cause::Gap, "gap"),
@@ -578,6 +581,7 @@ const CAUSES: [(Cause, &str); 10] = [
     (Cause::TapSwitchedOff, "tap_off"),
     (Cause::OwnTake, "own_take"),
     (Cause::Full, "full"),
+    (Cause::Sleep, "sleep"),
     (Cause::Stop, "stop"),
     (Cause::Refused, "refused"),
 ];
@@ -592,6 +596,16 @@ impl DropCounts {
         if let Some(at) = CAUSES.iter().position(|&(listed, _)| listed == cause) {
             self.0.by_cause[at].fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    fn late_at_entry(&self) {
+        self.0.late_at_entry.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The count of key events that were late by their lag at the callback's
+    /// entry alone.
+    pub fn late_by_the_entry(&self) -> u64 {
+        self.0.late_at_entry.load(Ordering::Relaxed)
     }
 
     fn gap(&self, gap: Duration) {
@@ -676,7 +690,7 @@ impl DropCounts {
     fn arrival(&self, admission: Admission) {
         let admission = match admission {
             Admission::Held => Arrived::Held,
-            Admission::Suppressed => Arrived::Suppressed,
+            Admission::Suppressed { .. } => Arrived::Suppressed,
             Admission::Withheld { cause, dropped } => Arrived::Withheld { cause, dropped },
         };
         let at = self.last_before();
@@ -712,6 +726,45 @@ impl TapContext {
     fn read_session(&self, state: &mut HoldState) {
         state.session = (self.session)();
         state.session_at = Some((self.clocks.monotonic)());
+        if state.offset.is_none() {
+            state.offset = self.clock_pair().map(|(difference, _)| difference);
+        }
+    }
+
+    fn clock_pair(&self) -> Option<(i128, Uptime)> {
+        let width = u64::try_from(PAIR_WIDTH.as_nanos()).unwrap_or(u64::MAX);
+        for _ in 0..PAIR_TRIES {
+            let first = (self.clocks.uptime)();
+            let monotonic = (self.clocks.monotonic)();
+            let second = (self.clocks.uptime)();
+            if second.0.saturating_sub(first.0) <= width {
+                return Some((i128::from(monotonic.0) - i128::from(first.0), second));
+            }
+        }
+        None
+    }
+
+    fn woke(&self, state: &mut HoldState) -> bool {
+        let Some((difference, at)) = self.clock_pair() else {
+            state.wake_mark = Some((self.clocks.uptime)());
+            return true;
+        };
+        let margin = i128::try_from(WAKE_MARGIN.as_nanos()).unwrap_or(i128::MAX);
+        match state.offset {
+            Some(kept) if difference > kept.saturating_add(margin) => {
+                state.offset = Some(difference);
+                state.wake_mark = Some(at);
+                true
+            }
+            Some(kept) => {
+                state.offset = Some(kept.max(difference));
+                false
+            }
+            None => {
+                state.offset = Some(difference);
+                false
+            }
+        }
     }
 
     fn reading(&self, state: &mut HoldState, key: bool) -> (Reading, Stamps) {
@@ -725,12 +778,17 @@ impl TapContext {
         let before = (self.clocks.monotonic)();
         let reading = (self.secure)(state.session);
         let after = (self.clocks.monotonic)();
+        let woke = self.woke(state);
         #[cfg(feature = "stall-seam")]
         if let Some(drops) = &self.drops {
             if let (Some(previous), false) = (state.keys.previous(), state.keys.is_empty()) {
                 drops.gap(Duration::from_nanos(after.0.saturating_sub(previous.0)));
             }
             drops.reading(reading, Stamps { before, after }, state.keys.len());
+        }
+        if woke {
+            let keys = state.keys.drop_all();
+            self.dropped(keys, Cause::Sleep);
         }
         (reading, Stamps { before, after })
     }
@@ -765,7 +823,10 @@ impl TapContext {
         }
         match admission {
             Admission::Held => {}
-            Admission::Suppressed => self.counters.count_suppressed_key(),
+            Admission::Suppressed { dropped } => {
+                self.counters.count_suppressed_key();
+                self.dropped(dropped, Cause::On);
+            }
             Admission::Withheld { cause, .. } => {
                 #[cfg(feature = "stall-seam")]
                 if let Some(drops) = &self.drops {
@@ -869,17 +930,27 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
         ctx.mark(Caller::Event);
         let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
         let arrival = at.before;
-        let step = match (kind, event.timing) {
-            (Kind::Key | Kind::Reading, Timing::Late { .. }) => {
-                state.keys.late_reading(at, Cause::LateKey)
-            }
-            (Kind::Key | Kind::Reading, Timing::Untimed) => {
-                state.keys.late_reading(at, Cause::UntimedKey)
-            }
+        let lag_bound = state.keys.bounds().lag;
+        let at_entry = timing(event.entry.uptime, event.os_time, lag_bound);
+        let at_reading = timing_at_reading(
+            event.entry,
+            event.os_time,
+            at.after,
+            state.wake_mark,
+            lag_bound,
+        );
+        #[cfg(feature = "stall-seam")]
+        if let (Some(drops), Kind::Key | Kind::Reading, Timing::Late { .. }) =
+            (&ctx.drops, kind, at_entry)
+        {
+            drops.late_at_entry();
+        }
+        let step = match (kind, at_reading.refusal()) {
+            (Kind::Key | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
             _ => state.keys.reading(reading, at),
         };
         if kind == Kind::Key {
-            let lag = match event.timing {
+            let lag = match at_reading {
                 Timing::InTime { lag } => lag,
                 _ => Duration::ZERO,
             };
@@ -889,8 +960,8 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
                     .unwrap_or(SystemTime::UNIX_EPOCH),
                 app: ctx.foreground.get(),
             };
-            let admission = state.keys.admit(reading, event.timing, arrival, key);
-            ctx.admitted(admission, event.timing);
+            let admission = state.keys.admit(reading, at_reading, arrival, key);
+            ctx.admitted(admission, at_entry);
         }
         ctx.release(&mut state, step);
     }
@@ -956,6 +1027,8 @@ fn tap_context(
             session: Session::NoDictionary,
             session_at: None,
             timer: None,
+            offset: None,
+            wake_mark: None,
         })),
         #[cfg(feature = "stall-seam")]
         drops: None,
@@ -963,11 +1036,13 @@ fn tap_context(
 }
 
 fn tap_event(ctx: &TapContext, etype: CGEventType, event: &CGEvent) -> TapEvent {
-    let arrival = (ctx.clocks.uptime)();
+    let monotonic = (ctx.clocks.monotonic)();
+    let uptime = (ctx.clocks.uptime)();
     TapEvent {
         etype,
         flags: event.get_flags().bits(),
-        timing: timing(arrival, os_time(event), lock(&ctx.hold).keys.bounds().lag),
+        os_time: os_time(event),
+        entry: Entry { monotonic, uptime },
     }
 }
 
@@ -1595,6 +1670,7 @@ mod tests {
         });
         if JUMP_AT_ASK.with(Cell::get) == Some(asked) {
             MONOTONIC.with(|now| now.set(now.get() + 40 * MS));
+            UPTIME.with(|now| now.set(now.get() + 40 * MS));
         }
         if session != Session::AtConsole {
             return Reading::Unknown;
@@ -1616,6 +1692,7 @@ mod tests {
 
     fn stand_in_monotonic() -> Monotonic {
         let step = AUTO_STEP.with(Cell::get);
+        UPTIME.with(|now| now.set(now.get() + step));
         MONOTONIC.with(|now| {
             now.set(now.get() + step);
             Monotonic(now.get())
@@ -1705,12 +1782,40 @@ mod tests {
     }
 
     fn event(etype: CGEventType) -> TapEvent {
+        let uptime = Uptime(UPTIME.with(Cell::get));
         TapEvent {
             etype,
             flags: 0,
-            timing: Timing::InTime {
-                lag: Duration::ZERO,
+            os_time: uptime,
+            entry: Entry {
+                monotonic: Monotonic(MONOTONIC.with(Cell::get)),
+                uptime,
             },
+        }
+    }
+
+    fn real_event(etype: CGEventType) -> TapEvent {
+        let monotonic = monotonic_raw();
+        let uptime = uptime_raw();
+        TapEvent {
+            etype,
+            flags: 0,
+            os_time: uptime,
+            entry: Entry { monotonic, uptime },
+        }
+    }
+
+    fn timed(etype: CGEventType, timing: Timing) -> TapEvent {
+        let now = UPTIME.with(Cell::get);
+        let os_time = match timing {
+            Timing::InTime { lag } | Timing::Late { lag } => {
+                now - u64::try_from(lag.as_nanos()).expect("a lag of the tests")
+            }
+            Timing::Untimed | Timing::Asleep => 0,
+        };
+        TapEvent {
+            os_time: Uptime(os_time),
+            ..event(etype)
         }
     }
 
@@ -1750,6 +1855,372 @@ mod tests {
 
     fn held_now(ctx: &TapContext) -> usize {
         lock(&ctx.hold).keys.len()
+    }
+
+    thread_local! {
+        static SLOW_SESSION_NS: Cell<u64> = const { Cell::new(0) };
+        static SLOW_READ_NS: Cell<u64> = const { Cell::new(0) };
+        static UPTIME_STEP: Cell<u64> = const { Cell::new(0) };
+        static FIELD_ON_UNTIL: Cell<u64> = const { Cell::new(0) };
+        static CALLS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn stall(ns: u64) {
+        MONOTONIC.with(|now| now.set(now.get() + ns));
+        UPTIME.with(|now| now.set(now.get() + ns));
+    }
+
+    fn sleep_of_the_mac(ms: u64) {
+        MONOTONIC.with(|now| now.set(now.get() + ms * MS));
+    }
+
+    fn slow_session() -> Session {
+        stall(SLOW_SESSION_NS.with(Cell::get));
+        stand_in_session()
+    }
+
+    fn slow_reader(session: Session) -> Reading {
+        stall(SLOW_READ_NS.with(Cell::get));
+        stand_in_reader(session)
+    }
+
+    fn field_reader(session: Session) -> Reading {
+        stall(SLOW_READ_NS.with(Cell::get));
+        let answer = stand_in_reader(session);
+        if answer == Reading::Off && MONOTONIC.with(Cell::get) < FIELD_ON_UNTIL.with(Cell::get) {
+            Reading::On
+        } else {
+            answer
+        }
+    }
+
+    fn stepped_uptime() -> Uptime {
+        let step = UPTIME_STEP.with(Cell::get);
+        UPTIME.with(|now| {
+            now.set(now.get() + step);
+            Uptime(now.get())
+        })
+    }
+
+    fn slow_held(bound_ms: u64) -> Held {
+        let mut held = held(bound_ms);
+        SLOW_SESSION_NS.with(|ns| ns.set(0));
+        SLOW_READ_NS.with(|ns| ns.set(0));
+        UPTIME_STEP.with(|ns| ns.set(0));
+        FIELD_ON_UNTIL.with(|until| until.set(0));
+        held.ctx.session = slow_session;
+        held.ctx.secure = slow_reader;
+        held
+    }
+
+    fn key_at(ctx: &TapContext, etype: CGEventType, os_time: u64) {
+        let event = event_object(etype, 0);
+        set_stamp(&event, os_time);
+        let tap = tap_event(ctx, etype, &event);
+        on_tap_event(ctx, tap);
+    }
+
+    fn now_uptime() -> u64 {
+        UPTIME.with(Cell::get)
+    }
+
+    fn fate_of_one_key(session_ms: u64, late_ms: u64, sleep_ms: u64) -> (usize, usize) {
+        let mut held = slow_held(1_000);
+        held.ctx.secure = field_reader;
+        stall(300 * MS);
+        let os_time = now_uptime();
+        FIELD_ON_UNTIL.with(|until| until.set(MONOTONIC.with(Cell::get) + 20 * MS));
+        stall(late_ms * MS);
+        sleep_of_the_mac(sleep_ms);
+        SLOW_SESSION_NS.with(|ns| ns.set(session_ms * MS));
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        SLOW_SESSION_NS.with(|ns| ns.set(0));
+        let held_after = held_now(&held.ctx);
+        ticks(&held.ctx, 2_000);
+        (held_after, keystrokes(&held.writer))
+    }
+
+    #[test]
+    fn a_key_typed_into_a_field_that_stays_secure_20_ms_is_never_recorded_whatever_comes_before_its_reading(
+    ) {
+        let rows = [
+            ("session read 0 ms, callback on time", 0, 0, 0),
+            ("session read 0 ms, callback 40 ms late", 0, 40, 0),
+            ("session read 40 ms, callback on time", 40, 0, 0),
+            ("session read 1,000 ms, callback on time", 1_000, 0, 0),
+            ("a sleep of 60 s between the key's time and its callback, 5 ms late on the uptime clock", 0, 5, 60_000),
+        ];
+        for (what, session_ms, late_ms, sleep_ms) in rows {
+            let (held_after, recorded) = fate_of_one_key(session_ms, late_ms, sleep_ms);
+            assert_eq!((held_after, recorded), (0, 0), "{what}");
+        }
+    }
+
+    #[test]
+    fn a_delay_inside_the_state_read_makes_a_key_late() {
+        let held = slow_held(100);
+        stall(MS);
+        let os_time = now_uptime();
+        SLOW_READ_NS.with(|ns| ns.set(40 * MS));
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        SLOW_READ_NS.with(|ns| ns.set(0));
+        assert_eq!(
+            held_now(&held.ctx),
+            0,
+            "the key's own read ended 40 ms after its time"
+        );
+        assert!(held.counters.figures().keys_withheld);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn the_lag_to_the_end_of_the_reading_keeps_a_key_at_30_ms_and_withholds_it_at_30_ms_and_1_ns() {
+        for (read_ns, held_after) in [(30 * MS, 1), (30 * MS + 1, 0)] {
+            let held = slow_held(100);
+            stall(MS);
+            let os_time = now_uptime();
+            SLOW_READ_NS.with(|ns| ns.set(read_ns));
+            key_at(&held.ctx, CGEventType::KeyDown, os_time);
+            SLOW_READ_NS.with(|ns| ns.set(0));
+            assert_eq!(
+                held_now(&held.ctx),
+                held_after,
+                "a read that took {read_ns} ns"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_whose_time_lies_after_the_entry_stamp_is_untimed() {
+        let held = slow_held(100);
+        key_down(&held.ctx);
+        stall(MS);
+        key_at(&held.ctx, CGEventType::KeyDown, now_uptime() + 1);
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(held.counters.stalled());
+    }
+
+    #[test]
+    fn a_key_from_before_a_sleep_is_withheld_when_a_tick_came_between_the_wake_and_it() {
+        let held = slow_held(100);
+        stall(MS);
+        let os_time = now_uptime();
+        sleep_of_the_mac(60_000);
+        tick(&held.ctx);
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+        assert!(!held.counters.stalled(), "a wake is no timing fault");
+    }
+
+    #[test]
+    fn a_key_from_before_a_sleep_is_withheld_when_a_pointer_reading_came_between_the_wake_and_it() {
+        let held = slow_held(100);
+        stall(MS);
+        let os_time = now_uptime();
+        sleep_of_the_mac(60_000);
+        on_tap_event(&held.ctx, event(CGEventType::MouseMoved));
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn two_keys_from_before_a_sleep_are_both_withheld() {
+        let held = slow_held(100);
+        stall(MS);
+        let first = now_uptime();
+        stall(MS);
+        let second = now_uptime();
+        sleep_of_the_mac(60_000);
+        key_at(&held.ctx, CGEventType::KeyDown, first);
+        key_at(&held.ctx, CGEventType::KeyDown, second);
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_step_between_the_two_uptime_reads_may_add_a_drop_and_never_hides_a_sleep() {
+        let mut held = slow_held(100);
+        held.ctx.clocks = Clocks {
+            monotonic: stand_in_monotonic,
+            uptime: stepped_uptime,
+        };
+        stall(MS);
+        let os_time = now_uptime();
+        sleep_of_the_mac(60_000);
+        UPTIME_STEP.with(|step| step.set(5 * MS));
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        UPTIME_STEP.with(|step| step.set(0));
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_key_from_before_a_sleep_is_withheld_when_its_callback_comes_after_time_passed_since_the_wake(
+    ) {
+        let held = slow_held(100);
+        stall(MS);
+        let os_time = now_uptime();
+        sleep_of_the_mac(60_000);
+        tick(&held.ctx);
+        stall(5 * MS);
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        assert_eq!(
+            held_now(&held.ctx),
+            0,
+            "its OS time is not after the wake mark"
+        );
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn the_seam_counts_beside_late_the_events_late_by_the_entry_stamp_alone() {
+        let (mut held, drops) = seam_held(1_000);
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
+                    lag: Duration::from_millis(40),
+                },
+            ),
+        );
+        assert_eq!(
+            (drops.of("late"), drops.late_by_the_entry()),
+            (1, 1),
+            "a key 40 ms late at the entry"
+        );
+        SLOW_READ_NS.with(|ns| ns.set(40 * MS));
+        held.ctx.secure = slow_reader;
+        key_down(&held.ctx);
+        SLOW_READ_NS.with(|ns| ns.set(0));
+        assert_eq!(
+            (drops.of("late"), drops.late_by_the_entry()),
+            (2, 1),
+            "the second key was late by its reading alone"
+        );
+    }
+
+    #[test]
+    fn a_stand_in_that_moves_the_monotonic_clock_alone_by_more_than_the_bound_is_a_wake() {
+        let (held, drops) = seam_held(1_000);
+        key_down(&held.ctx);
+        sleep_of_the_mac(31);
+        tick(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 0);
+        assert_eq!(
+            (drops.of("sleep"), drops.of("gap")),
+            (1, 0),
+            "31 ms on the monotonic clock alone is a wake and no gap"
+        );
+        assert!(!held.counters.stalled());
+    }
+
+    #[test]
+    fn a_sleep_with_keys_held_drops_them_and_sets_keys_withheld_and_not_the_stalled_flag() {
+        let held = slow_held(100);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        sleep_of_the_mac(60_000);
+        tick(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(held.counters.figures().keys_withheld);
+        assert!(!held.counters.stalled());
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn the_instant_of_a_key_under_a_slow_session_read_is_its_time_and_not_the_end_of_its_reading() {
+        let held = slow_held(100);
+        stall(300 * MS);
+        let os_time = now_uptime();
+        let before_call = SystemTime::now();
+        SLOW_SESSION_NS.with(|ns| ns.set(20 * MS));
+        SLOW_READ_NS.with(|ns| ns.set(0));
+        key_at(&held.ctx, CGEventType::KeyDown, os_time);
+        SLOW_SESSION_NS.with(|ns| ns.set(0));
+        ticks(&held.ctx, 300);
+        let instants: Vec<SystemTime> = received(&held.writer)
+            .iter()
+            .filter(|received| received.event().modality == Modality::Keystroke)
+            .map(|received| received.event().captured_at.wall_clock)
+            .collect();
+        assert_eq!(
+            instants.len(),
+            1,
+            "a read of 20 ms keeps the key under a lag bound of 30 ms"
+        );
+        assert!(
+            instants[0] <= before_call - Duration::from_millis(19),
+            "the instant is the key's time, 20 ms before the end of its reading"
+        );
+    }
+
+    fn order_monotonic() -> Monotonic {
+        CALLS.with(|calls| calls.borrow_mut().push("monotonic"));
+        stand_in_monotonic()
+    }
+
+    fn order_uptime() -> Uptime {
+        CALLS.with(|calls| calls.borrow_mut().push("uptime"));
+        stand_in_uptime()
+    }
+
+    fn order_session() -> Session {
+        CALLS.with(|calls| calls.borrow_mut().push("session"));
+        stand_in_session()
+    }
+
+    fn order_reader(session: Session) -> Reading {
+        CALLS.with(|calls| calls.borrow_mut().push("read"));
+        stand_in_reader(session)
+    }
+
+    #[test]
+    fn a_key_events_stamps_come_in_their_order() {
+        let mut held = held(100);
+        held.ctx.clocks = Clocks {
+            monotonic: order_monotonic,
+            uptime: order_uptime,
+        };
+        held.ctx.session = order_session;
+        held.ctx.secure = order_reader;
+        stall(300 * MS);
+        let event = event_object(CGEventType::KeyDown, 0);
+        set_stamp(&event, now_uptime());
+        CALLS.with(|calls| calls.borrow_mut().clear());
+        let tap = tap_event(&held.ctx, CGEventType::KeyDown, &event);
+        on_tap_event(&held.ctx, tap);
+        let calls = CALLS.with(|calls| calls.borrow().clone());
+        assert_eq!(
+            calls.get(..11),
+            Some(
+                &[
+                    "monotonic",
+                    "uptime",
+                    "monotonic",
+                    "session",
+                    "monotonic",
+                    "monotonic",
+                    "read",
+                    "monotonic",
+                    "uptime",
+                    "monotonic",
+                    "uptime"
+                ][..]
+            ),
+            "the entry's monotonic and uptime stamps; the session's age, read and stamp; the \
+             before stamp, the read and the after stamp; the pair of clocks; got {calls:?}"
+        );
     }
 
     #[test]
@@ -2080,12 +2551,12 @@ mod tests {
         advance(1);
         on_tap_event(
             &held.ctx,
-            TapEvent {
-                timing: Timing::Late {
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
                     lag: Duration::from_millis(31),
                 },
-                ..event(CGEventType::KeyDown)
-            },
+            ),
         );
         assert_eq!(held_now(&held.ctx), 0);
         assert!(held.counters.stalled());
@@ -2093,12 +2564,12 @@ mod tests {
         advance(1);
         on_tap_event(
             &held.ctx,
-            TapEvent {
-                timing: Timing::Late {
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
                     lag: Duration::from_millis(251),
                 },
-                ..event(CGEventType::KeyDown)
-            },
+            ),
         );
         assert_eq!(held.counters.figures().late_events, 1);
         ticks(&held.ctx, 2_000);
@@ -2110,13 +2581,7 @@ mod tests {
         let held = held(1_000);
         key_down(&held.ctx);
         advance(1);
-        on_tap_event(
-            &held.ctx,
-            TapEvent {
-                timing: Timing::Untimed,
-                ..event(CGEventType::KeyDown)
-            },
-        );
+        on_tap_event(&held.ctx, timed(CGEventType::KeyDown, Timing::Untimed));
         assert_eq!(held_now(&held.ctx), 0);
         assert!(held.counters.figures().keys_withheld);
         ticks(&held.ctx, 2_000);
@@ -2292,6 +2757,8 @@ mod tests {
         let held = held_with(0, 64, 0);
         let mut ctx = held.ctx;
         ctx.clocks = CLOCKS;
+        lock(&ctx.hold).offset = None;
+        ctx.read_session(&mut lock(&ctx.hold));
         let writer = held.writer;
         let reader = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(200));
@@ -2301,8 +2768,8 @@ mod tests {
             }
             kinds
         });
-        on_tap_event(&ctx, event(CGEventType::KeyDown));
-        on_tap_event(&ctx, event(CGEventType::KeyDown));
+        on_tap_event(&ctx, real_event(CGEventType::KeyDown));
+        on_tap_event(&ctx, real_event(CGEventType::KeyDown));
         assert_eq!(
             held_now(&ctx),
             0,
@@ -2329,12 +2796,12 @@ mod tests {
         advance(1);
         on_tap_event(
             &held.ctx,
-            TapEvent {
-                timing: Timing::InTime {
+            timed(
+                CGEventType::KeyDown,
+                Timing::InTime {
                     lag: Duration::from_millis(20),
                 },
-                ..event(CGEventType::KeyDown)
-            },
+            ),
         );
         held.fg_writer
             .set_for_test(Some(crate::macos::foreground::tests_support::front(
@@ -2467,12 +2934,15 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         ));
         ctx.read_session(&mut lock(&ctx.hold));
-        let key = TapEvent {
-            etype: CGEventType::KeyDown,
-            flags: 0,
-            timing: Timing::InTime {
-                lag: Duration::ZERO,
-            },
+        let key = || {
+            let monotonic = monotonic_raw();
+            let uptime = uptime_raw();
+            TapEvent {
+                etype: CGEventType::KeyDown,
+                flags: 0,
+                os_time: uptime,
+                entry: Entry { monotonic, uptime },
+            }
         };
         READ_TIMES.with(|times| times.borrow_mut().clear());
         let mut spacing = Vec::new();
@@ -2481,7 +2951,7 @@ mod tests {
         while started.elapsed() < Duration::from_secs(SECONDS) {
             if held_now(&ctx) == 0 {
                 READ_TIMES.with(|times| times.borrow_mut().clear());
-                on_tap_event(&ctx, key);
+                on_tap_event(&ctx, key());
             }
             // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
             // CoreFoundation exports and never writes.
@@ -2702,7 +3172,7 @@ mod tests {
     #[test]
     fn the_reading_timer_on_the_run_loop_of_the_thread_releases_a_due_key() {
         let held = held(20);
-        AUTO_STEP.with(|step| step.set(5 * MS));
+        AUTO_STEP.with(|step| step.set(50_000));
         on_tap_event(&held.ctx, event(CGEventType::KeyDown));
         let started = Instant::now();
         while keystrokes_seen(&held.writer) == 0 {
@@ -4158,12 +4628,12 @@ mod tests {
         advance(10);
         on_tap_event(
             &held.ctx,
-            TapEvent {
-                timing: Timing::Late {
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
                     lag: Duration::from_millis(40),
                 },
-                ..event(CGEventType::KeyDown)
-            },
+            ),
         );
         assert_eq!(held_now(&held.ctx), 0);
         assert!(held.counters.figures().keys_withheld);
@@ -4179,13 +4649,7 @@ mod tests {
         key_down(&held.ctx);
         ticks(&held.ctx, 90);
         advance(10);
-        on_tap_event(
-            &held.ctx,
-            TapEvent {
-                timing: Timing::Untimed,
-                ..event(CGEventType::KeyDown)
-            },
-        );
+        on_tap_event(&held.ctx, timed(CGEventType::KeyDown, Timing::Untimed));
         assert_eq!(held_now(&held.ctx), 0);
         ticks(&held.ctx, 200);
         assert_eq!(keystrokes(&held.writer), 0);
@@ -4199,12 +4663,12 @@ mod tests {
         advance(5);
         on_tap_event(
             &held.ctx,
-            TapEvent {
-                timing: Timing::Late {
+            timed(
+                CGEventType::KeyUp,
+                Timing::Late {
                     lag: Duration::from_millis(40),
                 },
-                ..event(CGEventType::KeyUp)
-            },
+            ),
         );
         assert_eq!(held_now(&held.ctx), 0);
         assert!(held.counters.stalled());
@@ -4553,7 +5017,6 @@ mod granted_tests {
 #[cfg(test)]
 mod secure_input_invariant {
     use super::*;
-    use crate::secure_input_macos::hold::Timing;
     use crate::sink;
 
     fn context(secure: fn(Session) -> Reading) -> (TapContext, sink::SinkWriter) {
@@ -4580,12 +5043,13 @@ mod secure_input_invariant {
     }
 
     fn event(etype: CGEventType, flags: u64) -> TapEvent {
+        let monotonic = monotonic_raw();
+        let uptime = uptime_raw();
         TapEvent {
             etype,
             flags,
-            timing: Timing::InTime {
-                lag: Duration::ZERO,
-            },
+            os_time: uptime,
+            entry: Entry { monotonic, uptime },
         }
     }
 
