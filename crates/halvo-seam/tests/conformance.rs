@@ -66,6 +66,7 @@ enum Fault {
     RangedReadEndsAtTheFirstAtPastItsEnd,
     RangedReadEndsWhenABatchStartsFromItsEnd,
     RangedReadDropsAnAtBelowOneServed,
+    RangedReadTakesItsFirstServedAtAsTheStart,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -321,6 +322,7 @@ fn cuts(fault: Fault) -> bool {
             | RangedReadEndsAtTheFirstAtPastItsEnd
             | RangedReadEndsWhenABatchStartsFromItsEnd
             | RangedReadDropsAnAtBelowOneServed
+            | RangedReadTakesItsFirstServedAtAsTheStart
     )
 }
 
@@ -515,8 +517,12 @@ impl Wrong {
                     b.next = b.watermark;
                     break;
                 }
-                let below = self.fault == RangedReadDropsAnAtBelowOneServed
-                    && kept.last().is_some_and(|k| at < k.record.at());
+                let below = match self.fault {
+                    RangedReadDropsAnAtBelowOneServed => kept.last(),
+                    RangedReadTakesItsFirstServedAtAsTheStart => kept.first(),
+                    _ => None,
+                }
+                .is_some_and(|k| at < k.record.at());
                 if range.contains(at) && !below {
                     kept.push(e);
                 }
@@ -946,6 +952,10 @@ fn conformance_filters_step_back() {
         ),
         (
             RangedReadDropsAnAtBelowOneServed,
+            "the range of set D from the keystroke of its step back: 1 entries served, want 2",
+        ),
+        (
+            RangedReadTakesItsFirstServedAtAsTheStart,
             "the range of set D from the keystroke of its step back: 1 entries served, want 2",
         ),
         (
