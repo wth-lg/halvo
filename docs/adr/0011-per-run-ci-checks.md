@@ -31,14 +31,20 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 ## Consequences
 
 - A check is one file under its run's ci.d directory and needs no line of ci.yml.
-  After gate-1 the writers of ci.yml are, in the order of contract C16 item 11,
-  jobtime-1 and jobtime-4 for the two `timeout-minutes` lines alone, release-1,
-  release-2, and gate-4 and gate-5 for the job timeout only.
+  After gate-1 the writers of ci.yml are jobtime-1 and jobtime-4, in the order
+  of contract C16 item 11, and jobtime-9 by ruling PR-31 item 1, for the two
+  `timeout-minutes` lines alone, release-1, release-2, and gate-4 and gate-5 for
+  the job timeout only.
 - The job timeout was 30 minutes at this commit; jobtime-1 made it 60 (contract
-  C16 item 11) and jobtime-4 made it 90 (ruling JB-6). Its value lives in the
-  bounds key `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.
-- Each job's limit is 90 minutes since jobtime-4 (ruling JB-6 (2)), because a job
-  that the limit cuts off saves no cache and shows no result, and the macos job
-  stood within ten minutes of 60 minutes (3,013 s on the head of pull request #52
-  and 3,129 s in main's run 43379895562, ruling JB-7); the limit is there to end
-  a job that hangs.
+  C16 item 11), jobtime-4 made it 90 (ruling JB-6) and jobtime-9 made it 120
+  (ruling PR-31 item 1). Its value lives in the bounds key `ci_job_timeout_min`
+  of docs/baseline/r1-gate-bounds.txt.
+- Each job's limit is 120 minutes since jobtime-9 (ruling PR-31 item 1), because
+  a job that the limit cuts off saves no cache and shows no result, and the macos
+  job was reckoned at about 5,340 s on a normal runner after landing 43 against
+  the 5,400 s of 90 minutes, with landing 41's slow attempt at about 5,700 to
+  5,780 s by projection, and the cuts in hand were not reckoned to bring it under
+  5,400 s. It is 120 and not 100 minutes because that slow attempt's 5,780 s with
+  store-3's 430 s more reads 6,210 s, over the 6,000 s of 100 minutes, and it is
+  no more than 120 because the limit is there to end a job that hangs; these
+  figures are reckoned, not measured.
