@@ -345,15 +345,15 @@ measure() {
   [ -z "$extra" ] || fail "the test executable lists tests that this script's list does not hold: ${extra% }"
 
   : >"$artifacts/ms.txt" || fail "ms.txt cannot be written"
-  "$exe" --ignored --exact --nocapture --test-threads=1 "$form_test" </dev/null >"$work/form.txt" 2>&1 ||
+  "$exe" --ignored --exact --nocapture "$form_test" </dev/null >"$work/form.txt" 2>&1 ||
     fail "$form_test did not print the form: exited $?"
-  form_line=$(tr -d '\r' <"$work/form.txt" | sed -n 's/^form=/form=/p' | tail -n 1)
+  form_line=$(tr -d '\r' <"$work/form.txt" | sed -E -n 's/^(.* )?(form=(short|long) )/\2/p' | tail -n 1)
   case $form_line in
     "form=$form "*) ;;
     *) fail "$form_test printed no line of the form $form" ;;
   esac
   printf 'MS %s\n' "$form_line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
-  tr -d '\r' <"$work/form.txt" | sed -n 's/^left_out /MS left out: /p' | tee -a "$artifacts/ms.txt" ||
+  tr -d '\r' <"$work/form.txt" | sed -E -n 's/^(.* )?left_out /MS left out: /p' | tee -a "$artifacts/ms.txt" ||
     fail "ms.txt cannot be written"
   measure_gap
   notices=$(grep -c '^measure notice' "$work"/gap-*-lines.txt | awk -F: '{ n += $NF } END { print n + 0 }')
@@ -579,13 +579,13 @@ if [ "$*" = --list ]; then
   spec extra-test && printf 'unlisted: test\n'
   exit 0
 fi
-test=$5
+for test; do :; done
 if [ "$test" = the_form_of_the_hosted_phases ]; then
   spec no-form-line && exit 0
   case $HALVO_STALL_FORM in
-    long) printf 'form=long waits_ms_and_bounds_ms=150:1000 rounds_for_each_wait=3 cap_for_each_wait=4\n' ;;
+    long) printf 'test the_form_of_the_hosted_phases ... form=long waits_ms_and_bounds_ms=150:1000 rounds_for_each_wait=3 cap_for_each_wait=4\n' ;;
     *)
-      printf 'form=short waits_ms_and_bounds_ms=150:1000 rounds_for_each_wait=1 cap_for_each_wait=2\n'
+      printf 'test the_form_of_the_hosted_phases ... form=short waits_ms_and_bounds_ms=150:1000 rounds_for_each_wait=1 cap_for_each_wait=2\n'
       printf 'left_out counted rounds 2 to 3 of each wait of each mended phase\n'
       ;;
   esac
