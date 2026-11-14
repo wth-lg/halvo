@@ -27,10 +27,11 @@ fn args_of(command: &str) -> Value {
         "agents_snapshot" => json!({}),
         "agents_next" => json!({"after": 0}),
         "agents_card" => json!({"agent": agent(0).to_string()}),
-        "agents_answer" => json!({"item": item, "choice": "allow"}),
-        "agents_setup_typed" => json!({"item": item, "param": "payee", "text": "x"}),
+        "agents_answer" => json!({"item": item, "step": 0, "choice": "allow"}),
+        "agents_setup_typed" => json!({"item": item, "step": 0, "param": "payee", "text": "x"}),
         "agents_present" => json!({"item": item}),
         "agents_control" => json!({"agent": agent(0).to_string(), "action": "run_now"}),
+        "agents_shown" => json!({"item": item, "step": 0}),
         other => panic!("no arguments for {other}"),
     }
 }
@@ -100,7 +101,7 @@ fn each_refusal_is_written_as_its_fixture_and_never_rejects() {
     let cases = [
         (
             "agents_answer",
-            json!({"item": unknown, "choice": "allow"}),
+            json!({"item": unknown, "step": 0, "choice": "allow"}),
             Cause::UnknownItem,
         ),
         (
@@ -164,30 +165,43 @@ fn malformed_arguments_answer_malformed() {
         ("agents_card", json!({"agent": a, "extra": 1})),
         ("agents_card", json!({"agent": 7})),
         ("agents_card", json!([a])),
-        ("agents_answer", json!({"item": item, "choice": "present"})),
-        ("agents_answer", json!({"item": item, "choice": "choose"})),
+        ("agents_answer", json!({"item": item, "choice": "allow"})),
         (
-            "agents_answer",
-            json!({"item": item, "choice": "choose", "param": "payee"}),
+            "agents_setup_typed",
+            json!({"item": item, "param": "payee", "text": "x"}),
         ),
         (
             "agents_answer",
-            json!({"item": item, "choice": "allow", "param": "payee", "n": 1}),
+            json!({"item": item, "step": 0, "choice": "present"}),
         ),
         (
             "agents_answer",
-            json!({"item": item, "choice": "choose", "param": "colour", "n": 1}),
+            json!({"item": item, "step": 0, "choice": "choose"}),
+        ),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee"}),
+        ),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "allow", "param": "payee", "n": 1}),
+        ),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "choose", "param": "colour", "n": 1}),
         ),
         (
             "agents_setup_typed",
-            json!({"item": item, "param": "payee"}),
+            json!({"item": item, "step": 0, "param": "payee"}),
         ),
         (
             "agents_setup_typed",
-            json!({"item": item, "param": "payee", "text": 3}),
+            json!({"item": item, "step": 0, "param": "payee", "text": 3}),
         ),
         ("agents_control", json!({"agent": a, "action": "delete"})),
         ("agents_control", json!({"agent": a})),
+        ("agents_shown", json!({"step": 0})),
+        ("agents_shown", json!({"item": item})),
     ];
     let m = mark(&hub);
     for (command, args) in cases {
@@ -335,12 +349,15 @@ fn a_call_whose_arguments_have_the_shape_of_the_list_reaches_the_core() {
     let cases = [
         (
             "agents_answer",
-            json!({"item": item, "choice": "choose", "param": "payee", "n": 0}),
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "n": 0}),
         ),
-        ("agents_answer", json!({"item": item, "choice": "skip"})),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "skip"}),
+        ),
         (
             "agents_setup_typed",
-            json!({"item": item, "param": "payee", "text": "City Power"}),
+            json!({"item": item, "step": 0, "param": "payee", "text": "City Power"}),
         ),
     ];
     for (command, args) in cases {
@@ -533,9 +550,10 @@ fn before_agents_is_managed_another_window_is_refused_and_main_gets_the_stand_in
     let causes = [
         ("agents_card", "no_service"),
         ("agents_answer", "no_service"),
-        ("agents_setup_typed", "unknown_item"),
+        ("agents_setup_typed", "no_service"),
         ("agents_present", "no_service"),
         ("agents_control", "no_service"),
+        ("agents_shown", "no_service"),
     ];
     for (command, cause) in causes {
         assert_eq!(
@@ -611,7 +629,7 @@ fn before_its_first_tick_the_hub_hands_every_other_command_to_the_coordinator() 
         serde_json::to_string(&Core::call(&*fresh, "agents_snapshot", Some(&json!({})))).unwrap();
     assert_eq!(snapshot, stand_in());
     let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x77)).unwrap();
-    let own: [(&str, Reply); 5] = [
+    let own: [(&str, Reply); 6] = [
         (
             "agents_card",
             c.card(&agent(0)).map_or_else(Reply::Error, Reply::Card),
@@ -623,13 +641,14 @@ fn before_its_first_tick_the_hub_hands_every_other_command_to_the_coordinator() 
         ),
         (
             "agents_answer",
-            c.answer(&item, halvo_coord::types::Choice::Allow, None)
+            c.answer(&item, halvo_coord::types::Choice::Allow, None, 0)
                 .into(),
         ),
         ("agents_present", c.present(&item).into()),
+        ("agents_shown", c.shown_on_page(&item, 0).into()),
         (
             "agents_setup_typed",
-            c.setup_typed(&item, halvo_coord::types::Param::Payee, "x")
+            c.setup_typed(&item, halvo_coord::types::Param::Payee, "x", 0)
                 .into(),
         ),
     ];
