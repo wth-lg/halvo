@@ -97,8 +97,15 @@ in the draws of the tests", with the limits below.
   they search every byte of every file for the text of removed rows, count
   each stored row's places and read every row back against a model. Tables of
   the FTS5 form with their own secure-delete option are drawn apart: after
-  merges that end, they leave no removed token, searched whole and by its
-  tail, in any page that dbstat does not name the table's _idx tree.
+  merges that end, they leave no removed token, searched whole, by its tail
+  from byte 6 and by its last 6 bytes, in any page that dbstat does not name
+  the table's _idx tree. The _data tree keeps a token behind the prefix that
+  it shares with its neighbour; with FTS5's own option off, the control finds
+  by the last 6 bytes every removed token that another needle finds, in each
+  of its four seeds (13 in each, against 10 to 12 by the tail). Not seen: a
+  token that leaves fewer than 6 bytes after the shared part, and a token
+  that is the prefix of another. The draw's tokens have one length, so none
+  is the prefix of another, but two that share their first 11 bytes leave 5.
 - FTS5's own code keeps the token of a removed row, and neither statement
   makes or mends it: as a key of a live row of the table's _idx tree (the
   head of the token, whole when its neighbour differs in the last byte alone)
@@ -286,7 +293,14 @@ in the draws of the tests", with the limits below.
   first non-blank character is #). The check does not count a branch opened
   before the function's opening (one is open around the whole file, line 54;
   the compile-time stop on BTS_FAST_SECURE covers it), and it does not see an
-  anchor inside a comment or a memset renamed by a macro. Read
+  anchor inside a comment or a memset renamed by a macro. The check is a
+  reader of lines that knows no comment, no string, no line splice and no
+  digraph: a comment line that begins with a closing directive closes, for
+  the check, a branch that is still open for the compiler, so the statement
+  is compiled out while the mark reads true, and the tests page_gap then fail
+  (11 in the verify reader's run of such a source, verifier-interrogate-13
+  Addition 1). It reads only a source to which someone has moved the pin by
+  hand, since the build stops on the sha256 first. Read
   rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and
   balance_nonroot from its divider loop again in the new source, with every
   row of the table, move or delete the statements, write the new sha256 into

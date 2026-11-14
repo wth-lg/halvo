@@ -60,14 +60,18 @@ fn outside_idx(
     let names = page_names(conn);
     let mut found = Vec::new();
     for token in removed {
-        for needle in [token.as_bytes(), &token.as_bytes()[6..]] {
+        let bytes = token.as_bytes();
+        for (needle, how) in [
+            (bytes, "whole"),
+            (&bytes[6..], "by its tail from byte 6"),
+            (&bytes[bytes.len() - 6..], "by its last 6 bytes"),
+        ] {
             for (file, at) in standing(scratch, needle) {
                 let page = at / PAGE + 1;
                 let owner = names.get(&page).map(String::as_str).unwrap_or("no tree");
                 if !(file.ends_with(".db") && owner == "f_idx") {
                     found.push(format!(
-                        "{when}: the removed token {token} ({} bytes searched) stands in {file} page {page} offset {} of {owner}",
-                        needle.len(),
+                        "{when}: the removed token {token}, searched {how}, stands in {file} page {page} offset {} of {owner}",
                         at % PAGE
                     ));
                 }
@@ -77,7 +81,7 @@ fn outside_idx(
     found
 }
 
-fn shared_prefixes(seed: u64, secure: bool) -> Vec<String> {
+fn shared_prefixes(seed: u64, secure: bool) -> (Vec<String>, BTreeSet<String>) {
     let scratch = Scratch::new(seed, Mode::Plain);
     let conn = connect(&scratch.db(), Mode::Plain);
     fts5_table(&conn, secure);
@@ -87,6 +91,7 @@ fn shared_prefixes(seed: u64, secure: bool) -> Vec<String> {
     let mut next = 1i64;
     let token = |rng: &mut Rng| format!("appname{:02}{}", rng.below(4), letters(rng, 7));
     for round in 0..6 {
+        let mut this_round: BTreeSet<String> = BTreeSet::new();
         conn.execute_batch("BEGIN").unwrap();
         for _ in 0..120 {
             let text = token(&mut rng);
@@ -109,11 +114,15 @@ fn shared_prefixes(seed: u64, secure: bool) -> Vec<String> {
                     params![rowid, format!("{text} app{}", rng.below(7))],
                 )
                 .unwrap();
-                removed.insert(live.insert(rowid, text).unwrap());
+                let old = live.insert(rowid, text).unwrap();
+                this_round.insert(old.clone());
+                removed.insert(old);
             } else {
                 conn.execute("DELETE FROM f WHERE rowid = ?1", [rowid])
                     .unwrap();
-                removed.insert(live.remove(&rowid).unwrap());
+                let old = live.remove(&rowid).unwrap();
+                this_round.insert(old.clone());
+                removed.insert(old);
             }
         }
         checkpoint(&conn);
@@ -124,28 +133,66 @@ fn shared_prefixes(seed: u64, secure: bool) -> Vec<String> {
             &format!("seed {seed} round {round}"),
         );
         if !found.is_empty() {
-            return found;
+            return (found, this_round);
         }
     }
-    Vec::new()
+    (Vec::new(), BTreeSet::new())
 }
 
 #[test]
 fn removed_fts5_tokens_with_a_shared_prefix_stand_in_no_page_but_the_idx_tree() {
     crate::initialize().unwrap();
     let found: Vec<String> = (24..=27)
-        .flat_map(|seed| shared_prefixes(seed, true))
+        .flat_map(|seed| shared_prefixes(seed, true).0)
         .collect();
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
 
 #[test]
-fn with_fts5_secure_delete_off_the_search_finds_a_removed_token_outside_the_idx_tree() {
+fn with_fts5_secure_delete_off_every_removed_token_that_a_needle_finds_is_found_by_its_last_6_bytes(
+) {
     crate::initialize().unwrap();
-    let found = shared_prefixes(24, false);
+    let mut misses = Vec::new();
+    for seed in 24..=27 {
+        let (found, removed) = shared_prefixes(seed, false);
+        let by = |how: &str| -> BTreeSet<&String> {
+            removed
+                .iter()
+                .filter(|token| {
+                    let named = format!("the removed token {token}, searched {how}, stands in ");
+                    found.iter().any(|line| line.contains(&named))
+                })
+                .collect()
+        };
+        let (whole, tail, last) = (
+            by("whole"),
+            by("by its tail from byte 6"),
+            by("by its last 6 bytes"),
+        );
+        println!(
+            "FTS5 seed {seed}: {} tokens removed in the round of the first find; found whole {}, by the tail from byte 6 {}, by the last 6 bytes {}",
+            removed.len(),
+            whole.len(),
+            tail.len(),
+            last.len()
+        );
+        if last.is_empty() {
+            misses.push(format!(
+                "seed {seed}: no removed token found by its last 6 bytes"
+            ));
+        }
+        for token in whole.union(&tail) {
+            if !last.contains(token) {
+                misses.push(format!(
+                    "seed {seed}: {token} is found by another needle and not by its last 6 bytes"
+                ));
+            }
+        }
+    }
     assert!(
-        found.iter().any(|line| line.contains("the removed token")),
-        "with FTS5's secure-delete off the search finds no removed token outside f_idx"
+        misses.is_empty(),
+        "with FTS5's secure-delete off: {}",
+        misses.join("; ")
     );
 }
 
