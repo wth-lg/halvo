@@ -625,6 +625,11 @@ struct StartCalls {
     remove_device: RemoveCall,
     /// Makes the keyboard pump's poll timer; 0 when it fails.
     set_timer: fn() -> usize,
+    /// Called by a stopping pointer pump after the route has changed and
+    /// before its claim is let go, so that a test can start a second
+    /// pointer source there (W3-9 (2)).
+    #[cfg(test)]
+    after_hand_over: fn(),
 }
 
 const SYSTEM_CALLS: StartCalls = StartCalls {
@@ -634,6 +639,8 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     register_device: register_raw_input_device,
     remove_device: register_raw_input_device,
     set_timer: set_poll_timer,
+    #[cfg(test)]
+    after_hand_over: || {},
 };
 
 fn set_poll_timer() -> usize {
@@ -1223,6 +1230,8 @@ fn run_raw_input(
         let route = clicks();
         drop(device_guard);
         pointer_lets_mouse_go(route, super::now_tick());
+        #[cfg(test)]
+        (calls.after_hand_over)();
         drop(claim);
     }
     INPUT_CTX.with(|cell| {
@@ -1785,6 +1794,121 @@ mod tests {
         );
         assert_eq!(keyboard_stopped, Ok(()));
         assert_eq!(pointer_stopped, Ok(()));
+    }
+
+    /// What the call after the hand-over saw, for O6's third order.
+    static AT_THE_HAND_OVER: Mutex<Option<(Option<RawDevice>, bool)>> = Mutex::new(None);
+    /// A second pointer source that the call started, if the start was not
+    /// refused; the test stops it.
+    static SECOND_POINTER: Mutex<Option<RawInputSource>> = Mutex::new(None);
+
+    /// The seam's call after the hand-over: reads the route's owner and
+    /// starts a second pointer source there, once.
+    fn start_a_second_pointer() {
+        let mut seen = AT_THE_HAND_OVER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if seen.is_some() {
+            return;
+        }
+        let owner = clicks().owner;
+        let (sink, _writer) = crate::sink::channel(8);
+        let mut second = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let started = second.begin(crate::source::SourceContext::new(sink));
+        let refused = matches!(started, Err(CaptureError::AlreadyStarted));
+        if started.is_ok() {
+            *SECOND_POINTER
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(second);
+        }
+        *seen = Some((owner, refused));
+    }
+
+    /// W3-9 (2), O6's third order: a second pointer source started after
+    /// the stopping pointer has changed the route and before it lets its
+    /// claim go is refused; started after that, it keeps the mouse, and the
+    /// route names it as the owner.
+    #[test]
+    fn a_second_pointer_start_is_refused_until_the_route_has_changed() {
+        use windows::Win32::UI::WindowsAndMessaging::FindWindowExW;
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        *AT_THE_HAND_OVER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let mut first = RawInputSource::with_calls(
+            RawDevice::Pointer,
+            StartCalls {
+                after_hand_over: start_a_second_pointer,
+                ..calls_for_tests()
+            },
+        );
+        let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
+        let first_stopped = first.shutdown();
+        let at_the_hand_over = *AT_THE_HAND_OVER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut second = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let second_started = second.begin(crate::source::SourceContext::new(sink));
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let owner = clicks().owner;
+        // SAFETY: the class name is a static wide string; HWND_MESSAGE
+        // searches the message-only windows.
+        let second_window = unsafe {
+            FindWindowExW(
+                Some(HWND_MESSAGE),
+                None,
+                RawDevice::Pointer.class_name(),
+                None,
+            )
+        }
+        .ok()
+        .map(|window| window.0 as usize);
+        let calls = REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let second_stopped = second.shutdown();
+        if let Some(mut stray) = SECOND_POINTER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            let _ = stray.shutdown();
+        }
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        let mouse = RawDevice::Pointer.hid_usage();
+        let last_mouse_window = calls
+            .iter()
+            .rev()
+            .find(|(usage, removal, _)| *usage == mouse && !*removal)
+            .map(|(_, _, window)| *window);
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(first_started.is_ok(), "{first_started:?}");
+        assert_eq!(first_stopped, Ok(()));
+        let (owner_at_the_hand_over, refused) =
+            at_the_hand_over.expect("the call after the hand-over did not run");
+        assert_ne!(
+            owner_at_the_hand_over,
+            Some(RawDevice::Pointer),
+            "the route still named the stopping pointer when the call ran"
+        );
+        assert!(
+            refused,
+            "a second pointer source started before the first let its claim go"
+        );
+        assert!(second_started.is_ok(), "{second_started:?}");
+        assert_eq!(owner, Some(RawDevice::Pointer));
+        assert!(
+            second_window.is_some() && last_mouse_window == second_window,
+            "the mouse is not registered for the second pointer's window"
+        );
+        assert_eq!(second_stopped, Ok(()));
+        assert_eq!(keyboard_stopped, Ok(()));
     }
 
     #[test]
