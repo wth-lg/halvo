@@ -1,5 +1,5 @@
 gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
-stamp=05214890f3deea34b95a604f7375494347a6e20d99df79f681c3448ca9b59ea9
+stamp=f4e76ae6b5cf786bbb7a3a127098397049eba09e8ce17265aab98e8d490050fc
 script=ef5a3844994d4d4d87a7357546d4021bb512d9aca758f068e426ca7ea8dd385a
 selftest fixture=good mode=good as-expected=yes
 selftest fixture=not-compared mode=reads-input as-expected=yes

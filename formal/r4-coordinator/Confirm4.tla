@@ -53,7 +53,7 @@ InitH ==
      stopped |-> FALSE,
      nb |-> 0,
      waits |-> 0,
-     newest |-> [j \in BindItems |-> "none"],
+     newest |-> [j \in BindItems |-> [answer |-> "none", acked |-> FALSE]],
      rows |-> {},
      lost |-> {},
      bound |-> {},
@@ -312,11 +312,26 @@ HInPress(g, mv) ==
     /\ mv.item = g.waits
     /\ g.newest[g.waits] = [answer |-> "allow", acked |-> TRUE]
 
+HTries(g, mv, res) ==
+    /\ mv.m = "press"
+    /\ res.r \notin {"stale", "state"}
+    /\ ~(g.newest[mv.item] = [answer |-> mv.choice, acked |-> TRUE] /\ mv.item \in g.unsent)
+
+HRowIn(out) == \E i \in 1..Len(out) : out[i].k = "bind_row"
+
+HPress(g, mv, res) ==
+    IF HTries(g, mv, res) /\ ~HRowIn(res.out)
+    THEN [g EXCEPT !.newest[mv.item] = [answer |-> mv.choice, acked |-> mv.store = "ack"],
+                   !.rows = @ \cup {mv.item},
+                   !.lost = IF mv.store = "ack" THEN @ ELSE @ \cup {mv.item}]
+    ELSE g
+
 HBind(g, e, mv) ==
     CASE e.k = "bind_row" ->
-            [g EXCEPT !.newest[e.item] = [answer |-> e.answer, acked |-> HAcked(mv)],
-                      !.rows = @ \cup {e.item},
-                      !.lost = IF HAcked(mv) THEN @ ELSE @ \cup {e.item}]
+            LET j == IF mv.m = "press" THEN mv.item ELSE e.item
+            IN [g EXCEPT !.newest[j] = [answer |-> e.answer, acked |-> HAcked(mv)],
+                         !.rows = @ \cup {j},
+                         !.lost = IF HAcked(mv) THEN @ ELSE @ \cup {j}]
       [] e.k = "answer_bind" ->
             IF HTaken(g, mv)
             THEN [g EXCEPT !.bound = @ \cup {[item |-> g.waits, answer |-> e.answer, ok |-> HInPress(g, mv),
@@ -388,8 +403,8 @@ HGuard(g, mv, res) ==
 
 Hist(g, mv, res) ==
     IF mv.m = "guard" THEN HGuard(g, mv, res)
-    ELSE IF res.r = "ok" THEN HAfter(HFold(HBefore(g, mv), res.out, 1, mv), mv)
-    ELSE HFold(g, res.out, 1, mv)
+    ELSE IF res.r = "ok" THEN HAfter(HFold(HPress(HBefore(g, mv), mv, res), res.out, 1, mv), mv)
+    ELSE HFold(HPress(g, mv, res), res.out, 1, mv)
 
 GotAllow(g, i, e) == \E d \in g.got : /\ d.via = "release"
                                       /\ d.item = i

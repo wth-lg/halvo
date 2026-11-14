@@ -128,7 +128,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
 | `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move | none of its own |
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
-| `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45 and 57 to 63 | all of `Confirm4` |
+| `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 71 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
@@ -161,8 +161,8 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 | `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | not run yet | not run yet |
 | `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 6 s | 6 s |
 | `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 5 s | 4 s |
-| `Confirm4` | `full` | 161.10 s, one worker, on 2026-11-14 (U1.2c) | 1,218,527,232 bytes | 43.13 | not run yet | not run yet |
-| `Confirm4` | `apart` | 14.67 s, one worker, on 2026-11-14 (U1.2c) | 490,209,280 bytes | 44.39 | not run yet | not run yet |
+| `Confirm4` | `full` | 248.07 s, one worker, on 2026-11-14 (U1.2c) | 508,461,056 bytes | 210.87 | not run yet | not run yet |
+| `Confirm4` | `apart` | 26.20 s, one worker, on 2026-11-14 (U1.2c) | 460,619,776 bytes | 71.70 | not run yet | not run yet |
 
 In that run the check took 203 s and its self-test 25 s in the
 `macos` job, and 238 s and 66 s in the `windows` job; the
@@ -587,7 +587,7 @@ names effect 1 with another digest, so its presenter is `page`.
 | `refused` | every record `approved` that the guard did not pass on although an `approved` record of the same effect, digest and approval id had passed before and the run was not stopped: a repeat that was refused | L7 |
 | `stopped` | whether the run was stopped, a lapse of a second step with `wait_limit` or `cancelled` among the stops | L6, L9 |
 | `nb`, `waits` | the run's accepted `Bind` requests, and the second step whose answer the runner waits for, from its accepted request until it receives an answer, ends or the app ends | L11 |
-| `newest` | for each second step, the newest `item_answered` row that this life tried to store, with its answer and whether the acknowledgement came, which the key `store` of the press gives | L11 |
+| `newest` | for each second step, the newest `item_answered` row that this life tried to store, with its answer and whether the acknowledgement came, which the key `store` of the press gives. It is taken from the press, keyed by the item that the person pressed: at the press's own row entry, or, where the press is not refused and its step holds no acknowledged answer of the same choice that the run did not take, at the start of the move when the entries hold no row, so that a coordinator that stores a row and does not report it, or reports it under another item, is still read (the review of unit U1.2c) | L11 |
 | `bound` | every answer of a second step that the runner received: the step, the answer, and whether it came inside a press of Allow on that step while `newest` was an acknowledged `allow` | L11 |
 | `rows`, `lost`, `unsent`, `blapsed`, `killed` | the second steps whose answer row the owner holds, those of them whose row lost its acknowledgement, those whose acknowledged answer the run did not take, the lapses of second steps, and whether the app was killed; `rows` is what recovery reads after a kill, and the rest only the `Reach` properties read | `Reach` |
 
@@ -822,6 +822,9 @@ replay of that design gives another answer, event, call or state at some move.
 | 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 |
 | 67 | the start by the person under the hold `failures` keeps the verdict that it computed before its store of `hold_cleared` | none: the start reads again at its `run_started` and answers `hold`, and `set_state` `active` goes before `paused` | 0 of 213 |
 | 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 |
+| 69 | a press of Allow calls `Runs::answer_bind` before its row is written, in the same move | L11 | 0 of 215 |
+| 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 34 of 215 |
+| 71 | the same press reports its row under the other step's item | L11 | 34 of 215 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -829,7 +832,7 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. Rows 57 to 64 are the second step of a sign-in (ruling RD-48 (g)): rows 58 and 64 break no property and change traces alone, row 58 because the person's last press is an acknowledged Allow and row 64 because the runner gets nothing. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a), and only row 65 is reported: rows 66 to 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
+round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. Rows 57 to 64 and 69 to 71 are the second step of a sign-in (ruling RD-48 (g)); rows 69 to 71 are the review's cases that the first history did not report, and row 69 changes no trace line because a line lists `e` and `p` apart, so that the order between a row and a call does not show in it: rows 58 and 64 break no property and change traces alone, row 58 because the person's last press is an acknowledged Allow and row 64 because the runner gets nothing. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a), and only row 65 is reported: rows 66 to 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
 reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. These changes break no property and change traces alone: a tick that skips an agent
