@@ -96,6 +96,14 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Rows of store-3 step 7 to their end
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          started=$(date +%s)
+          sh scripts/r1-gate/mutation-test.sh --only unknown-key-file-does-not-stop-the-cleanup --only mark-stays-owed-after-the-root --only associated-data-holds-the-path-of-the-executable --only create-clears-by-name --only create-keeps-keyless-leftovers --only database-removal-leaves-the-log --only deletion-check-without-the-all-zero-probe --only key-file-removed-without-its-zero-fill --only key-file-test-follows-a-link --only the-one-open-drops-no-follow --only segment-roundtrip-broken --only formal-busy-not-mapped-to-locked --only formal-checkpoint-not-verified --only formal-second-delete-all-finishes-nothing --only formal-second-delete-all-is-refused --only formal-secure-delete-off --only formal-single-writer --only formal-store-db-keeps-a-wider-mode --only formal-delete-all-returns-before-its-root-step --only formal-delete-walk-takes-a-link-for-a-directory --only formal-open-makes-a-missing-database
+          echo "rows exit=$? seconds=$(($(date +%s) - started))"
       - name: Build
         shell: bash
         run: npm run tauri build
