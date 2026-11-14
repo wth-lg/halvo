@@ -807,9 +807,9 @@ impl TapContext {
         let margin = i128::try_from(WAKE_MARGIN.as_nanos()).unwrap_or(i128::MAX);
         match state.offset {
             Some(kept) if difference > kept.saturating_add(margin) => {
+                state.wake_unclocked = false;
                 state.offset = Some(difference);
                 state.wake_mark = Some(at);
-                state.wake_unclocked = false;
                 true
             }
             Some(kept) => {
