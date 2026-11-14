@@ -692,19 +692,33 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         );
         return 0;
     };
+    let _ = seam::take_marks();
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
+    let gate_before = keyboard.source.field_state();
     let sent = i64::from(type_letters_slowly(5) / 2);
     let r = end_round(keyboard, hwnd, sent, front);
+    let marks = seam::take_marks();
     say(
         test,
         format!(
-            "browser={} control={which} foreground={front} focus_at_the_reset={} {}",
+            "browser={} control={which} foreground={front} focus_at_the_reset={} gate_before_the_letters={gate_before:?} {}",
             browser.name,
             start.focus,
             r.line()
         ),
     );
+    if r.sink < 5 {
+        super::detector_line(test, "page-control");
+        say(
+            test,
+            format!(
+                "browser={} control={which} marks=[{}]",
+                browser.name,
+                marks_with_elements(&marks)
+            ),
+        );
+    }
     assert!(
         front && start.focus == "plain" && sent == 5 && r.page.text == 5,
         "INCONCLUSIVE: the control's page was not in front or did not take its 5 letters"
