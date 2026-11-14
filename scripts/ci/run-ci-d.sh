@@ -90,6 +90,7 @@ if [ "$code" -ne 0 ] || [ -n "$cdup" ]; then
   exit 1
 fi
 repo=$(pwd)
+tracked=$(git ls-files -- "$root" 2>/dev/null) || tracked=
 
 inspect() {
   script_file=$1
@@ -154,6 +155,13 @@ inspect() {
       ;;
     *)
       refusal="its '# lane:' line is neither '# lane: free' nor '# lane: alone'; a check that names no lane runs in the cargo lane"
+      return 1
+      ;;
+  esac
+  case $nl$tracked$nl in
+    *"$nl$script_file$nl"*) ;;
+    *)
+      refusal='git does not track it'
       return 1
       ;;
   esac
@@ -739,6 +747,7 @@ st_entry() {
 }
 
 new_repo() {
+  fixture_added=
   fixture=$(mktemp -d "$tmp/repo.XXXXXX") || return 1
   git -C "$fixture" init -q >/dev/null 2>&1 || return 1
   printf 'version = 4\n' >"$fixture/Cargo.lock"
@@ -746,6 +755,10 @@ new_repo() {
 }
 
 fixture_commit() {
+  if [ -n "$fixture_added" ]; then
+    printf '%s' "$fixture_added" | git --literal-pathspecs -C "$fixture" add --pathspec-from-file=- >/dev/null 2>&1 || return 1
+    fixture_added=
+  fi
   fixture_tree=$(git -C "$fixture" write-tree) || return 1
   fixture_head=$(printf 'tree %s\nauthor ci.d fixture <fixture@example.invalid> 1 +0000\ncommitter ci.d fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" | git -C "$fixture" hash-object -t commit -w --stdin) || return 1
   git -C "$fixture" update-ref HEAD "$fixture_head"
@@ -758,7 +771,8 @@ track_file() {
 
 add_script() {
   mkdir -p "$fixture/scripts/$1/ci.d" || return 1
-  printf '#!/bin/sh\n%s\n%s\n' "$3" "$4" >"$fixture/scripts/$1/ci.d/$2"
+  printf '#!/bin/sh\n%s\n%s\n' "$3" "$4" >"$fixture/scripts/$1/ci.d/$2" || return 1
+  fixture_added="${fixture_added}scripts/$1/ci.d/$2$nl"
 }
 
 own_case() {
@@ -771,6 +785,7 @@ own_case() {
 }
 
 own_run() {
+  [ -z "$fixture_added" ] || fixture_commit
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
   witness=
   if [ -n "$case_witness" ]; then
@@ -950,6 +965,7 @@ own_self_test() {
   skip_a='printf "SKIP 10-a (no tool)\n"; exit 77'
   rejected=0
   wrong=
+  fixture_added=
   case_reset
   perl_bin=$(command -v perl) || perl_bin=perl
   case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
@@ -967,6 +983,7 @@ own_self_test() {
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
   lane_refusal="its '# lane:' line is neither '# lane: free' nor '# lane: alone'; a check that names no lane runs in the cargo lane"
+  untracked_refusal='git does not track it'
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
   perl_line='FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)'
 
@@ -1057,6 +1074,12 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r2 10-a.sh "$good" "$pass_a"
   own_case name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' macos
   own_case rules-name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' --rules
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" 'printf "PASS 20-planted\n"' >"$fixture/scripts/r1/ci.d/20-planted.sh"
+  case_absent='PASS 20-planted'
+  case_witness=yes
+  own_case untracked-script-under-a-ci.d-directory 1 "FAIL 20-planted ($untracked_refusal)" macos
+  own_case rules-refuses-an-untracked-script 1 "FAIL 20-planted ($untracked_refusal)" --rules
 
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 1'
   own_case pass-line-with-exit-1 1 'FAIL 10-a (exit 1)' macos
@@ -1128,7 +1151,7 @@ own_self_test() {
     case_path=$tmp/git-fails-after-10-a
     own_case "git-${git_read%% *}-fails-at-the-read-after-a-script" 1 'FAIL run-ci-d (git cannot read the tracked files after 10-a)' macos
   done
-  new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"' && track_file
   own_case script-adds-a-replace-ref 1 "FAIL run-ci-d (10-a changed the git settings of the checkout: refs/replace/$fixture_head)" macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && git -C "$fixture" update-index --skip-worktree tracked.txt
   own_case tracked-file-marked-skip-worktree-before-the-first-script 1 'FAIL run-ci-d (a tracked file is marked assume-unchanged or skip-worktree before the first script: tracked.txt)' macos
