@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: daemon-1 loop
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::tests::seconds_outside_1_to_604800_give_usage daemon::tests::a_bad_switch_flag_and_a_switch_beside_another_mode_give_usage daemon::tests::two_switch_flags_parse_to_their_values_with_both_names_set daemon::tests::a_store_dir_is_required_absolute_existing_and_clear_of_the_data_directory daemon::tests::the_verify_modes_take_their_flags_and_nothing_else daemon::tests::the_hold_needs_two_seconds_and_is_a_flag_of_macos daemon::tests::an_argument_that_is_not_utf8_gives_usage daemon::tests::a_default_timed_run_starts_no_screen_source_and_the_switch_flag_starts_it daemon::tests::a_source_that_fails_to_start_leaves_a_full_length_run_that_exits_3 daemon::tests::a_signalled_timed_run_prints_its_report daemon::tests::the_hold_is_taken_after_the_released_phase_ends daemon::tests::a_tap_that_delivers_no_key_fails_the_control daemon::tests::a_refused_hold_ends_the_run_with_no_report daemon::tests::a_batch_refused_at_the_final_settle_gives_exit_1_and_a_loss_line daemon::tests::a_drain_that_still_fails_at_the_deadline_gives_exit_1_with_the_held_events daemon::tests::a_drop_with_no_write_since_gives_exit_1_and_one_that_a_good_write_followed_exit_0 daemon::tests::a_last_settle_with_no_answer_gives_exit_1 daemon::tests::nine_events_of_the_kinds_with_no_source_give_three_lines_with_count_3 daemon::tests::the_sources_of_a_run_leave_out_what_the_switches_turn_off daemon::tests::a_source_that_does_not_stop_adds_its_line_and_exits_3 daemon::tests::a_drop_at_the_last_settle_that_a_good_write_follows_gives_exit_1 daemon::tests::a_store_write_that_parks_the_owner_in_the_window_ends_the_run_inside_its_bounds daemon::owner::tests::one_fault_and_two_settles_with_the_clock_still_drop_nothing daemon::owner::tests::a_fault_that_does_not_end_drops_the_batch_at_its_third_due_try daemon::owner::tests::another_fault_at_an_early_try_ends_the_run_of_identical_failures daemon::owner::tests::settles_during_an_io_fault_leave_the_next_due_try_where_it_was daemon::owner::tests::a_sealed_batch_is_given_up_at_its_first_answer daemon::owner::tests::a_drop_then_a_good_write_clears_the_count_since_the_last_acknowledged_write daemon::owner::tests::a_store_that_takes_nothing_keeps_the_count_between_two_drops daemon::owner::tests::a_dropped_batch_reports_its_instants_and_fault_and_the_snapshot_keeps_them daemon::owner::tests::an_event_in_the_hands_of_a_pass_at_open_pause_is_not_stored_and_is_discarded_by_the_barrier daemon::owner::tests::a_pass_answers_the_waiting_commands_before_it_waits_for_an_event daemon::report::tests::the_passing_fixture_renders_from_typed_values daemon::report::tests::the_failing_input_fixture_renders_from_an_error_the_code_raises daemon::report::tests::the_hold_fixture_renders_its_six_lines_from_typed_values daemon::report::tests::the_peak_line_is_a_positive_byte_count'
+          want=36
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && grep -q "^test result: ok. $want passed" "$out"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (macos): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          [ "$pass" = 200 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +133,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: daemon-1 loop
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::tests::seconds_outside_1_to_604800_give_usage daemon::tests::a_bad_switch_flag_and_a_switch_beside_another_mode_give_usage daemon::tests::two_switch_flags_parse_to_their_values_with_both_names_set daemon::tests::a_store_dir_is_required_absolute_existing_and_clear_of_the_data_directory daemon::tests::the_verify_modes_take_their_flags_and_nothing_else daemon::tests::the_hold_needs_two_seconds_and_is_a_flag_of_macos daemon::tests::a_default_timed_run_starts_no_screen_source_and_the_switch_flag_starts_it daemon::tests::a_source_that_fails_to_start_leaves_a_full_length_run_that_exits_3 daemon::tests::a_signalled_timed_run_prints_its_report daemon::tests::the_hold_is_taken_after_the_released_phase_ends daemon::tests::a_tap_that_delivers_no_key_fails_the_control daemon::tests::a_refused_hold_ends_the_run_with_no_report daemon::tests::a_batch_refused_at_the_final_settle_gives_exit_1_and_a_loss_line daemon::tests::a_drain_that_still_fails_at_the_deadline_gives_exit_1_with_the_held_events daemon::tests::a_drop_with_no_write_since_gives_exit_1_and_one_that_a_good_write_followed_exit_0 daemon::tests::a_last_settle_with_no_answer_gives_exit_1 daemon::tests::nine_events_of_the_kinds_with_no_source_give_three_lines_with_count_3 daemon::tests::the_sources_of_a_run_leave_out_what_the_switches_turn_off daemon::tests::a_source_that_does_not_stop_adds_its_line_and_exits_3 daemon::tests::a_drop_at_the_last_settle_that_a_good_write_follows_gives_exit_1 daemon::tests::a_store_write_that_parks_the_owner_in_the_window_ends_the_run_inside_its_bounds daemon::owner::tests::one_fault_and_two_settles_with_the_clock_still_drop_nothing daemon::owner::tests::a_fault_that_does_not_end_drops_the_batch_at_its_third_due_try daemon::owner::tests::another_fault_at_an_early_try_ends_the_run_of_identical_failures daemon::owner::tests::settles_during_an_io_fault_leave_the_next_due_try_where_it_was daemon::owner::tests::a_sealed_batch_is_given_up_at_its_first_answer daemon::owner::tests::a_drop_then_a_good_write_clears_the_count_since_the_last_acknowledged_write daemon::owner::tests::a_store_that_takes_nothing_keeps_the_count_between_two_drops daemon::owner::tests::a_dropped_batch_reports_its_instants_and_fault_and_the_snapshot_keeps_them daemon::owner::tests::an_event_in_the_hands_of_a_pass_at_open_pause_is_not_stored_and_is_discarded_by_the_barrier daemon::owner::tests::a_pass_answers_the_waiting_commands_before_it_waits_for_an_event daemon::report::tests::the_passing_fixture_renders_from_typed_values daemon::report::tests::the_failing_input_fixture_renders_from_an_error_the_code_raises daemon::report::tests::the_hold_fixture_renders_its_six_lines_from_typed_values'
+          want=34
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && grep -q "^test result: ok. $want passed" "$out"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (windows): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          [ "$pass" = 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
