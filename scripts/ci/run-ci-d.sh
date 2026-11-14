@@ -408,12 +408,12 @@ tree_state() {
     sed 's/^/I  /' "$tmp/staged"
     own_git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
     sed -n 's/^\([^H]\) /!\1 /p' "$tmp/ls-files"
-    for tree_f in config info/attributes; do
-      tree_h=none
-      tree_p=$(own_git rev-parse --git-path "$tree_f" 2>/dev/null) || tree_p=
-      [ ! -f "$tree_p" ] || tree_h=$(own_git hash-object --no-filters -- "$tree_p" 2>/dev/null) || tree_h=unreadable
-      printf 'GIT %s %s\n' "$tree_f" "$tree_h"
-    done
+    tree_h=$(own_git config --list --show-origin 2>/dev/null | own_git hash-object --stdin 2>/dev/null) || tree_h=unreadable
+    printf 'GIT config %s\n' "$tree_h"
+    tree_h=none
+    tree_p=$(own_git rev-parse --git-path info/attributes 2>/dev/null) || tree_p=
+    [ ! -f "$tree_p" ] || tree_h=$(own_git hash-object --no-filters -- "$tree_p" 2>/dev/null) || tree_h=unreadable
+    printf 'GIT info/attributes %s\n' "$tree_h"
     own_git for-each-ref --format='GIT %(refname) %(objectname)' refs/replace/ 2>/dev/null || printf 'status failed\n'
   ) >"$1"
 }
@@ -1355,6 +1355,26 @@ own_self_test() {
   own_case script-restores-a-file-that-differed-before 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" config core.checkStat minimal; printf "PASS 10-a\n"'
   own_case script-changes-the-git-settings 1 'FAIL run-ci-d (10-a changed the git settings of the checkout: config)' macos
+  settings_line='FAIL run-ci-d (10-a changed the git settings of the checkout: config)'
+  stat_edit='sleep 1 && cp -p "$CI_D_REPO/tracked.txt" "$CI_D_ARTIFACTS/kept" && printf "line 2\n" >"$CI_D_REPO/tracked.txt" && touch -r "$CI_D_ARTIFACTS/kept" "$CI_D_REPO/tracked.txt"'
+  if ! command -v cygpath >/dev/null 2>&1; then
+    included=$(mktemp "$tmp/included.XXXXXX") && printf '[http "https://example.invalid/"]\n\textraheader = none\n' >"$included"
+    new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
+      git -C "$fixture" add tracked.txt >/dev/null 2>&1 && git -C "$fixture" config include.path "$included" &&
+      add_script r1 10-a.sh "$good" "i=\$(git -C \"\$CI_D_REPO\" config --local --get include.path) && printf '[core]\\n\\tcheckStat = minimal\\n' >>\"\$i\" && $stat_edit; printf 'PASS 10-a\\n'" && fixture_commit
+    case_witness=yes
+    own_case setting-written-through-an-included-file-is-named 1 "$settings_line" macos
+    new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
+      git -C "$fixture" add tracked.txt >/dev/null 2>&1 && git -C "$fixture" config extensions.worktreeConfig true &&
+      add_script r1 10-a.sh "$good" "w=\$(git -C \"\$CI_D_REPO\" rev-parse --git-path config.worktree) && printf '[core]\\n\\tcheckStat = minimal\\n' >>\"\$w\" && $stat_edit; printf 'PASS 10-a\\n'" && fixture_commit
+    case_witness=yes
+    own_case setting-written-through-config-worktree-is-named 1 "$settings_line" macos
+  fi
+  new_repo && printf '\303\251x\n' >"$fixture/tracked.txt" && git -C "$fixture" add tracked.txt >/dev/null 2>&1 &&
+    add_script r1 10-a.sh "$good" "[ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; mkdir -p \"\$XDG_CONFIG_HOME/git\" && printf 'tracked.txt text working-tree-encoding=ISO-8859-1\\n' >\"\$XDG_CONFIG_HOME/git/attributes\" && sleep 1 && printf '\\351x\\r\\n' >\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'" && fixture_commit
+  case_git_home=yes
+  case_witness=yes
+  own_case same-size-re-encoding-under-a-global-attributes-file-is-named 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'a=$(git -C "$CI_D_REPO" rev-parse --git-path info/attributes) && mkdir -p "${a%/*}" && printf "* -text\n" >>"$a"; printf "PASS 10-a\n"' &&
     add_script r1 20-b.sh "$good" "$pass_b"
   case_absent='FAIL run-ci-d (20-b changed the git settings of the checkout: info/attributes)'
