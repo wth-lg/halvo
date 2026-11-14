@@ -605,3 +605,25 @@ fn a_write_that_fails_once_at_the_last_settle_is_stored_by_the_next_try() {
         "{outcome:?}"
     );
 }
+
+/// Ruling DM-12 G7 (contracts.md C5.2): the sink's counts are read after the
+/// sources stopped, so an event emitted while they stop is in the accepted
+/// count (adversary 1's adv1_w_l).
+#[test]
+fn the_sink_counts_hold_an_event_emitted_while_the_sources_stop() {
+    let mut sources = EmitAtStop {
+        inner: keys(4),
+        sink: None,
+    };
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        ModelStore::new(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(accepted(&outcome), 5);
+}
