@@ -220,3 +220,56 @@ fn meet_r13_a_queued_agent_whose_refused_switch_off_reveals_a_ready_item_stays_q
     assert_eq!(starts, starts_before + 1, "one start");
     assert!(w.board.queue.is_empty());
 }
+
+#[test]
+fn a_switch_off_that_drops_a_queued_start_keeps_the_revealed_ready_item_open() {
+    let mut w = world(&[MANUAL, PERSON]);
+    w.act(Act::Start { agent: agent(0) })
+        .report
+        .run
+        .expect("agent 0 runs");
+    let ready = ItemId::parse(&format!("{:032x}", 0x7a31)).unwrap();
+    stored_unacknowledged(
+        &w,
+        1,
+        What::ItemRaised {
+            item: ready.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    let queued = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    let off = w.act(Act::SwitchOff { agent: agent(1) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    let open = Doing::Idle(Some(OwnItem {
+        item: ready.clone(),
+        kind: OwnItemKind::Ready,
+    }));
+    assert_eq!(w.facts(1).doing, open, "the item stays open after the drop");
+    assert!(holds(w.facts(1)).contains(&Hold::Off));
+    assert!(w.board.queue.is_empty(), "the queued start is dropped");
+    let closing = |w: &World| {
+        w.events_of(1)
+            .iter()
+            .filter(|e| *e == "item_answered" || e.starts_with("item_lapsed"))
+            .count()
+    };
+    let start = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(start.report.answer, Err(Cause::Hold));
+    assert_eq!(closing(&w), 0, "the item's Start stores no closing row");
+    assert_eq!(w.facts(1).doing, open);
+    let raised = |w: &World| {
+        w.events_of(1)
+            .iter()
+            .filter(|e| *e == "item_raised ready")
+            .count()
+    };
+    assert_eq!(raised(&w), 1);
+    let on = Move::SwitchOn { agent: agent(1) };
+    let on = schedule_drive(&w.ports, &mut w.board, &w.limits, on);
+    assert_eq!(on.answer, Ok(Answer::Ok));
+    w.set_clock(T0 + 1_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(raised(&w), 1, "no second ready item beside the open one");
+    assert_eq!(w.facts(1).doing, open);
+}

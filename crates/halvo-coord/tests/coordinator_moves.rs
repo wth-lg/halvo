@@ -6874,3 +6874,65 @@ fn a_switch_off_whose_stuck_items_lapse_row_panics_leaves_the_guard_refusing_an_
     c.tick();
     assert_eq!(kills_of(&c, m, &run), 1, "the grace tick kills the run");
 }
+
+#[test]
+fn a_switch_off_that_drops_a_queued_start_keeps_its_ready_card_whose_start_answers_hold() {
+    use halvo_coord::types::Control;
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, slotted], one);
+    start(&c, 0);
+    c.tick();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.answer(&item, Choice::Start, None, 0);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.queued(), vec![(agent(1), false)], "queued with its item");
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(c.queued(), vec![], "the queued start is dropped");
+    assert_eq!(open_item(&c).0, item, "the ready card stays");
+    let controls = controls_of(&c, 1);
+    assert!(
+        controls.contains(&Control::SwitchOn) && controls.contains(&Control::Delete),
+        "{controls:?}"
+    );
+    assert!(!controls.contains(&Control::RunNow), "{controls:?}");
+    assert_eq!(
+        c.answer(
+            &item,
+            Choice::Start,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Err(Cause::Hold)
+    );
+    assert_eq!(closing_rows(&c, &item), 0, "no closing row of the item");
+    assert_eq!(c.control(&agent(1), Action::SwitchOn), Ok(()));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let raised = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(1)
+                && matches!(
+                    e.what,
+                    What::ItemRaised {
+                        raised: halvo_coord::types::Raised::Ready,
+                        ..
+                    }
+                )
+        })
+        .count();
+    assert_eq!(raised, 1, "one ready item, not a second beside it");
+}
