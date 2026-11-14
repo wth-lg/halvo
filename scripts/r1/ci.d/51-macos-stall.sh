@@ -287,7 +287,8 @@ measure() {
     case $kind in
       not-run | twelve) continue ;;
       measured | loop)
-        line="MS $test kind=$kind run=on_a_scratch_push asserts=nothing"
+        line="MS $test kind=$kind run=on_a_scratch_push"
+        [ "$kind" = loop ] || line="$line asserts=nothing"
         printf '%s\n' "$line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
         note=$(notes | sed -n "s/^$test //p")
         [ -z "$note" ] || printf 'MS note %s: %s\n' "$test" "$note" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
@@ -515,7 +516,9 @@ test a_rule ... ok'
   check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
   check note-line PASS 'MS note phase_two: shows what it shows; it does not show the rest' ''
   check measured-named-not-run PASS 'MS measured_one kind=measured run=on_a_scratch_push asserts=nothing' ''
-  check loop-named-not-run PASS 'MS loop_one kind=loop run=on_a_scratch_push asserts=nothing' ''
+  check loop-asserts PASS 'MS loop_one kind=loop run=on_a_scratch_push
+MS ' ''
+  check loop-named-not-run PASS 'MS loop_one kind=loop run=on_a_scratch_push' ''
   check history-line PASS 'MS note pushes 5 to 7: in the Tab, click, focus-move, leaving-key and whole-password phases' ''
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
