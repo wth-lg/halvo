@@ -5,6 +5,7 @@ use std::path::Path;
 
 use halvo_schema::WorkflowId;
 
+use crate::case::Case;
 use crate::cli::{Cause, Flags, Refusal, Report};
 use crate::delete::{seed, seed_cases, Cascade, MARKERS};
 use crate::store::{Family, MemoryStore};
@@ -82,6 +83,20 @@ fn naming(store: &MemoryStore, workflow: &str) -> Vec<Row> {
     rows
 }
 
+fn deleted(
+    first_before: &[Row],
+    stored: bool,
+    first_after: &[Row],
+    kept: &[Row],
+    second_after: &[Row],
+) -> bool {
+    !first_before.is_empty()
+        && stored
+        && first_after.is_empty()
+        && !kept.is_empty()
+        && second_after == kept
+}
+
 fn markers_seeded(first: &[Row], second: &[Row]) -> bool {
     [(first, MARKERS[0]), (second, MARKERS[1])]
         .iter()
@@ -147,7 +162,8 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
 
 /// The checks on the memory store (contracts.md L11.4; the coordinator's ruling LM-54 E5), each with its result.
 ///
-/// It seeds the two workflows of `learn-gate delete` (`delete::seed`), whose learned rows hold the markers, reads
+/// It plays the two seeded cases as `learn-gate delete` does (`delete::seed`; the command's are `delete::seed_cases`,
+/// whose learned rows hold the markers), reads
 /// the rows of the family `learn` that hold each workflow's id as a JSON string, each by kind and bytes, and calls
 /// `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. `learn_deleted` is ok
 /// when the first workflow had rows, the cascade answered that it was stored, no row holds its id after the
@@ -160,14 +176,14 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
 /// four checks are `not-run`: `learn_listed`, `learn_scrub` and `learn_expired` need the derived store and
 /// `learn_delete_all` the capture run's `halvo-capture --delete-all`, which this build does not hold.
 pub fn outcomes(
+    cases: &[Case; 2],
     data_dir: &Path,
     temp: &Path,
     cascade: Cascade<'_>,
     after: &mut dyn FnMut(&Path, &Path),
 ) -> Result<[(Check, Outcome); 6], String> {
     let before = entries(temp).ok();
-    let cases = seed_cases();
-    let (mut play, first) = seed(&cases)?;
+    let (mut play, first) = seed(cases)?;
     let id = WorkflowId::parse(&first).map_err(|_| "the first workflow's id".to_owned())?;
     let second = play.workflow().to_owned();
     let store = &mut play.host.store;
@@ -175,11 +191,13 @@ pub fn outcomes(
     let kept = naming(store, &second);
     let seeded = markers_seeded(&first_rows, &kept);
     let stored = cascade(store, &id);
-    let deleted = !first_rows.is_empty()
-        && stored
-        && naming(store, &first).is_empty()
-        && !kept.is_empty()
-        && naming(store, &second) == kept;
+    let deleted = deleted(
+        &first_rows,
+        stored,
+        &naming(store, &first),
+        &kept,
+        &naming(store, &second),
+    );
     after(data_dir, temp);
     let outside = seeded
         && clean_under(data_dir, None)
@@ -225,6 +243,7 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
     }
     let temp = std::env::temp_dir();
     let outcomes = outcomes(
+        &seed_cases(),
         dir,
         &temp,
         &mut |store, id| store.delete_workflow(id),
@@ -241,9 +260,9 @@ mod tests {
 
     use halvo_schema::WorkflowId;
 
-    use super::{holds_marker, markers_seeded, outcomes, report, Check, Outcome};
+    use super::{deleted, holds_marker, markers_seeded, outcomes, report, Check, Outcome, Row};
     use crate::cli::Cause;
-    use crate::delete::MARKERS;
+    use crate::delete::{seed_case, seed_cases, MARKERS, SEED_DAY};
     use crate::store::MemoryStore;
     use crate::stub::id;
 
@@ -278,7 +297,7 @@ mod tests {
         cascade: &mut dyn FnMut(&mut MemoryStore, &WorkflowId) -> bool,
         after: &mut dyn FnMut(&Path, &Path),
     ) -> Vec<(Check, Outcome)> {
-        outcomes(data, temp, cascade, after)
+        outcomes(&seed_cases(), data, temp, cascade, after)
             .expect("the seeded store")
             .to_vec()
     }
@@ -619,6 +638,53 @@ mod tests {
             .map(|e| e.expect("an entry").file_name())
             .collect();
         assert_eq!(left, ["a-file"]);
+    }
+
+    #[test]
+    fn learn_deleted_needs_rows_before_a_stored_answer_none_left_and_the_same_other_rows() {
+        let row = |text: &str| -> Row { ("learn_run", text.to_owned()) };
+        let (a, b, none) = (vec![row("a")], vec![row("b")], Vec::<Row>::new());
+        assert!(deleted(&a, true, &none, &b, &b));
+        assert!(!deleted(&none, true, &none, &b, &b), "no row before");
+        assert!(!deleted(&a, false, &none, &b, &b), "not stored");
+        assert!(!deleted(&a, true, &a, &b, &b), "a row left");
+        assert!(!deleted(&a, true, &none, &none, &none), "no other row");
+        assert!(!deleted(&a, true, &none, &b, &none), "the other row lost");
+        assert!(
+            !deleted(&a, true, &none, &b, &[row("c")]),
+            "the other row changed"
+        );
+    }
+
+    #[test]
+    fn learn_outside_misses_when_the_seeded_rows_hold_no_marker() {
+        let first = seed_case("Pay later", SEED_DAY);
+        let last = first.occurrences[first.occurrences.len() - 1].day;
+        let cases = [first, seed_case("Pay soon", last)];
+        let (data, temp) = (scratch("unmarked-data"), scratch("unmarked-temp"));
+        let got = outcomes(&cases, &data, &temp, &mut store_cascade, &mut |_, _| {})
+            .expect("the seeded store");
+        assert_eq!(result_of(&got, Check::Deleted), Outcome::Ok);
+        assert_eq!(result_of(&got, Check::Outside), Outcome::Miss);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn learn_outside_reads_a_pipe_by_its_name_alone() {
+        let (data, temp) = (scratch("pipe-data"), scratch("pipe-temp"));
+        let made = std::process::Command::new("mkfifo")
+            .arg(data.join("pipe"))
+            .status()
+            .expect("mkfifo runs");
+        assert!(made.success());
+        assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Ok);
+        let (data, temp) = (scratch("pipe-named-data"), scratch("pipe-named-temp"));
+        let made = std::process::Command::new("mkfifo")
+            .arg(data.join(MARKERS[0]))
+            .status()
+            .expect("mkfifo runs");
+        assert!(made.success());
+        assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Miss);
     }
 
     #[test]
