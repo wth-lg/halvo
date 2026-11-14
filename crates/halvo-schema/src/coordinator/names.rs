@@ -143,7 +143,8 @@ names! {
 }
 
 names! {
-    /// The six causes of the lapse of a confirmation (contracts.md I4.2).
+    /// The seven causes of the lapse of a confirmation (contracts.md I4.2): the six of I4.2 and `answer_lost`, taken
+    /// from `answered` alone after an answer's move that did not return (ruling RD-84 items 4 and 5).
     pub enum ConfirmLapse {
         Digest = "digest",
         RunEnded = "run_ended",
@@ -151,6 +152,7 @@ names! {
         Cancelled = "cancelled",
         NoRecord = "no_record",
         AppEnded = "app_ended",
+        AnswerLost = "answer_lost",
     }
 }
 

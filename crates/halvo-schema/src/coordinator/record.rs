@@ -169,8 +169,8 @@ impl Answered {
     }
 }
 
-/// The `kind` and the `cause` of `item_lapsed`: a confirmation with one of the six causes of I4.2, an item of
-/// another kind with a cause of `OtherLapse`.
+/// The `kind` and the `cause` of `item_lapsed`: a confirmation with one of the seven causes of `ConfirmLapse`, an
+/// item of another kind with a cause of `OtherLapse`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lapsed {
     Confirm(ConfirmLapse),

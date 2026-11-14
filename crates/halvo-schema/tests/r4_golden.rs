@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::coordinator::body::{CoordHistory, CoordLog, History, Stored};
 use halvo_schema::coordinator::names::{
-    BindResult, CheckAnswer, DoneAnswer, EffectAnswer, OtherKind, OtherLapse, RunEnd, Trigger,
+    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, OtherKind, OtherLapse, RunEnd,
+    Trigger,
 };
 use halvo_schema::coordinator::record::{
     Answered, BindAnswer, Cleared, CoordEvent, Entry, Held, ItemId, Lapsed, LinkAnswer, Raised,
@@ -247,6 +248,13 @@ fn records() -> Vec<CoordEvent> {
             DAY + 2,
             What::HoldCleared {
                 cleared: Cleared::SignInRefused { run: run(1) },
+            },
+        ),
+        (
+            DAY + 2,
+            What::ItemLapsed {
+                item: item(1),
+                lapsed: Lapsed::Confirm(ConfirmLapse::AnswerLost),
             },
         ),
     ];

@@ -466,7 +466,8 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
             "wait_limit",
             "cancelled",
             "no_record",
-            "app_ended"
+            "app_ended",
+            "answer_lost"
         ]
     );
     assert_eq!(
@@ -789,7 +790,7 @@ fn r4_record_hold_set_names_the_run_for_sign_in_refused_alone() {
 }
 
 #[test]
-fn r4_record_lapse_causes_are_the_six_for_a_confirmation_and_others_for_the_rest() {
+fn r4_record_lapse_causes_are_the_seven_for_a_confirmation_and_others_for_the_rest() {
     let i = q(ITEM);
     let lapsed = |kind: &str, cause: &str| {
         with(
@@ -798,7 +799,7 @@ fn r4_record_lapse_causes_are_the_six_for_a_confirmation_and_others_for_the_rest
         )
     };
     refused(&lapsed("confirm", "check"), Some("cause"), "unknown_name");
-    for cause in ["digest", "no_record"] {
+    for cause in ["digest", "no_record", "answer_lost"] {
         for kind in OtherKind::ALL {
             refused(&lapsed(kind.as_str(), cause), Some("cause"), "unknown_name");
         }

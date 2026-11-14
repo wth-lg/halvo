@@ -34,6 +34,49 @@ fn the_hold_sign_in_refused_is_stored_and_read_with_the_run_that_it_answers() {
     assert_eq!(send(&mut store, &[row(3, TODAY)]), stored(1));
 }
 
+fn lapsed(seq: u32, kind: &str, cause: &str) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"item_lapsed","run":null,"slot":null,"item":"{}","kind":"{kind}","effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null}}"#,
+        wf(1),
+        agent(1),
+        noon(TODAY),
+        item(1)
+    )
+}
+
+#[test]
+fn the_lapse_answer_lost_of_a_confirmation_is_stored_and_read() {
+    let mut store = store();
+    let records = [
+        confirm_answered(1, TODAY, 1),
+        lapsed(2, "confirm", "answer_lost"),
+    ];
+    assert_eq!(send(&mut store, &records), stored(2));
+    assert_eq!(read_back(&mut store), (records.to_vec(), 2));
+    assert_eq!(send(&mut store, &[row(3, TODAY)]), stored(1));
+}
+
+#[test]
+fn the_lapse_answer_lost_of_another_kind_is_refused() {
+    for kind in [
+        "sign_in",
+        "link_account",
+        "stuck",
+        "check",
+        "setup",
+        "ready",
+        "show",
+    ] {
+        let mut store = store();
+        assert_eq!(
+            send(&mut store, &[lapsed(1, kind, "answer_lost")]),
+            Err(ErrorName::Malformed),
+            "{kind}"
+        );
+        assert!(rows(&store).is_empty());
+    }
+}
+
 #[test]
 fn the_hold_sign_in_refused_without_its_run_is_refused() {
     for event in ["hold_set", "hold_cleared"] {
