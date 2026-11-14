@@ -13,8 +13,8 @@ const CYCLES: u32 = 2;
 const ROUND_CAP: u32 = 120;
 const INSERTS: u32 = 40;
 const PAGE: usize = 4096;
-const MARKER_HEAD: &[u8] = b"hgap";
-const MARKER_LEN: usize = 13;
+const MARKER_HEAD: &[u8] = b"h";
+const MARKER_LEN: usize = 8;
 const FILL: &[u8] = b"bcdefjkmnrstvwxyz";
 const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 2; }";
 const MENDS: [(usize, &str); 2] = [
@@ -155,15 +155,16 @@ impl Run {
     fn body(&mut self) -> (i64, String) {
         self.serial += 1;
         let len = match self.rng.below(24) {
-            0..=3 => 20 + self.rng.below(60),
-            4..=7 => 700 + self.rng.below(251),
-            8 => 4200 + self.rng.below(1800),
+            0..=5 => 8 + self.rng.below(33),
+            6..=9 => 20 + self.rng.below(60),
+            10..=13 => 700 + self.rng.below(251),
+            14 => 4200 + self.rng.below(1800),
             _ => 80 + self.rng.below(500),
         } as usize;
         let pattern: Vec<u8> = (0..8)
             .map(|_| FILL[self.rng.below(FILL.len() as u64) as usize])
             .collect();
-        let mut body = format!("hgap{:08}q", self.serial).into_bytes();
+        let mut body = format!("h{:06}q", self.serial).into_bytes();
         while body.len() < len {
             body.push(pattern[body.len() % pattern.len()]);
         }
@@ -272,7 +273,24 @@ impl Run {
         }
     }
 
-    fn removal(&mut self, shrink: bool) {
+    fn removal(&mut self, shrink: bool) -> Option<String> {
+        let replace = !shrink && self.rng.below(3) == 0;
+        if !shrink && !replace {
+            for _ in 0..1 + self.rng.below(4) {
+                if self.w.is_empty() || (!self.t.is_empty() && self.rng.below(2) == 0) {
+                    let id = self.drawn_t();
+                    self.remove_t(id);
+                } else {
+                    let k = self.drawn_w();
+                    self.remove_w(k);
+                }
+                self.checkpoint();
+                if let Some(problem) = self.look("after a single delete") {
+                    return Some(problem);
+                }
+            }
+            return None;
+        }
         self.conn().execute_batch("BEGIN").unwrap();
         if shrink {
             let keep_t = if self.t.len() > 60 {
@@ -294,33 +312,29 @@ impl Run {
                 self.remove_w(k);
             }
         } else {
-            let replace = self.rng.below(3) == 0;
             for _ in 0..1 + self.rng.below(4) {
-                let in_t = self.w.is_empty() || (!self.t.is_empty() && self.rng.below(2) == 0);
-                match (in_t, replace) {
-                    (true, false) => {
-                        let id = self.drawn_t();
-                        self.remove_t(id);
-                    }
-                    (true, true) => {
-                        let id = self.drawn_t();
-                        self.replace_t(id);
-                    }
-                    (false, false) => {
-                        let k = self.drawn_w();
-                        self.remove_w(k);
-                    }
-                    (false, true) => {
-                        let k = self.drawn_w();
-                        self.replace_w(k);
-                    }
+                if self.w.is_empty() || (!self.t.is_empty() && self.rng.below(2) == 0) {
+                    let id = self.drawn_t();
+                    self.replace_t(id);
+                } else {
+                    let k = self.drawn_w();
+                    self.replace_w(k);
                 }
             }
         }
         self.conn().execute_batch("COMMIT").unwrap();
+        None
     }
 
-    fn round(&mut self, shrink: bool) {
+    fn checkpoint(&self) {
+        let busy: i64 = self
+            .conn()
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(busy, 0, "seed {}: the checkpoint was blocked", self.seed);
+    }
+
+    fn round(&mut self, shrink: bool) -> Option<String> {
         self.round += 1;
         assert!(
             self.round <= ROUND_CAP,
@@ -329,7 +343,9 @@ impl Run {
             self.mode
         );
         if !self.t.is_empty() || !self.w.is_empty() {
-            self.removal(shrink);
+            if let Some(problem) = self.removal(shrink) {
+                return Some(problem);
+            }
         }
         self.note_depth();
         self.conn().execute_batch("BEGIN").unwrap();
@@ -337,12 +353,9 @@ impl Run {
             self.insert();
         }
         self.conn().execute_batch("COMMIT").unwrap();
-        let busy: i64 = self
-            .conn()
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(busy, 0, "seed {}: the checkpoint was blocked", self.seed);
+        self.checkpoint();
         self.note_depth();
+        None
     }
 
     fn search(&self, when: &str) -> Found {
@@ -369,7 +382,7 @@ impl Run {
                 let Some(marker) = bytes.get(at..at + MARKER_LEN) else {
                     continue;
                 };
-                if marker[4..12].iter().all(u8::is_ascii_digit) && marker[12] == b'q' {
+                if marker[1..7].iter().all(u8::is_ascii_digit) && marker[7] == b'q' {
                     places
                         .entry(marker.to_vec())
                         .or_default()
@@ -521,7 +534,9 @@ impl Run {
         for _ in 0..CYCLES {
             let mut deep_rounds = 0;
             while deep_rounds < 3 {
-                self.round(false);
+                if let Some(problem) = self.round(false) {
+                    return Some(self.with_first_copy(problem));
+                }
                 if self.depth() >= 3 {
                     deep_rounds += 1;
                 }
@@ -531,7 +546,9 @@ impl Run {
             }
             self.shallow_after_deep = false;
             while !self.shallow_after_deep {
-                self.round(true);
+                if let Some(problem) = self.round(true) {
+                    return Some(self.with_first_copy(problem));
+                }
                 if let Some(problem) = self.checks() {
                     return Some(self.with_first_copy(problem));
                 }
