@@ -513,7 +513,81 @@ pub struct DropCounts(Arc<DropFigures>);
 struct DropFigures {
     by_cause: [AtomicU64; 10],
     widest_gap_ns: AtomicU64,
+    log: Mutex<RawLog>,
 }
+
+/// Which part of the tap thread took a reading.
+#[cfg(feature = "stall-seam")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Caller {
+    Event,
+    Tick,
+    ReleaseLoop,
+}
+
+/// What became of a key down or modifier press at its arrival.
+#[cfg(feature = "stall-seam")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arrived {
+    Held,
+    Suppressed,
+    Withheld { cause: Cause, dropped: usize },
+}
+
+/// One raw entry of the hold as a test build reads it: times on
+/// CLOCK_MONOTONIC_RAW in nanoseconds, values and causes alone, never a key's
+/// code, flags, character or app. A release and a drop carry the before stamp
+/// of the reading that made them; a key's arrival is the before stamp of its
+/// own event's reading.
+#[cfg(feature = "stall-seam")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RawEntry {
+    Reading {
+        before: u64,
+        after: u64,
+        value: Reading,
+        caller: Caller,
+        held: usize,
+    },
+    Arrival {
+        at: u64,
+        admission: Arrived,
+    },
+    Released {
+        at: u64,
+    },
+    Dropped {
+        at: u64,
+        cause: Cause,
+        keys: usize,
+    },
+}
+
+#[cfg(feature = "stall-seam")]
+struct RawLog {
+    entries: std::collections::VecDeque<RawEntry>,
+    cap: usize,
+    lost: u64,
+    caller: Caller,
+    last_before: u64,
+}
+
+#[cfg(feature = "stall-seam")]
+impl Default for RawLog {
+    fn default() -> Self {
+        Self {
+            entries: std::collections::VecDeque::new(),
+            cap: RAW_LOG_CAP,
+            lost: 0,
+            caller: Caller::Event,
+            last_before: 0,
+        }
+    }
+}
+
+/// The count of raw entries that the log keeps before it drops its oldest.
+#[cfg(feature = "stall-seam")]
+pub const RAW_LOG_CAP: usize = 65_536;
 
 #[cfg(feature = "stall-seam")]
 const CAUSES: [(Cause, &str); 10] = [
@@ -568,6 +642,84 @@ impl DropCounts {
     pub fn widest_gap(&self) -> Duration {
         Duration::from_nanos(self.0.widest_gap_ns.load(Ordering::Relaxed))
     }
+
+    /// Counts that keep at most `cap` raw entries, dropping the oldest.
+    pub fn with_capacity(cap: usize) -> Self {
+        let counts = Self::default();
+        counts.log().cap = cap;
+        counts
+    }
+
+    fn log(&self) -> MutexGuard<'_, RawLog> {
+        self.0.log.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The raw entries since the last take, oldest first; the log is empty
+    /// after it.
+    pub fn take_entries(&self) -> Vec<RawEntry> {
+        self.log().entries.drain(..).collect()
+    }
+
+    fn push(&self, entry: RawEntry) {
+        let mut log = self.log();
+        if log.cap == 0 {
+            log.lost += 1;
+            return;
+        }
+        if log.entries.len() >= log.cap {
+            log.entries.pop_front();
+            log.lost += 1;
+        }
+        log.entries.push_back(entry);
+    }
+
+    fn mark(&self, caller: Caller) {
+        self.log().caller = caller;
+    }
+
+    fn reading(&self, value: Reading, at: Stamps, held: usize) {
+        let caller = {
+            let mut log = self.log();
+            log.last_before = at.before.0;
+            log.caller
+        };
+        self.push(RawEntry::Reading {
+            before: at.before.0,
+            after: at.after.0,
+            value,
+            caller,
+            held,
+        });
+    }
+
+    fn last_before(&self) -> u64 {
+        self.log().last_before
+    }
+
+    fn arrival(&self, admission: Admission) {
+        let admission = match admission {
+            Admission::Held => Arrived::Held,
+            Admission::Suppressed => Arrived::Suppressed,
+            Admission::Withheld { cause, dropped } => Arrived::Withheld { cause, dropped },
+        };
+        let at = self.last_before();
+        self.push(RawEntry::Arrival { at, admission });
+    }
+
+    fn released(&self) {
+        let at = self.last_before();
+        self.push(RawEntry::Released { at });
+    }
+
+    fn dropped(&self, cause: Cause, keys: usize) {
+        let at = self.last_before();
+        self.push(RawEntry::Dropped { at, cause, keys });
+    }
+
+    /// The count of raw entries dropped because the log was full.
+    pub fn lost(&self) -> u64 {
+        self.log().lost
+    }
 }
 
 /// What a test build hands the source in place of the product's values: the
@@ -600,12 +752,20 @@ impl TapContext {
         let reading = (self.secure)(state.session);
         let after = (self.clocks.monotonic)();
         #[cfg(feature = "stall-seam")]
-        if let (Some(drops), false) = (&self.drops, state.keys.is_empty()) {
-            if let Some(previous) = state.keys.previous() {
+        if let Some(drops) = &self.drops {
+            if let (Some(previous), false) = (state.keys.previous(), state.keys.is_empty()) {
                 drops.gap(Duration::from_nanos(after.0.saturating_sub(previous.0)));
             }
+            drops.reading(reading, Stamps { before, after }, state.keys.len());
         }
         (reading, Stamps { before, after })
+    }
+
+    #[cfg(feature = "stall-seam")]
+    fn mark(&self, caller: Caller) {
+        if let Some(drops) = &self.drops {
+            drops.mark(caller);
+        }
     }
 
     fn dropped(&self, keys: usize, cause: Cause) {
@@ -613,6 +773,7 @@ impl TapContext {
         if keys > 0 {
             if let Some(drops) = &self.drops {
                 drops.count(cause);
+                drops.dropped(cause, keys);
             }
         }
         if keys > 0 && cause.withholds() {
@@ -624,6 +785,10 @@ impl TapContext {
     }
 
     fn admitted(&self, admission: Admission, timing: Timing) {
+        #[cfg(feature = "stall-seam")]
+        if let Some(drops) = &self.drops {
+            drops.arrival(admission);
+        }
         match admission {
             Admission::Held => {}
             Admission::Suppressed => self.counters.count_suppressed_key(),
@@ -667,10 +832,16 @@ impl TapContext {
                 state.keys.drop_all();
                 return;
             }
+            #[cfg(feature = "stall-seam")]
+            if let Some(drops) = &self.drops {
+                drops.released();
+            }
             self.counters.set_stalled(false);
             if state.keys.is_empty() {
                 return;
             }
+            #[cfg(feature = "stall-seam")]
+            self.mark(Caller::ReleaseLoop);
             let (reading, at) = self.reading(state, false);
             step = state.keys.reading(reading, at);
         }
@@ -720,6 +891,8 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
     if ctx.stop.load(Ordering::SeqCst) {
         state.keys.drop_all();
     } else {
+        #[cfg(feature = "stall-seam")]
+        ctx.mark(Caller::Event);
         let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
         let arrival = at.before;
         let step = match (kind, event.timing) {
@@ -766,6 +939,8 @@ fn on_reading_tick(ctx: &TapContext) {
     if ctx.stop.load(Ordering::SeqCst) {
         state.keys.drop_all();
     } else {
+        #[cfg(feature = "stall-seam")]
+        ctx.mark(Caller::Tick);
         let (reading, at) = ctx.reading(&mut state, false);
         let step = state.keys.reading(reading, at);
         ctx.release(&mut state, step);
@@ -2402,13 +2577,83 @@ mod tests {
         );
     }
 
+    fn seam_held(bound_ms: u64) -> (Held, DropCounts) {
+        let mut held = held(bound_ms);
+        let drops = DropCounts::new();
+        held.ctx.drops = Some(drops.clone());
+        (held, drops)
+    }
+
+    #[test]
+    fn the_raw_entries_hold_each_reading_and_each_keys_arrival_and_fate() {
+        let (held, drops) = seam_held(100);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 100);
+        key_down(&held.ctx);
+        answer(Reading::On);
+        tick(&held.ctx);
+        key_down(&held.ctx);
+        let ms = |n: u64| START + n * MS;
+        let reading = |at: u64, value: Reading, caller: Caller, held: usize| RawEntry::Reading {
+            before: ms(at),
+            after: ms(at),
+            value,
+            caller,
+            held,
+        };
+        let mut want = vec![
+            reading(1, Reading::Off, Caller::Event, 0),
+            RawEntry::Arrival {
+                at: ms(1),
+                admission: Arrived::Held,
+            },
+            reading(2, Reading::Off, Caller::Event, 1),
+            RawEntry::Arrival {
+                at: ms(2),
+                admission: Arrived::Held,
+            },
+        ];
+        for tick_number in 1..=9 {
+            want.push(reading(2 + 10 * tick_number, Reading::Off, Caller::Tick, 2));
+        }
+        want.extend([
+            reading(102, Reading::Off, Caller::Tick, 2),
+            RawEntry::Released { at: ms(102) },
+            reading(102, Reading::Off, Caller::ReleaseLoop, 1),
+            RawEntry::Released { at: ms(102) },
+            reading(103, Reading::Off, Caller::Event, 0),
+            RawEntry::Arrival {
+                at: ms(103),
+                admission: Arrived::Held,
+            },
+            reading(113, Reading::On, Caller::Tick, 1),
+            RawEntry::Dropped {
+                at: ms(113),
+                cause: Cause::On,
+                keys: 1,
+            },
+            reading(114, Reading::On, Caller::Event, 0),
+            RawEntry::Arrival {
+                at: ms(114),
+                admission: Arrived::Suppressed,
+            },
+        ]);
+        assert_eq!(
+            drops.take_entries(),
+            want,
+            "each reading with its two stamps, value, caller and held count, and each key's arrival, \
+             release and drop with its stamp and cause"
+        );
+        assert!(drops.take_entries().is_empty(), "a take empties the log");
+        assert_eq!(drops.lost(), 0);
+    }
+
     #[test]
     fn the_counts_of_the_drops_change_no_verdict() {
-        let run = |counted: bool| {
+        let run = |counts: Option<DropCounts>| {
             let mut held = held(100);
-            if counted {
-                held.ctx.drops = Some(DropCounts::new());
-            }
+            held.ctx.drops.clone_from(&counts);
             ANSWERS.with(|answers| {
                 *answers.borrow_mut() = (0..64)
                     .map(|n| {
@@ -2428,19 +2673,47 @@ mod tests {
                 }
             }
             ticks(&held.ctx, 300);
-            let drops = held.ctx.drops.as_ref().map(DropCounts::by_cause);
-            (keystrokes(&held.writer), held.counters.figures(), drops)
+            let readings = asked();
+            (keystrokes(&held.writer), held.counters.figures(), readings)
         };
-        let (plain_records, plain_figures, _) = run(false);
-        let (counted_records, counted_figures, drops) = run(true);
+        let (plain_records, plain_figures, plain_readings) = run(None);
+        let counted = DropCounts::new();
+        let (counted_records, counted_figures, counted_readings) = run(Some(counted.clone()));
+        let full = DropCounts::with_capacity(4);
+        let (full_records, full_figures, full_readings) = run(Some(full.clone()));
         assert_eq!(
-            (plain_records, plain_figures),
-            (counted_records, counted_figures)
+            (&plain_records, &plain_figures, plain_readings),
+            (&counted_records, &counted_figures, counted_readings),
+            "the counts and their log change no verdict"
+        );
+        assert_eq!(
+            (&plain_records, &plain_figures, plain_readings),
+            (&full_records, &full_figures, full_readings),
+            "a full log changes no verdict"
+        );
+        assert!(counted.of("on") > 0, "the counts saw the drops for on");
+        let entries = counted.take_entries();
+        let logged_readings = entries
+            .iter()
+            .filter(|entry| matches!(entry, RawEntry::Reading { .. }))
+            .count();
+        assert_eq!(
+            (logged_readings, counted.lost()),
+            (counted_readings, 0),
+            "the log holds one entry for each reading of the state"
         );
         assert!(
-            drops.is_some_and(|drops| drops.iter().any(|&(name, count)| name == "on" && count > 0)),
-            "the counts saw the drops for on"
+            entries.iter().any(|entry| matches!(
+                entry,
+                RawEntry::Dropped {
+                    cause: Cause::On,
+                    ..
+                }
+            )),
+            "the log holds the drops for on"
         );
+        assert_eq!(full.take_entries().len(), 4, "a full log keeps its cap");
+        assert!(full.lost() > 0, "a full log counts what it dropped");
     }
 
     #[test]
