@@ -92,10 +92,11 @@ pub struct GuardIo<'a> {
     pub record: &'a mut dyn FnMut(&GuardAct),
 }
 
-/// What the loop did once it acted, recorded once when it read the tree gone.
+/// The guard's record (CP-189 G4): what it sent, what it left and what runs, written when that
+/// changes and at every exit.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GuardAct {
-    /// Milliseconds from the read of the trigger to the read of the tree gone.
+    /// Milliseconds from the read of the trigger to this write; 0 before a trigger.
     pub ms: u128,
     /// The asks that were sent: one call of the end without force for each process of the run at
     /// the moment of the ask, counted when the call sent the signal.
@@ -111,40 +112,34 @@ pub struct GuardAct {
     /// The reads, up to the act's record, in which the executor's row had its number and no
     /// creation time (CP-176 A4 (c)).
     pub untimed: usize,
-    /// The members that the loop left because they did not bear the run's mark at the read of an
-    /// ask or a forced end, each once (CP-185 (1), (4)).
+    /// The members left so far because they did not bear the run's mark at the read of an ask or
+    /// a forced end, each once, less those that the guard later asked or ended (CP-185 (1), (4),
+    /// CP-189 G4).
     pub left: usize,
     /// The file names of the programs of those members.
     pub left_programs: Vec<String>,
-    /// Why the record was written: `act` at the ask, `tree_gone` once no member ran,
-    /// `left_unmarked` at `LEFT_CAP`; with no act, `untimed` or `table_unread` at the guard's end
-    /// (CP-186 S4).
+    /// Why the record was written (CP-189 G4): `act` at the ask; `forced` at the read in which a
+    /// member is first ended by force; `left` at the read in which a member is first left at the
+    /// forced end; `left_gone` when a left member is gone; `change` when what runs changed;
+    /// `tree_gone` once no member runs; `left_unmarked` at `LEFT_CAP`; `table_unread` at exit 3;
+    /// `untimed` at the end of a guard that never wrote but counted untimed reads (CP-186 S4);
+    /// `now_left`, `now_unread` and `now_marked` at the end of a start with no first reply (G5).
     pub cause: &'static str,
-    /// Whether the guard asked or ended anything, or left a member at an ask or forced end.
-    pub acted: bool,
     /// The file names of the programs of the members that run at this write; `None` when the
     /// last read of the table failed (CP-189 G4).
     pub running: Option<Vec<String>>,
+    /// How many members run at this write.
+    pub running_count: usize,
     /// The guard's clock at this write, in ms (CP-189 G4).
     pub at_ms: u128,
 }
 
 impl GuardAct {
-    /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..
-    /// executor_untimed=.. left=.. left_programs=.. cause=..` once the guard acted; before that,
-    /// `guard_read executor_untimed=.. cause=..`, which says that nothing was ended (CP-186 S4).
+    /// The record's line (CP-189 G4): `ended_by=guard|none ms=.. asked=.. forced=..
+    /// first=yes|no programs=.. executor_untimed=.. left=.. left_programs=.. running=..|unread
+    /// running_programs=.. at_ms=.. cause=..`. Its first word says `ended_by=guard` only when the
+    /// guard sent an ask or a forced end, at every write.
     pub fn line(&self) -> String {
-        if !self.acted {
-            return format!(
-                "guard_read executor_untimed={} cause={}",
-                self.untimed,
-                if self.cause.is_empty() {
-                    "-"
-                } else {
-                    self.cause
-                }
-            );
-        }
         let names = |v: &[String]| {
             if v.is_empty() {
                 "-".to_string()
@@ -153,8 +148,13 @@ impl GuardAct {
             }
         };
         format!(
-            "ended_by=guard ms={} asked={} forced={} first={} programs={} executor_untimed={} \
-             left={} left_programs={} cause={}",
+            "ended_by={} ms={} asked={} forced={} first={} programs={} executor_untimed={} \
+             left={} left_programs={} running={} running_programs={} at_ms={} cause={}",
+            if self.asked + self.forced > 0 {
+                "guard"
+            } else {
+                "none"
+            },
             self.ms,
             self.asked,
             self.forced,
@@ -163,6 +163,12 @@ impl GuardAct {
             self.untimed,
             self.left,
             names(&self.left_programs),
+            match &self.running {
+                Some(_) => self.running_count.to_string(),
+                None => "unread".to_string(),
+            },
+            names(self.running.as_deref().unwrap_or_default()),
+            self.at_ms,
             if self.cause.is_empty() {
                 "-"
             } else {
@@ -289,11 +295,22 @@ pub fn guard_main(argv: &[String]) -> i32 {
             },
             record: &mut |act| {
                 if let Some(r) = &record {
-                    let _ = std::fs::write(r, act.line() + "\n");
+                    write_record(r, act);
                 }
             },
         },
     )
+}
+
+/// Writes the record's line whole (CP-189 G4): into a file beside `path`, then renamed over it,
+/// so that a reader finds the last line or the one before it, never a part.
+pub(crate) fn write_record(path: &std::path::Path, act: &GuardAct) {
+    let mut beside = path.as_os_str().to_owned();
+    beside.push(".writing");
+    let beside = std::path::PathBuf::from(beside);
+    if std::fs::write(&beside, act.line() + "\n").is_ok() {
+        let _ = std::fs::rename(&beside, path);
+    }
 }
 
 /// The processes of the run in `table`: `known` grows by every process of the tree of the
@@ -398,15 +415,14 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let mut unread_since: Option<u128> = None;
     let mut trigger_at: Option<u128> = None;
     let mut asked_at: Option<u128> = None;
-    let (mut asked, mut forced) = (0usize, 0usize);
-    let (mut acted, mut recorded) = (false, false);
     let mut act = GuardAct::default();
+    // CP-189 G4: the record, written when what it says changes and at every exit.
+    let mut book = Book::default();
     let mut gone_at: Option<u128> = None;
     let mut group_held = false;
     // CP-185 (1): the run's mark, read for a process at the read of each ask and forced end; a
     // process that does not bear it, or whose program or arguments cannot be read, is left.
     let bears = |p: &Proc| mark.is_some_and(|m| m.owns(p, args));
-    let mut left_ids: Vec<(u32, u64)> = Vec::new();
     // CP-189 G6: the cap's count starts at the last read that showed a marked member, or at the
     // first read with a member; `after_unread` holds the cap back at the first read after a spell.
     let mut last_marked_at: Option<u128> = None;
@@ -423,9 +439,8 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             let now = now_ms();
             let since = *unread_since.get_or_insert(now);
             if now.saturating_sub(since) >= UNREAD_CAP.as_millis() {
-                if !acted && act.untimed > 0 {
-                    act.cause = "table_unread";
-                    record(&act);
+                if book.written || act.untimed > 0 {
+                    book.write(&mut act, record, "table_unread", now, trigger_at, None);
                 }
                 eprintln!("guard_end cause=table_unread");
                 return 3;
@@ -448,19 +463,29 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 .any(|t| t.pgid == root.pgid && t.started_us >= root.started_us);
         let now = now_ms();
         if running.is_empty() {
-            if acted && !recorded {
-                act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
-                act.asked = asked;
-                act.forced = forced;
-                act.cause = "tree_gone";
-                record(&act);
-                recorded = true;
+            if book.written && book.changed(&act, Some(&running)) {
+                book.write(
+                    &mut act,
+                    record,
+                    "tree_gone",
+                    now,
+                    trigger_at,
+                    Some(&running),
+                );
             }
             let since = *gone_at.get_or_insert(now);
             if now.saturating_sub(since) >= margin {
-                if !acted && act.untimed > 0 {
-                    act.cause = "untimed";
-                    record(&act);
+                if book.written {
+                    book.write(
+                        &mut act,
+                        record,
+                        "tree_gone",
+                        now,
+                        trigger_at,
+                        Some(&running),
+                    );
+                } else if act.untimed > 0 {
+                    book.write(&mut act, record, "untimed", now, trigger_at, Some(&running));
                 }
                 return 0;
             }
@@ -493,13 +518,9 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             };
             if let Some(cause) = cause {
                 for p in running.iter().filter(|p| !bears(p)) {
-                    leave(&mut act, &mut left_ids, p);
+                    book.leave(p);
                 }
-                act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
-                act.asked = asked;
-                act.forced = forced;
-                act.cause = cause;
-                record(&act);
+                book.write(&mut act, record, cause, now, trigger_at, Some(&running));
                 return if cause == "now_left" { 0 } else { 5 };
             }
         }
@@ -509,18 +530,20 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             let since = last_marked_at.or(first_member_at).unwrap_or(now);
             if now.saturating_sub(since) >= LEFT_CAP.as_millis() && !spell_just_ended {
                 for p in &running {
-                    leave(&mut act, &mut left_ids, p);
+                    book.leave(p);
                 }
-                act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
-                act.asked = asked;
-                act.forced = forced;
-                act.cause = "left_unmarked";
-                act.acted = true;
-                record(&act);
+                book.write(
+                    &mut act,
+                    record,
+                    "left_unmarked",
+                    now,
+                    trigger_at,
+                    Some(&running),
+                );
                 eprintln!(
                     "guard_end cause=left_unmarked running={} programs={}",
                     running.len(),
-                    act.left_programs.join(",")
+                    act.running.as_deref().unwrap_or_default().join(",")
                 );
                 return 4;
             }
@@ -539,6 +562,8 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             },
             Trigger::Now => true,
         };
+        // What this read did, for the cause of a write at its end.
+        let mut cause = "";
         if fire {
             let since = *trigger_at.get_or_insert(now);
             if now.saturating_sub(since) >= grace {
@@ -546,30 +571,34 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                     None => {
                         for p in &running {
                             if !bears(p) {
-                                leave(&mut act, &mut left_ids, p);
+                                book.leave(p);
                                 continue;
                             }
+                            book.ended(p);
                             if end(p, false) {
-                                asked += 1;
+                                act.asked += 1;
                             }
                             note(&mut act, p, &root);
                         }
-                        acted = true;
                         asked_at = Some(now);
-                        act.asked = asked;
-                        act.cause = "act";
-                        act.acted = true;
-                        record(&act);
+                        cause = "act";
                     }
                     Some(at) if now.saturating_sub(at) >= TERM_WAIT.as_millis() => {
                         forced_at.get_or_insert(now);
                         for p in &running {
                             if !bears(p) {
-                                leave(&mut act, &mut left_ids, p);
+                                if book.leave(p) && cause.is_empty() {
+                                    cause = "left";
+                                }
                                 continue;
                             }
+                            book.ended(p);
                             if end(p, true) {
-                                forced += 1;
+                                act.forced += 1;
+                                if !book.forced.iter().any(|f| procs::same(f, p)) {
+                                    book.forced.push(p.clone());
+                                    cause = "forced";
+                                }
                             }
                             note(&mut act, p, &root);
                         }
@@ -581,8 +610,128 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             trigger_at = None;
             asked_at = None;
         }
+        if cause == "act" || (book.written && book.changed(&act, Some(&running))) {
+            let cause = if cause.is_empty() {
+                book.why(&running)
+            } else {
+                cause
+            };
+            book.write(&mut act, record, cause, now, trigger_at, Some(&running));
+        }
         pause(false);
     }
+}
+
+/// The guard's record as it is written (CP-189 G4): the members left so far, each by number and
+/// creation time with its program's file name, less those that the guard later asked or ended;
+/// the members that it ended by force; whether it wrote; and what the last write said, so that it
+/// writes again only when that changes.
+#[derive(Default)]
+struct Book {
+    left: Vec<(Proc, String)>,
+    forced: Vec<Proc>,
+    written: bool,
+    last: Option<Said>,
+}
+
+/// What a write says, without its times: the counts sent, the members left, and what runs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Said {
+    asked: usize,
+    forced: usize,
+    left: Vec<(u32, u64)>,
+    running: Option<Vec<(u32, u64)>>,
+}
+
+impl Book {
+    /// Notes a member that the loop left because it did not bear the run's mark; true when it was
+    /// not noted before.
+    fn leave(&mut self, p: &Proc) -> bool {
+        if self.left.iter().any(|(l, _)| procs::same(l, p)) {
+            return false;
+        }
+        self.left.push((p.clone(), program_name(p)));
+        true
+    }
+
+    /// Takes out of the left list a member that the guard asks or ends.
+    fn ended(&mut self, p: &Proc) {
+        self.left.retain(|(l, _)| !procs::same(l, p));
+    }
+
+    fn said(&self, act: &GuardAct, running: Option<&[Proc]>) -> Said {
+        let ids = |v: &mut dyn Iterator<Item = &Proc>| -> Vec<(u32, u64)> {
+            v.map(|p| (p.pid, p.started_us)).collect()
+        };
+        Said {
+            asked: act.asked,
+            forced: act.forced,
+            left: ids(&mut self.left.iter().map(|(p, _)| p)),
+            running: running.map(|r| ids(&mut r.iter())),
+        }
+    }
+
+    /// Whether what a write would say now differs from the last write.
+    fn changed(&self, act: &GuardAct, running: Option<&[Proc]>) -> bool {
+        self.last.as_ref() != Some(&self.said(act, running))
+    }
+
+    /// The cause of a write that no act of this read made: a left member that is gone, or another
+    /// change of what runs.
+    fn why(&self, running: &[Proc]) -> &'static str {
+        let gone = self
+            .left
+            .iter()
+            .any(|(l, _)| !running.iter().any(|r| procs::same(r, l)));
+        if gone {
+            "left_gone"
+        } else {
+            "change"
+        }
+    }
+
+    /// Writes the record with `cause` at `now`: the counts, the left list and what runs
+    /// (`None`: the last read failed).
+    #[allow(clippy::too_many_arguments)]
+    fn write(
+        &mut self,
+        act: &mut GuardAct,
+        record: &mut dyn FnMut(&GuardAct),
+        cause: &'static str,
+        now: u128,
+        trigger_at: Option<u128>,
+        running: Option<&[Proc]>,
+    ) {
+        act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
+        act.at_ms = now;
+        act.cause = cause;
+        act.left = self.left.len();
+        act.left_programs = names_of(self.left.iter().map(|(_, n)| n.clone()));
+        act.running = running.map(|r| names_of(r.iter().map(program_name)));
+        act.running_count = running.map_or(0, <[Proc]>::len);
+        record(act);
+        self.last = Some(self.said(act, running));
+        self.written = true;
+    }
+}
+
+/// The file name of a process's program, with a space as `_`; `-` when it cannot be read.
+fn program_name(p: &Proc) -> String {
+    p.exe
+        .as_ref()
+        .and_then(|e| e.file_name())
+        .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"))
+}
+
+/// The names in their first order, each once.
+fn names_of(names: impl Iterator<Item = String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for n in names {
+        if !out.contains(&n) {
+            out.push(n);
+        }
+    }
+    out
 }
 
 /// What one read of the table says of the executor (CP-176 A4 (a)).
@@ -631,24 +780,6 @@ fn executor_in(
         Executor::Untimed
     } else {
         Executor::Gone
-    }
-}
-
-/// Notes in the record a member that the loop left because it did not bear the run's mark: each
-/// process once, by number and creation time, with its program's file name (CP-185 (4)).
-fn leave(act: &mut GuardAct, left_ids: &mut Vec<(u32, u64)>, p: &Proc) {
-    if left_ids.contains(&(p.pid, p.started_us)) {
-        return;
-    }
-    left_ids.push((p.pid, p.started_us));
-    act.left = left_ids.len();
-    let name = p
-        .exe
-        .as_ref()
-        .and_then(|e| e.file_name())
-        .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"));
-    if !act.left_programs.contains(&name) {
-        act.left_programs.push(name);
     }
 }
 
@@ -1493,9 +1624,13 @@ mod tests {
             (last.cause, last.left, last.left_programs.clone()),
             ("left_unmarked", 1, vec!["Mail".to_string()])
         );
-        assert!(last
-            .line()
-            .ends_with("left=1 left_programs=Mail cause=left_unmarked"));
+        let line = last.line();
+        assert!(line.starts_with("ended_by=none "), "{line}");
+        assert!(
+            line.contains(" left=1 left_programs=Mail running=1 running_programs=Mail "),
+            "{line}"
+        );
+        assert!(line.ends_with(" cause=left_unmarked"), "{line}");
     }
 
     /// CP-186 S4: the count of reads in which the executor's row had no creation time reaches the
@@ -1515,12 +1650,17 @@ mod tests {
         assert_eq!(code, 0);
         assert!(ends.is_empty(), "{ends:?}");
         let record = record.expect("a record of the untimed reads");
-        assert!(!record.acted);
+        assert_eq!((record.asked, record.forced), (0, 0));
         assert_eq!(record.untimed, 25);
-        assert_eq!(
-            record.line(),
-            "guard_read executor_untimed=25 cause=untimed"
+        let line = record.line();
+        assert!(
+            line.starts_with(
+                "ended_by=none ms=0 asked=0 forced=0 first=no programs=- executor_untimed=25 \
+                 left=0 left_programs=- running=0 running_programs=- at_ms="
+            ),
+            "{line}"
         );
+        assert!(line.ends_with(" cause=untimed"), "{line}");
     }
 
     /// CP-185 (9), fifth case: the guard's entry refuses a start without the run's profile or the
@@ -2587,5 +2727,37 @@ mod tests {
             (0, Vec::<String>::new()),
             "{last:?}"
         );
+    }
+
+    /// CP-189 G4: the record is written beside its place and renamed over it, so the place holds
+    /// the last whole line, and a write that cannot finish leaves the line before it as it was.
+    #[test]
+    fn g4_the_record_is_written_beside_and_renamed_whole() {
+        let dir = std::env::temp_dir().join(format!("halvo-guard-record-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("guard.record");
+        let first = GuardAct {
+            asked: 1,
+            cause: "act",
+            ..GuardAct::default()
+        };
+        write_record(&path, &first);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            first.line() + "\n"
+        );
+        assert!(!dir.join("guard.record.writing").exists());
+        // A write that cannot make the file beside leaves the record as it was.
+        std::fs::create_dir(dir.join("guard.record.writing")).expect("blocker");
+        let second = GuardAct {
+            asked: 1,
+            forced: 1,
+            cause: "forced",
+            ..GuardAct::default()
+        };
+        write_record(&path, &second);
+        let held = std::fs::read_to_string(&path).expect("read");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(held, first.line() + "\n");
     }
 }
