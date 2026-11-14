@@ -129,8 +129,7 @@ pub fn read_session() -> Session {
     session_of(session::on_console())
 }
 
-/// The reading under `session`: unknown unless the session is at the console,
-/// else the state that the one wrapper of the Carbon calls reads.
+/// The reading under `session`: unknown unless the session is at the console.
 pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading {
     match session {
         Session::AtConsole if secure() => Reading::On,
@@ -139,7 +138,6 @@ pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading
     }
 }
 
-/// The reading of the system under `session`.
 pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
 }

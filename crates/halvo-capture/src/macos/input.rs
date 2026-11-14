@@ -227,20 +227,15 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
     )
 }
 
-/// The flag bits of the modifier keys: the device-independent ones and those of
-/// each side.
 const MODIFIER_BITS: u64 = 0x00DF_0000 | 0x0000_207F;
 
 fn modifier_pressed(flags: u64, before: Option<u64>) -> bool {
     before.is_some_and(|before| flags & !before & MODIFIER_BITS != 0)
 }
 
-/// What the source makes of an event of its mask.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
-    /// A key down or the press of a modifier: held, and recorded at its release.
     Key,
-    /// A key up or the release of a modifier: a reading alone, never recorded.
     Reading,
     Pointer,
     Ignore,
@@ -269,8 +264,6 @@ const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::HID;
 const TAP_PLACEMENT: CGEventTapPlacement = CGEventTapPlacement::HeadInsertEventTap;
 const TAP_OPTIONS: CGEventTapOptions = CGEventTapOptions::ListenOnly;
 
-/// The two clocks of the hold: CLOCK_MONOTONIC_RAW for the bound and the gaps,
-/// CLOCK_UPTIME_RAW for a key's lag against its OS time.
 #[derive(Clone, Copy)]
 struct Clocks {
     monotonic: fn() -> Monotonic,
@@ -400,14 +393,11 @@ fn tap_refusal(denied: bool) -> CaptureError {
     }
 }
 
-/// A held key: its own time and the app in front at its arrival, and nothing
-/// of the event.
 struct HeldKey {
     instant: SystemTime,
     app: Option<Foreground>,
 }
 
-/// The repeating timer of the readings, made on the tap thread.
 struct ReadingTimer(CFRunLoopTimer);
 
 // SAFETY: a ReadingTimer is made, added to a run loop and invalidated on the
@@ -430,7 +420,6 @@ fn lock(hold: &SharedHold) -> MutexGuard<'_, HoldState> {
     hold.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// What the daemon's own take of secure input drops: the held keys of the run.
 struct OwnTake {
     hold: SharedHold,
     counters: InputCounters,
@@ -477,7 +466,6 @@ const TIMER_CALLS: TimerCalls = TimerCalls {
     invalidate,
 };
 
-/// What the callback knows of one event of the tap.
 #[derive(Debug, Clone, Copy)]
 struct TapEvent {
     etype: CGEventType,
@@ -501,9 +489,6 @@ struct TapContext {
     drops: Option<DropCounts>,
 }
 
-/// The counts of the hold's drops by their cause and the widest gap between
-/// two readings while keys were held, which a test build reads alone. Status
-/// and the timed run's report never see them.
 #[cfg(feature = "stall-seam")]
 #[derive(Clone, Default)]
 pub struct DropCounts(Arc<DropFigures>);
@@ -516,7 +501,6 @@ struct DropFigures {
     log: Mutex<RawLog>,
 }
 
-/// Which part of the tap thread took a reading.
 #[cfg(feature = "stall-seam")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Caller {
@@ -525,7 +509,6 @@ pub enum Caller {
     ReleaseLoop,
 }
 
-/// What became of a key down or modifier press at its arrival.
 #[cfg(feature = "stall-seam")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Arrived {
@@ -534,11 +517,6 @@ pub enum Arrived {
     Withheld { cause: Cause, dropped: usize },
 }
 
-/// One raw entry of the hold as a test build reads it: times on
-/// CLOCK_MONOTONIC_RAW in nanoseconds, values and causes alone, never a key's
-/// code, flags, character or app. A release and a drop carry the before stamp
-/// of the reading that made them; a key's arrival is the before stamp of its
-/// own event's reading.
 #[cfg(feature = "stall-seam")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawEntry {
@@ -620,7 +598,6 @@ impl DropCounts {
         self.0.widest_gap_ns.fetch_max(ns, Ordering::Relaxed);
     }
 
-    /// The count of drops for each cause, by the cause's name.
     pub fn by_cause(&self) -> Vec<(&'static str, u64)> {
         CAUSES
             .iter()
@@ -629,7 +606,6 @@ impl DropCounts {
             .collect()
     }
 
-    /// The count of drops whose cause has this name.
     pub fn of(&self, name: &str) -> u64 {
         self.by_cause()
             .into_iter()
@@ -722,9 +698,6 @@ impl DropCounts {
     }
 }
 
-/// What a test build hands the source in place of the product's values: the
-/// hold's bound, the gap bound, the step of the reading timer, the session
-/// reader and the counts of the drops.
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
 pub struct StallSeam {
     pub bound: Duration,
@@ -1331,9 +1304,7 @@ impl InputSource {
     }
 
     /// A source that takes the bound, the gap bound, the timer's step and the
-    /// session reader of `seam` and counts its drops in `seam.drops`: for the
-    /// hosted stall tests alone. Only a test build of this crate, which turns
-    /// the feature `stall-seam` on, has it.
+    /// session reader of `seam` and counts its drops in `seam.drops`.
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     pub fn with_seam(
         foreground: ForegroundReader,

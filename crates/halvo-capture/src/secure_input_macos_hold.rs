@@ -1,7 +1,7 @@
 //! The hold of the macOS keyboard source: every key event that the source
 //! would record waits here until it is as old as the bound and every reading of
-//! the secure-input state since its arrival was off and in time. Every doubt
-//! drops every held key. Nothing here reads a clock or the system: the caller
+//! the secure-input state since its arrival was off and in time.
+//! Nothing here reads a clock or the system: the caller
 //! hands in each reading with its time.
 
 use std::collections::VecDeque;
@@ -9,8 +9,7 @@ use std::time::Duration;
 
 use super::Reading;
 
-/// How long a key is held before it may be recorded. A first value, the
-/// owner's to change.
+/// How long a key is held before it may be recorded.
 pub const HOLD_BOUND: Duration = Duration::from_millis(30_000);
 
 /// The step of the timer that reads the secure-input state while keys are
@@ -43,7 +42,6 @@ pub struct Monotonic(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Uptime(pub u64);
 
-/// The bounds that one hold keeps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bounds {
     pub hold: Duration,
@@ -53,7 +51,6 @@ pub struct Bounds {
 }
 
 impl Bounds {
-    /// The product's bounds.
     pub const PRODUCT: Self = Self {
         hold: HOLD_BOUND,
         gap: GAP_BOUND,
@@ -101,7 +98,6 @@ pub struct Stamps {
     pub after: Monotonic,
 }
 
-/// What one reading decides for the oldest held key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     Release,
@@ -109,10 +105,6 @@ pub enum Verdict {
     Wait,
 }
 
-/// The deciding function: the arrival of the oldest held key, the time taken
-/// before the read of the reading before this one, this reading with its two
-/// times and the bounds in; release the oldest key, drop every held key, or
-/// wait.
 pub fn decide(
     oldest: Option<Monotonic>,
     previous: Option<Monotonic>,
@@ -141,7 +133,6 @@ pub fn decide(
     }
 }
 
-/// How a key's OS time stands against its arrival at the callback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Timing {
     InTime { lag: Duration },
@@ -166,7 +157,6 @@ pub fn timing(arrival: Uptime, os_time: Option<Uptime>, gap: Duration) -> Timing
     }
 }
 
-/// What a reading came to.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step<T> {
     Released(T),
@@ -174,7 +164,6 @@ pub enum Step<T> {
     Waiting,
 }
 
-/// What became of an arriving key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Admission {
     Held,

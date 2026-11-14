@@ -1,11 +1,3 @@
-//! The stall phases of the macOS keyboard source against a fixture program
-//! with a secure field whose main thread waits before it takes events. Every
-//! test here that posts keys or shows a window is ignored by default and
-//! refuses to run unless the hosted step of a GitHub-hosted runner has set
-//! `HALVO_STALL_FIXTURE` to the fixture's path and the fixture's window is in
-//! front before the first key is posted. The one test that runs by default
-//! drives the launch path with stand-ins for `open`, which open no window and
-//! post no input. Every printed line holds names and numbers alone.
 #![cfg(target_os = "macos")]
 
 use std::io::{BufRead, BufReader, Write};
