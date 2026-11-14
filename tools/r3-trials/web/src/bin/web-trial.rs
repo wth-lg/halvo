@@ -335,7 +335,7 @@ fn main() -> ExitCode {
     }
     if argv.first().map(String::as_str) == Some("--policy-named") {
         let (Some(name), Some(file)) = (argv.get(1), argv.get(2)) else {
-            eprintln!("REFUSED usage: --policy-named NAME FILE");
+            eprintln!("REFUSED usage: --policy-named NAME FILE [VALUE_READ]");
             return ExitCode::from(2);
         };
         let Ok(text) = std::fs::read_to_string(file) else {
@@ -446,6 +446,8 @@ mod driver {
     };
 
     use super::{out, Args, Mode};
+
+    const NO_SANDBOX_INSIDE_THE_EGRESS_CHECK: &str = "--no-sandbox";
 
     #[derive(Clone)]
     pub struct Stop(tokio::sync::watch::Receiver<bool>);
@@ -1490,6 +1492,104 @@ mod driver {
                 None
             );
         }
+
+        #[test]
+        fn of_the_run_counts_a_member_born_after_the_kill() {
+            use r3_web::start::Start;
+            let dir = std::env::temp_dir().join(format!("r3-web-born-{}", std::process::id()));
+            let killed_at = r3_web::procs::table()
+                .unwrap()
+                .into_iter()
+                .find(|p| p.pid == std::process::id())
+                .map(|p| p.started_us)
+                .unwrap();
+            let mark = r3_web::checks::Mark::new(
+                &dir.join("p-1"),
+                std::path::Path::new("/usr/bin/perl"),
+                killed_at,
+            );
+            let mut born = std::process::Command::new("/usr/bin/perl")
+                .args(["-e", "sleep 30", "--"])
+                .arg(format!("--user-data-dir={}", dir.join("p-1").display()))
+                .start()
+                .unwrap();
+            let mut other = std::process::Command::new("/usr/bin/perl")
+                .args(["-e", "sleep 30", "--"])
+                .arg(format!("--user-data-dir={}", dir.join("p-2").display()))
+                .start()
+                .unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let found = super::of_the_run(&[], &mark).unwrap_or_default();
+            let pids: Vec<u32> = found.iter().map(|p| p.pid).collect();
+            for c in [&mut born, &mut other] {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            assert!(
+                pids.contains(&born.id()),
+                "a process of the run born after the kill was not counted: {pids:?}"
+            );
+            assert!(
+                !pids.contains(&other.id()),
+                "a process of another profile was counted: {pids:?}"
+            );
+        }
+    }
+
+    #[cfg(test)]
+    mod org_tests {
+        use super::*;
+
+        fn ctx() -> (Ctx, tokio::sync::watch::Sender<bool>) {
+            let (tx, rx) = tokio::sync::watch::channel(false);
+            let ctx = Ctx {
+                browser: PathBuf::from("browser"),
+                kind: "chrome",
+                machine: "mac".into(),
+                port: 9,
+                control: Control { port: 9 },
+                seed: Seed(serde_json::Value::Null),
+                scratch: std::env::temp_dir(),
+                headless: true,
+                stop: Stop(rx),
+                added_flags: Vec::new(),
+                routes: false,
+                relayed: true,
+                round2: true,
+                relay: None,
+                relay_port: 0,
+                net_log: None,
+                repo: PathBuf::from("."),
+                channel: Channel::Pipe,
+                round3: true,
+                probe_before: std::cell::Cell::new(0),
+                siblings: std::cell::RefCell::new(Vec::new()),
+            };
+            (ctx, tx)
+        }
+
+        #[test]
+        fn a_page_read_without_the_setting_counts_neither_as_the_effect_nor_as_a_miss() {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let (ctx, _tx) = ctx();
+            let fault = || Err(Fault::new("no_channel", NO_CHANNEL_MESSAGE));
+            std::env::set_var("R3_ORG_PAGE_NAMED", "no");
+            let not_seen = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
+            std::env::set_var("R3_ORG_PAGE_NAMED", "yes");
+            let seen = rt.block_on(org_outcome(&ctx, "org_debugging", fault()));
+            std::env::remove_var("R3_ORG_PAGE_NAMED");
+            match not_seen {
+                Err(n) => assert_eq!(n.cause, "policy_not_seen reason=page_not_named"),
+                Ok(r) => panic!("a page without the setting gave a run, ok={}", r.ok),
+            }
+            match seen {
+                Ok(r) => assert!(!r.ok, "the control without its facts counted as the effect"),
+                Err(n) => panic!("the control with the page named gave no run: {}", n.cause),
+            }
+        }
     }
 
     fn check_processes() -> String {
@@ -1576,7 +1676,7 @@ mod driver {
         opts.flags.push(format!("{EGRESS_WRAP_FLAG}{hex}"));
         opts.program = Some(ctx.browser.clone());
         if cfg!(target_os = "macos") {
-            opts.flags.push("--no-sandbox".into());
+            opts.flags.push(NO_SANDBOX_INSIDE_THE_EGRESS_CHECK.into());
         }
         let net_log = match &ctx.net_log {
             Some(d) => d.join(format!("{name}-{i}.json")),
