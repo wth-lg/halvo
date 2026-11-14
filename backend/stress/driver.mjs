@@ -717,9 +717,10 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
     const neverCounted = last && !(result.counted && !result.error);
     const lostTheCrossing = result.facts?.crossed === false && !unbuilt;
     if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted || lostTheCrossing)) ctx.halted = true;
+    if (result.counted && !result.error) ctx.countedRuns.set(cell.name, (ctx.countedRuns.get(cell.name) ?? 0) + 1);
     if ((result.counted && !result.error) || last || ctx.halted) {
       ctx.progress(result, discarded.length);
-      return rigUnbuilt ? { ...result, discarded, rigUnbuilt } : { ...result, discarded };
+      return rigUnbuilt ? { ...result, discarded, rigUnbuilt, countedAtTheDraw: ctx.countedRuns.get(cell.name) ?? 0 } : { ...result, discarded };
     }
     if (result.error || result.facts?.slow === true || unbuilt) ctx.progress(result, discarded.length);
     discarded.push({
@@ -741,6 +742,7 @@ export async function runCells(ctx, cellList, variant) {
   ctx.registry ??= join(ctx.outDir, "..", "started.jsonl");
   ctx.started ??= new Set();
   ctx.crossingDraws ??= new Map();
+  ctx.countedRuns ??= new Map();
   ctx.mockScript ??= fileURLToPath(new URL("./upstream.mjs", import.meta.url));
   const tasks = [];
   for (const cell of cellList) {

@@ -93,9 +93,8 @@ export function lineOf({ selected, runs, halted, attempts }) {
       const gap = gaps.length === 0 ? "none, as no attempt admitted a request" : `${Math.min(...gaps)} ms`;
       const rolloverRuns = runs.filter((run) => run.kind === "rollover");
       const builtOnce = rolloverRuns.some((run) => attemptsOf(run).some((attempt) => attempt.crossingBuilt === true));
-      const countedRuns = rolloverRuns.filter(good).length;
       failure = builtOnce
-        ? `the rollover cell spent its ${redrawn} draws on attempts that admitted no request before the period boundary (ruling P7-72); ${countedRuns} of its ${rolloverRuns.length} runs had counted when another draw was needed; the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`
+        ? `the rollover cell spent its ${redrawn} draws on attempts that admitted no request before the period boundary (ruling P7-72); ${rigUnbuilt[0].countedAtTheDraw} of its ${rolloverRuns.length} runs had counted when another draw was needed; the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`
         : `the rollover cell built no crossing: ${redrawn} attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`;
     } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
     else if (neverCounted && attemptsOf(neverCounted).some((attempt) => attempt.slow === true)) {

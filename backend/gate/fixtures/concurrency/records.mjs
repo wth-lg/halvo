@@ -75,7 +75,7 @@ function readGateway(record) {
 async function readAttempts(record) {
   const state = process.env.GATE_STATE ?? join(HERE, "..", "..", "..", ".tmp");
   mkdirSync(state, { recursive: true });
-  const attemptsOf = (runNo) => (record.attemptsByRun ? record.attemptsByRun[runNo - 1] : record.attempts);
+  const attemptsOf = (cell, runNo) => (record.attemptsByCell ? record.attemptsByCell[cell.name] : record.attemptsByRun ? record.attemptsByRun[runNo - 1] : record.attempts);
   const scripted = (_ctx, cell, variant, runNo, withKill, attempt) => ({
     key: `attempt-${attempt + 1}`,
     cell: cell.name,
@@ -85,9 +85,9 @@ async function readAttempts(record) {
     variant,
     withKill,
     runNo,
-    counted: attemptsOf(runNo)[attempt].counted,
+    counted: attemptsOf(cell, runNo)[attempt].counted,
     violations: [],
-    facts: attemptsOf(runNo)[attempt].facts,
+    facts: attemptsOf(cell, runNo)[attempt].facts,
     ms: 1,
     error: null,
   });
@@ -101,7 +101,7 @@ async function readAttempts(record) {
     progress: (result) => reported.push(result.key),
     runOnce: async (...args) => scripted(...args),
   };
-  const runs = await driver.runCells(ctx, [record.cell], "counts-open-holds");
+  const runs = await driver.runCells(ctx, record.cells ?? [record.cell], "counts-open-holds");
   const [run] = runs;
   const problems = [];
   const discarded = record.expect.discarded ?? [];
@@ -115,7 +115,7 @@ async function readAttempts(record) {
   });
   (record.expect.runs ?? []).forEach((want, at) => {
     const got = runs[at];
-    const facts = { key: got?.key, rigUnbuilt: got?.rigUnbuilt === true, discarded: got?.discarded.length };
+    const facts = { key: got?.key, rigUnbuilt: got?.rigUnbuilt === true, discarded: got?.discarded.length, countedAtTheDraw: got?.countedAtTheDraw };
     for (const [name, value] of Object.entries(want)) {
       if (!isDeepStrictEqual(facts[name], value)) problems.push(`run ${at + 1} has ${name} ${JSON.stringify(facts[name])}, expected ${JSON.stringify(value)}`);
     }
