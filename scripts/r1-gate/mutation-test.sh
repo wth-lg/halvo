@@ -292,15 +292,29 @@ needs_cargo() {
   return 1
 }
 
+copy_form() {
+  if [ "$apply_only" = yes ]; then compile_form=check; else compile_form=build; fi
+}
+
+mutant_form() {
+  copy_form
+  case $1 in crates/halvo-sqlcipher/*|*/build.rs) compile_form=build ;; esac
+}
+
 tree_build() {
   stop_check
+  case $compile_form in
+    check) tree_step="type check of the copy"; tree_compile=gate_type_check ;;
+    *) tree_step="build of the copy"; tree_compile=gate_build ;;
+  esac
   # shellcheck disable=SC2016
-  shield_run "build of the copy" env GATE_ROOT="$tree" sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" > "$1" 2>&1
-  step_check $? "build of the copy"
+  shield_run "$tree_step" env GATE_ROOT="$tree" sh -c '. "$1/scripts/r1-gate/lib.sh"; "$2" || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" "$tree_compile" > "$1" 2>&1
+  step_check $? "$tree_step"
 }
 
 mutant_builds() {
-  if needs_cargo "$1"; then tree_build "$work/build.out"; return; fi
+  compile_form=build
+  if needs_cargo "$1"; then mutant_form "$1"; tree_build "$work/build.out"; return; fi
   stop_check
   case $1 in
     *.sh) sh -n "$tree/$1" > "$work/build.out" 2>&1 ;;
@@ -544,10 +558,12 @@ run_rows() {
     if [ ! -f "$tree/$mutated" ]; then say FAIL "$row_name" "the file $mutated is not in the copy"; failures=$((failures + 1)); continue; fi
     if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
+      copy_form
       if ! tree_build "$work/unmutated.out"; then
         unmutated_first=''
         IFS= read -r unmutated_first < "$work/unmutated.out"
-        printf 'FAIL unmutated:build (%s)\n' "$unmutated_first"; return 1
+        case $compile_form in check) unmutated_step=type-check ;; *) unmutated_step=build ;; esac
+        printf 'FAIL unmutated:%s (%s)\n' "$unmutated_step" "$unmutated_first"; return 1
       fi
       built_unmutated=yes
       if [ "$apply_only" = no ]; then
@@ -591,13 +607,17 @@ run_rows() {
     fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
     stop_check
+    case $compile_form in
+      check) compiles=type-checks; compiled=type-checked; not_compiled='does not type-check'; compile_step='the type check' ;;
+      *) compiles=builds; compiled=built; not_compiled='does not build'; compile_step='the build step' ;;
+    esac
     if [ "$row_state" = control ]; then
-      if [ "$builds" = no ]; then say PASS "$row_name" "control: the mutant does not build, and the runner did not count it as caught"
-      else say FAIL "$row_name" "control: the mutant built, so the build step proves nothing"; failures=$((failures + 1)); fi
+      if [ "$builds" = no ]; then say PASS "$row_name" "control: the mutant $not_compiled, and the runner did not count it as caught"
+      else say FAIL "$row_name" "control: the mutant $compiled, so $compile_step proves nothing"; failures=$((failures + 1)); fi
     elif [ "$builds" = no ]; then
-      say FAIL "$row_name" "the mutant does not build"; failures=$((failures + 1))
+      say FAIL "$row_name" "the mutant $not_compiled"; failures=$((failures + 1))
     elif [ "$apply_only" = yes ]; then
-      say PASS "$row_name" "applies and builds"
+      say PASS "$row_name" "applies and $compiles"
     else
       case $row_verdict in
         'test '*)
@@ -742,8 +762,11 @@ stub_cargo() {
 here=${0%/*}
 read -r hold < "$here/hold"
 printf 'cargo\n' >> "$here/starts"
+printf '%s\n' "$*" >> "$here/args"
 case $hold in
   0) ;;
+  refuse)
+    if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'error[E0308]: mismatched types\n'; exit 101; fi ;;
   go)
     : > "$here/marker"
     polls=0
@@ -1309,7 +1332,7 @@ cases() {
   cp "$DIR/lib.sh" "$gate_scratch/stop-unmutated/scripts/r1-gate/lib.sh"
   stub_cargo stop-unmutated 30
   row stop-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
-  t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 1 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; the running build of the copy did not end within 1 s and was killed)'
+  t stop-by-term-to-the-group-during-the-unmutated-type-check-reports-no-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 1 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; the running type check of the copy did not end within 1 s and was killed)'
   fixture_tree stop-gate
   stub_gate_hold stop-gate
   row stop-gate/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
@@ -1335,6 +1358,81 @@ cases() {
   shield_cases
   verifier_cases
   rule_cases
+  form_cases
+}
+
+form_fixture() {
+  fixture_tree "$1"
+  mkdir -p "$gate_scratch/$1/$2/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/$1/$2/src/lib.rs"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/$1/$2/build.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/$1/scripts/r1-gate/lib.sh"
+  stub_cargo "$1" "$3"
+  stub_gate "$1" 'PASS store'
+}
+
+form_args() {
+  : > "$gate_scratch/$1/bin/args"
+  fixture_run "$1" "$2" > "$gate_scratch/$1.out"
+  sed -n -E '/^(check|build) /p' "$gate_scratch/$1/bin/args"
+}
+
+form_args_are() {
+  form_got=$(form_args "$1" "$2")
+  [ "$form_got" = "$3" ] && return 0
+  printf 'cargo got: %s\n' "$form_got" | tr '\n' '|'
+  return 1
+}
+
+form_said() {
+  form_args "$1" "$2" > /dev/null
+  grep -F -x -q -e "$3" "$gate_scratch/$1.out" && return 0
+  printf 'no line %s\n' "$3"
+  return 1
+}
+
+form_same_target() {
+  form_checked=$(form_args "$1" yes | sed 's/^check /build /')
+  form_built=$(form_args "$1" no)
+  [ -n "$form_built" ] && [ "$form_checked" = "$form_built" ]
+}
+
+form_cases() {
+  form_nl='
+'
+  form_check='check -q --locked -p halvo-capture --bin halvo-capture'
+  form_build='build -q --locked -p halvo-capture --bin halvo-capture'
+  form_fixture form-lib crates/x 0
+  row form-lib/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-type-checks-the-copy-and-a-cargo-row PASS with_cargo_home form-lib form_args_are form-lib yes "$form_check$form_nl$form_check"
+  t full-run-builds-the-copy-and-a-cargo-row PASS with_cargo_home form-lib form_args_are form-lib no "$form_build$form_nl$form_build"
+  t full-run-that-type-checks-is-refused FAIL with_cargo_home form-lib form_args_are form-lib no "$form_check$form_nl$form_check"
+  t type-check-names-the-package-and-target-of-the-build PASS with_cargo_home form-lib form_same_target form-lib
+  t apply-only-cargo-row-line-says-type-checks PASS with_cargo_home form-lib form_said form-lib yes 'PASS mutation:held (applies and type-checks)'
+  form_fixture form-sqlcipher crates/halvo-sqlcipher 0
+  row form-sqlcipher/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher yes "$form_check$form_nl$form_build"
+  t apply-only-sqlcipher-row-line-says-builds PASS with_cargo_home form-sqlcipher form_said form-sqlcipher yes 'PASS mutation:held (applies and builds)'
+  form_fixture form-build-script crates/x 0
+  row form-build-script/crates/x/mutants.rows held build.rs 's/1;/2;/' leak required X-1
+  t apply-only-builds-a-row-on-a-build-script PASS with_cargo_home form-build-script form_args_are form-build-script yes "$form_check$form_nl$form_build"
+  form_fixture form-refused crates/x refuse
+  row form-refused/crates/x/mutants.rows held src/lib.rs 's/1 }/1 } refuse-me/' leak required X-1
+  t apply-only-mutant-that-does-not-type-check-is-named PASS with_cargo_home form-refused form_said form-refused yes 'FAIL mutation:held (the mutant does not type-check)'
+  t full-run-mutant-that-does-not-build-is-named PASS with_cargo_home form-refused form_said form-refused no 'FAIL mutation:held (the mutant does not build)'
+  form_fixture form-control crates/x refuse
+  row form-control/scripts/r1-gate/mutants.rows ctl crates/x/src/lib.rs 's/1 }/1 } refuse-me/' leak control X-1
+  t apply-only-control-does-not-type-check PASS with_cargo_home form-control form_said form-control yes 'PASS mutation:ctl (control: the mutant does not type-check, and the runner did not count it as caught)'
+  t full-run-control-does-not-build PASS with_cargo_home form-control form_said form-control no 'PASS mutation:ctl (control: the mutant does not build, and the runner did not count it as caught)'
+  form_fixture form-control-checks crates/x 0
+  row form-control-checks/scripts/r1-gate/mutants.rows ctl crates/x/src/lib.rs 's/1 }/2 }/' leak control X-1
+  t apply-only-control-that-type-checks-is-named PASS with_cargo_home form-control-checks form_said form-control-checks yes 'FAIL mutation:ctl (control: the mutant type-checked, so the type check proves nothing)'
+  form_fixture form-copy-refused crates/x refuse
+  printf 'pub fn f() -> i32 { 1 } refuse-me\n' > "$gate_scratch/form-copy-refused/crates/x/src/lib.rs"
+  row form-copy-refused/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-copy-that-does-not-type-check-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused yes 'FAIL unmutated:type-check (error[E0308]: mismatched types)'
+  t full-run-copy-that-does-not-build-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused no 'FAIL unmutated:build (error[E0308]: mismatched types)'
+  t sh-row-line-still-says-builds PASS fixture_says builds 'PASS mutation:applies (applies and builds)' yes
 }
 
 verifier_cases() {
