@@ -2153,6 +2153,7 @@ async function holds(origin, dir) {
     } finally {
       await h.close();
     }
+    if (process.env.R4_CASES) console.log('holds case ran ' + tag);
   };
   const expect = (tag, got, want) => {
     if (JSON.stringify(got) !== JSON.stringify(want)) faults.push(tag + ':says=' + (got.map((s) => (s === B ? 'B' : s === p.full ? 'A' : s)).join('|') || '-'));
@@ -2342,6 +2343,45 @@ async function holds(origin, dir) {
     expect(h13 + '_in_the_closing_task', inTask, []);
     await afterClose(h);
     expect(h13 + '_after_the_close', await k.says(), [B]);
+  });
+  const h14 = 'h14_a_reply_that_drops_the_waiting_confirmation_before_the_first_close';
+  await flow(h14, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+    await pass(h, [stuck, confirm, second]);
+    await h.page.evaluate(() => {
+      window.__r4closes = [];
+      for (const d of document.querySelectorAll('[role="alertdialog"]')) {
+        d.closest('li').addEventListener(
+          'close',
+          (e) => {
+            if (!e.isTrusted || e.target !== d) return;
+            e.stopImmediatePropagation();
+            window.__r4closes.push(d);
+          },
+          true,
+        );
+      }
+    });
+    const heldIds = () => h.page.evaluate(() => window.__r4closes.map((d) => d.querySelector('[data-param]').getAttribute('data-param')));
+    await answerOpen(h);
+    await h.page.waitForFunction(() => window.__r4closes.length === 1, null, { timeout: 5000 });
+    expect(h14 + '_the_first_close_held', await heldIds(), [confirm.item]);
+    await pass(h, [stuck]);
+    await h.page.waitForFunction(() => window.__r4closes.length === 2, null, { timeout: 5000 });
+    expect(h14 + '_the_second_close_held', await heldIds(), [confirm.item, second.item]);
+    const steps = await h.page.evaluate(() => {
+      const read = () => [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+      const out = [read()];
+      window.__r4closes.forEach((d) => {
+        d.dispatchEvent(new Event('close'));
+        out.push(read());
+      });
+      return out;
+    });
+    expect(h14 + '_before_the_closes', steps[0], []);
+    expect(h14 + '_after_the_first_close', steps[1], ['Second went.']);
+    expect(h14 + '_after_the_second_close', steps[2], ['Second went.']);
+    await afterClose(h);
+    expect(h14 + '_after_the_turn', await k.says(), ['Second went.']);
   });
   return faults;
 }
