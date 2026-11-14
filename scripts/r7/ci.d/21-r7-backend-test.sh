@@ -45,6 +45,8 @@ EOF
 test_in() {
   repo=$1
   out=$2
+  cause=
+  counts=unmeasured
   if [ ! -f "$repo/backend/node_modules/.bin/vitest" ] || [ ! -f "$repo/backend/scripts/with-env.sh" ]; then
     cause="backend/node_modules/.bin/vitest or backend/scripts/with-env.sh is missing; sh scripts/prerequisites.sh installs the packages"
     counts=unmeasured
@@ -328,8 +330,8 @@ expect_measure() {
     1) got=FAIL ;;
     *) got=exit-$code ;;
   esac
-  records_line=$(sed -n 2p "$dir/measure.txt")
-  last_line=$(sed -n 3p "$dir/measure.txt")
+  records_line=$(grep '^records ' "$dir/measure.txt")
+  last_line=$(tail -n 1 "$dir/measure.txt")
   [ "$records_line" = "$3" ] || got=$got-with-another-records-line
   [ "$last_line" = "$4" ] || got=$got-with-another-last-line
   top=$(cd "$dir/backend" && pwd -P)
@@ -553,6 +555,10 @@ process.exit(failed === 0 ? 0 : 1);'
   measure_fixture measure-fails-on-both 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
   printf '1\n' >"$scratch/measure-fails-on-both/state/vitest.exit"
   expect_measure FAIL measure-fails-on-both 'records exit=1 at-head=1 as-expected=0 failed=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the lines are records.txt among the artifacts)"
+
+  measure_fixture a-test-run-that-stops-with-status-2 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  mkdir -p "$scratch/a-test-run-that-stops-with-status-2/out/vitest.json" || exit 2
+  expect_measure FAIL a-test-run-that-stops-with-status-2 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test run stopped with status 2)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
