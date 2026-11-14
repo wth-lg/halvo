@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use r3_profile::product::{self, Start, EGRESS_LIST, EGRESS_PORT};
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
@@ -13,7 +14,8 @@ use r3_profile::{
 };
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
-use r3_web::{browser_kind, procs, FIRST_FLAGS, RESOLVER_RULE};
+use r3_web::relay::Relay;
+use r3_web::{browser_kind, procs};
 
 #[derive(Default)]
 struct Args {
@@ -29,6 +31,8 @@ struct Args {
     web_trial: Option<PathBuf>,
     runs: u32,
     shape: Option<String>,
+    first: bool,
+    sandbox_off: bool,
 }
 
 fn out(line: &str) {
@@ -50,6 +54,11 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     let mut i = 0;
     while i < argv.len() {
         let flag = argv[i].as_str();
+        if flag == "--sandbox-off" {
+            a.sandbox_off = true;
+            i += 1;
+            continue;
+        }
         let value = argv
             .get(i + 1)
             .cloned()
@@ -59,9 +68,11 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 a.item = match value.as_str() {
                     "1" => 1,
                     "2" => 2,
+                    "3" => 3,
                     "4" => 4,
                     "task" => 5,
-                    _ => return Err("--item takes 1, 2 or 4".into()),
+                    "egress" => 6,
+                    _ => return Err("--item takes 1, 2, 3 or 4".into()),
                 }
             }
             "--browser" => a.browser = value,
@@ -100,6 +111,13 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 }
                 a.shape = Some(value);
             }
+            "--flags" => {
+                a.first = match value.as_str() {
+                    "first" => true,
+                    "final" => false,
+                    _ => return Err("--flags takes first or final".into()),
+                }
+            }
             "--runs" => {
                 a.runs = value
                     .parse()
@@ -126,14 +144,31 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.item != 4 && a.shape.is_some() {
         return Err("--shape belongs to --item 4".into());
     }
-    if a.item == 4 && !a.leave_out.is_empty() {
+    if a.item >= 3 && !a.leave_out.is_empty() {
         return Err("--leave-out belongs to --item 1 and 2".into());
+    }
+    if (a.first || a.sandbox_off) && a.item != 3 && a.item != 6 {
+        return Err("--flags and --sandbox-off belong to --item 3".into());
+    }
+    if (a.item == 3 || a.item == 6) && a.port != EGRESS_PORT {
+        return Err(format!(
+            "--item 3 takes --port {EGRESS_PORT}, the entry of {EGRESS_LIST}"
+        ));
     }
     Ok(a)
 }
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.first().map(String::as_str) == Some(r3_web::relay::GUARD_FLAG) {
+        return ExitCode::from(r3_web::relay::guard_main(&argv[1..]).clamp(0, 255) as u8);
+    }
+    if argv.first().map(String::as_str) == Some("--print-set") {
+        for line in product::set_lines(EGRESS_PORT) {
+            out(&line);
+        }
+        return ExitCode::SUCCESS;
+    }
     let args = match parse(&argv) {
         Ok(a) => a,
         Err(e) => return refuse("usage", &e),
@@ -160,13 +195,13 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    if args.item == 4 {
-        return rt.block_on(item4(&args, kind));
+    match args.item {
+        3 => rt.block_on(item3(&args, kind)),
+        4 => rt.block_on(item4(&args, kind)),
+        5 => rt.block_on(task_run(&args, kind)),
+        6 => rt.block_on(egress_run(&args, kind)),
+        _ => rt.block_on(items12(&args, kind)),
     }
-    if args.item == 5 {
-        return rt.block_on(task_run(&args, kind));
-    }
-    rt.block_on(items12(&args, kind))
 }
 
 #[derive(Clone)]
@@ -370,6 +405,7 @@ struct Ctx {
     seed: Seed,
     scratch: PathBuf,
     stop: Stop,
+    start: Start,
 }
 
 impl Ctx {
@@ -382,14 +418,15 @@ impl Ctx {
     }
 
     fn options(&self, profile: PathBuf) -> StartOptions {
-        let mut flags: Vec<String> = FIRST_FLAGS.iter().map(|s| s.to_string()).collect();
-        flags.push(RESOLVER_RULE.to_string());
-        StartOptions {
-            browser: self.browser.clone(),
-            profile,
-            headless: true,
-            flags,
-            debug_port: None,
+        product::options(self.browser.clone(), profile, self.port, &self.start)
+    }
+
+    async fn start_browser(&self, profile: PathBuf) -> Res<Executor> {
+        let opts = self.options(profile);
+        if self.start.settled() {
+            self.stop.or(Executor::start_settled(&opts)).await
+        } else {
+            self.stop.or(Executor::start(&opts)).await
         }
     }
 
@@ -478,10 +515,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
     let pid = std::process::id();
     let a_dir = ctx.scratch.join(format!("{pid}-profile-a"));
     let b_dir = ctx.scratch.join(format!("{pid}-profile-b"));
-    let mut a = ctx
-        .stop
-        .or(Executor::start(&ctx.options(a_dir.clone())))
-        .await?;
+    let mut a = ctx.start_browser(a_dir.clone()).await?;
     watch.add_browser(a.pid());
     let signed = ctx.stop.or(sign_in_with_second_factor(&mut a, ctx)).await;
     let exported = match signed {
@@ -520,7 +554,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
             state.cookies.len()
         ));
     }
-    let mut b = ctx.stop.or(Executor::start(&ctx.options(b_dir))).await?;
+    let mut b = ctx.start_browser(b_dir).await?;
     watch.add_browser(b.pid());
     let landed = ctx
         .stop
@@ -591,6 +625,11 @@ async fn items12(args: &Args, kind: &'static str) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    let Some(relay) = relay_for(args.port).await else {
+        server.stop();
+        out(&format!("notrun item={} {cell} cause=relay", args.item));
+        return ExitCode::from(1);
+    };
     let ctx = Ctx {
         browser: PathBuf::from(&args.browser),
         kind,
@@ -600,8 +639,13 @@ async fn items12(args: &Args, kind: &'static str) -> ExitCode {
         seed,
         scratch: args.scratch.clone(),
         stop,
+        start: Start::Product {
+            relay: relay.handle(),
+            relay_port: relay.port,
+        },
     };
     let code = run_items12(args, &ctx, &temp, &temp_before, started).await;
+    relay.stop();
     server.stop();
     out("stop fixture=stopped");
     code
@@ -817,7 +861,7 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
             .arg("--scratch")
             .arg(&args.scratch);
         if shape == "steps" {
-            cmd.args(["--runs", "1"]);
+            cmd.args(["--runs", "1", "--round", "3", "--relay"]);
         }
         match measure_shape(args, &cell, shape, cmd, &stop).await {
             Shape::Median(m) => medians.push(m),
@@ -955,6 +999,11 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    let Some(relay) = relay_for(args.port).await else {
+        server.stop();
+        report("miss", "relay");
+        return ExitCode::from(1);
+    };
     let ctx = Ctx {
         browser: PathBuf::from(&args.browser),
         kind,
@@ -964,8 +1013,13 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
         seed,
         scratch: args.scratch.clone(),
         stop,
+        start: Start::Product {
+            relay: relay.handle(),
+            relay_port: relay.port,
+        },
     };
     let (done, removed) = task(&ctx, profile.clone()).await;
+    relay.stop();
     server.stop();
     match done {
         Ok(()) if removed => {
@@ -988,10 +1042,19 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
 }
 
 async fn task(ctx: &Ctx, dir: PathBuf) -> (Res<()>, bool) {
+    task_with(ctx, ctx.options(dir)).await
+}
+
+async fn task_with(ctx: &Ctx, opts: StartOptions) -> (Res<()>, bool) {
     if ctx.control.reset(&["second_factor"]).is_err() {
         return (Err(Fault::new("fixture", "reset")), false);
     }
-    let mut ex = match ctx.stop.or(Executor::start(&ctx.options(dir))).await {
+    let started = if ctx.start.settled() {
+        ctx.stop.or(Executor::start_settled(&opts)).await
+    } else {
+        ctx.stop.or(Executor::start(&opts)).await
+    };
+    let mut ex = match started {
         Ok(ex) => ex,
         Err(f) => return (Err(f), false),
     };
@@ -1011,6 +1074,229 @@ async fn task(ctx: &Ctx, dir: PathBuf) -> (Res<()>, bool) {
         .await;
     let stopped = ex.stop_and_remove().await;
     (done, stopped.removed)
+}
+
+/// The relay of a run's browser, its list the fixture's two hosts on `port`, as the product's list
+/// holds the bound origins of a run.
+async fn relay_for(port: u16) -> Option<Relay> {
+    let relay = Relay::start().await.ok()?;
+    relay.handle().set_list(Some(vec![
+        (UTILITY.to_string(), port),
+        (PAY.to_string(), port),
+    ]));
+    Some(relay)
+}
+
+/// Item 3: runs this program as `--item egress` under the egress check with the list of A14.3,
+/// and prints the item's line from the check's line and the run's.
+async fn item3(args: &Args, kind: &'static str) -> ExitCode {
+    let cell = format!("machine={} browser={kind}", args.machine);
+    let set = if args.first { "first" } else { "final" };
+    let Ok(stop) = watch_signals() else {
+        out(&format!("notrun item=3 {cell} cause=runtime"));
+        return ExitCode::from(1);
+    };
+    let Ok(me) = std::env::current_exe() else {
+        out(&format!("notrun item=3 {cell} cause=egress_check"));
+        return ExitCode::from(1);
+    };
+    let err_path = args
+        .scratch
+        .join(format!("{}-egress-check.err", std::process::id()));
+    let Ok(err_file) = std::fs::File::create(&err_path) else {
+        out(&format!("notrun item=3 {cell} cause=scratch"));
+        return ExitCode::from(1);
+    };
+    let mut cmd = Command::new("sh");
+    cmd.current_dir(&args.repo)
+        .arg("scripts/egress/check.sh")
+        .arg(EGRESS_LIST)
+        .arg("--")
+        .arg(&me)
+        .args([
+            "--item",
+            "egress",
+            "--flags",
+            set,
+            "--browser",
+            &args.browser,
+        ])
+        .args(args.sandbox_off.then_some("--sandbox-off"))
+        .args(["--port", &args.port.to_string(), "--machine", &args.machine])
+        .arg("--repo")
+        .arg(&args.repo)
+        .arg("--scratch")
+        .arg(&args.scratch)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(err_file));
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(_) => {
+            out(&format!("notrun item=3 {cell} cause=egress_check"));
+            return ExitCode::from(1);
+        }
+    };
+    let Some(stdout) = child.stdout.take() else {
+        out(&format!("notrun item=3 {cell} cause=egress_check"));
+        return ExitCode::from(1);
+    };
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    let mut started = false;
+    let mut ran = false;
+    let mut signalled = false;
+    let mut stop_rx = stop.0.clone();
+    loop {
+        tokio::select! {
+            line = rx.recv() => {
+                let Some(line) = line else { break };
+                out(&line);
+                if line.starts_with("egress_run ") {
+                    ran = true;
+                    started = line.contains(" browser_started=yes ");
+                }
+            }
+            _ = stop_rx.wait_for(|s| *s), if !signalled => {
+                signalled = true;
+                #[cfg(unix)]
+                unsafe { libc_kill(child.id() as i32, 15) };
+            }
+        }
+    }
+    let _ = child.wait();
+    if stop.is_set() {
+        out(&format!("notrun item=3 {cell} cause=signal"));
+        return ExitCode::from(1);
+    }
+    let err = std::fs::read_to_string(&err_path).unwrap_or_default();
+    let refused = err.lines().filter(|l| l.starts_with("REFUSED")).count();
+    eprintln!(
+        "egress_check {cell} set={set} refused_lines={refused} stderr_lines={}",
+        err.lines().count()
+    );
+    if let Some(log) = err
+        .lines()
+        .rev()
+        .find(|l| l.starts_with("egress mode="))
+        .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("log=")))
+    {
+        let text = std::fs::read_to_string(args.repo.join(log)).unwrap_or_default();
+        let mut kinds: std::collections::BTreeMap<String, u64> = Default::default();
+        for l in text.lines() {
+            let k = l.split_whitespace().next().unwrap_or("-").to_string();
+            *kinds.entry(k).or_default() += 1;
+        }
+        let parts: Vec<String> = kinds.iter().map(|(k, n)| format!("{k}:{n}")).collect();
+        eprintln!(
+            "egress_denied {cell} set={set} by_first_word={}",
+            if parts.is_empty() {
+                "-".into()
+            } else {
+                parts.join(",")
+            }
+        );
+    }
+    if !ran {
+        out(&format!(
+            "notrun item=3 {cell} set={set} cause=egress_check"
+        ));
+        return ExitCode::from(1);
+    }
+    match product::egress_line(&args.machine, &err, started) {
+        Some(line) if args.sandbox_off => {
+            out(&format!(
+                "egress_control {cell} set={set} sandbox=off mode={}",
+                line.split_once(" mode=").map_or("", |(_, rest)| rest)
+            ));
+            ExitCode::SUCCESS
+        }
+        Some(line) => {
+            out(&format!("egress_set {cell} set={set}"));
+            out(&line);
+            ExitCode::SUCCESS
+        }
+        None => {
+            out(&format!(
+                "notrun item=3 {cell} set={set} cause=egress_check"
+            ));
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// The command of item 3 under the egress check: the fixture and one browser in the start of
+/// item 3, which signs in on the utility fixture with the second factor, opens /bill and /pay and
+/// holds that page for 20 s, then stops. Prints one `egress_run` line.
+async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
+    let cell = format!("machine={} browser={kind}", args.machine);
+    let report = |started: bool, result: &str, cause: &str| {
+        out(&format!(
+            "egress_run {cell} browser_started={} task={result} cause={cause}",
+            if started { "yes" } else { "no" }
+        ));
+    };
+    let Ok(stop) = watch_signals() else {
+        report(false, "miss", "runtime");
+        return ExitCode::from(1);
+    };
+    let Ok(seed) = Seed::load(&args.repo, 1) else {
+        report(false, "miss", "seed");
+        return ExitCode::from(1);
+    };
+    let server = match Server::start(
+        &fixture_program(&args.repo),
+        &["--port".into(), args.port.to_string()],
+    ) {
+        Ok(s) => s,
+        Err(_) => {
+            report(false, "miss", "fixture");
+            return ExitCode::from(1);
+        }
+    };
+    let ctx = Ctx {
+        browser: PathBuf::from(&args.browser),
+        kind,
+        machine: args.machine.clone(),
+        port: args.port,
+        control: Control { port: args.port },
+        seed,
+        scratch: args.scratch.clone(),
+        stop,
+        start: if args.first {
+            Start::First
+        } else {
+            Start::ProductDirect
+        },
+    };
+    let dir = args
+        .scratch
+        .join(format!("{}-profile-egress", std::process::id()));
+    let (done, _) = if args.sandbox_off {
+        let mut opts = ctx.options(dir);
+        opts.flags.push("--no-sandbox".into());
+        task_with(&ctx, opts).await
+    } else {
+        task(&ctx, dir).await
+    };
+    server.stop();
+    match done {
+        Ok(()) => {
+            report(true, "ok", "-");
+            ExitCode::SUCCESS
+        }
+        Err(f) => {
+            let started = !matches!(f.0, "start" | "browser_start" | "signal");
+            report(started, "miss", f.0);
+            ExitCode::from(1)
+        }
+    }
 }
 
 #[cfg(unix)]

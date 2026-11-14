@@ -4,13 +4,20 @@ set -u
 usage() {
   cat <<'EOF'
 Usage: sh tools/r3-trials/profile/run.sh --item 1|2|3|4 --browser PATH --port N [--driver PATH]
-         [--leave-out NAME]... [--plant ENCODING:PLACE] [--runs N] [--shape S] [--scratch DIR]
+         [--leave-out NAME]... [--plant ENCODING:PLACE] [--runs N] [--shape S] [--flags SET]
+         [--sandbox-off] [--scratch DIR]
        sh tools/r3-trials/profile/run.sh --help
 
 The browser profile trial of unit U0.3 (contract A13.3). It builds the trial programs of
 tools/r3-trials/profile with cargo --locked into their own target directory, starts the fixture
-server of tools/fixture-server/variants on 127.0.0.1:N, and starts the browser headless with the
-first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
+server of tools/fixture-server/variants on 127.0.0.1:N, and starts the browser headless as the
+product starts it (A11.1, the flag set of U0.7c): on its debugging pipe, with the agent's profile
+settings and the same-site setting written into the new profile before the start, the first flag
+set of A13.2, the flags of U0.7b for the ways out, the resolver rule, and the relay of the trial
+program as its only route, whose list holds the fixture's utility and payment hosts on port N. On
+macOS the library adds the mock keychain, a flag of the trial alone.
+sh tools/r3-trials/profile/target/<host>/release/profile-trial --print-set prints the flag and
+pref lines of that set for the result file.
 
   --item 1        signs in on the utility fixture with the variant second_factor in profile A,
                   exports the cookies and the localStorage of the utility and payment origins,
@@ -27,7 +34,17 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   each profile or temporary directory still on disk. Prints searched, trace (the
                   utility host name over the parent directory and the new temporary entries) and
                   disk lines; when the search could not finish, a notrun line in place of disk.
-  --item 3        the egress item belongs to the second pull request of U0.3: a notrun line.
+  --item 3        with Chrome: runs, under sh scripts/egress/check.sh with the list
+                  scripts/r3/egress/fixtures.txt (A14.3), the trial program, which starts the
+                  fixture on 127.0.0.1:N and one browser that signs in with the second factor, opens
+                  /bill and /pay and holds that page for 20 s. N must be 18090, the list's entry.
+                  The browser starts as above without the relay, which is the executor's own and
+                  outside the check's tree; the relay's flags that close a way out stay. Prints the
+                  program's egress_run line, egress_set, and one line
+                  egress machine=<m> mode=<mode> browser_started=<yes|no> denied=<n>, where denied
+                  is the count of the check's denial log; on standard error the count of the log's
+                  lines by their first word. No --no-sandbox is given: a browser that starts under
+                  the check's mode only with its own sandbox off is browser_started=no.
   --item 4        two shapes under tree-peak: five runs of the nine steps of tools/r3-trials/web
                   (shape=steps), then five runs of one browser that signs in on the utility fixture
                   with the variant second_factor, opens /bill and /pay and holds that page for 20 s
@@ -44,7 +61,12 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   or temp (a new directory in the temporary directory). A check, not a cell.
   --runs N        item 4: runs of each shape under tree-peak, default 5.
   --shape S       item 4: only the shape S, steps or task; default both. The bound line then
-                  comes from that shape's median alone.
+                  comes from that shape's median alone. The steps shape runs the nine steps of
+                  tools/r3-trials/web with --round 3 --relay, the product's start of U0.7c.
+  --flags SET     item 3: final (the default), the set above, or first, the first flag set of
+                  A13.2 with the resolver rule and no setting written, where the item begins.
+  --sandbox-off   item 3: a control, not a cell: adds --no-sandbox and prints an egress_control
+                  line in place of the egress line.
   --scratch DIR   the parent directory of the profiles; default a new mktemp directory.
 
 The keychain line says prompt=yes when the front application changed to a process of the
@@ -68,11 +90,12 @@ refuse() {
   exit 2
 }
 
-item='' browser='' port='' runs=5 scratch='' plant='' shape=''
+item='' browser='' port='' runs=5 scratch='' plant='' shape='' flags='' sandbox_off=''
 leave=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
+    --sandbox-off) sandbox_off=yes; shift; continue ;;
   esac
   [ $# -ge 2 ] || refuse usage "$1 needs a value or is unknown; see --help"
   case "$1" in
@@ -99,6 +122,12 @@ while [ $# -gt 0 ]; do
         *) refuse usage "--shape takes steps or task" ;;
       esac
       ;;
+    --flags)
+      case "$2" in
+        first | final) flags=$2 ;;
+        *) refuse usage "--flags takes first or final" ;;
+      esac
+      ;;
     --scratch) scratch=$2 ;;
     *) refuse usage "unknown argument $1; see --help" ;;
   esac
@@ -120,6 +149,10 @@ esac
 [ "${#runs}" -le 2 ] || refuse usage "--runs takes a count from 1 to 99"
 [ -n "$plant" ] && [ "$item" != 2 ] && refuse usage "--plant belongs to --item 2"
 [ -n "$shape" ] && [ "$item" != 4 ] && refuse usage "--shape belongs to --item 4"
+[ -n "$flags" ] && [ "$item" != 3 ] && refuse usage "--flags belongs to --item 3"
+[ -n "$sandbox_off" ] && [ "$item" != 3 ] && refuse usage "--sandbox-off belongs to --item 3"
+[ "$item" = 3 ] && [ "$port" != 18090 ] &&
+  refuse usage "--item 3 takes --port 18090, the entry of scripts/r3/egress/fixtures.txt"
 if [ -n "$leave" ]; then
   case "$item" in
     1 | 2) ;;
@@ -145,10 +178,6 @@ case "$(basename "$browser")" in
   'Microsoft Edge' | msedge.exe | msedge) kind=edge ;;
   *) kind=chrome ;;
 esac
-if [ "$item" = 3 ]; then
-  echo "notrun item=3 machine=$machine browser=$kind cause=second_pull_request"
-  exit 1
-fi
 command -v node >/dev/null 2>&1 || refuse usage "node is not on the PATH"
 command -v cargo >/dev/null 2>&1 || refuse usage "cargo is not on the PATH"
 
@@ -194,6 +223,8 @@ for name in $leave; do
   set -- "$@" --leave-out "$name"
 done
 [ -n "$plant" ] && set -- "$@" --plant "$plant"
+[ -n "$flags" ] && set -- "$@" --flags "$flags"
+[ -n "$sandbox_off" ] && set -- "$@" --sandbox-off
 if [ "$item" = 4 ]; then
   cargo build --release --locked --quiet --target "$host" --target-dir "$web/target" \
     --manifest-path "$web/Cargo.toml" || {
