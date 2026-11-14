@@ -1,0 +1,10 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Sign in for “Ordering from a shop on Site7”","role":"heading"}
+        - {"role":"paragraph","text":"This agent will now work on site7.example. Allow this site only if you know it."}
+        - {"name":"Don't allow this site","role":"button"}
+        - {"name":"Allow this site","role":"button"}

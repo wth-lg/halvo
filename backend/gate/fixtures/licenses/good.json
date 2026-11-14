@@ -8,6 +8,6 @@
   ],
   "bundled": ["plain@1.0.0", "choice@1.0.0"],
   "exceptions": [
-    { "package": "native-*", "license": "LGPL-3.0-or-later", "reason": "Test tooling only, never bundled." }
+    { "package": "native-linux-x64", "versions": ["1.0.0"], "license": "LGPL-3.0-or-later", "reason": "Test tooling only, never bundled." }
   ]
 }

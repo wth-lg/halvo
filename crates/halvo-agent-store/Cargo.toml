@@ -1,0 +1,10 @@
+[package]
+name = "halvo-agent-store"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-policy = { path = "../halvo-policy" }
+halvo-schema = { path = "../halvo-schema" }
+serde_json = "1"

@@ -20,6 +20,9 @@ pub enum StatusLine {
     Stopping,
     /// `waiting_turn.queued`: a queued start.
     Queued,
+    /// `waiting_turn.store`: the agent store has not ended the agent's newest run (ruling
+    /// XB-28 (b)).
+    Store,
     /// `problem.<cause>`: a last run that ended with a cause of the failure class.
     Problem(Failure),
     /// `all_set.tried_today`: a day with `starts_per_day` starts.
@@ -49,6 +52,7 @@ impl StatusLine {
             StatusLine::Working,
             StatusLine::Stopping,
             StatusLine::Queued,
+            StatusLine::Store,
         ]);
         all.extend(Failure::ALL.iter().map(|f| StatusLine::Problem(*f)));
         all.extend([
@@ -69,7 +73,7 @@ impl StatusLine {
             StatusLine::Off => Status::Off,
             StatusLine::Failures | StatusLine::Problem(_) => Status::Problem,
             StatusLine::Starting | StatusLine::Working | StatusLine::Stopping => Status::Working,
-            StatusLine::Queued => Status::WaitingTurn,
+            StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
             StatusLine::TriedToday
             | StatusLine::New
             | StatusLine::Done
@@ -89,6 +93,7 @@ impl StatusLine {
             StatusLine::Working => "working",
             StatusLine::Stopping => "stopping",
             StatusLine::Queued => "queued",
+            StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),
             StatusLine::TriedToday => "tried_today",
             StatusLine::New => "new",

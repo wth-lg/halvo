@@ -22,7 +22,6 @@ U0.2	docs/r4/trials/window.md
 U0.2	docs/r4/trials/sync.md
 U0.3	tools/r4-trials/floor/**
 U0.3	docs/r4/trials/floor.md
-U0.3	docs/r4/page-features.txt
 U0.4	tools/r4-trials/driver/**
 U0.4	docs/r4/trials/driver.md
 U0.4	docs/r4/trials/dialog.md
@@ -66,6 +65,7 @@ U2.4	crates/halvo-coord/tests/sync_*.rs
 U2.4	crates/halvo-coord/tests/coordinator_*.rs
 U2.4	scripts/r4/ci.d/20-r4-core.sh
 U3.1	ui/tests/r4/needs/**
+U3.1	docs/r4/page-features.txt
 U3.2	ui/tests/r4/agents/**
 U3.3	ui/tests/r4/page/**
 U3.3	ui/tests/r4/snapshots/**

@@ -1,7 +1,8 @@
 use halvo_schema::executable::body::RunnerCall;
 use halvo_schema::executable::frame::{
-    ConfirmDecision, ConfirmRequest, FromRunner, HandbackRequest, HandbackResult, ReplyError,
-    RunError, SecretReply, StoreRequest, ToRunner, FRAME_JSON_MAX,
+    BindReply, BrowserReply, ConfirmDecision, ConfirmReply, ConfirmRequest, FromRunner,
+    HandbackReply, HandbackRequest, HandbackResult, ReplyError, RunError, SecretReply,
+    StoreReplyFrame, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
 use halvo_schema::executable::names::{SecretAnswer, Unreadable, YesNo};
 use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES, NAMES};
@@ -110,7 +111,7 @@ fn to_runner() -> Vec<String> {
         format!(r#"{{"t":"handback_reply","result":{RESULT}}}"#),
         r#"{"t":"handback_reply","result":{"v":1,"outcome":"timeout","secret":null}}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"stored","value":"tok_fixture"}"#.to_owned(),
-        r#"{"t":"secret_reply","answer":"stored","value":""}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":"t"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"none"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"unreadable","member":"locked"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#.to_owned(),
@@ -292,9 +293,9 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
     else {
         panic!()
     };
-    let frame = SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
-        &"s".repeat(65_536 - shell + 1),
-    ));
+    let frame = SecretReply::Stored(
+        halvo_schema::executable::text::SecretText::parse(&"s".repeat(65_536 - shell + 1)).unwrap(),
+    );
     let refusal = ToRunner::SecretReply(frame).to_json().unwrap_err();
     assert_eq!(
         (refusal.cause(), refusal.rule()),
@@ -1293,9 +1294,9 @@ fn a_secret_reply_tells_the_secret_none_stored_and_a_store_that_could_not_be_rea
         secret_reply(r#""answer":"stored","value":"tok_fixture""#)
     );
     let written: Vec<String> = [
-        SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
-            "tok_fixture",
-        )),
+        SecretReply::Stored(
+            halvo_schema::executable::text::SecretText::parse("tok_fixture").unwrap(),
+        ),
         SecretReply::None,
         SecretReply::Unreadable(Unreadable::Locked),
         SecretReply::Unreadable(Unreadable::Fault),
@@ -1351,6 +1352,34 @@ fn a_secret_reply_with_a_member_and_an_answer_other_than_unreadable_is_refused()
             "member",
         );
     }
+}
+
+#[test]
+fn a_secret_reply_whose_stored_value_is_empty_is_refused_and_one_byte_is_taken() {
+    let empty = secret_reply(r#""answer":"stored","value":"""#);
+    expect(
+        ToRunner::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    expect(
+        SecretReply::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    let one = secret_reply(r#""answer":"stored","value":"t""#);
+    assert_eq!(
+        ToRunner::parse(one.as_bytes()).unwrap().to_json().unwrap(),
+        one
+    );
+    let ToRunner::SecretReply(SecretReply::Stored(value)) =
+        ToRunner::parse(one.as_bytes()).unwrap()
+    else {
+        panic!("{one}")
+    };
+    assert_eq!(value.expose(), "t");
 }
 
 #[test]
@@ -1614,4 +1643,144 @@ fn a_secret_reply_with_a_key_that_the_contract_does_not_name_is_refused_for_each
             );
         }
     }
+}
+
+#[test]
+fn every_reply_frame_is_counted_on_the_bytes_given_by_its_own_parse() {
+    type Parse = fn(&[u8]) -> Result<(), Refusal>;
+    let parses: [(&str, &str, Parse); 6] = [
+        ("store_reply", "StoreReplyFrame", |b| {
+            StoreReplyFrame::parse(b).map(drop)
+        }),
+        ("confirm_reply", "ConfirmReply", |b| {
+            ConfirmReply::parse(b).map(drop)
+        }),
+        ("handback_reply", "HandbackReply", |b| {
+            HandbackReply::parse(b).map(drop)
+        }),
+        ("secret_reply", "SecretReply", |b| {
+            SecretReply::parse(b).map(drop)
+        }),
+        ("bind_reply", "BindReply", |b| BindReply::parse(b).map(drop)),
+        ("browser_reply", "BrowserReply", |b| {
+            BrowserReply::parse(b).map(drop)
+        }),
+    ];
+    let mut read = 0;
+    for text in to_runner() {
+        let Some((_, type_name, parse)) = parses
+            .iter()
+            .find(|(t, _, _)| text.starts_with(&format!(r#"{{"t":"{t}""#)))
+        else {
+            continue;
+        };
+        read += 1;
+        let room = FRAME_JSON_MAX - text.len();
+        let at = format!("{{{}{}", " ".repeat(room), &text[1..]);
+        assert_eq!(at.len(), FRAME_JSON_MAX);
+        assert!(parse(at.as_bytes()).is_ok(), "{text}");
+        assert!(ToRunner::parse(at.as_bytes()).is_ok(), "{text}");
+        for over in [
+            format!("{}{text}", " ".repeat(room + 1)),
+            format!("{text}{}", "\n".repeat(room + 1)),
+            format!("{{{}{}", "\t".repeat(room + 1), &text[1..]),
+        ] {
+            let refusal = parse(over.as_bytes()).expect_err(&text);
+            assert_eq!(
+                (refusal.cause(), refusal.type_name(), refusal.rule()),
+                (RefusalCause::Length, *type_name, "frame_length"),
+                "{text}"
+            );
+        }
+    }
+    assert_eq!(read, 14);
+}
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_secret_reply_one_byte_over_the_frame_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"t":"secret_reply","answer":"none"}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [FRAME_JSON_MAX, FRAME_JSON_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = SecretReply::parse(input.as_bytes());
+            if len > FRAME_JSON_MAX {
+                refused_with(parsed, RefusalCause::Length, "SecretReply", "frame_length");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "SecretReply", "json");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_reply_frame_is_counted_in_bytes_and_every_carriage_return_counts() {
+    let head = r#"{"t":"secret_reply","answer":"stored","value":""#;
+    let wide = |len: usize| {
+        let room = len - head.len() - 2;
+        format!(
+            "{head}{}{}\"}}",
+            "c".repeat(room % 2),
+            "\u{e9}".repeat(room / 2)
+        )
+    };
+    let at = wide(FRAME_JSON_MAX);
+    assert_eq!(at.len(), FRAME_JSON_MAX);
+    assert!(SecretReply::parse(at.as_bytes()).is_ok());
+    let over = wide(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    assert!(over.chars().count() <= FRAME_JSON_MAX / 2 + head.len());
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let browser = r#"{"t":"browser_reply"}"#;
+    let returns = |len: usize| format!("{browser}{}", "\r".repeat(len - browser.len()));
+    assert!(BrowserReply::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    assert!(ToRunner::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    let over = returns(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    refused_with(
+        BrowserReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "BrowserReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let secret = r#"{"t":"secret_reply","answer":"none"}"#;
+    let over = format!("{secret}{}", "\r".repeat(FRAME_JSON_MAX + 1 - secret.len()));
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
 }

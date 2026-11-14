@@ -1,0 +1,24 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 lines 1, 2 and 4",
+  "about": "a 409 stopped for an id sent twice whose row ended voided at its expiry, answered before the expiry: line 1 needs the time, line 2 a void before the expiry",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ],
+    "headersAt": 4000
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

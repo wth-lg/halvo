@@ -4,7 +4,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=run
 
-CHECKS="a:timed-run:here b:store:here b:deletion:here c:secure-input:here d:cost:here e:memory:here f:service-run:later g:service-memory:later h:service-expiry:later i:service-pause:later j:service-delete:later k:content-floor:later l:login-start:later m:app-memory:later n:ci-results:later -:windows-ci:here -:no-ll-hook:here"
+CHECKS="a:timed-run:here b:store:here b:deletion:here b:data-dir-scan:service-run c:secure-input:here d:cost:here e:memory:here f:service-run:here g:service-memory:here h:service-expiry:here i:service-pause:here j:service-delete:service-memory k:content-floor:here l:login-start:later m:app-memory:later n:ci-results:later -:windows-ci:here -:no-ll-hook:here"
 
 check_of() {
   check_rest=${1#*:}
@@ -15,12 +15,31 @@ table_defect() {
   for entry in $CHECKS; do
     check_of "$entry"
     table_check=$entry_check
+    table_state=${entry##*:}
+    case $table_state in
+      here|later) ;;
+      *)
+        [ ! -f "$1/check-$table_check.sh" ] || { printf 'check-%s.sh is in %s and the table has check-%s.sh print its line\n' "$table_check" "$1" "$table_state"; return 1; }
+        case " $CHECKS " in *":$table_state:here "*) ;; *) printf 'the line %s is printed by check-%s.sh, which the table does not mark here\n' "$table_check" "$table_state"; return 1 ;; esac
+        [ -f "$1/check-$table_state.sh" ] || { printf 'check-%s.sh, which prints the line %s, is missing from %s\n' "$table_state" "$table_check" "$1"; return 1; }
+        continue ;;
+    esac
     if [ -f "$1/check-$table_check.sh" ]; then
-      [ "${entry##*:}" = here ] || { printf 'check-%s.sh is in %s and the table marks it later: mark it here\n' "$table_check" "$1"; return 1; }
+      [ "$table_state" = here ] || { printf 'check-%s.sh is in %s and the table marks it later: mark it here\n' "$table_check" "$1"; return 1; }
     else
-      [ "${entry##*:}" = later ] || { printf 'check-%s.sh is missing from %s and the table marks it here\n' "$table_check" "$1"; return 1; }
+      [ "$table_state" = later ] || { printf 'check-%s.sh is missing from %s and the table marks it here\n' "$table_check" "$1"; return 1; }
     fi
   done
+}
+
+lines_of() {
+  printf '%s' "$1"
+  for line_entry in $CHECKS; do
+    [ "${line_entry##*:}" = "$1" ] || continue
+    line_name=${line_entry#*:}
+    printf ' %s' "${line_name%:*}"
+  done
+  printf '\n'
 }
 
 predicate_table() {
@@ -82,21 +101,31 @@ measured_check() {
   check_out=$(run_check "$@")
   check_status=$?
   [ -z "$check_out" ] || printf '%s\n' "$check_out"
-  check_found=$(printf '%s\n' "$check_out" | awk -v n="$1" '($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") && $2 == n { c++; w = $1 } END { print c + 0, w }')
-  check_count=${check_found%% *}
-  check_word=${check_found#* }
   case $check_status in
-    0) check_want=PASS ;;
-    1) check_want=FAIL ;;
-    3) check_want=NO-INPUT ;;
+    0|1|3) ;;
     *) emit_fail "$1" "the check exited $check_status, and a check exits 0, 1 or 3"; return 1 ;;
   esac
-  if [ "$check_count" != 1 ]; then
-    emit_fail "$1" "the check exited $check_status and printed $check_count lines PASS $1, FAIL $1 or NO-INPUT $1; it must print exactly one, and its word must match the exit status"
+  check_owned=$(lines_of "$1")
+  check_foreign=$(printf '%s\n' "$check_out" | awk -v owned=" $check_owned " '($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") && index(owned, " " $2 " ") == 0 { print $1, $2; exit }')
+  if [ -n "$check_foreign" ]; then
+    emit_fail "$1" "the check printed a line under a name that it does not own: $check_foreign"
     return 1
   fi
-  if [ "$check_word" != "$check_want" ]; then
-    emit_fail "$1" "the check printed $check_word $1 and exited $check_status"
+  check_worst=0
+  for check_line in $check_owned; do
+    check_found=$(printf '%s\n' "$check_out" | awk -v n="$check_line" '($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") && $2 == n { c++; w = $1 } END { print c + 0, w }')
+    check_count=${check_found%% *}
+    check_word=${check_found#* }
+    if [ "$check_count" != 1 ]; then
+      emit_fail "$check_line" "the check exited $check_status and printed $check_count lines PASS $check_line, FAIL $check_line or NO-INPUT $check_line; it must print exactly one, and its word must match the exit status"
+      return 1
+    fi
+    case $check_word in PASS) check_code=0 ;; NO-INPUT) check_code=3 ;; *) check_code=1 ;; esac
+    check_worst=$(worst_status "$check_worst" "$check_code")
+  done
+  if [ "$check_worst" != "$check_status" ]; then
+    check_said=$(printf '%s\n' "$check_out" | awk -v n="$1" '$2 == n && ($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") { print $1; exit }')
+    emit_fail "$1" "the check printed $check_said $1 and exited $check_status"
     return 1
   fi
   return "$check_status"
@@ -105,6 +134,7 @@ measured_check() {
 measure_all() {
   all_status=0
   for entry in $CHECKS; do
+    case ${entry##*:} in here|later) ;; *) continue ;; esac
     check_of "$entry"
     measured_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
     all_status=$(worst_status "$all_status" "$?")
@@ -116,7 +146,9 @@ stub_checks() {
   stubs=$gate_scratch/stubs-$st_case
   mkdir -p "$stubs"
   for entry in $CHECKS; do
+    case ${entry##*:} in here|later) ;; *) continue ;; esac
     check_of "$entry"
+    lines_of "$entry_check" > "$stubs/check-$entry_check.sh.lines"
     cat > "$stubs/check-$entry_check.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" > "$0.args"
@@ -128,8 +160,11 @@ case $verdict in
   TWICE) printf 'PASS %s\nPASS %s\n' "$stub" "$stub"; exit 0 ;;
   MISMATCH) printf 'FAIL %s (a stub)\n' "$stub"; exit 0 ;;
   DIRTY) : > "$GATE_ROOT/changed-during-the-run"; printf 'PASS %s\n' "$stub"; exit 0 ;;
+  FOREIGN) printf 'PASS %s\nFAIL cost (a stub)\n' "$stub"; exit 0 ;;
+  ONLY) printf 'PASS %s\n' "$stub"; exit 0 ;;
 esac
-printf '%s %s\n' "$verdict" "$stub"
+read -r lines < "$0.lines"
+for line in $lines; do printf '%s %s\n' "$verdict" "$line"; done
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
 exit 1
 STUB
@@ -207,9 +242,66 @@ head_of() {
   head_read
 }
 
+bounds_blob() {
+  git -C "$1" rev-parse --verify -q HEAD:docs/baseline/r1-gate-bounds.txt 2>/dev/null
+}
+
+bounds_field() {
+  bounds_blob "$gate_scratch/$1" || printf 'none\n'
+}
+
+bounds_field_moves_and_tree_holds() {
+  real_repository "$1" || return 1
+  bounds_one=$(bounds_field "$1"); tree_one=$(tree_id "$gate_scratch/$1" HEAD)
+  printf 'x=2\n' > "$gate_scratch/$1/docs/baseline/r1-gate-bounds.txt"
+  commit_all "$gate_scratch/$1" || return 1
+  bounds_two=$(bounds_field "$1"); tree_two=$(tree_id "$gate_scratch/$1" HEAD)
+  [ -n "$bounds_one" ] && [ -n "$bounds_two" ] && [ "$bounds_one" != "$bounds_two" ] && [ "$tree_one" = "$tree_two" ]
+}
+
+run_without_bounds_says() {
+  real_repository "$1" || return 1
+  git -C "$gate_scratch/$1" update-index --force-remove docs/baseline/r1-gate-bounds.txt > /dev/null 2>&1 || return 1
+  mv "$gate_scratch/$1/docs/baseline/r1-gate-bounds.txt" "$gate_scratch/$1.bounds" || return 1
+  commit_all "$gate_scratch/$1" || return 1
+  measured_run_says "FAIL run (HEAD holds no docs/baseline/r1-gate-bounds.txt, and every line reads its bounds from that file)" "$1"
+}
+
+row_applies() {
+  row_file=$(mktemp "$gate_scratch/row.XXXXXX") || return 2
+  printf 'one\n' > "$row_file"
+  ROW_SUBST=$1 perl "$DIR/helper/apply-row.pl" "$row_file" > /dev/null
+}
+
+quoted_name_tree_holds() {
+  quoted=$gate_scratch/quoted
+  git init -q "$quoted" > /dev/null 2>&1 || return 1
+  mkdir -p "$quoted/docs/baseline" || return 1
+  printf 'one\n' > "$quoted/a.txt"
+  printf 'record one\n' > "$quoted/docs/baseline/re$(printf '\303\251').txt"
+  git -C "$quoted" add -A || return 1
+  quoted_one=$(git -C "$quoted" write-tree) || return 1
+  printf 'record two\n' > "$quoted/docs/baseline/re$(printf '\303\251').txt"
+  git -C "$quoted" add -A || return 1
+  quoted_two=$(git -C "$quoted" write-tree) || return 1
+  quoted_id_one=$(tree_id "$quoted" "$quoted_one") || return 1
+  quoted_id_two=$(tree_id "$quoted" "$quoted_two") || return 1
+  [ "$quoted_id_one" = "$quoted_id_two" ]
+}
+
+commit_all() {
+  git -C "$1" add -A || return 1
+  commit_tree=$(git -C "$1" write-tree) || return 1
+  commit_parent=$(git -C "$1" rev-parse HEAD) || return 1
+  commit_new=$(printf 'tree %s\nparent %s\nauthor gate fixture <fixture@example.invalid> 2 +0000\ncommitter gate fixture <fixture@example.invalid> 2 +0000\n\nfixture\n' "$commit_tree" "$commit_parent" | git -C "$1" hash-object -t commit -w --stdin) || return 1
+  git -C "$1" update-ref HEAD "$commit_new"
+}
+
 real_repository() {
   repo=$gate_scratch/$1
   git init -q "$repo" > /dev/null 2>&1 || return 1
+  mkdir -p "$repo/docs/baseline" || return 1
+  printf 'x=1\n' > "$repo/docs/baseline/r1-gate-bounds.txt"
   printf 'one\n' > "$repo/a.txt"
   git -C "$repo" add -A || return 1
   repo_tree=$(git -C "$repo" write-tree) || return 1
@@ -261,13 +353,15 @@ standin_helper() {
 }
 
 helper_starts() {
-  helper_start 5 "$gate_scratch/$1" 10 || return 1
+  helper_start 5 "$gate_scratch/$1" 10 || { printf '%s, after %s polls of 0.1 s\n' "$gate_defect" "$helper_polls"; return 1; }
   helper_stop
 }
 
 helper_defect_is() {
-  helper_start 5 "$gate_scratch/$2" 10 && return 1
-  [ "$gate_defect" = "$1" ]
+  helper_start 5 "$gate_scratch/$2" 10 && { printf 'the helper started after %s polls of 0.1 s\n' "$helper_polls"; return 1; }
+  [ "$gate_defect" = "$1" ] && return 0
+  printf 'the helper said: %s, after %s polls of 0.1 s\n' "$gate_defect" "$helper_polls"
+  return 1
 }
 
 cases_helper() {
@@ -346,6 +440,8 @@ cases_run() {
   t file-that-a-tracked-gitignore-names-is-clean PASS head_state_is clean ignored
   real_repository untracked && printf 'new\n' > "$gate_scratch/untracked/notes.txt"
   t untracked-file-makes-the-head-dirty PASS head_state_is dirty untracked
+  real_repository self-hidden && mkdir -p "$gate_scratch/self-hidden/new" && printf '*\n' > "$gate_scratch/self-hidden/new/.gitignore" && printf 'fn main() {}\n' > "$gate_scratch/self-hidden/new/code.rs"
+  t untracked-directory-that-hides-itself-is-dirty PASS head_state_is dirty self-hidden
   t measured-run-on-a-dirty-tree-is-refused PASS dirty_run_is_refused untracked
   real_repository changing
   t measured-run-whose-tree-changes-fails PASS measured_run_says "FAIL run (the commit or the state of the work tree changed during the run: " changing timed-run=DIRTY
@@ -362,9 +458,9 @@ cases_run() {
   copy_gate renamed && mv "$gate_scratch/renamed/check-store.sh" "$gate_scratch/renamed/check-store-old.sh"
   t check-script-renamed FAIL predicate_table "$gate_scratch/renamed"
   t check-script-renamed-is-named PASS table_defect_is "check-store.sh is missing from $gate_scratch/renamed and the table marks it here" renamed
-  copy_gate early && printf '#!/bin/sh\n' > "$gate_scratch/early/check-service-run.sh"
+  copy_gate early && printf '#!/bin/sh\n' > "$gate_scratch/early/check-login-start.sh"
   t later-script-present FAIL predicate_table "$gate_scratch/early"
-  t later-script-present-is-named PASS table_defect_is "check-service-run.sh is in $gate_scratch/early and the table marks it later: mark it here" early
+  t later-script-present-is-named PASS table_defect_is "check-login-start.sh is in $gate_scratch/early and the table marks it later: mark it here" early
   t every-check-passing-exits-0 PASS all_checks_exit 0
   t a-no-input-line-exits-3 PASS all_checks_exit 3 cost=NO-INPUT timed-run=NO-INPUT
   t a-fail-beside-no-input-exits-1 PASS all_checks_exit 1 cost=NO-INPUT memory=FAIL
@@ -400,6 +496,19 @@ cases_run() {
   t duration-from-the-environment-00 FAIL duration_from_the_environment 00
   t duration-from-the-environment-letters FAIL duration_from_the_environment abc
   t duration-from-the-environment-reaches-a-check FAIL env GATE_DURATION=00 sh "$DIR/check-windows-ci.sh" --self-test --case sha-empty
+  t fail-under-another-name-exits-1 PASS all_checks_exit 1 store=FOREIGN
+  t fail-under-another-name-is-named PASS measured_says "FAIL store (the check printed a line under a name that it does not own: FAIL cost)" store=FOREIGN
+  t co-printed-line-missing-is-named PASS measured_says "FAIL data-dir-scan (the check exited 0 and printed 0 lines PASS data-dir-scan, FAIL data-dir-scan or NO-INPUT data-dir-scan; it must print exactly one, and its word must match the exit status)" service-run=ONLY
+  t co-printed-line-fails-the-run PASS all_checks_exit 1 service-memory=ONLY
+  copy_gate own-script && printf '#!/bin/sh\n' > "$gate_scratch/own-script/check-data-dir-scan.sh"
+  t co-printed-line-with-a-script-of-its-own FAIL predicate_table "$gate_scratch/own-script"
+  copy_gate printer-gone && mv "$gate_scratch/printer-gone/check-service-memory.sh" "$gate_scratch/printer-gone/service-memory.old"
+  t co-printed-line-whose-printer-is-missing FAIL predicate_table "$gate_scratch/printer-gone"
+  t bounds-field-moves-and-tree-id-holds PASS bounds_field_moves_and_tree_holds bounds-moved
+  t bounds-file-missing-from-head-fails PASS run_without_bounds_says no-bounds
+  t tree-id-holds-under-a-quoted-name PASS quoted_name_tree_holds
+  t apply-row-refuses-the-e-modifier FAIL row_applies 's/one/"two"/e'
+  t apply-row-applies-a-plain-row PASS row_applies 's/one/two/'
 }
 
 
@@ -463,13 +572,18 @@ main() {
 $start
 HEAD
   machine=$(machine_kind)
-  printf 'gate head=%s tree=%s state=%s input=%s machine=%s\n' "$start_sha" "$start_tree" "$start_state" "$input" "$machine"
+  start_bounds=$(bounds_blob "$GATE_ROOT") || start_bounds=none
+  printf 'gate head=%s tree=%s bounds=%s state=%s input=%s machine=%s\n' "$start_sha" "$start_tree" "$start_bounds" "$start_state" "$input" "$machine"
   if [ "$start_state" = dirty ]; then
     if [ "$allow_dirty" = no ]; then
       emit_fail run "the work tree is dirty: commit first, or pass --allow-dirty for a run that is no done-when run"
       return 1
     fi
     export GATE_TREE_STATE=dirty
+  fi
+  if [ "$start_bounds" = none ]; then
+    emit_fail run "HEAD holds no docs/baseline/r1-gate-bounds.txt, and every line reads its bounds from that file"
+    return 1
   fi
   measure_all "$duration" "$input" "$start_sha"
   rc=$?

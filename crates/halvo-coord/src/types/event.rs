@@ -341,6 +341,7 @@ names! {
         RunEnded = "run_ended",
         AppEnded = "app_ended",
         WaitLimit = "wait_limit",
+        Cancelled = "cancelled",
     }
 }
 
@@ -351,6 +352,7 @@ impl OtherLapse {
             OtherLapse::RunEnded => LapseCause::RunEnded,
             OtherLapse::AppEnded => LapseCause::AppEnded,
             OtherLapse::WaitLimit => LapseCause::WaitLimit,
+            OtherLapse::Cancelled => LapseCause::Cancelled,
         }
     }
 }

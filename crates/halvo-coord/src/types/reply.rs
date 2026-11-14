@@ -1,5 +1,7 @@
-use super::{AgentId, CandidateFrom, Cause, Choice, Control, FieldFrom, ItemId, ItemKind};
-use super::{LineKey, Param, Presenter, Status, WorkflowId, YesNo};
+use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
+use super::{Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
+use crate::items::{field_from, kept_source};
+use crate::words;
 use serde::Serialize;
 
 /// The reply of `agents_snapshot` and of `agents_next` with a higher `seq` (I8.1).
@@ -71,13 +73,277 @@ pub struct CardLine {
     pub text: String,
 }
 
-/// A run of a card (I2.6).
+/// A run of a card (I2.6), with a line for each committed effect of the run, whose kept values
+/// stand in its fields and never in its sentence (ruling H-8).
+///
+/// ```
+/// use halvo_coord::types::{CardEffect, CardRun, Class, Kept, Name};
+/// let kept = |name: &str, value: &str| Kept {
+///     name: Name::parse(name).unwrap(),
+///     value: vec![value.to_owned()],
+/// };
+/// let paid = CardEffect::committed(
+///     Class::Payment,
+///     &[
+///         kept("payee", "City Power"),
+///         kept("amount", "42.10 USD"),
+///         kept("instrument", "Card ending 4242"),
+///         kept("origin", "https://site1.example:443"),
+///     ],
+/// )
+/// .unwrap();
+/// let run = CardRun {
+///     day: "24 October 2026".to_owned(),
+///     text: "It finished the task.".to_owned(),
+///     effects: vec![paid],
+/// };
+/// assert_eq!(
+///     serde_json::to_string(&run).unwrap(),
+///     concat!(
+///         r#"{"day":"24 October 2026","text":"It finished the task.","effects":[{"key":"run.effect.payment","text":"It made this payment.","fields":["#,
+///         r#"{"label":"Pay to","value":["City Power"],"from":"you","from_text":"You gave this"},"#,
+///         r#"{"label":"Amount","value":["42.10 USD"],"from":"site","from_text":"From the site"},"#,
+///         r#"{"label":"Pay with","value":["Card ending 4242"],"from":"you","from_text":"You gave this"},"#,
+///         r#"{"label":"Site","value":["site1.example"],"from":"halvo","from_text":"Set by Halvo"}]}]}"#,
+///     )
+/// );
+/// ```
+///
+/// The seven classes of A-A9.3 each take their own sentence; the `items` of a `delete` are kept
+/// in the effect row and not shown, and a class with no effect row, a kept field out of the
+/// table's order, a missing one or one that the row does not keep is `malformed`:
+///
+/// ```
+/// use halvo_coord::types::{CardEffect, Cause, Class, Kept, Name};
+/// let kept = |names: &[&str]| -> Vec<Kept> {
+///     names
+///         .iter()
+///         .map(|n| {
+///             let value = match *n {
+///                 "origin" => "https://site4.example:443",
+///                 "file" => "Budget.xlsx",
+///                 _ => "Plan 2",
+///             };
+///             Kept { name: Name::parse(n).unwrap(), value: vec![value.to_owned()] }
+///         })
+///         .collect()
+/// };
+/// let texts = [
+///     (Class::Payment, &["payee", "amount", "instrument", "origin"][..], "It made this payment.", 4),
+///     (Class::Purchase, &["seller", "amount", "instrument", "origin"][..], "It placed this order.", 4),
+///     (Class::Send, &["to"][..], "It sent this message.", 1),
+///     (Class::Delete, &["items"][..], "It removed this.", 0),
+///     (Class::Submit, &["origin"][..], "It sent this form.", 1),
+///     (Class::Sign, &["document", "party"][..], "It signed this document.", 2),
+///     (Class::LocalEdit, &["file", "range"][..], "It changed this file.", 2),
+/// ];
+/// for (class, names, text, shown) in texts {
+///     let e = CardEffect::committed(class, &kept(names)).unwrap();
+///     assert_eq!(e.key(), format!("run.effect.{}", class.name()));
+///     assert_eq!((e.text(), e.fields().len()), (text, shown));
+///     assert!(e.fields().iter().all(|f| !e.text().contains(&f.value[0])));
+/// }
+/// let labels: Vec<String> = CardEffect::committed(Class::LocalEdit, &kept(&["file", "range"]))
+///     .unwrap()
+///     .fields()
+///     .iter()
+///     .map(|f| f.label.clone())
+///     .collect();
+/// assert_eq!(labels, ["File", "Where in the file"]);
+/// for class in [Class::Read, Class::Prepare, Class::Credential] {
+///     assert_eq!(CardEffect::committed(class, &[]), Err(Cause::Malformed));
+/// }
+/// for names in [
+///     &["amount", "payee", "instrument", "origin"][..],
+///     &["payee", "amount", "instrument"][..],
+///     &["payee", "amount", "instrument", "origin", "origin"][..],
+///     &["payee", "amount", "instrument", "origin", "items"][..],
+/// ] {
+///     assert_eq!(CardEffect::committed(Class::Payment, &kept(names)), Err(Cause::Malformed));
+/// }
+/// assert_eq!(CardEffect::committed(Class::Send, &kept(&["to", "subject"])), Err(Cause::Malformed));
+/// ```
+///
+/// An `origin` is shown as the site's name, its host with the port only where that is not the
+/// usual one of its scheme and never the scheme (I1.4), and the `file` of a `local_edit` as the
+/// name of the file alone, after the last separator of either kind; a kept value that is no
+/// origin, or a file whose name is empty, is `malformed`:
+///
+/// ```
+/// use halvo_coord::types::{CardEffect, Cause, Class, Kept, Name};
+/// let one = |name: &str, value: &str| Kept { name: Name::parse(name).unwrap(), value: vec![value.to_owned()] };
+/// let site = |origin: &str| {
+///     CardEffect::committed(Class::Submit, &[one("origin", origin)]).map(|e| e.fields()[0].value.clone())
+/// };
+/// assert_eq!(site("https://site1.example:443"), Ok(vec!["site1.example".to_owned()]));
+/// assert_eq!(site("http://site1.example:80"), Ok(vec!["site1.example".to_owned()]));
+/// assert_eq!(site("https://site1.example:8443"), Ok(vec!["site1.example:8443".to_owned()]));
+/// assert_eq!(site("http://site1.example:443"), Ok(vec!["site1.example:443".to_owned()]));
+/// assert_eq!(site("site1.example"), Err(Cause::Malformed));
+/// let file = |path: &str| {
+///     CardEffect::committed(Class::LocalEdit, &[one("file", path), one("range", "B2 to B9")])
+///         .map(|e| e.fields()[0].value.clone())
+/// };
+/// assert_eq!(file("/home/pat/Documents/Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
+/// assert_eq!(file("C:\\Users\\pat\\Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
+/// assert_eq!(file("Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
+/// assert_eq!(file("/home/pat/"), Err(Cause::Malformed));
+/// assert_eq!(file("C:Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
+/// assert_eq!(file("/home/pat/.."), Err(Cause::Malformed));
+/// assert_eq!(file("."), Err(Cause::Malformed));
+/// for (class, names) in [
+///     (Class::Payment, &["payee", "amount", "instrument", "origin"][..]),
+///     (Class::Purchase, &["seller", "amount", "instrument", "origin"][..]),
+///     (Class::Submit, &["origin"][..]),
+/// ] {
+///     let kept: Vec<Kept> = names
+///         .iter()
+///         .map(|n| one(n, if *n == "origin" { "https://shop.example:443" } else { "Plan 2" }))
+///         .collect();
+///     let e = CardEffect::committed(class, &kept).unwrap();
+///     assert_eq!(e.fields().last().unwrap().value, ["shop.example"], "{}", class.name());
+/// }
+/// ```
+///
+/// An entry is made only from its class and its kept fields, so its sentence holds no value:
+///
+/// ```compile_fail,E0451
+/// use halvo_coord::types::{CardEffect, Class};
+/// let e = CardEffect {
+///     class: Class::Payment,
+///     key: "run.effect.payment".to_owned(),
+///     text: "It paid City Power.".to_owned(),
+///     fields: vec![],
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CardRun {
     /// `day`: the day of its `run_started` event as text.
     pub day: String,
     /// `text`: the sentence of `line.run.<end>`.
     pub text: String,
+    /// `effects`: one entry for each committed effect of the run, in the order of the reply of
+    /// `agent_history`; empty for a run with no committed effect.
+    pub effects: Vec<CardEffect>,
+}
+
+/// A committed effect of a past run on a card (I2.6, ruling H-8): the sentence of
+/// `run.effect.<class>`, which has no placeholder, and the kept fields of its class as fields of
+/// I3.4, made only by [`CardEffect::committed`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CardEffect {
+    #[serde(skip)]
+    class: Class,
+    key: String,
+    text: String,
+    fields: Vec<Field>,
+}
+
+/// The kept fields of each class that has an effect row, in the order of the table of A-A9.3.
+fn kept_names(class: Class) -> Option<&'static [&'static str]> {
+    Some(match class {
+        Class::Payment => &["payee", "amount", "instrument", "origin"],
+        Class::Purchase => &["seller", "amount", "instrument", "origin"],
+        Class::Send => &["to"],
+        Class::Delete => &["items"],
+        Class::Submit => &["origin"],
+        Class::Sign => &["document", "party"],
+        Class::LocalEdit => &["file", "range"],
+        Class::Read | Class::Prepare | Class::Credential => return None,
+    })
+}
+
+/// The site's name of a kept origin (I1.4, ruling IG-14): its host, with its port only where
+/// that is not the usual one of its scheme, and never its scheme.
+fn site_name(kept: &[String]) -> Result<String, Cause> {
+    let origin = Origin::parse(&kept.concat())?;
+    let (scheme, rest) = origin.as_str().split_once("://").ok_or(Cause::Malformed)?;
+    let (host, port) = rest.rsplit_once(':').ok_or(Cause::Malformed)?;
+    let usual = matches!((scheme, port), ("https", "443") | ("http", "80"));
+    Ok(if usual {
+        host.to_owned()
+    } else {
+        rest.to_owned()
+    })
+}
+
+/// The name of a kept file alone, after the last separator of either kind and after the drive
+/// of a Windows path that has none; `.` and `..` name no file.
+fn file_name(kept: &[String]) -> Result<String, Cause> {
+    let path = kept.concat();
+    let last = path.rsplit(['/', '\\']).next().unwrap_or_default();
+    let name = match last.as_bytes() {
+        [drive, b':', ..] if drive.is_ascii_alphabetic() => &last[2..],
+        _ => last,
+    };
+    if matches!(name, "" | "." | "..") {
+        Err(Cause::Malformed)
+    } else {
+        Ok(name.to_owned())
+    }
+}
+
+impl CardEffect {
+    /// The entry of a committed effect of `class` whose effect row keeps `kept`: exactly the
+    /// kept fields of the class in the order of A-A9.3, each shown with the label
+    /// `field.<class>.<name>`, its value as the row keeps it and the `from` that A-A9.3 admits,
+    /// except the `items` of a `delete`, which a person cannot read; an `origin` shows the
+    /// site's name and the `file` of a `local_edit` the name of the file alone (I2.6).
+    /// `malformed` for a class with no effect row, for kept fields other than those, for an
+    /// `origin` that is no origin and for a `file` with no name.
+    pub fn committed(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
+        let names = kept_names(class).ok_or(Cause::Malformed)?;
+        let given: Vec<&str> = kept.iter().map(|k| k.name.as_str()).collect();
+        if given != names {
+            return Err(Cause::Malformed);
+        }
+        let say = |key: &str| words::text(key, &[]);
+        let mut fields = Vec::new();
+        for k in kept {
+            let name = k.name.as_str();
+            if class == Class::Delete && name == "items" {
+                continue;
+            }
+            let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
+            fields.push(Field {
+                label: say(&format!("field.{}.{name}", class.name()))?,
+                value: match (class, name) {
+                    (_, "origin") => vec![site_name(&k.value)?],
+                    (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
+                    _ => k.value.clone(),
+                },
+                from,
+                from_text: say(&format!("from.{}", from.name()))?,
+            });
+        }
+        let key = format!("run.effect.{}", class.name());
+        Ok(CardEffect {
+            class,
+            text: say(&key)?,
+            key,
+            fields,
+        })
+    }
+
+    /// The class of the effect.
+    pub fn class(&self) -> Class {
+        self.class
+    }
+
+    /// `key`: `run.effect.<class>`.
+    pub fn key(&self) -> String {
+        self.key.clone()
+    }
+
+    /// `text`: the sentence of `key`.
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// `fields`: the kept fields that the card shows.
+    pub fn fields(&self) -> &[Field] {
+        &self.fields
+    }
 }
 
 /// An item, as the page gets it (I3.4), made by the one constructor of its kind: a

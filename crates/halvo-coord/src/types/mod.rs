@@ -34,15 +34,18 @@ pub use names::{
     Reasoning, RunEnd, Runtime, Status, Tier, Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
 pub use reply::{
-    Candidate, Card, CardLine, CardRun, ChoiceText, ClosedReply, ControlText, ErrorReply, Field,
-    Item, OkReply, ParamEntry, Row, Snapshot,
+    Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply, ControlText,
+    ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot,
 };
 pub use run::{
     Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,
     Progress, RunEvent, RunSpec,
 };
 pub use status::StatusLine;
-pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};
+pub use workflow::{
+    Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, Unknown,
+    Workflow,
+};
 
 #[cfg(test)]
 mod tests;

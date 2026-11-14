@@ -8,19 +8,43 @@ report_fixture() {
   printf 'modality=screen_frame count=%s\nmodality=keystroke count=%s\nmodality=pointer count=%s\nmodality=foreground_app count=%s\n' "$2" "$3" "$4" "$5" > "$1"
 }
 
+kind_zero() {
+  sed "s/^modality=$2 count=.*/modality=$2 count=0/" "$GATE_FIXTURES/c5-pass.txt" > "$gate_scratch/$1"
+}
+
 cases() {
   scratch_root
-  report_fixture "$gate_scratch/good" 10 5 7 3
-  t every-kind-recorded PASS predicate_modalities_present "$gate_scratch/good"
-  report_fixture "$gate_scratch/screen_frame-zero" 0 5 7 3
-  report_fixture "$gate_scratch/keystroke-zero" 10 0 7 3
-  report_fixture "$gate_scratch/pointer-zero" 10 5 0 3
-  report_fixture "$gate_scratch/foreground_app-zero" 10 5 7 0
+  good=$GATE_FIXTURES/c5-pass.txt
+  t every-kind-recorded PASS predicate_modalities_present "$good"
   for kind in screen_frame keystroke pointer foreground_app; do
+    kind_zero "$kind-zero" "$kind"
     t "$kind-zero" FAIL predicate_modalities_present "$gate_scratch/$kind-zero"
-    grep -v "^modality=$kind " "$gate_scratch/good" > "$gate_scratch/$kind-absent"
+    grep -v "^modality=$kind " "$good" > "$gate_scratch/$kind-absent"
     t "$kind-absent" FAIL predicate_modalities_present "$gate_scratch/$kind-absent"
   done
+  kind_zero window-title-zero window_title
+  t window-title-zero FAIL predicate_modalities_present "$gate_scratch/window-title-zero"
+  grep -v "^modality=window_title " "$good" > "$gate_scratch/window-title-absent"
+  t window-title-absent FAIL predicate_modalities_present "$gate_scratch/window-title-absent"
+  gate_input=operator
+  t c5-pass PASS predicate_timed_run_report "$good"
+  t c5-hold-pass PASS predicate_timed_run_report "$GATE_FIXTURES/c5-hold-pass.txt"
+  t c5-fail-input FAIL predicate_timed_run_report "$GATE_FIXTURES/c5-fail-input.txt"
+  sed "s/^modality=foreground_app count=3\$/modality=foreground_app count=1/" "$good" > "$gate_scratch/foreground-count-1"
+  t foreground-count-1 FAIL predicate_timed_run_report "$gate_scratch/foreground-count-1"
+  t recorded-685d846 FAIL predicate_foreground_switches "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
+  t recorded-685d846-report FAIL predicate_timed_run_report "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
+  sed 's/^failed_sources=0$/failed_sources=1/' "$good" > "$gate_scratch/failed-count-only"
+  t failed-sources-1-without-its-line FAIL predicate_timed_run_report "$gate_scratch/failed-count-only"
+  printf 'modality=screen_frame count=3\nmodality=foreground_app count=2\n' > "$gate_scratch/sources-report"
+  : > "$gate_scratch/sources-quiet"
+  for source_name in screen2 screen-frame Screen; do
+    printf 'halvo-capture: source %s did not start: os_error\n' "$source_name" > "$gate_scratch/sources-$source_name"
+    t "source-$source_name-did-not-start" FAIL predicate_sources_ran "$gate_scratch/sources-report" "$gate_scratch/sources-$source_name"
+  done
+  t sources-ran-with-a-quiet-stderr PASS predicate_sources_ran "$gate_scratch/sources-report" "$gate_scratch/sources-quiet"
+  gate_input=none
+  t foreground-count-1-under-no-input PASS predicate_foreground_switches "$gate_scratch/foreground-count-1"
   t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"
   report_fixture "$gate_scratch/no-input" 10 0 0 3
   t no-input-under-none PASS input_under none "$gate_scratch/no-input"
@@ -96,7 +120,11 @@ measure() {
     verdict_under_input "and no keystroke or pointer event reached the run, so the kinds that need input are not judged" "$line"
     return
   fi
-  if predicate_modalities_present "$run_dir/stdout"; then emit_pass "$name" "input=$gate_input: $line"; return 0; fi
+  if predicate_modalities_present "$run_dir/stdout"; then
+    foreground_seen=$(modality_count "$run_dir/stdout" foreground_app)
+    defect=$(foreground_switches_defect "$foreground_seen") || { emit_fail "$name" "$defect; $line"; return 1; }
+    emit_pass "$name" "input=$gate_input: $line"; return 0
+  fi
   emit_fail "$name" "a required kind recorded no event under input=$gate_input: $line"; return 1
 }
 

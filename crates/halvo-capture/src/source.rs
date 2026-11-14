@@ -1,12 +1,14 @@
 use std::cell::RefCell;
 
 use crate::event::{CaptureStreamEvent, Modality};
+use crate::floor::exclude::FloorHandle;
 use crate::sink::{SinkError, SinkHandle};
 
 /// The default bodies of `start`, `stop`, `begin` and `shutdown` reach the
 /// other pair. A default member must not be entered again for the same source
-/// while it runs, and two sources of one zero-sized type count as one source:
-/// either panics with the text for a source that implements neither pair.
+/// while it runs, and two boxed sources of one zero-sized type count as one
+/// source, because every such box has one address: either panics with the text
+/// for a source that implements neither pair.
 pub trait CaptureSource {
     /// Retired: no product code calls it, and the default body panics.
     fn modality(&self) -> Modality {
@@ -98,18 +100,78 @@ impl Drop for DefaultPairCall {
     }
 }
 
+/// Owns the started state of one source: a second `begin` while the source is
+/// started is [`CaptureError::AlreadyStarted`], whatever the source answers
+/// itself. A `shutdown` that returns `Ok` or [`CaptureError::ThreadEnded`]
+/// ends the started state; after any other answer the source counts as started.
+/// The daemon starts every source through it.
+pub struct StartGuard {
+    source: Box<dyn CaptureSource>,
+    started: bool,
+}
+
+impl StartGuard {
+    pub fn new(source: Box<dyn CaptureSource>) -> StartGuard {
+        StartGuard {
+            source,
+            started: false,
+        }
+    }
+
+    pub fn is_started(&self) -> bool {
+        self.started
+    }
+}
+
+impl CaptureSource for StartGuard {
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.started {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        let started = self.source.begin(ctx)?;
+        self.started = true;
+        Ok(started)
+    }
+
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        let stopped = self.source.shutdown();
+        if matches!(stopped, Ok(()) | Err(CaptureError::ThreadEnded)) {
+            self.started = false;
+        }
+        stopped
+    }
+
+    fn health(&self) -> SourceHealth {
+        self.source.health()
+    }
+}
+
 #[derive(Clone)]
 pub struct SourceContext {
     sink: SinkHandle,
+    floor: FloorHandle,
 }
 
 impl SourceContext {
+    /// A context with the default floor handle: no exclusion root and the
+    /// default switches.
     pub fn new(sink: SinkHandle) -> Self {
-        Self { sink }
+        Self::with_floor(sink, FloorHandle::default())
+    }
+
+    /// A context whose sources decide with `floor`: the daemon's exclusion
+    /// root, lineage probe and switches.
+    pub fn with_floor(sink: SinkHandle, floor: FloorHandle) -> Self {
+        Self { sink, floor }
     }
 
     pub fn sink(&self) -> &SinkHandle {
         &self.sink
+    }
+
+    /// The exclusion decision and the switches for the source's events.
+    pub fn floor(&self) -> &FloorHandle {
+        &self.floor
     }
 }
 
@@ -242,6 +304,9 @@ pub struct HeldSamples {
 /// emits_through(&handle);
 /// ```
 pub trait EventSink: sealed::Sealed {
+    /// The old emit. It takes any `CaptureStreamEvent`, with no keep verdict,
+    /// no clearance and no text filter point, and stays the remaining route of
+    /// a capture event to a stored record until core-3 removes it.
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
 }
 
@@ -261,7 +326,7 @@ pub enum EmitOutcome {
 pub enum CaptureError {
     /// Only for a real denial: a service that cannot be reached is
     /// [`CaptureError::Os`] or [`CaptureError::Timeout`].
-    #[error("the capture permission for {0:?} is not granted")]
+    #[error("the capture permission for {} is not granted", .0.as_str())]
     PermissionDenied(Modality),
     #[error("the capture source failed to start: {0}")]
     Start(String),
@@ -520,7 +585,7 @@ mod tests {
         let cases = [
             (
                 CaptureError::PermissionDenied(Modality::ScreenFrame),
-                "the capture permission for ScreenFrame is not granted",
+                "the capture permission for screen_frame is not granted",
             ),
             (
                 CaptureError::Start("no display to capture".to_string()),
@@ -885,5 +950,128 @@ mod tests {
         let health = SourceHealth::default();
         assert!(matches!(health.state, SourceState::NotReported));
         assert_eq!(health.counters, zero);
+    }
+
+    #[test]
+    fn permission_denied_names_the_kind_in_snake_case() {
+        let expected = [
+            "screen_frame",
+            "keystroke",
+            "pointer",
+            "foreground_app",
+            "window_title",
+            "system_audio",
+            "microphone",
+            "camera",
+        ];
+        for (kind, name) in Modality::ALL.into_iter().zip(expected) {
+            assert_eq!(
+                CaptureError::PermissionDenied(kind).to_string(),
+                format!("the capture permission for {name} is not granted")
+            );
+        }
+    }
+
+    struct StandIn {
+        calls: std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>,
+        refuse_begin: bool,
+        stop_answer: Result<(), CaptureError>,
+    }
+
+    impl CaptureSource for StandIn {
+        fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+            self.calls.borrow_mut().push("begin");
+            if self.refuse_begin {
+                return Err(CaptureError::Start("scripted refusal".to_string()));
+            }
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            self.calls.borrow_mut().push("shutdown");
+            self.stop_answer.clone()
+        }
+    }
+
+    fn guarded(
+        refuse_begin: bool,
+        stop_answer: Result<(), CaptureError>,
+    ) -> (
+        StartGuard,
+        std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>,
+    ) {
+        let calls = std::rc::Rc::default();
+        let source = StandIn {
+            calls: std::rc::Rc::clone(&calls),
+            refuse_begin,
+            stop_answer,
+        };
+        (StartGuard::new(Box::new(source)), calls)
+    }
+
+    #[test]
+    fn a_second_begin_through_the_start_guard_is_already_started_for_every_source() {
+        let (mut guard, calls) = guarded(false, Ok(()));
+        assert!(!guard.is_started());
+        assert!(matches!(guard.begin(context()), Ok(Started::Running)));
+        assert!(guard.is_started());
+        assert!(matches!(
+            guard.begin(context()),
+            Err(CaptureError::AlreadyStarted)
+        ));
+        let (handle, _writer) = sink::channel(1);
+        assert!(matches!(
+            guard.start(handle),
+            Err(CaptureError::AlreadyStarted)
+        ));
+        assert!(guard.shutdown().is_ok());
+        assert!(!guard.is_started());
+        assert!(matches!(guard.begin(context()), Ok(Started::Running)));
+        assert_eq!(*calls.borrow(), ["begin", "shutdown", "begin"]);
+
+        let (mut refusing, calls) = guarded(true, Ok(()));
+        assert!(matches!(
+            refusing.begin(context()),
+            Err(CaptureError::Start(_))
+        ));
+        assert!(!refusing.is_started());
+        assert!(matches!(
+            refusing.begin(context()),
+            Err(CaptureError::Start(_))
+        ));
+        assert_eq!(*calls.borrow(), ["begin", "begin"]);
+
+        let (mut ended, _) = guarded(false, Err(CaptureError::ThreadEnded));
+        ended.begin(context()).unwrap();
+        assert!(matches!(ended.shutdown(), Err(CaptureError::ThreadEnded)));
+        assert!(!ended.is_started());
+
+        let timeout = CaptureError::Timeout {
+            stage: "stop",
+            ms: 1000,
+        };
+        let (mut stuck, calls) = guarded(false, Err(timeout));
+        stuck.begin(context()).unwrap();
+        assert!(matches!(
+            stuck.shutdown(),
+            Err(CaptureError::Timeout { .. })
+        ));
+        assert!(stuck.is_started());
+        assert!(matches!(
+            stuck.begin(context()),
+            Err(CaptureError::AlreadyStarted)
+        ));
+        assert_eq!(*calls.borrow(), ["begin", "shutdown"]);
+
+        let mut old = StartGuard::new(Box::<OldPair>::default());
+        let (handle, _writer) = sink::channel(1);
+        assert!(old.start(handle).is_ok());
+        let (handle, _writer) = sink::channel(1);
+        assert!(matches!(
+            old.start(handle),
+            Err(CaptureError::AlreadyStarted)
+        ));
+        old.stop();
+        assert!(!old.is_started());
     }
 }

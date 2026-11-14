@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: @img/sharp-libvips-linux-mips64@1.3.4 has the license LGPL-3.0-or-later, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "@img/sharp-libvips-linux-mips64@1.3.4",
+      "license": "LGPL-3.0-or-later"
+    }
+  ]
+}

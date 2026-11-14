@@ -1,0 +1,24 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"name":"Do these 2 things?","role":"alertdialog"}
+          - {"level":3,"name":"Do these 2 things?","role":"heading"}
+          - {"role":"paragraph","text":"It will send this message"}
+          - {"role":"term","text":"To"}
+          - {"role":"definition","text":"Ann Lee"}
+          - {"role":"definition","text":"From the site"}
+          - {"role":"term","text":"Subject"}
+          - {"role":"definition","text":"Rent receipt for October"}
+          - {"role":"definition","text":"From the site"}
+          - {"role":"term","text":"Message"}
+          - {"role":"definition","text":"Thank you. Your rent for October came in."}
+          - {"role":"definition","text":"Written by the agent"}
+          - {"role":"paragraph","text":"It will remove this"}
+          - {"role":"term","text":"What to remove"}
+          - {"role":"definition","text":"Draft to Ann Lee from October"}
+          - {"role":"definition","text":"From the site"}
+          - {"name":"Don't do any of these 2","role":"button"}
+          - {"name":"Do all 2","role":"button"}

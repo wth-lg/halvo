@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [features]
-keychain = ["dep:security-framework"]
+keychain = []
 hosted-store-tests = []
 
 [[test]]
@@ -14,7 +14,7 @@ name = "hosted"
 required-features = ["hosted-store-tests"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = { version = "=3.7.0", default-features = false, optional = true }
+security-framework = { version = "=3.7.0", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = [

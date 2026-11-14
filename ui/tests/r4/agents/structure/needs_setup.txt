@@ -1,0 +1,15 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"name":"Needs you","role":"region"}
+      - {"level":3,"name":"Needs you","role":"heading"}
+      - {"role":"list"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Paying a utility bill on Site1","role":"heading"}
+            - {"name":"Paying a utility bill on Site1","role":"button"}
+          - {"role":"paragraph","text":"Needs you"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"It needs a few answers from you before it can start."}
+          - {"name":"Switch off","role":"button"}

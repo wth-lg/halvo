@@ -144,3 +144,27 @@ pub struct Kept {
     /// `value`.
     pub value: Vec<String>,
 }
+
+/// One run of the reply of the body `agent_history` (I6.1): the run's record of A-A7.4 and its
+/// effects in the order of the reply.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunHistory {
+    /// The run's record.
+    pub run: PastRun,
+    /// Its effects.
+    pub effects: Vec<PastEffect>,
+}
+
+/// One effect of a run of the reply of `agent_history` (I6.1): its class, its state of A-A5.2,
+/// the cause of its last row or none, and its kept fields.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PastEffect {
+    /// `class`.
+    pub class: Class,
+    /// `state`.
+    pub state: crate::guard::EffectState,
+    /// `cause`, or none.
+    pub cause: Option<Name>,
+    /// `kept`.
+    pub kept: Vec<Kept>,
+}

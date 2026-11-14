@@ -1,0 +1,209 @@
+# The cases of the deny lines of docs/r4/page-features.txt, read by list.mjs check: "use", a tab, a deny name, a tab and a text
+# that the pattern of that line must find; or "free", a tab and a text that no deny pattern may find.
+use	object_group_by	const groups = Object.groupBy(rows, pick);
+use	object_group_by	const groups = Object['groupBy'](rows, pick);
+use	map_group_by	const groups = Map.groupBy(rows, pick);
+use	promise_with_resolvers	const { promise, resolve } = Promise.withResolvers();
+use	abort_signal_any	const signal = AbortSignal.any([a, b]);
+use	check_visibility	if (card.checkVisibility()) show(card);
+use	check_visibility	if (card?.checkVisibility({ checkOpacity: true })) show(card);
+use	aria_description	node.ariaDescription = text;
+use	error_capture_stack_trace	Error.captureStackTrace(this, Fault);
+use	array_buffer_transfer	const moved = buffer.transfer(8);
+use	array_buffer_transfer	const moved = buffer.transferToFixedLength();
+use	start_view_transition	document.startViewTransition(function () { draw(); });
+use	get_html	const html = list.getHTML();
+use	aria_braille_label	node.ariaBrailleLabel = text;
+use	aria_braille_role_description	node.ariaBrailleRoleDescription = text;
+use	writing_suggestions	field.writingSuggestions = 'false';
+use	writing_suggestions	field.setAttribute('writingsuggestions', 'false');
+use	pointer_coalesced_events	const points = event.getCoalescedEvents();
+use	pointer_predicted_events	const points = event.getPredictedEvents();
+use	pointer_altitude_angle	const angle = event.altitudeAngle;
+use	pointer_azimuth_angle	const angle = event.azimuthAngle;
+use	auxclick_event	window.addEventListener('auxclick', press, true);
+use	auxclick_event	button.onauxclick = press;
+use	pagereveal_event	window.addEventListener("pagereveal", start);
+use	float16_array	const a = new Float16Array(4);
+use	math_f16round	const x = Math.f16round(y);
+use	data_view_float16	const x = view.getFloat16(0);
+use	data_view_float16	view.setFloat16(0, x);
+use	promise_try	Promise.try(load).then(show);
+use	regexp_escape	const re = new RegExp(RegExp.escape(word));
+use	uint8_array_base64	const text = bytes.toBase64();
+use	uint8_array_base64	const bytes = Uint8Array.fromBase64(text);
+use	uint8_array_hex	const text = bytes.toHex();
+use	uint8_array_hex	const bytes = Uint8Array.fromHex(text);
+use	dialog_request_close	card.dialog.requestClose();
+use	focus_visible_option	card.dialog.focus({ focusVisible: true });
+use	toggle_popover_options	menu.togglePopover({ force: true });
+use	iterator_helpers	const names = cards.values().map(function (card) { return card.key; });
+use	iterator_helpers	const firsts = Iterator.from(source).take(3);
+use	iterator_helpers	const list = cards.keys().toArray();
+use	iterator_helpers	map.entries().forEach(function (pair) { draw(pair); });
+use	json_raw	const raw = JSON.rawJSON('1e1000');
+use	json_raw	if (JSON.isRawJSON(value)) keep(value);
+use	show_popover_source	menu.showPopover({ source: button });
+use	custom_element_registry	const registry = document.customElementRegistry;
+use	command_invokers	button.commandForElement = card.dialog;
+use	command_invokers	button.setAttribute('commandfor', 'card');
+use	command_invokers	card.dialog.addEventListener('command', act);
+use	scrollend_event	list.addEventListener('scrollend', settle);
+use	caret_position_from_point	const at = document.caretPositionFromPoint(x, y);
+use	aria_col_index_text	cell.ariaColIndexText = 'B';
+use	aria_row_index_text	cell.ariaRowIndexText = '2';
+use	map_get_or_insert	const list = groups.getOrInsert(key, []);
+use	map_get_or_insert	const list = groups.getOrInsertComputed(key, make);
+use	math_sum_precise	const total = Math.sumPrecise(values);
+use	window_navigation	navigation.addEventListener('navigate', go);
+use	window_navigation	window.navigation.navigate('/next');
+use	current_css_zoom	const zoom = node.currentCSSZoom;
+use	aria_notify	document.ariaNotify('Saved');
+use	aria_notify	list.ariaNotify(text, { priority: 'high' });
+free	const keys = Object.keys(item).map(function (k) { return item[k]; });
+free	const values = Object.values(item).filter(Boolean);
+free	Array.from(cards.keys()).forEach(function (key) { drop(key); });
+free	for (const card of cards.values()) { if (card.dialog && card.dialog.open) return; }
+free	const css = ':focus-visible { outline: 2px solid; }';
+free	card.dialog.focus();
+free	card.dialog.showModal();
+free	card.dialog.close();
+free	menu.showPopover();
+free	name.appendChild(toggle(row));
+free	function toggle(row) { return row; }
+free	const letters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+free	window.addEventListener('keydown', input, true);
+free	window.addEventListener('pointercancel', input, true);
+free	call('agents_snapshot', {}).then(take).catch(drop);
+free	const ids = new Set(snapshot.items.map(function (item) { return item.id; }));
+free	if (event.repeat && event.key === 'Enter') event.preventDefault();
+free	node.setAttribute('aria-describedby', id);
+free	const transferred = row.transferred;
+free	const take = reply.seq > seq;
+free	const isIterator = typeof value.next === 'function';
+use	command_invokers	button.setAttribute('command', 'request-close');
+use	command_invokers	button.command = 'show-modal';
+use	iterator_helpers	const words = text.matchAll(pattern).map(function (m) { return m[0]; });
+use	window_navigation	navigation.onnavigate = go;
+use	window_navigation	const nav = window.navigation; nav.navigate('/next');
+use	writing_suggestions	field.setAttribute('writingSuggestions', 'false');
+use	object_group_by	const { groupBy } = Object;
+use	map_group_by	const { groupBy } = Map;
+use	object_group_by	const groups = Object?.['groupBy'](rows, pick);
+use	pageswap_event	window.addEventListener('pageswap', save);
+use	highlight_api	CSS.highlights.set('hit', new Highlight(range));
+use	hidden_until_found	card.body.hidden = 'until-found';
+use	css_starting_style	'.hn-dialog[open]{opacity:1;transition:opacity 0.2s}@starting-style{.hn-dialog[open]{opacity:0}}',
+use	css_transition_behavior	'.hn-dialog{transition:display 0.2s allow-discrete;transition-behavior:allow-discrete}',
+use	css_light_dark	'.hn-dialog{color-scheme:light dark;color:light-dark(#1a1a1a,#f2f2f2)}',
+use	css_text_wrap	'.hn-title{text-wrap:balance}',
+use	css_content_visibility	'.r4a-row{content-visibility:auto;contain-intrinsic-size:auto 64px}',
+use	css_field_sizing	'.hn-typed{field-sizing:content}',
+use	css_scrollbar_gutter	'.r4a-list{overflow-y:auto;scrollbar-gutter:stable}',
+use	css_scrollbar_width	'.r4a-list{scrollbar-width:thin}',
+use	css_scrollbar_color	'.r4a-list{scrollbar-color:#6b6b6b #ffffff}',
+use	css_text_box	'.hn-title{text-box:trim-both cap alphabetic}',
+use	css_contrast_color	'.r4a-icon-working{color:contrast-color(#0b57d0)}',
+use	css_scope	'@scope (.r4a){.r4a-row{padding-top:8px}}',
+free	button.setAttribute('data-act', 'toggle');
+free	row.className = 'toggle';
+free	details.addEventListener('toggle', onToggle);
+free	menu.addEventListener('beforetoggle', onBeforeToggle);
+free	menu.togglePopover(true);
+free	menu.togglePopover();
+free	if (field.name === 'command') line.appendChild(text(field.value));
+free	if (event.metaKey) hint = 'command';
+free	button.setAttribute('data-act', 'request-close');
+free	box.className = 'r4a-request-closed';
+free	if (row.transfer) line.appendChild(text(row.transfer));
+free	say(words['transfer']);
+free	p.appendChild(document.createTextNode('Step 1. transfer the file to the folder'));
+free	pending.take(seq);
+free	var navigation = { back: back }; navigation.back();
+free	card.requestClose = function () { card.dialog.close(); };
+free	const parts = Object.values(item).map(String);
+free	'.hn-dialog{transition:opacity 0.2s;white-space:pre-wrap}',
+use	css_backdrop_filter	'.hn-dialog::backdrop{backdrop-filter:blur(4px)}',
+use	css_backdrop_filter	card.dialog.style.backdropFilter = 'blur(4px)';
+use	css_counter_set	'.hn-items{counter-set:item 0}',
+use	css_counter_set	list.style.counterSet = 'item 0';
+use	details_name	details.name = 'faq';
+use	details_name	details.setAttribute('name', 'faq');
+use	details_name	'<details name="faq"><summary>Q</summary></details>'
+use	css_white_space_collapse	'.hn-value{white-space-collapse:preserve}',
+use	css_white_space_collapse	value.style.whiteSpaceCollapse = 'preserve';
+use	css_view_transition_name	'.hn-item{view-transition-name:item}',
+use	css_view_transition_name	item.style.viewTransitionName = 'item';
+use	css_mask_border	'.r4a-icon{mask-border:url(a.svg) 30 fill}',
+use	css_mask_border	icon.style.maskBorder = 'url(a.svg) 30 fill';
+use	css_state_pseudo	'.r4a-row:state(open){padding:0}',
+use	css_state_pseudo	if (row.matches(':state(open)')) keep(row);
+use	css_target_text	'::target-text{background:yellow}',
+use	element_internals_states	this.internals.states.add('open');
+use	element_internals_states	const states = this.attachInternals().states;
+use	url_parse	const url = URL.parse(href);
+use	url_parse	const { parse } = URL;
+use	css_open_pseudo	'.hn-dialog:open{opacity:1}',
+use	css_anchor_name	'.hn-button{anchor-name:--act}',
+use	css_anchor_name	button.style.anchorName = '--act';
+use	css_position_anchor	'.hn-menu{position-anchor:--act}',
+use	css_position_anchor	menu.style.positionAnchor = '--act';
+use	css_position_area	'.hn-menu{position-area:bottom}',
+use	css_position_area	menu.style.positionArea = 'bottom';
+use	css_animation_timeline	'.hn-bar{animation-timeline:scroll()}',
+use	css_animation_timeline	bar.style.animationTimeline = 'scroll()';
+use	css_linear_easing	'.hn-dialog{transition:opacity 0.2s linear(0, 0.5 50%, 1)}',
+use	css_linear_easing	box.animate(frames, { duration: 200, easing: 'linear(0, 1)' });
+use	input_switch	input.setAttribute('switch', '');
+use	input_switch	input.switch = true;
+use	input_switch	'<input type="checkbox" switch>'
+use	array_buffer_detached	if (buffer.detached) return;
+use	array_buffer_detached	if (buffer['detached']) return;
+use	css_font_width	'.hn-title{font-width:condensed}',
+use	css_font_width	title.style.fontWidth = 'condensed';
+use	css_text_decoration_style	'.hn-link{text-decoration:underline wavy}',
+use	css_text_decoration_style	'.hn-link{text-decoration: underline #c00}',
+use	css_text_decoration_style	link.style.textDecoration = 'underline dotted';
+use	css_safe_alignment	'.hn-choice{align-items:safe center}',
+use	css_safe_alignment	box.style.justifyContent = 'unsafe end';
+use	css_white_space_values	'.hn-value{white-space:preserve}',
+use	css_white_space_values	value.style.whiteSpace = 'collapse';
+use	dialog_request_close	card.dialog['requestClose']();
+use	array_buffer_transfer	const moved = buf['transfer']();
+use	toggle_popover_options	pop['togglePopover']({ force: true });
+use	show_popover_source	menu['showPopover']({ source: button });
+use	start_view_transition	const { startViewTransition } = document;
+use	focus_visible_option	const opts = { focusVisible: true }; card.dialog.focus(opts);
+use	focus_visible_option	opts.focusVisible = true;
+free	'.hn-dialog::backdrop{-webkit-backdrop-filter:blur(4px)}',
+free	card.dialog.style.webkitBackdropFilter = 'blur(4px)';
+free	'.hn-items{counter-reset:item;counter-increment:item}',
+free	input.name = group;
+free	'<details open><summary>Q</summary></details>'
+free	'.hn-value{white-space:pre-wrap}',
+free	'.hn-value{white-space: nowrap}',
+free	'.hn-value{white-space:break-spaces}',
+free	'.r4a-icon{-webkit-mask-box-image:url(a.svg) 30}',
+free	'.hn-radio:checked{border-width:8px}',
+free	'.hn-item:target{outline:none}',
+free	this.internals = this.attachInternals();
+free	const url = new URL(href);
+free	if (URL.canParse(href)) go(href);
+free	'.hn-dialog[open]{opacity:1}',
+free	'.hn-menu{position:absolute;inset:0}',
+free	'.hn-bar{animation-duration:0.2s;animation-name:grow}',
+free	'.hn-dialog{transition:opacity 0.2s linear}',
+free	'.hn-card{background:linear-gradient(#fff, #eee)}',
+free	switch (event.key) { case 'Enter': act(); }
+free	if (node.isConnected) keep(node);
+free	'.hn-title{font-stretch:condensed}',
+free	'.hn-link{text-decoration:underline}',
+free	'.hn-link{-webkit-text-decoration:underline wavy}',
+free	'.hn-link{text-decoration-color:#c00}',
+free	'.hn-choice{align-items:center;justify-content:space-between}',
+free	const textWrapper = el('div', 'hn-text', '');
+free	const textBoxes = [];
+use	details_name	const det = document.createElement('details'); det.name = 'group';
+use	details_name	let more; more = el('details', 'hn-more', ''); more.setAttribute('name', 'group');
+free	const box = document.createElement('input'); box.name = 'group';
+free	const more = el('details', 'hn-more', ''); const row = { name: 'x' }; row.name = 'group';

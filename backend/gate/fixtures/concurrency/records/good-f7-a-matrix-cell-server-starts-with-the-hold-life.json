@@ -1,0 +1,17 @@
+{
+  "kind": "server-options",
+  "ruling": "P7-69 F7",
+  "about": "the driver starts the server of a matrix cell with the hold life of stress/config.mjs, 3,000 ms",
+  "source": "by hand",
+  "cell": {
+    "name": "usage-last@200",
+    "kind": "matrix",
+    "level": 200,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "expect": {
+    "holdLifeMs": 3000
+  }
+}

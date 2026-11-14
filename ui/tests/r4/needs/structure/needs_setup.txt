@@ -1,0 +1,14 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Answer a few questions for “Paying a utility bill on Site1”","role":"heading"}
+        - {"role":"paragraph","text":"Choose one answer for each question, then choose Use these answers."}
+        - {"name":"Who to pay","role":"group"}
+          - {"0":"W","1":"h","2":"o","3":" ","4":"t","5":"o","6":" ","7":"p","8":"a","9":"y"}
+          - {"name":"site1.example","role":"radio"}
+          - {"0":"s","1":"i","2":"t","3":"e","4":"1","5":".","6":"e","7":"x","8":"a","9":"m","10":"p","11":"l","12":"e"}
+        - {"name":"Not now","role":"button"}
+        - {"name":"Use these answers","role":"button"}

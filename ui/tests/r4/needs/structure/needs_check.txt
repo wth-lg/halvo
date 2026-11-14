@@ -1,0 +1,22 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Did the last task of “Paying a utility bill on Site1” go through?","role":"heading"}
+        - {"role":"paragraph","text":"Check the site or your account to see if this happened; it asks again before it pays."}
+        - {"role":"term","text":"Pay to"}
+        - {"role":"definition","text":"City Power"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Amount"}
+        - {"role":"definition","text":"42.10 USD"}
+        - {"role":"definition","text":"From the site"}
+        - {"role":"term","text":"Pay with"}
+        - {"role":"definition","text":"Card ending 4242"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Site"}
+        - {"role":"definition","text":"site1.example"}
+        - {"role":"definition","text":"Set by Halvo"}
+        - {"name":"No, try again next time","role":"button"}
+        - {"name":"Yes, it went through","role":"button"}

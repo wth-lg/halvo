@@ -1,0 +1,17 @@
+{
+  "kind": "lost-attempt",
+  "ruling": "B-35",
+  "about": "the driver keeps an EPIPE that it sends again as a reset, as an ECONNRESET",
+  "source": "by hand",
+  "attempt": {
+    "status": null,
+    "error": "EPIPE",
+    "body": ""
+  },
+  "expect": {
+    "entry": {
+      "why": "reset",
+      "body": ""
+    }
+  }
+}

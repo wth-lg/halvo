@@ -325,6 +325,44 @@ names! {
 }
 
 names! {
+    /// The state of a row of a checkpoint, kind `agent_checkpoint`: `planned` before `prepare`, `made` once the copy
+    /// is made, and `gone` or `left` as the supervisor library marks it.
+    pub enum CheckpointState {
+        Planned = "planned",
+        Made = "made",
+        Gone = "gone",
+        Left = "left",
+    }
+}
+
+names! {
+    /// The state of a checkpoint in the reply of `list_checkpoints`, whose newest row is `planned` or `made`.
+    pub enum ListedState {
+        Planned = "planned",
+        Made = "made",
+    }
+}
+
+names! {
+    /// The state that a `mark_checkpoint` body stores: the copy is `gone`, removed or found absent, or `left`.
+    pub enum MarkState {
+        Gone = "gone",
+        Left = "left",
+    }
+}
+
+names! {
+    /// Why the check of a checkpoint's copy missed, so that the copy is `left`.
+    pub enum LeftReason {
+        Changed = "changed",
+        Link = "link",
+        NotFile = "not_file",
+        Name = "name",
+        Unreadable = "unreadable",
+    }
+}
+
+names! {
     /// The state that a `set_state` body asks for.
     pub enum AgentState {
         Approved = "approved",

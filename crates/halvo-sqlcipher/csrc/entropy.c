@@ -33,3 +33,7 @@ int halvo_sqlcipher_extra_init(const char *arg) {
   ltc_rng = halvo_ltc_rng;
   return sqlcipher_extra_init(arg);
 }
+
+int halvo_sqlcipher_os_entropy_hook_installed(void) {
+  return ltc_rng == halvo_ltc_rng;
+}

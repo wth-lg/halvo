@@ -11,15 +11,23 @@ use crate::types::{
 use std::cell::RefCell;
 
 /// Who stops a live run with the move `stop` of the run drive: the person's stop control,
-/// which gives the cause `cancelled`, or a lapse of the run's item with `wait_limit`, which
-/// gives `lapsed` (I5.6, I5.7). The switch-off control and a workflow that is gone stop a
-/// run through `Act::SwitchOff` and `Act::Tick`.
+/// which gives the cause `cancelled`, a lapse of the run's item with `wait_limit`, which gives
+/// `lapsed` (I5.6, I5.7), or the coordinator's answer to a request that ends the run with
+/// `kind` or `budget` (I3.1, I3.3, ruling IG-32). The switch-off control and a workflow that is
+/// gone stop a run through `Act::SwitchOff` and `Act::Tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopBy {
     /// The person's stop control.
     Person,
     /// A lapse of the run's item with `wait_limit`.
     WaitLimit,
+    /// The coordinator's answer to a request of the run that ends it with `kind`: a request that
+    /// A-A6.2 does not list, a class outside the six, a request while the run waits, or a confirm
+    /// request for an effect that has begun or whose newest released decision is `reject_once`
+    /// (I3.1, ruling IG-32).
+    Kind,
+    /// A request after the run raised `items_per_run` items, which ends it with `budget` (I3.3).
+    Budget,
 }
 
 impl StopBy {
@@ -28,6 +36,8 @@ impl StopBy {
         match self {
             StopBy::Person => StopCause::Cancelled,
             StopBy::WaitLimit => StopCause::Lapsed,
+            StopBy::Kind => StopCause::Kind,
+            StopBy::Budget => StopCause::Budget,
         }
     }
 }
@@ -81,6 +91,22 @@ pub enum Act {
         /// The outcome, or none.
         outcome: Option<Outcome>,
     },
+    /// The first step of the app's quit (I5.7, ruling RD-8): every live run that no stop has
+    /// reached is stopped with `cancelled` and gets `Runs::cancel` once, a `waiting` run among
+    /// them, whose item the caller has lapsed with `app_ended` (I4.5), and the queue is emptied,
+    /// so that no start leaves it.
+    StopAll,
+    /// The second step of the app's quit (I5.7, ruling RD-8): `Runs::kill` for every live run
+    /// and every dying tree, in the order of their starts, through the board; a run whose kill
+    /// succeeded leaves the board, and nothing is stored or sent.
+    KillAll,
+    /// A tick after the first step of the app's quit (ruling RD-34 (d)): the stages of I5.9 that
+    /// start nothing. `Runs::kill` for each stopping run and each dying tree once
+    /// `cancel_grace_s` have passed since that run's own stop, or where the clock reads earlier
+    /// than the stop (ruling RD-7), with nothing stored at the kill, as at the second step, so
+    /// that the next life's recovery ends those runs `interrupted`; then what the board owes. It
+    /// serves no queue, starts nothing and raises nothing.
+    QuitTick,
 }
 
 /// What a move of the run drive did: the schedule's report of the move, and the runs that a
@@ -97,6 +123,8 @@ pub struct Done {
     pub gone: Vec<WorkflowId>,
     /// The agents for which the move raised the item `check` (ruling XB-18).
     pub checked: Vec<AgentId>,
+    /// The runs and dying trees that the second step of the quit killed.
+    pub killed: Vec<RunId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -112,6 +140,7 @@ fn answer(cause: Option<Cause>) -> Done {
         lost: Vec::new(),
         gone: Vec::new(),
         checked: Vec::new(),
+        killed: Vec::new(),
     }
 }
 
@@ -121,6 +150,7 @@ fn of_report(report: Report) -> Done {
         lost: Vec::new(),
         gone: Vec::new(),
         checked: Vec::new(),
+        killed: Vec::new(),
     }
 }
 
@@ -146,12 +176,17 @@ fn phase_of(phase: &Phase) -> Live {
     }
 }
 
-/// The ports as the schedule's tick sees them, with the runs whose kill the supervisor
-/// library refused with `unknown_run` noted.
+/// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
+/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
+/// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
+/// Every other `cancel` marks the run stopped in the guard's table before the port's call, so
+/// that a panic in the call leaves the run's effect records refused (ruling RD-34 (e)).
 struct Watch<'a, P> {
     ports: &'a P,
     unknown: RefCell<Vec<RunId>>,
     listed: RefCell<Option<Vec<WorkflowId>>>,
+    sent: Vec<RunId>,
+    table: RefCell<&'a mut Table>,
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -205,6 +240,13 @@ impl<P: Runs> Runs for Watch<'_, P> {
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        if self.sent.contains(run) {
+            return Ok(());
+        }
+        {
+            let mut table = self.table.borrow_mut();
+            **table = table.stop(run);
+        }
         self.ports.cancel(run)
     }
 
@@ -236,6 +278,10 @@ impl<P: Clock> Clock for Watch<'_, P> {
 
     fn today(&self) -> Result<u32, PortError> {
         self.ports.today()
+    }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.ports.day(at)
     }
 }
 
@@ -288,19 +334,27 @@ where
         ports,
         unknown: RefCell::new(Vec::new()),
         listed: RefCell::new(None),
+        sent: Vec::new(),
+        table: RefCell::new(table),
     };
     let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
-    let gone = watch
-        .listed
-        .borrow()
+    let Watch {
+        unknown,
+        listed,
+        table,
+        ..
+    } = watch;
+    let table = table.into_inner();
+    let gone = listed
+        .into_inner()
         .as_ref()
         .map(|listed| delete_step(&before, listed));
     for run in gone.iter().flat_map(|g| g.stop.iter()) {
         *table = table.stop(run);
     }
     let mut lost = Vec::new();
-    for run in watch.unknown.into_inner() {
+    for run in unknown.into_inner() {
         if let Some(end) = lose(ports, board, limits, &run) {
             report.ended.extend(end.ended);
             lost.push(run);
@@ -311,25 +365,35 @@ where
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
         checked: raise_checks(ports, board, None),
+        killed: Vec::new(),
     }
 }
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
 /// I5.10). `hello`, `wait` and `resume` move the phase of the run's member by `run_step` and
-/// call no port; any other pair, and a run that is not live, is `state`. A stop of a live run
-/// that is not `stopping` sends `Runs::cancel` and stops the run in the guard's table, unless
-/// the table holds the run as stopped already, where the lapse of its item that stopped it
-/// there sent the cancel (I4.5), and then makes the run `stopping` with the cause of the
-/// stop, from the clock's time on, so that the first tick at which `cancel_grace_s` have
-/// passed kills it. The runner's end of a `waiting` run is `state` until its item is closed,
+/// call no port; any other pair, and a run that is not live, is `state`. A stop by the person
+/// or by `wait_limit` of a `waiting` run whose item has not lapsed is `state` and calls no port:
+/// the lapse of an item of every kind that stops its run stops it in the guard's table first,
+/// which is the fact that this reads (ruling RD-6); a stop with `kind` or `budget` asks no such
+/// fact, because the caller lapses the run's item with `run_ended` before it. A stop of a live
+/// run that is not `stopping` stops the run in the guard's table and makes it `stopping` with
+/// the cause of the stop, from the clock's time on, so that the first tick at which
+/// `cancel_grace_s` have passed kills it, and then sends `Runs::cancel`, unless the table held
+/// the run as stopped already, where the lapse of its item that stopped it there sent the
+/// cancel (I4.5): the mark comes before the port's call, so that a panic in the call leaves the
+/// run's effect records refused and its kill due (ruling RD-34 (e)). The runner's end of a `waiting` run is `state` until its item is closed,
 /// so that its item is closed before the end sets the member idle; any other end is the
 /// schedule's end of the run. A start by the person is the schedule's start. The switch-off
 /// control is the schedule's, and each run that it stops is stopped in the guard's table as
-/// well. A tick is the schedule's tick, which kills each run whose stop came `cancel_grace_s`
+/// well; it sends no `cancel` to a run that the table holds as stopped, whose lapse sent it. A tick is the schedule's tick, which kills each run whose stop came `cancel_grace_s`
 /// before it, again at each tick while the kill fails; each run that the tick stops for a
 /// workflow that is gone is stopped in the guard's table; and a `stopping` run whose kill the
 /// library refused with `unknown_run` ends `interrupted` in that tick, with no `end_run`
-/// sent for it, so that its agent takes no start until the agent store has ended it.
+/// sent for it, so that its agent takes no start until the agent store has ended it. The
+/// first step of the app's quit stops every live run that no stop has reached, as the person's
+/// stop does, and empties the queue; the second kills every live run and every dying tree and
+/// stores no `run_ended`, so that recovery ends those runs `interrupted` in the next life
+/// (ruling RD-8).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
@@ -356,7 +420,21 @@ where
             done
         }
         Act::SwitchOff { agent } => {
-            let report = schedule::drive(ports, board, limits, Move::SwitchOff { agent });
+            let sent = board
+                .runs
+                .iter()
+                .filter(|r| r.agent == agent && r.stop.is_none() && table.is_stopped(&r.run))
+                .map(|r| r.run.clone())
+                .collect();
+            let watch = Watch {
+                ports,
+                unknown: RefCell::new(Vec::new()),
+                listed: RefCell::new(None),
+                sent,
+                table: RefCell::new(table),
+            };
+            let report = schedule::drive(&watch, board, limits, Move::SwitchOff { agent });
+            let table = watch.table.into_inner();
             for run in &report.stopped {
                 *table = table.stop(run);
             }
@@ -384,7 +462,118 @@ where
             done.checked = raise_checks(ports, board, None);
             done
         }
+        Act::StopAll => stop_all(ports, board, table),
+        Act::KillAll => kill_all(ports, board),
+        Act::QuitTick => quit_tick(ports, board, limits),
     }
+}
+
+fn stop_all<P>(ports: &P, board: &mut Board<P::Config>, table: &mut Table) -> Done
+where
+    P: Runs + Clock + Owner,
+{
+    let mut done = answer(None);
+    let runs: Vec<RunId> = board
+        .runs
+        .iter()
+        .filter(|r| r.stop.is_none())
+        .map(|r| r.run.clone())
+        .collect();
+    for run in runs {
+        let stopped = stop_as(ports, board, table, &run, StopBy::Person, false);
+        done.report.stopped.extend(stopped.report.stopped);
+    }
+    while let Some(waiting) = board.queue.pop() {
+        if let Some(m) = board
+            .members
+            .iter_mut()
+            .find(|m| m.facts.agent == waiting.agent)
+        {
+            if let Doing::Queued(item) = &m.facts.doing {
+                m.facts.doing = Doing::Idle(item.clone());
+            }
+        }
+    }
+    done
+}
+
+fn kill_all<P, C>(ports: &P, board: &mut Board<C>) -> Done
+where
+    P: Runs,
+{
+    let mut trees: Vec<(u64, RunId)> = board
+        .runs
+        .iter()
+        .map(|r| (r.rank, r.run.clone()))
+        .chain(board.dying.iter().map(|d| (d.rank, d.run.clone())))
+        .collect();
+    trees.sort();
+    let mut done = answer(None);
+    for (_, run) in trees {
+        if kill_tree(ports, board, &run) {
+            done.killed.push(run);
+        }
+    }
+    done
+}
+
+/// `Runs::kill` for the tree of `run`, which leaves the board when the kill succeeded, with
+/// nothing stored or sent: the quit's kill.
+fn kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
+where
+    P: Runs,
+{
+    if ports.kill(run).is_err() {
+        return false;
+    }
+    board.dying.retain(|d| &d.run != run);
+    if let Some(k) = board.runs.iter().position(|r| &r.run == run) {
+        let live = board.runs.remove(k);
+        if let Some(m) = board
+            .members
+            .iter_mut()
+            .find(|m| m.facts.agent == live.agent)
+        {
+            m.facts.doing = Doing::Idle(None);
+        }
+    }
+    true
+}
+
+fn quit_tick<P>(ports: &P, board: &mut Board<P::Config>, limits: &Limits) -> Done
+where
+    P: Owner + Runs + Analysis + Clock + Rng,
+    P::Config: ConfigView + Clone,
+{
+    let now = match ports.now() {
+        Ok(now) => now,
+        Err(PortError::Busy) => return answer(Some(Cause::Busy)),
+        Err(_) => return answer(Some(Cause::NoService)),
+    };
+    let grace = limits.cancel_grace_s.saturating_mul(1000);
+    let due = |at: u64| now < at || now - at >= grace;
+    let mut trees: Vec<(u64, RunId)> = board
+        .runs
+        .iter()
+        .filter(|r| r.stop.is_some_and(|s| due(s.at)))
+        .map(|r| (r.rank, r.run.clone()))
+        .chain(
+            board
+                .dying
+                .iter()
+                .filter(|d| due(d.stopped))
+                .map(|d| (d.rank, d.run.clone())),
+        )
+        .collect();
+    trees.sort();
+    let mut done = answer(None);
+    for (_, run) in trees {
+        if kill_tree(ports, board, &run) {
+            done.killed.push(run);
+        }
+    }
+    schedule::drive(ports, board, limits, Move::Owed);
+    done
 }
 
 fn phase<C>(board: &mut Board<C>, run: &RunId, mv: RunMove) -> Done {
@@ -410,6 +599,24 @@ fn stop<P>(
 where
     P: Runs + Clock + Owner,
 {
+    let lapsed_first = matches!(by, StopBy::Person | StopBy::WaitLimit);
+    stop_as(ports, board, table, run, by, lapsed_first)
+}
+
+/// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in
+/// the guard's table `state`, which the quit's stop-all does not ask, because the quit lapses
+/// every open item with `app_ended` first (I4.5).
+fn stop_as<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    table: &mut Table,
+    run: &RunId,
+    by: StopBy,
+    lapsed_first: bool,
+) -> Done
+where
+    P: Runs + Clock + Owner,
+{
     let now = match ports.now() {
         Ok(now) => now,
         Err(PortError::Busy) => return answer(Some(Cause::Busy)),
@@ -421,11 +628,15 @@ where
     if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
         return answer(Some(Cause::State));
     }
-    if !table.is_stopped(run) {
-        let _ = ports.cancel(run);
-        *table = table.stop(run);
+    if lapsed_first && matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
+        return answer(Some(Cause::State));
     }
+    let send = !table.is_stopped(run);
+    *table = table.stop(run);
     stop_run(board, run, now, by.cause().end());
+    if send {
+        let _ = ports.cancel(run);
+    }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
     done

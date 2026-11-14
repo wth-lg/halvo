@@ -58,6 +58,9 @@ while ($at < length $program) {
     if (substr($program, $flags, $at - $flags) =~ /r/) {
         refuse(sprintf 'statement %d of the substitution has the r modifier, which changes no file', scalar(@statements) + 1);
     }
+    if (substr($program, $flags, $at - $flags) =~ /e/) {
+        refuse(sprintf 'statement %d of the substitution has the e modifier: a substitution inside its replacement counts as applied when it matched nothing', scalar(@statements) + 1);
+    }
     push @statements, substr($program, $start, $at - $start);
     $at = skip_space($program, $at);
     last if $at >= length $program;

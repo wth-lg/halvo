@@ -26,6 +26,7 @@ scripts/r3/ci.d/10-r3-layout.sh U1.4
 crates/halvo-web/** U2.1
 crates/halvo-connect/** U2.2
 crates/halvo-sheet/** U2.3
+crates/halvo-checkpoint/** U2.3
 crates/halvo-agent-store/** U3.1
 crates/halvo-agent-gate/** U3.2
 scripts/r3/ci.d/20-r3-policy.sh U3.2

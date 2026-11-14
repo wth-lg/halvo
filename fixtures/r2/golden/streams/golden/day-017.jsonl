@@ -1,0 +1,20 @@
+{"v":1,"id":"019bcd21-c0e0-7bca-8103-5f2e1134cb1d","at":1768673100000000000,"seq":66,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019bcd21-c0e0-7b89-9da1-2e4963ee68b8","at":1768673100000000000,"seq":67,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Goldfinch Cart","cut":false,"why":"app_change","site":{"domain":"goldfinch-cart.test","source":"address_field"}}}
+{"v":1,"id":"019bcd22-3228-773d-aabd-5d5a1d420bca","at":1768673129000000000,"seq":68,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcd22-3610-7dff-9bc8-5cd9d8124411","at":1768673130000000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Basket - Goldfinch Cart","cut":false,"why":"title_change","site":{"domain":"goldfinch-cart.test","source":"address_field"}}}
+{"v":1,"id":"019bcd22-5168-7d52-a87a-3aef26aae56e","at":1768673137000000000,"seq":70,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcd22-5d20-7c8f-94e8-5de19c1a3f90","at":1768673140000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcd22-68d8-70b5-9bdc-fbeed9337ebb","at":1768673143000000000,"seq":72,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
+{"v":1,"id":"019bcd22-9ba0-7bca-8085-24e3548986dd","at":1768673156000000000,"seq":73,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcd22-af28-7601-a41a-1e312b1ced7f","at":1768673161000000000,"seq":74,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019bcd22-e5d8-738f-a7c1-9cd1da9eb178","at":1768673175000000000,"seq":75,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay with 4242 4242 4242 4242 - Goldfinch Cart","cut":false,"why":"title_change","site":{"domain":"goldfinch-cart.test","source":"address_field"}}}
+{"v":1,"id":"019bcd22-fd48-7722-9d65-096355840333","at":1768673181000000000,"seq":76,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcd23-10d0-7c1c-b60e-d26a403a78e9","at":1768673186000000000,"seq":77,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019bcd23-3010-7d7b-9d6c-9802e14a77e0","at":1768673194000000000,"seq":78,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
+{"v":1,"id":"019bcd23-4398-7087-a91e-2bf763d2e800","at":1768673199000000000,"seq":79,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019bcd23-4b68-77e2-9483-1bf45b2f64aa","at":1768673201000000000,"seq":80,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019bcd23-8218-75ce-b824-70d29370e5de","at":1768673215000000000,"seq":81,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Confirm order - Goldfinch Cart","cut":false,"why":"title_change","site":{"domain":"goldfinch-cart.test","source":"address_field"}}}
+{"v":1,"id":"019bcd23-89e8-7bb6-9643-08a69d9a07be","at":1768673217000000000,"seq":82,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019bcd24-0ad0-7564-8e26-ae29484d2278","at":1768673250000000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Receipt - Goldfinch Cart","cut":false,"why":"title_change","site":{"domain":"goldfinch-cart.test","source":"address_field"}}}
+{"v":1,"id":"019bcd24-7448-7b10-82ba-a946f1c8d479","at":1768673277000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019bcd24-8000-781d-b157-a746ea518b42","at":1768673280000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}

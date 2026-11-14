@@ -1,0 +1,24 @@
+{
+  "kind": "judge",
+  "ruling": "F3 of P7-69 in the default branch, by P7-76 G3, and the coordinator's answer A (msg_2ca580bc65d5)",
+  "about": "a 500 whose body is the plain text Internal Server Error, on a request that ended in the kill: a text that is no JSON says nothing of what became of the request, so the kill excuses it (the verifier's record of evidence/verifier-21/scripts/a1-extra.mjs line 23)",
+  "source": "evidence/verifier-21/scripts/a1-extra.mjs line 23",
+  "request": {
+    "status": 500,
+    "body": "Internal Server Error",
+    "headersAt": 4039,
+    "endedAt": 4041
+  },
+  "top": {
+    "kill": {
+      "at": 4040,
+      "inFlight": 1
+    },
+    "restartReadyAt": 4500,
+    "firstLedgerReadAt": 9000
+  },
+  "expect": {
+    "counted": false,
+    "violations": []
+  }
+}

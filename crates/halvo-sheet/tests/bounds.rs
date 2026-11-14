@@ -21,7 +21,7 @@ fn one(x: f64) -> Vec<Vec<Value>> {
 fn refused_by_both(scratch: &Scratch, file: &str, label: &str, want: Error) {
     let before = fs::metadata(scratch.path(file)).expect("metadata").len();
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let got = folder
         .prepare(Path::new(file), &run(), "Values", b5, &one(1.0))
@@ -192,7 +192,7 @@ fn an_entry_or_the_entries_over_their_bounds_by_declared_size_are_refused_before
     );
     let four: Vec<_> = five[..4].to_vec();
     with_entries(&scratch.path("four.xlsx"), &four);
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let read = folder.read(
         Path::new("four.xlsx"),
         "Values",
@@ -231,7 +231,7 @@ fn an_entry_that_holds_more_than_it_declares_is_refused_with_the_cause_workbook(
 #[test]
 fn a_range_of_more_than_100000_cells_is_refused_before_anything_else() {
     let scratch = Scratch::new("bounds-range");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let over = Range::parse("A1:A100001").expect("a range");
     let wide = Range::parse("A1:XFD7").expect("a range");
     for range in [over, wide] {
@@ -255,7 +255,7 @@ fn a_range_of_more_than_100000_cells_is_refused_before_anything_else() {
 fn a_fill_of_100000_cells_is_written_checked_and_read_back() {
     let scratch = Scratch::new("bounds-fill");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse("F1:O10000").expect("a range");
     let values: Vec<Vec<Value>> = (0..10_000)
         .map(|row| {
@@ -304,7 +304,7 @@ fn texts(bytes: usize) -> Vec<Vec<Value>> {
 fn refused_before_any_write(scratch: &Scratch, file: &str, label: &str, values: &[Vec<Value>]) {
     let before = fs::read(scratch.path(file)).expect("read");
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse(FILL).expect("a range");
     let start = Instant::now();
     let got = folder.prepare(Path::new(file), &run(), "Values", range, values);
@@ -330,7 +330,7 @@ fn a_fill_whose_cells_cannot_fit_a_sheet_part_is_refused_at_once() {
     for bytes in [300, 900, 2000] {
         let values = texts(bytes);
         let scratch = Scratch::new("bounds-fill-over");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let range = Range::parse(FILL).expect("a range");
         let missing = folder.prepare(Path::new("missing.xlsx"), &run(), "Values", range, &values);
         assert_eq!(
@@ -349,7 +349,7 @@ fn a_fill_just_under_the_bound_is_prepared_replaced_and_read_again() {
     let _one_at_a_time = heavy();
     let scratch = Scratch::new("bounds-fill-under");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse(FILL).expect("a range");
     let values = texts(250);
     let start = Instant::now();

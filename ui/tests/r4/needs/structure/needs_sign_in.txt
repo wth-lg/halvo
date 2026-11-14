@@ -1,0 +1,10 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Sign in for “Ordering from a shop on Site7”","role":"heading"}
+        - {"role":"paragraph","text":"Sign in to the site in its own window, then choose Done."}
+        - {"name":"Stop this time","role":"button"}
+        - {"name":"Done","role":"button"}

@@ -1,0 +1,23 @@
+{
+  "kind": "judge",
+  "ruling": "B-34, as unit 4.5 kept it for a request that died in the kill",
+  "about": "the kill ended the answer while its body was read, so the body cannot be parsed and the table cannot be read; the request died in the kill, as before the unit",
+  "source": "by hand",
+  "request": {
+    "body": "{\"result\":\"sto",
+    "headersAt": 4050,
+    "endedAt": 4060
+  },
+  "top": {
+    "kill": {
+      "at": 4060,
+      "inFlight": 0
+    },
+    "restartReadyAt": 6000,
+    "firstLedgerReadAt": 6100
+  },
+  "expect": {
+    "counted": false,
+    "violations": []
+  }
+}

@@ -1,0 +1,1 @@
+stopped flushed=yes events_lost=0

@@ -235,10 +235,10 @@ fixtures() {
 ^FAIL outbound: denied=$((1 + node_records)) in this run; the number is a sum over the sources, not a count of attempts\$" run sh "$ATTEMPT" "$kind" || failed=1
   done
   fixture bad one-attempt-by-browser 1 "$BROWSER_RECORD_A_GATE_RUN_RELIES_ON
-^outbound: command: browser page: tcp: 
+^outbound: command: browser page: tcp:[ ]
 ^outbound:   chrome-headless-shell\\([0-9]+\\) deny\\(1\\) network-outbound .*:80\$" browser sh "$ATTEMPT" browser || failed=1
   fixture bad browser-tcp-443-after-the-probe 1 "$BROWSER_RECORD_A_GATE_RUN_RELIES_ON
-^outbound: command: browser page: tcp443: 
+^outbound: command: browser page: tcp443:[ ]
 ^outbound:   chrome-headless-shell\\([0-9]+\\) deny\\(1\\) network-outbound .*:443\$" browser node "$HERE/attempt-browser.mjs" tcp443 || failed=1
   fixture bad node-http-to-test-net 1 "$RECORD_A_GATE_RUN_RELIES_ON
 ^outbound:   pid [0-9]+ connect 192\\.0\\.2\\.1\$" run node -e 'require("node:http").get("http://192.0.2.1:9/").on("error", () => {})' || failed=1
@@ -264,7 +264,7 @@ fixtures() {
   fixture bad command-cannot-start 2 '^FAIL outbound: cannot count: .* could not start ' run "$BUILTIN_WITH_NO_FILE" : || failed=1
   fixture good browser-page-on-loopback 0 '^outbound: command: browser page: loaded$
 ^PASS outbound: denied=0 in this run; probes left out=[1-9]' browser sh "$ATTEMPT" browser loopback || failed=1
-  fixture_with GATE_CHECKS_DIR "$HERE/checks" good a-check-drives-the-browser 0 '^outbound: inside: PASS browser-page: 
+  fixture_with GATE_CHECKS_DIR "$HERE/checks" good a-check-drives-the-browser 0 '^outbound: inside: PASS browser-page:[ ]
 ^PASS outbound: denied=0 in this run; probes left out=[1-9]' gate || failed=1
   fixture_with GATE_CHECKS_DIR "$HERE/metering" good check-55-runs-its-bounded-plan-inside 0 '^outbound: inside: (PASS|FAIL) metering: plan=bounded 
 ^PASS outbound: denied=0 in this run' gate || failed=1
@@ -274,7 +274,7 @@ fixtures() {
   fixture_with GATE_CHECKS_DIR "$HERE/main" bad no-check-runs-inside 2 '^FAIL outbound: cannot count: the gate inside the sandbox ended with exit 2, ' gate || failed=1
   fixture bad browser-udp-443-elsewhere 1 "$NO_BROWSER_RECORD_SO_ONLY_THE_NET_LOG_SHOWS_IT
 ^outbound:   [0-9]+ x UDP_CONNECT 192\\.0\\.2\\.1:443\$" browser node "$HERE/attempt-browser.mjs" udp443 || failed=1
-  fixture good browser-udp-443-on-loopback 0 '^outbound: command: browser page: udp443-loopback: 
+  fixture good browser-udp-443-on-loopback 0 '^outbound: command: browser page: udp443-loopback:[ ]
 ^outbound: browser: net log: 0 attempts outside loopback ' browser node "$HERE/attempt-browser.mjs" udp443-loopback || failed=1
   # shellcheck disable=SC2016
   fixture bad browser-net-log-missing 2 '^FAIL outbound: cannot count: the browser left no net log' browser sh -c 'mv "$OUTBOUND_RUN/browser/netlog.json" "$OUTBOUND_RUN/browser/netlog.moved"' || failed=1

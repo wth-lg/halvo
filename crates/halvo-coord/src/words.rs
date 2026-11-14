@@ -339,6 +339,19 @@ pub const KEYS: &[(&str, &str)] = &[
         "item.setup.not_taken",
         "Halvo could not use those answers, so choose them again.",
     ),
+    ("run.effect.payment", "It made this payment."),
+    ("run.effect.purchase", "It placed this order."),
+    ("run.effect.send", "It sent this message."),
+    ("run.effect.delete", "It removed this."),
+    ("run.effect.submit", "It sent this form."),
+    ("run.effect.sign", "It signed this document."),
+    ("run.effect.local_edit", "It changed this file."),
+    ("field.local_edit.file", "File"),
+    ("field.local_edit.range", "Where in the file"),
+    (
+        "line.waiting_turn.store",
+        "It waits while Halvo wraps up the task it did before, and you need to do nothing.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

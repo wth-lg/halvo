@@ -10,7 +10,9 @@ use halvo_schema::learning::names::{EditCause, Mark, RunCause, EDIT_STATES, RUN_
 use halvo_schema::learning::record::{
     Day, EditId, EditState, LearnEdit, LearnRoutine, LearnRun, LearnedTarget, RunStatus, Verdict,
 };
-use halvo_schema::learning::{Refusal, CLEAN_BOUND, LOCATORS_BOUND, RUNS_BOUND};
+use halvo_schema::learning::{
+    Refusal, CLEAN_BOUND, KINDS, LOCATORS_BOUND, RUNS_BOUND, TARGET_BYTES,
+};
 use halvo_schema::{AgentId, AppId, SeedCategory, WorkflowId};
 
 const RUN_EXAMPLE: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","run":"9f8e7d6c5b4a39281706f5e4d3c2b1a0","rev":2,"day":20767,"mode":"replay","state":"verified","cause":null,"base":1,"assisted":1,"kept":1,"failed_step":null}"#;
@@ -180,6 +182,20 @@ fn refusal_edit_extra_key() {
             "{what}: the generic check of the crate takes the line"
         );
     }
+}
+
+#[test]
+fn the_active_reverted_and_withdrawn_rows_pass_the_check_of_the_registered_entry() {
+    let registered = KINDS.iter().find(|k| k.name == "learn_edit").unwrap();
+    for line in [EDIT_ACTIVE, EDIT_REVERTED, EDIT_WITHDRAWN] {
+        assert_eq!(check_record(registered, line), Ok(()), "{line}");
+    }
+}
+
+#[test]
+fn the_stand_in_of_the_edit_kind_is_the_registered_entry() {
+    let registered: Vec<&KindEntry> = KINDS.iter().filter(|k| k.name == "learn_edit").collect();
+    assert_eq!(registered, [&learn_edit_stand_in()]);
 }
 
 #[test]
@@ -1879,5 +1895,159 @@ fn a_key_of_each_record_object_in_another_letter_case_is_refused() {
     assert_eq!(
         routine_refused(&changed(ROUTINE_EXAMPLE, r#""key":"#, r#""Key":"#)),
         ("SiteValue", Some("site"), "site_form")
+    );
+}
+
+fn target_of(bytes: usize) -> String {
+    let locator = |c: char, len: usize| {
+        format!(
+            r#"{{"by":"css","value":"{}","name":null}}"#,
+            c.to_string().repeat(len)
+        )
+    };
+    let desc = "d".repeat(1024);
+    let mut locators: Vec<String> = Vec::new();
+    for c in ['v', 'w', 'x', 'y'] {
+        let used = format!(r#"{{"desc":"{desc}","locators":[{}]}}"#, locators.join(",")).len();
+        let comma = usize::from(!locators.is_empty());
+        let left = bytes - used - comma - locator(c, 0).len();
+        locators.push(locator(c, left.min(1024)));
+        if left <= 1024 {
+            break;
+        }
+    }
+    format!(r#"{{"desc":"{desc}","locators":[{}]}}"#, locators.join(","))
+}
+
+fn edit_with_target(target: &str) -> String {
+    let example = r#"{"desc":"button \"Submit payment\"","locators":[{"by":"role","value":"button","name":"Submit payment"}]}"#;
+    changed(EDIT_EXAMPLE, example, target)
+}
+
+fn target_refused() -> Want {
+    ("LearnedTarget", None, "target_bytes")
+}
+
+fn row_target_refused() -> Want {
+    ("LearnedTarget", Some("target"), "target_bytes")
+}
+
+#[test]
+fn a_target_at_the_byte_bound_is_read_and_written_and_one_byte_more_is_refused_by_each_reader_and_writer(
+) {
+    assert_eq!(TARGET_BYTES, 2048);
+    let at = target_of(TARGET_BYTES);
+    assert_eq!(at.len(), 2048);
+    let target = LearnedTarget::parse(at.as_bytes()).unwrap();
+    assert_eq!(target.to_json().unwrap(), at);
+    assert_eq!(serde_json::to_string(&target).unwrap(), at);
+    let row = LearnEdit::parse(edit_with_target(&at).as_bytes()).unwrap();
+    assert_eq!(row.to_json().unwrap(), edit_with_target(&at));
+
+    let over = target_of(TARGET_BYTES + 1);
+    assert_eq!(over.len(), 2049);
+    let refusal = LearnedTarget::parse(over.as_bytes()).unwrap_err();
+    assert_eq!(parts(&refusal), target_refused());
+    assert_eq!(edit_refused(&edit_with_target(&over)), row_target_refused());
+    let mut long = target.clone();
+    long.locators[0].value = OwnText::parse(&"v".repeat(965)).unwrap();
+    assert_eq!(parts(&long.to_json().unwrap_err()), target_refused());
+    assert!(serde_json::to_string(&long).is_err());
+    let mut long_row = row.clone();
+    long_row.target = long;
+    assert_eq!(parts(&long_row.to_json().unwrap_err()), target_refused());
+    assert!(serde_json::to_string(&long_row).is_err());
+}
+
+#[test]
+fn a_target_at_the_byte_bound_with_white_space_around_it_is_read() {
+    let at = target_of(TARGET_BYTES);
+    let spaced = at
+        .replacen("{\"desc\":", "{ \"desc\" : ", 1)
+        .replacen(",\"locators\":[", " ,\n \"locators\" : [ ", 1)
+        .replacen("}]}", "} ]\n}", 1);
+    assert!(spaced.len() > 2048);
+    let target = LearnedTarget::parse(spaced.as_bytes()).unwrap();
+    assert_eq!(target.to_json().unwrap(), at);
+    let row = edit_with_target(&spaced);
+    assert_eq!(
+        LearnEdit::parse(row.as_bytes()).unwrap().to_json().unwrap(),
+        edit_with_target(&at)
+    );
+}
+
+#[test]
+fn rows_of_3428_6611_and_9677_bytes_with_targets_above_the_bound_are_refused() {
+    let k = |c: char| c.to_string().repeat(1024);
+    let role = |value: String, name: Option<String>| serde_json::json!({"by": "role", "value": value, "name": name});
+    let one = serde_json::json!({"desc": k('d'), "locators": [role(k('a'), Some(k('n')))]});
+    let text = |value: String| serde_json::json!({"by": "text", "value": value, "name": null});
+    let four_one_name = serde_json::json!({"desc": k('d'), "locators": [
+        role(k('a'), Some(k('n'))), text(k('b')), text(k('c')), text(k('e')),
+    ]});
+    let four_names = serde_json::json!({"desc": k('d'), "locators": [
+        role(k('a'), Some(k('n'))), role(k('b'), Some(k('n'))), role(k('c'), Some(k('n'))), role(k('e'), Some(k('n'))),
+    ]});
+    let mut answers = Vec::new();
+    for (target, bytes) in [(one, 3428), (four_one_name, 6611), (four_names, 9677)] {
+        let row = edit_with_target(&target.to_string());
+        assert_eq!(row.len(), bytes);
+        let answer = LearnEdit::parse(row.as_bytes())
+            .map(|_| ())
+            .map_err(|r| parts(&r));
+        answers.push((bytes, answer));
+    }
+    assert_eq!(
+        answers,
+        [
+            (3428, Err(row_target_refused())),
+            (6611, Err(row_target_refused())),
+            (9677, Err(row_target_refused()))
+        ]
+    );
+}
+
+#[test]
+fn the_fullest_edit_row_that_the_writer_writes_holds_at_most_2560_bytes() {
+    let id = |c: char| c.to_string().repeat(32);
+    let at = LearnedTarget::parse(target_of(TARGET_BYTES).as_bytes()).unwrap();
+    let longest = EditCause::ALL
+        .iter()
+        .copied()
+        .max_by_key(|cause| cause.as_str().len())
+        .unwrap();
+    let row = LearnEdit {
+        workflow: WorkflowId::parse(&id('a')).unwrap(),
+        agent: AgentId::parse(&id('b')).unwrap(),
+        edit: EditId::parse(&id('c')).unwrap(),
+        rev: NonZeroU32::MAX,
+        base: NonZeroU32::MAX,
+        n: NonZeroU32::MAX,
+        state: EditState::Reverted(longest),
+        on: Some(EditId::parse(&id('d')).unwrap()),
+        runs: (0..RUNS_BOUND)
+            .map(|i| run_id(&format!("{:032x}", i + 1)))
+            .collect(),
+        first: day(u32::MAX),
+        last: day(u32::MAX),
+        clean: CLEAN_BOUND,
+        target: at,
+    };
+    let json = row.to_json().unwrap();
+    let others = json.len() - TARGET_BYTES;
+    assert!(
+        json.len() <= 2560,
+        "the fullest learn_edit row has {} bytes, {} of them outside the target",
+        json.len(),
+        others
+    );
+    assert!(
+        others < 512,
+        "the keys outside the target take {others} bytes"
+    );
+    println!(
+        "fullest learn_edit row: {} bytes, outside the target {} bytes",
+        json.len(),
+        others
     );
 }

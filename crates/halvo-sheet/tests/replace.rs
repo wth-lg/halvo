@@ -30,7 +30,7 @@ struct Setup {
 fn setup(scratch: &Scratch) -> Setup {
     fs::copy(corpus(FILE), scratch.path(FILE)).expect("copy");
     let before = fs::read(scratch.path(FILE)).expect("read");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse("B5").expect("a range");
     let values = vec![vec![Value::Number(77.0)]];
@@ -180,7 +180,7 @@ fn a_directory_turned_into_a_link_after_prepare_is_not_written_through() {
     fs::create_dir_all(scratch.path("sub")).expect("make the directory");
     fs::copy(corpus(FILE), scratch.path("sub").join(FILE)).expect("copy");
     let before = fs::read(scratch.path("sub").join(FILE)).expect("read");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse("B5").expect("a range");
     let values = vec![vec![Value::Number(77.0)]];
@@ -237,7 +237,7 @@ fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_repl
     let scratch = Scratch::new("replace-folder");
     let s = setup(&scratch);
     let other = Scratch::new("replace-other-folder");
-    let elsewhere = Folder::new(&other.dir).expect("the folder opens");
+    let elsewhere = Folder::new(&other.dir, common::locks()).expect("the folder opens");
     assert_eq!(
         elsewhere.replace(&s.prepared),
         Err(Error::Path(halvo_sheet::PathRefusal::Outside))

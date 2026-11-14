@@ -1,8 +1,9 @@
 #!/bin/sh
 # jobs: macos
-# rule: shellcheck reports nothing for a tracked *.sh file, and no masked return status under scripts/r1-gate, scripts/ci and scripts/r1/ci.d.
+# rule: shellcheck at its pinned version reports nothing for a tracked *.sh file, and no masked return status under scripts/r1-gate, scripts/ci and scripts/r1/ci.d.
 set -u
 name=16-shell-lint
+pinned_version=0.11.0
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -25,6 +26,8 @@ measure() {
   version=$(shellcheck --version) || fail "shellcheck --version failed"
   version=$(printf '%s\n' "$version" | sed -n 's/^version: //p')
   printf 'shellcheck version: %s\n' "$version"
+  [ "$version" = "$pinned_version" ] ||
+    fail "shellcheck $version runs here, and the pinned version is $pinned_version: the runner image changed the tool, so read its release notes, then move the pin in scripts/r1/ci.d/16-shell-lint.sh"
   lists=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
 
   git ls-files -z -- '*.sh' >"$lists/tracked" || fail "git ls-files failed"
@@ -91,7 +94,7 @@ self_test() {
     exit 1
   fi
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/artifacts" "$work/no-tools" "$work/tools"
+  mkdir -p "$work/artifacts" "$work/no-tools" "$work/tools" "$work/old-tools"
   shell=$(command -v sh) || exit 2
   STUB_REAL=$(command -v shellcheck) || exit 2
   STUB_TOOLS=$work/tools
@@ -132,6 +135,11 @@ EOF
   check no-tracked-script FAIL 'git lists no tracked *.sh file)'
   tree no-script-in-the-second-pass scripts/clean.sh
   check no-script-in-the-second-pass FAIL 'git lists no script under scripts/r1-gate, scripts/ci and scripts/r1/ci.d)'
+  tree another-shellcheck-version scripts/ci/clean.sh
+  printf '#!/bin/sh\ncase "%s1" in --version) printf "ShellCheck\\nversion: 0.10.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/shellcheck"
+  chmod +x "$work/old-tools/shellcheck"
+  path=$work/old-tools:$PATH
+  check another-shellcheck-version FAIL 'shellcheck 0.10.0 runs here, and the pinned version is 0.11.0'
   tree shellcheck-missing scripts/ci/clean.sh
   path=$work/no-tools
   check shellcheck-missing SKIP 'SKIP 16-shell-lint (shellcheck is not installed)'

@@ -1,0 +1,111 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"name":"All set","role":"region"}
+      - {"level":3,"name":"All set","role":"heading"}
+      - {"role":"list"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Filling in a spreadsheet on Site6","role":"heading"}
+            - {"name":"Filling in a spreadsheet on Site6","role":"button"}
+          - {"role":"paragraph","text":"All set"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it found nothing to do."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
+            - {"name":"Ordering from a shop on Site7","role":"button"}
+          - {"role":"paragraph","text":"All set"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it finished its task."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Paying a utility bill on Site1","role":"heading"}
+            - {"expanded":true,"name":"Paying a utility bill on Site1","role":"button"}
+          - {"role":"paragraph","text":"All set"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it finished its task."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+          - {"name":"Paying a utility bill on Site1","role":"group"}
+            - {"role":"list"}
+              - {"role":"listitem","text":"Standard"}
+              - {"role":"listitem","text":"It runs on this computer."}
+              - {"role":"listitem","text":"It asks you before it pays, orders, sends, signs, submits, or removes anything."}
+              - {"role":"listitem","text":"It stops if its task takes more than 2 minutes."}
+            - {"role":"paragraph","text":"23 November 2026"}
+            - {"role":"list"}
+              - {"role":"listitem"}
+                - {"role":"paragraph","text":"24 October 2026"}
+                - {"role":"paragraph","text":"It finished the task."}
+                - {"role":"list"}
+                  - {"role":"listitem"}
+                    - {"role":"paragraph","text":"It made this payment."}
+                    - {"role":"term","text":"Pay to"}
+                    - {"role":"definition","text":"City Power You gave this"}
+                    - {"role":"term","text":"Amount"}
+                    - {"role":"definition","text":"42.10 USD From the site"}
+                    - {"role":"term","text":"Pay with"}
+                    - {"role":"definition","text":"Card ending 4242 You gave this"}
+                    - {"role":"term","text":"Site"}
+                    - {"role":"definition","text":"site1.example Set by Halvo"}
+              - {"role":"listitem"}
+                - {"role":"paragraph","text":"24 September 2026"}
+                - {"role":"paragraph","text":"It found nothing to do."}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Tidying a calendar on Site8","role":"heading"}
+            - {"name":"Tidying a calendar on Site8","role":"button"}
+          - {"role":"paragraph","text":"All set"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it finished its task."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
+            - {"name":"Writing or answering email on Site5","role":"button"}
+          - {"role":"paragraph","text":"All set"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Last time, it finished its task."}
+          - {"name":"Start now","role":"button"}
+          - {"name":"Switch off","role":"button"}
+    - {"name":"Not yet","role":"region"}
+      - {"level":3,"name":"Not yet","role":"heading"}
+      - {"role":"list"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Checking a chart on Site10","role":"heading"}
+            - {"name":"Checking a chart on Site10","role":"button"}
+          - {"role":"paragraph","text":"Not yet"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Handling a tenant's rent on Site2","role":"heading"}
+            - {"name":"Handling a tenant's rent on Site2","role":"button"}
+          - {"role":"paragraph","text":"Not yet"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Ordering a ride on Site9","role":"heading"}
+            - {"name":"Ordering a ride on Site9","role":"button"}
+          - {"role":"paragraph","text":"Not yet"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Renewing or changing a lease on Site3","role":"heading"}
+            - {"name":"Renewing or changing a lease on Site3","role":"button"}
+          - {"role":"paragraph","text":"Not yet"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
+          - {"name":"Switch off","role":"button"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Reviewing a tenant application on Site4","role":"heading"}
+            - {"name":"Reviewing a tenant application on Site4","role":"button"}
+          - {"role":"paragraph","text":"Not yet"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
+          - {"name":"Switch off","role":"button"}

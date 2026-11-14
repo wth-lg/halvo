@@ -1,0 +1,10 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Show “Ordering from a shop on Site7” how to do the task","role":"heading"}
+        - {"role":"paragraph","text":"Do the task once in its own window while it watches, then choose Done."}
+        - {"name":"Stop this time","role":"button"}
+        - {"name":"Done","role":"button"}

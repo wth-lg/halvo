@@ -522,6 +522,26 @@ const PAYMENT: [&str; 4] = [
     "site1.example",
 ];
 
+const MIXED_SEND: [&str; 3] = [
+    "Ann Lee",
+    "Rent receipt for October",
+    "Thank you. Your rent for October came in.",
+];
+
+const MIXED_DELETE: [&str; 1] = ["Draft to Ann Lee from October"];
+
+const CHANGED_BEFORE: [&str; 3] = [
+    "Ben Ola",
+    "Viewing on Friday",
+    "Friday at 10 works for the viewing.",
+];
+
+const CHANGED_SEND: [&str; 3] = [
+    "Ben Ola",
+    "Viewing on Friday",
+    "Friday at 11 works for the viewing.",
+];
+
 /// The items of the fixture states, composed from what each state holds, equal the items that
 /// the fixture files hold (I8.3).
 #[test]
@@ -538,6 +558,8 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
         "needs_check",
         "needs_confirm_page",
         "needs_confirm_native",
+        "needs_confirm_mixed",
+        "needs_confirm_changed",
     ];
     for state in states {
         let file = fixture(state);
@@ -641,6 +663,31 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                 )
                 .unwrap();
                 compose_confirm(&item, &ask, &armed(&ask), &Table::new())
+            }
+            "confirm" if state == "needs_confirm_mixed" => {
+                let ask = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    vec![
+                        effect(1, Class::Send, bound(Class::Send, &MIXED_SEND)),
+                        effect(2, Class::Delete, bound(Class::Delete, &MIXED_DELETE)),
+                    ],
+                )
+                .unwrap();
+                compose_confirm(&item, &ask, &armed(&ask), &Table::new())
+            }
+            "confirm" if state == "needs_confirm_changed" => {
+                let earlier = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    vec![effect(1, Class::Send, bound(Class::Send, &CHANGED_BEFORE))],
+                )
+                .unwrap();
+                let table = released_table(&Table::new(), 9, &earlier, EffectAnswer::AllowOnce);
+                let mut again = effect(1, Class::Send, bound(Class::Send, &CHANGED_SEND));
+                again.digest = digest(2);
+                let ask = ConfirmAsk::new(run_id(1), agent.clone(), vec![again]).unwrap();
+                compose_confirm(&item, &ask, &armed(&ask), &table)
             }
             "confirm" => {
                 let ask = ConfirmAsk::new(

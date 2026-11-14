@@ -349,6 +349,18 @@ impl Fs for Memory {
     fn sync_dir(&self, dir: &PathBuf) -> io::Result<()> {
         self.step("sync_dir", dir)
     }
+
+    fn names(&self, dir: &PathBuf) -> io::Result<Vec<String>> {
+        self.step("names", dir)?;
+        Ok(self
+            .entries
+            .borrow()
+            .keys()
+            .filter(|path| path.parent() == Some(dir.as_path()))
+            .filter_map(|path| path.file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .collect())
+    }
 }
 
 struct Reversed;
@@ -1188,4 +1200,230 @@ fn an_error_that_carries_a_code_answers_a_fault_with_that_code_and_never_locked(
         Stop::fault(&io::Error::other("no code")),
         Fault { code: -1 }
     );
+}
+
+fn claimed_paths(memory: &Memory) -> Vec<String> {
+    memory
+        .paths()
+        .into_iter()
+        .filter(|path| path.ends_with(".claim"))
+        .collect()
+}
+
+fn bytes_at(memory: &Memory, path: &str) -> Option<Vec<u8>> {
+    memory.entry(path).map(|entry| entry.bytes)
+}
+
+#[test]
+fn a_removal_for_a_move_claims_the_file_compares_it_and_only_then_removes_it() {
+    let store = item(stored());
+    assert_eq!(store.remove_if_holds(b"the stored secret"), Claim::Removed);
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+    assert!(claimed_paths(&store.fs).is_empty());
+    let steps = step_names(&store.fs);
+    let at = |name: &str| steps.iter().position(|step| step == name);
+    assert!(at("publish") < at("read_item"), "{steps:?}");
+    assert!(at("read_item") < at("remove"), "{steps:?}");
+    assert!(at("remove") < at("sync_dir"), "{steps:?}");
+}
+
+#[test]
+fn a_removal_for_a_move_names_another_file_back_and_removes_nothing() {
+    let store = item(stored());
+    assert_eq!(store.remove_if_holds(b"the moved secret!"), Claim::Other);
+    assert_eq!(
+        bytes_at(&store.fs, PATH),
+        Some(b"the stored secret".to_vec())
+    );
+    assert!(claimed_paths(&store.fs).is_empty());
+    assert!(!step_names(&store.fs).contains(&"remove".to_string()));
+}
+
+#[test]
+fn a_removal_for_a_move_finds_no_file_and_answers_absent() {
+    let store = item(Memory::with(&[(DIR, Entry::dir(0o700))]));
+    assert_eq!(store.remove_if_holds(b"x"), Claim::Absent);
+    let store = item(Memory::new());
+    assert_eq!(store.remove_if_holds(b"x"), Claim::Absent);
+}
+
+#[test]
+fn a_claimed_file_that_cannot_be_named_back_stays_under_its_private_name() {
+    let store = item(stored().failing_call("publish", 2, EIO));
+    assert_eq!(store.remove_if_holds(b"the moved secret!"), Claim::Stranded);
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+    let private = claimed_paths(&store.fs);
+    assert_eq!(private.len(), 1, "{private:?}");
+    assert!(private[0].starts_with("/store/.account."), "{private:?}");
+    assert!(matches!(store.read(), Read::NotStored));
+}
+
+#[test]
+fn a_claimed_file_whose_removal_fails_is_named_back_with_the_failure() {
+    let store = item(stored().failing("remove", EIO));
+    assert_eq!(
+        store.remove_if_holds(b"the stored secret"),
+        Claim::Fault(fault_of(EIO))
+    );
+    assert_eq!(
+        bytes_at(&store.fs, PATH),
+        Some(b"the stored secret".to_vec())
+    );
+    assert!(claimed_paths(&store.fs).is_empty());
+}
+
+#[test]
+fn a_removal_for_a_move_whose_directory_sync_fails_answers_a_fault() {
+    let store = item(stored().failing("sync_dir", EIO));
+    assert_eq!(
+        store.remove_if_holds(b"the stored secret"),
+        Claim::Fault(fault_of(EIO))
+    );
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+}
+
+#[test]
+fn a_claim_that_the_system_refuses_answers_its_class_and_moves_nothing() {
+    for code in REFUSALS {
+        let store = item(stored().failing("publish", code));
+        let answer = match class(code) {
+            Ok(locked) => Claim::Locked(locked),
+            Err(fault) => Claim::Fault(fault),
+        };
+        assert_eq!(store.remove_if_holds(b"the stored secret"), answer);
+        assert_eq!(
+            bytes_at(&store.fs, PATH),
+            Some(b"the stored secret".to_vec())
+        );
+    }
+}
+
+#[test]
+fn a_file_that_breaks_a_rule_is_not_claimed() {
+    let store = item(Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (PATH, Entry::file(0o644, b"the stored secret")),
+    ]));
+    assert_eq!(
+        store.remove_if_holds(b"the stored secret"),
+        Claim::Locked(Locked::Mode)
+    );
+    assert!(!step_names(&store.fs).contains(&"publish".to_string()));
+}
+
+const CLAIMED_PATH: &str = "/store/.account.7.0.claim";
+
+fn claimed(bytes: &[u8]) -> Memory {
+    Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (CLAIMED_PATH, Entry::file(0o600, bytes)),
+    ])
+}
+
+#[test]
+fn a_claimed_file_that_holds_the_keychain_bytes_is_removed() {
+    let store = item(claimed(b"the moved secret"));
+    assert_eq!(store.settle_claimed(Some(b"the moved secret")), Ok(()));
+    assert!(claimed_paths(&store.fs).is_empty());
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+    assert!(step_names(&store.fs).contains(&"sync_dir".to_string()));
+}
+
+#[test]
+fn a_claimed_file_beside_other_keychain_bytes_or_none_is_put_back_under_the_name() {
+    for keychain in [Some(&b"another secret"[..]), None] {
+        let store = item(claimed(b"the moved secret"));
+        assert_eq!(store.settle_claimed(keychain), Ok(()));
+        assert!(claimed_paths(&store.fs).is_empty());
+        assert_eq!(
+            bytes_at(&store.fs, PATH),
+            Some(b"the moved secret".to_vec())
+        );
+    }
+}
+
+#[test]
+fn a_claimed_file_that_cannot_be_put_back_or_read_or_removed_answers_the_failure() {
+    let store = item(claimed(b"the moved secret"));
+    store.fs.put(PATH, Entry::file(0o600, b"a later secret"));
+    assert_eq!(store.settle_claimed(None), Err(Err(Fault { code: -1 })));
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+    assert_eq!(bytes_at(&store.fs, PATH), Some(b"a later secret".to_vec()));
+
+    let store = item(Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (CLAIMED_PATH, Entry::file(0o644, b"the moved secret")),
+    ]));
+    assert_eq!(store.settle_claimed(None), Err(Ok(Locked::Mode)));
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+
+    let store = item(claimed(b"the moved secret").failing("read_item", EIO));
+    assert_eq!(store.settle_claimed(None), Err(Err(fault_of(EIO))));
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+    assert_eq!(bytes_at(&store.fs, PATH), None);
+
+    let store = item(claimed(b"the moved secret").failing("remove", EIO));
+    assert_eq!(
+        store.settle_claimed(Some(b"the moved secret")),
+        Err(Err(fault_of(EIO)))
+    );
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+
+    let store = item(claimed(b"the moved secret").failing("sync_dir", EIO));
+    assert_eq!(
+        store.settle_claimed(Some(b"the moved secret")),
+        Err(Err(fault_of(EIO)))
+    );
+
+    let store = item(claimed(b"the moved secret").failing("names", EIO));
+    assert_eq!(store.settle_claimed(None), Err(Err(fault_of(EIO))));
+    assert_eq!(claimed_paths(&store.fs).len(), 1);
+
+    let store = item(claimed(b"the moved secret").failing("publish", EACCES));
+    let answer = match class(EACCES) {
+        Ok(locked) => Err(Ok(locked)),
+        Err(fault) => Err(Err(fault)),
+    };
+    assert_eq!(store.settle_claimed(None), answer);
+}
+
+#[test]
+fn claimed_files_are_settled_one_by_one_and_no_other_name_is_touched() {
+    let others = [
+        "/store/.account.7.0.tmp",
+        "/store/.account.x.0.claim",
+        "/store/.account.7.claim",
+        "/store/.account.7.0.1.claim",
+        "/store/.other.7.0.claim",
+        "/store/account.7.0.claim",
+        "/store/.account..0.claim",
+    ];
+    let memory = claimed(b"the moved secret");
+    memory.put(
+        "/store/.account.8.3.claim",
+        Entry::file(0o600, b"another secret"),
+    );
+    for other in others {
+        memory.put(other, Entry::file(0o600, b"not a claim"));
+    }
+    let store = item(memory);
+    assert_eq!(store.settle_claimed(Some(b"the moved secret")), Ok(()));
+    assert!(claimed_paths(&store.fs)
+        .iter()
+        .all(|path| others.contains(&path.as_str())));
+    assert_eq!(bytes_at(&store.fs, PATH), Some(b"another secret".to_vec()));
+    for other in others {
+        assert_eq!(
+            bytes_at(&store.fs, other),
+            Some(b"not a claim".to_vec()),
+            "{other}"
+        );
+    }
+}
+
+#[test]
+fn a_store_directory_that_is_absent_has_no_claimed_file() {
+    let store = item(Memory::new());
+    assert_eq!(store.settle_claimed(None), Ok(()));
+    assert!(!step_names(&store.fs).contains(&"names".to_string()));
 }

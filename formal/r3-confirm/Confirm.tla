@@ -247,7 +247,7 @@ Send(e) ==
   /\ mem[e] = "begun"
   /\ Len(wire[e]) < 2
   /\ wire' = [wire EXCEPT ![e] = Append(@, [dig |-> val[e], row |-> eff[e].st, after |-> seen[e].rel,
-                                           shown |-> LastShown(seen[e]), reply |-> "no"])]
+                                           shown |-> LastShown(seen[e]), reply |-> "no", alive |-> alive])]
   /\ mem' = [mem EXCEPT ![e] = "sent"]
   /\ UNCHANGED <<cfg, eff, val, alive, given, seen>>
 
@@ -341,6 +341,7 @@ P10 ==
     \A i \in DOMAIN wire[e] :
       LET w == wire[e][i]
       IN /\ w.row = "releasing"
+         /\ w.alive = "yes"
          /\ Len(w.after) > 0
          /\ w.dig = w.after[Len(w.after)].dig
          /\ "confirm" \in seen[e].decs => w.dig = w.shown
