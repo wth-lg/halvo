@@ -488,9 +488,14 @@ check() {
     git() {
       stand_in_git "$@"
     }
-    cargo() {
-      stand_in_cargo "$@"
-    }
+    if [ -e "$FX/no-cargo" ]; then
+      mkdir -p "$work/no-cargo-path" || exit 1
+      PATH=$work/no-cargo-path:/usr/bin:/bin
+    else
+      cargo() {
+        stand_in_cargo "$@"
+      }
+    fi
     unset CARGO_TARGET_DIR
     export FX
     CI_D_REPO=$fx_repo
@@ -593,15 +598,22 @@ self_test() {
   calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
 
-  fixture old-files-under-target
-  mkdir -p "$fx_repo/target/debug" || broken
-  for old in learn-gate learn-gate.exe; do
-    old_gate >"$fx_repo/target/debug/$old" || broken
-    chmod +x "$fx_repo/target/debug/$old" || broken
+  for olds in 'learn-gate learn-gate.exe' learn-gate learn-gate.exe; do
+    fixture "old-files-under-target-$(printf '%s' "$olds" | tr ' ' '+')"
+    mkdir -p "$fx_repo/target/debug" || broken
+    for old in $olds; do
+      old_gate >"$fx_repo/target/debug/$old" || broken
+      chmod +x "$fx_repo/target/debug/$old" || broken
+    done
+    check PASS 'readers same=2 of=2'
+    calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+      "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
   done
-  check PASS 'readers same=2 of=2'
-  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
-    "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+
+  fixture no-cargo
+  : >"$FX/no-cargo"
+  check FAIL-cargo "FAIL $name (cargo)"
+  calls_are
 
   fixture derived-taken
   : >"$FX/derived"
@@ -637,7 +649,7 @@ self_test() {
     "gate $held --store derived" "gate $held --store derived --restart-all"
 
   for at in first second; do
-    for form in other-detail second-line blank-line-after beside-output status-1; do
+    for form in other-detail second-line blank-line-after longer-line beside-output blank-output status-1 status-3; do
       fixture "derived-$at-$form"
       code=2
       : >"$FX/derived-$at.out" || broken
@@ -645,6 +657,15 @@ self_test() {
         other-detail) printf 'REFUSED store: the data directory cannot be opened\n' ;;
         second-line) printf 'a line before it\n%s\n' "$not_built" ;;
         blank-line-after) printf '%s\n\n' "$not_built" ;;
+        longer-line) printf '%s yet\n' "$not_built" ;;
+        blank-output)
+          printf '\n' >"$FX/derived-$at.out" || broken
+          printf '%s\n' "$not_built"
+          ;;
+        status-3)
+          code=3
+          printf '%s\n' "$not_built"
+          ;;
         beside-output)
           printf 'drift result=ok\n' >"$FX/derived-$at.out" || broken
           printf '%s\n' "$not_built"
@@ -666,6 +687,16 @@ self_test() {
           calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
             "gate $dev --store derived --restart-all"
           ;;
+        first:status-3)
+          check FAIL-exit "FAIL $name (exit)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
+            "gate $dev --store memory --restart-all"
+          ;;
+        second:status-3)
+          check FAIL-exit "FAIL $name (exit)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+            "gate $dev --store derived --restart-all"
+          ;;
         first:*)
           check FAIL-refused "FAIL $name (refused)"
           calls_are "$build" "gate $dev --store derived"
@@ -679,14 +710,20 @@ self_test() {
     done
   done
 
-  for at in first second; do
-    fixture "stderr-in-the-$at-play-at-status-0"
-    printf 'warning: a line of the build\n' >"$FX/dev-$at.err" || broken
-    check FAIL-stderr "FAIL $name (stderr)"
-  done
+  fixture stderr-in-the-first-play-at-status-0
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-second-play-at-status-0
+  printf '\n' >"$FX/dev-second.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
 
   fixture stderr-in-a-held-out-play-at-status-0 heldout
   printf 'warning: a line of the build\n' >"$FX/heldout-second.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-development-set-of-two heldout
+  printf 'x\n' >"$FX/dev-first.err" || broken
   check FAIL-stderr "FAIL $name (stderr)"
 
   fixture two-changed-files-before-the-run

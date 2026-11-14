@@ -88,6 +88,26 @@ fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_
 }
 
 #[test]
+fn routine_the_open_of_day_730_removes_the_rows_of_an_occurrence_on_day_637() {
+    let train = sample().remove(99);
+    assert!(train.days.contains(&637));
+    let gone = |d: u32| d + 93 <= LAST_DAY;
+    let count = |keep: &dyn Fn(u32) -> bool| train.days.iter().filter(|d| keep(**d)).count() as u32;
+    let summaries = play(&train, Stream::Summaries).expect("a play");
+    let replay = play(&train, Stream::Replay).expect("a play");
+    assert_eq!((summaries.differs_on, replay.differs_on), (None, None));
+    assert_eq!(summaries.expired_summaries, count(&gone));
+    assert_eq!(
+        replay.expired_summaries,
+        count(&|d| d < REPLAY_FROM && gone(d))
+    );
+    assert_eq!(
+        replay.expired_runs - summaries.expired_runs,
+        2 * count(&|d| d >= REPLAY_FROM && gone(d))
+    );
+}
+
+#[test]
 fn routine_opens_the_store_and_the_batches_on_every_day_also_after_a_stop_trains_last_occurrence() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -527,18 +547,24 @@ fn routine_reader_refuses_a_kind_that_is_not_the_kind_of_the_trains_number() {
             "{kind} {train}"
         );
     }
-    for (train, kind) in [
-        (1, "same"),
-        (100, "same"),
-        (101, "stop"),
-        (150, "stop"),
-        (151, "shift"),
-        (200, "shift"),
-    ] {
-        assert!(
-            read_sample(line(train, kind).as_bytes()).is_ok(),
-            "{kind} {train}"
-        );
+    for train in 1..=200 {
+        let right = match train {
+            1..=100 => "same",
+            101..=150 => "stop",
+            _ => "shift",
+        };
+        for kind in ["same", "stop", "shift"] {
+            let read = read_sample(line(train, kind).as_bytes());
+            if kind == right {
+                assert!(read.is_ok(), "{kind} {train}");
+            } else {
+                assert_eq!(
+                    read,
+                    Err("line 1 of the sample is no train".to_owned()),
+                    "{kind} {train}"
+                );
+            }
+        }
     }
 }
 
@@ -622,12 +648,12 @@ fn panics_at_train_120_replay(train: &Train, stream: Stream) -> Result<Played, S
     Ok(marked(train, stream))
 }
 
-#[test]
-fn routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message(
-) {
-    let name = "tests::routine::routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message";
+fn in_a_child(
+    name: &str,
+    play_one: fn(&Train, Stream) -> Result<Played, String>,
+) -> (Option<i32>, String) {
     if std::env::var_os(PANIC_CHILD).is_some() {
-        match report_with(&marked_trains(), 4, panics_at_train_120_replay) {
+        match report_with(&marked_trains(), 4, play_one) {
             Ok(_) => std::process::exit(0),
             Err(refusal) => {
                 eprintln!("{}", refusal.line());
@@ -641,8 +667,45 @@ fn routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with
         .stdin(std::process::Stdio::null())
         .output()
         .expect("the child run");
-    let err = String::from_utf8(child.stderr).expect("UTF-8 on standard error");
-    assert_eq!(child.status.code(), Some(2), "{err}");
+    (
+        child.status.code(),
+        String::from_utf8(child.stderr).expect("UTF-8 on standard error"),
+    )
+}
+
+fn panics_outside_a_play_at_train_7(train: &Train, stream: Stream) -> Result<Played, String> {
+    if train.days[0] == 7 && stream == Stream::Summaries {
+        let outside = std::thread::spawn(|| panic!("a panic outside the plays"));
+        assert!(outside.join().is_err());
+    }
+    panics_at_train_120_replay(train, stream)
+}
+
+#[test]
+fn routine_a_panic_outside_the_plays_while_they_run_goes_to_the_hook_that_was_there_before() {
+    let (code, err) = in_a_child(
+        "tests::routine::routine_a_panic_outside_the_plays_while_they_run_goes_to_the_hook_that_was_there_before",
+        panics_outside_a_play_at_train_7,
+    );
+    assert_eq!(code, Some(2), "{err}");
+    assert!(err.contains("a panic outside the plays"), "{err}");
+    assert_eq!(err.matches("a play that panics").count(), 1, "{err}");
+    assert!(
+        err.lines().last().is_some_and(|l| l.starts_with(
+            "REFUSED store: train 120: the play panicked: a play that panics, on line "
+        )),
+        "{err}"
+    );
+}
+
+#[test]
+fn routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message(
+) {
+    let (code, err) = in_a_child(
+        "tests::routine::routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message",
+        panics_at_train_120_replay,
+    );
+    assert_eq!(code, Some(2), "{err}");
     let at = err
         .split("on line ")
         .nth(1)

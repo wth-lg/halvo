@@ -295,12 +295,16 @@ tree_case() {
     printf '%s\n' "$4" >>"$TREE_DIR/status" || broken
   fi
   tree_gate >"$TREE_DIR/gate.sh" || broken
-  if [ "$label" = old-files ]; then
-    for old in learn-gate learn-gate.exe; do
-      old_gate >"$TREE_DIR/repo/target/debug/$old" || broken
-      chmod +x "$TREE_DIR/repo/target/debug/$old" || broken
-    done
-  fi
+  case $label in
+    old-files) olds='learn-gate learn-gate.exe' ;;
+    old-file-plain) olds=learn-gate ;;
+    old-file-exe) olds=learn-gate.exe ;;
+    *) olds= ;;
+  esac
+  for old in $olds; do
+    old_gate >"$TREE_DIR/repo/target/debug/$old" || broken
+    chmod +x "$TREE_DIR/repo/target/debug/$old" || broken
+  done
   out=$(
     git() {
       tree_git "$@"
@@ -343,7 +347,7 @@ tree_case() {
     build-fails)
       [ ! -e "$TREE_DIR/gate.calls" ] || got=$got-after-a-gate-call
       ;;
-    old-files)
+    old-files | old-file-plain | old-file-exe)
       printf '%s\n' 'build --locked -p halvo-learn-gate --bin learn-gate' \
         'run --locked -q -p halvo-learn-gate --bin learn-gate -- routine' \
         'run --locked -q -p halvo-learn-gate --bin learn-gate -- routine --store derived' >"$TREE_DIR/cargo.wanted" || broken
@@ -378,6 +382,8 @@ tree_cases() {
   tree_case heldout-name-not-shown FAIL-tree 'tree changed=before files=1' "$heldout" "" "" ok yes zephyrcalyx
   tree_case untracked-before PASS "PASS $name" '? notes.txt' "" "" ok yes
   tree_case old-files PASS "PASS $name" "" "" "" ok yes
+  tree_case old-file-plain PASS "PASS $name" "" "" "" ok yes
+  tree_case old-file-exe PASS "PASS $name" "" "" "" ok yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
   tree_case play-changes FAIL-tree 'tree changed=after-gate' "" gate "$later" ok yes
   tree_case no-cargo FAIL-cargo "FAIL $name (cargo)" "" "" "" ok no
@@ -418,15 +424,15 @@ self_test() {
   self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
   self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
   self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
-  self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "warning: a line of the build$nl"
-  self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "warning: a line of the build$nl" 0
+  self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "$nl"
+  self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "x$nl" 0
   tree_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 2 ] || [ "$tree_rejected" -ne 9 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 2, and rejected %s, not 9)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 4 ] || [ "$tree_rejected" -ne 9 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 4, and rejected %s, not 9)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
