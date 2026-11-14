@@ -198,6 +198,20 @@ fn a_refusal_at_the_shutdown_settle_prints_no_kind() {
     );
 }
 
+/// Ruling DM-13 (1): a fault of another kind at the Shutdown's own settle is
+/// the kind of the loss line (the verifier's witness): every write answers Io
+/// until the Shutdown, whose settle meets the database's code 11.
+#[test]
+fn a_fault_of_another_kind_at_the_shutdown_settle_is_the_kind_of_the_line() {
+    let (outcome, _) = shutdown_case(Some(WriteFault::Db(11)));
+    let line = outcome.loss.map(|loss| loss.line).unwrap_or_default();
+    assert!(line.contains("lost events=4 "), "{line}");
+    assert!(
+        line.ends_with(" error=db"),
+        "the last fault was the database's: {line}"
+    );
+}
+
 /// Ruling DM-12 A2 (K2), adversary 2's third sequence: the first try stores
 /// and answers Io, the Shutdown's try answers AlreadyWritten.
 #[test]
