@@ -2828,11 +2828,13 @@ fn detector_line(test: &str, at: &str) {
         test,
         format!(
             "detector at={at} attach={attach} own_reads_since_the_start={} read_in_flight={} \
-             read_in_flight_since_ms={}",
+             read_in_flight_since_ms={} focus_handler_entered={} focus_handler_ended={}",
             seen.own_reads,
             seen.read_since.is_some(),
             seen.read_since
-                .map_or(-1, |since| i64::from(now.wrapping_sub(since)))
+                .map_or(-1, |since| i64::from(now.wrapping_sub(since))),
+            seen.handler_entered,
+            seen.handler_ended,
         ),
     );
 }

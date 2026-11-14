@@ -551,12 +551,19 @@ pub mod seam {
         /// The tick at which the own read that is running began; none when no
         /// own read runs.
         pub read_since: Option<u32>,
+        /// The calls of the focus-event handler entered since the last start.
+        pub handler_entered: u64,
+        /// The calls of the focus-event handler that ended since the last
+        /// start.
+        pub handler_ended: u64,
     }
 
     static DETECTOR: Mutex<DetectorSeen> = Mutex::new(DetectorSeen {
         attach: None,
         own_reads: 0,
         read_since: None,
+        handler_entered: 0,
+        handler_ended: 0,
     });
 
     fn detector_now() -> std::sync::MutexGuard<'static, DetectorSeen> {
@@ -567,6 +574,16 @@ pub mod seam {
         let mut seen = detector_now();
         seen.own_reads = 0;
         seen.read_since = None;
+        seen.handler_entered = 0;
+        seen.handler_ended = 0;
+    }
+
+    pub(crate) fn handler_entered() {
+        detector_now().handler_entered += 1;
+    }
+
+    pub(crate) fn handler_ended() {
+        detector_now().handler_ended += 1;
     }
 
     pub(crate) fn detector_attached(answer: Result<(), String>) {
@@ -2304,6 +2321,10 @@ mod tests {
 
     impl OwnWindow {
         fn in_front() -> (OwnWindow, bool) {
+            OwnWindow::in_front_of("EDIT")
+        }
+
+        fn in_front_of(class: &'static str) -> (OwnWindow, bool) {
             use windows::Win32::UI::Input::KeyboardAndMouse::{
                 SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
                 KEYEVENTF_KEYUP, VK_MENU,
@@ -2317,7 +2338,7 @@ mod tests {
             let (tx, rx) = std::sync::mpsc::channel();
             let thread_stop = Arc::clone(&stop);
             let thread = std::thread::spawn(move || {
-                let class = windows::core::HSTRING::from("EDIT");
+                let class = windows::core::HSTRING::from(class);
                 // SAFETY: the class name is a live HSTRING; the window belongs
                 // to this thread, which destroys it before it ends.
                 let Ok(hwnd) = (unsafe {
@@ -2542,6 +2563,102 @@ mod tests {
         assert_eq!(
             key_after_a_click_waits, None,
             "a key after a click of the same tick was decided before a read showed a move"
+        );
+    }
+
+    #[test]
+    fn keys_at_a_gate_whose_start_read_reads_unknown_are_withheld_with_no_focus_event() {
+        use crate::secure_input::windows::FieldState;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_A,
+        };
+        let key = |released: bool| INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VK_A,
+                    wScan: 0,
+                    dwFlags: if released {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        KEYBD_EVENT_FLAGS(0)
+                    },
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        let _serial = crate::windows::tests::serial();
+        let (own, in_front) = OwnWindow::in_front_of("BUTTON");
+        let (sink, writer) = crate::sink::channel(256);
+        let (tx, events) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            while let Some(event) = writer.recv() {
+                let keystroke = event.modality == crate::event::Modality::Keystroke;
+                if tx.send(keystroke).is_err() {
+                    break;
+                }
+            }
+        });
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let started = keyboard.begin(crate::source::SourceContext::new(sink));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let gate_at_start = keyboard.field_state();
+        let before = seam::detector();
+        let mut accepted = 0;
+        for _ in 0..3 {
+            // SAFETY: the slice holds two live INPUT values of the size passed.
+            accepted += unsafe {
+                SendInput(
+                    &[key(false), key(true)],
+                    core::mem::size_of::<INPUT>() as i32,
+                )
+            };
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let mut keystrokes = 0;
+        while let Ok(keystroke) = events.try_recv() {
+            keystrokes += usize::from(keystroke);
+        }
+        let after = seam::detector();
+        let health = keyboard.health();
+        let stopped = keyboard.shutdown();
+        drop(own);
+        println!(
+            "TF unknown-at-start own_window_in_front={in_front} started={} gate_at_start={gate_at_start:?} \
+             accepted={accepted} keystroke_events={keystrokes} keys_withheld={} own_reads={} \
+             focus_handler_entered={} focus_handler_ended={} stopped={}",
+            started.is_ok(),
+            health.counters.keys_withheld,
+            after.own_reads,
+            after.handler_entered,
+            after.handler_ended,
+            stopped.is_ok()
+        );
+        assert!(
+            started.is_ok() && in_front && accepted == 6,
+            "INCONCLUSIVE: the window of the test was not in front or the keys were not sent"
+        );
+        assert_eq!(
+            gate_at_start,
+            Some(FieldState::Unknown),
+            "INCONCLUSIVE: the start read of a button window did not read Unknown"
+        );
+        assert_eq!(
+            (before.handler_entered, after.handler_entered),
+            (0, 0),
+            "INCONCLUSIVE: a focus event reached the gate after the start"
+        );
+        assert_eq!(
+            keystrokes, 0,
+            "a key at a gate that reads Unknown was recorded"
+        );
+        assert!(
+            health.counters.keys_withheld,
+            "keys_withheld did not read yes"
         );
     }
 

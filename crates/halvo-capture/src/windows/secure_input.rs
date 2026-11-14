@@ -1354,6 +1354,8 @@ mod detector {
     }
 
     unsafe extern "system" fn handler_focus(this: *mut c_void, sender: *mut c_void) -> HRESULT {
+        #[cfg(feature = "test-seam")]
+        crate::windows::input::seam::handler_entered();
         // SAFETY: `this` is a live FocusHandler, and `sender` a borrowed
         // element or null.
         let (handler, element) = unsafe {
@@ -1368,6 +1370,8 @@ mod detector {
             .shared
             .field_seen(tick(), state, handler.reader.seen());
         handler.wake.set();
+        #[cfg(feature = "test-seam")]
+        crate::windows::input::seam::handler_ended();
         S_OK
     }
 
