@@ -4000,11 +4000,12 @@ mod driver {
         } else {
             String::new()
         };
-        out(&format!(
-            "kill machine={} form={} kills={runs} arrived={}",
-            ctx.machine,
+        out(&r3_web::kill_line(
+            &ctx.machine,
+            ctx.kind,
             name.trim_start_matches("driver_killed_"),
-            runs - ok
+            runs,
+            runs - ok,
         ));
         out(&format!(
             "cell {head} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{miss_bytes}{relay_key}",

@@ -322,7 +322,7 @@ def main():
     relay_bad, relay_missing = [], []
     for m, b in CELLS:
         ks = [l for l in block if l.startswith("kill ") and field(l, "machine") == m
-              and field(l, "form") == "pipe_relay"]
+              and field(l, "browser") in (b, None) and field(l, "form") == "pipe_relay"]
         if m in ("mac", "hosted-win") and b == "chrome" and not ks:
             relay_missing.append(f"kill/{m}/pipe_relay")
         for k in ks:

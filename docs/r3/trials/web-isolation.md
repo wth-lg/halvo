@@ -1080,6 +1080,12 @@ forms the relay runs in the executor's process and dies with it, so no tunnel ca
 the kill, and the guard's rule then ends what still runs. The kept lines of those forms (0 bytes in
 every kill) stand either way; no run of this round measured them again.
 
+Which browser a `kill` line is (CP-133 (i)). No `kill` line of this file names its browser; the
+trial prints the key `browser=` from U0.3's second pull request on. Until a run prints it, a `kill`
+line of the second block, and of the third block on `mac` and `hosted-mac`, is the browser's of the
+`cell` line right after it, and in the third block the four `hosted-win` lines after Chrome's
+`frame_doc` lines are Chrome's and the four after Edge's are Edge's.
+
 The 45 `cell` lines of web-executor.md are of run 43103175522: the first round's executor on the
 library's port connection. No run of this round measured them again.
 

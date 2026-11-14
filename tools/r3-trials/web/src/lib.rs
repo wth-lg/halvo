@@ -176,6 +176,12 @@ pub const AGENT_PREFERENCES: &str = r#"{"profile":{"default_content_setting_valu
 
 /// The key ` majors=<v>:<n>,...` of a cell line whose runs reported more than one major version
 /// (CP-73), from the sorted majors of its runs; empty when they reported one.
+/// The `kill` line of a form of `driver_killed` (A13.7): the machine, the browser, the form, the
+/// kills and how many of them let a byte of the paused request arrive.
+pub fn kill_line(machine: &str, browser: &str, form: &str, kills: u32, arrived: u32) -> String {
+    format!("kill machine={machine} browser={browser} form={form} kills={kills} arrived={arrived}")
+}
+
 pub fn majors_key(sorted: &[u32]) -> String {
     let mut per: Vec<(u32, usize)> = Vec::new();
     for m in sorted {
@@ -248,6 +254,18 @@ pub fn extract_amount(text: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_kill_line_names_its_browser() {
+        assert_eq!(
+            kill_line("hosted-win", "edge", "pipe_relay", 20, 0),
+            "kill machine=hosted-win browser=edge form=pipe_relay kills=20 arrived=0"
+        );
+        assert_eq!(
+            kill_line("mac", "chrome", "port", 20, 20),
+            "kill machine=mac browser=chrome form=port kills=20 arrived=20"
+        );
+    }
+
     use super::*;
 
     #[test]
