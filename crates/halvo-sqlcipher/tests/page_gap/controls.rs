@@ -356,7 +356,12 @@ fn a_draw_that_frees_a_second_trunk_leaves_no_text_and_its_plants_are_named() {
     conn.execute_batch("CREATE TABLE big(id INTEGER PRIMARY KEY, body TEXT NOT NULL); BEGIN;")
         .unwrap();
     let marker = |id: i64| format!("r{id:06}x");
-    for id in 1..=1100i64 {
+    let ids = 1100i64;
+    assert!(
+        ids < 10_000,
+        "the search below looks for the markers' prefix r00, which holds for ids below 10,000 alone: {ids} ids"
+    );
+    for id in 1..=ids {
         conn.execute(
             "INSERT INTO big(id, body) VALUES (?1, ?2)",
             params![id, format!("{}{}", marker(id), "b".repeat(3992))],

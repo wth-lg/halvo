@@ -102,7 +102,11 @@ in the draws of the tests", with the limits below.
   the table's _idx tree. The _data tree keeps a token behind the prefix that
   it shares with its neighbour; with FTS5's own option off, the control finds
   by the last 6 bytes every removed token that another needle finds, in each
-  of its four seeds (13 in each, against 10 to 12 by the tail). Not seen: a
+  of its four seeds, and at least one (13 in each, against 10 to 12 by the
+  tail). That is narrower than "every removed token of its round" (ruling
+  S-87 G4 (2)): with the option off FTS5's merges drop most removed tokens
+  and the freed pages are zeroed, and a token that stands nowhere cannot be
+  required (ruling S-88 H5). Not seen: a
   token that leaves fewer than 6 bytes after the shared part, and a token
   that is the prefix of another. The draw's tokens have one length, so none
   is the prefix of another, but two that share their first 11 bytes leave 5.
