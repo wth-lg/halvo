@@ -7,10 +7,13 @@
   </head>
   <body>
     <h1>Halvo</h1>
+    <p id="connection"></p>
     <main id="views"></main>
-    <p id="error"></p>
+    <p id="error" role="alert"></p>
+    <button id="dismiss-error" class="hidden"></button>
     <footer>Version <span id="version"></span></footer>
     <script src="ipc.js"></script>
+    <script src="words.js"></script>
     <script src="frame.js"></script>
     <script src="views/status.js"></script>
     <script src="views/keeps.js"></script>
