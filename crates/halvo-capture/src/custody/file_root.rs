@@ -78,18 +78,36 @@ impl RootFile {
     }
 }
 
-pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Result<()>) {
-    let zeroed = match dir.entry(name) {
+pub(crate) struct Scrubbed {
+    pub(crate) zeros_durable: bool,
+    pub(crate) removed: std::io::Result<()>,
+}
+
+pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> Scrubbed {
+    let zeros_durable = match dir.entry(name) {
         Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
         Ok(_) => false,
-        Err(e) if e.kind() == ErrorKind::NotFound => return (true, Ok(())),
-        Err(e) => return (false, Err(e)),
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return Scrubbed {
+                zeros_durable: true,
+                removed: Ok(()),
+            }
+        }
+        Err(e) => {
+            return Scrubbed {
+                zeros_durable: false,
+                removed: Err(e),
+            }
+        }
     };
     let removed = match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         other => other,
     };
-    (zeroed, removed)
+    Scrubbed {
+        zeros_durable,
+        removed,
+    }
 }
 
 fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
@@ -194,11 +212,11 @@ pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), Custo
             }
         }
     }
-    let (zeroed, removed) = scrub_and_remove(&dir, &root_name(root_id));
+    let scrubbed = scrub_and_remove(&dir, &root_name(root_id));
     let _ = dir.sync();
-    match removed {
+    match scrubbed.removed {
         Ok(()) => Ok(()),
-        Err(_) if zeroed => Ok(()),
+        Err(_) if scrubbed.zeros_durable => Ok(()),
         Err(e) => Err(root_io(e)),
     }
 }
@@ -281,7 +299,7 @@ impl<P: Protector> FileRoots<P> {
         });
         let discarded = match published {
             Ok(()) => dir.remove_file(&partial),
-            Err(_) => scrub_and_remove(&dir, &partial).1,
+            Err(_) => scrub_and_remove(&dir, &partial).removed,
         };
         published?;
         #[cfg(test)]
@@ -293,10 +311,10 @@ impl<P: Protector> FileRoots<P> {
             synced
         });
         if let Err(e) = finished {
-            let (_, removed) = scrub_and_remove(&dir, &root_name(root_id));
+            let published_root = scrub_and_remove(&dir, &root_name(root_id));
             let _ = scrub_and_remove(&dir, &partial);
             let _ = dir.sync();
-            return Err(root_io(removed.err().unwrap_or(e)));
+            return Err(root_io(published_root.removed.err().unwrap_or(e)));
         }
         Ok(root)
     }
