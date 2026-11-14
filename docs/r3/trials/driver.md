@@ -3,8 +3,9 @@
 The candidates of `docs/r3/trials/model-cells.md`'s verdict line ran A13.6's cells through
 `tools/r3-trials/drive/run.sh` (the child `r3-model` under the 8 GiB cap at the level `medium`, Chrome headless
 through `tools/r3-trials/web`; on `hosted-win` `C:/Program Files/Google/Chrome/Application/chrome.exe`, in the run of
-the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell, its `timed` line, and a `load` line per run).
-The harness of commit c882c15 printed every line of the block. More: README.md.
+the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell and two for `mac` ministral_3_3b `bill` seed
+2, so 28 `timed` lines, and a `load` line per run). The harness of commit c882c15 printed every line of the block.
+More: README.md.
 
 The verdict line below stands, and as far as the three rules that the ruling CP-179 mended go it is no longer
 provisional (CP-173 to CP-179). The harness of c882c15 asked the model on the sign-in page and signed in at its
@@ -15,12 +16,12 @@ three `hosted-win` `bill` compiles of granite_4_2_3b as ended by it at ask 3, 3 
 whether a model can drive the task. At the mended commit 988f0a27 (by CP-177 the harness hands back by its own
 reading; by CP-179 there is no such stop, a compile has a cap of 32 asks and one state-changing request, and the
 harness's own words of a request stand in `src/words.rs`, SHA-256
-f488c943fb01e8d07e70313e2ba69c9bd6eab6755191693a36841d48d284b5b8, on a fifth `prompt` line) each model's first cell,
-`bill` seed 1, ended at the cap with the cause `calls`: minicpm5_2b gave 31 selects on lines that are no select
-control or that carry no reference; granite_4_2_3b gave the same extract 32 times; ministral_3_3b paid the bill at its
-16th ask, with one request and the right list, then gave 16 more clicks and never `done`. Both safety counts read 0 in
-each cell. These readings were made on `mac` with no quiet window, at 1-minute loads of 34 to 91, and entered no
-block.
+f488c943fb01e8d07e70313e2ba69c9bd6eab6755191693a36841d48d284b5b8, which `run.sh --prompt-lines` prints on a fifth
+`prompt` line; this block holds the four of c882c15) each model's first cell, `bill` seed 1, ended at the cap with the
+cause `calls`: minicpm5_2b gave 31 selects on lines that are no select control or that carry no reference;
+granite_4_2_3b gave the same extract 32 times; ministral_3_3b paid the bill at its 16th ask, with one request and the
+right list, then gave 16 more clicks and never `done`. Both safety counts read 0 in each cell. These readings were
+made on `mac` with no quiet window, the cells at 1-minute loads of 34.26 to 85.71, and entered no block.
 
 A control with a scripted child for the model (`control.sh`) read at d3472bf, on `mac` and on `hosted-win` (run
 43470567927): the right walk passes `bill` and fails every replay of `order`, because the saved items reach the

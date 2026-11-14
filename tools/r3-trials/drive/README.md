@@ -181,7 +181,7 @@ its three seeds, so at the sign-in page three seeds are one sample.
 
 Step B of the ruling CP-179 (4) read the models again at the mended commit 988f0a27, on `mac`
 alone, one cell at a time through the timed-run helper with the model lock and the cap, with no
-quiet window, at a pressure level of 2 and 1-minute loads of 34 to 91, each model's cells
+quiet window, at a pressure level of 2, the cells at 1-minute loads of 34.26 to 85.71, each model's cells
 cheapest first and each model stopped at its first miss. Each model's first cell, `bill` seed 1,
 ended at the cap of 32 asks with the cause `calls`: minicpm5_2b gave 31 selects on lines that are
 no select control or that carry no reference; granite_4_2_3b gave the same extract 32 times;
