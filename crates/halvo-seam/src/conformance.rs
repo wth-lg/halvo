@@ -219,7 +219,7 @@ pub const SET_C: [&str; 1] = [include_str!("conformance/set_c.jsonl")];
 
 /// Set D of C5.13 item 3: 1 batch-file text of 8 lines of a served kind inside the hour from 09:00:00 UTC of
 /// 2026-01-13. Its 5th line, a `keystroke` whose `at` is a whole second, follows a `scroll` pointer whose `at`
-/// lies 900 ms after it, so `at` steps back by under 1 s, as the resolutions of C4.7 allow; every other step
+/// lies 999 ms after it, so `at` steps back by under 1 s, as the resolutions of C4.7 allow; every other step
 /// rises by at least 60 s.
 pub const SET_D: [&str; 1] = [concat!(
     r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000000","at":1768294800000000000,"seq":0,"kind":"foreground_app","app":"com.example.mail","p":{}}"#,
@@ -228,7 +228,7 @@ pub const SET_D: [&str; 1] = [concat!(
     "\n",
     r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000002","at":1768294920000000000,"seq":2,"kind":"keystroke","app":"com.example.mail","p":{"class":"printable"}}"#,
     "\n",
-    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000003","at":1768294980900000000,"seq":3,"kind":"pointer","app":"com.example.mail","p":{"class":"scroll","count":63}}"#,
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000003","at":1768294980999000000,"seq":3,"kind":"pointer","app":"com.example.mail","p":{"class":"scroll","count":63}}"#,
     "\n",
     r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000004","at":1768294980000000000,"seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"enter"}}"#,
     "\n",
@@ -241,6 +241,7 @@ pub const SET_D: [&str; 1] = [concat!(
 )];
 
 const STEP_BACK: usize = 4;
+const STEP_BACK_NS: i64 = 999_000_000;
 
 /// Runs the four cases in the order of `CASES` and returns, for each, its name and a pass or a failure text.
 pub fn run<S: Subject>(subject: &mut S) -> Vec<(&'static str, Result<(), String>)> {
@@ -806,15 +807,19 @@ fn at_the_watermark<S: Subject>(
 /// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then the check
 /// `open_while_open` of `CHECKS` on that connection, a read of the reference read on a second connection,
 /// with no restart between, and `open_while_open` again on the second connection. Last, after `load(D)`, a
-/// read of set D from the zero position must serve its records in order, the `keystroke` after the step back
-/// must have an `at` below that of the pointer before it, and reads under three ranges, from the zero position
-/// and from the position of that pointer, must each serve every entry of D at or after the start position whose
-/// `at` lies in the range, at its position: the range from the `at` of the first entry of D to that of the
-/// pointer (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, and the
-/// range from the `at` of the `keystroke` to that of the entry after it. A server fails that ends a ranged read
-/// at the first entry whose `at` is at or after the end of the range, or after it, or at least 500 ms after it,
-/// or at the first line of a Batch whose `at` is at or after it, or that drops an entry whose `at` is below
-/// that of an entry that it served before.
+/// read of set D from the zero position must serve its records in order, the `at` of the `keystroke` after the
+/// step back must lie exactly 999 ms below that of the pointer before it, as `load` keeps it when it moves every
+/// `at` by a whole number of seconds (C5.13 item 2), and five reads, each from the zero position and from the
+/// position of that pointer, must each serve every entry of D at or after the start position that passes the
+/// read's filter, at its position: the range from the `at` of the first entry of D to that of the pointer
+/// (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, the range from the
+/// `at` of the `keystroke` to that of the entry after it, the range from 1 ns after the `at` of the `keystroke`
+/// to the same end, and the first range with the kinds filter `keystroke`. A server fails that ends a ranged
+/// read at the first entry whose `at` is at or after the end of the range, or after it by less than the step
+/// of D, also only under a kinds filter or only from a position other than zero, or that ends it at the first
+/// line of a Batch whose `at` is at or after the end, or that drops an entry whose `at` is below that of an
+/// entry that it served before, or that finds the first line of a range by a binary search over `at`, or that
+/// checks the start only until the first `at` at or after it.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -939,49 +944,98 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     step_back(subject, conn.end())
 }
 
+fn differs(got: &[Entry], want: &[Entry]) -> String {
+    if got.len() != want.len() {
+        return format!("{} entries served, want {}", got.len(), want.len());
+    }
+    match got
+        .iter()
+        .zip(want)
+        .position(|(g, w)| g.pos != w.pos || !alike(&g.record, &w.record))
+    {
+        Some(i) if got[i].pos != want[i].pos => format!(
+            "entry {} served at {}, want it at {}",
+            i + 1,
+            show(got[i].pos),
+            show(want[i].pos)
+        ),
+        Some(i) => format!(
+            "entry {} at {} is another record than set D holds there",
+            i + 1,
+            show(got[i].pos)
+        ),
+        None => "the entries served are the entries wanted".to_owned(),
+    }
+}
+
 fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), String> {
     subject.load(&SET_D)?;
     let mut conn = connect(subject, instants)?;
     let d =
         read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the read of set D: {e}"))?;
     let data = records_of(&SET_D)?;
-    let matches = d.entries.len() == data.len()
-        && d.entries
-            .iter()
-            .zip(&data)
-            .all(|(e, r)| alike(&e.record, r));
-    if !matches {
+    if d.entries.len() != data.len() {
         return Err(format!(
             "the read of set D served {} entries; want the {} records of D in order",
             d.entries.len(),
             data.len()
         ));
     }
+    if let Some(i) = d
+        .entries
+        .iter()
+        .zip(&data)
+        .position(|(e, r)| !alike(&e.record, r))
+    {
+        return Err(format!(
+            "the read of set D served at {} another record than line {} of D",
+            show(d.entries[i].pos),
+            i + 1
+        ));
+    }
     let first = d.entries[0].record.at();
     let pointer = &d.entries[STEP_BACK - 1];
     let keystroke = d.entries[STEP_BACK].record.at();
-    if keystroke >= pointer.record.at() {
-        return Err(
-            "set D as served holds no keystroke whose at is below that of the pointer before it"
-                .to_owned(),
-        );
+    let step = pointer.record.at().0.saturating_sub(keystroke.0);
+    if step != STEP_BACK_NS {
+        return Err(format!(
+            "set D as served steps back by {step} ns from the pointer at {} to the keystroke at {}; want {STEP_BACK_NS} ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)",
+            pointer.record.at().0,
+            keystroke.0
+        ));
     }
-    let ranges = [
+    let after = d.entries[STEP_BACK + 1].record.at();
+    let just_after = Instant(keystroke.0.saturating_add(1));
+    let keystrokes: &[&str] = &["keystroke"];
+    let reads: [(&str, (Instant, Instant), Option<&[&str]>); 5] = [
         (
             "up to the pointer before its step back",
             (first, pointer.record.at()),
+            None,
         ),
         (
             "up to just after the keystroke of its step back",
-            (first, Instant(keystroke.0.saturating_add(1))),
+            (first, just_after),
+            None,
         ),
         (
             "from the keystroke of its step back",
-            (keystroke, d.entries[STEP_BACK + 1].record.at()),
+            (keystroke, after),
+            None,
+        ),
+        (
+            "from just after the keystroke of its step back",
+            (just_after, after),
+            None,
+        ),
+        (
+            "up to the pointer before its step back with keystroke",
+            (first, pointer.record.at()),
+            Some(keystrokes),
         ),
     ];
     for start in [ZERO, pointer.pos] {
-        for (name, (a, b)) in ranges {
+        for (name, (a, b), kinds) in reads {
             let name = if start == ZERO {
                 format!("the range of set D {name}")
             } else {
@@ -991,16 +1045,13 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
                 .entries
                 .iter()
                 .filter(|e| e.pos >= start && e.record.at() >= a && e.record.at() < b)
+                .filter(|e| kinds.is_none_or(|k| k.contains(&e.record.kind().as_str())))
                 .cloned()
                 .collect();
-            let reading = read(&mut conn, Some(&d.store), start, None, Some((a, b)))
+            let reading = read(&mut conn, Some(&d.store), start, kinds, Some((a, b)))
                 .map_err(|e| format!("{name}: {e}"))?;
             if !same(&reading.entries, &want) {
-                return Err(format!(
-                    "{name}: {} entries served, want {}",
-                    reading.entries.len(),
-                    want.len()
-                ));
+                return Err(format!("{name}: {}", differs(&reading.entries, &want)));
             }
         }
     }

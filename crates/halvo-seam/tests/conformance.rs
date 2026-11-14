@@ -67,17 +67,55 @@ enum Fault {
     RangedReadEndsWhenABatchStartsFromItsEnd,
     RangedReadDropsAnAtBelowOneServed,
     RangedReadTakesItsFirstServedAtAsTheStart,
+    RangedReadEndsAfterItsEnd(i64),
+    RangedReadWithKindsEndsAtTheFirstAtFromItsEnd,
+    RangedReadEndsPastItsEndFromANonZeroStart,
+    RangedReadDropsAnAtBelowOneServedFromANonZeroStart,
+    RangedReadFindsItsStartByABinarySearch,
+    RangedReadChecksItsStartOnce,
+    RangedReadDropsTheFirstLineAtItsStart,
+    RangedReadMovesASteppedBackEntry,
+    RangedReadSwapsASteppedBackRecord,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
+    LoadBreaksALineOfD,
+    LoadMovesEveryAt(i64, Rounding),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Rounding {
+    None,
+    UpToASecond,
+    DownToASecond,
+}
+
+fn moved(line: &str, by: i64, rounding: Rounding) -> String {
+    let key = r#""at":"#;
+    let i = line.find(key).unwrap() + key.len();
+    let j = i + line[i..].find(',').unwrap();
+    let at: i64 = line[i..j].parse().unwrap();
+    let coarse = line.contains(r#""kind":"keystroke""#) || line.contains(r#""class":"click""#);
+    let at = match (rounding, coarse) {
+        (Rounding::UpToASecond, true) => {
+            (at + by + 999_999_999).div_euclid(1_000_000_000) * 1_000_000_000
+        }
+        (Rounding::DownToASecond, true) => (at + by).div_euclid(1_000_000_000) * 1_000_000_000,
+        _ => at + by,
+    };
+    format!("{}{at}{}", &line[..i], &line[j..])
 }
 
 fn loaded(fault: Option<Fault>, text: &str) -> String {
     let d = text == conformance::SET_D[0];
     match fault {
+        Some(LoadMovesEveryAt(by, rounding)) => text
+            .split_inclusive('\n')
+            .map(|line| moved(line, by, rounding))
+            .collect(),
         Some(LoadRoundsTheStepBackAway) => text
             .replace(
-                r#""at":1768294980900000000,"seq":3,"#,
+                r#""at":1768294980999000000,"seq":3,"#,
                 r#""at":1768294981000000000,"seq":3,"#,
             )
             .replace(
@@ -88,6 +126,7 @@ fn loaded(fault: Option<Fault>, text: &str) -> String {
             let cut = text[..text.len() - 1].rfind('\n').map_or(0, |p| p + 1);
             text[..cut].to_owned()
         }
+        Some(LoadBreaksALineOfD) if d => text.replace(r#""seq":6,"#, r#""seq":6,,"#),
         Some(LoadChangesTheKeystrokeOfD) if d => text.replace(
             r#""seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"enter"}"#,
             r#""seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"tab"}"#,
@@ -240,6 +279,9 @@ impl Subject for Fixture {
                         cursor_reads: 0,
                         phantom_next: false,
                         cut: None,
+                        cut_kinds: None,
+                        cut_from_zero: true,
+                        started: false,
                         connection,
                         further,
                         reads: 0,
@@ -313,6 +355,9 @@ struct Wrong {
     cursor_reads: i64,
     phantom_next: bool,
     cut: Option<TimeRange>,
+    cut_kinds: Option<Vec<Kind>>,
+    cut_from_zero: bool,
+    started: bool,
 }
 
 fn cuts(fault: Fault) -> bool {
@@ -323,14 +368,23 @@ fn cuts(fault: Fault) -> bool {
             | RangedReadEndsWhenABatchStartsFromItsEnd
             | RangedReadDropsAnAtBelowOneServed
             | RangedReadTakesItsFirstServedAtAsTheStart
+            | RangedReadEndsAfterItsEnd(_)
+            | RangedReadWithKindsEndsAtTheFirstAtFromItsEnd
+            | RangedReadEndsPastItsEndFromANonZeroStart
+            | RangedReadDropsAnAtBelowOneServedFromANonZeroStart
+            | RangedReadFindsItsStartByABinarySearch
+            | RangedReadChecksItsStartOnce
+            | RangedReadDropsTheFirstLineAtItsStart
+            | RangedReadMovesASteppedBackEntry
+            | RangedReadSwapsASteppedBackRecord
     )
 }
 
 fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
     open.range()?;
     match open.store() {
-        Some(store) => OpenCursor::at(store.clone(), open.position(), open.kinds().cloned(), None),
-        None if open.position() == ZERO => Some(OpenCursor::fresh(open.kinds().cloned(), None)),
+        Some(store) => OpenCursor::at(store.clone(), open.position(), None, None),
+        None if open.position() == ZERO => Some(OpenCursor::fresh(None, None)),
         None => None,
     }
 }
@@ -487,6 +541,11 @@ impl Wrong {
         };
         if matches!(reply, ServerMessage::Batch(_)) {
             self.cut = asked.range();
+            self.cut_kinds = asked
+                .kinds()
+                .map(|k| k.kinds().iter().map(|s| s.kind()).collect());
+            self.cut_from_zero = asked.position() == ZERO;
+            self.started = false;
             self.last = Some(open.clone());
             self.opens += 1;
             self.at_watermark = false;
@@ -505,12 +564,35 @@ impl Wrong {
         self.cursor_reads += 1;
         if let (Some(range), true) = (self.cut, cuts(self.fault)) {
             let mut kept: Vec<Entry> = Vec::new();
-            for (i, e) in std::mem::take(&mut b.records).into_iter().enumerate() {
+            let records = std::mem::take(&mut b.records);
+            let skip = match self.fault {
+                RangedReadFindsItsStartByABinarySearch => {
+                    let (mut lo, mut hi) = (0, records.len());
+                    while lo < hi {
+                        let mid = (lo + hi) / 2;
+                        if records[mid].record.at() < range.start() {
+                            lo = mid + 1;
+                        } else {
+                            hi = mid;
+                        }
+                    }
+                    lo
+                }
+                _ => 0,
+            };
+            let mut line_before: Option<(Entry, bool)> = None;
+            for (i, e) in records.into_iter().enumerate() {
                 let at = e.record.at();
+                let from_zero = self.cut_from_zero;
                 let ends = match self.fault {
                     RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
                     RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
                     RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
+                    RangedReadEndsAfterItsEnd(by) => at.0 >= range.end().0.saturating_add(by),
+                    RangedReadWithKindsEndsAtTheFirstAtFromItsEnd => {
+                        self.cut_kinds.is_some() && at >= range.end()
+                    }
+                    RangedReadEndsPastItsEndFromANonZeroStart => !from_zero && at > range.end(),
                     _ => false,
                 };
                 if ends {
@@ -519,13 +601,41 @@ impl Wrong {
                 }
                 let below = match self.fault {
                     RangedReadDropsAnAtBelowOneServed => kept.last(),
+                    RangedReadDropsAnAtBelowOneServedFromANonZeroStart if !from_zero => kept.last(),
                     RangedReadTakesItsFirstServedAtAsTheStart => kept.first(),
                     _ => None,
                 }
                 .is_some_and(|k| at < k.record.at());
-                if range.contains(at) && !below {
+                let in_range = match self.fault {
+                    RangedReadChecksItsStartOnce => {
+                        self.started = self.started || at >= range.start();
+                        self.started && at < range.end()
+                    }
+                    _ => range.contains(at),
+                };
+                let first_at_start = self.fault == RangedReadDropsTheFirstLineAtItsStart
+                    && e.pos == (Position { seg: 1, idx: 0 })
+                    && at == range.start();
+                let kind = self
+                    .cut_kinds
+                    .as_ref()
+                    .is_none_or(|k| k.contains(&e.record.kind()));
+                let keep = i >= skip && in_range && kind && !below && !first_at_start;
+                let line = e.clone();
+                let mut e = e;
+                if let (true, Some((before, false))) = (keep, &line_before) {
+                    if at < before.record.at() {
+                        match self.fault {
+                            RangedReadMovesASteppedBackEntry => e.pos = before.pos,
+                            RangedReadSwapsASteppedBackRecord => e.record = before.record.clone(),
+                            _ => {}
+                        }
+                    }
+                }
+                if keep {
                     kept.push(e);
                 }
+                line_before = Some((line, keep));
             }
             b.records = kept;
             let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
@@ -937,45 +1047,120 @@ fn conformance_check_filtered_stops() {
 
 #[test]
 fn conformance_filters_step_back() {
-    let servers = [
+    let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
+    let servers: [(Fault, String); 26] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
-            "the range of set D up to the pointer before its step back: 3 entries served, want 4",
+            "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
         ),
         (
             RangedReadEndsAtTheFirstAtPastItsEnd,
-            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4",
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterItsEnd(500_000_000),
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterItsEnd(900_000_000),
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterItsEnd(950_000_000),
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterItsEnd(998_999_999),
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadEndsPastItsEndFromANonZeroStart,
+            "the range of set D up to just after the keystroke of its step back from {seg 1, idx 3}: 0 entries served, want 1".to_owned(),
         ),
         (
             RangedReadEndsWhenABatchStartsFromItsEnd,
-            "the range of set D up to the pointer before its step back from {seg 1, idx 3}: 0 entries served, want 1",
+            "the range of set D up to the pointer before its step back from {seg 1, idx 3}: 0 entries served, want 1".to_owned(),
+        ),
+        (
+            RangedReadWithKindsEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back with keystroke: 1 entries served, want 2".to_owned(),
         ),
         (
             RangedReadDropsAnAtBelowOneServed,
-            "the range of set D from the keystroke of its step back: 1 entries served, want 2",
+            "the range of set D from the keystroke of its step back: 1 entries served, want 2".to_owned(),
         ),
         (
             RangedReadTakesItsFirstServedAtAsTheStart,
-            "the range of set D from the keystroke of its step back: 1 entries served, want 2",
+            "the range of set D from the keystroke of its step back: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadDropsAnAtBelowOneServedFromANonZeroStart,
+            "the range of set D from the keystroke of its step back from {seg 1, idx 3}: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadFindsItsStartByABinarySearch,
+            "the range of set D from just after the keystroke of its step back: 0 entries served, want 1".to_owned(),
+        ),
+        (
+            RangedReadChecksItsStartOnce,
+            "the range of set D from just after the keystroke of its step back: 2 entries served, want 1".to_owned(),
+        ),
+        (
+            RangedReadDropsTheFirstLineAtItsStart,
+            "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
+        ),
+        (
+            RangedReadMovesASteppedBackEntry,
+            "the range of set D up to the pointer before its step back: entry 4 served at {seg 1, idx 3}, want it at {seg 1, idx 4}".to_owned(),
+        ),
+        (
+            RangedReadSwapsASteppedBackRecord,
+            "the range of set D up to the pointer before its step back: entry 4 at {seg 1, idx 4} is another record than set D holds there".to_owned(),
         ),
         (
             LoadRoundsTheStepBackAway,
-            "set D as served holds no keystroke whose at is below that of the pointer before it",
+            format!("set D as served steps back by 0 ns from the pointer at 1768294981000000000 to the keystroke at 1768294981000000000{load}"),
         ),
         (
+            LoadMovesEveryAt(50_000_000, Rounding::UpToASecond),
+            format!("set D as served steps back by 49000000 ns from the pointer at 1768294981049000000 to the keystroke at 1768294981000000000{load}"),
+        ),
+        (
+            LoadMovesEveryAt(400_000_000, Rounding::DownToASecond),
+            format!("set D as served steps back by 1399000000 ns from the pointer at 1768294981399000000 to the keystroke at 1768294980000000000{load}"),
+        ),
+        (LoadMovesEveryAt(400_000_000, Rounding::None), String::new()),
+        (
             LoadDropsTheLastLineOfD,
-            "the read of set D served 7 entries; want the 8 records of D in order",
+            "the read of set D served 7 entries; want the 8 records of D in order".to_owned(),
         ),
         (
             LoadChangesTheKeystrokeOfD,
-            "the read of set D served 8 entries; want the 8 records of D in order",
+            "the read of set D served at {seg 1, idx 4} another record than line 5 of D".to_owned(),
+        ),
+        (
+            LoadBreaksALineOfD,
+            "the read of set D: read_batch got the error store-error".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterItsEnd(999_000_001),
+            String::new(),
+        ),
+        (
+            LoadMovesEveryAt(-3_000_000_000, Rounding::DownToASecond),
+            String::new(),
         ),
     ];
     let mut missed = Vec::new();
     for (fault, reason) in servers {
         let mut subject = Fixture::wrong("conformance_filters_step_back", fault);
         let got = conformance::filters(&mut subject);
-        if !got.as_ref().is_err_and(|e| e.ends_with(reason)) {
+        let caught = match (&got, reason.is_empty()) {
+            (Ok(()), true) => true,
+            (Err(e), false) => e.ends_with(&reason),
+            _ => false,
+        };
+        if !caught {
             missed.push(format!("{fault:?}: got {got:?}"));
         }
     }
@@ -1004,7 +1189,7 @@ fn conformance_set_d_holds_its_step_back_when_served() {
     assert!(lines[4].contains(r#""kind":"keystroke""#));
     assert_eq!(ats[4] % 1_000_000_000, 0);
     assert_eq!(ats[3] % 1_000_000, 0);
-    assert_eq!(ats[3] - ats[4], 900_000_000);
+    assert_eq!(ats[3] - ats[4], 999_000_000);
     for i in 1..ats.len() {
         if i != 4 {
             assert!(ats[i] - ats[i - 1] >= 2_000_000_000, "step {i}");
@@ -1029,4 +1214,12 @@ fn conformance_set_d_holds_its_step_back_when_served() {
     }
     assert_eq!(next, [false, true]);
     assert_eq!(served, ats);
+    for by in [86_400_000_000_000, 3_601_000_000_000] {
+        let fault = LoadMovesEveryAt(by, Rounding::None);
+        let mut subject =
+            Fixture::wrong("conformance_set_d_holds_its_step_back_when_served", fault);
+        for (case, got) in conformance::run(&mut subject) {
+            assert_eq!(got, Ok(()), "{fault:?}, case {case}");
+        }
+    }
 }
