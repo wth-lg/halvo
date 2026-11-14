@@ -495,7 +495,7 @@ st_start() {
     return 1
   }
   st_d=$tmp/$mode.$st_q_name
-  st_td=$tdirs/$mode.$st_q_name
+  st_td=$tdirs/$mode.$st_q_name/t
   mkdir -p "$st_d" "$st_td" || {
     st_drop "$1" "FAIL $st_q_tag (its temporary directory cannot be made)"
     return 1
@@ -1362,7 +1362,7 @@ own_self_test() {
   own_case tmpdir-of-each-script-removed-whatever-its-status 1 'FAIL 20-b (planned)' macos
   real_rm=$(command -v rm) || real_rm='rm'
   mkdir -p "$tmp/rm-fails-once" &&
-    printf '#!/bin/sh\nfor a in "$@"; do last=$a; done\ncase ${last##*/} in *.10-a) if [ ! -e rm-failed-once ]; then : >rm-failed-once; exit 1; fi ;; esac\nexec %s "$@"\n' "$real_rm" >"$tmp/rm-fails-once/rm" &&
+    printf '#!/bin/sh\nfor a in "$@"; do last=$a; done\ncase $last in *.10-a/t) if [ ! -e rm-failed-once ]; then : >rm-failed-once; exit 1; fi ;; esac\nexec %s "$@"\n' "$real_rm" >"$tmp/rm-fails-once/rm" &&
     chmod +x "$tmp/rm-fails-once/rm" || wrong="$wrong stand-in-rm-not-made"
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'"
   case_path=$tmp/rm-fails-once
@@ -1382,6 +1382,15 @@ own_self_test() {
     case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
     case_empty=yes
     own_case tmpdir-that-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" 'chmod 555 "$TMPDIR/.."; printf "PASS 10-a\n"' && add_script r1 20-b.sh "$good" "$pass_b"
+  case_witness=yes
+  if { : >"$tmp/read-only/probe"; } 2>/dev/null; then
+    own_case parent-of-a-tmpdir-closed-by-its-script-leaves-the-next-script 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  else
+    case_first="FAIL 10-a (its TMPDIR cannot be removed)${nl}PASS 20-b"
+    case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
+    own_case parent-of-a-tmpdir-closed-by-its-script-leaves-the-next-script 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
   fi
   chmod 755 "$tmp/read-only"
   if command -v chflags >/dev/null 2>&1 && mkdir "$tmp/flag-probe" && : >"$tmp/flag-probe/f" && chflags uchg "$tmp/flag-probe/f" 2>/dev/null; then
@@ -1657,7 +1666,7 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/$alone_list"
   own_case alone-list-that-cannot-be-read 1 "FAIL run-ci-d ($alone_list cannot be read)" macos --self-test 10-a
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; for f in \"\$TMPDIR\"/../../run-ci-d.*/self-test.run-ci-d/done; do [ -e \"\$f\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; done; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; for f in \"\$TMPDIR\"/../../../run-ci-d.*/self-test.run-ci-d/done; do [ -e \"\$f\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; done; $passes"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_jobs=1
   case_witness=yes
