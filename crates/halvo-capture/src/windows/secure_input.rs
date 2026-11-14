@@ -1712,6 +1712,253 @@ mod detector {
             assert_eq!(decided(&after), Some(Err(Withheld::Unknown)));
         }
 
+        /// A top-level edit of the test's own in front, with the focus, on a
+        /// thread of its own that answers its messages at once.
+        struct EditInFront {
+            hwnd: usize,
+            stop: Arc<std::sync::atomic::AtomicBool>,
+            thread: Option<std::thread::JoinHandle<()>>,
+        }
+
+        impl EditInFront {
+            fn open() -> (EditInFront, bool) {
+                use std::sync::atomic::{AtomicBool, Ordering};
+                use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+                use windows::Win32::UI::Input::KeyboardAndMouse::{
+                    SendInput, SetFocus, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+                    KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, VK_MENU,
+                };
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    BringWindowToTop, CreateWindowExW, DestroyWindow, SetForegroundWindow,
+                    ShowWindow, SW_SHOW, WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+                };
+                let stop = Arc::new(AtomicBool::new(false));
+                let (tx, rx) = std::sync::mpsc::channel();
+                let thread_stop = Arc::clone(&stop);
+                let thread = std::thread::spawn(move || {
+                    let class = windows::core::HSTRING::from("EDIT");
+                    // SAFETY: the class name is a live HSTRING; the window
+                    // belongs to this thread, which destroys it before it ends.
+                    let Ok(hwnd) = (unsafe {
+                        CreateWindowExW(
+                            WINDOW_EX_STYLE(0),
+                            windows::core::PCWSTR(class.as_ptr()),
+                            windows::core::PCWSTR::null(),
+                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                            80,
+                            80,
+                            320,
+                            120,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    }) else {
+                        let _ = tx.send((0usize, false));
+                        return;
+                    };
+                    let pump = |span: Duration| {
+                        let deadline = std::time::Instant::now() + span;
+                        let mut msg = MSG::default();
+                        loop {
+                            // SAFETY: `msg` is a live MSG that PeekMessageW
+                            // fills, and the same value goes to
+                            // TranslateMessage and DispatchMessageW.
+                            unsafe {
+                                while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                                    let _ = TranslateMessage(&msg);
+                                    DispatchMessageW(&msg);
+                                }
+                            }
+                            let left =
+                                deadline.saturating_duration_since(std::time::Instant::now());
+                            if left.is_zero() {
+                                break;
+                            }
+                            let left = u32::try_from(left.as_millis()).unwrap_or(u32::MAX).max(1);
+                            // SAFETY: no handle is passed; the call waits for
+                            // this thread's queue or the time.
+                            let _ = unsafe {
+                                MsgWaitForMultipleObjectsEx(
+                                    None,
+                                    left,
+                                    QS_ALLINPUT,
+                                    MWMO_INPUTAVAILABLE,
+                                )
+                            };
+                        }
+                    };
+                    let front = || {
+                        // SAFETY: GetForegroundWindow takes no argument.
+                        let foreground = unsafe { GetForegroundWindow() };
+                        foreground == hwnd
+                    };
+                    let alt = |released: bool| INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VK_MENU,
+                                wScan: 0,
+                                dwFlags: if released {
+                                    KEYEVENTF_KEYUP
+                                } else {
+                                    KEYBD_EVENT_FLAGS(0)
+                                },
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    };
+                    // SAFETY: the calls take this thread's window handle.
+                    unsafe {
+                        let _ = ShowWindow(hwnd, SW_SHOW);
+                        let _ = SetForegroundWindow(hwnd);
+                    }
+                    pump(Duration::from_millis(200));
+                    if !front() {
+                        // SAFETY: a slice of one live INPUT value with the
+                        // size of one INPUT, and this thread's window handle.
+                        unsafe {
+                            let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
+                            let _ = SetForegroundWindow(hwnd);
+                            let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
+                        }
+                        pump(Duration::from_millis(200));
+                    }
+                    if !front() {
+                        // SAFETY: GetWindowThreadProcessId takes a handle and
+                        // no out pointer here; the two threads' input is
+                        // joined only around the window calls.
+                        unsafe {
+                            let other = GetWindowThreadProcessId(GetForegroundWindow(), None);
+                            let this = GetCurrentThreadId();
+                            if other != 0 && other != this {
+                                let _ = AttachThreadInput(this, other, true);
+                                let _ = BringWindowToTop(hwnd);
+                                let _ = SetForegroundWindow(hwnd);
+                                let _ = AttachThreadInput(this, other, false);
+                            }
+                        }
+                        pump(Duration::from_millis(200));
+                    }
+                    // SAFETY: SetFocus takes this thread's window handle.
+                    unsafe {
+                        let _ = SetFocus(Some(hwnd));
+                    }
+                    pump(Duration::from_millis(200));
+                    let _ = tx.send((hwnd.0 as usize, front()));
+                    while !thread_stop.load(Ordering::SeqCst) {
+                        pump(Duration::from_millis(50));
+                    }
+                    // SAFETY: the window belongs to this thread and is
+                    // destroyed once.
+                    unsafe {
+                        let _ = DestroyWindow(hwnd);
+                    }
+                    pump(Duration::from_millis(20));
+                });
+                let (hwnd, in_front) = rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap_or((0, false));
+                (
+                    EditInFront {
+                        hwnd,
+                        stop,
+                        thread: Some(thread),
+                    },
+                    in_front,
+                )
+            }
+        }
+
+        impl Drop for EditInFront {
+            fn drop(&mut self) {
+                self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+                if let Some(thread) = self.thread.take() {
+                    let _ = thread.join();
+                }
+            }
+        }
+
+        /// W3-9 (3), O1 through the callback's own path: with the gate at
+        /// Password, the focus callback that the detector registers is called
+        /// with an element that reads Clear (an edit of the native kind),
+        /// then a key is held, and the callback is called again after the
+        /// key's hold. A focus event's Clear never clears a key: the key waits
+        /// for an own read, and with none it is withheld at 250 ms.
+        #[test]
+        fn a_focus_events_clear_from_the_callback_clears_no_key() {
+            let _serial = crate::windows::tests::serial();
+            // SAFETY: joins this test thread to the process's MTA; `_com`
+            // undoes it after the reader and the handler are dropped.
+            let joined = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            assert!(joined.is_ok(), "{joined:?}");
+            let _com = Com;
+            let (edit, in_front) = EditInFront::open();
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's edit did not come to the front"
+            );
+            let reader = Arc::new(new_reader().expect("the reader is made"));
+            // SAFETY: the edit's handle is live while `edit` lives, and the
+            // cache request is live for the call.
+            let element = unsafe {
+                reader
+                    .automation
+                    .ElementFromHandleBuildCache(HWND(edit.hwnd as *mut c_void), &reader.cache)
+            }
+            .expect("the edit's element");
+            let gate = PasswordGate::new();
+            let handler = FocusHandler {
+                vtable: &HANDLER_VTABLE,
+                refs: AtomicU32::new(1),
+                shared: Arc::clone(&gate.shared),
+                reader: Arc::clone(&reader),
+                wake: Arc::new(Event::new().expect("an event")),
+            }
+            .into_interface();
+            let start = tick();
+            gate.read_at(start.wrapping_sub(400), FieldState::Password, None);
+            let at_password = gate.field_now();
+            // SAFETY: the handler and the element are live COM objects for
+            // the call, which borrows both.
+            let first_answer = unsafe { handler_focus(handler.as_raw(), element.as_raw()) };
+            let after_the_event = gate.field_now();
+            // The key comes a tick period or more after the event, so that
+            // the event is the newest mark before the key's OS time.
+            std::thread::sleep(Duration::from_millis(50));
+            let key = gate.hold(tick(), false, 0);
+            std::thread::sleep(Duration::from_millis(150));
+            // SAFETY: as above.
+            let second_answer = unsafe { handler_focus(handler.as_raw(), element.as_raw()) };
+            let decide = |now: u32| {
+                gate.decide(&key, now, 0, false)
+                    .map(|(answer, rule)| (answer.is_ok(), rule))
+            };
+            let within_the_bound = decide(key.tick.wrapping_add(200));
+            let at_the_bound = decide(key.tick.wrapping_add(260));
+            drop(handler);
+            drop(element);
+            drop(reader);
+            drop(edit);
+            assert_eq!((first_answer, second_answer), (S_OK, S_OK));
+            assert_eq!(at_password, FieldState::Password);
+            assert_eq!(
+                after_the_event,
+                FieldState::Clear,
+                "INCONCLUSIVE: the callback's reading of the edit was not Clear"
+            );
+            assert_eq!(
+                within_the_bound, None,
+                "a focus event's Clear cleared the key"
+            );
+            assert_eq!(
+                at_the_bound,
+                Some((false, super::super::Rule::NotClearedInTime))
+            );
+        }
+
         #[test]
         fn detach_ends_the_detectors_thread_and_a_new_attach_starts_one() {
             let _serial = crate::windows::tests::serial();

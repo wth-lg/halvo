@@ -1957,12 +1957,17 @@ fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
     });
 }
 
-/// W3-7 O1: with the password field focused, the program raises a focus
-/// notice for the plain edit, which does not take the focus; none of the
-/// five letters typed into the password field after it is recorded.
+/// W3-7 O1 with W3-9 (3): with the password field focused, the program
+/// raises a focus notice for the plain edit, which does not take the focus.
+/// On the hosted runner the system delivers the gate no event for it (no
+/// mark after the notice, round B), so the phase shows that a notice the
+/// system does not deliver changes nothing: none of the five letters typed
+/// into the password field after it is recorded. The rule that an event's
+/// Clear clears no key is held through the focus callback by the library
+/// test `a_focus_events_clear_from_the_callback_clears_no_key`.
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn a_focus_notice_for_a_field_that_does_not_take_the_focus_records_no_letter() {
+fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
     native_phase(
         "stall-stale-focus",
         "stale-focus",
