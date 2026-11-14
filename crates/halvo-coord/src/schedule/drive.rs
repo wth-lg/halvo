@@ -1580,10 +1580,11 @@ fn read_once<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize) -> Res
     Ok(())
 }
 
-/// The rest of a switch-off once its hold `off` is known stored (I5.7, ruling RD-52 (b) rule 1):
-/// the agent's live run that no stop has reached is stopped on the board with `cancelled`, then
-/// halted by `halt`, and by `Runs::cancel` where `halt` sent none, and then `set_state` `paused`
-/// is sent.
+/// The rest of a switch-off once its hold `off` is known stored (I5.7, rulings RD-52 (b) rule 1,
+/// (d)): the agent's queued start leaves the queue with nothing stored for it, whoever queued
+/// it; the agent's live run that no stop has reached is stopped on the board with `cancelled`,
+/// then halted by `halt`, and by `Runs::cancel` where `halt` sent none; and then `set_state`
+/// `paused` is sent.
 fn off_rest<P: Owner + Runs, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -1592,6 +1593,11 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 ) -> Report {
     let agent = board.members[i].facts.agent.clone();
     let mut report = Report::default();
+    if board.queue.remove(&agent) {
+        if let Doing::Queued(item) = &board.members[i].facts.doing {
+            board.members[i].facts.doing = Doing::Idle(item.clone());
+        }
+    }
     let live = board
         .runs
         .iter()

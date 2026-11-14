@@ -355,8 +355,14 @@ fn a_switch_off_after_another_writers_event_is_stored_although_the_log_holds_an_
     agree(&w, 0);
 }
 
+/// A queued agent whose `ready` item the owner stored with a lost acknowledgement, and whose hold
+/// `off` the owner then stored too: the queued start, served at the end of the live run, meets
+/// `seq`, and its read brings both. The agent takes up the revealed item, and the start leaves the
+/// queue answered `hold` (ruling RD-52 (a)) with the item kept. The hold is drawn at the owner
+/// because a switch-off in this life takes the start out of the queue (ruling RD-52 (d)); it was
+/// `a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued`, whose switch-off read both.
 #[test]
-fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
+fn a_queued_agent_whose_start_reads_a_hold_and_a_revealed_ready_item_keeps_that_item() {
     let limits = halvo_coord::types::Limits {
         max_live_runs: 1,
         ..halvo_coord::types::Limits::PRODUCT
@@ -379,18 +385,32 @@ fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
     assert_eq!(w.facts(0).doing, Doing::Idle(None));
     let live = w.act(Act::Start { agent: agent(1) });
     assert_eq!(live.report.answer, Ok(Answer::Ok));
+    let run = live.report.run.expect("the live run");
     let queued = w.act(Act::Start { agent: agent(0) });
     assert_eq!(queued.report.answer, Ok(Answer::Queued));
     assert_eq!(w.facts(0).doing, Doing::Queued(None));
     assert!(w.board.queue.holds(&agent(0)));
-    let off = w.act(Act::SwitchOff { agent: agent(0) });
-    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    stored_by_another_writer(
+        &w,
+        0,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    let end = w.act(Act::End { run, outcome: None });
+    let served = &end.report.ended[0].next;
+    assert_eq!(served.len(), 1);
+    assert_eq!(
+        (served[0].agent.clone(), served[0].answer),
+        (agent(0), Err(halvo_coord::types::Cause::Hold))
+    );
     assert!(
-        matches!(&w.facts(0).doing, Doing::Queued(Some(o)) if o.kind == OwnItemKind::Ready && o.item == ready),
-        "the queued agent holds the revealed item and stays queued: {:?}",
+        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready && o.item == ready),
+        "the agent holds the revealed item: {:?}",
         w.facts(0).doing
     );
-    assert!(w.board.queue.holds(&agent(0)));
+    assert!(!w.board.queue.holds(&agent(0)));
+    assert!(holds(w.facts(0)).contains(&Hold::Off));
     agree(&w, 0);
 }
 

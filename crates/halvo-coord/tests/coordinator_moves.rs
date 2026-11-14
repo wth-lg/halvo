@@ -2707,6 +2707,8 @@ struct Lossy {
     handed: usize,
     broken: Vec<String>,
     c4_seeds: Vec<u64>,
+    queued_moves: usize,
+    off_in_queue: Vec<String>,
 }
 
 impl Lossy {
@@ -2726,6 +2728,8 @@ impl Lossy {
         self.allows += o.allows;
         self.broken.extend(o.broken);
         self.c4_seeds.extend(o.c4_seeds);
+        self.queued_moves += o.queued_moves;
+        self.off_in_queue.extend(o.off_in_queue);
     }
 }
 
@@ -2846,11 +2850,13 @@ fn handed_by_the_newest_row(
 /// move every `answer_bind` with `allow` that did its work is checked: it was made inside a move
 /// that answers that item with Allow, the item's newest `item_answered` row was `allow` at the
 /// call, and it came after no Stop or switch-off of its run, no lapse of the item and no Don't
-/// allow on the item answered ok (ruling RD-46 (5) T19).
-fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
+/// allow on the item answered ok (ruling RD-46 (5) T19). After each move, too, the queue holds no
+/// start of an agent whose hold `off` the board knows (ruling RD-52 (d)); with `max_live` 1 the
+/// second agent's start queues while the first runs.
+fn lossy_sequence(seed: u64, form: support::Loss, max_live: u32) -> Lossy {
     use halvo_coord::types::{Answered, BindResult, Event, Origin, Raised, SignInAnswer};
     let limits = Limits {
-        max_live_runs: 2,
+        max_live_runs: max_live,
         ..Limits::PRODUCT
     };
     let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
@@ -3082,6 +3088,15 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
                 "seed {seed} {form:?}: move {mv}: off beside a live run that no stop reached"
             ));
         }
+        let queued = c.queued();
+        if !queued.is_empty() {
+            out.queued_moves += 1;
+        }
+        if queued.iter().any(|(_, off)| *off) {
+            out.off_in_queue.push(format!(
+                "seed {seed} {form:?} max_live {max_live}: move {mv}: {queued:?}"
+            ));
+        }
         out.moves += 1;
         handed_by_the_newest_row(
             &c,
@@ -3198,14 +3213,17 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
         .and_then(|v| v.parse().ok())
         .unwrap_or(1_280);
     let mut c4 = Vec::new();
-    for form in [
+    for (form, max_live) in [
         support::Loss::Reply,
         support::Loss::Later,
         support::Loss::Unread,
-    ] {
+    ]
+    .into_iter()
+    .flat_map(|form| [(form, 2), (form, 1)])
+    {
         let mut all = Lossy::default();
         for seed in 0..count {
-            all.add(lossy_sequence(seed, form));
+            all.add(lossy_sequence(seed, form, max_live));
         }
         let mut by_kind: Vec<(ItemKind, usize)> = Vec::new();
         for k in &all.twice {
@@ -3213,6 +3231,19 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
                 Some((_, n)) => *n += 1,
                 None => by_kind.push((*k, 1)),
             }
+        }
+        println!(
+            "lossy form={form:?} max_live={max_live} sequences={count} moves_with_a_queued_start={} off_in_queue={}",
+            all.queued_moves,
+            all.off_in_queue.len()
+        );
+        assert!(
+            all.off_in_queue.is_empty(),
+            "{form:?} max_live {max_live}: {:?}",
+            &all.off_in_queue[..all.off_in_queue.len().min(8)]
+        );
+        if max_live == 1 {
+            assert!(all.queued_moves > 0, "{form:?}: no start queued");
         }
         println!(
             "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} done_then_decline={} same_choice_again={} allows_sent={} handback_presses_refused={} handback_results_checked={} moves_checked_for_off_beside_live={} broken={}",
@@ -6177,5 +6208,73 @@ fn rd52b_rule3_a_ticks_flush_read_that_brings_a_switch_off_stops_before_the_wait
             "{case}: paused once"
         );
         assert_eq!(hold_sets(&c, 0), 1, "{case}: no second hold_set");
+    }
+}
+
+/// RD-52 (d): a switch-off with a queued start takes it out of the queue with nothing stored
+/// for it, so that a switch-on before the other run's end brings no start at that end, once for
+/// a start that the person queued and once for the scheduler's.
+#[test]
+fn rd52d_a_switch_off_drops_a_queued_start_and_a_switch_on_brings_none_back() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let auto = support::A {
+        person: false,
+        slotted: true,
+    };
+    for by in ["person", "scheduler"] {
+        let c = if by == "person" {
+            let c = coordinator(&[MANUAL, MANUAL], one);
+            start(&c, 0);
+            assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()), "{by}");
+            c
+        } else {
+            coordinator(&[auto, auto], one)
+        };
+        let first = started(&c)[0].clone();
+        assert_eq!(started(&c).len(), 1, "{by}: agent 1 waits");
+        assert_eq!(
+            row_line(&c.snapshot(), 1),
+            text("line.waiting_turn.queued"),
+            "{by}"
+        );
+        let before: Vec<What> = c
+            .ports()
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(1))
+            .map(|e| e.what.clone())
+            .collect();
+        assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()), "{by}");
+        let after: Vec<What> = c
+            .ports()
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(1))
+            .map(|e| e.what.clone())
+            .collect();
+        assert_eq!(
+            after[before.len()..],
+            [What::HoldSet {
+                cause: HoldSetCause::Person
+            }],
+            "{by}: the hold alone, nothing for the start"
+        );
+        assert_ne!(
+            row_line(&c.snapshot(), 1),
+            text("line.waiting_turn.queued"),
+            "{by}: the start left the queue"
+        );
+        assert_eq!(c.control(&agent(1), Action::SwitchOn), Ok(()), "{by}");
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        assert_eq!(started(&c).len(), 1, "{by}: no start at that end");
     }
 }

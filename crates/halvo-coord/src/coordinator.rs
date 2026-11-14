@@ -933,8 +933,8 @@ where
     }
 
     /// The rest of the switch-off for each agent whose hold `off` a read of this move brought in
-    /// beside a live run that no stop has reached, an agent of `before` having stood off before
-    /// the move (I5.7, ruling RD-52 (b) rule 3).
+    /// beside a live run that no stop has reached or beside a queued start, an agent of `before`
+    /// having stood off before the move (I5.7, rulings RD-52 (b) rule 3, (d)).
     fn after_reads(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
         for agent in Self::offs(st) {
             let Some(board) = st.board.as_ref() else {
@@ -943,7 +943,7 @@ where
             let (Some(i), false) = (index(board, &agent), before.contains(&agent)) else {
                 continue;
             };
-            if reachable(board, &agent).is_some() {
+            if reachable(board, &agent).is_some() || board.queue.holds(&agent) {
                 let _ = self.off(st, i, Move::Off { agent });
             }
         }
@@ -1573,6 +1573,23 @@ where
         Self::offs(&st)
             .into_iter()
             .filter(|a| reachable(board, a).is_some())
+            .collect()
+    }
+
+    /// The agents whose start waits in the queue, in its order, each with whether its hold `off`
+    /// stands in the owner's events as the coordinator has read them: never after any move (I5.7,
+    /// ruling RD-52 (d)).
+    pub fn queued(&self) -> Vec<(AgentId, bool)> {
+        let st = self.lock();
+        let Some(board) = st.board.as_ref() else {
+            return Vec::new();
+        };
+        let offs = Self::offs(&st);
+        board
+            .queue
+            .entries()
+            .iter()
+            .map(|w| (w.agent.clone(), offs.contains(&w.agent)))
             .collect()
     }
 

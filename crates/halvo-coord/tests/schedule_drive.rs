@@ -868,15 +868,16 @@ fn queue_two_behind(w: &mut World) -> RunId {
     run
 }
 
+/// A hold `off` that the owner stored between the queue and the start, which the board learns
+/// from the start's read after its refusal `seq`: the start leaves the queue answered `hold`
+/// (ruling RD-52 (a)). The hold is stored at the owner because a switch-off in this life takes
+/// the start out of the queue (ruling RD-52 (d)).
 #[test]
 fn a_hold_stored_between_the_queue_and_the_start_drops_the_start() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    assert_eq!(
-        w.go(Move::SwitchOff { agent: agent(1) }).answer,
-        Ok(Answer::Ok)
-    );
+    stored_at_owner(&mut w, 1, OFF, false);
     w.forget();
     let end = w.end(&run, Some(Outcome::Completed));
     let next = &end.ended[0].next;
@@ -1098,7 +1099,7 @@ fn a_tick_with_no_live_run_takes_one_start_from_the_queue_before_the_agents() {
     let mut w = world(&[manual(), manual(), manual(), person()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     w.forget();
     let tick = w.tick();
@@ -1989,7 +1990,7 @@ fn a_tick_whose_kill_ended_a_run_serves_no_second_start_after_a_drop() {
     let mut w = world(&[manual(), manual(), manual()]);
     queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.go(Move::SwitchOff { agent: agent(0) });
     w.clock(T0 + 5_000, DAY);
     let tick = w.tick();
@@ -2483,7 +2484,7 @@ fn a_tick_whose_read_of_the_agents_fails_takes_no_start_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     let end = w.end(&run, Some(Outcome::Completed));
     assert_eq!(end.ended[0].next[0].answer, Err(Cause::Hold));
     assert!(w.board.queue.holds(&agent(2)) && w.board.runs.is_empty());
@@ -2806,7 +2807,7 @@ fn a_tick_sends_active_before_the_start_that_it_serves_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     approved_listed(&w, 3);
     w.forget();
