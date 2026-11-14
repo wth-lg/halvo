@@ -231,6 +231,7 @@ fn main_window<R: Runtime>(
     let builder = WebviewWindowBuilder::from_config(app, &config)?
         .on_navigation(|url| may_navigate(url.as_str()))
         .on_download(|_, _| false)
+        .initialization_script_for_all_frames(NO_PEER_SCRIPT)
         .visible(false);
     #[cfg(windows)]
     let builder = builder.additional_browser_args(ENGINE_ARGS);
@@ -244,6 +245,8 @@ fn main_window<R: Runtime>(
 
 #[cfg(windows)]
 pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --force-webrtc-ip-handling-policy=disable_non_proxied_udp";
+
+pub const NO_PEER_SCRIPT: &str = "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
 
 pub fn blank() -> Url {
     Url::parse("about:blank").expect("about:blank is an address")

@@ -35,6 +35,9 @@ pub const RULE_LIST_ID: &str = "halvo-window-main";
 pub const RULE_LIST: &str = r#"[{"trigger":{"url-filter":".*"},"action":{"type":"block"}},{"trigger":{"url-filter":"^tauri://localhost/"},"action":{"type":"ignore-previous-rules"}},{"trigger":{"url-filter":"^ipc://localhost/"},"action":{"type":"ignore-previous-rules"}}]"#;
 
 #[cfg(any(target_os = "macos", test))]
+pub const LINK_PRECONNECT_FEATURE: &str = "LinkPreconnect";
+
+#[cfg(any(target_os = "macos", test))]
 pub const PROXY_HOST: &str = "255.255.255.255";
 #[cfg(any(target_os = "macos", test))]
 pub const PROXY_PORT: &str = "9";
@@ -214,11 +217,13 @@ mod platform {
     use block2::{Block, RcBlock};
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, Bool, NSObject, NSObjectProtocol, ProtocolObject, Sel};
-    use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker, MainThreadOnly};
+    use objc2::{
+        define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly,
+    };
     use objc2_foundation::{NSArray, NSError, NSString, NSURL};
     use objc2_web_kit::{
         WKContentRuleList, WKContentRuleListStore, WKNavigationAction, WKNavigationActionPolicy,
-        WKNavigationDelegate, WKWebView,
+        WKNavigationDelegate, WKPreferences, WKWebView,
     };
     use tauri::webview::PlatformWebview;
 
@@ -342,6 +347,59 @@ mod platform {
         Ok(())
     }
 
+    fn turn_off_engine_features(view: &WKWebView) -> Result<(), String> {
+        // SAFETY: on the main thread with `view` retained; both reads come back retained, and the
+        // preferences are the object that the page's settings follow (WebKit's configuration copy
+        // shares it).
+        let prefs = unsafe { view.configuration().preferences() };
+        // SAFETY: `prefs` is a retained NSObject; respondsToSelector: takes a SEL and returns BOOL.
+        let has_peer: bool =
+            unsafe { msg_send![&*prefs, respondsToSelector: sel!(_setPeerConnectionEnabled:)] };
+        if !has_peer {
+            return Err(
+                "the preferences of this system have no peer-connection setting".to_string(),
+            );
+        }
+        // SAFETY: the preferences respond to _setPeerConnectionEnabled: (checked above), which takes
+        // a BOOL and returns void, on the main thread.
+        let _: () = unsafe { msg_send![&*prefs, _setPeerConnectionEnabled: false] };
+        // SAFETY: the getter of the same property, which takes nothing and returns BOOL.
+        let peer_on: bool = unsafe { msg_send![&*prefs, _peerConnectionEnabled] };
+        if peer_on {
+            return Err("peer connections stay on after the preference was set".to_string());
+        }
+        let class = WKPreferences::class();
+        // SAFETY: the class object is alive for the process; respondsToSelector: as above.
+        let has_features: bool = unsafe { msg_send![class, respondsToSelector: sel!(_features)] };
+        if !has_features {
+            return Err("the preferences of this system list no features".to_string());
+        }
+        // SAFETY: +_features takes nothing and returns an autoreleased NSArray of _WKFeature,
+        // which Retained retains.
+        let features: Option<Retained<NSArray<AnyObject>>> = unsafe { msg_send![class, _features] };
+        let features = features.ok_or("no feature list")?;
+        let link_preconnect = (0..features.count())
+            .map(|i| features.objectAtIndex(i))
+            .find(|feature| {
+                // SAFETY: each element is a _WKFeature, whose key takes nothing and returns an
+                // NSString owned by the feature.
+                let key: Option<Retained<NSString>> = unsafe { msg_send![&**feature, key] };
+                key.is_some_and(|key| key.to_string() == super::LINK_PRECONNECT_FEATURE)
+            })
+            .ok_or("the preferences of this system have no link-preconnect feature")?;
+        // SAFETY: the preferences take _setEnabled:forFeature: with a BOOL and a _WKFeature of the
+        // list above, on the main thread, and return void.
+        let _: () =
+            unsafe { msg_send![&*prefs, _setEnabled: false, forFeature: &*link_preconnect] };
+        // SAFETY: _isEnabledForFeature: takes the same _WKFeature and returns BOOL.
+        let preconnect_on: bool =
+            unsafe { msg_send![&*prefs, _isEnabledForFeature: &*link_preconnect] };
+        if preconnect_on {
+            return Err("link preconnect stays on after the feature was set".to_string());
+        }
+        Ok(())
+    }
+
     pub fn install(webview: &PlatformWebview, site: &EngineSite, answer: Sender<GuardAnswer>) {
         let Some(mtm) = MainThreadMarker::new() else {
             let _ = answer.send(Err("not on the main thread".to_string()));
@@ -355,7 +413,9 @@ mod platform {
             let _ = answer.send(Err("no web view".to_string()));
             return;
         };
-        if let Err(e) = put_delegate_in_front(&view, mtm).and_then(|()| set_the_store_proxy(&view))
+        if let Err(e) = put_delegate_in_front(&view, mtm)
+            .and_then(|()| set_the_store_proxy(&view))
+            .and_then(|()| turn_off_engine_features(&view))
         {
             let _ = answer.send(Err(e));
             return;
@@ -523,6 +583,7 @@ mod tests {
             r#"[{"trigger":{"url-filter":".*"},"action":{"type":"block"}},{"trigger":{"url-filter":"^tauri://localhost/"},"action":{"type":"ignore-previous-rules"}},{"trigger":{"url-filter":"^ipc://localhost/"},"action":{"type":"ignore-previous-rules"}}]"#
         );
         assert_eq!(RULE_LIST_ID, "halvo-window-main");
+        assert_eq!(LINK_PRECONNECT_FEATURE, "LinkPreconnect");
         assert_eq!((PROXY_HOST, PROXY_PORT), ("255.255.255.255", "9"));
     }
 
@@ -584,9 +645,14 @@ mod tests {
                 1,
             ),
             (
-                "put_delegate_in_front(&view, mtm).and_then(|()| set_the_store_proxy(&view))",
+                "put_delegate_in_front(&view, mtm)\n            .and_then(|()| set_the_store_proxy(&view))\n            .and_then(|()| turn_off_engine_features(&view))\n",
                 1,
             ),
+            ("msg_send![&*prefs, _setPeerConnectionEnabled: false]", 1),
+            ("msg_send![&*prefs, _peerConnectionEnabled]", 1),
+            ("msg_send![&*prefs, _setEnabled: false, forFeature: &*link_preconnect]", 1),
+            ("msg_send![&*prefs, _isEnabledForFeature: &*link_preconnect]", 1),
+            ("super::LINK_PRECONNECT_FEATURE", 1),
             ("super::engine_allows(", 1),
             ("handler.call((WKNavigationActionPolicy::Cancel,));", 1),
         ] {

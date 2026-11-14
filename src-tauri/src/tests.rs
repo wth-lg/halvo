@@ -315,7 +315,7 @@ fn the_module_table_routes_exactly_the_names_that_each_handler_answers() {
     );
 }
 
-pub const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+pub const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; webrtc 'block'";
 
 fn src_tauri() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1292,6 +1292,11 @@ fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_lo
             1,
         ),
         ("&& is_app_url(payload.url())\n", 1),
+        (
+            "        .on_download(|_, _| false)\n        .initialization_script_for_all_frames(NO_PEER_SCRIPT)\n        .visible(false);\n",
+            1,
+        ),
+        ("initialization_script", 1),
         ("app.manage(installed);", 1),
     ] {
         assert_eq!(app.matches(text).count(), count, "{text}");
@@ -1319,4 +1324,12 @@ fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_other_hos
         1
     );
     assert_eq!(app.matches("proxy_url").count(), 0);
+}
+
+#[test]
+fn the_script_of_every_frame_takes_the_peer_connection_constructors_away() {
+    assert_eq!(
+        app::NO_PEER_SCRIPT,
+        "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();"
+    );
 }
