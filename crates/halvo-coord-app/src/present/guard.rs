@@ -1,3 +1,7 @@
+#[cfg(any(test, windows))]
+use std::cell::Cell;
+#[cfg(any(test, windows))]
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::time::{Duration, Instant};
 
 /// The hold on every control of one show of the native dialog (I4.9, ruling RD-91): a press
@@ -49,5 +53,47 @@ impl Guard {
             }
             None => false,
         }
+    }
+}
+
+/// One show of a dialog whose window's messages all come on the thread of the show's call, the
+/// task dialog of Windows: its hold and its report on screen.
+#[cfg(any(test, windows))]
+pub struct Show<'a> {
+    guard: Cell<Guard>,
+    on_screen: &'a dyn Fn(),
+}
+
+#[cfg(any(test, windows))]
+impl<'a> Show<'a> {
+    /// A show that holds every control for `arm` and reports itself on screen through
+    /// `on_screen`.
+    pub fn new(arm: Duration, on_screen: &'a dyn Fn()) -> Show<'a> {
+        Show {
+            guard: Cell::new(Guard::new(arm)),
+            on_screen,
+        }
+    }
+
+    /// The show's window became the active window: the hold starts anew at `clock()`, and the
+    /// first time the show reports itself on screen and the hold starts again at the reading of
+    /// `clock` after that report returned, also when the report panicked.
+    pub fn active(&self, clock: &dyn Fn() -> Instant) {
+        if self.with(|guard| guard.active(clock())) {
+            let _ = catch_unwind(AssertUnwindSafe(self.on_screen));
+            self.with(|guard| guard.reported(clock()));
+        }
+    }
+
+    /// A press of any control at `now`: whether it answers.
+    pub fn press(&self, now: Instant) -> bool {
+        self.with(|guard| guard.press(now))
+    }
+
+    fn with<T>(&self, f: impl FnOnce(&mut Guard) -> T) -> T {
+        let mut guard = self.guard.get();
+        let out = f(&mut guard);
+        self.guard.set(guard);
+        out
     }
 }

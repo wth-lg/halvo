@@ -4,23 +4,37 @@ use super::outcome::from_alert;
 use super::outcome::from_task_dialog;
 use super::{Card, Dialog};
 use halvo_coord::items::ConfirmAnswer;
+use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 
 /// The native dialog in the form `system` of U0.4's verdict (I11.5, ruling RD-42 D2), never the
 /// plugin's message dialog. Every outcome but the press on the allowing control answers `reject`, a
 /// failed call among them, which the seam tests `wait_alert` and `task_answer` hold on both
-/// systems, and neither form sets a time limit. On macOS it is the alert of AppKit, shown on the
-/// main thread. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the
-/// rejecting text with the response 1000 and the allowing text with 1001; that no button is titled
-/// Cancel or holds the Escape key; that its message text is the card's title and its informative
-/// text the card's text; and that a press on each button, a stopped and an aborted modal session
-/// answer as the mapping says, each after one report on screen. Which button the laid-out alert
-/// holds as its default, and that its window has no close control, the target asserts where it
-/// reads them; where it gives no reading, they rest on the trial's record and on the hand check of
-/// I9.5. On Windows it is the task dialog. The same target holds that a click of the allowing id
-/// 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the Escape
-/// key and the close control give, of an id that no button has, and the message WM_CLOSE each
-/// reject, each after one report at the dialog's creation; its default control and the flag that
+/// systems, and neither form sets a time limit. Each show holds every control for `arm` (ruling
+/// RD-91): it reports itself on screen at the first moment at which its window became the active
+/// window and never before it, and a press of any control inside `arm` after the return of that
+/// report, after each later moment at which the window became the active window again, or after a
+/// press that the hold refused, closes nothing and answers nothing; the hold is decided at the press
+/// from the monotonic clock, and no control waits for an event to become enabled. The test target
+/// `guard_hosted`, on a hosted runner, holds that a press of each control 100 ms after the report
+/// leaves the dialog open, that a press after the hold answers, that a refused press starts the
+/// hold anew, that a second show holds again, and that the window was the active window at the
+/// report. On macOS it is the alert of AppKit, shown on the main thread, whose buttons send their
+/// action to the hold, which ends the modal session with the button's response when the hold lets
+/// the press through; the report comes from the window's notification that it became the key
+/// window. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
+/// text with the response 1000 and the allowing text with 1001; that no button is titled Cancel or
+/// holds the Escape key; that its message text is the card's title and its informative text the
+/// card's text; and that a press on each button after the hold, a stopped and an aborted modal
+/// session answer as the mapping says, each after one report on screen. Which button the laid-out
+/// alert holds as its default, and that its window has no close control, the target asserts where
+/// it reads them; where it gives no reading, they rest on the trial's record and on the hand check
+/// of I9.5. On Windows it is the task dialog, whose callback refuses a button's click inside the
+/// hold, and whose window, subclassed at its creation, reports the show at its first activation and
+/// refuses the message WM_CLOSE inside the hold. The same target holds that a click of the allowing
+/// id 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the
+/// Escape key and the close control give, of an id that no button has, and the message WM_CLOSE
+/// each reject, each after the hold and after one report; its default control and the flag that
 /// allows the cancel response are held by the config test. On another system no dialog is shown and
 /// the answer is `reject`.
 pub struct System<R: Runtime> {
@@ -46,15 +60,14 @@ impl<R: Runtime> System<R> {
 }
 
 impl<R: Runtime> Dialog for System<R> {
-    fn show(&self, card: &Card, arm: std::time::Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
-        let _ = arm;
+    fn show(&self, card: &Card, arm: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         #[cfg(target_os = "macos")]
-        return macos::show(&self.app, card, on_screen);
+        return macos::show(&self.app, card, arm, on_screen);
         #[cfg(windows)]
-        return windows::show(card, on_screen);
+        return windows::show(card, arm, on_screen);
         #[cfg(not(any(target_os = "macos", windows)))]
         {
-            let _ = (card, on_screen);
+            let _ = (card, arm, on_screen);
             super::decide(super::Outcome::<()>::Failed, ())
         }
     }
@@ -67,8 +80,8 @@ pub fn controls(card: &Card) -> [&str; 2] {
     [card.reject(), card.allow()]
 }
 
-/// A message of the main thread's alert to the thread that waits for it: the alert is on
-/// screen, or it ended with this response.
+/// A message of the main thread's alert to the thread that waits for it: the alert's window
+/// became the key window for the first time, or the alert ended with this response.
 #[cfg(any(test, target_os = "macos"))]
 #[derive(Clone, Copy)]
 pub enum Step {
@@ -77,21 +90,26 @@ pub enum Step {
 }
 
 /// The answer of an alert whose show on the main thread was queued with `queued` and which sends
-/// its two steps on `rx`: `on_screen` once the alert reports itself on screen, then `allow`
-/// for the response 1001 alone. A failed queue and a channel that closes before the report
-/// answer `reject` with no report; a channel that closes after the report and a response with
-/// no report before it answer `reject`.
+/// its two steps on `rx`: `on_screen` once the alert's window became the key window, then
+/// `reported` once that report has returned, so that the hold starts after it, then `allow` for
+/// the response 1001 alone. A failed queue and a channel that closes before the report answer
+/// `reject` with no report; a channel that closes after the report and a response with no report
+/// before it answer `reject`.
 #[cfg(any(test, target_os = "macos"))]
 pub fn wait_alert<E>(
     queued: Result<(), E>,
     rx: &std::sync::mpsc::Receiver<Step>,
     on_screen: &dyn Fn(),
+    reported: &dyn Fn(),
 ) -> ConfirmAnswer {
     if queued.is_err() {
         return from_alert(None);
     }
     match rx.recv() {
-        Ok(Step::Shown) => on_screen(),
+        Ok(Step::Shown) => {
+            on_screen();
+            reported();
+        }
         _ => return from_alert(None),
     }
     match rx.recv() {
@@ -109,21 +127,72 @@ pub fn task_answer<E>(called: Result<(), E>, pressed: i32) -> ConfirmAnswer {
 
 #[cfg(target_os = "macos")]
 mod macos {
+    use super::super::guard::Guard;
     use super::super::Card;
     use super::{controls, wait_alert, Step};
     use halvo_coord::items::ConfirmAnswer;
-    use objc2::MainThreadMarker;
-    use objc2_app_kit::NSAlert;
-    use objc2_foundation::NSString;
-    use std::sync::mpsc;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyObject, NSObject};
+    use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker, MainThreadOnly};
+    use objc2_app_kit::{NSAlert, NSApplication, NSButton, NSWindowDidBecomeKeyNotification};
+    use objc2_foundation::{NSNotification, NSNotificationCenter, NSString};
+    use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError};
+    use std::time::{Duration, Instant};
     use tauri::{AppHandle, Runtime};
+
+    fn lock(guard: &Mutex<Guard>) -> MutexGuard<'_, Guard> {
+        guard.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    struct Held {
+        guard: Arc<Mutex<Guard>>,
+        shown: mpsc::Sender<Step>,
+        button: Retained<NSButton>,
+    }
+
+    define_class!(
+        // SAFETY: NSObject has no requirement of a subclass, and `Hold` implements no `Drop`.
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "HalvoDialogHold"]
+        #[ivars = Held]
+        struct Hold;
+
+        impl Hold {
+            #[unsafe(method(press:))]
+            fn press(&self, sender: Option<&NSButton>) {
+                let Some(button) = sender else {
+                    return;
+                };
+                if lock(&self.ivars().guard).press(Instant::now()) {
+                    NSApplication::sharedApplication(self.mtm()).stopModalWithCode(button.tag());
+                }
+            }
+
+            #[unsafe(method(becameKey:))]
+            fn became_key(&self, note: &NSNotification) {
+                let Some(window) = self.ivars().button.window() else {
+                    return;
+                };
+                let ours = note
+                    .object()
+                    .is_some_and(|object| std::ptr::eq(Retained::as_ptr(&object), Retained::as_ptr(&window).cast()));
+                if ours && lock(&self.ivars().guard).active(Instant::now()) {
+                    let _ = self.ivars().shown.send(Step::Shown);
+                }
+            }
+        }
+    );
 
     pub fn show<R: Runtime>(
         app: &AppHandle<R>,
         card: &Card,
+        arm: Duration,
         on_screen: &dyn Fn(),
     ) -> ConfirmAnswer {
         let (tx, rx) = mpsc::channel();
+        let guard = Arc::new(Mutex::new(Guard::new(arm)));
+        let held = guard.clone();
         let title = card.title().to_owned();
         let text = card.text();
         let titles = controls(card).map(str::to_owned);
@@ -132,31 +201,70 @@ mod macos {
                 return;
             };
             let alert = NSAlert::new(mtm);
-            for title in &titles {
-                alert.addButtonWithTitle(&NSString::from_str(title));
-            }
+            let buttons = titles.map(|title| alert.addButtonWithTitle(&NSString::from_str(&title)));
             alert.setMessageText(&NSString::from_str(&title));
             alert.setInformativeText(&NSString::from_str(&text));
-            let _ = tx.send(Step::Shown);
-            let _ = tx.send(Step::Response(alert.runModal()));
+            alert.layout();
+            let hold: Retained<Hold> = {
+                let this = Hold::alloc(mtm).set_ivars(Held {
+                    guard: held,
+                    shown: tx.clone(),
+                    button: buttons[0].clone(),
+                });
+                // SAFETY: `init` of NSObject on a newly allocated object.
+                unsafe { msg_send![super(this), init] }
+            };
+            let target: &AnyObject = &hold;
+            for button in &buttons {
+                // SAFETY: `hold` answers the selector `press:` with a sender that is a button, and it
+                // lives until after the modal session, the only time in which a button sends it.
+                unsafe {
+                    button.setTarget(Some(target));
+                    button.setAction(Some(sel!(press:)));
+                }
+            }
+            let center = NSNotificationCenter::defaultCenter();
+            // SAFETY: `hold` answers the selector `becameKey:` with a notification, and it is
+            // removed as an observer before it is dropped.
+            unsafe {
+                center.addObserver_selector_name_object(
+                    target,
+                    sel!(becameKey:),
+                    Some(NSWindowDidBecomeKeyNotification),
+                    None,
+                );
+            }
+            let response = alert.runModal();
+            // SAFETY: `hold` is the observer that was added above.
+            unsafe { center.removeObserver(target) };
+            let _ = tx.send(Step::Response(response));
         });
-        wait_alert(queued, &rx, on_screen)
+        wait_alert(queued, &rx, on_screen, &|| {
+            lock(&guard).reported(Instant::now())
+        })
     }
 }
 
 #[cfg(windows)]
 pub(super) mod windows {
+    use super::super::guard::Show;
     use super::super::outcome::{TASK_ALLOW, TASK_REJECT};
     use super::super::Card;
     use super::task_answer;
     use halvo_coord::items::ConfirmAnswer;
-    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use std::time::{Duration, Instant};
     use windows::core::{HRESULT, HSTRING, PCWSTR};
-    use windows::Win32::Foundation::{HWND, LPARAM, S_OK, WPARAM};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, S_FALSE, S_OK, WPARAM};
     use windows::Win32::UI::Controls::{
         TaskDialogIndirect, TASKDIALOGCONFIG, TASKDIALOG_BUTTON, TASKDIALOG_FLAGS,
-        TASKDIALOG_NOTIFICATIONS, TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT, TDN_CREATED,
+        TASKDIALOG_NOTIFICATIONS, TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT,
+        TDN_BUTTON_CLICKED, TDN_CREATED, TDN_DESTROYED,
     };
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+    use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+    use windows::Win32::UI::WindowsAndMessaging::{WA_INACTIVE, WM_ACTIVATE, WM_CLOSE};
+
+    const SUBCLASS: usize = 1;
 
     pub struct Texts {
         title: HSTRING,
@@ -191,11 +299,7 @@ pub(super) mod windows {
             ]
         }
 
-        pub fn config(
-            &self,
-            buttons: &[TASKDIALOG_BUTTON; 2],
-            on_screen: &&dyn Fn(),
-        ) -> TASKDIALOGCONFIG {
+        pub fn config(&self, buttons: &[TASKDIALOG_BUTTON; 2], show: &Show) -> TASKDIALOGCONFIG {
             TASKDIALOGCONFIG {
                 cbSize: std::mem::size_of::<TASKDIALOGCONFIG>() as u32,
                 dwFlags: FLAGS,
@@ -204,36 +308,73 @@ pub(super) mod windows {
                 cButtons: buttons.len() as u32,
                 pButtons: buttons.as_ptr(),
                 nDefaultButton: TASK_REJECT,
-                pfCallback: Some(created),
-                lpCallbackData: on_screen as *const &dyn Fn() as isize,
+                pfCallback: Some(callback),
+                lpCallbackData: show as *const Show as isize,
                 ..Default::default()
             }
         }
     }
 
-    unsafe extern "system" fn created(
-        _: HWND,
+    unsafe extern "system" fn callback(
+        window: HWND,
         msg: TASKDIALOG_NOTIFICATIONS,
         _: WPARAM,
         _: LPARAM,
         data: isize,
     ) -> HRESULT {
-        if msg == TDN_CREATED {
-            // SAFETY: `data` is the address of the `&dyn Fn()` that `show` holds for the
-            // whole call of `TaskDialogIndirect`, the only call that hands it here.
-            let on_screen = unsafe { &*(data as *const &dyn Fn()) };
-            let _ = catch_unwind(AssertUnwindSafe(on_screen));
+        // SAFETY: `data` is the address of the `Show` that `show` holds for the whole call of
+        // `TaskDialogIndirect`, the only call that hands it here.
+        let show = unsafe { &*(data as *const Show) };
+        match msg {
+            TDN_CREATED => {
+                // SAFETY: the subclass reads `data` as the same `Show`, and it is removed at
+                // TDN_DESTROYED, before the call returns.
+                let _ =
+                    unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };
+                // SAFETY: a read of the active window of this thread.
+                if unsafe { GetActiveWindow() } == window {
+                    show.active(&Instant::now);
+                }
+                S_OK
+            }
+            TDN_BUTTON_CLICKED if !show.press(Instant::now()) => S_FALSE,
+            TDN_DESTROYED => {
+                // SAFETY: the subclass that TDN_CREATED set on this window.
+                let _ = unsafe { RemoveWindowSubclass(window, Some(subclass), SUBCLASS) };
+                S_OK
+            }
+            _ => S_OK,
         }
-        S_OK
     }
 
-    pub fn show(card: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    unsafe extern "system" fn subclass(
+        window: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _: usize,
+        data: usize,
+    ) -> LRESULT {
+        // SAFETY: `data` is the address of the `Show` that the callback handed over, which lives
+        // until the call of `TaskDialogIndirect` returns, after TDN_DESTROYED removed this subclass.
+        let show = unsafe { &*(data as *const Show) };
+        match msg {
+            WM_ACTIVATE if (wparam.0 & 0xffff) as u32 != WA_INACTIVE => show.active(&Instant::now),
+            WM_CLOSE if !show.press(Instant::now()) => return LRESULT(0),
+            _ => {}
+        }
+        // SAFETY: the message as this subclass got it, for the window that it got it for.
+        unsafe { DefSubclassProc(window, msg, wparam, lparam) }
+    }
+
+    pub fn show(card: &Card, arm: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         let texts = Texts::new(card);
         let buttons = texts.buttons();
-        let config = texts.config(&buttons, &on_screen);
+        let show = Show::new(arm, on_screen);
+        let config = texts.config(&buttons, &show);
         let mut pressed = 0i32;
-        // SAFETY: `config` points into `texts`, `buttons` and `on_screen`, each of which
-        // outlives the call.
+        // SAFETY: `config` points into `texts`, `buttons` and `show`, each of which outlives the
+        // call.
         let called = unsafe { TaskDialogIndirect(&config, Some(&mut pressed), None, None) };
         task_answer(called, pressed)
     }

@@ -1,4 +1,5 @@
-use crate::present::guard::Guard;
+use crate::present::guard::{Guard, Show};
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 const ARM: Duration = Duration::from_millis(500);
@@ -131,4 +132,77 @@ fn guard_a_hold_of_zero_answers_the_first_press_after_the_report() {
     assert!(guard.active(t0));
     guard.reported(t0);
     assert!(guard.press(t0));
+}
+
+struct Clock {
+    t0: Instant,
+    reads: RefCell<Vec<u64>>,
+}
+
+impl Clock {
+    fn new(reads: &[u64]) -> Clock {
+        Clock {
+            t0: Instant::now(),
+            reads: RefCell::new(reads.iter().rev().copied().collect()),
+        }
+    }
+
+    fn read(&self) -> Instant {
+        self.t0
+            + ms(self
+                .reads
+                .borrow_mut()
+                .pop()
+                .expect("a clock read more often than the test gave"))
+    }
+
+    fn at(&self, n: u64) -> Instant {
+        self.t0 + ms(n)
+    }
+}
+
+#[test]
+fn show_the_first_activation_reports_once_and_the_hold_counts_from_the_return() {
+    let clock = Clock::new(&[0, 300]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    assert!(!show.press(clock.at(0)), "before the window became active");
+    show.active(&|| clock.read());
+    assert_eq!(reports.get(), 1);
+    assert!(
+        !show.press(clock.at(799)),
+        "499 ms after the report returned"
+    );
+    let clock = Clock::new(&[0, 300]);
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(show.press(clock.at(800)));
+}
+
+#[test]
+fn show_a_later_activation_reports_nothing_and_starts_the_hold_anew() {
+    let clock = Clock::new(&[0, 0, 700]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    show.active(&|| clock.read());
+    assert_eq!(reports.get(), 1);
+    assert!(!show.press(clock.at(1_199)));
+    assert!(
+        !show.press(clock.at(1_600)),
+        "the refused press started the hold anew"
+    );
+    assert!(show.press(clock.at(2_100)));
+}
+
+#[test]
+fn show_a_report_that_panics_still_starts_the_hold_and_the_show_goes_on() {
+    let clock = Clock::new(&[0, 100]);
+    let report = || panic!("the report panicked");
+    let show = Show::new(ARM, &report);
+    show.active(&|| clock.read());
+    assert!(!show.press(clock.at(599)));
+    assert!(show.press(clock.at(1_099)));
 }
