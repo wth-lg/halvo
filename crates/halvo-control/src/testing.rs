@@ -333,8 +333,13 @@ fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
         reason,
         error: None,
     };
-    (line.state, line.unstopped) = if answer.is_a_stop() {
+    let off = line.state == SourceState::Off;
+    (line.state, line.unstopped) = if answer.is_a_stop() && off {
+        (SourceState::Off, false)
+    } else if answer.is_a_stop() {
         (SourceState::Stopped { by_user: false }, false)
+    } else if off {
+        (SourceState::Off, true)
     } else if answer == StopAnswer::Timeout {
         (failed(Reason::Timeout), true)
     } else {
@@ -1223,6 +1228,36 @@ mod tests {
             assert_eq!(
                 line(&resumed, SourceName::Screen).state,
                 SourceState::Running,
+                "{answer:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_pause_asks_a_marked_line_that_reads_off_and_keeps_it_off_whatever_the_stop_answers() {
+        for answer in [
+            StopAnswer::Ok,
+            StopAnswer::ThreadEnded,
+            StopAnswer::Timeout,
+            StopAnswer::Os,
+        ] {
+            let mut f = sample_status(Platform::Windows).into_fields();
+            for line in &mut f.sources {
+                if line.name == SourceName::Keyboard {
+                    line.unstopped = true;
+                }
+            }
+            f.capture = Capture::Pausing;
+            let mut daemon = ScriptedDaemon::new(DaemonStatus::new(f).unwrap());
+            daemon.set_stop_answer(SourceName::Keyboard, answer);
+            let paused = changed(daemon.handle(Request::Pause));
+            assert_eq!(
+                line(&paused, SourceName::Keyboard),
+                SourceLine {
+                    name: SourceName::Keyboard,
+                    state: SourceState::Off,
+                    unstopped: !answer.is_a_stop(),
+                },
                 "{answer:?}"
             );
         }

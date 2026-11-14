@@ -1027,6 +1027,173 @@ mod tests {
     }
 
     #[test]
+    fn ct11_the_type_takes_the_three_kinds_of_status_the_client_offers_a_pause_and_a_delete_and_the_texts_promise_nothing(
+    ) {
+        use crate::client::{Client, DeleteOutcome};
+        use crate::proto::{
+            decode_reply, encode_reply, Capture, CaptureReason, Reason, Reply, SourceName,
+            SourceState,
+        };
+        use crate::testing::{ScriptedConnector, ScriptedDaemon};
+        let failed = SourceState::Failed {
+            reason: Reason::Timeout,
+            error: None,
+        };
+        let on = [
+            SwitchName::TitleText,
+            SwitchName::KeyClass,
+            SwitchName::PointerClass,
+        ];
+        let kinds = [
+            (
+                "macOS with the guard none beside an input line that may run",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Input,
+                    &failed,
+                    false,
+                    &on,
+                    PasswordGuard::None,
+                ),
+                PW,
+            ),
+            (
+                "macOS with the guard halvo beside an input line that may run",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Input,
+                    &failed,
+                    true,
+                    &on,
+                    PasswordGuard::Halvo,
+                ),
+                PW,
+            ),
+            (
+                "Windows with the guard os beside a keyboard line that may run",
+                status_beside(
+                    Platform::Windows,
+                    SourceName::Keyboard,
+                    &failed,
+                    false,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PW,
+            ),
+            (
+                "the mark beside a keyboard line that reads off",
+                status_beside(
+                    Platform::Windows,
+                    SourceName::Keyboard,
+                    &SourceState::Off,
+                    true,
+                    &on,
+                    PasswordGuard::None,
+                ),
+                PW,
+            ),
+            (
+                "the mark beside a screen line that reads stopped",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Screen,
+                    &SourceState::Stopped { by_user: false },
+                    true,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PM,
+            ),
+            (
+                "a screen row that says S0 beside a screen line that runs",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Screen,
+                    &SourceState::Running,
+                    false,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PM,
+            ),
+        ];
+        for (kind, pausing, want_passwords) in kinds {
+            let mut f = pausing.into_fields();
+            let required: Vec<&crate::proto::SourceLine> = f
+                .sources
+                .iter()
+                .filter(|l| l.state != SourceState::Off)
+                .collect();
+            let running = required
+                .iter()
+                .filter(|l| matches!(l.state, SourceState::Running | SourceState::Impaired { .. }))
+                .count();
+            f.capture = if running == required.len() {
+                Capture::Running
+            } else if running > 0 {
+                Capture::Partial
+            } else {
+                Capture::Faulted
+            };
+            f.capture_reason = (f.capture == Capture::Faulted).then_some(CaptureReason::NoSource);
+            let status = DaemonStatus::new(f).unwrap_or_else(|e| panic!("{kind}: {e}"));
+            let frame = encode_reply(&Reply::Status(status.clone()));
+            assert_eq!(
+                decode_reply(&frame),
+                Ok(Reply::Status(status.clone())),
+                "{kind}"
+            );
+            let connector = ScriptedConnector::new(ScriptedDaemon::new(status.clone()));
+            let client = Client::new(connector.clone());
+            let read = client.status().unwrap_or_else(|e| panic!("{kind}: {e}"));
+            assert_eq!(read, status, "{kind}");
+            let id = read.fields().store_id;
+            assert!(id.is_some(), "{kind}");
+            assert!(client.pause().is_ok(), "{kind}: the pause");
+            assert!(
+                matches!(client.delete_all(id), Ok(DeleteOutcome::Deleted(_))),
+                "{kind}: the delete armed with the shown id"
+            );
+            let f = status.fields();
+            let told = texts(&status);
+            assert_eq!(
+                told.passwords, want_passwords,
+                "{kind}: the password sentence of the table"
+            );
+            let screen_runs = matches!(
+                f.sources
+                    .iter()
+                    .find(|l| l.name == SourceName::Screen)
+                    .map(class),
+                Some(SourceClass::Runs | SourceClass::MayRun)
+            );
+            let keyboard_runs = f.platform == Platform::Windows
+                && matches!(
+                    class_of(&f.sources, SourceName::Keyboard),
+                    SourceClass::Runs | SourceClass::MayRun
+                );
+            let sentences = texts_of(&told.recorded);
+            if screen_runs {
+                assert!(!sentences.contains(&S0), "{kind}: {sentences:?}");
+                let rows = onboarding_rows(&status);
+                assert!(rows.iter().all(|r| r.why != S0), "{kind}: the screen row");
+                assert!(
+                    f.onboarding.permissions.iter().any(|r| r.why == S0),
+                    "{kind}: the status itself holds S0 in its screen row"
+                );
+            }
+            if keyboard_runs {
+                assert!(!sentences.contains(&K0), "{kind}: {sentences:?}");
+            }
+            assert!(
+                screen_runs || keyboard_runs || f.platform == Platform::Macos,
+                "{kind}"
+            );
+        }
+    }
+
+    #[test]
     fn ct9_a_source_with_no_line_is_never_read_as_off() {
         assert_eq!(
             texts_of(&recorded(Platform::Windows, &switches(&[]), &[])),
