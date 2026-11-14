@@ -154,16 +154,13 @@ fn check_rows(
     }
     close(&current, &mut mark);
     ranges.sort();
-    let mut reach: Option<(i64, usize)> = None;
+    let mut open: Vec<(i64, usize)> = Vec::new();
     for (start, end, line) in &ranges {
-        if let Some((far, far_line)) = reach {
-            if *start < far {
-                mark((*line).max(far_line), 3);
-            }
+        open.retain(|(e, _)| *e > *start);
+        for (_, earlier) in &open {
+            mark((*line).max(*earlier), 3);
         }
-        if reach.is_none_or(|(far, _)| *end > far) {
-            reach = Some((*end, *line));
-        }
+        open.push((*end, *line));
     }
     let token = |rule: u8| match rule {
         1 => "order",

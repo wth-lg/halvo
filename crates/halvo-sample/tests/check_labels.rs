@@ -312,6 +312,98 @@ fn every_range_that_overlaps_an_earlier_one_is_named_once() {
     }
 }
 
+/// A body of one stream `zz` with no day file, the golden script manifest and the given label lines.
+fn body_with_rows(name: &str, rows: &[String]) -> std::path::PathBuf {
+    let dir = scratch(name).join("b");
+    fs::create_dir_all(dir.join("streams/zz")).expect("stream directory");
+    fs::copy(
+        golden().join("script-manifest.jsonl"),
+        dir.join("script-manifest.jsonl"),
+    )
+    .expect("script manifest");
+    write(
+        &dir.join("streams/zz/labels.jsonl"),
+        &rows.iter().map(|r| format!("{r}\n")).collect::<String>(),
+    );
+    dir
+}
+
+const T0: i64 = 1_767_225_600_000_000_000;
+
+fn episode_row(episode: &str, task: &str, start: i64, end: i64) -> String {
+    format!(
+        r#"{{"row":"episode","episode":"{episode}","task":"{task}","category":"utility_bill_payment","kind":"planted","start":{},"end":{}}}"#,
+        T0 + start * common::SEC,
+        T0 + end * common::SEC
+    )
+}
+
+fn range_row(episode: &str, start: i64, end: i64) -> String {
+    format!(
+        r#"{{"row":"range","episode":"{episode}","step":"g-power-bill","start":{},"end":{}}}"#,
+        T0 + start * common::SEC,
+        T0 + end * common::SEC
+    )
+}
+
+#[test]
+fn the_later_row_of_every_overlapping_pair_is_named_when_the_farthest_range_lies_between() {
+    let dir = body_with_rows(
+        "overlap-farthest",
+        &[
+            episode_row("s01-e0001", "s01-t001", 1000, 3000),
+            range_row("s01-e0001", 1000, 2500),
+            range_row("s01-e0001", 2000, 3000),
+            episode_row("s01-e0002", "s01-t001", 1500, 10000),
+            range_row("s01-e0002", 1500, 10000),
+        ],
+    );
+    for rule in ["generated", "recorded"] {
+        let o = run(&["check-labels", "--rule", rule, &s(&dir)]);
+        assert_eq!(o.code, 1, "{}", o.stdout);
+        let rows: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL row"))
+            .collect();
+        assert_eq!(
+            rows,
+            vec!["FAIL row zz 3 overlap", "FAIL row zz 5 overlap"],
+            "{rule}: {}",
+            o.stdout
+        );
+        assert!(o.stdout.contains(" failures=5\n"), "{rule}: {}", o.stdout);
+    }
+}
+
+#[test]
+fn overlap_of_a_last_range_that_starts_first_and_reaches_farthest_names_each_later_row() {
+    let dir = body_with_rows(
+        "overlap-last-first",
+        &[
+            episode_row("s01-e0001", "s01-t001", 2000, 2500),
+            range_row("s01-e0001", 2000, 2500),
+            episode_row("s01-e0002", "s01-t001", 3000, 3500),
+            range_row("s01-e0002", 3000, 3500),
+            range_row("s01-e0002", 3400, 3500),
+            range_row("s01-e0002", 1000, 5000),
+        ],
+    );
+    let o = run(&["check-labels", "--rule", "recorded", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let rows: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.starts_with("FAIL row"))
+        .collect();
+    assert_eq!(
+        rows,
+        vec!["FAIL row zz 5 overlap", "FAIL row zz 6 order"],
+        "{}",
+        o.stdout
+    );
+}
+
 #[test]
 fn under_the_recorded_rule_a_range_with_only_another_steps_title_fails() {
     let dir = copy_golden("recorded-other-step");
