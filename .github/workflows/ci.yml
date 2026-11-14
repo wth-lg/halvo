@@ -11,187 +11,74 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# scratch: trimmed to the mutant runner's self-test at the head and loops of its stop cases (mutants-3, ruling PL-20 E7); never merged
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
+      - name: Mutant runner self-test at the head (scratch, mutants-3)
         shell: bash
         run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
+          t0=$(date +%s)
+          if sh scripts/r1-gate/mutation-test.sh --self-test -v > "$RUNNER_TEMP/selftest.out" 2>&1; then s=0; else s=$?; fi
+          t1=$(date +%s)
+          grep -v '^case .* want=PASS got=PASS$' "$RUNNER_TEMP/selftest.out" | grep -v '^case .* want=FAIL got=FAIL$' | tail -40
+          echo "cases as wanted: $(grep -c -e 'want=PASS got=PASS$' -e 'want=FAIL got=FAIL$' "$RUNNER_TEMP/selftest.out")"
+          echo "seconds runner-self-test-head $((t1 - t0)) exit $s"
+          test "$s" -eq 0
+      - name: Each new stop case and each that ran once, 20 times, counted by its PASS line (scratch, mutants-3)
         shell: bash
         run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
+          t0=$(date +%s)
+          bad=0
+          for c in \
+            vf-stop-by-term-then-int-while-the-runner-waits-for-a-gate-check-changes-nothing \
+            vf-stop-by-term-then-hup-while-the-runner-waits-for-a-gate-check-changes-nothing \
+            vf-a-stop-note-of-the-caller-s-environment-is-not-printed \
+            vf-the-bound-of-a-shielded-step-ends-at-its-second-on-a-made-up-clock \
+            vf-the-bound-s-kill-leaves-no-process-that-forks-at-the-read-of-the-table \
+            stop-past-the-bound-kills-check-deletion-and-names-it \
+            stop-past-the-bound-kills-check-no-ll-hook-and-names-it \
+            stop-by-int-as-the-helper-ends-a-run-lets-a-gate-check-end \
+            stop-by-hup-as-the-helper-ends-a-run-lets-a-gate-check-end \
+            stop-past-the-bound-kills-a-gate-check-and-names-it \
+            stop-by-term-as-the-helper-ends-a-run-lets-an-unmutated-gate-check-end \
+            a-shielded-step-starts-with-no-signal-and-not-after-one \
+            stop-by-term-as-the-helper-ends-a-run-lets-the-unmutated-build-end \
+            stop-by-term-again-while-the-runner-waits-for-a-gate-check-changes-nothing; do
+            c0=$(date +%s)
+            n=0; p=0
+            while [ "$n" -lt 20 ]; do
+              n=$((n + 1))
+              sh scripts/r1-gate/mutation-test.sh --self-test -v --case "$c" > "$RUNNER_TEMP/one.out" 2>&1
+              if grep -q -x -F "case mutation/$c want=PASS got=PASS" "$RUNNER_TEMP/one.out"; then p=$((p + 1)); else echo "run $n of $c:"; tail -3 "$RUNNER_TEMP/one.out"; fi
+            done
+            echo "loop $c: $p of $n passed by the PASS line, $(( $(date +%s) - c0 )) s"
+            [ "$p" -eq "$n" ] || bad=$((bad + 1))
+          done
+          echo "seconds runner-stop-case-loops $(( $(date +%s) - t0 )); cases with a run that did not pass: $bad"
+          test "$bad" -eq 0
   windows:
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: Mutant runner self-test at the head under Git Bash (scratch, mutants-3; records, never fails)
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
+        timeout-minutes: 30
+        continue-on-error: true
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          t0=$(date +%s)
+          if sh scripts/r1-gate/mutation-test.sh --self-test -v > "$RUNNER_TEMP/selftest.out" 2>&1; then s=0; else s=$?; fi
+          t1=$(date +%s)
+          echo "lines that are not as wanted:"
+          grep -v -e 'want=PASS got=PASS$' -e 'want=FAIL got=FAIL$' "$RUNNER_TEMP/selftest.out" | head -30
+          echo "cases as wanted: $(grep -c -e 'want=PASS got=PASS$' -e 'want=FAIL got=FAIL$' "$RUNNER_TEMP/selftest.out")"
+          echo "seconds runner-self-test-windows $((t1 - t0)) exit $s"
+          exit 0
