@@ -1439,6 +1439,14 @@ mod tests {
         );
     }
 
+    /// Ruling DM-12 G10: the owner's queue holds the 1,024 slots of ruling
+    /// DM-9 (5) and (6), which the ledger's sink_queue line and the test below
+    /// are written for.
+    #[test]
+    fn the_owners_queue_depth_is_the_1024_of_the_ledger() {
+        assert_eq!(crate::daemon::owner::QUEUE_SLOTS, 1_024);
+    }
+
     #[test]
     fn a_full_queue_of_the_largest_events_stays_under_the_byte_bound() {
         const QUEUED: usize = 1_024;
