@@ -1,3 +1,4 @@
+# scratch: main's workflow with one step that prints the processor (ruling MA-23 Addition 1 (10), scratch-13); never merged
 name: ci
 
 on:
@@ -93,6 +94,9 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh macos --self-test
+      - name: Processor
+        shell: bash
+        run: sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
