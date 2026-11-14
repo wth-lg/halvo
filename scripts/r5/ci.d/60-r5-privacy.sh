@@ -267,6 +267,9 @@ tree_git() {
       ;;
     'ls-files -v')
       printf 'H %s\nH crates/halvo-learn-gate/src/privacy.rs\n' "$script_path"
+      if [ "$label" = flagged-before ]; then
+        printf 'S crates/halvo-learn-gate/src/main.rs\n'
+      fi
       ;;
     *) return 97 ;;
   esac
@@ -358,7 +361,7 @@ tree_case() {
     grep -q "$hidden" "$TREE_DIR/art/tree-before.txt" 2>/dev/null || got=$got-without-the-artifact
   fi
   case $label in
-    changed-before | staged-before | name-not-shown | heldout-name-not-shown)
+    changed-before | staged-before | name-not-shown | heldout-name-not-shown | flagged-before)
       [ ! -e "$TREE_DIR/cargo.calls" ] || got=$got-after-a-cargo-call
       ;;
     build-fails)
@@ -389,6 +392,7 @@ tree_cases() {
   tree_case staged-before FAIL-tree 'tree changed=before files=1' "$staged" "" "" ok yes
   tree_case name-not-shown FAIL-tree 'tree changed=before files=1' "$word" "" "" ok yes marrowbillet
   tree_case heldout-name-not-shown FAIL-tree 'tree changed=before files=1' "$heldout" "" "" ok yes quintelfern
+  tree_case flagged-before FAIL-tree 'tree flagged=1' "" "" "" ok yes
   tree_case own-changed FAIL-own "FAIL $name (own)" "$own" "" "" ok yes
   tree_case untracked-before PASS "PASS $name" '? notes.txt' "" "" ok yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
@@ -410,7 +414,7 @@ delete --what workflow --data-dir DIR --store memory
 delete --what all --data-dir DIR --store memory"
   log_line='^(privacy check=learn_[a-z_]+ result=(ok|miss|not-run)|delete what=workflow store=[a-z]+ rows_left=[0-9]+ other_rows=[0-9]+ other_served=(yes|no) result=(ok|miss)|delete what=all store=[a-z]+ exit=([0-9]+|-) files_left=([0-9]+|-) result=(ok|miss|not-run)|(privacy|workflow|all)=unreadable)$'
   pl=privacy
-  failing_fixtures=26
+  failing_fixtures=27
   passing_fixtures=2
   wrong=
   rejected=0
@@ -447,6 +451,7 @@ delete --what all --data-dir DIR --store memory"
   self_case workflow-refused refused "$p" "" 0 "" "REFUSED usage: x$nl" 2 "$all" "" 0
   self_case all-refused refused "$p" "" 0 "$wf" "" 0 "" "REFUSED usage: x$nl" 2
   self_case workflow-rows-left delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "" 1 "$all" "" 0
+  self_case workflow-rows-left-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0
   self_case workflow-not-served-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=no result=ok$nl" "" 0 "$all" "" 0
   self_case workflow-no-other-rows delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=0 other_served=yes result=ok$nl" "" 0 "$all" "" 0
   self_case workflow-on-derived delete "$p" "" 0 "delete what=workflow store=derived rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0
@@ -459,8 +464,8 @@ delete --what all --data-dir DIR --store memory"
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 9 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 9)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 10 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 10)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
