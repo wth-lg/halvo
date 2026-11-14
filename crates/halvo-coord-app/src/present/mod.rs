@@ -1,5 +1,7 @@
 mod card;
 mod guard;
+#[cfg(any(test, target_os = "macos"))]
+mod moment;
 mod outcome;
 #[cfg(any(test, feature = "scripted"))]
 mod scripted;

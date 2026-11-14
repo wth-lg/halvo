@@ -5,6 +5,7 @@ use std::time::Duration;
 
 mod card;
 mod guard;
+mod moment;
 mod outcome;
 mod scripted;
 mod serve;
