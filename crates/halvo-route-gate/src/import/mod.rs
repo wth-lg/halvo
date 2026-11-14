@@ -8,11 +8,17 @@
 //! block is looked for. In the driver block a line that starts with `attempt` or `verdict` is of its form
 //! and one that starts with `bound` is refused; in the cells block a line that starts with `bound`
 //! is of its form, one that starts with `verdict` starts `verdict candidates=`, and one that starts
-//! with `attempt` is refused. Every other line of a block is passed over, and no line outside the
-//! block is read. Within one model, machine, task and seed, `compile`, `recover` and `write` have
-//! `i=1` and `replay` has `i` from 1 to 3 with no gap; the verdict's driver and writer have
-//! exactly the attempt lines of AS-A13.6, else `driver:verdict`. The last line of each block
-//! starts with `verdict`, and the cells block holds a `bound` line.
+//! with `attempt` is refused. A line whose first bytes, after any spaces and tabs and compared
+//! without letter case, are a known word of its block (`attempt` and `verdict` in the driver
+//! block, `bound` and `verdict` in the cells block) and that does not start with that word in its
+//! own letters is refused with its line. Every other line of a block is passed over, and no line
+//! outside the block is read. Within one model, machine, task and seed, `compile`, `recover` and
+//! `write` have `i=1` and `replay` has `i` from 1 to 3 with no gap; the verdict's driver and
+//! writer have exactly the attempt lines of AS-A13.6, else `driver:verdict`.
+//! The last line of each block starts with `verdict`, and the cells block holds a `bound` line. A
+//! file from which an attempt line of a model that is neither the verdict's driver nor its writer
+//! is missing whole, with every other line of its form, imports with one row fewer and no refusal:
+//! the count of rows against the `drive` and `reply` lines is not built (a named limit).
 
 mod blob;
 mod block;
@@ -172,9 +178,13 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             rows.push(row);
         } else if line.bytes.starts_with(lines::VERDICT) {
             verdicts.push(lines::verdict(line.bytes).ok_or(fault)?);
-        } else if line.bytes.starts_with(lines::BOUND) {
+        } else if line.bytes.starts_with(lines::BOUND)
+            || lines::written_another_way(line.bytes, &lines::DRIVER_WORDS)
+        {
             return Err(fault);
-        } else if line.bytes.starts_with(lines::DRIVE) || line.bytes.starts_with(lines::REPLY) {
+        } else if line.bytes.starts_with(lines::DRIVE)
+            || line.bytes.starts_with(lines::REPLY)
+        {
             said.push((line.number, line.bytes));
         }
     }
@@ -204,6 +214,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         } else if line.bytes.starts_with(lines::VERDICT)
             && !line.bytes.starts_with(lines::CANDIDATES)
             || line.bytes.starts_with(lines::ATTEMPT)
+            || lines::written_another_way(line.bytes, &lines::CELLS_WORDS)
         {
             return Err(fault);
         }

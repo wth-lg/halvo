@@ -451,29 +451,216 @@ fn lines_that_are_not_known_are_passed_over() {
         "",
         "drive model=m_a machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
         "reply model=m_a machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
-        "limits task=bill steps=1 wall_s=1 model_tokens=1",
         "prompt file=action.txt sha256=00",
         "cell model=m_a machine=mac",
         "hosted machine=hosted-win run=1 sha=00",
         "notrun model=m_a cause=browser_start",
+        "``",
+        "\u{e9}t\u{e9} attempt model=",
+        "x verdict driver=x",
+        "-attempt model=m_a",
+    ];
+    let driver_only = [
+        "limits task=cleanup steps=1 wall_s=1 model_tokens=1",
+        " bound model=m_a",
+        "\tBound model=m_a",
+        "BOUND",
+    ];
+    let cells_only = [
+        "limits task=bill steps=1 wall_s=1 model_tokens=1",
         " attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=nonsense",
         "\tattempt model=x",
         "Attempt model=m_a",
-        " verdict driver=x",
-        "Verdict candidates=x",
-        " bound model=m_a",
-        "Bound model=m_a",
-        "``",
-        "\u{e9}t\u{e9} attempt model=",
+        "ATTEMPTED",
     ];
     let mut driver = vec![ATTEMPT];
     driver.extend(passed_over);
+    driver.extend(driver_only);
     driver.push(VERDICT);
     let mut cells = passed_over.to_vec();
+    cells.extend(cells_only);
     cells.insert(5, BOUND);
     let got = run(&driver, &cells);
     got.passed();
     assert_eq!(got.stdout, "import rows=1 models=1 sources=2\n");
+}
+
+fn refused_at(got: &Run, want: &str, what: &str, wrong: &mut Vec<String>) {
+    let want = format!("REFUSED source: {want}\n");
+    if got.code != Some(2) || got.stderr != want {
+        wrong.push(format!(
+            "{what}: {:?} {:?} {:?}",
+            got.code, got.stdout, got.stderr
+        ));
+    } else {
+        got.refused();
+    }
+}
+
+#[test]
+fn a_driver_file_whose_one_attempt_line_is_indented_or_written_attempt_is_refused_at_its_line() {
+    let indented = format!(" {ATTEMPT}");
+    let capital = ATTEMPT.replacen("attempt", "Attempt", 1);
+    let mut wrong = Vec::new();
+    for line in [&indented, &capital] {
+        let got = run(&[line, VERDICT], &[BOUND]);
+        refused_at(&got, "driver:3", line, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_line_of_a_known_word_after_spaces_and_tabs_or_in_another_letter_case_is_refused_at_its_line() {
+    let driver_cases = [
+        format!(" {ATTEMPT}"),
+        format!("\t{ATTEMPT}"),
+        format!(" \t  {ATTEMPT}"),
+        ATTEMPT.to_uppercase(),
+        ATTEMPT.replacen("attempt", "aTTEMPT", 1),
+        "Attempted twice".to_owned(),
+        "ATTEMPT".to_owned(),
+        format!(" {VERDICT}"),
+        format!("\t{VERDICT}"),
+        VERDICT.replacen("verdict", "Verdict", 1),
+        "VERDICT".to_owned(),
+        " Verdicts".to_owned(),
+    ];
+    let cells_cases = [
+        format!(" {BOUND}"),
+        format!("\t{BOUND}"),
+        BOUND.replacen("bound", "Bound", 1),
+        "BOUNDS".to_owned(),
+        format!(" {CANDIDATES}"),
+        format!("\t{CANDIDATES}"),
+        CANDIDATES.replacen("verdict", "Verdict", 1),
+        "\tVERDICT".to_owned(),
+    ];
+    let mut wrong = Vec::new();
+    for line in &driver_cases {
+        let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
+        refused_at(&got, "driver:4", &format!("driver {line:?}"), &mut wrong);
+    }
+    for line in &cells_cases {
+        let got = run(&[ATTEMPT, VERDICT], &[BOUND, line]);
+        refused_at(&got, "cells:4", &format!("cells {line:?}"), &mut wrong);
+    }
+    let set = [driver_lines("m_d"), writer_lines("m_d")].concat();
+    let mut hidden = set.clone();
+    hidden.insert(
+        40,
+        format!(" {}", line_of("m_e", "bill", 1, "compile", "1")),
+    );
+    let got = run(
+        &refs(&with(hidden, "verdict driver=m_d path=A writer=m_d")),
+        &[BOUND],
+    );
+    refused_at(
+        &got,
+        "driver:43",
+        "an indented line of another model among the set",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+const NO_WRITER_AS_U02_WROTE_IT: &str = "ae70b7a15a9896c831849a78021ff7a151e29e1c";
+const NO_WRITER_INDENTED: &str = " attempt model=m_small machine=mac task=bill seed=1 kind=compile i=9 pass=no steps=1 wall_s=1 tokens_in=1 tokens_out=1";
+const NO_WRITER_LIMITS: &str = "limits task=reply wall_s=120 model_tokens=700";
+
+fn no_writer_golden(name: &str) -> Vec<u8> {
+    std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/data/r3/no_writer")
+            .join(name),
+    )
+    .expect("a golden input")
+}
+
+fn no_writer_driver_with(inserted: &[(usize, &str)]) -> Vec<u8> {
+    let text = String::from_utf8(no_writer_golden("driver.md")).expect("utf-8");
+    let mut lines: Vec<&str> = text
+        .lines()
+        .filter(|line| *line != NO_WRITER_INDENTED && *line != NO_WRITER_LIMITS)
+        .collect();
+    for &(number, line) in inserted {
+        lines.insert(number - 1, line);
+    }
+    let mut bytes = lines.join("\n").into_bytes();
+    bytes.push(b'\n');
+    bytes
+}
+
+#[test]
+fn the_golden_no_writer_driver_file_as_u02_wrote_it_is_refused_at_driver_48() {
+    let driver = no_writer_driver_with(&[
+        (48, NO_WRITER_INDENTED),
+        (136, NO_WRITER_INDENTED),
+        (185, NO_WRITER_LIMITS),
+    ]);
+    assert_eq!(
+        halvo_route_gate::import::blob_id(&driver),
+        NO_WRITER_AS_U02_WROTE_IT
+    );
+    let got = run_files(driver, no_writer_golden("model-cells.md"));
+    assert_eq!(got.refused(), "REFUSED source: driver:48");
+}
+
+#[test]
+fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
+    let mut wrong = Vec::new();
+    for (what, driver, want) in [
+        (
+            "a broken attempt line before an indented one",
+            vec![
+                attempt_with("pass", "maybe"),
+                format!(" {ATTEMPT}"),
+                VERDICT.to_owned(),
+            ],
+            "driver:3",
+        ),
+        (
+            "an indented line before a broken attempt line",
+            vec![
+                ATTEMPT.replacen("attempt", "Attempt", 1),
+                attempt_with("pass", "maybe"),
+                VERDICT.to_owned(),
+            ],
+            "driver:3",
+        ),
+        (
+            "a line written another way before a gap",
+            vec![
+                line_of("m_b", "bill", 1, "replay", "2"),
+                format!("\t{VERDICT}"),
+                VERDICT.to_owned(),
+            ],
+            "driver:4",
+        ),
+        (
+            "a line written another way before the count of verdict lines",
+            vec![
+                VERDICT.to_owned(),
+                VERDICT.to_owned(),
+                format!(" {ATTEMPT}"),
+                ATTEMPT.to_owned(),
+            ],
+            "driver:5",
+        ),
+    ] {
+        let got = run(&refs(&driver), &[BOUND]);
+        refused_at(&got, want, what, &mut wrong);
+    }
+    let got = run(
+        &[ATTEMPT, " verdict driver=m_a path=A writer=m_a", VERDICT],
+        &[" bound", BOUND],
+    );
+    refused_at(
+        &got,
+        "driver:4",
+        "the driver file before the cells file",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
 }
 
 #[test]

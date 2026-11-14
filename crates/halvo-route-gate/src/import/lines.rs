@@ -13,6 +13,35 @@ pub const VERDICT: &[u8] = b"verdict";
 /// in the driver file.
 pub const BOUND: &[u8] = b"bound";
 
+/// The known words of the driver block.
+pub const DRIVER_WORDS: [&[u8]; 2] = [ATTEMPT, VERDICT];
+/// The known words of the cells block.
+pub const CELLS_WORDS: [&[u8]; 2] = [BOUND, VERDICT];
+
+/// Whether `line` is a line of one of `words` written another way: after any spaces and tabs at
+/// its start, its bytes start with the word compared without ASCII letter case, and the line does
+/// not start with the word in its own letters at its first byte. Such a line is the refusal
+/// `source` with its line number (T5.4).
+pub fn written_another_way(line: &[u8], words: &[&[u8]]) -> bool {
+    words
+        .iter()
+        .any(|word| starts_folded(after_blanks(line), word) && !line.starts_with(word))
+}
+
+fn after_blanks(line: &[u8]) -> &[u8] {
+    let start = line
+        .iter()
+        .take_while(|byte| **byte == b' ' || **byte == b'\t')
+        .count();
+    &line[start..]
+}
+
+fn starts_folded(bytes: &[u8], word: &[u8]) -> bool {
+    bytes
+        .get(..word.len())
+        .is_some_and(|head| head.eq_ignore_ascii_case(word))
+}
+
 /// The models of the routing run's group (T12.1); every other model is of the group `agents`.
 pub const ROUTING: [&str; 4] = [
     "s5_nano_4b",
