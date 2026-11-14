@@ -48,7 +48,10 @@ link come from it. A change elsewhere in the workspace does not need them.
    leaves that root to the store that has it. A create whose root step
    fails, whatever the custody answers, leaves no file and destroys no
    root, because it has made none. A delete-all that returned an error
-   is finished by the next delete-all on the same handle. An append whose
+   is finished by the next delete-all on the same handle, but for the
+   root files of other roots that its root step left once the store's own
+   root read destroyed: that handle does not open the roots path again,
+   and the delete tail finishes them (ruling ST-45 H3). An append whose
    index row fails leaves no event
    row, and a shred removes the event rows of its segment.
    On macOS every file that the store made has mode 0600 and every
