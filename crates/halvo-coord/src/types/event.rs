@@ -299,14 +299,15 @@ impl ReadyAnswer {
 }
 
 /// The `kind` and the `cause` of an `item_lapsed` row: a confirmation with one of the six
-/// causes of I4.2, an item of another kind with `run_ended`, `app_ended` or `wait_limit`
-/// (I7.1).
+/// causes of I4.2, an item of another kind with `run_ended`, `app_ended`, `wait_limit`,
+/// `cancelled` or `check` (I7.1).
 ///
 /// ```
-/// use halvo_coord::types::{LapseCause, Lapsed, OtherLapse};
-/// let ready = Lapsed::Ready(OtherLapse::WaitLimit);
-/// assert_eq!(ready.cause(), LapseCause::WaitLimit);
+/// use halvo_coord::types::{ItemLapseCause, LapseCause, Lapsed, OtherLapse};
+/// let ready = Lapsed::Ready(OtherLapse::Check);
+/// assert_eq!(ready.cause(), ItemLapseCause::Check);
 /// let confirm = Lapsed::Confirm(LapseCause::Digest);
+/// assert_eq!(confirm.cause(), ItemLapseCause::Digest);
 /// ```
 ///
 /// An item of another kind than `confirm` that lapses with `digest` cannot be written:
@@ -342,17 +343,47 @@ names! {
         AppEnded = "app_ended",
         WaitLimit = "wait_limit",
         Cancelled = "cancelled",
+        Check = "check",
+    }
+}
+
+names! {
+    /// The `cause` of an `item_lapsed` row (I7.1): the six causes of I4.2 and `check`, which only
+    /// an item of another kind than `confirm` takes (ruling RD-35).
+    ItemLapseCause {
+        Digest = "digest",
+        RunEnded = "run_ended",
+        WaitLimit = "wait_limit",
+        Cancelled = "cancelled",
+        NoRecord = "no_record",
+        AppEnded = "app_ended",
+        Check = "check",
+    }
+}
+
+impl ItemLapseCause {
+    /// The row's cause of a confirmation that lapsed with `cause`.
+    pub const fn of(cause: LapseCause) -> ItemLapseCause {
+        match cause {
+            LapseCause::Digest => ItemLapseCause::Digest,
+            LapseCause::RunEnded => ItemLapseCause::RunEnded,
+            LapseCause::WaitLimit => ItemLapseCause::WaitLimit,
+            LapseCause::Cancelled => ItemLapseCause::Cancelled,
+            LapseCause::NoRecord => ItemLapseCause::NoRecord,
+            LapseCause::AppEnded => ItemLapseCause::AppEnded,
+        }
     }
 }
 
 impl OtherLapse {
-    /// The cause's name in `LapseCause`.
-    pub const fn cause(self) -> LapseCause {
+    /// The row's cause.
+    pub const fn cause(self) -> ItemLapseCause {
         match self {
-            OtherLapse::RunEnded => LapseCause::RunEnded,
-            OtherLapse::AppEnded => LapseCause::AppEnded,
-            OtherLapse::WaitLimit => LapseCause::WaitLimit,
-            OtherLapse::Cancelled => LapseCause::Cancelled,
+            OtherLapse::RunEnded => ItemLapseCause::RunEnded,
+            OtherLapse::AppEnded => ItemLapseCause::AppEnded,
+            OtherLapse::WaitLimit => ItemLapseCause::WaitLimit,
+            OtherLapse::Cancelled => ItemLapseCause::Cancelled,
+            OtherLapse::Check => ItemLapseCause::Check,
         }
     }
 }
@@ -373,9 +404,9 @@ impl Lapsed {
     }
 
     /// The row's `cause`.
-    pub const fn cause(&self) -> LapseCause {
+    pub const fn cause(&self) -> ItemLapseCause {
         match self {
-            Lapsed::Confirm(c) => *c,
+            Lapsed::Confirm(c) => ItemLapseCause::of(*c),
             Lapsed::SignIn(o)
             | Lapsed::LinkAccount(o)
             | Lapsed::Stuck(o)

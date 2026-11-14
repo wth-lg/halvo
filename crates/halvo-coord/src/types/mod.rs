@@ -19,8 +19,9 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event, Lapsed,
-    LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer, SignInAnswer, Slot, What,
+    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event,
+    ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,
+    SignInAnswer, Slot, What,
 };
 pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
 pub use ids::{
