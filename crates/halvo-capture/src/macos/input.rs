@@ -427,6 +427,7 @@ struct HoldState {
     timer: Option<ReadingTimer>,
     offset: Option<i128>,
     wake_mark: Option<Uptime>,
+    wake_unclocked: bool,
 }
 
 type SharedHold = Arc<Mutex<HoldState>>;
@@ -447,17 +448,24 @@ struct OwnTake {
 
 impl OwnTake {
     fn taken(&self) {
-        let stopped = self.stop.load(Ordering::SeqCst);
         let dropped = lock(&self.hold).keys.drop_all();
+        let cause = if self.stop.load(Ordering::SeqCst) {
+            Cause::Stop
+        } else {
+            Cause::OwnTake
+        };
         #[cfg(feature = "stall-seam")]
-        if let (Some(drops), true) = (&self.drops, dropped > 0) {
-            let cause = if stopped { Cause::Stop } else { Cause::OwnTake };
-            drops.count(cause);
-            drops.dropped(cause, dropped, Some((self.clock)().0));
-        }
-        if dropped > 0 && !stopped {
-            self.counters.withhold();
-        }
+        let own = Some((self.clock)().0);
+        #[cfg(not(feature = "stall-seam"))]
+        let own = None;
+        TapContext::count_drop(
+            &self.counters,
+            #[cfg(feature = "stall-seam")]
+            self.drops.as_ref(),
+            dropped,
+            cause,
+            own,
+        );
     }
 }
 
@@ -524,7 +532,7 @@ pub struct DropCounts(Arc<DropFigures>);
 #[cfg(feature = "stall-seam")]
 #[derive(Default)]
 struct DropFigures {
-    by_cause: [AtomicU64; 11],
+    by_cause: [AtomicU64; 12],
     widest_gap_ns: AtomicU64,
     late_at_entry: AtomicU64,
     log: Mutex<RawLog>,
@@ -603,7 +611,7 @@ impl Default for RawLog {
 pub const RAW_LOG_CAP: usize = 65_536;
 
 #[cfg(feature = "stall-seam")]
-const CAUSES: [(Cause, &str); 11] = [
+const CAUSES: [(Cause, &str); 12] = [
     (Cause::On, "on"),
     (Cause::Unknown, "unknown"),
     (Cause::Gap, "gap"),
@@ -613,6 +621,7 @@ const CAUSES: [(Cause, &str); 11] = [
     (Cause::OwnTake, "own_take"),
     (Cause::Full, "full"),
     (Cause::Sleep, "sleep"),
+    (Cause::Unclocked, "unclocked"),
     (Cause::Stop, "stop"),
     (Cause::Refused, "refused"),
 ];
@@ -762,9 +771,13 @@ impl TapContext {
     fn read_session(&self, state: &mut HoldState) {
         state.session = (self.session)();
         state.session_at = Some((self.clocks.stamps)());
-        if state.offset.is_none() {
-            state.offset = self.clock_pair().map(|(difference, _)| difference);
-        }
+    }
+
+    /// The source's start: its first session read and its one pair of clocks,
+    /// whose difference is kept only when the pair came close.
+    fn start(&self, state: &mut HoldState) {
+        self.read_session(state);
+        state.offset = self.clock_pair().map(|(difference, _)| difference);
     }
 
     fn clock_pair(&self) -> Option<(i128, Uptime)> {
@@ -780,9 +793,15 @@ impl TapContext {
         None
     }
 
+    /// Whether this reading reads a wake of the Mac: its three tries at the pair
+    /// all failed (`wake_unclocked`), its difference rose above the kept one by
+    /// more than the margin, or no difference was kept and its pair came close.
+    /// A wake sets the mark that withholds every key whose own time is not
+    /// after it.
     fn woke(&self, state: &mut HoldState) -> bool {
         let Some((difference, at)) = self.clock_pair() else {
             state.wake_mark = Some((self.clocks.os_time)());
+            state.wake_unclocked = true;
             return true;
         };
         let margin = i128::try_from(WAKE_MARGIN.as_nanos()).unwrap_or(i128::MAX);
@@ -790,6 +809,7 @@ impl TapContext {
             Some(kept) if difference > kept.saturating_add(margin) => {
                 state.offset = Some(difference);
                 state.wake_mark = Some(at);
+                state.wake_unclocked = false;
                 true
             }
             Some(kept) => {
@@ -797,8 +817,10 @@ impl TapContext {
                 false
             }
             None => {
+                state.wake_mark = Some(at);
                 state.offset = Some(difference);
-                false
+                state.wake_unclocked = false;
+                true
             }
         }
     }
@@ -827,7 +849,15 @@ impl TapContext {
         }
         if woke {
             let keys = state.keys.drop_all();
-            self.dropped(keys, Cause::Sleep);
+            let cause = if state.wake_unclocked {
+                Cause::Unclocked
+            } else {
+                Cause::Sleep
+            };
+            self.dropped(keys, cause);
+            if keys == 0 && state.wake_unclocked && !self.stop.load(Ordering::SeqCst) {
+                self.counters.set_stalled(true);
+            }
         }
         (reading, Stamps { before, after })
     }
@@ -854,20 +884,63 @@ impl TapContext {
             cause
         };
         #[cfg(feature = "stall-seam")]
+        let own = unread.then(|| (self.clocks.stamps)().0);
+        #[cfg(not(feature = "stall-seam"))]
+        let own = unread.then_some(0);
+        Self::count_drop(
+            &self.counters,
+            #[cfg(feature = "stall-seam")]
+            self.drops.as_ref(),
+            keys,
+            cause,
+            own,
+        );
+    }
+
+    /// Counts a drop of `keys` held keys for `cause`, whose stop the caller has
+    /// read: the seam's count and entry, `keys_withheld` and the stalled flag.
+    /// The tap thread and the daemon's own take count every drop here.
+    fn count_drop(
+        counters: &InputCounters,
+        #[cfg(feature = "stall-seam")] drops: Option<&DropCounts>,
+        keys: usize,
+        cause: Cause,
+        own: Option<u64>,
+    ) {
+        #[cfg(feature = "stall-seam")]
         if keys > 0 {
-            if let Some(drops) = &self.drops {
+            if let Some(drops) = drops {
                 drops.count(cause);
-                let own = unread.then(|| (self.clocks.stamps)().0);
                 drops.dropped(cause, keys, own);
             }
         }
         #[cfg(not(feature = "stall-seam"))]
-        let _ = unread;
+        let _ = own;
         if keys > 0 && cause.withholds() {
-            self.counters.withhold();
+            counters.withhold();
         }
         if keys > 0 && cause.timing_fault() {
-            self.counters.set_stalled(true);
+            counters.set_stalled(true);
+        }
+    }
+
+    /// An arriving key whose event read the stop as set after its own reading:
+    /// it is not admitted, the seam enters it as withheld with the cause stop,
+    /// and it moves no flag and no count but late_events, which reads the lag
+    /// at the entry.
+    fn withheld_at_a_stop(&self, at_entry: Timing) {
+        #[cfg(feature = "stall-seam")]
+        if let Some(drops) = &self.drops {
+            drops.arrival(Admission::Withheld {
+                cause: Cause::Stop,
+                dropped: 0,
+            });
+            drops.count(Cause::Stop);
+        }
+        if let Timing::Late { lag } = at_entry {
+            if lag > crate::secure_input_macos::hold::LATE_BOUND {
+                self.counters.count_late_key();
+            }
         }
     }
 
@@ -996,6 +1069,20 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
         #[cfg(feature = "stall-seam")]
         ctx.mark(Caller::Event);
         let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
+        if ctx.stop.load(Ordering::SeqCst) {
+            let keys = state.keys.drop_all();
+            ctx.dropped(keys, Cause::Stop);
+            if kind == Kind::Key {
+                let lag_bound = state.keys.bounds().lag;
+                ctx.withheld_at_a_stop(timing(event.entry.uptime, event.os_time, lag_bound));
+            }
+            ctx.settle_timer(&mut state);
+            drop(state);
+            if kind == Kind::Pointer {
+                emit_pointer(ctx);
+            }
+            return;
+        }
         let arrival = at.before;
         let lag_bound = state.keys.bounds().lag;
         let at_entry = timing(event.entry.uptime, event.os_time, lag_bound);
@@ -1006,6 +1093,11 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
             state.wake_mark,
             lag_bound,
         );
+        let at_reading = if at_reading == Timing::Asleep && state.wake_unclocked {
+            Timing::Unclocked
+        } else {
+            at_reading
+        };
         #[cfg(feature = "stall-seam")]
         if let (Some(drops), Kind::Key | Kind::Reading, Timing::Late { .. }) =
             (&ctx.drops, kind, at_entry)
@@ -1045,14 +1137,18 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
     ctx.settle_timer(&mut state);
     drop(state);
     if kind == Kind::Pointer {
-        let _ = emit_metadata_only(
-            &ctx.sink,
-            Modality::Pointer,
-            ctx.foreground.get(),
-            Unpersisted::EMPTY,
-            SystemTime::now(),
-        );
+        emit_pointer(ctx);
     }
+}
+
+fn emit_pointer(ctx: &TapContext) {
+    let _ = emit_metadata_only(
+        &ctx.sink,
+        Modality::Pointer,
+        ctx.foreground.get(),
+        Unpersisted::EMPTY,
+        SystemTime::now(),
+    );
 }
 
 fn on_reading_tick(ctx: &TapContext) {
@@ -1107,6 +1203,7 @@ fn tap_context(
             timer: None,
             offset: None,
             wake_mark: None,
+            wake_unclocked: false,
         })),
         #[cfg(feature = "stall-seam")]
         drops: None,
@@ -1141,7 +1238,7 @@ fn tap_callback(
     ctx: TapContext,
 ) -> impl Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static {
     let ctx = Box::new(ctx);
-    ctx.read_session(&mut lock(&ctx.hold));
+    ctx.start(&mut lock(&ctx.hold));
     move |_proxy, etype, event: &CGEvent| {
         on_tap_event(&ctx, tap_event(&ctx, etype, event));
         CallbackResult::Keep
@@ -1864,7 +1961,7 @@ mod tests {
             },
             Arc::new(AtomicBool::new(false)),
         ));
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         Held {
             ctx,
             writer,
@@ -1900,7 +1997,7 @@ mod tests {
             Timing::InTime { lag } | Timing::Late { lag } => {
                 now - u64::try_from(lag.as_nanos()).expect("a lag of the tests")
             }
-            Timing::Untimed | Timing::Asleep => 0,
+            Timing::Untimed | Timing::Asleep | Timing::Unclocked => 0,
         };
         TapEvent {
             os_time: Uptime(os_time),
@@ -2588,7 +2685,7 @@ mod tests {
             "the product's maker of the context makes its timer with the product's timer maker"
         );
         assert_eq!(ctx.step, READING_STEP);
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         let before = CFDate::now().abs_time();
         key_down(&ctx);
         let after = CFDate::now().abs_time();
@@ -3390,7 +3487,7 @@ mod tests {
         let mut ctx = held.ctx;
         ctx.clocks = CLOCKS;
         lock(&ctx.hold).offset = None;
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         let writer = held.writer;
         let reader = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(200));
@@ -3567,7 +3664,7 @@ mod tests {
             },
             Arc::new(AtomicBool::new(false)),
         ));
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         let key = || event_now(CGEventType::KeyDown, 0);
         READ_TIMES.with(|times| times.borrow_mut().clear());
         let mut spacing = Vec::new();
@@ -5235,7 +5332,7 @@ mod tests {
             Bounds::PRODUCT,
             Arc::new(AtomicBool::new(false)),
         );
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         answer(Reading::On);
         on_tap_event(&ctx, event(CGEventType::KeyDown));
         drop((ctx, first, held));
@@ -5594,6 +5691,476 @@ mod tests {
         assert_eq!(steps, ["tap enable", "loop end"]);
         assert_eq!(refusal, None);
     }
+
+    mod drawn;
+
+    const NO_CLOSE_STEP_NS: u64 = 200_000;
+
+    fn no_close_pairs() {
+        UPTIME_STEP.with(|step| step.set(NO_CLOSE_STEP_NS));
+    }
+
+    fn close_pairs() {
+        UPTIME_STEP.with(|step| step.set(0));
+    }
+
+    fn with_stepped_uptime(mut held: Held) -> Held {
+        held.ctx.clocks = Clocks {
+            stamps: stand_in_monotonic,
+            os_time: stepped_uptime,
+        };
+        held
+    }
+
+    fn held_with_no_close_pair_at_the_start(bound_ms: u64) -> Held {
+        let held = with_stepped_uptime(slow_held(bound_ms));
+        lock(&held.ctx.hold).offset = Some(i128::MAX);
+        no_close_pairs();
+        held.ctx.start(&mut lock(&held.ctx.hold));
+        close_pairs();
+        assert_eq!(
+            lock(&held.ctx.hold).offset,
+            None,
+            "a start whose three pairs did not come close keeps no difference"
+        );
+        held
+    }
+
+    fn key_with_os_time(ctx: &TapContext, os_time: u64) {
+        on_tap_event(
+            ctx,
+            TapEvent {
+                os_time: Uptime(os_time),
+                ..event(CGEventType::KeyDown)
+            },
+        );
+    }
+
+    fn pointer_now(ctx: &TapContext) {
+        advance(1);
+        on_tap_event(ctx, event(CGEventType::MouseMoved));
+    }
+
+    fn fate(held: &Held) -> (usize, usize, bool, bool) {
+        (
+            held_now(&held.ctx),
+            keystrokes(&held.writer),
+            held.counters.figures().keys_withheld,
+            held.counters.stalled(),
+        )
+    }
+
+    #[test]
+    fn a_key_from_before_a_sleep_is_withheld_whether_or_not_the_start_kept_a_difference() {
+        for no_close_at_the_start in [false, true] {
+            let held = if no_close_at_the_start {
+                held_with_no_close_pair_at_the_start(100)
+            } else {
+                with_stepped_uptime(slow_held(100))
+            };
+            stall(MS);
+            let typed = now_uptime();
+            sleep_of_the_mac(60_000);
+            stall(5 * MS);
+            key_with_os_time(&held.ctx, typed);
+            let held_after = held_now(&held.ctx);
+            ticks(&held.ctx, 300);
+            assert_eq!(
+                (held_after, keystrokes(&held.writer)),
+                (0, 0),
+                "a key from before a 60 s sleep, no close pair at the start: {no_close_at_the_start}"
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_close_pair_at_the_start_a_key_whose_own_reading_reads_the_session_again_after_a_sleep_is_withheld(
+    ) {
+        let held = held_with_no_close_pair_at_the_start(100);
+        stall(MS);
+        let typed = now_uptime();
+        sleep_of_the_mac(60_000);
+        stall(5 * MS);
+        let session_reads = SESSION_READS.with(Cell::get);
+        key_with_os_time(&held.ctx, typed);
+        assert!(
+            SESSION_READS.with(Cell::get) > session_reads,
+            "the key's own reading read the session again"
+        );
+        ticks(&held.ctx, 300);
+        assert_eq!(fate(&held), (0, 0, true, false));
+    }
+
+    #[test]
+    fn the_first_key_after_a_start_with_no_close_pair_is_withheld_and_the_next_is_released() {
+        let held = held_with_no_close_pair_at_the_start(100);
+        key_down(&held.ctx);
+        assert_eq!(
+            (held_now(&held.ctx), held.counters.figures().keys_withheld),
+            (0, true),
+            "the first close pair after such a start is a wake, and the key is not after its mark"
+        );
+        key_down(&held.ctx);
+        ticks(&held.ctx, 150);
+        assert_eq!(
+            keystrokes(&held.writer),
+            1,
+            "the key typed after the mark is released"
+        );
+    }
+
+    #[test]
+    fn with_no_close_pair_at_the_start_a_pointer_first_takes_the_pair_and_a_later_key_is_released()
+    {
+        let held = held_with_no_close_pair_at_the_start(100);
+        pointer_now(&held.ctx);
+        key_down(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 1);
+        ticks(&held.ctx, 150);
+        assert_eq!(fate(&held), (0, 1, false, false), "no key lost");
+    }
+
+    #[test]
+    fn with_no_close_pair_at_the_start_a_pointer_after_a_sleep_frees_no_key_from_before_the_sleep()
+    {
+        let held = held_with_no_close_pair_at_the_start(100);
+        stall(MS);
+        let typed = now_uptime();
+        sleep_of_the_mac(60_000);
+        pointer_now(&held.ctx);
+        stall(5 * MS);
+        key_with_os_time(&held.ctx, typed);
+        ticks(&held.ctx, 300);
+        assert_eq!(fate(&held), (0, 0, true, false));
+    }
+
+    #[test]
+    fn a_tap_notice_first_takes_no_pair_and_the_first_key_after_a_start_with_no_close_pair_is_withheld(
+    ) {
+        let held = held_with_no_close_pair_at_the_start(100);
+        on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+        assert_eq!(
+            lock(&held.ctx.hold).offset,
+            None,
+            "a tap notice takes no pair"
+        );
+        key_down(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 0);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 150);
+        assert_eq!(keystrokes(&held.writer), 1);
+    }
+
+    #[test]
+    fn a_restart_is_a_start_and_keeps_nothing_of_the_source_before_it() {
+        let first = held(100);
+        key_down(&first.ctx);
+        ticks(&first.ctx, 150);
+        assert_eq!(
+            keystrokes(&first.writer),
+            1,
+            "the first source releases its key"
+        );
+        assert!(lock(&first.ctx.hold).offset.is_some());
+        drop(first);
+        let second = held_with_no_close_pair_at_the_start(100);
+        key_down(&second.ctx);
+        assert_eq!(
+            (
+                held_now(&second.ctx),
+                second.counters.figures().keys_withheld
+            ),
+            (0, true),
+            "the started source after a shutdown keeps no difference of the one before it"
+        );
+    }
+
+    #[test]
+    fn a_change_of_the_session_unsets_no_difference_and_reads_no_wake() {
+        let held = slow_held(1_000);
+        let kept = lock(&held.ctx.hold).offset;
+        assert!(kept.is_some());
+        key_down(&held.ctx);
+        SESSION.with(|session| session.set(Session::NotAtConsole));
+        ticks(&held.ctx, 300);
+        assert_eq!(
+            held_now(&held.ctx),
+            0,
+            "a session not at the console drops the key"
+        );
+        SESSION.with(|session| session.set(Session::AtConsole));
+        advance(300);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 1_050);
+        assert_eq!(
+            lock(&held.ctx.hold).offset,
+            kept,
+            "the session's change kept the difference"
+        );
+        assert_eq!(
+            keystrokes(&held.writer),
+            1,
+            "the key after the change is released, with no wake"
+        );
+    }
+
+    #[test]
+    fn clocks_whose_pairs_never_come_close_note_no_key_and_read_impaired() {
+        let held = held_with_no_close_pair_at_the_start(100);
+        no_close_pairs();
+        let mut stalled_after = Vec::new();
+        for _ in 0..100 {
+            key_down(&held.ctx);
+            stalled_after.push(held.counters.stalled());
+            ticks(&held.ctx, 20);
+        }
+        ticks(&held.ctx, 300);
+        close_pairs();
+        assert_eq!(keystrokes(&held.writer), 0, "no key is recorded");
+        assert!(
+            stalled_after.iter().all(|stalled| *stalled),
+            "impaired after every key: {} of 100",
+            stalled_after.iter().filter(|stalled| **stalled).count()
+        );
+        assert!(held.counters.stalled(), "impaired after the last key");
+    }
+
+    #[test]
+    fn one_reading_whose_pairs_fail_reads_impaired_until_the_next_release() {
+        let (held, drops) = seam_held(100);
+        let held = with_stepped_uptime(held);
+        no_close_pairs();
+        pointer_now(&held.ctx);
+        close_pairs();
+        assert!(
+            held.counters.stalled(),
+            "a failed reading that drops no key reads impaired"
+        );
+        assert!(
+            !held.counters.figures().keys_withheld,
+            "it withheld nothing"
+        );
+        key_down(&held.ctx);
+        assert!(held.counters.stalled(), "still impaired before a release");
+        ticks(&held.ctx, 150);
+        assert_eq!(keystrokes(&held.writer), 1);
+        assert!(!held.counters.stalled(), "the release clears it");
+        key_down(&held.ctx);
+        no_close_pairs();
+        tick(&held.ctx);
+        close_pairs();
+        assert_eq!(held_now(&held.ctx), 0);
+        assert!(
+            held.counters.stalled(),
+            "a failed reading that drops a key reads impaired"
+        );
+        assert_eq!(
+            (drops.of("unclocked"), drops.of("sleep")),
+            (1, 0),
+            "the failed pair counts apart from sleep"
+        );
+    }
+
+    #[test]
+    fn a_key_withheld_at_a_reading_whose_pairs_fail_has_the_cause_unclocked_and_reads_impaired() {
+        let (held, drops) = seam_held(100);
+        let held = with_stepped_uptime(held);
+        no_close_pairs();
+        key_down(&held.ctx);
+        close_pairs();
+        assert_eq!(
+            (
+                held_now(&held.ctx),
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (0, true, true)
+        );
+        let entries = drops.take_entries();
+        assert!(
+            entries.iter().any(|entry| matches!(
+                entry,
+                RawEntry::Arrival {
+                    admission: Arrived::Withheld {
+                        cause: Cause::Unclocked,
+                        ..
+                    },
+                    ..
+                }
+            )),
+            "{entries:?}"
+        );
+        assert_eq!((drops.of("unclocked"), drops.of("sleep")), (1, 0));
+    }
+
+    #[test]
+    fn a_failed_reading_after_a_stop_moves_no_flag() {
+        let held = with_stepped_uptime(slow_held(100));
+        key_down(&held.ctx);
+        let stop = held.ctx.stop.clone();
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+        no_close_pairs();
+        tick(&held.ctx);
+        close_pairs();
+        assert_eq!(fate(&held), (0, 0, false, false));
+    }
+
+    type StopRow = (&'static str, Reading, u64);
+
+    #[test]
+    fn a_stop_asked_during_a_keys_own_reading_moves_no_flag_and_no_count() {
+        let rows: [StopRow; 3] = [
+            ("a late key, its reading 40 ms long", Reading::Off, 40 * MS),
+            ("a key under unknown", Reading::Unknown, 0),
+            ("a key under on", Reading::On, 0),
+        ];
+        for (what, reading, read_ns) in rows {
+            let held = slow_held(1_000);
+            key_down(&held.ctx);
+            assert_eq!(held_now(&held.ctx), 1, "{what}");
+            let before = (
+                held.counters.figures().keys_withheld,
+                held.counters.stalled(),
+                held.counters.suppressed_keys(),
+            );
+            let stop = held.ctx.stop.clone();
+            STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+            ANSWERS.with(|answers| answers.borrow_mut().push(reading));
+            SLOW_READ_NS.with(|ns| ns.set(read_ns));
+            key_down(&held.ctx);
+            SLOW_READ_NS.with(|ns| ns.set(0));
+            let after = (
+                held.counters.figures().keys_withheld,
+                held.counters.stalled(),
+                held.counters.suppressed_keys(),
+            );
+            assert_eq!((held_now(&held.ctx), after), (0, before), "{what}");
+        }
+    }
+
+    #[test]
+    fn an_arriving_key_at_a_stop_is_one_arrival_withheld_with_the_cause_stop() {
+        let (held, drops) = seam_held(1_000);
+        key_down(&held.ctx);
+        let _ = drops.take_entries();
+        let stop = held.ctx.stop.clone();
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+        key_down(&held.ctx);
+        let entries = drops.take_entries();
+        let fates = {
+            let mut all = vec![RawEntry::Arrival {
+                at: 0,
+                admission: Arrived::Held,
+            }];
+            all.extend(entries.iter().copied());
+            replayed_fates(&all)
+        };
+        assert_eq!(fates, ["dropped Stop", "withheld Stop"], "{entries:?}");
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| matches!(entry, RawEntry::Arrival { .. }))
+                .count(),
+            1,
+            "one arrival for the arriving key"
+        );
+        assert_eq!(
+            drops.of("stop"),
+            2,
+            "the held key and the arriving key, both with the cause stop"
+        );
+    }
+
+    #[test]
+    fn a_late_key_at_a_stop_still_counts_as_a_late_event() {
+        let held = slow_held(1_000);
+        let stop = held.ctx.stop.clone();
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+        advance(1);
+        let typed = now_uptime() - 300 * MS;
+        key_with_os_time(&held.ctx, typed);
+        assert_eq!(
+            (
+                held.counters.figures().late_events,
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (1, false, false),
+            "late_events reads the lag at the entry; the key's fate is the stop's"
+        );
+    }
+
+    #[test]
+    fn a_key_from_before_a_sleep_whose_callback_comes_late_is_asleep_and_no_timing_fault() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 1_000);
+        assert_eq!(
+            keystrokes(&held.writer),
+            1,
+            "a release clears nothing that is set"
+        );
+        stall(MS);
+        let typed = now_uptime();
+        sleep_of_the_mac(60_000);
+        tick(&held.ctx);
+        stall(40 * MS);
+        key_with_os_time(&held.ctx, typed);
+        assert_eq!(
+            (
+                held_now(&held.ctx),
+                held.counters.figures().keys_withheld,
+                held.counters.stalled()
+            ),
+            (0, true, false),
+            "the cause sleep is read before the lag"
+        );
+    }
+
+    #[test]
+    fn a_stop_that_lands_during_an_emit_of_the_release_loop_takes_no_reading_after_it() {
+        let held = held_with(100, 64, 0);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 90);
+        assert_eq!(held_now(&held.ctx), 2);
+        let stop = held.ctx.stop.clone();
+        let writer = held.writer;
+        let receiver = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(200));
+            stop.store(true, Ordering::SeqCst);
+            let mut kinds = Vec::new();
+            while let Ok(received) = writer.recv_timeout(Duration::from_millis(500)) {
+                kinds.push(received.event().modality);
+            }
+            kinds
+        });
+        let asked_before = asked();
+        tick(&held.ctx);
+        assert_eq!(
+            asked(),
+            asked_before + 1,
+            "no reading was taken after the emit during which the stop landed"
+        );
+        assert_eq!(held_now(&held.ctx), 0, "the second key was dropped");
+        assert!(
+            !held.counters.figures().keys_withheld,
+            "a drop with the cause stop"
+        );
+        assert!(!held.counters.stalled());
+        let Held {
+            ctx,
+            counters,
+            fg_writer,
+            ..
+        } = held;
+        drop((ctx, counters, fg_writer));
+        assert_eq!(
+            receiver.join().expect("the receiver ends"),
+            [Modality::Keystroke],
+            "the first key reached the writer before the stop was read"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -5904,7 +6471,7 @@ mod secure_input_invariant {
             },
             Arc::new(AtomicBool::new(false)),
         );
-        ctx.read_session(&mut lock(&ctx.hold));
+        ctx.start(&mut lock(&ctx.hold));
         (ctx, writer)
     }
 

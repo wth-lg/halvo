@@ -26,14 +26,18 @@ pub const GAP_BOUND: Duration = Duration::from_millis(30);
 pub const LAG_BOUND: Duration = Duration::from_millis(30);
 
 /// The widest distance between the two uptime reads around a monotonic read
-/// for the pair of clocks to be used.
+/// for the pair of clocks to be used. The source takes the pair once at its
+/// start, beside its first session read, and after every reading of the state.
 pub const PAIR_WIDTH: Duration = Duration::from_micros(100);
 
-/// How many times a reading tries to take the pair of clocks.
+/// How many times the start and each reading try to take the pair of clocks. A
+/// reading whose tries all fail withholds with the cause `Unclocked`; a start
+/// whose tries all fail keeps no difference, so the first close pair after it
+/// is a wake.
 pub const PAIR_TRIES: usize = 3;
 
 /// How far the difference of the two clocks may rise above the largest one
-/// seen before a reading reads a wake of the Mac.
+/// kept before a reading reads a wake of the Mac.
 pub const WAKE_MARGIN: Duration = Duration::from_millis(1);
 
 /// The step at which the session is read again while keys are held.
@@ -83,6 +87,7 @@ pub enum Cause {
     OwnTake,
     Full,
     Sleep,
+    Unclocked,
     Stop,
     Refused,
 }
@@ -99,7 +104,7 @@ impl Cause {
         matches!(
             self,
             Self::Gap | Self::LateKey | Self::UntimedKey | Self::TapSwitchedOff | Self::Full
-        )
+        ) || self == Self::Unclocked
     }
 }
 
@@ -152,6 +157,7 @@ pub enum Timing {
     Late { lag: Duration },
     Untimed,
     Asleep,
+    Unclocked,
 }
 
 impl Timing {
@@ -162,6 +168,7 @@ impl Timing {
             Self::Late { .. } => Some(Cause::LateKey),
             Self::Untimed => Some(Cause::UntimedKey),
             Self::Asleep => Some(Cause::Sleep),
+            Self::Unclocked => Some(Cause::Unclocked),
         }
     }
 }
