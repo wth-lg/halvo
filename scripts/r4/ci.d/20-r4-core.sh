@@ -547,7 +547,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT STUB_LINKED STUB_WRITE
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
     "$@" 2>&1
   )
   code=$?
@@ -569,7 +569,8 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_EXIT=0
-  STUB_TREE_EXIT=0
+  STUB_TAURI_EXIT=0
+  STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
   STUB_WRITE=
 }
@@ -599,7 +600,7 @@ fixture() {
   mkdir -p "$dir/crates/halvo-coord/tests" || exit 2
   printf '#[test]\nfn refusal_two_models() {}\n#[test]\nfn refusal_queue_full() {}\n#[test]\nfn refusal_not_a_case() {}\n' >"$dir/crates/halvo-coord/tests/refusal.rs" || exit 2
   crate "$dir/crates/halvo-coord"
-  put "$dir/crates/halvo-coord/src/lib.rs" '//! No #[allow(clippy::disallowed_methods)] here.\npub mod words;\n#[cfg(test)]\nmod tests;\n#[cfg(all(test, unix))]\nmod more {\n    const B: char = '"'"'}'"'"';\n    const S: &str = "}{";\n    #[allow(clippy::disallowed_methods)]\n    fn f() {}\n}\npub fn after() -> &'"'"'static str {\n    r#"#[allow(clippy::disallowed_methods)] }"#\n}\n'
+  put "$dir/crates/halvo-coord/src/lib.rs" '//! No #[allow(clippy::disallowed_methods)] here.\npub mod words;\n#[cfg(test)]\nmod tests;\n#[cfg(all(test, unix))]\nmod more {\n    const B: char = '"'"'}'"'"';\n    const S: &str = "}{";\n    #[allow(clippy::disallowed_methods)]\n    fn f() {}\n}\npub fn after() -> &'"'"'static str {\n    r#"x"y #[allow(clippy::disallowed_methods)] }"#\n}\n'
   put "$dir/crates/halvo-coord/src/words.rs" 'pub fn w() {}\n'
   put "$dir/crates/halvo-coord/src/tests.rs" 'mod deep;\n#[allow(clippy::disallowed_methods)]\nfn t() {}\n'
   put "$dir/crates/halvo-coord/src/tests/deep.rs" '#[expect(clippy::disallowed_methods)]\nfn d() {}\n'
@@ -652,11 +653,11 @@ esac
 case $* in
   'tree -e normal --workspace --target all -i tauri --depth 0 --format {f} --locked')
     printf '%s\n' "$STUB_TAURI"
-    exit "$STUB_TREE_EXIT"
+    exit "$STUB_TAURI_EXIT"
     ;;
   'tree -e normal --target all -p halvo --prefix none --format {p} --locked')
     cat "$STUB_LINKED"
-    exit "$STUB_TREE_EXIT"
+    exit "$STUB_LINKED_EXIT"
     ;;
   tree*) exit 94 ;;
 esac
@@ -672,7 +673,8 @@ EOF
   chmod +x "$work/bin/cargo" || exit 2
   STUB_ARGS=$work/args
   STUB_EXIT=0
-  STUB_TREE_EXIT=0
+  STUB_TAURI_EXIT=0
+  STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
   STUB_WRITE=
   STUB_LINKED=$work/linked.txt
@@ -723,6 +725,8 @@ EOF
   check an-allow-of-the-lint-group FAIL "FAIL $name (allow)" run_in allow-group
   variant allow-after-test crates/halvo-coord/src/words.rs '#[cfg(test)]\nmod t {\n    const S: &str = "{";\n}\n#[allow(clippy::disallowed_methods)]\npub fn w() {}\n'
   check an-allow-after-a-test-module-with-a-brace-in-a-string FAIL "FAIL $name (allow)" run_in allow-after-test
+  variant allow-after-use crates/halvo-coord/src/words.rs '#[cfg(test)]\nuse std::fmt;\npub fn w() {\n    #[allow(clippy::disallowed_methods)]\n    let _ = 1;\n}\n'
+  check an-allow-after-a-test-item-that-ends-with-a-semicolon FAIL "FAIL $name (allow)" run_in allow-after-use
   variant allow-any-test crates/halvo-coord/src/words.rs '#[cfg(any(test, feature = "x"))]\n#[allow(clippy::disallowed_methods)]\npub fn w() {}\n'
   check an-allow-under-cfg-any-test FAIL "FAIL $name (allow)" run_in allow-any-test
   variant allow-orphan crates/halvo-coord/src/tests/orphan.rs '#[allow(clippy::disallowed_methods)]\nfn o() {}\n'
@@ -740,8 +744,10 @@ EOF
   check tauri-with-test FAIL "FAIL $name (tauri)" run_one
   STUB_TAURI=unstable
   check tauri-with-unstable FAIL "FAIL $name (tauri)" run_one
-  STUB_TREE_EXIT=101
-  check cargo-tree-fails FAIL "FAIL $name (tree)" run_one
+  STUB_TAURI_EXIT=101
+  check cargo-tree-of-tauri-fails FAIL "FAIL $name (tree)" run_one
+  STUB_LINKED_EXIT=101
+  check cargo-tree-of-the-app-fails FAIL "FAIL $name (tree)" run_one
 
   variant start-other crates/halvo-control/src/onboarding.rs 'pub fn open() {\n    let _ = std::process::Command::new("/usr/bin/open").status();\n}\npub fn ls() {\n    let _ = std::process::Command::new("/bin/ls").output();\n}\n'
   check another-start-in-a-linked-crate FAIL "FAIL $name (start)" run_in start-other
