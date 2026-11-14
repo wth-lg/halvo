@@ -846,7 +846,16 @@ EOF
   lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}    timeout-minutes: 30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"
   check j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 10: '   name: |' is the first line of the job macos and stands at 3 blanks; this lint reads a job's own keys at four blanks; write them at four blanks)"
   lines byte-ff-beside-the-save-if-of-the-base 17 "$base_save" 3 "  push: # $(printf '\377')"
-  check byte-ff-beside-the-save-if-of-the-base FAIL ".github/workflows/ci.yml line 17: '${base_save}' stands where this lint reads line 4 of the Rust cache step of the job macos"
+  if locale -a 2>/dev/null | grep -q -x 'en_US.UTF-8'; then
+    lc_before=${LC_ALL-unset}
+    LC_ALL=en_US.UTF-8
+    export LC_ALL
+    check byte-ff-beside-the-save-if-of-the-base FAIL ".github/workflows/ci.yml line 17: '${base_save}' stands where this lint reads line 4 of the Rust cache step of the job macos"
+    if [ "$lc_before" = unset ]; then unset LC_ALL; else LC_ALL=$lc_before; export LC_ALL; fi
+  else
+    printf 'case %s/%s want=FAIL got=no-locale (en_US.UTF-8, the locale of the hosted Mac, is not on this machine)\n' "$name" byte-ff-beside-the-save-if-of-the-base
+    wrong="$wrong byte-ff-beside-the-save-if-of-the-base"
+  fi
   lines g06-macos-second-step-hex-escape 17 "$pin_save${nl}      - uses: \"Swatinem/rust\\x2dcache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\""
   check g06-macos-second-step-hex-escape FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '      - uses: \"Swatinem/rust\x2dcache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\"' stands where this lint reads line 1 of the Rust cache step of the job macos, '${pin_uses}'; it differs from the line to write first at column 15, which holds the sign \" where the line to write holds the sign S; write '${pin_uses}'; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change; and 1 more above)"
   lines two-escapes-in-the-name-of-a-second-step 17 "$pin_save${nl}      - uses: \"Swatinem\\x2frust\\x2dcache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\""
