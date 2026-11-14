@@ -33,21 +33,15 @@ pub struct Both {
     pub panics: Cell<Option<&'static str>>,
     pub loss: Cell<Option<Loss>>,
     pub lost: std::cell::RefCell<Vec<Event>>,
-    /// Whether the next `history` fails, after a `log` of the form `Loss::Unread`.
     pub unread: Cell<bool>,
-    /// Where set, `loss` waits for the first `log` with a row that this names.
     pub loss_at: Cell<Option<Names>>,
-    /// Whether `Clock::now` fails with `no_service`.
     pub clock_fails: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
-    /// Each `Runs::answer_handback`: its run, its result, whether it did its work, and how many
-    /// events the owner held at the call.
     pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
 }
 
-/// Whether a row is one that a lost acknowledgement waits for.
 pub type Names = fn(&halvo_coord::types::What) -> bool;
 
 /// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and

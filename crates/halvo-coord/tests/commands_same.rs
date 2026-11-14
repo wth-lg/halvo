@@ -119,10 +119,6 @@ fn commands_json_keeps_the_key_order_of_i8_3_on_one_line() {
     assert!(text.ends_with("]\n") && text.matches('\n').count() == 1);
 }
 
-/// I3.4 with the coordinator's answer of 2026-11-13 (msg_85b95527cba4): `agents_answer` and
-/// `agents_setup_typed` take the step mark as a required count, `when` null, so that a call that
-/// sends no step does not fit the row and is refused by name with `malformed`, never taken
-/// unchecked.
 #[test]
 fn the_answer_commands_require_the_step_and_answer_one_without_it_malformed() {
     use halvo_coord::types::{ArgType, Cause};

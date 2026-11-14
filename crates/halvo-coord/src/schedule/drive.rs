@@ -1068,9 +1068,6 @@ fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     }
 }
 
-/// Raises an item of the coordinator's own kinds for the agent `i`; where its log meets `seq`,
-/// `decide` decides again from the facts as the read left them, and a cause there raises nothing
-/// (ruling RD-52 (a)). False where `decide` gave a cause.
 fn raise<P: Owner + Rng, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -1583,8 +1580,6 @@ where
 /// item the switch-off sends it.
 pub type Halt<'a, C> = &'a mut dyn FnMut(&mut Board<C>, usize, &RunId) -> bool;
 
-/// One read of the agent's events at the owner, which the facts take as after a refusal `seq`,
-/// the agent's own item settled by it (I7.2).
 fn read_once<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize) -> Result<(), PortError> {
     let facts = &mut board.members[i].facts;
     let before = facts.events.len();
@@ -1593,11 +1588,6 @@ fn read_once<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize) -> Res
     Ok(())
 }
 
-/// The rest of a switch-off once its hold `off` is known stored (I5.7, rulings RD-52 (b) rule 1,
-/// (d)): the agent's queued start leaves the queue with nothing stored for it, whoever queued
-/// it; the agent's live run that no stop has reached is stopped on the board with `cancelled`,
-/// then halted by `halt`, and by `Runs::cancel` where `halt` sent none; and then `set_state`
-/// `paused` is sent.
 fn off_rest<P: Owner + Runs, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -1692,7 +1682,7 @@ where
 }
 
 /// `drive` with `halt` as what stops a live run that the switch-off, or the rest of it of
-/// `Move::Off`, stops after the board holds its stop, in place of `Runs::cancel`.
+/// `Move::Off`, stops after the board holds its stop.
 pub fn drive_with<P>(
     ports: &P,
     board: &mut Board<P::Config>,

@@ -57,9 +57,6 @@ struct Waited {
     raised_at: Option<u64>,
 }
 
-/// Who answers an item, and when: the step mark that the page showed, or none for the native
-/// dialog, whose item keeps its one step (I3.4); the presenter; and the clock as the answer read
-/// it before the coordinator's lock was taken (ruling RD-80 5.3).
 #[derive(Clone, Copy)]
 struct By {
     step: Option<u32>,
@@ -117,14 +114,11 @@ fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &
     &mut ledgers[k].1
 }
 
-/// Holds the stop of the live run `run` in the guard's table and on the board, from `now` and
-/// with the cause of `by`, before any port call of the stop (rulings RD-34 (e), RD-48 (a)).
 fn mark<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
     *table = table.stop(run);
     schedule::stop_run(board, run, now, by.cause().end());
 }
 
-/// The open item that a waiting run of the agent waits on, or none.
 fn waiting_on(doing: &Doing) -> Option<RunItem> {
     match doing {
         Doing::Live(Live::Waiting(open)) => Some(open.clone()),
@@ -132,7 +126,6 @@ fn waiting_on(doing: &Doing) -> Option<RunItem> {
     }
 }
 
-/// The live run of the agent that no stop has reached, or none.
 fn reachable<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
     board
         .runs
@@ -141,11 +134,6 @@ fn reachable<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
         .map(|r| r.run.clone())
 }
 
-/// The coordinator's read of an agent's events inside an items move, which the items drive calls
-/// after a refusal `seq` or a log with no acknowledgement (rulings RD-52 (b) rule 3, (c) rule
-/// 1): it takes the owner's events into the board's facts and the ledger, and gives `Off` where
-/// they first show the agent's hold `off` beside its live run that no stop has reached, so that
-/// the move stops the run first and stores nothing more for that agent.
 struct Reading<'a, P, C> {
     ports: &'a P,
     board: &'a mut Board<C>,
@@ -184,7 +172,6 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
     }
 }
 
-/// The parts of the state that the lapse of a run's open item writes, beside the board.
 struct Parts<'a> {
     table: &'a mut Table,
     ledgers: &'a mut Vec<(AgentId, Ledger)>,
@@ -286,10 +273,6 @@ where
         }
     }
 
-    /// The stages of a tick (I5.9). A switch-off that the read after the tick's own flush first
-    /// shows is done right after that read, before the tick's other stages store or send
-    /// anything for that agent (ruling RD-52 (b) rule 3); `before` are the agents that stood off
-    /// before the tick.
     fn tick_in(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
         if st.board.is_none() {
             match run::recover(&self.ports, &self.limits) {
@@ -798,9 +781,6 @@ where
         answered(&done.report)
     }
 
-    /// The lapse of the open item of the waiting run `run`: with `run_ended` at the runner's end;
-    /// with `cancelled` for a stop, whose run the caller holds stopped in the guard's table and
-    /// on the board first, and whose lapse sends `Runs::cancel` (ruling RD-48 (a)).
     fn close_run_item(
         &self,
         st: &mut State<Cfg<P>>,
@@ -871,12 +851,6 @@ where
         self.read_back(board, i);
     }
 
-    /// The switch-off of the agent `i`, or with `Move::Off` its rest after a read in this move
-    /// showed the hold (I5.7, ruling RD-52 (b)): the schedule stores the hold first and stops
-    /// nothing until it is known stored, then holds the run's stop on the board; the halt then
-    /// holds it in the guard's table and lapses the run's open item with `cancelled`, whose lapse
-    /// sends `Runs::cancel`, which the schedule sends for a run that waits on no item; then
-    /// `set_state` `paused` (ruling RD-48 (a)).
     fn off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
         let State {
             board,
@@ -908,9 +882,6 @@ where
         answered(&report)
     }
 
-    /// A run's request whose raise met a read that first shows the agent switched off beside the
-    /// run (RD-52 (b) rule 3): no item is raised, the rest of the switch-off stops the run in this
-    /// move, and the request is answered `state`, as a request that ends its run.
     fn stopped_at_raise(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         let agent = st
             .board
@@ -921,7 +892,6 @@ where
         Err(Cause::State)
     }
 
-    /// The agents whose hold `off` stands in the board's events.
     fn offs(st: &State<Cfg<P>>) -> Vec<AgentId> {
         st.board.as_ref().map_or_else(Vec::new, |b| {
             b.members
@@ -932,9 +902,6 @@ where
         })
     }
 
-    /// The rest of the switch-off for each agent whose hold `off` a read of this move brought in
-    /// beside a live run that no stop has reached or beside a queued start, an agent of `before`
-    /// having stood off before the move (I5.7, rulings RD-52 (b) rule 3, (d)).
     fn after_reads(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
         for agent in Self::offs(st) {
             let Some(board) = st.board.as_ref() else {
@@ -1100,8 +1067,6 @@ where
         out
     }
 
-    /// The step mark of the open item `item`: the setup's own, and 0 for every other kind, whose
-    /// item never asks again under its id (I3.4, ruling RD-87 1).
     fn step_of(st: &State<Cfg<P>>, item: &ItemId) -> u32 {
         st.setups
             .iter()
@@ -1484,11 +1449,6 @@ where
         }
     }
 
-    /// The person's stop of the agent `i` (I5.7, rulings RD-6, RD-43, RD-48 (a)): nothing for an
-    /// agent with no live run or a stopping one; for a waiting run the guard's table and the board
-    /// hold the stop before its open item lapses with `cancelled`, whose lapse sends
-    /// `Runs::cancel`; any other live run is stopped by the run drive, which holds the stop before
-    /// the cancel.
     fn stop_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         let State { board, table, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;

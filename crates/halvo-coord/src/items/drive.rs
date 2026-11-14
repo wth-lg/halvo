@@ -405,9 +405,6 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
     Ok(())
 }
 
-/// `flush` whose one read after a refusal `seq` is `read`: false where that read showed the
-/// agent switched off beside its run, after which nothing more is sent (ruling RD-52 (b) rule 3);
-/// a read that failed is the refusal.
 fn flush_reading<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
@@ -437,15 +434,10 @@ fn flush_reading<P: Owner>(
     Ok(true)
 }
 
-/// The ledger's own read, for the functions that the coordinator does not hand its read.
 fn own_read<P: Owner>(ports: &P, ledger: &mut Ledger) -> Read {
     resync(ports, ledger).map_or(Read::Failed, |()| Read::Taken)
 }
 
-/// Stores the raise `row` as `store` does, with `read` as the read after a refusal `seq`. Where
-/// that read shows the agent switched off beside its run, the row leaves the ledger unsent and
-/// the answer is `state`, so that the item is not raised (ruling RD-52 (b) rule 3); any other
-/// failure leaves the row waiting, as `store` does.
 fn store_raise<P: Owner + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -493,8 +485,6 @@ fn store_at<P: Owner>(
     flush(ports, ledger, limits)
 }
 
-/// Puts the events after the waiting ones at the instant and on the day of `at`, with no port
-/// call, leaving out a row that closes an item whose closing row the ledger already holds.
 fn queue_at(ledger: &mut Ledger, whats: Vec<What>, at: Stamp) {
     let whats: Vec<What> = whats
         .into_iter()
@@ -538,8 +528,6 @@ fn store_once<P: Owner>(
     }
 }
 
-/// The press of a choice on an item that a handback raised, its `item_answered` row and the
-/// result that the row gives (ruling RD-61 (c)).
 struct Press<'a> {
     kind: RunItemKind,
     item: &'a ItemId,
@@ -547,24 +535,16 @@ struct Press<'a> {
     result: HandbackResult,
 }
 
-/// What a press does, decided by the newest closing row of its item that the ledger holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Decided {
-    /// The row is the press's own: its result goes to the run, and the move answers as for an
-    /// open item.
     Own(HandbackResult),
-    /// Another answer decides: its result goes to the run, and the move answers `unknown_item`.
     Other(HandbackResult),
-    /// The item lapsed: nothing goes to the run, and the move answers `unknown_item`.
     Lapsed,
-    /// The press's own row goes to the owner.
     Log,
-    /// The read showed the agent switched off beside the live run: nothing goes to the run and
-    /// nothing more is stored, and the move answers `unknown_item` (ruling RD-52 (b) rule 3).
     Stopped,
 }
 
-/// What a read of the owner's events in a press gave (rulings RD-52 (b) rule 3, (c) rule 1).
+/// What a read of the owner's events gave (rulings RD-52 (b) rule 3, (c) rule 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Read {
     /// The read failed.
@@ -577,10 +557,6 @@ pub enum Read {
 }
 
 impl Press<'_> {
-    /// The one decision of a press by the newest closing row `newest` (rulings RD-40, RD-61
-    /// (c), (d)): none, or the older `done` that a declining press follows, logs the press's
-    /// row; the press's own answer counts as stored; another answer decides with its own
-    /// result; a lapse, or an answer whose result does not fit the kind, closes the item.
     fn decide(&self, newest: Option<&What>) -> Decided {
         match newest {
             None => Decided::Log,
@@ -596,10 +572,6 @@ impl Press<'_> {
         }
     }
 
-    /// Whether the press is the declining choice after a stored `done`, for a kind whose two
-    /// choices are decline and done (rulings RD-46 B4, RD-61 (d)): the declining choice is the
-    /// first of the kind's own choices, never one taken from a result, and a kind with other
-    /// choices never declines after.
     fn declines_after(&self, stored: &Answered) -> bool {
         let [declining, done] = choices(self.kind.kind());
         [declining, done] == [Choice::Decline, Choice::Done]
@@ -608,15 +580,6 @@ impl Press<'_> {
     }
 }
 
-/// Logs the row of a press (rulings RD-61 (c), RD-52 (c)): one log, and after its failure one
-/// read by `read`, which takes the owner's events into the ledger; a read that shows the agent
-/// switched off beside its run stops the press (RD-52 (b) rule 3).
-/// `Press::decide` then decides by the newest closing row that the read shows: the press's own
-/// row counts as its store, and another row decides. Where it gives `Log`, the row goes once more
-/// after a refusal `seq`, and after any other failure only where the read showed the older `done`
-/// that a declining press follows (RD-61 (f)); where the read showed no closing row of the item
-/// the press's row is not known stored. At an acknowledgement the row is the item's newest and
-/// the press's own. A read that failed, and a failure after the read, is the error.
 fn log_press<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,

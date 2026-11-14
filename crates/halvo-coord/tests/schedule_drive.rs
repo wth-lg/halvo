@@ -868,10 +868,6 @@ fn queue_two_behind(w: &mut World) -> RunId {
     run
 }
 
-/// A hold `off` that the owner stored between the queue and the start, which the board learns
-/// from the start's read after its refusal `seq`: the start leaves the queue answered `hold`
-/// (ruling RD-52 (a)). The hold is stored at the owner because a switch-off in this life takes
-/// the start out of the queue (ruling RD-52 (d)).
 #[test]
 fn a_hold_stored_between_the_queue_and_the_start_drops_the_start() {
     let mut w = world(&[manual(), manual(), manual()]);
@@ -1169,8 +1165,6 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     );
 }
 
-/// Makes the one stored run of agent `n` one that ended `nothing_to_do`, at the owner and on the
-/// board: a clean run, and no finished one (ruling RD-67 5.2).
 fn nothing_first(w: &mut World, n: usize) {
     let to_nothing = |e: &mut Event| {
         if let What::RunEnded { cause, .. } = &mut e.what {
@@ -1196,9 +1190,6 @@ fn nothing_first(w: &mut World, n: usize) {
     }
 }
 
-/// RD-67 5.2: the slot of a skip and the slot of a start by the person read the clean run, so
-/// that a skip at a card that an open slot raised for an agent with a clean run and no finished
-/// one stores that slot's day, and a start by the person stores it as its slot.
 #[test]
 fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
     let mut w = world(&[AUTO]);
@@ -2991,8 +2982,6 @@ fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
     assert_eq!(started, [DAY + 1]);
 }
 
-/// Stores `what` for agent `n` at the owner after its last event, and, where `seen`, in the
-/// board's events too.
 fn stored_at_owner(w: &mut World, n: usize, what: What, seen: bool) {
     let last = w
         .stored()
@@ -3025,12 +3014,6 @@ const OFF: What = What::HoldSet {
     cause: HoldSetCause::Person,
 };
 
-/// RD-52 (b) rule 4, at the drive: for an agent whose hold `off` stands in the board's events,
-/// `Move::SwitchOff` answers `state` where no live run stands that a stop can reach, with no run
-/// and with a stopping one; where a live run stands it reads the owner's events first: with the
-/// hold standing it stores no second `hold_set` and stops the run; with the hold ended by a
-/// switch-on whose acknowledgement was lost it stores `hold_set` as a new press and stops the
-/// run; with the read failing it answers the read's cause and does nothing.
 #[test]
 fn rd52b_rule_4_the_switch_offs_guard_answers_by_a_read_where_a_live_run_stands() {
     let mut w = world(&[manual()]);
@@ -3087,8 +3070,6 @@ fn rd52b_rule_4_the_switch_offs_guard_answers_by_a_read_where_a_live_run_stands(
     }
 }
 
-/// RD-52 (a), left to U2.4b: the tick's raise of a `ready` item whose log meets `seq` and whose
-/// read shows a hold raises no item: no `item_raised` row, and the agent holds no item.
 #[test]
 fn rd52a_the_ticks_raise_of_a_ready_item_whose_read_shows_a_hold_raises_nothing() {
     let mut w = world(&[person()]);

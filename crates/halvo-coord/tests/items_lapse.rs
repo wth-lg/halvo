@@ -1,7 +1,3 @@
-//! RD-83: the order of a lapse that stops its run (items 1, 2, 4 and 7 of the ruling). The
-//! memory ports record every call in one list (`tried`); a wrapper makes one call panic, so that
-//! a test reads what the move left at that call.
-
 #[path = "items_support.rs"]
 mod support;
 
@@ -48,9 +44,6 @@ fn ledger() -> Ledger {
     Ledger::new(workflow_id(1), agent_id(1), 0)
 }
 
-/// The memory ports, with the one call that `panics` names panicking: `cancel`,
-/// `answer_confirm`, `answer_handback`, `answer_bind`, or `log_lapsed` for a `log` that holds an
-/// `item_lapsed` row.
 struct Panicky<'a> {
     inner: &'a Ports<Config>,
     panics: Cell<Option<&'static str>>,
@@ -147,7 +140,6 @@ impl Rng for Panicky<'_> {
     }
 }
 
-/// A confirmation of run 1 issued at `NOW`, `shown`, or `armed` after its report on screen.
 fn held<P: Owner + Runs + Clock + Rng>(
     p: &P,
     inner: &Ports<Config>,
@@ -167,7 +159,6 @@ fn held<P: Owner + Runs + Clock + Rng>(
     held
 }
 
-/// The methods of the calls tried from the `from`th on, refused ones among them.
 fn methods(p: &Ports<Config>, from: usize) -> Vec<&'static str> {
     p.tried.borrow()[from..]
         .iter()
@@ -202,9 +193,6 @@ fn record_of(entry: &DecisionEntry, state: EffectState) -> EffectRecord {
     }
 }
 
-/// RD-83 items 1 and 7: a lapse with `wait_limit` or `cancelled`, from `shown` and from
-/// `armed`, holds the item lapsed and the run stopped in the guard's table before any port call,
-/// then calls `Runs::cancel` once, then sends the decision `reject`, and sends its row last.
 #[test]
 fn rd83_a_stopping_lapse_cancels_then_decides_then_sends_its_row() {
     for cause in STOPS {
@@ -239,9 +227,6 @@ fn rd83_a_stopping_lapse_cancels_then_decides_then_sends_its_row() {
     }
 }
 
-/// RD-83 item 7: the guard asked at the call of the lapse's decision refuses the run's
-/// `approved` and `releasing` records of an effect that the person allowed on an earlier card.
-/// The port stops the move at that call, and the guard reads the table as the call found it.
 #[test]
 fn rd83_the_guard_at_the_lapses_decision_refuses_the_records_of_an_earlier_allow() {
     for cause in STOPS {
@@ -280,8 +265,6 @@ fn rd83_the_guard_at_the_lapses_decision_refuses_the_records_of_an_earlier_allow
     }
 }
 
-/// RD-83 item 7: a `Runs::cancel` that panics leaves the run stopped in the guard's table, the
-/// item lapsed, no decision sent, and the row waiting in the ledger, which the next flush sends.
 #[test]
 fn rd83_a_cancel_that_panics_leaves_the_stop_the_lapse_and_the_row_owed() {
     for cause in STOPS {
@@ -309,8 +292,6 @@ fn rd83_a_cancel_that_panics_leaves_the_stop_the_lapse_and_the_row_owed() {
     }
 }
 
-/// RD-83 item 7: an `answer_confirm` that panics after the cancel leaves the same, with the
-/// cancel sent.
 #[test]
 fn rd83_a_decision_that_panics_after_the_cancel_leaves_the_same() {
     for cause in STOPS {
@@ -334,7 +315,6 @@ fn rd83_a_decision_that_panics_after_the_cancel_leaves_the_same() {
     }
 }
 
-/// RD-83 item 7: a store of the row that panics leaves the cancel sent, and the decision.
 #[test]
 fn rd83_a_row_store_that_panics_leaves_the_cancel_sent() {
     for cause in STOPS {
@@ -358,8 +338,6 @@ fn rd83_a_row_store_that_panics_leaves_the_cancel_sent() {
     }
 }
 
-/// RD-83 item 2: where `Runs::cancel` answers an error other than `ended`, no decision is sent
-/// and the row is still sent; where it answers `ended`, as where it succeeds, the decision goes.
 #[test]
 fn rd83_a_cancel_that_fails_sends_no_decision_and_one_that_answers_ended_does() {
     let ended = PortError::Refused(Name::parse("ended").unwrap());
@@ -388,8 +366,6 @@ fn rd83_a_cancel_that_fails_sends_no_decision_and_one_that_answers_ended_does() 
     }
 }
 
-/// RD-83 items 4 and 7: `time_out` holds the run's stop in the guard's table before its first
-/// port call, and keeps its own order: the result `timeout`, the row, the cancel.
 #[test]
 fn rd83_time_out_holds_the_stop_before_its_result_and_keeps_its_order() {
     let inner = ports();
@@ -415,9 +391,6 @@ fn rd83_time_out_holds_the_stop_before_its_result_and_keeps_its_order() {
     ));
 }
 
-/// RD-83 items 4 and 7: `lapse_bind` with `wait_limit` or `cancelled` holds the run's stop in
-/// the guard's table before its first port call, and keeps its own order: the decline, the row,
-/// the cancel.
 #[test]
 fn rd83_lapse_bind_holds_the_stop_before_its_decline_and_keeps_its_order() {
     let bind = BindAsk {
@@ -457,8 +430,6 @@ fn rd83_lapse_bind_holds_the_stop_before_its_decline_and_keeps_its_order() {
     }
 }
 
-/// RD-83 items 3 and 7: a lapse with `no_record`, `digest`, `run_ended` or `app_ended` sends
-/// no cancel and stops no run in the guard's table.
 #[test]
 fn rd83_a_lapse_that_stops_no_run_sends_no_cancel() {
     for cause in [

@@ -813,8 +813,6 @@ fn an_item_arms_only_arm_ms_after_its_first_report_on_screen() {
     assert!(due(&held, late - 1, &LIMITS).is_some_and(|m| matches!(m, ConfirmMove::Arm)));
 }
 
-/// Turned by ruling RD-83 from `a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run`:
-/// the stop and the cancel come before the decision, and the row last.
 #[test]
 fn a_lapse_with_wait_limit_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
@@ -875,8 +873,6 @@ fn a_lapse_of_a_run_that_ended_sends_nothing() {
     }
 }
 
-/// Turned by ruling RD-83 from `a_lapse_with_cancelled_answers_reject_and_stops_the_run`: the
-/// cancel comes before the decision, and the row last.
 #[test]
 fn a_lapse_with_cancelled_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
@@ -1076,9 +1072,6 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
     );
 }
 
-/// RD-61 (c): after a press whose row got no acknowledgement, a read of another move that brings
-/// that row into the ledger ends the press's doubt, so that the next press of the same choice
-/// takes the stored row as its own and goes to the run with no log of its own.
 #[test]
 fn rd61c_a_read_of_another_move_that_brings_the_lost_row_ends_the_doubt_of_its_press() {
     let p = ports();

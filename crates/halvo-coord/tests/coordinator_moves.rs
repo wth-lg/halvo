@@ -89,9 +89,6 @@ fn handback(run: &RunId, n: usize, reason: HandbackReason) -> RunEvent {
     })
 }
 
-/// The step mark that the last published state shows for the item, as the page sends it with
-/// its answer (I3.4); 0, the mark of every item's first ask, for an item that the state does not
-/// hold.
 fn shown(c: &Coordinator<Both>, item: &ItemId) -> u32 {
     c.snapshot()
         .items
@@ -763,11 +760,6 @@ fn a_runs_check_item_is_stored_as_the_check_of_that_run() {
     }));
 }
 
-/// RD-61 (e) (3), a pin of RD-40 (1) (b) as built for a run's check: a run's check that the
-/// person answers `try_again` goes to the run as `done`; when that run then ends
-/// `effect_unknown` with one unknown effect, the card that follows is the hold's check of that
-/// run, raised although the run's own check card was answered, because the hold's check ends
-/// only by a `hold_cleared` that names the run.
 #[test]
 fn rd61e_pin_an_answered_runs_check_then_an_unknown_effect_at_the_end_brings_the_holds_check() {
     use halvo_coord::types::{HandbackResult, PastRun};
@@ -2357,10 +2349,6 @@ fn a_lapse_of_an_own_item_whose_answer_was_stored_with_a_lost_acknowledgement_st
     assert_eq!(closing_rows(&c, &item), 1, "{:?}", events(&c));
 }
 
-/// Turned by ruling RD-61 (d) from
-/// `a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_decides`: the
-/// same press counts the stored `done`, and a press of decline after it stores its own row and
-/// the run gets `declined`, never the stored `done`.
 #[test]
 fn a_second_answer_after_a_lost_acknowledgement_counts_the_same_choice_and_stores_a_later_decline()
 {
@@ -2483,11 +2471,6 @@ fn a_switch_off_marks_the_guards_table_and_the_board_before_a_cancel_that_panics
 /// answered `no_service`: by its own read right after the call, or by a later refusal `seq`.
 const ORDERS: [support::Loss; 2] = [support::Loss::Reply, support::Loss::Later];
 
-/// The orders in which a row whose call answered `no_service` stays stored and unseen by the
-/// move: the row reaching the owner's events after the move, and the read right after the call
-/// failing too. In the order in which that read shows the row, the move takes it as stored: a
-/// handback answer goes to the run (ruling RD-52 (c)) and a switch-off goes on (RD-52 (b) rule
-/// 2). So the tests of RD-40 and of RD-52 (a) keep their other order and gain this one.
 const UNSEEN: [support::Loss; 2] = [support::Loss::Later, support::Loss::Unread];
 
 /// A run of agent 0 that waits on a stuck item, which the person answered `done`: the owner
@@ -2556,10 +2539,6 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
     }
 }
 
-/// Turned by ruling RD-61 (d) from
-/// `a_stored_answer_whose_reply_was_lost_decides_another_choice_in_both_orders`: a press of
-/// decline after a stored `done` that the run did not take stores its own row, and the run gets
-/// `declined` and never `done`.
 #[test]
 fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_declined_in_both_orders(
 ) {
@@ -2778,7 +2757,6 @@ fn answers_of<'a>(rows: &'a [What], item: &ItemId) -> Vec<&'a halvo_coord::types
         .collect()
 }
 
-/// The result that the run gets for the choice `choice` of an item of the kind `kind` (I3.1).
 fn result_of(kind: ItemKind, choice: Choice) -> Option<halvo_coord::types::HandbackResult> {
     use halvo_coord::types::HandbackResult;
     match (kind, choice) {
@@ -2790,11 +2768,6 @@ fn result_of(kind: ItemKind, choice: Choice) -> Option<halvo_coord::types::Handb
     }
 }
 
-/// RD-61 (h) 4 over the `Runs::answer_handback` calls of one move from `from` on that did their
-/// work with `done` or `declined`: each is made inside a press of the handback item `pressed`,
-/// gives the result of the item's newest answer row at the owner at the call, and, for a kind
-/// whose choices are decline and done, gives `done` only inside a press of Done; outside a press
-/// such a result comes only from a run's handback that a stored check answered (moves 2 and 3).
 fn handed_by_the_newest_row(
     c: &Coordinator<Both>,
     from: usize,
@@ -4475,9 +4448,6 @@ fn a_start_that_leaves_the_queue_after_a_lost_switch_off_is_dropped_with_hold_an
     }
 }
 
-/// A run of agent 0 that waits on an item of the handback `reason`, whose first press `first`
-/// the owner stored and acknowledged while `Runs::answer_handback` answered `busy`, so that the
-/// owner holds that row and the run did not take it.
 fn stored_not_taken(reason: HandbackReason, first: Choice) -> (Coordinator<Both>, RunId, ItemId) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -4494,8 +4464,6 @@ fn stored_not_taken(reason: HandbackReason, first: Choice) -> (Coordinator<Both>
     (c, run, item)
 }
 
-/// A press whose row the owner stores after the move with no acknowledgement and no read of the
-/// move showing it (`Loss::Later`); the row then lands at the owner.
 fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().loss.set(Some(support::Loss::Later));
     assert_eq!(
@@ -4507,8 +4475,6 @@ fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().ports.events.borrow_mut().extend(lost);
 }
 
-/// A press whose row the owner stores while the reply is lost and the move's read fails too
-/// (`Loss::Unread`), so that the coordinator does not know the row.
 fn press_stored_unread(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().loss.set(Some(support::Loss::Unread));
     assert_eq!(
@@ -4518,10 +4484,6 @@ fn press_stored_unread(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().loss.set(None);
 }
 
-/// RD-61 (h) 4, T-a: on an account link, Done taken by the owner with the port busy, then a
-/// Decline whose row the owner stores with no acknowledgement and no read of its move showing it,
-/// then Done: the newest row is that decline, so the run gets `declined` once and the move
-/// answers as for an item that is no longer open, with the rows done, decline.
 #[test]
 fn rd61_t_a_link_done_then_a_decline_landing_unread_then_done_gives_declined_once() {
     use halvo_coord::types::HandbackResult;
@@ -4537,8 +4499,6 @@ fn rd61_t_a_link_done_then_a_decline_landing_unread_then_done_gives_declined_onc
     assert!(c.snapshot().items.is_empty());
 }
 
-/// RD-61 (h) 4, T-b: the same with Decline as the third press: `declined` once, the rows done,
-/// decline, and no third row.
 #[test]
 fn rd61_t_b_link_done_then_a_decline_landing_unread_then_decline_stores_no_third_row() {
     use halvo_coord::types::HandbackResult;
@@ -4553,8 +4513,6 @@ fn rd61_t_b_link_done_then_a_decline_landing_unread_then_decline_stores_no_third
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
 }
 
-/// RD-61 (h) 4, T-c: the decline never reaches the owner; then Done stores a row of its own,
-/// done, done, and the run gets `done` once.
 #[test]
 fn rd61_t_c_link_done_then_a_decline_that_never_landed_then_done_stores_done_again() {
     use halvo_coord::types::HandbackResult;
@@ -4574,8 +4532,6 @@ fn rd61_t_c_link_done_then_a_decline_that_never_landed_then_done_stores_done_aga
     assert_eq!(step_rows(&c, &item), ["done", "done"]);
 }
 
-/// RD-61 (h) 4, T-d, a pin: the rows done, decline known to the ledger, the decline's call having
-/// answered busy, then Done: `declined` once, `unknown_item`, the rows unchanged.
 #[test]
 fn rd61_t_d_pin_link_done_then_a_known_decline_whose_call_was_busy_then_done_gives_declined() {
     use halvo_coord::types::HandbackResult;
@@ -4597,10 +4553,6 @@ fn rd61_t_d_pin_link_done_then_a_known_decline_whose_call_was_busy_then_done_giv
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
 }
 
-/// RD-61 (h) 4, T-e: a stored `done` of an account link that the run did not take, followed by
-/// the person's Stop, the wait limit, the runner's end and the quit: no `item_lapsed` for the
-/// item, and the run never gets `done`. Each way in two forms: the row acknowledged with the port
-/// busy, and the row landing after a move that did not read it.
 #[test]
 fn rd61_t_e_a_stored_done_not_taken_gets_no_lapse_and_no_done_at_any_end() {
     use halvo_coord::types::HandbackResult;
@@ -4650,9 +4602,6 @@ fn rd61_t_e_a_stored_done_not_taken_gets_no_lapse_and_no_done_at_any_end() {
     }
 }
 
-/// The three ways in which the owner holds a press's row that the run did not take (RD-61
-/// (h) 4): its reply lost with the move's read failing too, its row landing after a move that
-/// did not read it, or its row acknowledged with `Runs::answer_handback` answering busy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Held {
     Unread,
@@ -4662,8 +4611,6 @@ enum Held {
 
 const HELD: [Held; 3] = [Held::Unread, Held::Later, Held::Busy];
 
-/// A run of agent 0 that waits on an item of the handback `reason`, whose press `first` the owner
-/// holds in the way `how` and the run did not take.
 fn held_not_taken(
     reason: HandbackReason,
     first: Choice,
@@ -4697,7 +4644,6 @@ fn held_not_taken(
     (c, run, item)
 }
 
-/// The choices of the item's answer rows at the owner, in their order.
 fn answer_choices(c: &Coordinator<Both>, item: &ItemId) -> Vec<Choice> {
     events(c)
         .iter()
@@ -4708,11 +4654,8 @@ fn answer_choices(c: &Coordinator<Both>, item: &ItemId) -> Vec<Choice> {
         .collect()
 }
 
-/// The two kinds of RD-61 (d) that a test can raise: `stuck` and the first step of a `sign_in`.
 const DECLINE_DONE: [HandbackReason; 2] = [HandbackReason::StepFailed, HandbackReason::SignIn];
 
-/// RD-61 (h) 4, T-f: `done` stored and not taken, then decline: two rows, `declined` once, the
-/// move answers as for an open item, and no card.
 #[test]
 fn rd61_t_f_a_stored_done_not_taken_then_decline_stores_two_rows_and_sends_declined_once() {
     use halvo_coord::types::HandbackResult;
@@ -4737,8 +4680,6 @@ fn rd61_t_f_a_stored_done_not_taken_then_decline_stores_two_rows_and_sends_decli
     }
 }
 
-/// RD-61 (h) 4, T-g, a pin: decline stored and not taken, then Done: one row, `declined`, and
-/// `unknown_item`.
 #[test]
 fn rd61_t_g_pin_a_stored_decline_not_taken_then_done_sends_declined_and_answers_unknown_item() {
     use halvo_coord::types::HandbackResult;
@@ -4758,11 +4699,6 @@ fn rd61_t_g_pin_a_stored_decline_not_taken_then_done_sends_declined_and_answers_
     }
 }
 
-/// RD-61 (h) 4, T-h, the clause on `stuck` and a sign-in's first step: `done` stored with the
-/// port busy, then a decline whose row got no acknowledgement, then Done: `declined` once with
-/// the rows done, decline where the owner holds the decline, `done` once with the rows done, done
-/// where it never reached the owner; and decline again in Done's place leaves two rows, not
-/// three.
 #[test]
 fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
     use halvo_coord::types::HandbackResult;
@@ -4811,9 +4747,6 @@ fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
     }
 }
 
-/// The kinds that a handback raises and a test can answer at the Coordinator (RD-52 (c)): the
-/// first step of a `sign_in`, `link_account`, `stuck` and a run's `check`, each with the press
-/// that gives `done`.
 const HANDBACK_KINDS: [(HandbackReason, Choice); 4] = [
     (HandbackReason::SignIn, Choice::Done),
     (HandbackReason::AccountLink, Choice::Done),
@@ -4821,7 +4754,6 @@ const HANDBACK_KINDS: [(HandbackReason, Choice); 4] = [
     (HandbackReason::EffectUnknown, Choice::TryAgain),
 ];
 
-/// A run of agent 0 that waits on the item of a handback of `reason`.
 fn waiting_on(reason: HandbackReason) -> (Coordinator<Both>, RunId, ItemId) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -4830,9 +4762,6 @@ fn waiting_on(reason: HandbackReason) -> (Coordinator<Both>, RunId, ItemId) {
     (c, run, item)
 }
 
-/// RD-52 (c) rules 1 and 2: the owner stores the press's row and the reply is lost; the read
-/// right after the call shows the row, which counts as the store: one row, the answer once at the
-/// runner, ok and no card, for each kind.
 #[test]
 fn rd52c_a_handback_answer_whose_row_the_read_shows_is_handed_in_that_move_for_each_kind() {
     use halvo_coord::types::HandbackResult;
@@ -4853,8 +4782,6 @@ fn rd52c_a_handback_answer_whose_row_the_read_shows_is_handed_in_that_move_for_e
     }
 }
 
-/// RD-52 (c) rule 5: the read fails too, or shows no row of the item: the store's cause, nothing
-/// sent and no further log, and the card stays; for each kind.
 #[test]
 fn rd52c_a_handback_answer_whose_read_fails_or_shows_nothing_answers_the_stores_cause() {
     for (reason, choice) in HANDBACK_KINDS {
@@ -4881,11 +4808,6 @@ fn rd52c_a_handback_answer_whose_read_fails_or_shows_nothing_answers_the_stores_
     }
 }
 
-/// RD-52 (c) rule 3 with RD-61 (f): an older press whose reply and read were both lost, then a
-/// press whose log answered with nothing stored, and the read shows the older row as the newest:
-/// a decline after a stored `done` goes once more as a row of its own and the run gets
-/// `declined`; Done after a stored decline gives `declined` and `unknown_item`; on a run's check
-/// the stored answer decides (RD-40 (1) (b)).
 #[test]
 fn rd52c_a_read_that_shows_another_choice_as_the_newest_decides_by_rule_3() {
     use halvo_coord::types::HandbackResult;
@@ -4945,9 +4867,6 @@ fn rd52c_a_read_that_shows_another_choice_as_the_newest_decides_by_rule_3() {
     }
 }
 
-/// RD-52 (c) rule 5: a press whose log stores nothing and answers no acknowledgement, with the
-/// read of that move failing too, answers the store's cause, sends nothing and logs nothing more,
-/// also where the ledger keeps an older `done` that a decline would follow.
 #[test]
 fn rd52c_a_read_that_fails_after_a_lost_store_logs_nothing_more() {
     for reason in DECLINE_DONE {
@@ -4974,11 +4893,6 @@ fn rd52c_a_read_that_fails_after_a_lost_store_logs_nothing_more() {
     }
 }
 
-/// RD-52 (c) with RD-61 (c): an older `done` of an account link that the run did not take, its
-/// row acknowledged with the port busy or its reply and read lost, then the declining press whose
-/// reply is lost: `declined`, with the rows done, decline. With the `done` acknowledged, the
-/// decline's own log is the one whose reply is lost and the read shows its row; with the `done`
-/// unread, the decline's first log meets `seq` and its read shows the `done`.
 #[test]
 fn rd52c_a_stored_done_of_an_account_link_then_a_lost_decline_sends_declined() {
     use halvo_coord::types::HandbackResult;
@@ -4996,9 +4910,6 @@ fn rd52c_a_stored_done_of_an_account_link_then_a_lost_decline_sends_declined() {
     }
 }
 
-/// RD-52 (c) rule 6: the read shows the press's own row and `Runs::answer_handback` answers busy:
-/// the port's cause and the card stays; the same press then sends the answer again with no
-/// second row, and no move calls the port twice.
 #[test]
 fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
     use halvo_coord::types::HandbackResult;
@@ -5032,11 +4943,8 @@ fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
     }
 }
 
-/// The three ways in which a run of agent 0 waits on an item, by the item's lapse: a handback
-/// item (`lapse_item`), a confirmation (`lapse`) and the second step of a sign-in (`lapse_bind`).
 const WAITS: [&str; 3] = ["stuck", "confirm", "second_step"];
 
-/// A run of agent 0 that waits on an item of the way `way`.
 fn waiting(way: &str) -> (Coordinator<Both>, RunId, ItemId) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -5050,10 +4958,6 @@ fn waiting(way: &str) -> (Coordinator<Both>, RunId, ItemId) {
     (c, run, item)
 }
 
-/// RD-48 (a), review 14's F1: a stop of a waiting run whose `Runs::cancel` panics, at the
-/// person's Stop, at the switch-off and at the wait limit, for each kind of lapse: the board holds
-/// the stop, the next state shows no card of the lapsed item and the row stopping, and the tick at
-/// `cancel_grace_s` kills the run.
 #[test]
 fn rd48a_a_stop_whose_cancel_panics_leaves_the_board_holding_it_at_each_lapse() {
     let limits = Limits::PRODUCT;
@@ -5102,11 +5006,6 @@ fn rd48a_a_stop_whose_cancel_panics_leaves_the_board_holding_it_at_each_lapse() 
     }
 }
 
-/// RD-83 item 7, in the coordinator: at the person's Stop, at the switch-off and at the wait
-/// limit of a run that waits on a confirmation, a `Runs::cancel` that panics, and an
-/// `answer_confirm` that panics after the cancel, each leave the guard's table and the board
-/// holding the stop, the item lapsed with no card in the next state, no decision sent, and the
-/// row `item_lapsed` owed in the ledger and sent by the next tick, once.
 #[test]
 fn rd83_a_cancel_or_a_decision_that_panics_at_a_confirmations_stop_leaves_its_row_owed() {
     let limits = Limits::PRODUCT;
@@ -5178,8 +5077,6 @@ fn is_hold(what: &What) -> bool {
     matches!(what, What::HoldSet { .. } | What::HoldCleared { .. })
 }
 
-/// Loses, in the order `order`, the reply of the next log that holds a hold's row, whatever is
-/// logged before it.
 fn lose_the_holds_reply(c: &Coordinator<Both>, order: support::Loss) {
     c.ports().loss_at.set(Some(is_hold));
     c.ports().loss.set(Some(order));
@@ -5195,7 +5092,6 @@ fn hold_sets(c: &Coordinator<Both>, n: usize) -> usize {
         .count()
 }
 
-/// The place of each call of `pick` among the calls since `m`.
 fn places(c: &Coordinator<Both>, m: usize, pick: impl Fn(&Call) -> bool) -> Vec<usize> {
     calls_since(c, m)
         .iter()
@@ -5205,13 +5101,6 @@ fn places(c: &Coordinator<Both>, m: usize, pick: impl Fn(&Call) -> bool) -> Vec<
         .collect()
 }
 
-/// RD-52 (b) rule 2 with rule 1: a switch-off of a run that waits on an item, whose `hold_set`
-/// the owner stored with the reply lost and the read showing it, for a handback kind and a
-/// confirmation: one `hold_set` row, the item lapsed `cancelled` and the one cancel in the order
-/// of each lapse, then `set_state` `paused` once, the answer ok, and `run_ended` `cancelled` at
-/// the runner's end. The handback kind stores its row before the cancel (`lapse_item`); the
-/// confirmation sends the cancel before its row (ruling RD-83). Turned by RD-83 from
-/// `rd52b_a_switch_off_whose_hold_the_read_shows_lapses_stops_and_pauses_in_order`.
 #[test]
 fn rd52b_a_switch_off_whose_hold_the_read_shows_stops_and_pauses_in_the_order_of_each_lapse() {
     use halvo_coord::types::AgentState;
@@ -5262,8 +5151,6 @@ fn rd52b_a_switch_off_whose_hold_the_read_shows_stops_and_pauses_in_the_order_of
     }
 }
 
-/// A switch-off of agent 0 whose `hold_set` the owner holds unseen by the move in the order
-/// `order`: the store's cause, and nothing lapsed, cancelled, stopped or sent, the card open.
 fn switched_off_unseen(c: &Coordinator<Both>, item: &ItemId, order: support::Loss, case: &str) {
     let m = mark(c);
     lose_the_holds_reply(c, order);
@@ -5288,9 +5175,6 @@ fn switched_off_unseen(c: &Coordinator<Both>, item: &ItemId, order: support::Los
     assert_eq!(hold_sets(c, 0), 1, "{case}: the owner holds the hold");
 }
 
-/// RD-52 (b) rule 1, where the read does not show the stored hold or fails, for a handback kind
-/// and a confirmation; then, one test each, a second Switch off, which the row still offers,
-/// stores no second `hold_set` and lapses, stops and pauses.
 #[test]
 fn rd52b_a_switch_off_whose_hold_the_move_does_not_see_does_nothing_and_a_second_one_works() {
     use halvo_coord::types::{AgentState, Control};
@@ -5314,11 +5198,6 @@ fn rd52b_a_switch_off_whose_hold_the_move_does_not_see_does_nothing_and_a_second
     }
 }
 
-/// RD-52 (b) rule 3 and RD-61 (d) 5, T-i: the person's answer to the card of a run whose agent's
-/// switch-off the owner holds unseen, on `stuck` and on a sign-in's first step: the answer's read
-/// shows the hold beside the live run, the stop comes first, no answer row is stored, the run
-/// gets no answer of that press, the item lapses `cancelled`, the run stops with one cancel,
-/// `paused` is sent once, and the move answers `unknown_item`.
 #[test]
 fn rd52b_t_i_an_answer_whose_read_shows_a_stored_switch_off_stops_the_run_first() {
     use halvo_coord::types::AgentState;
@@ -5350,8 +5229,6 @@ fn rd52b_t_i_an_answer_whose_read_shows_a_stored_switch_off_stops_the_run_first(
     }
 }
 
-/// RD-52 (b): the person's Stop after a switch-off whose hold the move did not see stops the run
-/// as any Stop does, with one cancel and the item lapsed `cancelled`, and sends no second stop.
 #[test]
 fn rd52b_a_stop_after_an_unseen_switch_off_stops_the_run_once() {
     for order in UNSEEN {
@@ -5365,9 +5242,6 @@ fn rd52b_a_stop_after_an_unseen_switch_off_stops_the_run_once() {
     }
 }
 
-/// RD-52 (b): a switch-off of a working run in both forms. Where the read shows the hold the run
-/// stops with one cancel and `paused` once. Where it does not, nothing is done, and the run's
-/// next request, whose move reads the hold, stops the run in that move and shows no card.
 #[test]
 fn rd52b_a_switch_off_of_a_working_run_in_both_forms() {
     use halvo_coord::types::AgentState;
@@ -5405,8 +5279,6 @@ fn rd52b_a_switch_off_of_a_working_run_in_both_forms() {
     }
 }
 
-/// RD-52 (b) rule 1: a switch-off of a waiting run while the owner is away stores nothing and
-/// does nothing: nothing lapsed, no cancel, no stop, no `set_state`, the card open, the cause.
 #[test]
 fn rd52b_a_switch_off_while_the_owner_is_away_does_nothing() {
     for way in ["stuck", "confirm"] {
@@ -5431,8 +5303,6 @@ fn rd52b_a_switch_off_while_the_owner_is_away_does_nothing() {
     }
 }
 
-/// Stores the hold `failures` of agent `n` at the owner after its last event, unseen by the
-/// coordinator, as a `hold_set` whose acknowledgement was lost leaves it.
 fn failures_unseen(c: &Coordinator<Both>, n: usize) {
     let mut events = c.ports().ports.events.borrow_mut();
     let last = events
@@ -5449,11 +5319,6 @@ fn failures_unseen(c: &Coordinator<Both>, n: usize) {
     });
 }
 
-/// RD-62 (a), a pin: a start by the person whose read brings a hold `failures` that the
-/// coordinator's events did not hold, by Run now and by the choice `start` of a `ready` item.
-/// The first press answers `hold`, the owner's rows gain nothing, `Runs::start` is not called and
-/// the row then shows the hold; the second press stores one `hold_cleared` with the cause
-/// `failures` and `run_started`, and starts.
 #[test]
 fn rd62a_pin_a_start_whose_read_brings_a_hold_failures_answers_hold_and_the_next_press_starts() {
     use halvo_coord::types::{Cleared, Control};
@@ -5518,10 +5383,6 @@ fn rd62a_pin_a_start_whose_read_brings_a_hold_failures_answers_hold_and_the_next
     }
 }
 
-/// RD-62 (a), the question by a run: a run's end that makes the streak of `failures` stores
-/// `run_ended` with `hold_set` in one body; where that body's acknowledgement is lost, in either
-/// order, no move of the end, of the ticks that pay its debt, or of the person's Run now after
-/// them sends `set_state` `paused`. The answer is none; the report gives the two readings.
 #[test]
 fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement_was_lost() {
     use halvo_coord::types::AgentState;
@@ -5561,18 +5422,12 @@ fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement
     }
 }
 
-/// The controls that the row of agent `n` offers.
 fn controls_of(c: &Coordinator<Both>, n: usize) -> Vec<halvo_coord::types::Control> {
     let s = c.snapshot();
     let row = s.rows.iter().find(|r| r.agent == agent(n)).unwrap();
     row.controls.iter().map(|t| t.control).collect()
 }
 
-/// RD-48 (h) with RD-52 (d), the plain queued start of RD-43: a start by Run now waits behind
-/// another agent's run, and a Stop from a page that is behind changes nothing: the row then
-/// shows `waiting_turn` with `switch_off` and no `stop`, and the start is taken at the other
-/// run's end. Where the other run ends right after the Stop, the agent starts, and a second Stop
-/// stops the new run with one cancel.
 #[test]
 fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_end() {
     use halvo_coord::types::Control;
@@ -5609,9 +5464,6 @@ fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_en
     }
 }
 
-/// RD-52 (e): a Stop that comes while the run of a workflow that a tick saw gone is `stopping`
-/// answers `unknown_agent`, stores nothing and sends no second cancel, and the run ends at the
-/// grace tick with no `run_ended` stored.
 #[test]
 fn rd52e_a_stop_while_the_run_of_a_gone_workflow_is_stopping_is_unknown_agent() {
     let limits = Limits::PRODUCT;
@@ -5645,9 +5497,6 @@ fn rd52e_a_stop_while_the_run_of_a_gone_workflow_is_stopping_is_unknown_agent() 
     );
 }
 
-/// I8.1's row of `agents_answer` (ruling RD-52 (a)): the choice `start` of a `ready` item
-/// answers as a start does, `budget` at `starts_per_day` and `queue_full` with a full queue, and
-/// both are in the row of the command table.
 #[test]
 fn rd52a_the_start_of_a_ready_item_answers_budget_and_queue_full_as_its_row_says() {
     use halvo_coord::types::commands::LIST;
@@ -5688,7 +5537,6 @@ fn rd52a_the_start_of_a_ready_item_answers_budget_and_queue_full_as_its_row_says
     }
 }
 
-/// A confirm request of agent `n`'s run with `count` effects of the class `send`.
 fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
     let RunEvent::Confirm(one) = ask_confirm(run, n) else {
         unreachable!()
@@ -5702,9 +5550,6 @@ fn ask_confirm_of(run: &RunId, n: usize, count: usize) -> RunEvent {
     RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(n), effects).unwrap())
 }
 
-/// RD-73 7.4: a confirm request with more effects than `request_records`, today 8, ends its run
-/// with the cause `kind` at the raise: no card, no `item_raised`, the request answered `state`,
-/// and the end stored; a request of `request_records` effects shows its card.
 #[test]
 fn rd73_a_confirm_request_of_more_effects_than_request_records_ends_its_run_with_kind() {
     let limits = Limits::PRODUCT;
@@ -5726,9 +5571,6 @@ fn rd73_a_confirm_request_of_more_effects_than_request_records_ends_its_run_with
     assert_eq!(open_item(&c).1, ItemKind::Confirm, "the card of 8 effects");
 }
 
-/// RD-52 (b) rule 2 for the switch-on: a `hold_cleared` whose reply is lost and whose read shows
-/// the hold ended counts as stored, and `set_state` is sent; where the read does not show it, the
-/// store's cause and no `set_state`.
 #[test]
 fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
     for order in [
@@ -5752,8 +5594,6 @@ fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
     }
 }
 
-/// Answers every parameter of the setup item of `setup_agent`, the last one's body refused with
-/// `refusal` where one is given; the answer of that last press.
 fn answer_setup(c: &Coordinator<Both>, item: &ItemId, refusal: Option<&str>) -> Result<(), Cause> {
     c.answer(
         item,
@@ -5779,7 +5619,6 @@ fn answer_setup(c: &Coordinator<Both>, item: &ItemId, refusal: Option<&str>) -> 
     out
 }
 
-/// RD-87 1: two refusals by name in a row give three different step marks for one item id.
 #[test]
 fn rd87_two_refusals_in_a_row_give_three_marks_for_one_id() {
     let (c, _made, item) = setup_agent();
@@ -5792,9 +5631,6 @@ fn rd87_two_refusals_in_a_row_give_three_marks_for_one_id() {
     assert_eq!(marks, [0, 1, 2]);
 }
 
-/// RD-87 1: the mark changes at every refusal by name, `config`, `malformed`, `too_large`,
-/// `length`, `overlap` (no arm of its own; ruled for U2.4g) and a name that the reader does not
-/// know, and at no refusal that keeps the body owed.
 #[test]
 fn rd87_each_refusal_by_name_changes_the_mark_and_an_owed_body_does_not() {
     let by_name = [
@@ -5821,8 +5657,6 @@ fn rd87_each_refusal_by_name_changes_the_mark_and_an_owed_body_does_not() {
     }
 }
 
-/// RD-87 1 and RD-73 5.6: a taken answer, `armed`, an owed body, a name and a place among
-/// confirmations never change the mark.
 #[test]
 fn rd87_the_moves_that_ask_nothing_new_leave_the_mark() {
     let (c, made, item) = setup_agent();
@@ -5883,9 +5717,6 @@ fn rd87_the_moves_that_ask_nothing_new_leave_the_mark() {
     assert_eq!(marks(&c), [before[1]], "a place among confirmations");
 }
 
-/// I3.4: an answer binds to the step that the person saw, so an answer whose step is no longer
-/// the item's current one is refused with `state`, a decline among them, and nothing is stored
-/// or sent; the answer of the current step is taken.
 #[test]
 fn rd87_an_answer_of_a_step_that_is_no_longer_current_is_refused_with_state() {
     let (c, _made, item) = setup_agent();
@@ -5921,7 +5752,6 @@ fn rd87_an_answer_of_a_step_that_is_no_longer_current_is_refused_with_state() {
     assert_eq!(c.answer(&item, Choice::Decline, None, 0), Ok(()));
 }
 
-/// A confirm request of agent `n`'s run for one signature, whose presenter is `native`.
 fn ask_native(run: &RunId, n: usize) -> RunEvent {
     let RunEvent::Confirm(one) = ask_confirm(run, n) else {
         unreachable!()
@@ -5939,8 +5769,6 @@ fn ask_native(run: &RunId, n: usize) -> RunEvent {
     RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(n), vec![sign]).unwrap())
 }
 
-/// A run of agent 0 that waits on a confirmation of the page (a send), or of the native dialog
-/// (a signature), shown at `T0`.
 fn confirming(native: bool) -> (Coordinator<Both>, RunId, ItemId) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -5955,9 +5783,6 @@ fn confirming(native: bool) -> (Coordinator<Both>, RunId, ItemId) {
     (c, run, item)
 }
 
-/// I3.4 with U3.6's report (reports/builder-35.md): the composer of the snapshot names the agent
-/// of a confirmation with `Item::said_by`, so that its `say_new` and `say_gone` are the
-/// sentences of `say.item.new` and `say.item.gone` with the agent's name, for both presenters.
 #[test]
 fn a_confirmations_say_new_and_say_gone_name_its_agent() {
     for native in [false, true] {
@@ -5972,9 +5797,6 @@ fn a_confirmations_say_new_and_say_gone_name_its_agent() {
     }
 }
 
-/// RD-80 5.3 and 5.7: a page confirmation arms in the move of its answer, `arm_ms` after the
-/// page's report that it opened it, with no tick between: answers at 100, 499 and 500 ms after
-/// the report are `early`, `early`, and armed and taken.
 #[test]
 fn rd80_a_page_answer_arms_in_its_own_move_from_the_report() {
     let arm = Limits::PRODUCT.arm_ms;
@@ -5991,9 +5813,6 @@ fn rd80_a_page_answer_arms_in_its_own_move_from_the_report() {
     assert!(c.snapshot().items.is_empty(), "taken");
 }
 
-/// RD-80 5.3 and 5.7: an answer with no report is `early`, however late it comes; and an answer
-/// whose clock was read before the lock is not armed by a later read inside the move (the clock
-/// steps on at each read here, so a read after the lock would pass `arm_ms`).
 #[test]
 fn rd80_an_answer_with_no_report_or_read_before_arm_ms_is_early() {
     let arm = Limits::PRODUCT.arm_ms;
@@ -6015,10 +5834,6 @@ fn rd80_an_answer_with_no_report_or_read_before_arm_ms_is_early() {
     );
 }
 
-/// RD-80 5.2 and 5.7: each cause of the report, and two reports keep the first. An id that is no
-/// item is `unknown_item`; a native item `presenter`, with no time noted, so that after `arm_ms`
-/// and a tick the native answer is still `early`; an item that is answered or later `stale`; a
-/// step that is not the item's `state`; a clock that cannot be read `no_service`.
 #[test]
 fn rd80_the_reports_causes_and_two_reports_keep_the_first() {
     let arm = Limits::PRODUCT.arm_ms;
@@ -6059,8 +5874,6 @@ fn rd80_the_reports_causes_and_two_reports_keep_the_first() {
     assert_eq!(c.shown_on_page(&item, 0), Err(Cause::Stale), "recorded");
 }
 
-/// RD-80 5.6 and 5.7: a hide forgets the report of a page confirmation that is still `shown`, so
-/// that a new show counts anew, and keeps one that was armed before the hide.
 #[test]
 fn rd80_a_hide_forgets_the_report_of_a_shown_item_and_keeps_an_armed_one() {
     let arm = Limits::PRODUCT.arm_ms;
@@ -6095,8 +5908,6 @@ fn rd80_a_hide_forgets_the_report_of_a_shown_item_and_keeps_an_armed_one() {
         "an armed item stays armed"
     );
 }
-
-/// The review's case, kept: RD-52 (b) rule 3: a run's request whose own log meets a refusal seq and whose read after it brings a stored switch-off does the rest of the switch-off before anything else it would store for that agent, so no item_raised row of that request is stored, the run is stopped with one cancel, paused is sent once and no card shows; a pass means on_run holds the rule for a handback, a confirmation and a second step.
 
 #[test]
 fn rd52b_rule3_a_request_whose_seq_read_brings_a_stored_switch_off_stores_no_item_of_it() {
@@ -6148,8 +5959,6 @@ fn rd52b_rule3_a_request_whose_seq_read_brings_a_stored_switch_off_stores_no_ite
     }
 }
 
-/// The review's case, kept: RD-52 (b) rule 3: a tick is a move that does the rest of a switch-off only where a log of its own caused the read, so a tick that logs nothing for agent 0 (no wait limit, no arm, nothing waiting) leaves a waiting run beside an unseen stored switch-off alone: no cancel, no lapse, no set_state, the card open; a pass means the tick holds the rule for a handback, a confirmation and a second step.
-
 #[test]
 fn rd52b_rule3_a_tick_with_no_log_of_its_own_does_not_stop_the_run_of_an_unseen_switch_off() {
     for way in ["stuck", "confirm", "second_step"] {
@@ -6171,8 +5980,6 @@ fn rd52b_rule3_a_tick_with_no_log_of_its_own_does_not_stop_the_run_of_an_unseen_
         }
     }
 }
-
-/// The review's case, kept: RD-52 (b) rule 3: a tick whose own log (the flush of agent 0's waiting item_raised row) meets a refusal seq and whose read brings an unseen stored switch-off does the rest of the switch-off before anything else it stores for that agent, so the open item, though past its wait limit in the same tick, lapses with cancelled, the run gets one cancel and paused is sent once; a pass means the tick's later stages do not lapse the item with wait_limit first.
 
 #[test]
 fn rd52b_rule3_a_ticks_flush_read_that_brings_a_switch_off_stops_before_the_wait_limit() {
@@ -6211,9 +6018,6 @@ fn rd52b_rule3_a_ticks_flush_read_that_brings_a_switch_off_stops_before_the_wait
     }
 }
 
-/// RD-52 (d): a switch-off with a queued start takes it out of the queue with nothing stored
-/// for it, so that a switch-on before the other run's end brings no start at that end, once for
-/// a start that the person queued and once for the scheduler's.
 #[test]
 fn rd52d_a_switch_off_drops_a_queued_start_and_a_switch_on_brings_none_back() {
     let one = Limits {
@@ -6279,9 +6083,6 @@ fn rd52d_a_switch_off_drops_a_queued_start_and_a_switch_on_brings_none_back() {
     }
 }
 
-/// RD-52 (d) with the one-rule change R21: the agent whose queued start a switch-off dropped is
-/// idle on the board, so that after a switch-on the person's start of it is taken again, and
-/// queued behind the live run, not refused with `state` as a start of a queued agent.
 #[test]
 fn rd52d_after_the_drop_and_a_switch_on_the_persons_start_is_taken_again() {
     let one = Limits {
@@ -6307,11 +6108,6 @@ fn rd52d_after_the_drop_and_a_switch_on_the_persons_start_is_taken_again() {
     assert_eq!(started(&c).len(), 2, "the queued start goes at that end");
 }
 
-/// RD-52 (d) at a read, with the one-rule change R20: a queued agent keeps its `ready` item, whose
-/// answer `start` the owner did not acknowledge, and the owner holds a `hold_set` of that agent
-/// that another writer stored. The person's skip of the item meets `seq`; its read first shows the
-/// hold beside the queued start, and the move takes the start out of the queue, as a switch-off
-/// in this life does (ruling RD-52 (b) rule 3 with (d)).
 #[test]
 fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
     let one = Limits {
