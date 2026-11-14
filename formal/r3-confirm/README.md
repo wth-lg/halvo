@@ -72,10 +72,11 @@ passes proves nothing until the control copy fails. The option `-deadlock` turns
 search for states with no next state: an effect has final states.
 
 `Full.cfg` is run by hand, with the same command and `-workers 4`. It prints `8436493
-states generated, 3937389 distinct states found`. After U1.8 (a), on 2026-11-13, it took
-485 seconds with four workers through the machine's timed-run helper, at a 1-minute load
-average of 160 before and 115 after; before that change it reached 1,500,352 distinct states
-in 306 seconds on 2026-11-12, at a load of 85 before and 94 after. Run it
+states generated, 3937389 distinct states found`. After the round of CP-194 in U1.8 (a), on
+2026-11-14, it printed those counts and took 740 seconds with four workers through the
+machine's timed-run helper, at a 1-minute load average of 65 before and 191 after; before
+U1.8 (a) it reached 1,500,352 distinct states in 306 seconds on 2026-11-12, at a load of 85
+before and 94 after. Run it
 after every change of `Confirm.tla`, and run every wrong design of the table that belongs to
 the model with it.
 
