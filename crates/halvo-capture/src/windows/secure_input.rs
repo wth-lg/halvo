@@ -1301,10 +1301,9 @@ mod detector {
         }
     }
 
-    fn start(
-        shared: &Arc<Shared>,
-        wake: &Arc<Event>,
-    ) -> Result<(Arc<Reader>, IUIAutomationFocusChangedEventHandler), CaptureError> {
+    /// The detector's reader: the system's UI Automation object with the
+    /// cache request of every property that a reading takes.
+    fn new_reader() -> Result<Reader, CaptureError> {
         // SAFETY: CoCreateInstance makes the system's UI Automation object for
         // this MTA thread.
         let automation: IUIAutomation =
@@ -1330,14 +1329,21 @@ mod detector {
                 .map_err(|e| os("AddPattern", &e))?;
             cache
         };
-        let reader = Arc::new(Reader {
+        Ok(Reader {
             automation,
             cache,
             kept: std::sync::Mutex::new(None),
             last_read: std::sync::Mutex::new(None),
             #[cfg(feature = "test-seam")]
             seen: std::sync::Mutex::new(None),
-        });
+        })
+    }
+
+    fn start(
+        shared: &Arc<Shared>,
+        wake: &Arc<Event>,
+    ) -> Result<(Arc<Reader>, IUIAutomationFocusChangedEventHandler), CaptureError> {
+        let reader = Arc::new(new_reader()?);
         let handler = FocusHandler {
             vtable: &HANDLER_VTABLE,
             refs: AtomicU32::new(1),
@@ -1488,7 +1494,7 @@ mod detector {
     mod tests {
         use super::super::{HeldKey, Judgment, Mark};
         use super::*;
-        use crate::secure_input::SecureInputReading;
+        use crate::secure_input::{SecureInputReading, Withheld};
         use std::time::Duration;
 
         fn refused() -> windows::core::Error {
@@ -1555,6 +1561,64 @@ mod detector {
                 "{judged:?}"
             );
             assert_eq!(detached, Ok(()));
+        }
+
+        /// W3-7 K9: the reader of the detector, made as the detector makes
+        /// it, reads Unknown for a reading with no element, from an own read
+        /// and from an event.
+        #[test]
+        fn a_reading_with_no_element_reads_unknown_through_the_detectors_reader() {
+            let _serial = crate::windows::tests::serial();
+            // SAFETY: joins this test thread to the process's MTA; `_com`
+            // undoes it after the reader is dropped.
+            let joined = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            assert!(joined.is_ok(), "{joined:?}");
+            let _com = Com;
+            let reader = new_reader().expect("the reader is made");
+            let own = reader.state(None, true, 0);
+            let event = reader.state(None, false, 3);
+            let seen = reader.seen();
+            drop(reader);
+            assert_eq!(own, FieldState::Unknown);
+            assert_eq!(event, FieldState::Unknown);
+            #[cfg(feature = "test-seam")]
+            assert_eq!(seen.as_deref(), Some("no_element"));
+            #[cfg(not(feature = "test-seam"))]
+            assert_eq!(seen, None);
+        }
+
+        /// W3-7 K9: the callback that the detector registers for a desktop
+        /// switch closes the gate of the thread that registered it.
+        #[test]
+        fn the_desktop_hook_callback_reads_unknown_and_closes_the_gate() {
+            let gate = PasswordGate::new();
+            gate.read_at(1_000, FieldState::Clear, None);
+            let before = gate.hold(2_000, false, 0);
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(&gate.shared)));
+            // SAFETY: the callback reads its thread's gate and no argument but
+            // the time.
+            unsafe {
+                desktop_proc(
+                    HWINEVENTHOOK::default(),
+                    EVENT_SYSTEM_DESKTOPSWITCH,
+                    HWND::default(),
+                    0,
+                    0,
+                    0,
+                    2_010,
+                );
+            }
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
+            let switched = gate.field_now();
+            let after = gate.hold(2_020, false, 0);
+            gate.read_at(2_140, FieldState::Clear, Some(true));
+            let decided = |key: &HeldKey| {
+                gate.decide(key, 2_150, 0, false)
+                    .map(|(answer, _)| answer.map(|_| ()))
+            };
+            assert_eq!(switched, FieldState::Unknown);
+            assert_eq!(decided(&before), Some(Err(Withheld::Unknown)));
+            assert_eq!(decided(&after), Some(Err(Withheld::Unknown)));
         }
 
         #[test]

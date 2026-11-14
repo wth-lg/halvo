@@ -54,6 +54,7 @@ const CMD_QUIT: usize = 4;
 const CMD_FOCUS: usize = 5;
 const CMD_REVEAL: usize = 6;
 const CMD_WANDER: usize = 7;
+const CMD_AIM: usize = 8;
 const ARG_SELF_FOCUS: usize = 0x1_0000;
 const ARG_AIM: usize = 0x2_0000;
 const ARG_SERVE_SENT: usize = 0x4_0000;
@@ -523,6 +524,10 @@ fn fixture_main() {
                     }
                     println!("STALLC revealed ok=1");
                 }
+                CMD_AIM => {
+                    let aimed = aim_at(field(arg));
+                    println!("STALLC aimed ok={}", flag(aimed));
+                }
                 CMD_WANDER => {
                     wander = Some((
                         Instant::now(),
@@ -857,8 +862,31 @@ impl FieldWindow {
         focused
     }
 
+    /// Puts the pointer over the middle of the field and sends one click
+    /// of the left button there (W3-7 K12); says whether the pointer was
+    /// over the field.
+    pub(super) fn click(&self, field: Field) -> bool {
+        let index = match field {
+            Field::Plain => FIELD_PLAIN,
+            Field::Password => FIELD_PASSWORD,
+        };
+        let aimed = get(&self.fixture().ask(CMD_AIM, index, "aimed"), "ok") == 1;
+        if aimed {
+            send(&[
+                mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+                mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+            ]);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+        aimed
+    }
+
     pub(super) fn reveal(&self) -> bool {
         get(&self.fixture().ask(CMD_REVEAL, 0, "revealed"), "ok") == 1
+    }
+
+    pub(super) fn password_has_focus(&self) -> bool {
+        get(&self.fixture().ask(CMD_STATE, 0, "state"), "focus_password") == 1
     }
 
     pub(super) fn text_len(&self, field: Field) -> i32 {

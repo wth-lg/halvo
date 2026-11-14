@@ -731,6 +731,38 @@ fn pump_thread(window: Duration) {
     }
 }
 
+/// Serves this thread's messages until `window` has passed, waking for each
+/// message as it arrives, as a program's own message loop does: a read of
+/// the focused field that another process makes is answered at once and not
+/// at the next turn of a timer (W3-7 round B, x3).
+fn pump_answering(window: Duration) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MsgWaitForMultipleObjectsEx, MWMO_INPUTAVAILABLE, QS_ALLINPUT,
+    };
+    let deadline = Instant::now() + window;
+    let mut msg = MSG::default();
+    loop {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value is handed to TranslateMessage and DispatchMessageW.
+        unsafe {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            break;
+        }
+        let left = u32::try_from(left.as_millis()).unwrap_or(u32::MAX).max(1);
+        // SAFETY: no handle is passed; the call waits for this thread's
+        // queue or the time.
+        unsafe {
+            let _ = MsgWaitForMultipleObjectsEx(None, left, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        }
+    }
+}
+
 struct WindowSpec<'a> {
     class: &'a str,
     title: &'a str,
@@ -1165,7 +1197,7 @@ fn child_hold(secs: u64) {
     let second_edit = second
         .child_control("EDIT", WINDOW_STYLE(0), 10)
         .expect("the second window's edit");
-    pump_thread(Duration::from_millis(300));
+    pump_answering(Duration::from_millis(300));
     let (foreground, method) = first.activate();
     let edit_focused = focus_on(edit);
     say(
@@ -1175,11 +1207,11 @@ fn child_hold(secs: u64) {
              plain_edit_has_focus={edit_focused}"
         ),
     );
-    pump_thread(Duration::from_secs(secs));
+    pump_answering(Duration::from_secs(secs));
     let held = first.is_foreground();
     set_foreground(second.hwnd);
     focus_on(second_edit);
-    pump_thread(Duration::from_millis(100));
+    pump_answering(Duration::from_millis(100));
     say(
         "child",
         format!(
@@ -1187,7 +1219,7 @@ fn child_hold(secs: u64) {
             second.is_foreground()
         ),
     );
-    pump_thread(Duration::from_secs(3));
+    pump_answering(Duration::from_secs(3));
 }
 
 struct ChildProcess {
@@ -2248,6 +2280,10 @@ fn helper_limited_listener() {
     let deadline = Instant::now() + Duration::from_secs(secs);
     let mut stamps = Vec::new();
     let mut recorded = 0usize;
+    // The source's withheld and late values, with the wall time of each
+    // change (W3-7 O3).
+    let mut values = Vec::new();
+    let mut last_values = None;
     let _ = seam::take();
     while Instant::now() < deadline {
         pump_thread(Duration::from_millis(20));
@@ -2269,15 +2305,22 @@ fn helper_limited_listener() {
             let age = u128::from(tick.wrapping_sub(key.os_tick));
             stamps.push(now.saturating_sub(age).to_string());
         }
+        let counters = keyboard.health().counters;
+        let read = (u8::from(counters.keys_withheld), counters.late_events);
+        if last_values != Some(read) {
+            values.push(format!("{now}:{}:{}", read.0, read.1));
+            last_values = Some(read);
+        }
     }
     let _ = stop_counted(&mut keyboard, "keyboard");
     let report = format!(
-        "keyboard_start={} window_created={} integrity_is_medium={} keys_decided={} keys_recorded={recorded}\n{started_ms}\n{}",
+        "keyboard_start={} window_created={} integrity_is_medium={} keys_decided={} keys_recorded={recorded}\n{started_ms}\n{}\n{}",
         show(&start),
         window.is_ok(),
         integrity_is_medium(),
         stamps.len(),
-        stamps.join(",")
+        stamps.join(","),
+        values.join(",")
     );
     std::fs::write(out_path, report).expect("write the listener result");
 }
@@ -2354,6 +2397,32 @@ fn x8_raw_input_across_the_integrity_boundary() {
             .split(',')
             .filter_map(|stamp| stamp.parse().ok())
             .collect();
+        // The listener's withheld and late values as they stood at a time.
+        let values: Vec<(u128, u8, u64)> = lines
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .filter_map(|value| {
+                let mut parts = value.split(':');
+                Some((
+                    parts.next()?.parse().ok()?,
+                    parts.next()?.parse().ok()?,
+                    parts.next()?.parse().ok()?,
+                ))
+            })
+            .collect();
+        let value_at = |time: u128| {
+            values
+                .iter()
+                .rev()
+                .find(|(at, _, _)| *at < time)
+                .map(|(_, withheld, late)| (*withheld, *late))
+        };
+        let at_elevated_from = value_at(elevated_from);
+        let at_medium_from = value_at(medium_from);
+        let at_end = values.last().map(|(_, withheld, late)| (*withheld, *late));
+        let set_by_the_elevated_phase =
+            at_medium_from.is_some_and(|(withheld, late)| withheld != 0 || late != 0);
         let (period, period_from) = tick_period();
         let phases: Vec<Phase> = stamps
             .iter()
@@ -2413,6 +2482,14 @@ fn x8_raw_input_across_the_integrity_boundary() {
         say(
             "x8",
             format!(
+                "listener_values (keys_withheld, late) at_elevated_from={at_elevated_from:?} \
+                 at_medium_from={at_medium_from:?} at_end={at_end:?} \
+                 set_by_the_elevated_phase={set_by_the_elevated_phase}"
+            ),
+        );
+        say(
+            "x8",
+            format!(
                 "listener exit_code={exit_code:?} {header} \
                  listener_source_started_before_typing={source_started_before_typing} \
                  keystroke_events_from_the_elevated_phase_to_the_medium_phase={between_the_phases}"
@@ -2457,6 +2534,14 @@ fn x8_raw_input_across_the_integrity_boundary() {
         assert_eq!(
             between_the_phases, 0,
             "keys typed into an elevated window reached a medium-integrity keyboard source"
+        );
+        assert!(
+            at_medium_from.is_some(),
+            "INCONCLUSIVE: the listener wrote no withheld or late value before the medium phase"
+        );
+        assert!(
+            !set_by_the_elevated_phase,
+            "the listener's keys_withheld or late value was set by the end of the elevated phase"
         );
     });
 }
@@ -2812,6 +2897,78 @@ fn gate_trail(test: &str) {
             ),
         );
     }
+}
+
+/// W3-7 K9 and L8: the detector's first own read after a start is a read of
+/// the focused field. The fixture's password field has the focus before the
+/// source starts, so that read reads Password, and the start's own mark,
+/// before it, reads Unknown.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn the_first_own_read_after_a_start_reads_the_focused_password_field() {
+    with_deadline("first-read", Duration::from_secs(90), || {
+        use halvo_capture::secure_input::windows::FieldState;
+        source_built_by_test("first-read", "keyboard");
+        let fields = FieldWindow::open("first-read", Field::Password);
+        let mut rounds = 0;
+        let mut passed = 0;
+        for round in 0..5 {
+            let focused = fields.focus(Field::Password);
+            std::thread::sleep(Duration::from_millis(300));
+            let _ = seam::take();
+            let _ = seam::take_marks();
+            let (sink, _events) = capture(256);
+            let mut keyboard =
+                RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+            let start = keyboard.begin(SourceContext::new(sink.clone()));
+            let marks = seam::take_marks();
+            let stopped = stop_counted(&mut keyboard, "keyboard");
+            let started = marks.iter().position(|mark| mark.what == "start");
+            let first_read =
+                started.and_then(|at| marks[at..].iter().find(|mark| mark.what == "read"));
+            let start_state = started.map(|at| marks[at].state);
+            let read_state = first_read.and_then(|mark| mark.state);
+            let element = first_read
+                .and_then(|mark| mark.element.as_deref())
+                .unwrap_or("element=none");
+            say(
+                "first-read",
+                format!(
+                    "round={round} foreground={} focused={focused} start={} stop={} \
+                     start_mark={start_state:?} first_read={read_state:?} {element}",
+                    fields.foreground,
+                    show(&start),
+                    show(&stopped)
+                ),
+            );
+            assert!(fields.foreground, "the fixture window is not in front");
+            assert!(
+                focused,
+                "the fixture's password field did not take the focus"
+            );
+            assert!(
+                start.is_ok() && stopped.is_ok(),
+                "the source did not start and stop"
+            );
+            assert_eq!(
+                start_state,
+                Some(Some(FieldState::Unknown)),
+                "the start's mark"
+            );
+            rounds += 1;
+            if read_state == Some(FieldState::Password) && element.contains("is_password=1") {
+                passed += 1;
+            }
+        }
+        say(
+            "first-read",
+            format!("rounds={rounds} first_read_password={passed}"),
+        );
+        assert_eq!(
+            passed, rounds,
+            "a first own read after a start did not read the password field"
+        );
+    });
 }
 
 #[test]
@@ -3937,6 +4094,12 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         let _ = events.drain_for(Duration::from_millis(300));
         let revealed = fields.reveal();
         let _ = events.drain_for(Duration::from_millis(300));
+        // A click inside the revealed field makes the gate read it again
+        // (W3-7 K12); the field keeps Password, since the focus never left.
+        let clicked_d = fields.click(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(300));
+        let gate_d = keyboard.field_state();
+        let still_focused_d = fields.password_has_focus();
         type_letters_slowly(LETTERS);
         let d = keys(&events.drain_for(Duration::from_secs(1)));
 
@@ -3987,7 +4150,11 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         );
         say(
             "fixture-native",
-            format!("phase=D password_field_has_focus={focused_d} revealed={revealed} keystroke_events={d}"),
+            format!(
+                "phase=D password_field_has_focus={focused_d} revealed={revealed} \
+                 clicked_inside={clicked_d} focus_stayed={still_focused_d} gate_after_the_click={gate_d:?} \
+                 keystroke_events={d}"
+            ),
         );
         say(
             "fixture-native",
@@ -4004,7 +4171,13 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         );
         assert!(start.is_ok(), "the keyboard source must start");
         assert!(
-            focused_a && focused_b && focused_d && typed_b == LETTERS as i32,
+            focused_a
+                && focused_b
+                && focused_d
+                && revealed
+                && clicked_d
+                && still_focused_d
+                && typed_b == LETTERS as i32,
             "INCONCLUSIVE: the scripted keys did not reach the fields"
         );
         assert!(
