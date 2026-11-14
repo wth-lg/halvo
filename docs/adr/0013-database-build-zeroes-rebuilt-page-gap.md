@@ -208,7 +208,8 @@ in the draws of the tests", with the limits below.
   appended to the file, a b-tree page that a trunk names, a trunk that names
   page 0, a page past the count and itself, and a leaf whose type byte is 0.
   The rule on a log is one function that the three searches call, each with a
-  control, and the search of rewrites has a control of its structural check.
+  control, and the searches of rewrites and second_place each have a control
+  of their structural check.
   The tests page_gap::holes hold the controls of S-86 E5: a checkpoint that
   does not truncate (the log's own line), 4 bytes of text planted past the
   stale run of a gap with the store closed and with it open, a removed marker

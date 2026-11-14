@@ -3,6 +3,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
+use super::holes::{gap_past_the_stale_run, write_at};
 use super::{connect, log_lines, rules, Mode, Rng, Scratch, PAGE};
 
 fn token(rng: &mut Rng) -> String {
@@ -251,5 +252,38 @@ fn with_secure_delete_off_the_search_of_second_place_finds_a_removed_small_row()
         found.iter().any(|line| line.contains(": the removed text ")
             && line.contains(" stands in page-gap.db page ")),
         "with secure delete off the search of second_place finds no removed small row: {found:?}"
+    );
+}
+
+#[test]
+fn text_planted_in_a_gap_is_named_by_the_structural_check_inside_the_search_of_second_place() {
+    crate::initialize().unwrap();
+    let scratch = Scratch::new(52, Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    conn.execute_batch("CREATE TABLE c(id INTEGER PRIMARY KEY, c0 TEXT NOT NULL); BEGIN;")
+        .unwrap();
+    let mut rng = Rng::new(52);
+    for id in 1..=400i64 {
+        conn.execute(
+            "INSERT INTO c(id, c0) VALUES (?1, ?2)",
+            params![id, format!("{} app{}", token(&mut rng), rng.below(7))],
+        )
+        .unwrap();
+    }
+    conn.execute_batch("COMMIT").unwrap();
+    checkpoint(&conn);
+    let none = BTreeSet::new();
+    assert_eq!(
+        places(&conn, &scratch.0, &none, "clean"),
+        Vec::<String>::new()
+    );
+    let db = std::fs::read(scratch.db()).unwrap();
+    let (number, at) = gap_past_the_stale_run(&db);
+    write_at(&scratch.db(), (number - 1) * PAGE + at, b"text");
+    let found = places(&conn, &scratch.0, &none, "after a plant");
+    let named = format!("after a plant: structural check: page {number}: byte {at} of the gap");
+    assert!(
+        found.iter().any(|line| line.starts_with(&named)),
+        "the search of second_place does not name text planted at byte {at} of page {number} ({named}): {found:?}"
     );
 }
