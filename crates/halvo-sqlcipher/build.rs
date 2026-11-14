@@ -249,7 +249,46 @@ fn place(source: &[u8], mend: &Mend) -> (usize, &'static str) {
             end + 1
         ));
     }
+    let mut depth = 0usize;
+    for (number, (_, text)) in lines(source)
+        .enumerate()
+        .take(line_number)
+        .skip(function_number + 1)
+    {
+        let Some(directive) = directive(text) else {
+            continue;
+        };
+        match directive {
+            "if" | "ifdef" | "ifndef" => depth += 1,
+            "endif" if depth > 0 => depth -= 1,
+            "else" | "elif" | "elifdef" | "elifndef" if depth > 0 => {}
+            "endif" | "else" | "elif" | "elifdef" | "elifndef" => stop(format!(
+                "looked for the line `{line}` outside every preprocessor branch opened after the \
+                 text `{function}` on line {}, found #{directive} on line {} at depth {depth}",
+                function_number + 1,
+                number + 1
+            )),
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        stop(format!(
+            "looked for the line `{line}`, line {}, outside every preprocessor branch opened after \
+             the text `{function}` on line {}, found it inside {depth} of them",
+            line_number + 1,
+            function_number + 1
+        ));
+    }
     (at + text.len(), statement)
+}
+
+fn directive(line: &[u8]) -> Option<&str> {
+    let text = std::str::from_utf8(line).ok()?.trim_start();
+    let rest = text.strip_prefix('#')?.trim_start();
+    let end = rest
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
+    Some(&rest[..end])
 }
 
 fn mended_source(source: &[u8], name: &Path) -> Vec<u8> {

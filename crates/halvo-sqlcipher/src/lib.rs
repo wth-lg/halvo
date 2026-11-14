@@ -33,14 +33,17 @@ pub fn os_entropy_hook_installed() -> bool {
     unsafe { halvo_sqlcipher_os_entropy_hook_installed() != 0 }
 }
 
-/// Whether the linked SQLCipher is this crate's build, whose copy of the
-/// pinned source zeroes, under secure delete, the gap of a page that the
-/// database builds again or edits in place. Only that copy defines the
-/// function that answers 2 here, in the same object as the database's code,
-/// so a program that calls this links that object or does not link at all,
-/// and a library of the earlier build with one statement, which answers 1,
-/// reads `false`. Each store's open is to require `true`, as it requires
-/// secure delete.
+/// Whether the linked SQLCipher is this crate's build: the copy of the pinned
+/// source into which build.rs placed the text of both statements (zeroing,
+/// under secure delete, the gap of a page that the database builds again or
+/// edits in place) under the checks of docs/adr/0013, and whose compile-time
+/// stops passed. It says that build.rs placed that text, not that the
+/// compiler compiled it, and it says nothing of an FTS5 table. Only that copy
+/// defines the function that answers 2 here, in the same object as the
+/// database's code, so a program that calls this links that object or does
+/// not link at all, and a library of the earlier build with one statement,
+/// which answers 1, reads `false`. Each store's open is to require `true`, as
+/// it requires secure delete.
 pub fn page_gap_mend_linked() -> bool {
     unsafe { halvo_sqlcipher_page_gap_mend() == 2 }
 }

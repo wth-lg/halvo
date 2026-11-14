@@ -149,7 +149,13 @@ in the draws of the tests", with the limits below.
   names what it looked for, when the sha256 of sqlcipher.c is not the one that
   was read, or when either changed line is not found exactly once, or its
   function's opening (`static int rebuildPage(`, `static int editPage(`) is not
-  found exactly once before it with no function end between. Read
+  found exactly once before it with no function end between, or when a
+  preprocessor branch opened after that opening is still open at the line or
+  an #else or #elif stands outside such a branch (a directive is a line whose
+  first non-blank character is #). The check does not count a branch opened
+  before the function's opening (one is open around the whole file, line 54;
+  the compile-time stop on BTS_FAST_SECURE covers it), and it does not see an
+  anchor inside a comment or a memset renamed by a macro. Read
   rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and
   balance_nonroot from its divider loop again in the new source, with every
   row of the table, move or delete the statements, write the new sha256 into
