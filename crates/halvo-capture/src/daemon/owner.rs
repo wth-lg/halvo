@@ -22,7 +22,7 @@ use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
 
 /// The slots of the sink's queue that the owner drains.
-pub const QUEUE_SLOTS: usize = 2_048;
+pub const QUEUE_SLOTS: usize = 1_024;
 
 /// The most events that the owner holds while its drain fails: the 2,048
 /// slots of the sink and one batch.
