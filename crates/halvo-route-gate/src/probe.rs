@@ -778,6 +778,13 @@ mod tests {
             ["tests.rs".to_owned(), "tests/".to_owned()]
         );
         assert_eq!(
+            module_paths("src/bin/tool/main.rs", "tests"),
+            [
+                "src/bin/tool/tests.rs".to_owned(),
+                "src/bin/tool/tests/".to_owned()
+            ]
+        );
+        assert_eq!(
             module_paths("src/bin/tool.rs", "tests"),
             ["src/bin/tests.rs".to_owned(), "src/bin/tests/".to_owned()]
         );
@@ -814,6 +821,37 @@ mod tests {
             read_crate(&one_file("src/lib.rs", text)).1,
             vec!["src/lib.rs: names fork"]
         );
+    }
+
+    #[test]
+    fn code_after_an_item_that_does_not_end_is_not_covered() {
+        let text = "#[cfg(test)]\nconst A: [u8; 1] = [\nfn go() {\n    fork();\n}\n";
+        let misses = read_crate(&one_file("src/lib.rs", text)).1;
+        assert_eq!(misses.len(), 1, "{misses:?}");
+        assert!(
+            misses[0].starts_with("src/lib.rs: not covered"),
+            "{misses:?}"
+        );
+    }
+
+    #[test]
+    fn the_read_reads_rust_files_alone() {
+        let files = one_file("src/notes.txt", "Command\n");
+        assert_eq!(read_crate(&files), (0, Vec::new()));
+    }
+
+    #[test]
+    fn a_test_module_with_a_directory_leaves_out_every_file_below_it() {
+        let mut files = one_file("src/lib.rs", "#[cfg(test)]\nmod deep;\n");
+        files.push((
+            "src/deep/mod.rs".to_owned(),
+            Some("mod inner;\n".to_owned()),
+        ));
+        files.push((
+            "src/deep/inner.rs".to_owned(),
+            Some("fn spawn() {}\n".to_owned()),
+        ));
+        assert_eq!(read_crate(&files), (1, Vec::new()));
     }
 
     #[test]
