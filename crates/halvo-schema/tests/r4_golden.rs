@@ -138,6 +138,7 @@ fn records() -> Vec<CoordEvent> {
             What::RunEnded {
                 run: run(0),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
         (
@@ -210,6 +211,7 @@ fn records() -> Vec<CoordEvent> {
             What::RunEnded {
                 run: run(1),
                 cause: RunEnd::Cancelled,
+                defers: None,
             },
         ),
         (

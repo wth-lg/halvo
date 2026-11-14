@@ -39,6 +39,8 @@ pub const NAMES: &[&str] = &[
     "cause",
     "trigger",
     "origin",
+    "defer_launch",
+    "defer_ticks_failed",
     "op",
     "records",
     "stored",
@@ -92,6 +94,8 @@ pub const NAMES: &[&str] = &[
     "choose",
     "skip",
     "start",
+    "yes",
+    "no",
 ];
 
 /// The most records of one `coord_log` body, so that a confirmation of up to 20 effects is recorded in one body

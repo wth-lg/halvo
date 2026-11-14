@@ -5,9 +5,10 @@ use halvo_schema::coordinator::names::{
     HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, Trigger,
 };
 use halvo_schema::coordinator::record::{
-    Answered, BindAnswer, Cleared, CoordEvent, Entry, Held, ItemId, Lapsed, LinkAnswer, Raised,
-    SignInAnswer, What,
+    Answered, BindAnswer, Cleared, CoordEvent, Defers, Entry, Held, ItemId, Lapsed, LinkAnswer,
+    Raised, SignInAnswer, What,
 };
+use halvo_schema::executable::names::YesNo;
 use halvo_schema::executable::{ApprovalId, Digest, EffectId, RunId, WebOrigin};
 use halvo_schema::kinds::check_record;
 use halvo_schema::record::Instant;
@@ -172,6 +173,7 @@ fn every_shape() -> Vec<(What, String)> {
             What::RunEnded {
                 run: run(),
                 cause: *cause,
+                defers: None,
             },
             line(
                 "run_ended",
@@ -386,6 +388,39 @@ fn r4_record_writes_and_reads_every_shape_of_the_nine_events() {
         }
     }
     assert_eq!(events_seen.len(), Event::ALL.len());
+}
+
+#[test]
+fn r4_record_run_ended_writes_its_defers_after_origin_and_none_where_they_are_not_known() {
+    let older = line("run_ended", &[("run", &q(RUN)), ("cause", &q("failed"))]);
+    let none = event(What::RunEnded {
+        run: run(),
+        cause: RunEnd::Failed,
+        defers: None,
+    });
+    assert_eq!(none.to_json().unwrap(), older);
+    for (launch, ticks_failed) in [(YesNo::Yes, 0), (YesNo::No, 7), (YesNo::No, u32::MAX)] {
+        let value = event(What::RunEnded {
+            run: run(),
+            cause: RunEnd::Failed,
+            defers: Some(Defers {
+                launch,
+                ticks_failed,
+            }),
+        });
+        let text = value.to_json().unwrap();
+        assert_eq!(
+            text,
+            format!(
+                r#"{},"defer_launch":"{}","defer_ticks_failed":{ticks_failed}}}"#,
+                older.strip_suffix('}').unwrap(),
+                launch.as_str()
+            )
+        );
+        assert_eq!(CoordEvent::parse(text.as_bytes()).unwrap(), value);
+        assert_eq!(serde_json::to_string(&value).unwrap(), text);
+        assert_eq!(serde_json::from_str::<CoordEvent>(&text).unwrap(), value);
+    }
 }
 
 #[test]

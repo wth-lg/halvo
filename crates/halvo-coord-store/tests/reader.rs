@@ -1,14 +1,14 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{coordinator, CoordReply, MemoryStore};
+use halvo_coord_store::{coordinator, CoordReply, Host, MemoryStore};
 use halvo_schema::ErrorName;
 
 fn send(store: &mut MemoryStore, records: &[String]) -> Result<CoordReply, ErrorName> {
     coordinator(store, &log(records))
 }
 
-fn read_back(store: &mut MemoryStore) -> (Vec<String>, u32) {
+fn read_back(store: &mut dyn Host) -> (Vec<String>, u32) {
     match coordinator(store, &history(None)) {
         Ok(CoordReply::History(h)) => (
             h.records
@@ -75,6 +75,60 @@ fn the_lapse_answer_lost_of_another_kind_is_refused() {
         );
         assert!(rows(&store).is_empty());
     }
+}
+
+#[test]
+fn a_run_ended_with_both_defer_keys_null_is_stored_in_the_form_of_the_older_sender() {
+    let mut store = store();
+    let older = run_ended_row(1, "completed", None);
+    let newer = run_ended_row(2, "failed", Some(("null", "null")));
+    assert_eq!(send(&mut store, &[older.clone(), newer]), stored(2));
+    assert_eq!(rows(&store), [older, run_ended_row(2, "failed", None)]);
+}
+
+#[test]
+fn a_stored_run_ended_with_defer_values_is_read_and_counted_by_the_seq_rule() {
+    for (launch, ticks) in [
+        (r#""yes""#, "0"),
+        (r#""no""#, "3"),
+        (r#""yes""#, "4294967295"),
+    ] {
+        let newer = run_ended_row(1, "completed", Some((launch, ticks)));
+        let mut host = stand_in(vec![newer.clone()], None);
+        assert_eq!(read_back(&mut host), (vec![newer.clone()], 1), "{newer}");
+        assert_eq!(
+            coordinator(&mut host, &log(&[row(1, TODAY)])),
+            Err(ErrorName::read("seq").unwrap()),
+            "{newer}"
+        );
+        assert_eq!(coordinator(&mut host, &log(&[row(2, TODAY)])), stored(1));
+    }
+}
+
+#[test]
+fn a_stored_run_ended_with_one_defer_key_null_sets_its_workflow_aside() {
+    for defers in [(r#""yes""#, "null"), ("null", "2")] {
+        let unread = run_ended_row(1, "completed", Some(defers));
+        let mut host = stand_in(vec![unread.clone()], None);
+        assert_eq!(
+            coordinator(&mut host, &history(None)),
+            Err(ErrorName::Store),
+            "{unread}"
+        );
+    }
+}
+
+#[test]
+fn a_run_ended_with_defer_values_is_refused_at_the_commit_until_the_kind_entry_lists_its_keys() {
+    let mut store = store();
+    assert_eq!(
+        send(
+            &mut store,
+            &[run_ended_row(1, "completed", Some((r#""yes""#, "2")))]
+        ),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
 }
 
 #[test]

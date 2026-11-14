@@ -10,6 +10,7 @@ use halvo_schema::coordinator::names::{
     HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, SetupAnswer, Trigger,
 };
 use halvo_schema::coordinator::{ERROR_NAMES, KINDS, NAMES};
+use halvo_schema::executable::names::YesNo;
 
 const LEFT_OUT: [&str; 1] = ["role"];
 
@@ -56,6 +57,8 @@ fn derived() -> BTreeSet<String> {
         CheckAnswer::ALL.iter().map(|v| v.as_str()).collect(),
         SetupAnswer::ALL.iter().map(|v| v.as_str()).collect(),
         ReadyAnswer::ALL.iter().map(|v| v.as_str()).collect(),
+        vec!["defer_launch", "defer_ticks_failed"],
+        YesNo::ALL.iter().map(|v| v.as_str()).collect(),
     ];
     names.extend(lists.concat().into_iter().map(str::to_owned));
     for name in LEFT_OUT {
