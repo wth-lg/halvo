@@ -5,7 +5,7 @@ set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=39
+failing_fixtures=40
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -217,7 +217,6 @@ loops() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
     [ "$passes" -eq "$runs" ] || loop_failed=$((loop_failed + 1))
   done <"$work/loops"
-  [ "$loop_failed" -eq 0 ] || fail "$loop_failed loops had a run that was not one passed test"
 }
 
 scan_log() {
@@ -476,10 +475,12 @@ measure() {
   line="WF total=$total pass=$passed known_defect=$known fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  loop_failed=0
+  [ "$form" = short ] || loops
   [ "$fixed" -eq 0 ] || fail "$fixed listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
+  [ "$loop_failed" -eq 0 ] || fail "$loop_failed loops had a run that was not one passed test"
   if [ "$form" = long ]; then
-    loops
     printf 'ledger: not read in the long form, whose passing run the ledger records\n'
   else
     ledger_check
@@ -940,6 +941,10 @@ fixtures() {
   loop_list="lib 3 a::plain_one"
   STUB_LIB_EXE=none
   check cargo-names-no-library-test-executable FAIL "$right" "FAIL $name (cargo named no test executable of the library)"
+  form_word=long
+  loop_list="lib 2 a::plain_one"
+  check the-long-form-loops-when-a-test-failed FAIL "c1_raw_input|inconclusive${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF loop a::plain_one kind=lib runs=2 passed=2${nl}" "FAIL $name (1 tests failed)"
   form_word=long
   loop_list="bench 3 a::plain_one"
   check a-loop-of-another-kind FAIL "$right" "FAIL $name (the loop list names the kind bench)"
