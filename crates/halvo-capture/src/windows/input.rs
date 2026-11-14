@@ -3811,37 +3811,26 @@ mod tests {
         ] {
             let _ = registrations();
             let (sink, _writer) = crate::sink::channel(64);
-            let mut keyboard = RawInputSource::with_calls(
-                RawDevice::Keyboard,
-                StartCalls {
-                    register_device: register_held,
-                    remove_device: register_counted,
-                    ..SYSTEM_CALLS
-                },
-            );
+            let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
             let started = keyboard.begin(crate::source::SourceContext::new(sink));
             let window = clicks().keyboard_window;
             let owner_at_the_start = clicks().owner;
             let mut held = true;
             if timed_out {
-                HOLD_THE_REGISTER_MS.store(2_000, Ordering::SeqCst);
-                clicks().owner = None;
-                if let Some(window) = window {
+                held = window.is_some_and(|window| {
                     // SAFETY: PostMessageW takes a window handle and plain
                     // values; a window that is gone makes the call fail.
                     unsafe {
-                        let _ = PostMessageW(
+                        PostMessageW(
                             Some(HWND(window as *mut core::ffi::c_void)),
-                            WM_TAKE_MOUSE,
+                            WM_HOLD_FOR_TEST,
                             WPARAM(0),
-                            LPARAM(0),
-                        );
+                            LPARAM(2_500),
+                        )
+                        .is_ok()
                     }
-                }
-                held = wait_for(std::time::Duration::from_secs(2), || {
-                    REGISTER_HELD.load(Ordering::SeqCst)
                 });
-                clicks().owner = Some(RawDevice::Keyboard);
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
             let other_gate = Arc::new(PasswordGate::new());
             match case {
@@ -3864,7 +3853,7 @@ mod tests {
                 )
             };
             if timed_out {
-                std::thread::sleep(std::time::Duration::from_millis(2_500));
+                std::thread::sleep(std::time::Duration::from_millis(3_000));
             }
             clear_the_route();
             let _ = registrations();
