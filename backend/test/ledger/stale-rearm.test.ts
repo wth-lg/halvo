@@ -2,7 +2,7 @@ import { env, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { makeAccounts } from "../../src/accounts/index.ts";
 import type { ProviderPort } from "../../src/billing/port.ts";
-import { type AccountObject, stepOf } from "../../src/do/account-object.ts";
+import { AccountObject, stepOf } from "../../src/do/account-object.ts";
 import { type Host, makeEntries } from "../../src/do/entries.ts";
 import { makeLedger, type Price } from "../../src/ledger/index.ts";
 import { errorName } from "../../src/log.ts";
@@ -72,10 +72,55 @@ function tables(state: DurableObjectState): Record<string, Row[]> {
   return dump;
 }
 
+type Descriptors = Map<PropertyKey, PropertyDescriptor>;
+
+function descriptorsOf(target: object): Descriptors {
+  return new Map(Reflect.ownKeys(target).map((key) => [key, Object.getOwnPropertyDescriptor(target, key) as PropertyDescriptor]));
+}
+
+function changedKeys(before: Descriptors, after: Descriptors): string[] {
+  const keys = new Set<PropertyKey>([...before.keys(), ...after.keys()]);
+  const changed: string[] = [];
+  for (const key of keys) {
+    const a = before.get(key);
+    const b = after.get(key);
+    const fields = ["value", "get", "set", "writable", "enumerable", "configurable"] as const;
+    if (a === undefined || b === undefined || fields.some((field) => !Object.is(a[field], b[field]))) changed.push(String(key));
+  }
+  return changed.sort();
+}
+
 function memoryOf(instance: AccountObject) {
   const fields = { ...(instance as unknown as Record<string, unknown>) };
   const host = fields.host as Host;
-  return { fields, host, hostFields: { ...host }, port: host.port, methods: { ...host.port }, config: host.config, settings: { ...host.config } };
+  return {
+    fields,
+    host,
+    hostFields: { ...host },
+    port: host.port,
+    methods: { ...host.port },
+    config: host.config,
+    settings: { ...host.config },
+    ownKeys: Reflect.ownKeys(instance).map(String).sort(),
+    instance: descriptorsOf(instance),
+    entries: descriptorsOf(fields.entries as object),
+    hostOwn: descriptorsOf(host),
+    prototype: Object.getPrototypeOf(instance) as object,
+    prototypeOwn: descriptorsOf(AccountObject.prototype),
+    env: descriptorsOf(fields.env as object),
+  };
+}
+
+function memoryChanges(before: ReturnType<typeof memoryOf>, after: ReturnType<typeof memoryOf>) {
+  return {
+    ownKeys: after.ownKeys,
+    instance: changedKeys(before.instance, after.instance),
+    entries: changedKeys(before.entries, after.entries),
+    host: changedKeys(before.hostOwn, after.hostOwn),
+    prototype: after.prototype === before.prototype && after.prototype === AccountObject.prototype,
+    prototypeOwn: changedKeys(before.prototypeOwn, after.prototypeOwn),
+    env: changedKeys(before.env, after.env),
+  };
 }
 
 function same(before: Record<string, unknown>, after: Record<string, unknown>): Record<string, boolean> {
@@ -83,7 +128,7 @@ function same(before: Record<string, unknown>, after: Record<string, unknown>): 
   return Object.fromEntries(names.map((name) => [name, name in before && name in after && before[name] === after[name]]));
 }
 
-test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose setAlarm the host refuses, which leaves the open hold with no alarm, the dispatch step arms the alarm again at the open hold's expiry, the reserve's clock plus the hold's life, and not at a stale time, a whole second or its own clock plus the hold's life; the rejection, caught at a later clock that is no whole second, writes one line alarm-error TypeError and nothing else: no stored value, no alarm and no field of the instance or of its host changes, so its port and every field of its settings are what the constructor made; a second reserve whose setAlarm the host refuses, at clocks of whole seconds, leaves the alarm that stands, the dispatch keeps it at the earliest open expiry, and every stored value read at the end is the steps' own", async () => {
+test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose setAlarm the host refuses, which leaves the open hold with no alarm, the dispatch step arms the alarm again at the open hold's expiry, the reserve's clock plus the hold's life, and not at a stale time, a whole second or its own clock plus the hold's life; the rejection, caught at a later clock that is no whole second, writes one line alarm-error TypeError and nothing else: no stored value, no alarm and no own property of the instance, of its entries, of its host, of its env or of AccountObject.prototype changes, and its prototype stays AccountObject.prototype, so its port and every field of its settings are what the constructor made; a second reserve whose setAlarm the host refuses, at clocks of whole seconds, leaves the alarm that stands, the dispatch keeps it at the earliest open expiry, and every stored value read at the end is the steps' own", async () => {
   const stub = bindings.ACCOUNT.get(bindings.ACCOUNT.newUniqueId());
   const run = await runInDurableObject(stub, async (instance: AccountObject, state) => {
     const seeded = makeEntries(
@@ -143,6 +188,7 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
     try {
       const reserved = await step("reserve", RESERVE_AT, () => instance.reserve(HASH, { requestId: "stale", tier: "low_cost_hosted", amount: 10_000, price: LOW }));
       const afterReserve = await snapshot();
+      const memoryBeforeRejection = memoryOf(instance);
       await rejected(CAUGHT_AT);
       const afterRejection = await snapshot();
       const memoryAfterRejection = memoryOf(instance);
@@ -151,6 +197,7 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
       const afterDispatch = await snapshot();
       const secondReserved = await step("reserve", SECOND_RESERVE_AT, () => instance.reserve(HASH, { requestId: "stale-2", tier: "low_cost_hosted", amount: 10_000, price: LOW }));
       const afterSecondReserve = await snapshot();
+      const memoryBeforeSecondRejection = memoryOf(instance);
       await rejected(SECOND_CAUGHT_AT);
       const afterSecondRejection = await snapshot();
       const memoryAfterSecondRejection = memoryOf(instance);
@@ -161,12 +208,14 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
         reserved,
         afterReserve,
         afterRejection,
+        memoryBeforeRejection,
         memoryAfterRejection,
         dispatched,
         afterDispatch,
         secondReserved,
         afterSecondReserve,
         afterSecondRejection,
+        memoryBeforeSecondRejection,
         memoryAfterSecondRejection,
         secondDispatched,
         end,
@@ -195,6 +244,17 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
   expect(run.afterRejection.alarm).toBeNull();
   expect(run.afterRejection.tables).toEqual(run.afterReserve.tables);
 
+  const unchanged = { ownKeys: ["ctx", "entries", "env", "host"], instance: [], entries: [], host: [], prototype: true, prototypeOwn: [], env: [] };
+  for (const [before, after] of [
+    [run.made, run.memoryBeforeRejection],
+    [run.memoryBeforeRejection, run.memoryAfterRejection],
+    [run.memoryBeforeSecondRejection, run.memoryAfterSecondRejection],
+    [run.made, run.memoryAfterSecondRejection],
+  ] as const) {
+    expect(memoryChanges(before, after)).toEqual(unchanged);
+  }
+  expect([...run.made.prototypeOwn.keys()].map(String)).toEqual(expect.arrayContaining(["constructor", "alarm", "reserve", "dispatch", "settle"]));
+  expect([...run.made.entries.keys()].map(String)).toEqual(expect.arrayContaining(["alarm", "rearm", "reserve", "dispatch"]));
   for (const memory of [run.memoryAfterRejection, run.memoryAfterSecondRejection]) {
     expect(same(run.made.fields, memory.fields)).toEqual({ ctx: true, entries: true, env: true, host: true });
     expect(Object.keys(run.made.fields).sort()).toEqual(["ctx", "entries", "env", "host"]);
