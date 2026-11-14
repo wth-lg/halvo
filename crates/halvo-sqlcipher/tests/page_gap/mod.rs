@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use rusqlite::{params, Connection};
 
+mod layout;
 mod second_place;
 
 const SEEDS: [u64; 4] = [1, 2, 3, 4];
@@ -374,6 +375,12 @@ impl Run {
                         .or_default()
                         .push((name.clone(), at));
                 }
+            }
+        }
+        if let (Mode::Plain, Some(conn)) = (self.mode, self.conn.as_ref()) {
+            let db = std::fs::read(self.scratch.db()).unwrap();
+            for line in layout::leftovers(conn, &db) {
+                problems.push(format!("structural check: {line}"));
             }
         }
         let stored: BTreeSet<&[u8]> = self

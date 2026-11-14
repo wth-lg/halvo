@@ -3,7 +3,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::{connect, Mode, Rng, Scratch, PAGE};
+use super::{connect, layout, Mode, Rng, Scratch, PAGE};
 
 fn token(rng: &mut Rng) -> String {
     (0..16)
@@ -18,13 +18,17 @@ fn checkpoint(conn: &Connection) {
     assert_eq!(busy, 0);
 }
 
-fn places(dir: &Path, removed: &BTreeSet<String>, when: &str) -> Vec<String> {
+fn places(conn: &Connection, dir: &Path, removed: &BTreeSet<String>, when: &str) -> Vec<String> {
     let mut names: Vec<_> = std::fs::read_dir(dir)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
-    let mut found = Vec::new();
+    let mut found: Vec<String> =
+        layout::leftovers(conn, &std::fs::read(dir.join("page-gap.db")).unwrap())
+            .into_iter()
+            .map(|line| format!("{when}: structural check: {line}"))
+            .collect();
     for name in names {
         let bytes = std::fs::read(dir.join(&name)).unwrap();
         for text in removed {
@@ -67,6 +71,7 @@ fn small_rows_with_single_deletes(seed: u64) -> Vec<String> {
             removed.insert(live.remove(&id).unwrap());
             checkpoint(&conn);
             let found = places(
+                &conn,
                 &scratch.0,
                 &removed,
                 &format!("seed {seed} round {round} delete {step}"),
@@ -131,7 +136,12 @@ fn fts5_form(seed: u64) -> Vec<String> {
             .unwrap();
         assert_eq!(stored as usize, live.len());
         let tails: BTreeSet<String> = removed.iter().map(|t| t[6..].to_owned()).collect();
-        let found = places(&scratch.0, &tails, &format!("seed {seed} round {round}"));
+        let found = places(
+            &conn,
+            &scratch.0,
+            &tails,
+            &format!("seed {seed} round {round}"),
+        );
         if !found.is_empty() {
             return found;
         }
