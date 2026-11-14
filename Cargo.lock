@@ -1841,6 +1841,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-test-dir"
+version = "0.0.0"
+
+[[package]]
 name = "halvo-web"
 version = "0.0.0"
 dependencies = [
