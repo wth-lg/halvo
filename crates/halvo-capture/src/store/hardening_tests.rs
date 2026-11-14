@@ -8874,12 +8874,22 @@ fn a_create_under_the_id_of_a_live_root_is_refused_before_it_records_anything() 
     let before = std::fs::read(roots_dir.join(format!("{root_id}.root"))).unwrap();
     let other = dir.path().join("other");
     let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let reached = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen = Arc::clone(&reached);
+    let seam = super::failpoint::at(super::db::SEAM_BEFORE_THE_DATABASE_STEP, move || {
+        seen.store(true, Ordering::SeqCst);
+    });
     let created = answer_text(&EncryptedStore::create(
         &other,
         Box::new(custody),
         DEFAULT_RETENTION,
     ));
+    drop(seam);
     assert_eq!(created, "Custody(RootExists)");
+    assert!(
+        !reached.load(Ordering::SeqCst),
+        "the create reached its database step before it was refused: it recorded its mark first (ruling ST-46 K4 (f))"
+    );
     assert!(!other.join("create.pending").exists());
     assert_eq!(
         std::fs::read(roots_dir.join(format!("{root_id}.root"))).unwrap(),

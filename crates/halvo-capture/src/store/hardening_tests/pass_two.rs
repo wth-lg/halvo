@@ -1078,6 +1078,7 @@ fn p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file() {
     for what in [
         "an empty file at the root's name",
         "a partial name of the root id",
+        "a partial name of the root id that holds 32 bytes",
     ] {
         let dir = tempfile::tempdir().unwrap();
         let store_dir = store_with_its_roots_inside(dir.path());
@@ -1103,7 +1104,8 @@ fn p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file() {
             entry
         } else {
             let entry = roots.join(format!("{first_id}.0123456789abcdef.root.tmp"));
-            std::fs::write(&entry, vec![7u8; 10]).unwrap();
+            let len = if what.ends_with("32 bytes") { 32 } else { 10 };
+            std::fs::write(&entry, vec![7u8; len]).unwrap();
             entry
         };
         let answer = first.delete_all();
@@ -1540,5 +1542,25 @@ fn delete_all_zeroes_a_store_key_of_mode_0400_through_every_name() {
     assert!(
         !after.is_empty() && after.iter().all(|&b| b == 0),
         "a second name of a store.key of mode 0400 keeps the wrapped key"
+    );
+}
+
+/// The verifier's copy L48 (ruling ST-46 K4 (g)): a delete beside a
+/// create.pending that cannot be removed (a directory that holds a file)
+/// counts it in files_left and answers DeleteIncomplete.
+#[test]
+fn a_create_pending_that_cannot_be_removed_is_counted_by_the_delete() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    std::fs::create_dir(store_dir.join("create.pending")).unwrap();
+    std::fs::write(store_dir.join("create.pending").join("theirs"), b"kept").unwrap();
+    let answer = store.delete_all();
+    drop(store);
+    println!("ST46 L48 {}", report_line(&answer));
+    assert!(
+        answer.is_err() && delete_report(&answer).files_left >= 1,
+        "a create.pending that stays is not counted: {}",
+        report_line(&answer)
     );
 }
