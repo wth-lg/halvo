@@ -71,7 +71,7 @@ fn obstructed(name: StoreName, met: Met) -> StoreError {
 
 #[derive(Deserialize)]
 struct KeyFileVersion {
-    version: u32,
+    version: i64,
 }
 
 #[derive(Deserialize)]
@@ -210,7 +210,7 @@ impl KeyFilePlace {
         let json = self.bytes()?;
         serde_json::from_slice::<KeyFileVersion>(&json)
             .map_err(|_| StoreError::KeyFileUnparseable)
-            .and_then(|head| known_version(i64::from(head.version), i64::from(KEY_FILE_VERSION)))?;
+            .and_then(|head| known_version(head.version, i64::from(KEY_FILE_VERSION)))?;
         let key_file: KeyFile =
             serde_json::from_slice(&json).map_err(|_| StoreError::KeyFileUnparseable)?;
         if !is_label(key_file.namespace.as_bytes()) {
@@ -1762,13 +1762,13 @@ enum Keyed {
     Deleted(Box<DeleteReport>),
 }
 
-/// The encrypted store: the SQLCipher database, the per-segment files
-/// under `dir`, and the one store key in the clear only in memory.
 pub(crate) struct RootStep {
     reading: RootReading,
     roots: RootsLeft,
 }
 
+/// The encrypted store: the SQLCipher database, the per-segment files
+/// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
     dir: Dir,
     retention: Duration,
@@ -2220,9 +2220,19 @@ impl EncryptedStore {
     /// entry that it is and counted as not followed. A key file of another
     /// version, or of a custody that keeps no root file under `roots`, is
     /// removed with the rest, and its root is reported as not handled and
-    /// never as destroyed. Answers as [`EncryptedStore::delete_all`] does, and
-    /// [`StoreError::Locked`] while another process holds the directory.
+    /// never as destroyed. A directory that it cannot open leaves its root
+    /// unread, one whose lock it cannot take for a reason other than a
+    /// holder gets the root step without the lock, and both answer
+    /// [`StoreError::DeleteIncomplete`] with the files as left. On Windows a path of which a part ends in a dot or a space
+    /// gets the root step through its verbatim form, no removal at or beside
+    /// it, `not_followed` 1 and [`StoreError::DeleteIncomplete`]. Answers as
+    /// [`EncryptedStore::delete_all`] does, and [`StoreError::Locked`] while
+    /// another process holds the directory.
     pub fn delete_store_dir(store_dir: &Path, roots: &Path) -> StoreResult<DeleteReport> {
+        #[cfg(windows)]
+        if durable::has_a_part_that_windows_trims(store_dir) {
+            return finished(Self::root_step_alone_at_a_trimmed_name(store_dir, roots));
+        }
         let store = match Dir::open(store_dir) {
             Ok(store) => store,
             Err(e) if e.kind() == ErrorKind::NotFound => {
@@ -2265,27 +2275,7 @@ impl EncryptedStore {
             Err(StoreError::Locked) => return Err(StoreError::Locked),
             Err(_) => None,
         };
-        let (named, root_not_handled) = match place.what_it_names() {
-            KeyFileNames::Destroys(root_id) => (Some(root_id), None),
-            KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
-            KeyFileNames::Nothing => (
-                read_pending(&store)
-                    .filter(|pending| pending.reading == PendingReading::Made)
-                    .map(|pending| pending.root_id),
-                None,
-            ),
-        };
-        let (reading, roots) = match root_not_handled {
-            Some(root_id) => (
-                RootReading::Left(Some(root_id)),
-                RootsLeft {
-                    left: Vec::new(),
-                    names: Vec::new(),
-                    listed: true,
-                },
-            ),
-            None => file_root::destroy_roots_in(roots, named, false),
-        };
+        let (reading, roots, root_not_handled) = tail_root_step(&store, &place, roots);
         if _writer_lock.is_none() {
             let mut report = not_opened(reading, roots);
             report.root_not_handled = root_not_handled;
@@ -2295,6 +2285,71 @@ impl EncryptedStore {
         report.root_not_handled = root_not_handled;
         finished(report)
     }
+}
+
+impl EncryptedStore {
+    /// The tail on a path of which a part ends in a dot or a space: Win32
+    /// trims that end when it opens a name that is not verbatim, so a removal
+    /// could reach the sibling without it. The tail removes nothing at or
+    /// beside the path. It runs the root step from the key file that it reads
+    /// through the verbatim form of the path, takes no lock there, and counts
+    /// the path as not followed.
+    #[cfg(windows)]
+    fn root_step_alone_at_a_trimmed_name(store_dir: &Path, roots: &Path) -> DeleteReport {
+        let unread = || {
+            (
+                RootReading::Left(None),
+                RootsLeft {
+                    left: Vec::new(),
+                    names: Vec::new(),
+                    listed: false,
+                },
+                None,
+            )
+        };
+        let (reading, roots, root_not_handled) = durable::verbatim_form(store_dir)
+            .and_then(|verbatim| Dir::open(&verbatim).ok())
+            .and_then(|store| {
+                let place = KeyFile::of_store(&store).ok()?;
+                Some(tail_root_step(&store, &place, roots))
+            })
+            .unwrap_or_else(unread);
+        let mut report = not_opened(reading, roots);
+        report.root_not_handled = root_not_handled;
+        report.not_followed = 1;
+        report
+    }
+}
+
+/// The root step of the tail: the root that the key file names, or that a
+/// made pending mark names when no key file stands, destroyed in `roots`.
+fn tail_root_step(
+    store: &Dir,
+    place: &KeyFilePlace,
+    roots: &Path,
+) -> (RootReading, RootsLeft, Option<RootId>) {
+    let (named, root_not_handled) = match place.what_it_names() {
+        KeyFileNames::Destroys(root_id) => (Some(root_id), None),
+        KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
+        KeyFileNames::Nothing => (
+            read_pending(store)
+                .filter(|pending| pending.reading == PendingReading::Made)
+                .map(|pending| pending.root_id),
+            None,
+        ),
+    };
+    let (reading, roots) = match root_not_handled {
+        Some(root_id) => (
+            RootReading::Left(Some(root_id)),
+            RootsLeft {
+                left: Vec::new(),
+                names: Vec::new(),
+                listed: true,
+            },
+        ),
+        None => file_root::destroy_roots_in(roots, named, false),
+    };
+    (reading, roots, root_not_handled)
 }
 
 fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {

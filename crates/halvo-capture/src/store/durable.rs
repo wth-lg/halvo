@@ -905,6 +905,46 @@ const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 #[cfg(windows)]
 pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
 
+/// A part of the path ends in a dot or a space, which Win32 trims when it
+/// opens a name that is not verbatim, so that an open could reach the sibling
+/// without that end.
+#[cfg(windows)]
+pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
+    path.components().any(|part| match part {
+        std::path::Component::Normal(name) => {
+            let name = name.to_string_lossy();
+            name.ends_with('.') || name.ends_with(' ')
+        }
+        _ => false,
+    })
+}
+
+/// The verbatim form of a path, which Win32 opens without trimming: the path
+/// itself when it is verbatim, `\\?\` before an absolute path on a drive that
+/// holds no `.` or `..` part, and nothing for any other path.
+#[cfg(windows)]
+pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
+    use std::path::{Component, Prefix};
+    let mut parts = path.components();
+    let Some(Component::Prefix(prefix)) = parts.next() else {
+        return None;
+    };
+    match prefix.kind() {
+        Prefix::Verbatim(_) | Prefix::VerbatimDisk(_) | Prefix::VerbatimUNC(..) => {
+            Some(path.to_path_buf())
+        }
+        Prefix::Disk(_)
+            if parts.next() == Some(Component::RootDir)
+                && parts.all(|part| matches!(part, Component::Normal(_))) =>
+        {
+            let mut verbatim = std::ffi::OsString::from(r"\\?\");
+            verbatim.push(path.as_os_str());
+            Some(std::path::PathBuf::from(verbatim))
+        }
+        _ => None,
+    }
+}
+
 #[cfg(windows)]
 pub(crate) use windows_dir::file_link_count;
 

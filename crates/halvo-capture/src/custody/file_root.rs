@@ -161,6 +161,10 @@ pub(crate) fn destroy_roots_in(
         return (RootReading::Unnamed, none_counted(true));
     };
     let left_unread = (RootReading::Left(Some(named)), none_counted(false));
+    #[cfg(windows)]
+    if durable::has_a_part_that_windows_trims(roots) {
+        return left_unread;
+    }
     let Ok(dir) = Dir::open(roots) else {
         return left_unread;
     };

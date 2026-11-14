@@ -1211,6 +1211,18 @@ What the code does since store-3, each sentence with the test that shows it.
   `the_tail_on_a_store_directory_of_mode_000_destroys_the_root_or_reports_it`,
   `delete_all_with_segments_at_0500_answers_ok_only_when_nothing_of_the_store_is_left`,
   `the_tail_destroys_a_root_file_whose_name_stands_in_upper_case_on_a_volume_that_folds_case`.
+- The key file's version is read as a signed 64-bit integer before it is
+  sorted: 4294967296 answers `NewerStore`, -1 and 0 `OlderStore`, and a
+  number outside that range or one that is not an integer
+  `KeyFileUnparseable`. On Windows the tail on a store path of which a part
+  ends in a dot or a space removes nothing at or beside that path: it runs
+  the root step from the key file that it reads through the verbatim form
+  of the path, takes no lock there, counts `not_followed` 1 and answers
+  `DeleteIncomplete`; a path that has no verbatim form leaves the root
+  unread. A roots path of that form leaves the named root unread and listed
+  no (ruling ST-44 F8). Tests:
+  `a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store`,
+  `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`.
 - An open that is refused destroys no root file, writes nothing under the
   roots directory and leaves `create.pending` as it found it (ruling
   ST-43). Tests, each with a `create.pending` of a killed create that names
@@ -1247,7 +1259,9 @@ What the code does since store-3, each sentence with the test that shows it.
 - On macOS SQLite opens the database under the name
   `/.vol/<device>/<file number>/store.db` of the handle's directory, with
   the two numbers read from the handle at each open and kept nowhere, after
-  one stat of `/.vol/<device>/<file number>` that follows no link: that
+  up to three stats of `/.vol/<device>/<file number>` that follow no link
+  (the first, and two more while the volume reads YES and the handle has
+  not left its name, `STATS_AFTER_THE_FIRST`): that
   name with the same identity is used; another identity refuses the open;
   `ENOENT`, `ENOTSUP` or `EOPNOTSUPP` give the kept name only on a volume
   that reads NO before and after the stat (ruling ST-39 (1); see L2). Tests:

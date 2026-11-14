@@ -2415,7 +2415,7 @@ fn every_form_of_a_key_file_opens_as_the_result_that_names_it() {
             "a wrapped key of 8 bytes: KeyFileUnparseable",
             "custody kind tpm: KeyFileUnparseable",
             "version as a string: KeyFileUnparseable",
-            "version below zero: KeyFileUnparseable",
+            "version below zero: OlderStore { found: -1, supported: 2 }",
             "version 999: NewerStore { found: 999, supported: 2 }",
             "opened twice: Locked",
         ]
