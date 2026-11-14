@@ -92,12 +92,15 @@ pub const NAMES: &[&str] = &[
     "start",
 ];
 
-/// The most records of one `coord_log` body; it equals `request_records` of `Limits::PRODUCT` of halvo-coord.
-pub const REQUEST_RECORDS: usize = 8;
+/// The most records of one `coord_log` body, so that a confirmation of up to 20 effects is recorded in one body
+/// (ruling RD-73 7.1). It is never below `request_records` of `Limits::PRODUCT` of halvo-coord, because a reader
+/// that takes more serves an older sender and not the reverse (RD-73 7.2).
+pub const REQUEST_RECORDS: usize = 20;
 
-/// The most bytes of one `coord_log` body as written; it equals `request_bytes` of `Limits::PRODUCT` of
-/// halvo-coord.
-pub const REQUEST_BYTES: usize = 4096;
+/// The most bytes of one `coord_log` body as it arrives and as written, a quarter of the 65,536 bytes that the
+/// owner stream's reader takes for a whole frame (ruling RD-73 7.1). It is never below `request_bytes` of
+/// `Limits::PRODUCT` of halvo-coord (RD-73 7.2).
+pub const REQUEST_BYTES: usize = 16_384;
 
 /// The most records of one reply of `coord_history`.
 pub const HISTORY_RECORDS: usize = 64;

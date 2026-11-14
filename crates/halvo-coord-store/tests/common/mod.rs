@@ -119,6 +119,21 @@ pub fn row(seq: u32, day: u32) -> String {
     hold_set(1, 1, seq, day, noon(day))
 }
 
+/// A row `item_answered` of workflow 1 and agent 1 at noon of its day: the answer `reject_once` to effect `n` of the
+/// confirmation item 1 of run 1.
+pub fn confirm_answered(seq: u32, day: u32, n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{},"event":"item_answered","run":null,"slot":null,"item":"{}","kind":"confirm","effect":"{}","approval":"{}","digest":"{}","answer":"reject_once","cause":null,"trigger":null,"origin":null}}"#,
+        wf(1),
+        agent(1),
+        noon(day),
+        item(1),
+        id('6', n),
+        id('8', n),
+        "ab".repeat(32)
+    )
+}
+
 pub fn typed(json: String) -> TypedRecord {
     TypedRecord {
         kind: "coord_event",
