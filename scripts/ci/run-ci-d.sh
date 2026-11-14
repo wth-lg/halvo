@@ -62,6 +62,20 @@ case $mode:$job in
   *) usage >&2; exit 64 ;;
 esac
 
+nested_switch() {
+  nested_word=
+  case ${RUN_CI_D_NESTED##*/} in
+    nested-switch) ;;
+    *) return 1 ;;
+  esac
+  [ -f "$RUN_CI_D_NESTED" ] || return 1
+  read -r nested_word <"$RUN_CI_D_NESTED" || return 1
+  case $nested_word in
+    yes | fail | slow) return 0 ;;
+  esac
+  return 1
+}
+
 # shellcheck disable=SC2329
 st_top() {
   trap '' INT TERM HUP
@@ -73,6 +87,10 @@ st_top() {
 }
 
 if [ -n "$job" ] && [ "$mode" != list ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]; then
+  if [ -n "${RUN_CI_D_NESTED:-}" ] && ! nested_switch; then
+    printf 'FAIL run-ci-d (RUN_CI_D_NESTED is set by the caller; the driver sets it for the runs inside its own cases alone)\n'
+    exit 1
+  fi
   st_worker=
   trap 'st_top INT 130 USR1' INT
   trap 'st_top TERM 143 TERM' TERM
@@ -860,7 +878,12 @@ own_run() {
     fi
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
+    nested_value=$case_switch
+    if [ -z "$nested_value" ]; then
+      nested_value=$tmp/nested-switch
+      printf '%s\n' "${case_nested:-yes}" >"$nested_value" || exit 99
+    fi
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=$nested_value ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
     case_pid=$!
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
     if [ -n "$case_signal" ]; then
@@ -991,6 +1014,7 @@ case_reset() {
   case_then=
   case_max_s=
   case_nested=
+  case_switch=
   case_path=
   case_signal=
   case_wait=
@@ -1041,9 +1065,9 @@ own_self_test() {
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
-  if [ -n "${RUN_CI_D_NESTED:-}" ]; then
-    [ "$RUN_CI_D_NESTED" != fail ] || wrong="$wrong nested-run-asked-to-fail"
-    [ "$RUN_CI_D_NESTED" != slow ] || sleep 6
+  if [ -n "${RUN_CI_D_NESTED:-}" ] && nested_switch; then
+    [ "$nested_word" != fail ] || wrong="$wrong nested-run-asked-to-fail"
+    [ "$nested_word" != slow ] || sleep 6
     if [ -n "$wrong" ]; then
       record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
     else
@@ -1515,6 +1539,17 @@ own_self_test() {
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=fail
   own_case own-cases-that-fail-in-a-nested-run 1 'ci.d macos self-test: 0 passed, 1 failed' macos --self-test run-ci-d
+  nested_line='FAIL run-ci-d (RUN_CI_D_NESTED is set by the caller; the driver sets it for the runs inside its own cases alone)'
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_switch=yes
+  case_witness=yes
+  case_absent='PASS self-test:run-ci-d (a nested run stops after its first case)'
+  own_case nested-switch-set-by-the-caller-is-refused 1 "$nested_line" macos --self-test run-ci-d
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
+  case_switch=fail
+  case_witness=yes
+  case_absent='PASS 10-a'
+  own_case nested-switch-set-by-the-caller-is-refused-in-the-step-ci.d 1 "$nested_line" macos
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=slow
   case_limit=2

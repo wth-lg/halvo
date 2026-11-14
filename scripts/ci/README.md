@@ -16,6 +16,8 @@ Start each command at the repo root.
 
 Each job of `ci.yml` has the steps `ci.d self-test` and `ci.d`, which run the first two commands.
 
+The driver's own cases run the driver inside themselves, and such a run knows it by the variable `RUN_CI_D_NESTED`, which holds the path of a file named `nested-switch` that the own cases write. When the caller sets `RUN_CI_D_NESTED` to anything else, the driver prints `FAIL run-ci-d (RUN_CI_D_NESTED is set by the caller; the driver sets it for the runs inside its own cases alone)` and exits 1 in both steps, so a value left in the caller's environment cannot make the own cases stop after their first case and pass.
+
 ## A script
 
 - Its path is `scripts/<run>/ci.d/NN-name.sh`: two digits, then a name of `a-z`, `0-9` and `-`. The directory of R1 is `scripts/r1/ci.d/`. No two scripts have the same `NN-name`.
@@ -83,7 +85,7 @@ What a self-test keeps to, so that it can run beside the others: it writes only 
 | Status | Meaning |
 |---|---|
 | 0 | Every script that ran passed or skipped, at least one passed, and the lockfile guard passed. |
-| 1 | A script failed, every script skipped, no script names the job, a NAME matches no script, a tracked file differs from HEAD (see A script), the lockfile guard failed, `CI_D_SCRIPT_LIMIT_S` is set to anything but a whole number from 1 to 999999999, or `perl` does not run. In the step `ci.d` also: `CI_D_CHECK_JOBS` is set to anything but a whole number from 1 to 999999999. With `--self-test` also: `CI_D_SELF_TEST_JOBS` is set to anything but a whole number from 1 to 999999999, or `scripts/ci/self-test-alone.txt` cannot be read, or a line of it names no script or gives no reason. |
+| 1 | A script failed, every script skipped, no script names the job, a NAME matches no script, a tracked file differs from HEAD (see A script), the lockfile guard failed, `CI_D_SCRIPT_LIMIT_S` is set to anything but a whole number from 1 to 999999999, the caller set `RUN_CI_D_NESTED`, or `perl` does not run. In the step `ci.d` also: `CI_D_CHECK_JOBS` is set to anything but a whole number from 1 to 999999999. With `--self-test` also: `CI_D_SELF_TEST_JOBS` is set to anything but a whole number from 1 to 999999999, or `scripts/ci/self-test-alone.txt` cannot be read, or a line of it names no script or gives no reason. |
 | 130, 143, 129 | INT, TERM or HUP reached the driver, which ended every script that it had started. |
 | 64 | Bad usage. |
 
