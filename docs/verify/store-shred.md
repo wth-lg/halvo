@@ -1153,24 +1153,43 @@ What the code does since store-3, each sentence with the test that shows it.
   `the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots` (P3).
 - `EncryptedStore::delete_store_dir(store_dir, roots)` is the tail for a
   directory that no handle holds: it takes the directory lock, runs the
-  root step for the root that `store.key` or a `create.pending` that reads
-  made names (never one that reads owed), removes the store's files in
-  every case, and never opens the database. Named, and no directory or no
-  listable directory at the roots location: `DeleteIncomplete`, the root
-  left, and no file named for removal. Named, and the directory holds no
-  entry of that root: `DeleteIncomplete` with the root left as not found,
-  because the tail cannot tell a delete that was stopped after its root
-  step from a root file that was moved out. Nothing names a root: `Ok` with
-  the reading unnamed, also for a tail that finds neither a store directory
-  nor a roots directory, and nothing is destroyed under the roots
-  directory. So after a delete that was stopped between its root step and
-  its file step, the first tail answers `DeleteIncomplete` (not found) and
-  the next `Ok` (unnamed). A key file of version 1, of a newer version
-  whose version field parses, or of a custody kind that keeps no root file
-  under the roots directory is removed with the rest, and its root is
-  reported as not handled and never as destroyed; a later tail, with
-  nothing left that names a root, answers `Ok` unnamed (ruling ST-44 F1
-  (d), (e) and F5). Tests:
+  root step, removes the store's files in every case, and never opens the
+  database. A root is named by `store.key` or by a `create.pending` that
+  reads made, never by one that reads owed. The witness binds the tail in
+  the three arms where it did not take the store's lock: a store directory
+  that stands and that it cannot open gets no root step (the root left, the
+  roots not listed, `DeleteIncomplete`; the next tail after the directory
+  can be opened finishes); a lock that it cannot take for a reason other
+  than a holder, and on Windows a path part that Win32 trims, get the root
+  step for the named root alone. In every other arm (the lock held; nothing
+  at the store name; a link or an entry of another kind at the store name
+  that this call removed, after that removal) the tail opens the roots path
+  once and destroys every entry whose name is a root name or a partial
+  name, whether or not anything names a root, also beside a key file that
+  this build does not handle; it opens no roots path that leads through a
+  store name at which it did not open a directory itself. The root reads
+  destroyed only when a root was named and this call removed its entries,
+  left (not found) when one was named and not removed, and unnamed when
+  nothing named one. `Ok` needs the reading destroyed or unnamed and either
+  nothing at the roots path (with nothing named) or a listing after the
+  removals with no root name and no partial name. Named, and no directory
+  at the roots location: `DeleteIncomplete`, the root left, the roots
+  location not listed. A roots path that stands and cannot be opened or
+  listed reads not listed and answers `DeleteIncomplete` on every call,
+  named or not; an entry that stays is named under its real name on every
+  call. So after a delete that was stopped between its root step and its
+  file step, the first tail answers `DeleteIncomplete` (not found) and the
+  next `Ok` (unnamed). A key file of version 1, of a newer version whose
+  version field parses, or of a custody kind that keeps no root file under
+  the roots directory is removed with the rest, and its root is reported as
+  not handled and never as destroyed on that call, unnamed on the next
+  (ruling ST-44 F1 (d), (e) and F5, as ruling ST-45 H1 amends them). Tests:
+  `the_tail_answers_each_arm_as_its_row_says_and_leaves_the_roots_directory_as_its_row_says`
+  (the table, one row for each arm),
+  `the_tail_opens_no_roots_path_through_a_link_at_the_store_name`,
+  `the_tail_beside_a_key_file_of_version_1_sweeps_the_roots_and_the_next_tail_reads_unnamed`,
+  `the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_destroyed`,
+  `the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_it`,
   `the_tail_answers_ok_only_when_no_root_unwraps_after_the_roots_directory_moved`,
   `the_second_tail_after_the_roots_directory_moved_does_not_read_the_root_as_destroyed`,
   `the_tail_with_the_roots_inside_a_moved_store_directory_answers_ok_only_when_the_store_is_gone`,
@@ -1185,9 +1204,11 @@ What the code does since store-3, each sentence with the test that shows it.
   that fails sends the create to its abandon, which destroys the root that
   it made. `create`, an open that succeeds and the tail destroy a root that
   a leftover `create.pending` names only when the mark reads made and no
-  key file of its own directory names that root; a mark that reads owed,
-  that has no reading or that does not parse is removed and destroys
-  nothing (ruling ST-44 F3). The delete on a handle removes
+  key file of its own directory names that root; for a create and an open
+  a mark that reads owed, that has no reading or that does not parse is
+  removed and destroys nothing (ruling ST-44 F3); for the tail such a mark
+  names no root, and the sweep destroys its root file with the rest
+  (ruling ST-45 H1). The delete on a handle removes
   `create.pending` and its temporary file. Tests:
   `a_create_over_a_stale_pending_mark_destroys_no_root_of_a_live_store`,
   `a_stopped_create_under_a_root_id_that_another_create_then_made_keeps_that_live_root`,
@@ -1388,25 +1409,49 @@ set, and the root's own volume name answers the root.
   (`delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it`);
   a file of another program that a process of the same user hard-links at
   a root file's name is zeroed with it (found by the review of store-3 and
-  left so). Before the zero-fill the root step opens the root file, keeps
-  that handle and makes the file writable (the mode on unix, the read-only
-  attribute on Windows). If the zero-fill still fails: with one name, the
-  count read through the kept handle, the name is removed, and the root
+  left so). Before the open the root step sets the entry's mode to 0600 by
+  its name through the directory's handle, following no link, and only for
+  an entry that reads as a regular file at a root name or a partial name
+  (on Windows it clears the read-only attribute after the open). It keeps
+  one handle: the open for update, or else the read open, or else the write
+  open of the same name, none following a link; the count, the test that
+  the name still leads to that file and the zero-fill go through the kept
+  handle, and a kept handle that cannot write zero-fills through a write
+  open of the name that still leads to the same file. When no open
+  succeeds the name is kept, the root is left under its real name, and
+  every later tail tries it and names it again (ruling ST-45 H2; on Windows
+  a root file that an access list or another process's handle keeps closed
+  stays such a named entry). If the zero-fill still fails: with one name,
+  the count read through the kept handle, the name is removed, and the root
   reads destroyed only when the count read through that handle after the
   removal is 0; with more than one name, or a count that cannot be read, the
   name is kept, the root is left under its real name, and the next call
   tries again (ruling ST-44 F2 (c)). A name made after the count is read
-  stays this limit.
+  stays this limit. Tests:
+  `p2_b_a_tail_after_a_tail_that_left_the_root_file_names_it_or_destroys_it`,
+  `p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail`,
+  `p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_names`,
+  `a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok`.
+- The tail's sweep (ruling ST-45 H1). The roots location that a caller
+  gives the tail is that data directory's own (ruling ST-32 (a)), so two
+  stores that share one roots directory both lose their root at a tail.
+  A create that makes its directory after the tail read that none stands
+  can lose its root; the daemon's instance lock is the guard. After a
+  handle's delete that the witness stopped, the tail after a restart sweeps
+  whatever roots directory stands at the path. A tail that names nothing
+  destroys the key files of recordings that were moved out of the data
+  folder, as ST-30 (1)(d) has it.
 - What the review of store-3 found and left as it is, each by its reason. A
   link at a root file's name under the roots directory is removed and not
   followed, and it is not counted in `not_followed`, which counts the store's
   own names. The delete tail does not ask SQLite whether another program
   holds `store.db`, because it never opens the database: a holder that does
   not hold the directory lock is not refused. The tail on a name where no
-  directory stands destroys nothing under the roots directory and answers
-  `Ok` with the root unnamed (ruling ST-44 F1 (d), which amends ST-30 (1)
-  (d)); the daemon's instance lock on the data directory keeps the tail from
-  running beside a live daemon. A
+  directory stands sweeps the roots directory that it is given, unless that
+  path leads through the store name, and answers `Ok` with the root
+  unnamed when no root file stays (ruling ST-45 H1, which restores ST-30
+  (1)(d) for the tail); the daemon's instance lock on the data directory
+  keeps the tail from running beside a live daemon. A
   program that takes `store.db` between the probe and the open makes `open`
   answer `Locked` after it asked its custody. A caller that gives a create
   another roots directory than the one where a stopped create made its root
@@ -1423,7 +1468,8 @@ set, and the root's own volume name answers the root.
 - The pending mark (ruling ST-44 F3). (i) A create stopped between its
   `create_root` and the second write of its mark leaves a root file, and
   its partial files, that no mark and no key file names. It wraps no key,
-  only a delete destroys it, and while it stands a create under that root
+  the next tail's sweep destroys it (ruling ST-45 H1; the kill table's
+  stopped create runs that tail), and while it stands a create under that root
   id answers `RootExists`. (ii) A mark that reads made destroys by id: two
   creates under one root id with a delete between them are not covered;
   the rule is a fresh id for each create, and no caller passes an id

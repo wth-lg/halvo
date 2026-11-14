@@ -138,49 +138,88 @@ impl RootsLeft {
     }
 }
 
+/// How a root step treats the roots directory that it opens (ruling ST-45
+/// H1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RootStepForm {
+    /// The handle's delete-all: with the witness, every root file of the
+    /// directory, the named one first.
+    Witness,
+    /// A tail that holds no lock (its lock failed for a reason other than a
+    /// holder, or a part of the store path is one that Win32 trims): with the
+    /// witness, the entries of the named root alone.
+    NamedAlone,
+    /// Every other tail: every entry whose name is a root name or a partial
+    /// name, named or not.
+    Sweep,
+}
+
 /// The root step through one opened handle of the roots location. `named`
 /// is the root that the handle, the key file or a mark that reads made names.
-/// The step lists, destroys and reads again through that one handle, and it
-/// destroys there only when the directory holds an entry of the named root
-/// (the witness): a directory put at the old name is not touched, and a
-/// roots directory that left its name is not read as destroyed. With the
-/// witness every root file of the directory is destroyed, the named one
-/// first. With nothing named it destroys nothing. A later call on a handle
-/// whose root read destroyed does not come here (ruling ST-45 H3).
-pub(crate) fn destroy_roots_in(roots: &Path, named: Option<RootId>) -> (RootReading, RootsLeft) {
+/// The step lists, destroys and reads again through that one handle. In the
+/// forms with the witness it destroys there only when the directory holds an
+/// entry of the named root: a directory put at the old name is not touched,
+/// a roots directory that left its name is not read as destroyed, and with
+/// nothing named it opens nothing. The sweep destroys every root file and
+/// partial root file, named or not, and reads nothing at the roots path as
+/// an answer: listed and empty when nothing names a root, the root left and
+/// not listed when one is named. The root reads destroyed only when one is
+/// named and this call removed its entries and none stays; left when one is
+/// named and not removed; unnamed when nothing names one. A roots path that
+/// stands and cannot be opened or listed reads not listed. A later call on
+/// a handle whose root read destroyed does not come here (ruling ST-45 H3).
+pub(crate) fn destroy_roots_in(
+    roots: &Path,
+    named: Option<RootId>,
+    form: RootStepForm,
+) -> (RootReading, RootsLeft) {
     let none_counted = |listed: bool| RootsLeft {
         left: Vec::new(),
         names: Vec::new(),
         listed,
     };
-    let Some(named) = named else {
-        return (RootReading::Unnamed, none_counted(true));
-    };
-    let left_unread = (RootReading::Left(Some(named)), none_counted(false));
+    let unread_reading = named.map_or(RootReading::Unnamed, |id| RootReading::Left(Some(id)));
+    if named.is_none() && form != RootStepForm::Sweep {
+        return (RootReading::Unnamed, none_counted(false));
+    }
+    let unread = (unread_reading, none_counted(false));
     #[cfg(windows)]
     if durable::has_a_part_that_windows_trims(roots) {
-        return left_unread;
+        return unread;
     }
-    let Ok(dir) = Dir::open(roots) else {
-        return left_unread;
+    let dir = match Dir::open(roots) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == ErrorKind::NotFound && form == RootStepForm::Sweep => {
+            return (unread_reading, none_counted(named.is_none()));
+        }
+        Err(_) => return unread,
     };
     let Ok(entries) = dir.entries() else {
-        return left_unread;
+        return unread;
     };
     let mut found: Vec<(RootFile, OsString)> = entries
         .into_iter()
         .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.name)))
         .collect();
-    let holds_named = found.iter().any(|(file, _)| file.id() == named);
-    if !holds_named {
-        return (RootReading::Left(Some(named)), none_counted(true));
+    let of_named = |file: &RootFile| Some(file.id()) == named;
+    if form != RootStepForm::Sweep {
+        if !found.iter().any(|(file, _)| of_named(file)) {
+            return (unread_reading, none_counted(true));
+        }
+        if form == RootStepForm::NamedAlone {
+            found.retain(|(file, _)| of_named(file));
+        }
     }
-    found.sort_by_key(|(file, _)| file.id() != named);
+    found.sort_by_key(|(file, _)| !of_named(file));
+    let mut named_entry_met = false;
     let mut every_named_entry_destroyed = true;
     for (file, name) in &found {
         let fate = destroy_root_entry(&dir, name);
-        if file.id() == named && fate != EntryFate::Gone {
-            every_named_entry_destroyed = false;
+        if of_named(file) {
+            named_entry_met = true;
+            if fate != EntryFate::Gone {
+                every_named_entry_destroyed = false;
+            }
         }
     }
     let _ = dir.sync();
@@ -194,12 +233,17 @@ pub(crate) fn destroy_roots_in(roots: &Path, named: Option<RootId>) -> (RootRead
                 })
                 .collect();
             stays.sort_by(|a, b| a.1.cmp(&b.1));
-            let reading =
-                if every_named_entry_destroyed && !stays.iter().any(|(id, _)| *id == named) {
+            let reading = match named {
+                None => RootReading::Unnamed,
+                Some(named)
+                    if named_entry_met
+                        && every_named_entry_destroyed
+                        && !stays.iter().any(|(id, _)| *id == named) =>
+                {
                     RootReading::Destroyed
-                } else {
-                    RootReading::Left(Some(named))
-                };
+                }
+                Some(named) => RootReading::Left(Some(named)),
+            };
             let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
             left.dedup();
             let names = stays.into_iter().map(|(_, name)| name).collect();
@@ -212,7 +256,7 @@ pub(crate) fn destroy_roots_in(roots: &Path, named: Option<RootId>) -> (RootRead
                 },
             )
         }
-        Err(_) => (RootReading::Left(Some(named)), none_counted(false)),
+        Err(_) => unread,
     }
 }
 
@@ -234,13 +278,21 @@ impl PartialEq for EntryFate {
 }
 
 /// Destroys one entry of a roots directory. An entry that is no regular file
-/// is removed as the entry that it is. For a regular file the store opens the
-/// file, keeps that handle and makes the file writable, then zero-fills it
-/// through its name, which reaches every name of the file, and removes the
-/// name. If the zero-fill still fails: with one name (the count read through
-/// the kept handle) the name is removed, and the entry is gone only when the
-/// count read through that handle after the removal is 0; with more than one
-/// name, or a count that cannot be read, the name is kept and a key may stay.
+/// is removed as the entry that it is. For a regular file the step first sets
+/// its mode to 0600 by its name through the directory's handle, following no
+/// link (on Windows it clears the read-only attribute after the open), then
+/// keeps one handle: the open for update, or the read open, or the write open
+/// of the same name, none following a link. The count, the test that the name
+/// still leads to that file and the zero-fill go through the kept handle; a
+/// kept handle that cannot write zero-fills through a write open of the name
+/// that still leads to the same file. The zero-fill reaches every name of the
+/// file, and the name is removed. If the zero-fill still fails: with one name
+/// (the count read through the kept handle) the name is removed, and the
+/// entry is gone only when the count read through that handle after the
+/// removal is 0; with more than one name, or a count that cannot be read, the
+/// name is kept and a key may stay. When no open succeeds the name is kept
+/// and a key may stay, and every later tail tries it and names it again
+/// (ruling ST-45 H2).
 fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -257,12 +309,20 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
         }
         Ok(_) => {}
     }
-    let kept = match dir.open_file(name) {
+    #[cfg(unix)]
+    let _ = dir.set_file_mode(name, 0o600);
+    let kept = match dir
+        .open_file_for_update(name)
+        .or_else(|_| dir.open_file(name))
+        .or_else(|_| dir.open_file_for_write(name))
+    {
         Ok(kept) => kept,
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
+    #[cfg(windows)]
     make_writable(dir, name, &kept);
-    let zeroed = matches!(dir.names_file(name, &kept), Ok(true)) && zero_fill(dir, name).is_ok();
+    let zeroed = matches!(dir.names_file(name, &kept), Ok(true))
+        && zero_fill_through(dir, name, &kept).is_ok();
     if zeroed {
         return match remove(dir) {
             Ok(()) => EntryFate::Gone,
@@ -279,10 +339,27 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
     }
 }
 
-#[cfg(unix)]
-fn make_writable(_dir: &Dir, _name: &OsStr, kept: &std::fs::File) {
-    use std::os::unix::fs::PermissionsExt;
-    let _ = kept.set_permissions(std::fs::Permissions::from_mode(0o600));
+/// Zero-fills the file of the kept handle: through that handle, or, when it
+/// cannot write, through a write open of `name` that still leads to the same
+/// file.
+fn zero_fill_through(dir: &Dir, name: &OsStr, kept: &std::fs::File) -> std::io::Result<()> {
+    if zero_through(kept).is_ok() {
+        return Ok(());
+    }
+    let writer = dir.open_file_for_write(name)?;
+    if !(dir.names_file(name, kept)? && dir.names_file(name, &writer)?) {
+        return Err(std::io::Error::from(ErrorKind::NotFound));
+    }
+    zero_through(&writer)
+}
+
+fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
+    use std::io::{Seek, SeekFrom};
+    let len = file.metadata()?.len() as usize;
+    let mut writer = file;
+    writer.seek(SeekFrom::Start(0))?;
+    writer.write_all(&vec![0u8; len])?;
+    file.sync_all()
 }
 
 #[cfg(windows)]

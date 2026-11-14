@@ -450,6 +450,38 @@ mod unix_dir {
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
         }
 
+        /// Sets the mode of the entry `name` by its name through this handle,
+        /// following no link.
+        pub(crate) fn set_file_mode(&self, name: &OsStr, mode: libc::mode_t) -> io::Result<()> {
+            let c = c_name(name)?;
+            // SAFETY: c is NUL-terminated, and the descriptor is this handle's,
+            // open while self lives.
+            checked(unsafe {
+                libc::fchmodat(
+                    self.fd.as_raw_fd(),
+                    c.as_ptr(),
+                    mode,
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            })
+        }
+
+        /// Opens the regular file `name` for reading and writing, following
+        /// no link.
+        pub(crate) fn open_file_for_update(&self, name: &OsStr) -> io::Result<File> {
+            let c = c_name(name)?;
+            let flags = libc::O_RDWR | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
+            let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
+            match kind(&stat_of(fd.as_raw_fd())?) {
+                EntryKind::File => Ok(File::from(fd)),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
         pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
             let c = c_name(name)?;
             let flags = libc::O_WRONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
@@ -798,6 +830,21 @@ mod windows_dir {
 
         pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
             std::fs::remove_dir(self.path.join(name))
+        }
+
+        /// Opens the regular file `name` for reading and writing, following
+        /// no link.
+        pub(crate) fn open_file_for_update(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .read(true)
+                .write(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
         }
 
         pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
