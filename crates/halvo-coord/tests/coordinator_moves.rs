@@ -6936,3 +6936,44 @@ fn a_switch_off_that_drops_a_queued_start_keeps_its_ready_card_whose_start_answe
         .count();
     assert_eq!(raised, 1, "one ready item, not a second beside it");
 }
+
+#[test]
+fn rd52b_an_allow_on_a_second_step_whose_read_shows_a_stored_switch_off_stops_the_run_first() {
+    use halvo_coord::types::AgentState;
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = waiting("second_step");
+        assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+        let m = mark(&c);
+        let answered = c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        assert_eq!(
+            answered,
+            Err(Cause::UnknownItem),
+            "{case}: as for an item no longer open"
+        );
+        assert_eq!(allows(&c), 0, "{case}: no allow goes out");
+        assert!(
+            !step_rows(&c, &item).iter().any(|r| r == "allow"),
+            "{case}: no answer row: {:?}",
+            step_rows(&c, &item)
+        );
+        assert_eq!(
+            step_rows(&c, &item),
+            ["lapsed:cancelled"],
+            "{case}: the step lapses with the switch-off"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+        assert_eq!(
+            states_sent(&c, m),
+            [AgentState::Paused],
+            "{case}: paused once"
+        );
+        assert!(c.off_beside_live().is_empty(), "{case}");
+        assert!(c.snapshot().items.is_empty(), "{case}: no card");
+    }
+}
