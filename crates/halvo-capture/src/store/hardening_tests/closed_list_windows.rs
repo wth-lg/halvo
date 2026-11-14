@@ -448,3 +448,139 @@ fn an_open_while_another_handle_holds_the_lock_file_without_sharing_answers_lock
     assert_eq!(raw, Some(ERROR_SHARING_VIOLATION));
     assert_eq!(opened, "Locked");
 }
+
+/// Ruling ST-45 H6 (a): verbatim_form builds its form from the path's parts.
+/// A real directory named `store.` holds a store, and the tail is given its
+/// path written with forward slashes, with a dot part and with a doubled
+/// separator: the root step runs (the root no longer unwraps), the other root
+/// stays (H1: the named root alone in this arm), and `store.` keeps its files.
+#[test]
+fn the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone() {
+    let mut problems = Vec::new();
+    for spelling in ["forward slashes", "a dot part", "a doubled separator"] {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().to_path_buf();
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let wrapped = wrapped_of(&made_at);
+        let other = RootId::fresh().unwrap();
+        file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
+            .create_root()
+            .unwrap();
+        let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
+        std::fs::rename(&made_at, &verbatim).unwrap();
+        let text = base.display().to_string();
+        let given = PathBuf::from(match spelling {
+            "forward slashes" => format!("{}/store.", text.replace('\\', "/")),
+            "a dot part" => format!(r"{text}\.\store."),
+            _ => format!(r"{text}\\store."),
+        });
+        let answer = EncryptedStore::delete_store_dir(&given, &roots_dir);
+        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
+        let other_stays = roots_dir.join(format!("{other}.root")).exists();
+        let key_file_stays = verbatim.join("store.key").exists();
+        println!(
+            "WIN-ST45-H6A spelling={spelling} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays} store_dot_keeps_its_key_file={key_file_stays} trimmed_name_exists={}",
+            report_line(&answer),
+            base.join("store").exists()
+        );
+        let incomplete =
+            matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if r.not_followed == 1);
+        if !(destroyed && other_stays && key_file_stays && incomplete) {
+            problems.push(spelling);
+        }
+    }
+    assert!(problems.is_empty(), "spellings that fail: {problems:?}");
+}
+
+/// Ruling ST-45 H1 on Windows: in the two arms without the lock that run a
+/// root step (a path part that Win32 trims, and a lock that fails for a
+/// reason other than a holder: here a directory at writer.lock), the tail
+/// destroys the named root alone, with the witness, and another root stays.
+#[test]
+fn the_tail_without_the_lock_destroys_the_named_root_alone() {
+    let mut problems = Vec::new();
+    for arm in ["a dotted name", "a directory at writer.lock"] {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().to_path_buf();
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let wrapped = wrapped_of(&made_at);
+        let other = RootId::fresh().unwrap();
+        file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
+            .create_root()
+            .unwrap();
+        let store_at = if arm == "a dotted name" {
+            let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
+            std::fs::rename(&made_at, &verbatim).unwrap();
+            verbatim
+        } else {
+            std::fs::remove_file(made_at.join("writer.lock")).unwrap();
+            std::fs::create_dir(made_at.join("writer.lock")).unwrap();
+            made_at.clone()
+        };
+        let answer = EncryptedStore::delete_store_dir(&store_at, &roots_dir);
+        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
+        let other_stays = roots_dir.join(format!("{other}.root")).exists();
+        println!(
+            "WIN-ST45-H1 arm={arm} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays}",
+            report_line(&answer)
+        );
+        if !(destroyed && other_stays && answer.is_err()) {
+            problems.push(arm);
+        }
+    }
+    assert!(problems.is_empty(), "arms that fail: {problems:?}");
+}
+
+/// Ruling ST-45 H6 (b), the test first: a create and then an open at a store
+/// path, and a create at a roots path, of which a part ends in a dot or a
+/// space, not verbatim. It prints what stands at the trimmed name and fails
+/// when a call acted on the trimmed sibling.
+#[test]
+fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name() {
+    let mut acted = Vec::new();
+    for (case, store_name, roots_name) in [
+        ("a store path that ends in a dot", "store.", "roots"),
+        ("a store path that ends in a space", "store ", "roots"),
+        ("a roots path that ends in a dot", "store", "roots."),
+        ("a roots path that ends in a space", "store", "roots "),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().to_path_buf();
+        let text = base.display().to_string();
+        let store_dir = PathBuf::from(format!(r"{text}\{store_name}"));
+        let roots_dir = PathBuf::from(format!(r"{text}\{roots_name}"));
+        let root_id = RootId::fresh().unwrap();
+        let created = answer_text(&EncryptedStore::create(
+            &store_dir,
+            Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )),
+            DEFAULT_RETENTION,
+        ));
+        let opened = answer_text(&EncryptedStore::open(
+            &store_dir,
+            &roots_dir,
+            DEFAULT_RETENTION,
+        ));
+        let trimmed_store = base.join(store_name.trim_end_matches(['.', ' ']));
+        let trimmed_roots = base.join(roots_name.trim_end_matches(['.', ' ']));
+        let verbatim_store = PathBuf::from(format!(r"\\?\{text}\{store_name}")).exists();
+        let verbatim_roots = PathBuf::from(format!(r"\\?\{text}\{roots_name}")).exists();
+        let store_trims = store_name != store_name.trim_end_matches(['.', ' ']);
+        let roots_trims = roots_name != roots_name.trim_end_matches(['.', ' ']);
+        let at_trimmed_store = store_trims && trimmed_store.exists();
+        let at_trimmed_roots = roots_trims && trimmed_roots.exists();
+        println!(
+            "WIN-ST45-H6B case={case} create={created} open={opened} trimmed_store_name_exists={at_trimmed_store} trimmed_roots_name_exists={at_trimmed_roots} verbatim_store_name_exists={verbatim_store} verbatim_roots_name_exists={verbatim_roots}"
+        );
+        if at_trimmed_store || at_trimmed_roots {
+            acted.push(case);
+        }
+    }
+    assert!(
+        acted.is_empty(),
+        "calls acted on the trimmed sibling: {acted:?}"
+    );
+}

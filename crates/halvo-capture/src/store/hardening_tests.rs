@@ -6322,7 +6322,7 @@ fn delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_nam
 
 #[cfg(unix)]
 #[test]
-fn the_delete_tail_removes_a_link_at_the_store_name_and_destroys_no_root_that_it_cannot_name() {
+fn the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path().join("data");
     let roots_dir = data.join("roots");
@@ -6339,14 +6339,13 @@ fn the_delete_tail_removes_a_link_at_the_store_name_and_destroys_no_root_that_it
     std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
     let behind_before = files_with_bytes(&behind);
 
-    let roots_before = root_files_in(&roots_dir);
     let answer = EncryptedStore::delete_store_dir(&data.join("store"), &roots_dir);
     let report = delete_report(&answer);
 
     assert_eq!(
         root_files_in(&roots_dir),
-        roots_before,
-        "the tail destroyed a root that nothing it read names"
+        Vec::<String>::new(),
+        "the tail that removed a link at the store name left a root file under roots (ruling ST-45 H1)"
     );
     assert!(std::fs::symlink_metadata(data.join("store")).is_err());
     assert_eq!(files_with_bytes(&behind), behind_before);
@@ -7278,7 +7277,6 @@ fn the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_i
     let (store_dir, roots_dir, _, segment_id) = file_root_store(dir.path());
     let len = std::fs::metadata(KeyFile::path(&store_dir)).unwrap().len() as usize;
     std::fs::write(KeyFile::path(&store_dir), vec![0u8; len]).unwrap();
-    let roots_before = root_files_in(&roots_dir);
     let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
     assert_eq!(delete_report(&tail).root, super::RootReading::Unnamed);
@@ -7286,8 +7284,8 @@ fn the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_i
     assert!(!segment_path(&store_dir, segment_id).exists());
     assert_eq!(
         root_files_in(&roots_dir),
-        roots_before,
-        "the tail destroyed a root that nothing it read names"
+        Vec::<String>::new(),
+        "the tail beside a key file that names nothing left a root file under roots (ruling ST-45 H1)"
     );
     let custody = file_root_custody(
         &roots_dir,
@@ -8017,7 +8015,8 @@ struct EndStates {
     no_keyless_file: bool,
     /// A root file of a create stopped between its create_root and the second
     /// write of its mark stands: the mark reads owed and no key file names the
-    /// root, the named limit (i) of ruling ST-44 F3.
+    /// root, the named limit (i) of ruling ST-44 F3, which the next tail's
+    /// sweep finishes (ruling ST-45 H1).
     under_the_limit_of_a_stopped_create: bool,
 }
 
@@ -8224,6 +8223,18 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
     assert!(
         states.under_the_limit_of_a_stopped_create && states.all_true(),
         "a create stopped between its create_root and the second write of its mark left {states:?}, not the named limit (i)"
+    );
+    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let left = root_files_in(&roots_dir);
+    println!(
+        "KILL op=stopped_create then the tail: answer_ok={} root_files_left={}",
+        tail.is_ok(),
+        left.len()
+    );
+    assert!(
+        tail.is_ok() && left.is_empty(),
+        "the tail after a create stopped under the named limit (i) left {} root files, answer {tail:?} (ruling ST-45 H1: the sweep destroys the root of a mark that reads owed)",
+        left.len()
     );
 }
 
@@ -10014,6 +10025,9 @@ fn a_custody_made_before_its_root_guard_shares_the_guards_roots_directory() {
 
 #[cfg(unix)]
 mod closed_list;
+
+#[cfg(unix)]
+mod pass_two;
 
 #[cfg(windows)]
 mod closed_list_windows;

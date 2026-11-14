@@ -2270,7 +2270,9 @@ impl EncryptedStore {
             }
         };
         let place = KeyFile::of_store(&store)?;
-        let _writer_lock = match DirLock::take(&store) {
+        let _writer_lock = match DirLock::take(&store)
+            .and_then(|lock| failpoint::hit("tail_lock").map(|()| lock))
+        {
             Ok(lock) => Some(lock),
             Err(StoreError::Locked) => return Err(StoreError::Locked),
             Err(_) => None,

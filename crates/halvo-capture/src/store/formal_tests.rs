@@ -485,6 +485,27 @@ impl Harness {
             .map(drop)
     }
 
+    /// Before a later delete-all on a handle whose earlier call read its root
+    /// destroyed: a root file of another root id put under the roots path,
+    /// which the later call must not open again (ruling ST-45 H3). None when
+    /// the handle's earlier call did not read its root destroyed, or when the
+    /// roots directory takes no new file.
+    fn decoy_for_a_later_call(&self) -> Option<PathBuf> {
+        let read_destroyed = self
+            .store
+            .as_ref()
+            .and_then(|store| store.deleting_report())
+            .is_some_and(|report| report.root_destroyed());
+        if !read_destroyed {
+            return None;
+        }
+        let root_id = self.latest_created_key_file.as_ref()?.root_id;
+        let decoy =
+            crate::store::roots::roots_of(root_id).join(format!("{}.root", RootId::fresh().ok()?));
+        std::fs::write(&decoy, [7u8; 32]).ok()?;
+        Some(decoy)
+    }
+
     fn left_on_disk(&self) -> Left {
         let root_id = self
             .latest_created_key_file
@@ -829,8 +850,17 @@ impl Harness {
             None => None,
         };
         let way = in_the_way.as_ref().map(|put| put.fault);
+        let decoy = self.decoy_for_a_later_call();
         let store = self.store.as_mut().expect("the handle of the store");
         let result = store.crypto_shred_all();
+        if let Some(decoy) = decoy {
+            let stands = decoy.exists();
+            let _ = std::fs::remove_file(&decoy);
+            prop_assert!(
+                stands,
+                "a later delete-all on a handle whose earlier call read its root destroyed opened the roots path again and destroyed a root file there (ruling ST-45 H3)"
+            );
+        }
         let expected = self.take_out_of_the_way(in_the_way.as_ref())?;
         for seg in &mut self.segments {
             seg.fate = Fate::Shredded;

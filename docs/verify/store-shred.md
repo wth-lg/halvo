@@ -1136,7 +1136,7 @@ What the code does since store-3, each sentence with the test that shows it.
   counts when it no longer leads to the handle's directory. Tests:
   `delete_all_acts_through_its_handle_and_leaves_a_directory_put_at_the_store_name_as_it_was` (P1),
   `delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_name` (P2),
-  `the_delete_tail_removes_a_link_at_the_store_name_and_destroys_no_root_that_it_cannot_name` (P3).
+  `the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots` (P3).
 - `EncryptedStore::delete_store_dir(store_dir, roots)` is the tail for a
   directory that no handle holds: it takes the directory lock, runs the
   root step for the root that `store.key` or a `create.pending` that reads
