@@ -33,9 +33,11 @@ fn main() -> ExitCode {
             Err(error) => fail(format_args!("{error}")),
         },
         #[cfg(debug_assertions)]
-        Ok(Mode::VerifyStore { .. }) => print_or_fail(halvo_capture::store::verify_store()),
-        #[cfg(debug_assertions)]
-        Ok(Mode::VerifyDeletion { .. }) => print_or_fail(halvo_capture::store::verify_deletion()),
+        Ok(mode @ (Mode::VerifyStore { .. } | Mode::VerifyDeletion { .. })) => run_verify(
+            mode,
+            halvo_capture::store::measure_store,
+            halvo_capture::store::measure_deletion,
+        ),
         Err(usage) => {
             let _ = writeln!(std::io::stderr(), "{usage}");
             status(exit::USAGE)
@@ -54,6 +56,21 @@ fn print_checked(text: &str) -> ExitCode {
 }
 
 #[cfg(debug_assertions)]
+type MeasureStore = fn(&std::path::Path, &str) -> halvo_capture::store::StoreResult<String>;
+
+#[cfg(debug_assertions)]
+type MeasureDeletion = fn(&std::path::Path) -> halvo_capture::store::StoreResult<String>;
+
+#[cfg(debug_assertions)]
+fn run_verify(mode: Mode, store: MeasureStore, deletion: MeasureDeletion) -> ExitCode {
+    match mode {
+        Mode::VerifyStore { store_dir, marker } => print_or_fail(store(&store_dir, &marker)),
+        Mode::VerifyDeletion { store_dir } => print_or_fail(deletion(&store_dir)),
+        _ => status(exit::USAGE),
+    }
+}
+
+#[cfg(debug_assertions)]
 fn print_or_fail<E: std::fmt::Display>(result: Result<String, E>) -> ExitCode {
     match result {
         Ok(text) => print_checked(&text),
@@ -68,4 +85,63 @@ fn fail(error: std::fmt::Arguments<'_>) -> ExitCode {
 
 fn status(code: i32) -> ExitCode {
     ExitCode::from(u8::try_from(code).unwrap_or(1))
+}
+
+#[cfg(all(test, debug_assertions))]
+mod tests {
+    use std::cell::RefCell;
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+
+    thread_local! {
+        static CALLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn recorded_store(dir: &Path, marker: &str) -> halvo_capture::store::StoreResult<String> {
+        CALLS.with(|calls| {
+            calls
+                .borrow_mut()
+                .push(format!("store {} {marker}", dir.display()))
+        });
+        Ok(String::new())
+    }
+
+    fn recorded_deletion(dir: &Path) -> halvo_capture::store::StoreResult<String> {
+        CALLS.with(|calls| {
+            calls
+                .borrow_mut()
+                .push(format!("deletion {}", dir.display()))
+        });
+        Ok(String::new())
+    }
+
+    fn calls() -> Vec<String> {
+        CALLS.with(|calls| calls.borrow_mut().drain(..).collect())
+    }
+
+    #[test]
+    fn verify_store_measures_the_store_dir_of_its_flag_with_its_marker() {
+        let mode = Mode::VerifyStore {
+            store_dir: PathBuf::from("/scratch/flag-dir"),
+            marker: "M4rker.from-the-flag".to_owned(),
+        };
+        assert_eq!(
+            run_verify(mode, recorded_store, recorded_deletion),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(calls(), ["store /scratch/flag-dir M4rker.from-the-flag"]);
+    }
+
+    #[test]
+    fn verify_deletion_measures_the_store_dir_of_its_flag() {
+        let mode = Mode::VerifyDeletion {
+            store_dir: PathBuf::from("/scratch/flag-dir"),
+        };
+        assert_eq!(
+            run_verify(mode, recorded_store, recorded_deletion),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(calls(), ["deletion /scratch/flag-dir"]);
+    }
 }
