@@ -1740,6 +1740,53 @@ mod tests {
         assert_eq!(pointer_stopped, Ok(()));
     }
 
+    /// W3-7 O6, the second order: a keyboard start between the pointer's
+    /// registration and the change of the owner does not take the mouse
+    /// from the pointer.
+    #[test]
+    fn a_keyboard_start_during_the_pointers_registration_leaves_the_pointers_mouse() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        HOLD_AFTER_MOUSE_MS.store(400, Ordering::SeqCst);
+        let pointer_sink = sink.clone();
+        let starting = std::thread::spawn(move || {
+            let mut pointer =
+                RawInputSource::with_calls(RawDevice::Pointer, calls_with_the_mouse_seam());
+            let started = pointer.begin(crate::source::SourceContext::new(pointer_sink));
+            (pointer, started)
+        });
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink));
+        let (mut pointer, pointer_started) = starting.join().expect("the pointer's start");
+        let owner = clicks().owner;
+        let keyboard_window = clicks().keyboard_window;
+        let calls = REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let keyboard_stopped = keyboard.shutdown();
+        let pointer_stopped = pointer.shutdown();
+        let _ = registrations();
+        HOLD_AFTER_MOUSE_MS.store(0, Ordering::SeqCst);
+        let mouse = RawDevice::Pointer.hid_usage();
+        let last_mouse_window = calls
+            .iter()
+            .rev()
+            .find(|(usage, removal, _)| *usage == mouse && !*removal)
+            .map(|(_, _, window)| *window);
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert_eq!(owner, Some(RawDevice::Pointer));
+        assert!(
+            last_mouse_window.is_some() && last_mouse_window != keyboard_window,
+            "the keyboard's start registered the mouse for its window over the pointer's"
+        );
+        assert_eq!(keyboard_stopped, Ok(()));
+        assert_eq!(pointer_stopped, Ok(()));
+    }
+
     #[test]
     fn the_pointer_keeps_the_mouse_when_the_keyboard_source_stops() {
         let _serial = crate::windows::tests::serial();
