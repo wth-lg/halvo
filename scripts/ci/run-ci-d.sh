@@ -220,6 +220,11 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/run-ci-d.XXXXXX") || {
   exit 1
 }
 trap 'st_clear "$tmp"' EXIT
+tdirs=$(mktemp -d "${TMPDIR:-/tmp}/run-ci-d-tmp.XXXXXX") || {
+  printf 'FAIL run-ci-d (mktemp failed)\n'
+  exit 1
+}
+trap 'st_clear "$tdirs"; st_clear "$tmp"' EXIT
 recap=$tmp/recap
 : >"$recap"
 passed=0
@@ -413,15 +418,17 @@ st_start() {
     return 1
   }
   st_d=$tmp/$mode.$st_q_name
-  mkdir -p "$st_d/tmp" || {
+  st_td=$tdirs/$mode.$st_q_name
+  mkdir -p "$st_d" "$st_td" || {
     st_drop "$1" "FAIL $st_q_tag (its temporary directory cannot be made)"
     return 1
   }
+  eval "st_tdir_$1=\$st_td"
   (
     CI_D_REPO=$repo
     CI_D_JOB=$job
     CI_D_ARTIFACTS=$st_q_artifacts
-    TMPDIR=$st_d/tmp
+    TMPDIR=$st_td
     export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
     st_t0=$(date +%s)
     {
@@ -492,7 +499,7 @@ st_lanes() {
 }
 
 st_finish() {
-  eval "st_f_d=\$st_dir_$1 st_f_name=\$st_name_$1 st_f_lane=\$st_lane_$1"
+  eval "st_f_d=\$st_dir_$1 st_f_td=\$st_tdir_$1 st_f_name=\$st_name_$1 st_f_lane=\$st_lane_$1"
   if [ "$st_f_lane" = free ]; then
     st_free=$((st_free - 1))
   else
@@ -502,7 +509,7 @@ st_finish() {
   st_f_pid=
   [ ! -s "$st_f_d/pid" ] || read -r st_f_pid <"$st_f_d/pid"
   [ -z "$st_f_pid" ] || st_end_group "$st_f_pid" 0
-  st_clear "$st_f_d/tmp" || printf 'FAIL %s (its TMPDIR cannot be removed)\n' "$st_f_name" >>"$tmp/after.$1"
+  st_clear "$st_f_td" || printf 'FAIL %s (its TMPDIR cannot be removed)\n' "$st_f_name" >>"$tmp/after.$1"
   st_f_who=
   st_f_count=0
   st_f_j=0
@@ -579,12 +586,12 @@ st_end_group() {
 }
 
 st_leave() {
-  eval "st_d=\$st_dir_$1 st_t=\$st_name_$1"
+  eval "st_d=\$st_dir_$1 st_td=\$st_tdir_$1 st_t=\$st_name_$1"
   st_sp=
   [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
   [ -z "$st_sp" ] || st_end_group "$st_sp" "$2"
   [ "$mode" = self-test ] && st_t=self-test:$st_t
-  st_clear "$st_d/tmp" || record FAIL "FAIL $st_t (its TMPDIR cannot be removed)"
+  st_clear "$st_td" || record FAIL "FAIL $st_t (its TMPDIR cannot be removed)"
 }
 
 st_stop() {
@@ -1121,6 +1128,14 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "$pass_b"
   case_absent='FAIL run-ci-d (20-b changed a tracked file: tracked.txt)'
   own_case script-changes-a-tracked-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 05-x.sh "$good" 'printf "PASS 05-x\n"' &&
+    add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; for f in "$TMPDIR"/../* "$TMPDIR"/../../*; do [ ! -f "$f" ] || : >"$f"; done; printf "PASS 10-a\n"'
+  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
+  case_witness=yes
+  case_absent='FAIL run-ci-d (10-a moved HEAD)'
+  case_first="PASS 05-x${nl}PASS 10-a${nl}FAIL run-ci-d (10-a changed a tracked file: tracked.txt)"
+  case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
+  own_case script-that-empties-the-files-beside-its-tmpdir-leaves-the-baseline 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'd=$(mktemp -d "$TMPDIR/x.XXXXXX") && printf "x\n" >"$d/f" && printf "x\n" >"$CI_D_ARTIFACTS/f" && printf "PASS 10-a\n"'
   own_case script-writes-only-under-its-tmpdir-and-artifacts 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'cp "$CI_D_REPO/tracked.txt" "$CI_D_REPO/kept"; printf "x\n" >>"$CI_D_REPO/tracked.txt"; git -C "$CI_D_REPO" add tracked.txt; cp "$CI_D_REPO/kept" "$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
@@ -1448,7 +1463,8 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/$alone_list"
   own_case alone-list-that-cannot-be-read 1 "FAIL run-ci-d ($alone_list cannot be read)" macos --self-test 10-a
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; [ -e \"\$TMPDIR/../../self-test.run-ci-d/done\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; for f in \"\$TMPDIR\"/../../run-ci-d.*/self-test.run-ci-d/done; do [ -e \"\$f\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; done; $passes"
+  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_jobs=1
   own_case own-cases-take-one-of-the-slots 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test
   new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
