@@ -49,13 +49,17 @@ two functions, rebuildPage and editPage, and in one added function.
 - After the last line of the pinned file, each on lines of its own, the copy
   holds eight compile-time stops, and then it ends with the function
   halvo_sqlcipher_page_gap_mend. The compiler refuses the file by name when
+  BTS_FAST_SECURE is not defined (the database's code is not compiled in
+  this file, as under an outside -DSQLITE_AMALGAMATION),
   SQLITE_ENABLE_STAT4 is defined, SQLITE_TEMP_STORE is not 2,
-  SQLITE_DEFAULT_AUTOVACUUM is not 0, BTS_FAST_SECURE is not defined (the
-  database's code is not compiled in this file, as under an outside
-  -DSQLITE_AMALGAMATION), SQLITE_HAS_CODEC is not defined,
+  SQLITE_DEFAULT_AUTOVACUUM is not 0, SQLITE_HAS_CODEC is not defined,
   SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2,
   SQLITE_DEBUG is defined, or SQLITE_DEFAULT_PAGE_SIZE is not 4096, whether
-  build.rs or the environment (CFLAGS) set it. A flag that redefines an
+  build.rs or the environment (CFLAGS) set it. The stop on BTS_FAST_SECURE
+  stands first: MSVC's compiler ends at the first #error, and with the
+  database's code compiled out the macros of the later stops are undefined
+  too (a hosted Windows build named SQLITE_DEFAULT_AUTOVACUUM when that stop
+  stood third). A flag that redefines an
   identifier of the source is not read. The test
   `page_gap::pins::the_compile_options_of_this_build_are_its_closed_list`
   reads PRAGMA compile_options, less the compiler's line, against a closed

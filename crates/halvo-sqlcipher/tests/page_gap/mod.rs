@@ -25,6 +25,9 @@ const MARKER_LEN: usize = 8;
 const FILL: &[u8] = b"bcdefjkmnrstvwxyz";
 const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 2; }";
 const STOPS: [&str; 24] = [
+    "#if !defined(BTS_FAST_SECURE)",
+    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"",
+    "#endif",
     "#if defined(SQLITE_ENABLE_STAT4)",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined\"",
     "#endif",
@@ -33,9 +36,6 @@ const STOPS: [&str; 24] = [
     "#endif",
     "#if !defined(SQLITE_DEFAULT_AUTOVACUUM) || SQLITE_DEFAULT_AUTOVACUUM!=0",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0\"",
-    "#endif",
-    "#if !defined(BTS_FAST_SECURE)",
-    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"",
     "#endif",
     "#if !defined(SQLITE_HAS_CODEC)",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined\"",

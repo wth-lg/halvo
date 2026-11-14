@@ -85,6 +85,9 @@ const MENDS: [Mend; 2] = [
 ];
 
 const STOPS: &str = concat!(
+    "#if !defined(BTS_FAST_SECURE)\n",
+    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"\n",
+    "#endif\n",
     "#if defined(SQLITE_ENABLE_STAT4)\n",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined\"\n",
     "#endif\n",
@@ -93,9 +96,6 @@ const STOPS: &str = concat!(
     "#endif\n",
     "#if !defined(SQLITE_DEFAULT_AUTOVACUUM) || SQLITE_DEFAULT_AUTOVACUUM!=0\n",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0\"\n",
-    "#endif\n",
-    "#if !defined(BTS_FAST_SECURE)\n",
-    "#error \"halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file\"\n",
     "#endif\n",
     "#if !defined(SQLITE_HAS_CODEC)\n",
     "#error \"halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined\"\n",
