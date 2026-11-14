@@ -82,7 +82,10 @@ scratch), prints
 exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
 a step that the signal ended, and exits with 143, 130 or 129 for that first
 signal. From the first signal on the runner ignores TERM, INT and HUP, and so
-does every process that it starts after it, so a later signal changes nothing.
+does every process that it starts after it (its own reads of the running step,
+never a new step), so a later signal changes nothing; a step that runs from
+before the signal has them ignored as below, but for a program that sets its
+own handler, as rustc does for INT.
 The line by phase:
 
   phase                                         STOPPED line
@@ -113,9 +116,11 @@ caller that sends KILL sooner. A test runs with its standard input from
 (unmutated or of a mutant) run with TERM, INT and HUP ignored too, and with
 their standard input from /dev/null. TERM and HUP stay ignored for the whole
 step, but a compiler may set its own handler for INT: rustc does, so an INT
-to the group ends a running rustc, and that build reads as failed (FAIL
-unmutated:build, or the mutant does not build, never a caught row) and leaves
-nothing but the failed build in the throwaway copy. On the signal the runner
+ends a running rustc and leaves nothing but the failed build in the throwaway
+copy. When the runner got the same INT, as it does from its group, it prints
+its STOPPED line (signal INT) and exits 130; when it got none, the build reads
+as failed (FAIL unmutated:build, or the mutant does not build, never a caught
+row). On the signal the runner
 starts no next step and waits up to 60 s for that step to end, then stops it
 and every process below it by KILL, and the STOPPED line names it; what the
 step made may be left then, as under a caller that sends KILL sooner. The
@@ -138,12 +143,17 @@ is never read as an answer: with a signal of the runner's own within 2 s the
 run ends as a stop, and without one it ends with exit 2 and the line
   FAIL step:<step> (ended by signal S; the runner got no signal)
 A runner that was started with a signal ignored, as a shell does for INT in a
-background job, cannot trap that signal. After the first signal only KILL or
-QUIT ends the runner before its wait and the removal of its scratch are done.
-QUIT is not caught: it ends the runner at once with 131, no STOPPED line and
-its scratch left, and a shielded step or test runs on, because it was started
-with QUIT ignored. A KILL of the runner alone leaves its scratch too; a
-shielded step or test that was running goes on with TERM, INT and HUP ignored;
+background job, cannot trap that signal. After the first signal a signal that
+the runner does not catch still ends it before its wait and the removal of its
+scratch are done. KILL ends it as below. QUIT ends it at once with 131, no
+STOPPED line and its scratch left, when the runner was started with QUIT at
+its default; a runner started as a background job of a shell without job
+control has QUIT ignored, and QUIT then does not end it. Limit: USR1, USR2,
+ALRM, PIPE and every other signal that the runner does not catch end it too,
+with 128 plus the signal's number; what its EXIT trap then prints is not
+held by a case. A shielded step or test that the signal did not reach runs on.
+A KILL of the runner alone leaves its scratch too; a shielded step or test
+that was running goes on with TERM, INT and HUP ignored;
 a step that the kill at the bound had already stopped stays stopped while its
 process group has another member and goes on when the group is orphaned; KILL
 to each of its processes ends them.
@@ -853,7 +863,7 @@ stopped_by() {
       stop_rest=$(pgrep -g "$stop_pid")
       [ -z "$stop_rest" ] || kill -s KILL -- "-$stop_pid" ;;
     helper-then-int|helper-then-hup)
-      case $stop_pid in ''|*[!0-9]*|0|1) printf 'the case holds no id of its runner\n'; return 1 ;; esac
+      case $stop_pid in ''|*[!0-9]*|0|1) witness_end; printf 'the case holds no id of its runner\n'; return 1 ;; esac
       stop_then=INT
       [ "$stop_whom" = helper-then-int ] || stop_then=HUP
       kill -s "$stop_signal_sent" -- "-$stop_pid"

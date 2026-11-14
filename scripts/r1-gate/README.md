@@ -136,7 +136,10 @@ below it does not end the running test, gate check or cargo build of the copy:
   line for a step that the signal ended, and exits with 143 for TERM, 130 for
   INT and 129 for HUP. Exit 0, 1 and 2 never follow a signal that the runner
   got, and a later signal changes nothing. From the first signal on the runner
-  ignores TERM, INT and HUP, and so does every process that it starts after it.
+  ignores TERM, INT and HUP, and so does every process that it starts after it,
+  which is only its own reads of the running step; a step that runs from before
+  the signal has them ignored as below, but for a program that sets its own
+  handler, as rustc does for INT.
 - The STOPPED line has one of five forms. Before any row, during the copy of
   HEAD, the read of the rows files and the name check, the `--only`
   selection, and under `--list`:
@@ -164,8 +167,10 @@ below it does not end the running test, gate check or cargo build of the copy:
   On the signal the runner starts no next step and waits up to 60 s for the
   running step, then stops and kills it with every process below it and names
   it in the STOPPED line. The build of a mutant on any other file is not
-  shielded. rustc sets its own handler for INT, so an INT that reaches a
-  running rustc ends that build, which reads as failed. A step whose exit
+  shielded. rustc sets its own handler for INT, so an INT ends a running
+  rustc: when the runner got the same INT, as it does from its group, the run
+  ends as a stop (`STOPPED mutation:<row> (signal INT; no test was running)`,
+  exit 130); when it got none, the build reads as failed. A step whose exit
   status says that a signal ended it (129, 130, 137 or 143) is never read as an
   answer: with a signal of the
   runner's own within 2 s the run ends as a stop, and without one it ends with
