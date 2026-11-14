@@ -38,13 +38,24 @@ pub fn run_in(dir: &Path, args: &[&str]) -> Out {
     }
 }
 
-/// A new directory under the target's temporary directory for one test.
+/// A new, empty directory under the target's temporary directory for one test. A name that an earlier process
+/// with the same id left is skipped, so a repeated process id never hands a test another run's files.
 pub fn scratch(name: &str) -> PathBuf {
     let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("halvo-sample-{name}-{}-{n}", std::process::id()));
-    fs::create_dir_all(&dir).expect("scratch directory");
-    dir
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    fs::create_dir_all(base).expect("the target's temporary directory");
+    let mut k = 0u64;
+    loop {
+        let dir = base.join(format!(
+            "halvo-sample-{name}-{}-{n}-{k}",
+            std::process::id()
+        ));
+        match fs::create_dir(&dir) {
+            Ok(()) => return dir,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => k += 1,
+            Err(e) => panic!("scratch directory: {e}"),
+        }
+    }
 }
 
 pub fn repo() -> PathBuf {
