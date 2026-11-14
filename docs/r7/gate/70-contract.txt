@@ -1,5 +1,5 @@
 line: PASS contract: rules=ok export=equal routes=equal samples=32 of 32 types=10 open=0 bundle=clean deployable=4 of 4 test-paths=3 of 3 config=ok
-stamp: 2026-11-13T19:04:41Z
-load: 10.89
-tree: 686f7f842745ae164c3160e16d7f957a82825e35
+stamp: 2026-11-14T09:15:52Z
+load: 6.04
+tree: 1bb800d47b4e91cc58feb2ebc6bca6de05cea91b
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

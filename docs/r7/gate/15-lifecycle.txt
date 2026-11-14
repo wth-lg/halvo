@@ -1,5 +1,5 @@
 line: FAIL lifecycle: stub, not built yet (P6, unit 6.3)
-stamp: 2026-11-13T18:56:12Z
-load: 11.69
-tree: 686f7f842745ae164c3160e16d7f957a82825e35
+stamp: 2026-11-14T08:55:50Z
+load: 11.58
+tree: 1bb800d47b4e91cc58feb2ebc6bca6de05cea91b
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

@@ -1,5 +1,5 @@
 line: PASS card-entry: fields=7 docs=7 unknown=0 page-inputs=8 of 8 paid=1 automatic-tax-off=7 stripe-seller-stripe-tax>=7 managed-payments>=7 three-d-secure=not measured wallet-prompt=not measured
-stamp: 2026-11-13T18:56:13Z
-load: 11.69
-tree: 686f7f842745ae164c3160e16d7f957a82825e35
+stamp: 2026-11-14T08:55:50Z
+load: 11.58
+tree: 1bb800d47b4e91cc58feb2ebc6bca6de05cea91b
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3
