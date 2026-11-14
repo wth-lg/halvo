@@ -2277,6 +2277,36 @@ mod tests {
         assert!(later.lost_last_at >= Some(last_capture));
     }
 
+    /// Ruling DM-12 A7 (PR2 as a pin): OpenPause draws the barrier, and a
+    /// Shutdown after it stores nothing that reached the owner after the pause.
+    #[test]
+    fn a_shutdown_after_open_pause_stores_nothing_that_came_after_the_pause() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        harness.emit(key());
+        harness.pass();
+        let stored_before = settled(&mut harness);
+        assert_eq!(stored_before.events_persisted, 1);
+        assert!(matches!(harness.ask(Command::OpenPause), Answer::Paused(_)));
+        harness.emit(key());
+        harness.emit(key());
+        harness.owner.receive_in_pass(Duration::ZERO);
+        harness.emit(key());
+        let pending = harness.handle.ask(Command::Shutdown).unwrap();
+        harness.owner.finish_pass();
+        let Some(Answer::ShutDown(last)) = pending.try_answer() else {
+            panic!("the owner did not answer the Shutdown");
+        };
+        assert_eq!(last.events_persisted, 1, "{last:?}");
+        assert_eq!(harness.store.records().len(), 1);
+        assert_eq!(
+            last.discarded_by_barrier,
+            stored_before.discarded_by_barrier + 3,
+            "{last:?}"
+        );
+        assert_eq!(last.events_lost, 0);
+    }
+
     #[test]
     fn an_event_in_the_hands_of_a_pass_at_open_pause_is_not_stored_and_is_discarded_by_the_barrier()
     {
