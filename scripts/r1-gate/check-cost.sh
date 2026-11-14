@@ -141,7 +141,7 @@ measure() {
 }
 check_main --measure
 MINI
-  perl -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
+  perl -MPOSIX -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
   mini_pid=$!
   standin_pattern=$(ere_literal "$standin --timed-run $2 --store-dir $mini_dir")
   until pgrep -f "^$standin_pattern\$" > /dev/null; do

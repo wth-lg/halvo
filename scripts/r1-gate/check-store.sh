@@ -49,7 +49,7 @@ printf '%s %s\n' "$$" "$store_dir" >&3
 exec "$HUP_STANDIN" "$@"
 WRAPPER
   chmod 755 "$hup_root/standin" || return 1
-  HUP_STANDIN=$standin TMPDIR=$hup_root perl -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;" \
+  HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
     "$1" -c "hup_wrapper=\$1; set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; standin=\$hup_wrapper; against_the_standin hang none" \
     "$DIR/check-$name.sh" "$hup_root/standin" > "$hup_root/check.out" 2>&1 3> "$hup_root/ready" &
   hup_pid=$!
