@@ -8,10 +8,10 @@ use halvo_seam::conformance::{self, Subject};
 use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
-    decode_client, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
-    ServerMessage, TimeRange, ZERO,
+    decode_client, decode_server, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal,
+    ServerError, ServerMessage, TimeRange, ZERO,
 };
-use halvo_seam::record::{CaptureRecord, ServedKind};
+use halvo_seam::record::{CaptureRecord, Kind, ServedKind};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fault {
@@ -63,11 +63,34 @@ enum Fault {
     OpenWithKindsWhileOpenServes,
     PhantomAfterTheRefusedOpenAtTheWatermark,
     RangedReadEndsAtTheFirstAtFromItsEnd,
-    LoadRoundsTheKeystrokeAfterTheStepBackUp,
+    LoadRoundsTheStepBackAway,
+    LoadDropsTheLastLineOfD,
+    LoadChangesTheKeystrokeOfD,
 }
 
-const STEP_BACK_KEYSTROKE_AT: &str = r#""at":1768294980000000000,"seq":4,"#;
-const STEP_BACK_KEYSTROKE_ROUNDED_UP: &str = r#""at":1768294981000000000,"seq":4,"#;
+fn loaded(fault: Option<Fault>, text: &str) -> String {
+    let d = text == conformance::SET_D[0];
+    match fault {
+        Some(LoadRoundsTheStepBackAway) => text
+            .replace(
+                r#""at":1768294980900000000,"seq":3,"#,
+                r#""at":1768294981000000000,"seq":3,"#,
+            )
+            .replace(
+                r#""at":1768294980000000000,"seq":4,"#,
+                r#""at":1768294981000000000,"seq":4,"#,
+            ),
+        Some(LoadDropsTheLastLineOfD) if d => {
+            let cut = text[..text.len() - 1].rfind('\n').map_or(0, |p| p + 1);
+            text[..cut].to_owned()
+        }
+        Some(LoadChangesTheKeystrokeOfD) if d => text.replace(
+            r#""seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"enter"}"#,
+            r#""seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"tab"}"#,
+        ),
+        _ => text.to_owned(),
+    }
+}
 
 use Fault::*;
 
@@ -170,13 +193,7 @@ impl Subject for Fixture {
         self.restarted = false;
         for (i, text) in batch_files.iter().enumerate() {
             let path = dir.join(format!("day-{:03}.jsonl", i + 1));
-            let text = match self.fault {
-                Some(LoadRoundsTheKeystrokeAfterTheStepBackUp) => {
-                    text.replace(STEP_BACK_KEYSTROKE_AT, STEP_BACK_KEYSTROKE_ROUNDED_UP)
-                }
-                _ => (*text).to_owned(),
-            };
-            fs::write(&path, text).map_err(|e| format!("write failed: {e}"))?;
+            fs::write(&path, loaded(self.fault, text)).map_err(|e| format!("write failed: {e}"))?;
             self.files.push(path);
         }
         self.first_live = 1;
@@ -898,8 +915,16 @@ fn conformance_filters_step_back() {
             "the range of set D up to the pointer before its step back: 3 entries served, want 4",
         ),
         (
-            LoadRoundsTheKeystrokeAfterTheStepBackUp,
+            LoadRoundsTheStepBackAway,
             "set D as served holds no keystroke whose at is below that of the pointer before it",
+        ),
+        (
+            LoadDropsTheLastLineOfD,
+            "the read of set D served 7 entries; want the 8 records of D in order",
+        ),
+        (
+            LoadChangesTheKeystrokeOfD,
+            "the read of set D served 8 entries; want the 8 records of D in order",
         ),
     ];
     let mut missed = Vec::new();
@@ -918,4 +943,53 @@ fn conformance_filters_step_back() {
         }
     }
     assert!(missed.is_empty(), "{}", missed.join("\n"));
+}
+
+#[test]
+fn conformance_set_d_holds_its_step_back_when_served() {
+    let lines: Vec<&str> = conformance::SET_D[0].split_inclusive('\n').collect();
+    let records: Vec<CaptureRecord> = lines
+        .iter()
+        .map(|l| CaptureRecord::read_line(l.as_bytes()).unwrap())
+        .collect();
+    let ats: Vec<i64> = records.iter().map(|r| r.at().0).collect();
+    assert_eq!(ats.len(), 8);
+    assert!(lines.iter().all(|l| !l.contains("\"site\"")));
+    let kinds = [
+        Kind::ForegroundApp,
+        Kind::WindowTitle,
+        Kind::Keystroke,
+        Kind::Pointer,
+    ];
+    assert!(records.iter().all(|r| kinds.contains(&r.kind())));
+    assert!(ats.iter().all(|at| (at - ats[0]) < 3_600_000_000_000));
+    assert!(lines[3].contains(r#""kind":"pointer""#) && lines[3].contains(r#""class":"scroll""#));
+    assert!(lines[4].contains(r#""kind":"keystroke""#));
+    assert_eq!(ats[4] % 1_000_000_000, 0);
+    assert_eq!(ats[3] % 1_000_000, 0);
+    assert_eq!(ats[3] - ats[4], 900_000_000);
+    for i in 1..ats.len() {
+        if i != 4 {
+            assert!(ats[i] - ats[i - 1] >= 2_000_000_000, "step {i}");
+        }
+    }
+    let mut subject = Fixture::new("conformance_set_d_holds_its_step_back_when_served");
+    subject.load(&conformance::SET_D).unwrap();
+    let (mut writer, mut reader) = subject.connect().unwrap();
+    let mut served = Vec::new();
+    let open = ClientMessage::OpenCursor(OpenCursor::fresh(None, None));
+    let mut next = Vec::new();
+    for message in [open, ClientMessage::ReadBatch] {
+        write_frame(&mut writer, &message.to_payload(), CLIENT_FRAME_MAX).unwrap();
+        let reply = read_frame(&mut reader, SERVER_FRAME_MAX).unwrap().unwrap();
+        match decode_server(&reply).unwrap() {
+            ServerMessage::Batch(b) => {
+                served.extend(b.records.iter().map(|e| e.record.at().0));
+                next.push(b.next == b.watermark);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert_eq!(next, [false, true]);
+    assert_eq!(served, ats);
 }

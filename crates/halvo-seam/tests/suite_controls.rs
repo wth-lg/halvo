@@ -735,24 +735,54 @@ fn reason(text: &str) -> &str {
     text.rsplit(": ").next().unwrap_or(text)
 }
 
+fn holds(want: Want, got: &Result<(), String>) -> bool {
+    match (want, got) {
+        (Pass, Ok(())) => true,
+        (Fail(text), Err(e)) => {
+            !reason(text).trim().is_empty() && e.contains(text) && reason(e).contains(reason(text))
+        }
+        _ => false,
+    }
+}
+
 fn check(fault: Fault, want: [Want; 4]) {
     let mut subject = Control::new(fault);
     let results = conformance::run(&mut subject);
     let names: Vec<&str> = results.iter().map(|(name, _)| *name).collect();
     assert_eq!(names, CASES);
     for ((name, got), want) in results.iter().zip(want) {
-        if let Fail(text) = want {
-            assert!(
-                !reason(text).trim().is_empty(),
-                "{fault:?}, case {name}: the expectation {text:?} names no reason after its last \": \""
-            );
-        }
-        match (want, got) {
-            (Pass, Ok(())) => {}
-            (Fail(text), Err(e)) if e.contains(text) && reason(e).contains(reason(text)) => {}
-            _ => panic!("{fault:?}, case {name}: want {want:?}, got {got:?}"),
-        }
+        assert!(
+            holds(want, got),
+            "{fault:?}, case {name}: want {want:?}, got {got:?}"
+        );
     }
+}
+
+#[test]
+fn an_expectation_holds_only_when_its_last_part_lies_in_the_reason_of_the_failure() {
+    let got = Err(
+        "check filtered_stops: the filter window_title from {seg 2, idx 139}: next fell".to_owned(),
+    );
+    assert!(holds(Fail("next fell"), &got));
+    assert!(holds(
+        Fail("check filtered_stops: the filter window_title from {seg 2, idx 139}: next fell"),
+        &got
+    ));
+    assert!(holds(Fail("idx 139}: next fe"), &got));
+    assert!(!holds(Fail("check filtered_stops: "), &got));
+    assert!(!holds(
+        Fail("the filter window_title from {seg 2, idx 139}: "),
+        &got
+    ));
+    assert!(!holds(
+        Fail("check filtered_stops: the filter window_title"),
+        &got
+    ));
+    assert!(!holds(Fail("the filter keystroke: next fell"), &got));
+    assert!(!holds(Fail("next rose"), &got));
+    assert!(!holds(Pass, &got));
+    assert!(!holds(Fail("next fell"), &Ok(())));
+    assert!(holds(Pass, &Ok(())));
 }
 
 #[test]
