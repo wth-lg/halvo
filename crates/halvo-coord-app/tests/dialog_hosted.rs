@@ -6,7 +6,14 @@
 //! changes nothing. A case has a bound of 10 s: a case that reaches it closes its dialog and
 //! fails. The last line counts the cases that ran. The early return with the one line is taken
 //! only when a second read of the runner's two variables, made at that return, says that this
-//! is no hosted runner; when it says that it is, the target fails (ruling RD-92).
+//! is no hosted runner; when it says that it is, the target fails (ruling RD-92). Every row
+//! waits for the dialog's report on screen before it acts, and a row that presses a control
+//! presses it after the hold of `arm_ms` from that report (ruling RD-91 item 7); on macOS the
+//! target makes its app finish launching and become the active app, as the app is when a person
+//! asks for the dialog, and brings an alert that has not reported itself to the front once a
+//! second, with a line that says what was active before it; and on
+//! Windows a dialog that has not reported itself in 3 s is brought to the foreground once, with
+//! a line that says so.
 //!
 //! Named limits (ruling RD-92 (3)): the macOS cases queue the alert through Tauri's mock
 //! runtime, whose `run_on_main_thread` sends a task to the mock loop on the main thread, and
@@ -18,12 +25,17 @@
 mod gate;
 
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::types::{Class, Field, FieldFrom};
+use halvo_coord::types::{Class, Field, FieldFrom, Limits};
 use halvo_coord_app::Card;
 use std::time::Duration;
 
 const OFF: &str = "hosted alone: not run on this machine";
 const BOUND: Duration = Duration::from_secs(10);
+const MARGIN: Duration = Duration::from_millis(200);
+
+fn arm() -> Duration {
+    Duration::from_millis(Limits::PRODUCT.arm_ms)
+}
 
 fn word(answer: ConfirmAnswer) -> &'static str {
     match answer {
@@ -108,7 +120,7 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod cases {
-    use super::{end, print, word, Verdict, BOUND};
+    use super::{arm, end, print, word, Verdict, BOUND, MARGIN};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use objc2::runtime::AnyObject;
@@ -136,6 +148,8 @@ mod cases {
     static VISIBLE: Mutex<Option<String>> = Mutex::new(None);
     static TEXTS: Mutex<(String, String)> = Mutex::new((String::new(), String::new()));
     static READ: Mutex<Option<Reading>> = Mutex::new(None);
+    static STARTED: Mutex<Option<Instant>> = Mutex::new(None);
+    static FRONTED: AtomicUsize = AtomicUsize::new(0);
 
     #[derive(Clone, Default)]
     struct Reading {
@@ -216,6 +230,13 @@ mod cases {
             return;
         }
         let (name, _) = CASES[generation - 1];
+        let Some(reported) = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) else {
+            front(generation, name);
+            return;
+        };
+        if name.starts_with("macos press") && reported.elapsed() < arm() + MARGIN {
+            return;
+        }
         let (reject, allow) = TEXTS.lock().unwrap_or_else(PoisonError::into_inner).clone();
         // SAFETY: this runs on the main thread inside the alert's modal session, and every
         // object that it reads belongs to the modal window, which lives until the session ends.
@@ -270,6 +291,34 @@ mod cases {
                     let _: () = msg_send![app, abortModal];
                 }
             }
+        }
+    }
+
+    /// Brings the alert of a case that has not reported itself to the front, once a second from
+    /// the case's first second on, with a line that says what was active before it.
+    fn front(generation: usize, name: &str) {
+        let Some(started) = *STARTED.lock().unwrap_or_else(PoisonError::into_inner) else {
+            return;
+        };
+        let due = started.elapsed().as_secs() as usize;
+        if due == 0
+            || FRONTED.swap(due, Ordering::SeqCst) == due
+            || CASE.load(Ordering::SeqCst) != generation
+        {
+            return;
+        }
+        // SAFETY: this runs on the main thread inside the alert's modal session.
+        unsafe {
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let window: *mut AnyObject = msg_send![app, modalWindow];
+            if app.is_null() || window.is_null() {
+                return;
+            }
+            let active: bool = msg_send![app, isActive];
+            let key: bool = msg_send![window, isKeyWindow];
+            activate_app(app);
+            let _: () = msg_send![window, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
+            println!("dialog_hosted reading {name}: no report after {due} s, brought to the front; before it: app_active={active} key={key}");
         }
     }
 
@@ -431,6 +480,8 @@ mod cases {
         REPORTS_AT_ACT.store(usize::MAX, Ordering::SeqCst);
         *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *VISIBLE.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        *STARTED.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+        FRONTED.store(0, Ordering::SeqCst);
         CASE.store(generation, Ordering::SeqCst);
         let done = Arc::new(AtomicBool::new(false));
         let poker = std::thread::spawn({
@@ -447,7 +498,7 @@ mod cases {
                 }
             }
         });
-        let answer = dialog.show(card, &|| {
+        let answer = dialog.show(card, arm(), &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
             REPORT_AT
                 .lock()
@@ -462,7 +513,31 @@ mod cases {
         }
     }
 
+    /// # Safety
+    /// `app` is the shared application, and the caller runs on the main thread.
+    unsafe fn activate_app(app: *mut AnyObject) {
+        let _: () = msg_send![app, activateIgnoringOtherApps: true];
+        let running: *mut AnyObject = msg_send![class!(NSRunningApplication), currentApplication];
+        if !running.is_null() {
+            let _: bool = msg_send![running, activateWithOptions: 3usize];
+        }
+    }
+
+    fn activate() {
+        // SAFETY: this runs on the main thread, before any window of the target exists.
+        unsafe {
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            if app.is_null() {
+                return;
+            }
+            let _: bool = msg_send![app, setActivationPolicy: 0isize];
+            let _: () = msg_send![app, finishLaunching];
+            activate_app(app);
+        }
+    }
+
     pub fn run(card: Card) {
+        activate();
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         std::thread::spawn(move || {
@@ -481,7 +556,7 @@ mod cases {
 
 #[cfg(windows)]
 mod cases {
-    use super::{end, print, word, Verdict, BOUND};
+    use super::{arm, end, print, word, Verdict, BOUND, MARGIN};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -490,7 +565,8 @@ mod cases {
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::Foundation::{LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, WM_CLOSE, WM_USER,
+        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, SetForegroundWindow, WM_CLOSE,
+        WM_USER,
     };
 
     pub const LIST: u32 = 5;
@@ -523,6 +599,7 @@ mod cases {
                 let mut at_act = None;
                 let mut timing = String::from("no read");
                 let mut bound = false;
+                let mut brought = false;
                 while !done.load(Ordering::SeqCst) {
                     // SAFETY: the title is a string that lives for the call.
                     let found = unsafe { FindWindowW(PCWSTR::null(), &title) };
@@ -530,7 +607,20 @@ mod cases {
                         // SAFETY: `window` is the window that the call above found; a window that has gone
                         // reads as not visible.
                         let visible = unsafe { IsWindowVisible(window) }.as_bool();
-                        if at_act.is_none() && !visible && start.elapsed() <= BOUND {
+                        let reported = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner);
+                        if visible
+                            && reported.is_none()
+                            && !brought
+                            && start.elapsed() > std::time::Duration::from_secs(3)
+                        {
+                            brought = true;
+                            // SAFETY: as above.
+                            let set = unsafe { SetForegroundWindow(window) }.as_bool();
+                            println!("dialog_hosted reading {name}: no report in 3 s, brought to the foreground: {set}");
+                        }
+                        let ready =
+                            visible && reported.is_some_and(|at| at.elapsed() >= arm() + MARGIN);
+                        if at_act.is_none() && !ready && start.elapsed() <= BOUND {
                             std::thread::sleep(std::time::Duration::from_millis(10));
                             continue;
                         }
@@ -569,7 +659,7 @@ mod cases {
                 (at_act, bound, timing)
             }
         });
-        let answer = dialog.show(card, &|| {
+        let answer = dialog.show(card, arm(), &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
             REPORT_AT
                 .lock()

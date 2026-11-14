@@ -21,7 +21,10 @@ fn the_task_dialog_rejects_by_default_cancels_and_closes_to_reject_and_sets_no_t
     let texts = Texts::new(&card);
     let buttons = texts.buttons();
     let on_screen: &dyn Fn() = &|| {};
-    let config = texts.config(&buttons, &on_screen);
+    let show = crate::present::guard::Show::new(super::arm(), on_screen);
+    let config = texts.config(&buttons, &show);
+    assert!({ config.pfCallback }.is_some());
+    assert_eq!({ config.lpCallbackData }, &show as *const _ as isize);
     let (default, flags) = ({ config.nDefaultButton }, { config.dwFlags });
     assert_eq!(default, TASK_REJECT);
     assert_eq!(flags, FLAGS);
@@ -44,7 +47,7 @@ mod seams {
     use super::super::{ALLOW, REJECT};
     use crate::present::system::{task_answer, wait_alert, Step};
     use halvo_coord::items::ConfirmAnswer;
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
     use std::sync::mpsc;
 
     fn alert(queued: Result<(), ()>, steps: &[Step], close: bool) -> (ConfirmAnswer, usize) {
@@ -59,7 +62,7 @@ mod seams {
             Some(tx)
         };
         let reports = Cell::new(0);
-        let answer = wait_alert(queued, &rx, &|| reports.set(reports.get() + 1));
+        let answer = wait_alert(queued, &rx, &|| reports.set(reports.get() + 1), &|| {});
         drop(tx);
         (answer, reports.get())
     }
@@ -101,6 +104,29 @@ mod seams {
             alert(Err(()), &[Step::Shown, Step::Response(1001)], false),
             (REJECT, 0)
         );
+    }
+
+    fn order(queued: Result<(), ()>, steps: &[Step]) -> Vec<&'static str> {
+        let (tx, rx) = mpsc::channel();
+        for step in steps {
+            tx.send(*step).unwrap();
+        }
+        drop(tx);
+        let order = RefCell::new(Vec::new());
+        wait_alert(queued, &rx, &|| order.borrow_mut().push("report"), &|| {
+            order.borrow_mut().push("hold")
+        });
+        order.into_inner()
+    }
+
+    #[test]
+    fn alert_the_hold_starts_once_the_report_has_returned_and_never_without_a_report() {
+        let shown = [Step::Shown, Step::Response(1001)];
+        assert_eq!(order(Ok(()), &shown), ["report", "hold"]);
+        assert_eq!(order(Ok(()), &[Step::Shown]), ["report", "hold"]);
+        assert!(order(Ok(()), &[Step::Response(1001)]).is_empty());
+        assert!(order(Ok(()), &[]).is_empty());
+        assert!(order(Err(()), &shown).is_empty());
     }
 
     #[test]

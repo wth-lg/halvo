@@ -1,7 +1,9 @@
-use super::{item, pay, ALLOW, REJECT};
+use super::{arm, field, item, pay, ALLOW, REJECT};
+use crate::present::card::LINES;
 use crate::present::{serve, Card, Dialog, DialogPresenter, Read, Target};
 use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::types::{Cause, ItemId};
+use halvo_coord::types::{Class, FieldFrom};
 use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -59,6 +61,7 @@ impl Target for Fake {
 struct Shows {
     shows: Mutex<VecDeque<(bool, ConfirmAnswer)>>,
     cards: Mutex<Vec<Card>>,
+    arms: Mutex<Vec<Duration>>,
 }
 
 impl Shows {
@@ -66,6 +69,7 @@ impl Shows {
         Shows {
             shows: Mutex::new(shows.iter().copied().collect()),
             cards: Mutex::new(Vec::new()),
+            arms: Mutex::new(Vec::new()),
         }
     }
 
@@ -75,8 +79,9 @@ impl Shows {
 }
 
 impl Dialog for Shows {
-    fn show(&self, card: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, card: &Card, arm: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         self.cards.lock().unwrap().push(card.clone());
+        self.arms.lock().unwrap().push(arm);
         let (shown, answer) = self.shows.lock().unwrap().pop_front().unwrap();
         if shown {
             on_screen();
@@ -97,17 +102,53 @@ fn a_reader_that_refuses_the_card_shows_nothing_and_answers_nothing() {
     let (fake, seen) = Fake::new(&[]);
     let shows = Shows::new(&[(true, ALLOW)]);
     let read: Box<Read> = Box::new(|_: &ItemId| Err(Cause::UnknownItem));
-    serve(&fake, &*read, &shows);
+    serve(&fake, &*read, &shows, arm());
     assert_eq!(shows.count(), 0);
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.len()), (0, 0));
 }
 
 #[test]
+fn a_card_that_breaks_the_composed_form_is_shown_never_and_answers_nothing() {
+    let broken = [
+        Card::new(
+            &[Class::Payment],
+            &[field(
+                "Pay to",
+                &["City Power\nAmount: 0.01 USD"],
+                FieldFrom::Site,
+            )],
+        )
+        .unwrap(),
+        Card::of(
+            "Pay this?",
+            &["Pay to: City Power"; LINES + 1],
+            "Don't pay",
+            "Pay",
+        ),
+        Card::of(
+            "Pay this?",
+            &["Pay to: City Power"],
+            "Don't pay",
+            "Pay\u{202e}",
+        ),
+    ];
+    for card in broken {
+        let (fake, seen) = Fake::new(&[Ok(())]);
+        let shows = Shows::new(&[(true, ALLOW)]);
+        let read: Box<Read> = Box::new(move |_: &ItemId| Ok(card.clone()));
+        serve(&fake, &*read, &shows, arm());
+        assert_eq!(shows.count(), 0);
+        let seen = seen.lock().unwrap();
+        assert_eq!((seen.on_screen, seen.answers.len()), (0, 0));
+    }
+}
+
+#[test]
 fn the_press_on_allow_reaches_the_item_as_allow_after_the_report_on_screen() {
     let (fake, seen) = Fake::new(&[Ok(())]);
     let shows = Shows::new(&[(true, ALLOW)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     assert_eq!(*shows.cards.lock().unwrap(), [pay()]);
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.clone()), (1, vec![ALLOW]));
@@ -117,7 +158,7 @@ fn the_press_on_allow_reaches_the_item_as_allow_after_the_report_on_screen() {
 fn a_reject_reaches_the_item_as_reject() {
     let (fake, seen) = Fake::new(&[Ok(())]);
     let shows = Shows::new(&[(true, REJECT)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     assert_eq!(seen.lock().unwrap().answers, [REJECT]);
 }
 
@@ -125,7 +166,7 @@ fn a_reject_reaches_the_item_as_reject() {
 fn an_early_answer_shows_the_dialog_once_more_and_the_next_answer_counts() {
     let (fake, seen) = Fake::new(&[Err(Cause::Early), Err(Cause::Early), Ok(())]);
     let shows = Shows::new(&[(true, ALLOW), (true, REJECT), (true, ALLOW)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     assert_eq!(shows.count(), 3);
     let seen = seen.lock().unwrap();
     assert_eq!(seen.on_screen, 3);
@@ -136,7 +177,7 @@ fn an_early_answer_shows_the_dialog_once_more_and_the_next_answer_counts() {
 fn an_early_answer_of_a_dialog_that_was_not_on_screen_shows_it_no_more() {
     let (fake, seen) = Fake::new(&[Err(Cause::Early)]);
     let shows = Shows::new(&[(false, REJECT), (true, ALLOW)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     assert_eq!(shows.count(), 1);
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.clone()), (0, vec![REJECT]));
@@ -152,20 +193,22 @@ fn an_answer_refused_for_another_cause_shows_the_dialog_no_more() {
     ] {
         let (fake, seen) = Fake::new(&[Err(cause)]);
         let shows = Shows::new(&[(true, ALLOW), (true, ALLOW)]);
-        serve(&fake, &*reads_pay(), &shows);
+        serve(&fake, &*reads_pay(), &shows, arm());
         assert_eq!(shows.count(), 1, "{cause:?}");
         assert_eq!(seen.lock().unwrap().answers, [ALLOW]);
     }
 }
 
 struct Held {
+    arm: Mutex<Vec<Duration>>,
     started: Mutex<mpsc::Sender<()>>,
     release: Mutex<mpsc::Receiver<ConfirmAnswer>>,
 }
 
 impl Dialog for Held {
-    fn show(&self, _: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, _: &Card, arm: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         on_screen();
+        self.arm.lock().unwrap().push(arm);
         self.started.lock().unwrap().send(()).unwrap();
         self.release
             .lock()
@@ -191,10 +234,11 @@ fn present_returns_at_once_and_drops_the_item_on_its_own_thread_when_the_dialog_
     let (started_tx, started) = mpsc::channel();
     let (release, release_rx) = mpsc::channel();
     let dialog = Arc::new(Held {
+        arm: Mutex::new(Vec::new()),
         started: Mutex::new(started_tx),
         release: Mutex::new(release_rx),
     });
-    let presenter = DialogPresenter::new(dialog, |_: &ItemId| Ok(pay()));
+    let presenter = DialogPresenter::new(dialog.clone(), |_: &ItemId| Ok(pay()), arm());
     let (fake, seen) = Fake::new(&[Ok(())]);
     let (returned_tx, returned) = mpsc::channel();
     std::thread::spawn(move || {
@@ -212,13 +256,18 @@ fn present_returns_at_once_and_drops_the_item_on_its_own_thread_when_the_dialog_
         .unwrap()
         .dropped));
     assert_eq!(seen.lock().unwrap().answers, [ALLOW]);
+    assert_eq!(
+        *dialog.arm.lock().unwrap(),
+        [arm()],
+        "the constructor's arm reaches the show"
+    );
 }
 
 #[test]
 fn an_allow_from_a_show_that_was_never_on_screen_reaches_the_item_as_reject() {
     let (fake, seen) = Fake::new(&[Ok(())]);
     let shows = Shows::new(&[(false, ALLOW)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     let seen = seen.lock().unwrap();
     assert_eq!((seen.on_screen, seen.answers.clone()), (0, vec![REJECT]));
 }
@@ -227,7 +276,7 @@ fn an_allow_from_a_show_that_was_never_on_screen_reaches_the_item_as_reject() {
 fn the_mark_on_screen_is_one_per_show_so_a_second_show_never_on_screen_hands_on_reject() {
     let (fake, seen) = Fake::new(&[Err(Cause::Early), Ok(())]);
     let shows = Shows::new(&[(true, ALLOW), (false, ALLOW)]);
-    serve(&fake, &*reads_pay(), &shows);
+    serve(&fake, &*reads_pay(), &shows, arm());
     assert_eq!(shows.count(), 2);
     let seen = seen.lock().unwrap();
     assert_eq!(
@@ -239,4 +288,13 @@ fn the_mark_on_screen_is_one_per_show_so_a_second_show_never_on_screen_hands_on_
         [ALLOW, REJECT],
         "the second show was never on screen, so its allow is handed on as reject"
     );
+}
+
+#[test]
+fn every_show_holds_its_controls_for_the_arm_that_the_presenter_was_made_with() {
+    let (fake, _) = Fake::new(&[Err(Cause::Early), Err(Cause::Early), Ok(())]);
+    let shows = Shows::new(&[(true, ALLOW), (true, ALLOW), (true, ALLOW)]);
+    let hold = Duration::from_millis(1_234);
+    serve(&fake, &*reads_pay(), &shows, hold);
+    assert_eq!(*shows.arms.lock().unwrap(), [hold, hold, hold]);
 }
