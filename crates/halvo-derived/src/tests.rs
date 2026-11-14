@@ -282,6 +282,71 @@ fn the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_an
     );
 }
 
+/// The settings of the store's connection that the open sets and reads back since U5.1d, part 6 (S-74 (e), S-78, item
+/// 1), each with the value that it reads back as and another value that the read-back must refuse.
+const READ_BACK: [(&str, &str, &str); 4] = [
+    ("temp_store", "2", "FILE"),
+    ("synchronous", "2", "NORMAL"),
+    ("fullfsync", "1", "OFF"),
+    ("checkpoint_fullfsync", "1", "OFF"),
+];
+
+/// A setting as the store's own connection reads it, as text.
+fn setting(store: &Store, name: &str) -> String {
+    store
+        .db
+        .conn
+        .query_row(&format!("PRAGMA {name}"), [], |r| {
+            r.get::<_, rusqlite::types::Value>(0)
+        })
+        .map(|value| match value {
+            rusqlite::types::Value::Integer(n) => n.to_string(),
+            rusqlite::types::Value::Text(s) => s,
+            _ => String::new(),
+        })
+        .unwrap()
+}
+
+/// S-78, item 1 and S-74 (e): `temp_store` reads 2, memory, `synchronous` 2, FULL, and `fullfsync` and
+/// `checkpoint_fullfsync` 1 on the store's own connection after a first and after a second open of the same files.
+#[test]
+fn the_store_s_own_connection_reads_each_setting_of_the_open_after_a_first_and_a_second_open() {
+    let dir = data_dir("settings");
+    for open in ["first", "second"] {
+        let store = open_unit(dir.path());
+        for (name, want, _) in READ_BACK {
+            assert_eq!(setting(&store, name), want, "{name} after the {open} open");
+        }
+    }
+}
+
+/// S-78, item 1 and S-74 (e): the open's read-back refuses by name, with `OpenError::Setting`, a store whose
+/// `temp_store`, `synchronous`, `fullfsync` or `checkpoint_fullfsync` reads otherwise than the open set it, each
+/// changed alone on the store's own connection, and passes once it is set back.
+#[test]
+fn the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise() {
+    let dir = data_dir("settings-refused");
+    let store = open_unit(dir.path());
+    assert_eq!(crate::db::read_back(&store.db.conn), Ok(()));
+    for (name, want, other) in READ_BACK {
+        let set = |value: &str| {
+            store
+                .db
+                .conn
+                .execute_batch(&format!("PRAGMA {name} = {value};"))
+                .unwrap()
+        };
+        set(other);
+        assert_eq!(
+            crate::db::read_back(&store.db.conn),
+            Err(OpenError::Setting(name)),
+            "{name} set to {other}"
+        );
+        set(want);
+        assert_eq!(crate::db::read_back(&store.db.conn), Ok(()), "{name}");
+    }
+}
+
 /// DS-4: the reads' condition at the level of the statement, for the rows that no call of the store can make: a
 /// bounded row with no day is not handed out, and a kept row and a window row with no day are.
 #[test]

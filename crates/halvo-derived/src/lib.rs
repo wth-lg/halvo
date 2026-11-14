@@ -68,6 +68,10 @@
 //!
 //! - While a `Store` is open no other connection can read its database, also one that holds its key: the store keeps
 //!   the database in exclusive locking mode.
+//! - At each answered commit and at each checkpoint the store asks the system to flush the drive: the open sets
+//!   `synchronous` to FULL and `fullfsync` and `checkpoint_fullfsync` on, outside any transaction, reads each back and
+//!   refuses by name a store where one reads otherwise. Where the file system refuses the full flush the database falls
+//!   back to a plain sync and reports nothing, and the store cannot tell.
 //! - A handler learns of a window record that its typed commit dropped, past its expiry or naming a purged ordinal,
 //!   from `Committed::dropped` alone; the commit refuses nothing for it.
 //! - A stop between a batch's transaction and its steps leaves the batch committed with no proposal and no step
@@ -138,8 +142,9 @@ impl Store {
     /// `entries` are the kind entries the store takes: `kinds::registry()` in every host, with the test-only entries
     /// of a test host beside them. The open fails when `kinds::check_entries` reports a fault for them, when they lack
     /// one of the four kinds of the workflow run, when another store holds the writer lock or the database, when `key`
-    /// does not open the database, when a setting that the store makes (secure delete, exclusive locking, the
-    /// write-ahead log, foreign keys, the page-cache cap) does not read back as set from the store's one connection,
+    /// does not open the database, when a setting that the store makes (secure delete, temporary storage in memory,
+    /// exclusive locking, the write-ahead log, `synchronous` FULL, `fullfsync` and `checkpoint_fullfsync` on, foreign
+    /// keys, the page-cache cap) does not read back as set from the store's one connection,
     /// the connection of all its writes and reads, after it sets it, and when an existing database holds another
     /// schema. It also fails, with `OpenError::Stored`, before it writes anything, where rows of a kind
     /// are stored that the kind's entry cannot follow: rows stored under another retention class or another family

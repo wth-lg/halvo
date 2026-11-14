@@ -470,15 +470,14 @@ impl Db {
                 "PRAGMA secure_delete = ON;\n\
                  PRAGMA temp_store = MEMORY;\n\
                  PRAGMA journal_mode = WAL;\n\
+                 PRAGMA synchronous = FULL;\n\
+                 PRAGMA fullfsync = ON;\n\
+                 PRAGMA checkpoint_fullfsync = ON;\n\
                  PRAGMA foreign_keys = ON;\n\
                  PRAGMA cache_size = -{PAGE_CACHE_KIB};"
             ),
         )?;
-        require(&conn, "secure_delete", "1")?;
-        require(&conn, "locking_mode", "exclusive")?;
-        require(&conn, "journal_mode", "wal")?;
-        require(&conn, "foreign_keys", "1")?;
-        require(&conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
+        read_back(&conn)?;
         let progress = Progress::install(&mut conn, CALL_BUDGET)?;
         let families = families_of(entries);
         let mut db = Db {
@@ -806,6 +805,20 @@ fn set_key(conn: &Connection, key: &DbKey) -> Result<(), OpenError> {
 fn pragma(conn: &Connection, text: &str) -> Result<(), OpenError> {
     conn.execute_batch(text)
         .map_err(|e| OpenError::Fault(db_fault(e)))
+}
+
+/// Reads back each setting that the open makes on the store's connection and refuses, by the name of the first one that
+/// reads otherwise than set, with `OpenError::Setting`.
+pub(crate) fn read_back(conn: &Connection) -> Result<(), OpenError> {
+    require(conn, "secure_delete", "1")?;
+    require(conn, "temp_store", "2")?;
+    require(conn, "locking_mode", "exclusive")?;
+    require(conn, "journal_mode", "wal")?;
+    require(conn, "synchronous", "2")?;
+    require(conn, "fullfsync", "1")?;
+    require(conn, "checkpoint_fullfsync", "1")?;
+    require(conn, "foreign_keys", "1")?;
+    require(conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))
 }
 
 pub(crate) fn require(conn: &Connection, name: &'static str, want: &str) -> Result<(), OpenError> {
