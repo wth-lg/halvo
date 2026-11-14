@@ -1727,6 +1727,7 @@ name = "halvo-sqlcipher"
 version = "0.0.0"
 dependencies = [
  "cc",
+ "memchr",
  "rusqlite",
  "sqlcipher-src",
 ]
