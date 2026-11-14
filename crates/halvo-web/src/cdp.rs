@@ -347,6 +347,8 @@ pub struct Executor {
     first_reply: Duration,
     refs: RefTable<Target>,
     profile: Option<PathBuf>,
+    /// The profile in the form that the flags and the marks hold (`resolve_profile`).
+    named: Option<PathBuf>,
     temp: Option<PathBuf>,
     wire: wire::Wire,
     wire_task: JoinHandle<()>,
@@ -458,11 +460,13 @@ impl Executor {
         }
         let (profile, temp) = session::make_dirs(&opts.profile).map_err(refuse)?;
         let made = session::RemoveOnDrop::new(&profile, &temp);
-        // CP-189 G1, Addition 1 (3): the profile's path resolved once, here, before any flag.
-        let profile = resolve_profile(&profile);
+        // CP-189 G1, Addition 1 (3): the caller's path resolved once, here, before any flag
+        // (`resolve_profile`: links resolved on macOS, as given on Windows). `make_dirs`' own form,
+        // canonical on both systems (`\\?\` on Windows), stays the one that the removal uses.
+        let named = resolve_profile(&opts.profile);
         let resolved = StartOptions {
             browser: opts.browser.clone(),
-            profile: profile.clone(),
+            profile: named.clone(),
             headless: opts.headless,
             relay: opts.relay.clone(),
             guard: opts.guard.clone(),
@@ -470,7 +474,7 @@ impl Executor {
         };
         let opts = &resolved;
         let launched = async {
-            write_agent_settings(&profile)
+            write_agent_settings(&named)
                 .map_err(|f| (f, Default::default(), Default::default()))?;
             let ex = Executor::launch(opts, &temp).await?;
             let deny = SetDownloadBehaviorParams::new(SetDownloadBehaviorBehavior::Deny);
@@ -485,6 +489,7 @@ impl Executor {
             Ok(mut started) => {
                 made.disarm();
                 started.profile = Some(profile);
+                started.named = Some(named);
                 started.temp = Some(temp);
                 Ok(started)
             }
@@ -663,6 +668,7 @@ impl Executor {
             first_reply,
             refs: RefTable::new(),
             profile: None,
+            named: None,
             temp: None,
             wire,
             wire_task,
@@ -687,7 +693,7 @@ impl Executor {
 
     /// The profile directory that the start made, in the one form that its flags and its mark hold.
     pub fn profile(&self) -> Option<&Path> {
-        self.profile.as_deref()
+        self.named.as_deref()
     }
 
     /// The identity of the browser's pipe, which the checks of a session read (CP-89 (c)).
