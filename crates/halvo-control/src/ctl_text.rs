@@ -344,6 +344,10 @@ pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
 /// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
 pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
+/// What ctl says on standard error for a delete whose root reads unknown (contracts.md C2.6).
+pub const ROOTS_NOT_LISTED_TEXT: &str =
+    "the roots of this custody cannot be listed; a root may survive";
+
 pub fn stopped_text(stopped: &Stopped) -> String {
     format!(
         "stopped flushed={} events_lost={}\n",
@@ -501,6 +505,11 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                             .display()
                     ),
                     status: crate::exit::ERROR,
+                },
+                (RootDestroyed::Unknown, _) => Printed {
+                    stdout,
+                    stderr: format!("halvo-capture: {ROOTS_NOT_LISTED_TEXT}\n"),
+                    status: crate::exit::CLEAN,
                 },
                 _ => printed(stdout, crate::exit::CLEAN),
             }
@@ -1040,6 +1049,32 @@ mod tests {
             "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes not_followed=0 entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
         );
         assert_eq!(printed.status, 0);
+    }
+
+    #[test]
+    fn ct12_a_deleted_reply_with_root_destroyed_unknown_prints_both_streams_of_c2_6_and_exits_0() {
+        let report = DeleteReport::new(DeleteFields {
+            root_destroyed: RootDestroyed::Unknown,
+            root_id: None,
+            ..*sample_delete_report().fields()
+        })
+        .unwrap();
+        let printed = print(
+            &Verb::DeleteAll(Some(FRESH)),
+            Ok(Reply::Deleted(Deleted {
+                report,
+                store: Some(FRESH),
+            })),
+            &data_dir(),
+        );
+        assert_eq!(
+            printed,
+            Printed {
+                stdout: "deleted segments_shredded=2 keys_destroyed=3 root_destroyed=unknown root_id=- files_left=0 database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written store_id=fedcba9876543210fedcba9876543210\n".to_string(),
+                stderr: "halvo-capture: the roots of this custody cannot be listed; a root may survive\n".to_string(),
+                status: 0,
+            }
+        );
     }
 
     #[test]
