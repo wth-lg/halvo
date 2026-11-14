@@ -90,7 +90,7 @@ function consoleLines(): string[] {
   return lines;
 }
 
-test("contract 6, unit 4.9: the object refuses HOLD_LIFE_MS above 30,000 ms, which is AFTER_CLIENT_GONE_MS, and SYNC_INTERVAL_SECONDS above 86,400 s where it reads its settings, as numberVariable refuses a value that does not parse: one line bad-variable with the variable's name and an Error of that name, one above the bound, at 100000 and at the largest value that the parser takes, with TEST_CLOCK absent and with it 1; below the bound (5000 and 9000, whose first digits are larger than the bound's) and at each bound the object starts and writes no line, and its alarm stands at the open hold's expiry, 30,000 ms after a reserve at a clock of no whole second, and, after the hold settles, at the end of the 86,400 s interval that starts at the whole second of the seed", async () => {
+test("contract 6, unit 4.9: the object refuses HOLD_LIFE_MS above 30,000 ms, which is AFTER_CLIENT_GONE_MS, and SYNC_INTERVAL_SECONDS above 86,400 s where it reads its settings, as numberVariable refuses a value that does not parse: one line bad-variable with the variable's name and an Error of that name whose message is 'a number variable is above its bound', one above the bound, at 100000 and at the largest value that the parser takes, with TEST_CLOCK absent and with it 1; below the bound (5000 and 9000, whose first digits are larger than the bound's) and at each bound the object starts and writes no line, and its alarm stands at the open hold's expiry, 30,000 ms after a reserve at a clock of no whole second, and, after the hold settles, at the end of the 86,400 s interval that starts at the whole second of the seed", async () => {
   expect(AFTER_CLIENT_GONE_MS).toBe(30_000);
   const hash = "5d".repeat(32);
   Date.now = () => BOUND_CLOCK;
@@ -110,11 +110,12 @@ test("contract 6, unit 4.9: the object refuses HOLD_LIFE_MS above 30,000 ms, whi
             refused = error;
           }
           vi.restoreAllMocks();
-          expect({ name, value, testClock, refused: refused instanceof Error ? refused.name : refused, lines }).toEqual({
+          expect({ name, value, testClock, refused: refused instanceof Error ? refused.name : refused, message: refused instanceof Error ? refused.message : null, lines }).toEqual({
             name,
             value,
             testClock,
             refused: name,
+            message: "a number variable is above its bound",
             lines: [`log {"event":"bad-variable","variable":"${name}"}`],
           });
           expect(await state.storage.getAlarm()).toBeNull();
@@ -149,4 +150,77 @@ test("contract 6, unit 4.9: the object refuses HOLD_LIFE_MS above 30,000 ms, whi
     vi.restoreAllMocks();
     expect(lines).toEqual([]);
   });
+});
+
+function storedTables(state: DurableObjectState): Record<string, Record<string, unknown>[]> {
+  const dump: Record<string, Record<string, unknown>[]> = {};
+  const names = state.storage.sql.exec("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").toArray() as Record<string, unknown>[];
+  dump.schema = names.filter((entry) => !String(entry.name).startsWith("_cf_"));
+  for (const entry of dump.schema) {
+    if (entry.type !== "table") continue;
+    dump[String(entry.name)] = state.storage.sql.exec(`SELECT * FROM "${String(entry.name)}"`).toArray() as Record<string, unknown>[];
+  }
+  return dump;
+}
+
+test("contract 6, unit 4.9 (ii), ruling P7-99 G2: over an account with an open hold, a construction with HOLD_LIFE_MS or SYNC_INTERVAL_SECONDS one above its bound at a later clock is refused with its one line and, one timer turn later, has changed no row of any table and not the alarm, once with the alarm as the reserve left it and once after the stored alarm was deleted (null stays null); then a construction at the bound, at a clock past the hold's expiry, arms the alarm at the hold's stored expiry, and its alarm ends the hold and leaves the period's open amount at 0", async () => {
+  const hash = "8e".repeat(32);
+  const reserveAt = BOUND_CLOCK + 41;
+  const refusedAt = reserveAt + 777;
+  const pastExpiry = reserveAt + 3_000 + 509;
+  for (const [name, bound] of [
+    ["HOLD_LIFE_MS", 30_000],
+    ["SYNC_INTERVAL_SECONDS", 86_400],
+  ] as const) {
+    await runInDurableObject(bindings.ACCOUNT.get(bindings.ACCOUNT.newUniqueId()), async (_instance: AccountObject, state) => {
+      Date.now = () => BOUND_CLOCK;
+      const seeding = new AccountObject(state, { ...bindings, TEST_CLOCK: "1" } as Env);
+      expect(await seeding.testSeed({ accountId: "5e3d2c1b-0a9f-4e8d-9c7b-6a5f4e3d2c1b", hash, subscription: "active", cap: { amount: 10, period: "week" } })).toEqual({ result: "seeded" });
+      Date.now = () => reserveAt;
+      expect(await seeding.reserve(hash, { requestId: "over-stored", tier: "low_cost_hosted", amount: 10_000, price: LOW })).toMatchObject({ outcome: "admitted" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(await state.storage.getAlarm()).toBe(reserveAt + 3_000);
+
+      for (const alarm of ["as the reserve left it", "deleted"] as const) {
+        if (alarm === "deleted") await state.storage.deleteAlarm();
+        const before = { tables: storedTables(state), alarm: await state.storage.getAlarm() };
+        expect({ name, alarm, before: before.alarm }).toEqual({ name, alarm, before: alarm === "deleted" ? null : reserveAt + 3_000 });
+        Date.now = () => refusedAt;
+        const lines = consoleLines();
+        let refused: unknown = null;
+        try {
+          new AccountObject(state, { ...bindings, [name]: String(bound + 1) } as Env);
+        } catch (error) {
+          refused = error instanceof Error ? error.name : error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        vi.restoreAllMocks();
+        const after = { tables: storedTables(state), alarm: await state.storage.getAlarm() };
+        expect({ name, alarm, refused, lines, tables: after.tables, alarmAfter: after.alarm }).toEqual({
+          name,
+          alarm,
+          refused: name,
+          lines: [`log {"event":"bad-variable","variable":"${name}"}`],
+          tables: before.tables,
+          alarmAfter: before.alarm,
+        });
+      }
+
+      Date.now = () => pastExpiry;
+      const lines = consoleLines();
+      const object = new AccountObject(state, { ...bindings, [name]: String(bound) } as Env);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect({ name, alarm: await state.storage.getAlarm() }).toEqual({ name, alarm: reserveAt + 3_000 });
+      await object.alarm();
+      vi.restoreAllMocks();
+      const holds = state.storage.sql.exec("SELECT request_id, state, expires_at, ended_at FROM ledger_holds").toArray();
+      const periods = state.storage.sql.exec("SELECT open FROM ledger_periods").toArray();
+      expect({ name, lines, holds, periods }).toEqual({
+        name,
+        lines: [],
+        holds: [{ request_id: "over-stored", state: "voided", expires_at: reserveAt + 3_000, ended_at: pastExpiry }],
+        periods: [{ open: 0 }],
+      });
+    });
+  }
 });
