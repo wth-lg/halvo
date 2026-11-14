@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,46 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: |
+          set +e
+          start=$(date +%s)
+          cargo test -p halvo-seam --locked
+          code=$?
+          echo "u12e-crate-tests exit=$code seconds=$(($(date +%s) - start))"
+          exit "$code"
+      - name: U1.2e loop of the new tests
+        if: ${{ !cancelled() }}
+        timeout-minutes: 70
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-seam --test conformance --test suite_controls --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]conformance.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          ctl=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]suite_controls.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          echo "u12e-loop binaries found: conformance=$([ -n "$bin" ] && echo yes || echo no) suite_controls=$([ -n "$ctl" ] && echo yes || echo no)"
+          [ -n "$bin" ] && [ -n "$ctl" ] || exit 1
+          log="$RUNNER_TEMP/u12e-round.txt"
+          want='test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out'
+          wantc='test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out'
+          passed=0
+          start=$(date +%s)
+          while [ "$passed" -lt 200 ]; do
+            "$bin" --exact conformance_filters conformance_filters_step_back conformance_set_d_holds_its_step_back_when_served >"$log" 2>&1
+            code=$?
+            "$ctl" >>"$log" 2>&1
+            codec=$?
+            if [ "$code" -ne 0 ] || [ "$codec" -ne 0 ] || ! grep -q -F "$want" "$log" || ! grep -q -F "$wantc" "$log"; then
+              echo "u12e-loop round $((passed + 1)) failed with exit $code and $codec; its lines:"
+              grep -E '^test |^test result|^failures|panicked' "$log"
+              break
+            fi
+            passed=$((passed + 1))
+          done
+          echo "u12e-loop passed=$passed of 200 seconds=$(($(date +%s) - start))"
+          grep -E '^test |^test result' "$log"
+          [ "$passed" -eq 200 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +147,41 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 21-seam
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 21-seam
+      - name: U1.2e loop of the new tests
+        if: ${{ !cancelled() }}
+        timeout-minutes: 70
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-seam --test conformance --test suite_controls --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]conformance.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          ctl=$(printf '%s\n' "$out" | sed -n 's/.*Executable tests[\\/]suite_controls.rs (\(.*\))$/\1/p' | tr '\\' '/')
+          echo "u12e-loop binaries found: conformance=$([ -n "$bin" ] && echo yes || echo no) suite_controls=$([ -n "$ctl" ] && echo yes || echo no)"
+          [ -n "$bin" ] && [ -n "$ctl" ] || exit 1
+          log="$RUNNER_TEMP/u12e-round.txt"
+          want='test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out'
+          wantc='test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out'
+          passed=0
+          start=$(date +%s)
+          while [ "$passed" -lt 200 ]; do
+            "$bin" --exact conformance_filters conformance_filters_step_back conformance_set_d_holds_its_step_back_when_served >"$log" 2>&1
+            code=$?
+            "$ctl" >>"$log" 2>&1
+            codec=$?
+            if [ "$code" -ne 0 ] || [ "$codec" -ne 0 ] || ! grep -q -F "$want" "$log" || ! grep -q -F "$wantc" "$log"; then
+              echo "u12e-loop round $((passed + 1)) failed with exit $code and $codec; its lines:"
+              grep -E '^test |^test result|^failures|panicked' "$log"
+              break
+            fi
+            passed=$((passed + 1))
+          done
+          echo "u12e-loop passed=$passed of 200 seconds=$(($(date +%s) - start))"
+          grep -E '^test |^test result' "$log"
+          [ "$passed" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
