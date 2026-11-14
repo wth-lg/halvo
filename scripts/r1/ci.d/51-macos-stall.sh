@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the measured lines and the loop are named and run in steps of their own, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the measured lines and the loop are named and not run here, for they run on a scratch push and a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the measured run that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the five files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
 set -u
 name=51-macos-stall
 test_limit_s=${MS_TEST_LIMIT_S:-900}
@@ -26,6 +26,7 @@ the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_fie
 at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys three-way
 the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
 known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded known-fault
+known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys known-fault
 measured_a_password_typed_whole_ahead_at_machine_speed measured
 measured_a_password_typed_whole_ahead_at_a_persons_pace measured
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measured
@@ -50,7 +51,8 @@ notes() {
   fi
   cat <<'EOF'
 measured_a_password_typed_whole_ahead_at_machine_speed in pushes 6 and 7 the keys were held under a reading of off and dropped by a reading that fell into the on-time while the program handled them; the on-time was not printed. D2 stays an open fault (MA-12 D, ruling MA-19)
-short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2 and asserts nothing; it holds D2 in place of a listed test for as long as it exists (ruling MA-19 (7))
+short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2, asserts nothing and holds no promise; the listed stand-in holds D2 (ruling MA-22 L10)
+known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys holds D2 (MA-12 D3) with stand-ins at the product's gap: an on-time shorter than the spacing of two readings that are both in time releases the keys; D2 stays an open fault until a ruling names the unit that closed it (ruling MA-22 L10)
 short_window_a_the_click_round_as_it_was_at_wait_2000_ms D2 stays an open fault. Its mechanism has been seen once on the hosted machine at the test's gap of 200 ms: an on-time shorter than the spacing of two readings that are both in time releases the keys. At the product's gap of 30 ms no hosted round shows it. The cause of push 7's recorded click round is not shown (ruling MA-20 (1), (7))
 short_window_b_the_leave_asked_after_n_ms names the leave that the fixture was asked to make after n ms; the set on-times were not reached, because the leave ran behind the queued events, so each on-time is as measured, and the sample under 40 ms is thin (8 of 599 rounds in push 8) (ruling MA-20 (6))
 EOF
@@ -77,6 +79,42 @@ seam_manifests() {
   [ "$named" = "crates/halvo-capture/Cargo.toml " ] ||
     fail "the feature stall-seam must stand in crates/halvo-capture/Cargo.toml alone; manifests that name it: ${named:-none}"
   printf 'seam: the feature stall-seam stands in crates/halvo-capture/Cargo.toml alone\n'
+}
+
+measured_files() {
+  cat <<'EOF'
+crates/halvo-capture/src/macos/input.rs
+crates/halvo-capture/src/secure_input_macos.rs
+crates/halvo-capture/src/secure_input_macos_hold.rs
+crates/halvo-capture/tests/macos_stall_fixture.rs
+crates/halvo-capture/tests/macos_stall_fixture/fixture.m
+EOF
+}
+
+ledger_check() {
+  ledger=docs/baseline/ledger.d/macos-2b.txt
+  fix="run the measured lines on a scratch push of this head, then record that run, its figures and the blob ids of the five files of the hold in $ledger (ruling MA-22 L10)"
+  [ -f "$ledger" ] || fail "$ledger is missing: $fix"
+  tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
+  runs=$(sed -n 's/^measured run=\([0-9][0-9]*\) .*/\1/p' "$work/ledger" | tr '\n' ' ')
+  run=${runs% }
+  case $run in
+    '') fail "$ledger names no measured run: $fix" ;;
+    *' '*) fail "$ledger names more than one measured run ($run): $fix" ;;
+  esac
+  sed -n 's/^measured blob path=\([^ ]*\) id=[0-9a-f]*$/\1/p' "$work/ledger" | sort >"$work/ledger-paths" ||
+    fail "$ledger cannot be read"
+  measured_files | sort >"$work/measured-paths" || fail "the list of the five files cannot be read"
+  cmp -s "$work/ledger-paths" "$work/measured-paths" ||
+    fail "$ledger records the blobs of files other than the five of the hold, once each: $fix"
+  while read -r path; do
+    recorded=$(awk -v path="$path" '$1 == "measured" && $2 == "blob" && $3 == "path=" path { sub(/^id=/, "", $4); print $4 }' "$work/ledger")
+    staged=$(git ls-files --stage -- "$path" | cut -d ' ' -f 2)
+    [ -n "$staged" ] || fail "$path is not tracked: $fix"
+    [ "$recorded" = "$staged" ] ||
+      fail "the measured run $run ran on a blob of $path other than the head's ($recorded against $staged): $fix"
+  done <"$work/measured-paths"
+  printf 'ledger: the measured run %s ran on the blobs that the head has of the five files of the hold\n' "$run"
 }
 
 tracked_changes() {
@@ -249,7 +287,7 @@ measure() {
     case $kind in
       not-run | twelve) continue ;;
       measured | loop)
-        line="MS $test kind=$kind run=in_a_step_of_its_own"
+        line="MS $test kind=$kind run=on_a_scratch_push asserts=nothing"
         printf '%s\n' "$line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
         note=$(notes | sed -n "s/^$test //p")
         [ -z "$note" ] || printf 'MS note %s: %s\n' "$test" "$note" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
@@ -299,6 +337,7 @@ measure() {
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
+  ledger_check
   printf 'PASS %s\n' "$name"
 }
 
@@ -429,6 +468,21 @@ EOF
   chmod +x "$work/bin/cargo" "$work/bin/clang" "$work/bin/stall-stub" || exit 2
 }
 
+write_measured_ledger() {
+  ledger_file=$work/repo/docs/baseline/ledger.d/macos-2b.txt
+  mkdir -p "$work/repo/docs/baseline/ledger.d" "$work/repo/crates/halvo-capture/src/macos" \
+    "$work/repo/crates/halvo-capture/tests/macos_stall_fixture" || exit 2
+  measured_files | while read -r path; do
+    printf '%s\n' "$path" >"$work/repo/$path" || exit 2
+    git -C "$work/repo" add -- "$path" || exit 2
+  done
+  printf 'measured run=1 commit=0 figures=none\n' >"$ledger_file" || exit 2
+  measured_files | while read -r path; do
+    printf 'measured blob path=%s id=%s\n' "$path" "$(git -C "$work/repo" ls-files --stage -- "$path" | cut -d ' ' -f 2)"
+  done >>"$ledger_file" || exit 2
+  git -C "$work/repo" add docs || exit 2
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name-self-test.XXXXXX") || {
     printf 'FAIL self-test:%s (mktemp failed)\n' "$name"
@@ -444,6 +498,7 @@ self_test() {
   printf '[features]\nstall-seam = []\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   printf '[dependencies]\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
   git -C "$work/repo" add tracked.txt crates || exit 2
+  write_measured_ledger
   twelve=$work/repo/target/ci-artifacts/12-test/tests.txt
   ignored='     Running tests/macos_stall_fixture.rs (target/debug/deps/macos_stall_fixture-0)
 test a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ignored, posts keys and shows a window: the hosted step alone runs it
@@ -457,8 +512,8 @@ test a_rule ... ok'
   limit=
   check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
   check note-line PASS 'MS note phase_two: shows what it shows; it does not show the rest' ''
-  check measured-named-not-run PASS 'MS measured_one kind=measured run=in_a_step_of_its_own' ''
-  check loop-named-not-run PASS 'MS loop_one kind=loop run=in_a_step_of_its_own' ''
+  check measured-named-not-run PASS 'MS measured_one kind=measured run=on_a_scratch_push asserts=nothing' ''
+  check loop-named-not-run PASS 'MS loop_one kind=loop run=on_a_scratch_push asserts=nothing' ''
   check history-line PASS 'MS note pushes 5 to 7: in the Tab, click, focus-move, leaving-key and whole-password phases' ''
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
@@ -502,6 +557,24 @@ test a_rule ... ok'
   printf '[features]\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   git -C "$work/repo" add crates || exit 2
   check seam-in-no-manifest FAIL 'manifests that name it: none' ''
+  printf '[features]\nstall-seam = []\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check ledger-holds PASS 'ledger: the measured run 1 ran on the blobs that the head has of the five files of the hold' ''
+  printf 'changed\n' >>"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check ledger-blob-changed FAIL 'ran on a blob of crates/halvo-capture/src/secure_input_macos_hold.rs other than the head'"'"'s' ''
+  check ledger-fix-text FAIL 'run the measured lines on a scratch push of this head, then record that run' ''
+  write_measured_ledger
+  grep -v '^measured run=' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-without-run" || exit 2
+  cp "$work/ledger-without-run" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
+  check ledger-names-no-run FAIL 'names no measured run' ''
+  write_measured_ledger
+  grep -v 'path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m ' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-four" || exit 2
+  cp "$work/ledger-four" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
+  check ledger-four-files FAIL 'records the blobs of files other than the five of the hold' ''
+  write_measured_ledger
+  printf 'measured run=2 commit=0 figures=none\n' >>"$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
+  check ledger-two-runs FAIL 'names more than one measured run (1 2)' ''
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (cases that gave another verdict:%s)\n' "$name" "$wrong"
     exit 1

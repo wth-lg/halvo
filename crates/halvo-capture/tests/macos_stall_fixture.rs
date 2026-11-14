@@ -16,6 +16,7 @@ use halvo_capture::macos::input::{
     Arrived, Caller, DropCounts, HoldPlan, InputCounters, InputSource, RawEntry, StallSeam,
 };
 use halvo_capture::secure_input_macos::hold::Cause;
+use halvo_capture::secure_input_macos::hold::{Bounds, HeldKeys, Monotonic, Stamps, Step, Timing};
 use halvo_capture::secure_input_macos::hold::{GAP_BOUND, HOLD_BOUND, READING_STEP};
 use halvo_capture::secure_input_macos::{read_session, secure_input_active, Reading, Session};
 use halvo_capture::sink;
@@ -3381,4 +3382,76 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
         "com.google.Chrome",
     );
     println!("probe done");
+}
+
+#[test]
+#[ignore = "a listed known fault of 51-macos-stall: D2 (MA-12 D3) held by stand-ins at the product's gap (ruling MA-22 L10)"]
+fn known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys() {
+    let name =
+        "known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys";
+    const KEYS: u64 = 8;
+    let gap_ms = u64::try_from(GAP_BOUND.as_millis()).expect("the gap bound in ms");
+    let hold_ms = u64::try_from(HOLD_BOUND.as_millis()).expect("the bound in ms");
+    let both = |ms: u64| Stamps {
+        before: Monotonic(ms * 1_000_000),
+        after: Monotonic(ms * 1_000_000),
+    };
+    let first_tick = KEYS + 2;
+    let on = (first_tick + 5, first_tick + gap_ms - 5);
+    let read = |ms: u64| {
+        if (on.0..on.1).contains(&ms) {
+            Reading::On
+        } else {
+            Reading::Off
+        }
+    };
+    let mut keys: HeldKeys<u64> = HeldKeys::new(Bounds::PRODUCT);
+    let (mut released, mut dropped) = (0u64, 0usize);
+    let mut settle = |keys: &mut HeldKeys<u64>, ms: u64| {
+        let mut step = keys.reading(read(ms), both(ms));
+        loop {
+            match step {
+                Step::Released(_) => {
+                    released += 1;
+                    if keys.is_empty() {
+                        return;
+                    }
+                    step = keys.reading(read(ms), both(ms));
+                }
+                Step::Dropped { keys: count, .. } => {
+                    dropped += count;
+                    return;
+                }
+                Step::Waiting => return,
+            }
+        }
+    };
+    for key in 0..KEYS {
+        settle(&mut keys, key);
+        let _ = keys.admit(
+            read(key),
+            Timing::InTime {
+                lag: Duration::ZERO,
+            },
+            Monotonic(key * 1_000_000),
+            key,
+        );
+    }
+    let mut ms = first_tick;
+    while !keys.is_empty() && ms <= hold_ms + 2 * gap_ms + KEYS {
+        settle(&mut keys, ms);
+        ms += gap_ms;
+    }
+    println!(
+        "{name} gap_ms={gap_ms} readings_ms_apart={gap_ms} on_ms={} keys={KEYS} released={released} dropped={dropped}",
+        on.1 - on.0
+    );
+    assert_eq!(
+        released,
+        0,
+        "{name}: recorded keys beside the markers in rounds that counted: D2 at the product's gap: {released} \
+         of {KEYS} keys typed ahead into a field that was secure for {} ms between two readings of off {gap_ms} \
+         ms apart were released",
+        on.1 - on.0
+    );
 }
