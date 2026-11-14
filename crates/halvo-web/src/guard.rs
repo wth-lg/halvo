@@ -29,9 +29,12 @@ pub const PORT_MARGIN: Duration = Duration::from_millis(1_000);
 /// with exit 3 and `guard_end cause=table_unread` (CP-145, its addition of 07:54Z).
 pub const UNREAD_CAP: Duration = Duration::from_secs(300);
 
-/// How long the guard keeps the port for members that do not bear the run's mark once no member
-/// that bears it runs, before it writes its last line with the cause `left_unmarked` and exits
-/// with 4 (CP-185 (3)). The cap of the unread table, as CP-185 names it by default.
+/// How long the guard keeps the port for members that do not bear the run's mark, counted from
+/// the last read that showed a running member with the mark (from the guard's first read with a
+/// member when none ever bore it), before it writes its last line with the cause `left_unmarked`
+/// and exits with 4 (CP-185 (3), CP-189 G6). The cap of the unread table, as CP-185 names it by
+/// default. A read that fails neither starts, moves nor tests the count, and after an unread
+/// spell the guard leaves by the cap only when two reads in a row agree.
 pub const LEFT_CAP: Duration = UNREAD_CAP;
 
 /// How often the guard reads the process table, and how long it waits after a read that failed.
@@ -390,7 +393,11 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     // process that does not bear it, or whose program or arguments cannot be read, is left.
     let bears = |p: &Proc| mark.is_some_and(|m| m.owns(p, args));
     let mut left_ids: Vec<(u32, u64)> = Vec::new();
-    let mut unmarked_since: Option<u128> = None;
+    // CP-189 G6: the cap's count starts at the last read that showed a marked member, or at the
+    // first read with a member; `after_unread` holds the cap back at the first read after a spell.
+    let mut last_marked_at: Option<u128> = None;
+    let mut first_member_at: Option<u128> = None;
+    let mut after_unread = false;
     let (grace, margin) = match trigger {
         Trigger::ExecutorGone { .. } => (GRACE.as_millis(), PORT_MARGIN.as_millis()),
         Trigger::Now => (0, 0),
@@ -407,6 +414,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 eprintln!("guard_end cause=table_unread");
                 return 3;
             }
+            after_unread = true;
             pause(true);
             continue;
         };
@@ -447,11 +455,13 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
         // CP-185 (3): every member keeps the port while one that bears the mark runs; members
         // without it keep it for `LEFT_CAP` after the last marked one is gone, then the guard
         // writes its last line and exits, which closes its copy of the listener.
+        first_member_at.get_or_insert(now);
+        let spell_just_ended = std::mem::take(&mut after_unread);
         if running.iter().any(&bears) {
-            unmarked_since = None;
+            last_marked_at = Some(now);
         } else {
-            let since = *unmarked_since.get_or_insert(now);
-            if now.saturating_sub(since) >= LEFT_CAP.as_millis() {
+            let since = last_marked_at.or(first_member_at).unwrap_or(now);
+            if now.saturating_sub(since) >= LEFT_CAP.as_millis() && !spell_just_ended {
                 for p in &running {
                     leave(&mut act, &mut left_ids, p);
                 }
@@ -1426,9 +1436,11 @@ mod tests {
         });
         assert!(ends.is_empty(), "{ends:?}");
         assert_eq!(code, 4);
-        assert!(at >= 1_000 + LEFT_CAP.as_millis(), "returned at {at} ms");
+        // CP-189 G6: the cap counts from the last read that showed the marked first process, at
+        // 900 ms.
+        assert!(at >= 900 + LEFT_CAP.as_millis(), "returned at {at} ms");
         assert!(
-            at < 1_000 + LEFT_CAP.as_millis() + 1_000,
+            at < 900 + LEFT_CAP.as_millis() + 1_000,
             "returned at {at} ms"
         );
         let last = last.expect("its last line");
