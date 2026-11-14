@@ -290,10 +290,15 @@ mod gate {
         let dir = dir.ok_or(Usage("--store-dir DIR is required"))?;
         let scratch = ScratchDir::new(PathBuf::from(dir), account)
             .map_err(|_| Usage("DIR is no absolute directory clear of the data directory"))?;
-        if scratch.path().join("store.key").symlink_metadata().is_ok() {
-            return Err(Usage("DIR holds store.key"));
+        match scratch.path().join("store.key").symlink_metadata() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(scratch.path().to_path_buf())
+            }
+            Ok(_) => Err(Usage("DIR holds store.key")),
+            Err(_) => Err(Usage(
+                "DIR/store.key cannot be read, as in a DIR that this user cannot search, so DIR may hold store.key",
+            )),
         }
-        Ok(scratch.path().to_path_buf())
     }
 
     pub(super) fn is_marker(marker: &str) -> bool {
@@ -860,6 +865,46 @@ mod tests {
             timed(&dirs, &["1", "--store-dir", &dirs.store]).is_err(),
             "store.key"
         );
+    }
+
+    /// Unix alone, and not as root, whom a mode of 0600 does not stop.
+    #[cfg(all(unix, debug_assertions))]
+    #[test]
+    fn a_dir_whose_store_key_cannot_be_read_is_refused_by_the_first_three_modes() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        let key = Path::new(d).join("store.key");
+        std::fs::write(&key, b"{}").unwrap();
+        if std::fs::metadata(&key).unwrap().uid() == 0 {
+            println!("not run: the test runs as root, whom a mode of 0600 does not stop");
+            return;
+        }
+        std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let refused = [
+            parse(args(&["--timed-run", "1", "--store-dir", d]), &dirs.account),
+            parse(
+                args(&[
+                    "--verify-store",
+                    "--store-dir",
+                    d,
+                    "--marker",
+                    "M4rker.unread",
+                ]),
+                &dirs.account,
+            ),
+            parse(
+                args(&["--verify-deletion", "--store-dir", d]),
+                &dirs.account,
+            ),
+        ];
+        std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for answer in refused {
+            assert!(
+                answer.is_err(),
+                "a DIR that cannot be searched was taken: {answer:?}"
+            );
+        }
     }
 
     #[cfg(debug_assertions)]
