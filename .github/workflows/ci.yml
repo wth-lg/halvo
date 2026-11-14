@@ -1,4 +1,5 @@
 name: ci
+# scratch: land-43's rehearsal tree, two macos jobs, each runs every row of one rows file to its end by name; never merged
 
 on:
   push:
@@ -21,27 +22,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -49,35 +29,6 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
@@ -85,44 +36,76 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: "Every row of crates/halvo-capture/src/store/mutants.rows to its end by name (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
         env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
+          ROWS_FILE: crates/halvo-capture/src/store/mutants.rows
+          ROWS_JOB: store
+          ROWS_PACKAGE: halvo-capture
+        run: |
+          set +e -u
+          runner=${HALVO_STEP_RUNNER:-scripts/r1-gate/mutation-test.sh}
+          file=$ROWS_FILE
+          out="${RUNNER_TEMP:-/tmp}/rows-$ROWS_JOB.out"
+          names=$(awk -F '\t' 'NF >= 5 && $1 !~ /^#/ && $1 != "" {print $1}' "$file")
+          count=$(printf '%s\n' "$names" | grep -c .)
+          printf 'ROWS file %s: %s names\n' "$file" "$count"
+          printf '%s\n' "$names" | sed 's/^/ROWS name /'
+          set --
+          for n in $names; do set -- "$@" --only "$n"; done
+          t0=$(date +%s)
+          sh "$runner" "$@" >"$out" 2>&1
+          code=$?
+          printf 'ROWS runner exit %s, seconds %s\n' "$code" "$(($(date +%s) - t0))"
+          grep -E '^(PASS|FAIL|OPEN|NOT-RUN|RETIRED|PENDING|STOPPED|TRANSITIONAL) (unmutated|mutation)' "$out" | cut -c1-400 | sed 's/^/ROWS /'
+          grep -E '^seconds mutation:|^mutation rows:' "$out" | sed 's/^/ROWS /'
+          caught=0; uncaught=0; other=0; missing=0; : >"${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt"
+          for n in $names; do
+            line=$(grep -E "^[A-Z-]+ mutation:$n \(" "$out" | tail -n 1)
+            case $line in
+              "PASS mutation:$n "*) caught=$((caught + 1)) ;;
+              "FAIL mutation:$n (test "*": passed)")
+                uncaught=$((uncaught + 1))
+                t=$(printf '%s\n' "$line" | sed -n 's/^FAIL mutation:[^ ]* (test \(.*\): passed)$/\1/p')
+                printf '%s %s\n' "$n" "$t" >>"${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt" ;;
+              '') other=$((other + 1)); missing=$((missing + 1)); printf 'ROWS no line for %s\n' "$n" ;;
+              *) other=$((other + 1)) ;;
+            esac
+          done
+          printf 'rows: %s caught, %s not caught, %s other\n' "$caught" "$uncaught" "$other"
+          printf 'not caught:%s\n' "$(awk '{printf " %s", $1}' "${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt")"
+          [ "$missing" -eq 0 ] && grep -q '^mutation rows:' "$out"
+      - name: "The named test of each row not caught, on the unmutated tree (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
-  windows:
-    runs-on: windows-2025
+        env:
+          ROWS_FILE: crates/halvo-capture/src/store/mutants.rows
+          ROWS_JOB: store
+          ROWS_PACKAGE: halvo-capture
+        run: |
+          set +e -u
+          list="${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt"
+          [ -s "$list" ] || { printf 'UNMUTATED no row of %s is not caught\n' "$ROWS_FILE"; exit 0; }
+          cargo=${HALVO_STEP_CARGO:-cargo}
+          status=0
+          while read -r row test; do
+            out="${RUNNER_TEMP:-/tmp}/unmutated-$row.out"
+            "$cargo" test -q --locked -p "$ROWS_PACKAGE" --lib -- --exact "$test" >"$out" 2>&1
+            code=$?
+            result=$(grep -E '^test result:' "$out" | tail -n 1)
+            printf 'UNMUTATED %s: test %s on the unmutated tree, cargo exit %s; %s\n' "$row" "$test" "$code" "${result:-no result line}"
+            grep -E '^running [0-9]+ tests?$' "$out" | tail -n 1 | sed 's/^/UNMUTATED   /'
+            [ -n "$result" ] || status=1
+          done <"$list"
+          exit "$status"
+  macos-sqlcipher:
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -137,65 +120,66 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: "Every row of crates/halvo-sqlcipher/mutants.rows to its end by name (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
         env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
+          ROWS_FILE: crates/halvo-sqlcipher/mutants.rows
+          ROWS_JOB: sqlcipher
+          ROWS_PACKAGE: halvo-sqlcipher
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf' and '/scripts/r3/egress/fixtures.txt text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
+          set +e -u
+          runner=${HALVO_STEP_RUNNER:-scripts/r1-gate/mutation-test.sh}
+          file=$ROWS_FILE
+          out="${RUNNER_TEMP:-/tmp}/rows-$ROWS_JOB.out"
+          names=$(awk -F '\t' 'NF >= 5 && $1 !~ /^#/ && $1 != "" {print $1}' "$file")
+          count=$(printf '%s\n' "$names" | grep -c .)
+          printf 'ROWS file %s: %s names\n' "$file" "$count"
+          printf '%s\n' "$names" | sed 's/^/ROWS name /'
+          set --
+          for n in $names; do set -- "$@" --only "$n"; done
+          t0=$(date +%s)
+          sh "$runner" "$@" >"$out" 2>&1
+          code=$?
+          printf 'ROWS runner exit %s, seconds %s\n' "$code" "$(($(date +%s) - t0))"
+          grep -E '^(PASS|FAIL|OPEN|NOT-RUN|RETIRED|PENDING|STOPPED|TRANSITIONAL) (unmutated|mutation)' "$out" | cut -c1-400 | sed 's/^/ROWS /'
+          grep -E '^seconds mutation:|^mutation rows:' "$out" | sed 's/^/ROWS /'
+          caught=0; uncaught=0; other=0; missing=0; : >"${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt"
+          for n in $names; do
+            line=$(grep -E "^[A-Z-]+ mutation:$n \(" "$out" | tail -n 1)
+            case $line in
+              "PASS mutation:$n "*) caught=$((caught + 1)) ;;
+              "FAIL mutation:$n (test "*": passed)")
+                uncaught=$((uncaught + 1))
+                t=$(printf '%s\n' "$line" | sed -n 's/^FAIL mutation:[^ ]* (test \(.*\): passed)$/\1/p')
+                printf '%s %s\n' "$n" "$t" >>"${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt" ;;
+              '') other=$((other + 1)); missing=$((missing + 1)); printf 'ROWS no line for %s\n' "$n" ;;
+              *) other=$((other + 1)) ;;
+            esac
+          done
+          printf 'rows: %s caught, %s not caught, %s other\n' "$caught" "$uncaught" "$other"
+          printf 'not caught:%s\n' "$(awk '{printf " %s", $1}' "${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt")"
+          [ "$missing" -eq 0 ] && grep -q '^mutation rows:' "$out"
+      - name: "The named test of each row not caught, on the unmutated tree (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+        env:
+          ROWS_FILE: crates/halvo-sqlcipher/mutants.rows
+          ROWS_JOB: sqlcipher
+          ROWS_PACKAGE: halvo-sqlcipher
+        run: |
+          set +e -u
+          list="${RUNNER_TEMP:-/tmp}/not-caught-$ROWS_JOB.txt"
+          [ -s "$list" ] || { printf 'UNMUTATED no row of %s is not caught\n' "$ROWS_FILE"; exit 0; }
+          cargo=${HALVO_STEP_CARGO:-cargo}
+          status=0
+          while read -r row test; do
+            out="${RUNNER_TEMP:-/tmp}/unmutated-$row.out"
+            "$cargo" test -q --locked -p "$ROWS_PACKAGE" --lib -- --exact "$test" >"$out" 2>&1
+            code=$?
+            result=$(grep -E '^test result:' "$out" | tail -n 1)
+            printf 'UNMUTATED %s: test %s on the unmutated tree, cargo exit %s; %s\n' "$row" "$test" "$code" "${result:-no result line}"
+            grep -E '^running [0-9]+ tests?$' "$out" | tail -n 1 | sed 's/^/UNMUTATED   /'
+            [ -n "$result" ] || status=1
+          done <"$list"
+          exit "$status"
