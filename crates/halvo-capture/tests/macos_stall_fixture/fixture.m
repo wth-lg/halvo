@@ -26,15 +26,30 @@ static int stampCount;
 static int stampLost;
 static long autoleaveMs = -1;
 
+static int stamp_step_1_read_the_state(void) {
+    return IsSecureEventInputEnabled() ? 1 : 0;
+}
+
+static unsigned long long stamp_step_2_the_time_after_the_read(void) {
+    return clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+}
+
 static void stamp(const char *kind, long detail) {
-    int on = IsSecureEventInputEnabled() ? 1 : 0;
-    unsigned long long ns = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+    if (!NSThread.isMainThread) {
+        fprintf(stderr, "fixture: a stamp off the main thread: %s\n", kind);
+        abort();
+    }
+    int on = stamp_step_1_read_the_state();
+    unsigned long long ns = stamp_step_2_the_time_after_the_read();
     if (stampCount >= STAMP_CAP) {
         stampLost++;
         return;
     }
     stamps[stampCount++] = (Stamp){kind, detail, ns, on};
 }
+
+static NSString *const VERB_KEYS_TAKES_NO_STAMP = @"keys";
+static NSString *const VERB_CLICK_TAKES_NO_STAMP = @"click";
 
 static const char *commandKind(NSString *verb) {
     static const char *const known[] = {
@@ -295,9 +310,9 @@ int main(void) {
                 buffer[strcspn(buffer, "\r\n")] = 0;
                 NSString *line = [NSString stringWithUTF8String:buffer];
                 NSArray<NSString *> *words = [line componentsSeparatedByString:@" "];
-                if ([words.firstObject isEqualToString:@"keys"] && words.count >= 3) {
+                if ([words.firstObject isEqualToString:VERB_KEYS_TAKES_NO_STAMP] && words.count >= 3) {
                     post_keys(words);
-                } else if ([words.firstObject isEqualToString:@"click"] && words.count == 3) {
+                } else if ([words.firstObject isEqualToString:VERB_CLICK_TAKES_NO_STAMP] && words.count == 3) {
                     post_click(words);
                 } else {
                     dispatch_async(dispatch_get_main_queue(), ^{ handle(line); });
