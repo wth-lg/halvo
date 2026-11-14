@@ -1,9 +1,10 @@
 #!/bin/sh
 # jobs: macos
-# rule: On a disk image that the check fills, delete-all of a store in each of the scenarios A, B and C ends with the store's root file and store.key gone.
+# rule: On a disk image that the check fills, delete-all of a store in each of the scenarios A, B and C ends with the store's root file and store.key gone. In CI the time from the delete-all request to the end of its root step differs by less than a factor of 2 between 250 and 2,000 segments, or the larger median is under 50 ms (ruling ST-46 K5 N5); outside CI that bound is skipped with its reason, because no time on a developer's Mac is a measurement.
 set -u
 name=31-store-full-volume
 test_name=store::hardening_tests::a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file
+n5_test=store::hardening_tests::pass_two::the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_segments
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -21,6 +22,14 @@ verdict_defect() {
   esac
   printf 'scenario %s ended with %s\n' "$3" "${line#* delete_all=}"
   return 1
+}
+
+n5_defect() {
+  [ "$1" -eq 0 ] || { printf "N5's test exited %s\n" "$1"; return 1; }
+  counts=$(awk '/^test result: / { for (i = 1; i < NF; i++) { if ($(i + 1) == "passed;") p += $i; if ($(i + 1) == "failed;") f += $i } } END { print p + 0, f + 0 }' "$2")
+  [ "$counts" = '1 0' ] || { printf "N5's filter ran %s passed and %s failed tests\n" "${counts% *}" "${counts#* }"; return 1; }
+  grep -q '^N5 ratio_2000_to_250=' "$2" || { printf "N5's test printed no line of its ratio\n"; return 1; }
+  return 0
 }
 
 detach() {
@@ -42,6 +51,16 @@ measure() {
     defect=$(verdict_defect "$code" "$CI_D_ARTIFACTS/scenario-$scenario.txt" "$scenario") || found="$found $defect;"
   done
   detach "$work/mnt"
+  if [ "${CI:-}" = true ]; then
+    n5_started=$(date +%s)
+    cargo test --locked -p halvo-capture --lib -- --exact "$n5_test" --include-ignored --nocapture --test-threads=1 > "$CI_D_ARTIFACTS/n5.txt" 2>&1
+    code=$?
+    grep '^N5 ' "$CI_D_ARTIFACTS/n5.txt"
+    printf 'N5 seconds=%s\n' "$(($(date +%s) - n5_started))"
+    defect=$(n5_defect "$code" "$CI_D_ARTIFACTS/n5.txt") || found="$found $defect;"
+  else
+    printf "N5's bound is skipped outside CI: no time on a developer's Mac is a measurement (ruling ST-46 K5 N5)\n"
+  fi
   git diff --quiet HEAD -- || fail 'a tracked file differs from HEAD after the run'
   [ -z "$found" ] || fail "${found# }"
   printf 'PASS %s\n' "$name"
@@ -53,6 +72,14 @@ case_of() {
   verdict_defect "$2" "$work/$1" "$3" > /dev/null || got=FAIL
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$5" "$got"
   if [ "$got" != "$5" ]; then wrong="$wrong $1"; elif [ "$5" = FAIL ]; then rejected=$((rejected + 1)); fi
+}
+
+n5_case() {
+  printf '%s\n' "$3" > "$work/$1"
+  got=PASS
+  n5_defect "$2" "$work/$1" > /dev/null || got=FAIL
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$4" "$got"
+  if [ "$got" != "$4" ]; then wrong="$wrong $1"; elif [ "$4" = FAIL ]; then rejected=$((rejected + 1)); fi
 }
 
 self_test() {
@@ -73,6 +100,15 @@ $result" FAIL
 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 420 filtered out; finished in 2.10s" FAIL
   case_of no-test-ran 0 A 'scenario=A delete_all=Ok root_gone=yes key_file_gone=yes
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 421 filtered out; finished in 0.00s' FAIL
+  n5_case n5-held 0 "N5 to_the_root_ms_median_of_5 segments=250 ms=1.20
+N5 to_the_root_ms_median_of_5 segments=2000 ms=1.30
+N5 ratio_2000_to_250=1.08 floor_ms=50
+$result" PASS
+  n5_case n5-bound-broken 101 "N5 ratio_2000_to_250=3.10 floor_ms=50
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 685 filtered out; finished in 95.60s" FAIL
+  n5_case n5-no-ratio-line 0 "test store::hardening_tests::pass_two::the_time N5 ratio_2000_to_250=1.08 floor_ms=50
+$result" FAIL
+  n5_case n5-no-test-ran 0 'test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 686 filtered out; finished in 0.00s' FAIL
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1

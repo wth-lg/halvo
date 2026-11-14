@@ -1607,12 +1607,15 @@ fn delete_times(segments: usize) -> (f64, f64) {
 /// runs at each size, or the larger median is under N5_FLOOR_MS. It prints
 /// the delete times of 250, 500, 1,000 and 2,000 segments, median of 3.
 #[test]
-#[ignore = "no time on this Mac is a measurement (ruling ST-46 K5 N5): the hosted macos job runs it with --include-ignored"]
+#[ignore = "no time on this Mac is a measurement (ruling ST-46 K5 N5): scripts/r1/ci.d/31-store-full-volume.sh runs it in CI on the macos job"]
 fn the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_segments() {
     let at = |segments: usize| median((0..5).map(|_| delete_times(segments).0).collect());
     let (small, large) = (at(250), at(2_000));
+    println!();
+    println!("N5 to_the_root_ms_median_of_5 segments=250 ms={small:.2}");
+    println!("N5 to_the_root_ms_median_of_5 segments=2000 ms={large:.2}");
     println!(
-        "N5 to_the_root_ms median_of_5: 250={small:.2} 2000={large:.2} ratio={:.2} floor_ms={N5_FLOOR_MS}",
+        "N5 ratio_2000_to_250={:.2} floor_ms={N5_FLOOR_MS}",
         large / small
     );
     for segments in [250, 500, 1_000, 2_000] {
