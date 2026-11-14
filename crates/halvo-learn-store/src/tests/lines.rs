@@ -128,7 +128,7 @@ fn a_log_body_that_arrives_twice_counts_its_lines_once() {
 }
 
 #[test]
-fn the_lines_that_one_run_holds_at_the_bound_take_at_most_65_536_bytes() {
+fn one_held_line_takes_at_most_16_bytes_and_lines_held_max_of_them_at_most_65_536_bytes() {
     assert_eq!(LINES_HELD_MAX, 4_096);
     let one = std::mem::size_of::<(NonZeroU32, Line)>();
     assert!(one <= 16, "one held line takes {one} bytes");

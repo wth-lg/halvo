@@ -74,7 +74,7 @@ halvo-learn-store src/lib.rs tests::starts::a_start_run_that_arrives_again_after
 halvo-learn-store src/lib.rs tests::starts::a_start_run_that_arrives_again_where_the_runs_row_stands_stores_the_missing_routine_row_alone built
 halvo-learn-store src/lib.rs tests::ends::an_end_run_of_a_run_with_a_start_and_no_load_leaves_rev_1 built
 halvo-learn-store src/lib.rs tests::ends::an_end_run_that_the_agent_store_refuses_stores_nothing_and_drops_the_facts built
-halvo-learn-store src/lib.rs tests::lines::the_lines_that_one_run_holds_at_the_bound_take_at_most_65_536_bytes built
+halvo-learn-store src/lib.rs tests::lines::one_held_line_takes_at_most_16_bytes_and_lines_held_max_of_them_at_most_65_536_bytes built
 halvo-learn-store src/lib.rs tests::starts::the_newest_row_is_written_again_at_30_and_92_days_with_the_mark_none_and_not_at_29_days_or_with_stale built
 halvo-learn-store src/lib.rs tests::mark::two_replies_that_carried_different_edits_for_a_step_give_it_no_clean_use built
 halvo-learn-store src/lib.rs tests::mark::two_replies_that_carried_different_edits_lay_a_counted_failure_on_the_edit_of_the_last_reply built

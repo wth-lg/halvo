@@ -18,7 +18,8 @@ pub const RUNS_HELD_MAX: usize = 8;
 
 /// The most `step_ok`, `step_failed` and `recovered` lines that one value holds for one run (contracts.md L11.2,
 /// L4.2; the coordinator's ruling LM-51). A `log` body that would take a run past it drops what the value holds of
-/// that run, which then reads as a lost run. A line that the run held already does not count again.
+/// that run, which then reads as a lost run. The bound counts distinct pairs of a sequence number and a held line, so
+/// a line that the run held already does not count again, and it holds across all the bodies of the run.
 pub const LINES_HELD_MAX: usize = 4_096;
 
 /// The class rule that admission compares with: `class_of` of halvo-policy (AG-A4.3).
@@ -115,7 +116,8 @@ impl CoordinatorAnswer {
 /// mode comes from the remembered start; a `learn_routine` row its routine rows. A body that the agent store answered
 /// gets the agent store's reply whatever the learning part could read or store, and a replay `put_playbook` its count;
 /// `list_refinements` alone answers `store` (LM-58 (b)). An accepted `start_run` also stores the pair's `learn_routine` row
-/// where none can be read, and its newest row again at 30 days with the mark `none` (L4.3; S-69, LM-57). A step whose
+/// where a read that succeeded holds no row of the pair, and its newest row again at 30 days with the mark `none` (L4.3;
+/// S-69, LM-57). A step whose
 /// `load_steps` replies to a run, under the number that it loaded, carried different edits gets no `use_ok` in that run,
 /// and a counted failure of it is laid on the edit of the last reply (L3.7; LM-60).
 pub struct LearnHandlers {
