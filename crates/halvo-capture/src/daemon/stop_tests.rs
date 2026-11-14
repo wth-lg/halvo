@@ -433,3 +433,72 @@ fn a_signalled_run_behind_a_slow_write_waits_for_it_inside_the_stop_bound() {
         stop_bound(SETTLE_BOUND)
     );
 }
+
+/// Sources that emit one more event while they stop, after the pause.
+pub(super) struct EmitAtStop {
+    pub(super) inner: ScriptedRun,
+    pub(super) sink: Option<crate::sink::SinkHandle>,
+}
+
+impl RunSources for EmitAtStop {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        wanted: &[SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        self.sink = Some(ctx.sink().clone());
+        self.inner.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        self.inner.wait(window, stop)
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        if let Some(sink) = self.sink.take() {
+            sink.emit_event(foreground_now());
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        self.inner.stop()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        self.inner.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        self.inner.hold_refusal()
+    }
+}
+
+/// Ruling DM-12 G1 (units/daemon-1.md line 72): the run pauses the owner
+/// before the sources stop, so an event that a source emits inside its stop
+/// is not stored and is counted as discarded (adversary 1's adv1_order).
+#[test]
+fn an_event_that_a_source_emits_inside_its_stop_is_discarded_and_not_stored() {
+    let store = ModelStore::new();
+    let mut sources = EmitAtStop {
+        inner: keys(4),
+        sink: None,
+    };
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        store.clone(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(store.records().len(), 4);
+    assert_eq!(
+        (
+            outcome.report.events_persisted,
+            outcome.report.events_discarded
+        ),
+        (4, 1),
+        "the event that a source emitted while it stopped"
+    );
+}
