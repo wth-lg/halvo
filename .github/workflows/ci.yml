@@ -90,6 +90,21 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh macos --self-test
+      - name: daemon-1 loop of the round's added and changed tests
+        shell: bash
+        run: |
+          set -u
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::owner::tests::the_held_count_stays_2560_whatever_the_depth_of_the_queue sink::tests::a_keystroke_after_a_flood_of_fold_emits_is_queued_after_one_receive sink::tests::a_full_queue_of_the_largest_events_stays_under_the_byte_bound daemon::owner_props::the_same_at_capacity_1024_with_five_blocked_sources daemon::batch::tests::each_kind_with_a_constructor_keeps_its_record_shape_through_a_flush'
+          want=5
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (macos): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          if [ "$pass" = 200 ]; then echo "daemon-1 loop verdict: all passed"; else echo "daemon-1 loop verdict: $((200 - pass)) runs failed"; fi
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
@@ -141,6 +156,21 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh windows --self-test
+      - name: daemon-1 loop of the round's added and changed tests
+        shell: bash
+        run: |
+          set -u
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::owner::tests::the_held_count_stays_2560_whatever_the_depth_of_the_queue sink::tests::a_keystroke_after_a_flood_of_fold_emits_is_queued_after_one_receive sink::tests::a_full_queue_of_the_largest_events_stays_under_the_byte_bound daemon::owner_props::the_same_at_capacity_1024_with_five_blocked_sources daemon::batch::tests::each_kind_with_a_constructor_keeps_its_record_shape_through_a_flush'
+          want=5
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (windows): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          if [ "$pass" = 200 ]; then echo "daemon-1 loop verdict: all passed"; else echo "daemon-1 loop verdict: $((200 - pass)) runs failed"; fi
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
