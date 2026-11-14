@@ -244,7 +244,7 @@ fn main_window<R: Runtime>(
 }
 
 #[cfg(windows)]
-pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --force-webrtc-ip-handling-policy=disable_non_proxied_udp";
+pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --webrtc-ip-handling-policy=disable_non_proxied_udp";
 
 pub const NO_PEER_SCRIPT: &str = "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
 

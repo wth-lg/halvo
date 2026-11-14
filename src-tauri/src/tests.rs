@@ -1316,7 +1316,7 @@ fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_lo
 fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_other_host_to_no_address() {
     assert_eq!(
         app::ENGINE_ARGS,
-        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --force-webrtc-ip-handling-policy=disable_non_proxied_udp"
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --webrtc-ip-handling-policy=disable_non_proxied_udp"
     );
     let app = std::fs::read_to_string(src_tauri().join("src/app.rs")).expect("app.rs reads");
     assert_eq!(
