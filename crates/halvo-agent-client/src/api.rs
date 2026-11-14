@@ -187,12 +187,42 @@ pub enum EndRun {
 }
 
 /// The end of a run: the outcome of the runner's `done`, or none when it ended with no `done`; the record of its
-/// acknowledged `finish`, which holds the counts of A14.5; and where its `end_run` stands.
+/// acknowledged `finish`, which holds the counts of A14.5; where its `end_run` stands; the runner's exit as the
+/// system gave it, none when no runner was made or the system reaped it for the library's process; and the
+/// library's own record of what it ended by force, none when it ended nothing so. No reader takes the number of an
+/// exit for the cause of an end: on Windows the status 1 is what a runner gives that the library ended and what one
+/// gives that exits with 1 by itself, and `forced` tells the two apart (ruling CP-178 (9)).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunEnd {
     pub outcome: Option<Outcome>,
     pub finish: Option<AgentRun>,
     pub end_run: EndRun,
+    pub exit: Option<RunnerExit>,
+    pub forced: Option<Forced>,
+}
+
+/// The path by which the library ended what was left of a run by force (contracts.md A6.6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ForcedPath {
+    /// A `kill` of the run.
+    Kill,
+    /// The end of what was left `link_end` after the library closed the link, or at once for a lost flow: a cancel,
+    /// a broken frame, a frame out of turn, a start that failed, and a runner that left processes behind it.
+    LinkEnd,
+    /// The bound after a stored `finish` (ruling CP-172 G1), or a frame out of turn after a stored `finish`
+    /// (ruling CP-193 item 1).
+    AfterFinish,
+    /// The reap of a mark of an earlier life, or of a run of this life that has ended.
+    Reap,
+}
+
+/// What the library ended by force: by which path, and whether a process of the browser's line of the run's mark
+/// was among what was ended. The interface run reads `browser` as the fact that the next run may ask for a sign-in
+/// again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Forced {
+    pub path: ForcedPath,
+    pub browser: bool,
 }
 
 /// How a runner's process ended, as the system gave it to the library when the library reaped it: the status that
@@ -318,13 +348,15 @@ pub enum Reaped {
     Alive,
 }
 
-/// One answer of `reap`: the run, `gone` or `alive`, and the processes of a group whose leader is gone, which the
-/// library reports and does not end.
+/// One answer of `reap`: the run, `gone` or `alive`, the processes of a group whose leader is gone, which the
+/// library reports and does not end, and what the reap ended by force, with the path `reap`, none when it ended
+/// nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReapAnswer {
     pub run: RunId,
     pub answer: Reaped,
     pub left: Vec<NonZeroU32>,
+    pub forced: Option<Forced>,
 }
 
 #[cfg(test)]

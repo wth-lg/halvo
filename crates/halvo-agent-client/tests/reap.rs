@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use common::{gone, line_gone, wait_until, Rig};
 use halvo_agent_client::marks::{first_line, marks_dir, proc_line, Group, ProcLine};
-use halvo_agent_client::{process, Reaped};
+use halvo_agent_client::{process, Forced, ForcedPath, Reaped};
 use halvo_schema::executable::text::{CreationTime, RunId};
 
 const SHORT: Duration = Duration::from_secs(10);
@@ -206,6 +206,57 @@ fn reap_ends_a_runner_of_an_earlier_life_and_its_browser_through_their_lines() {
     }
     assert!(rig.mark(&run).is_none());
     drop((r, b));
+}
+
+#[test]
+fn the_reap_of_an_earlier_life_answers_what_it_ended_with_the_path_reap_and_nothing_for_a_mark_with_nothing_left(
+) {
+    let rig = Rig::new("reap-forced");
+    let (r, r_created) = sleeper("browser", true);
+    let (b, b_created) = sleeper("browser", true);
+    let (rp, bp) = (r.0.id(), b.0.id());
+    let with_browser = common::run_id();
+    let runner = line(rp, r_created, rp);
+    let browser = line(bp, b_created, bp);
+    write_mark(
+        &rig,
+        &with_browser,
+        &[("runner", runner), ("browser", browser)],
+    );
+    let (q, q_created) = sleeper("browser", true);
+    let qp = q.0.id();
+    let runner_alone = common::run_id();
+    write_mark(&rig, &runner_alone, &[("runner", line(qp, q_created, qp))]);
+    let (g, g_created) = sleeper("browser", true);
+    let gp = g.0.id();
+    let gone_already = common::run_id();
+    write_mark(
+        &rig,
+        &gone_already,
+        &[("runner", line(gp, later(g_created, 1), gp))],
+    );
+    let incomplete = common::run_id();
+    write_mark(&rig, &incomplete, &[]);
+    let answers = rig.sup.reap().unwrap();
+    let forced = |run: &RunId| {
+        answers
+            .iter()
+            .find(|a| &a.run == run)
+            .map(|a| (a.answer, a.forced))
+    };
+    let reap = |browser| {
+        Some(Forced {
+            path: ForcedPath::Reap,
+            browser,
+        })
+    };
+    assert_eq!(forced(&with_browser), Some((Reaped::Gone, reap(true))));
+    assert_eq!(forced(&runner_alone), Some((Reaped::Gone, reap(false))));
+    assert_eq!(forced(&gone_already), Some((Reaped::Gone, None)));
+    assert_eq!(forced(&incomplete), Some((Reaped::Gone, None)));
+    assert!(wait_until(SHORT, || line_gone(&runner) && line_gone(&browser)));
+    assert!(process::is_running(gp, g_created));
+    drop((r, b, q, g));
 }
 
 #[test]

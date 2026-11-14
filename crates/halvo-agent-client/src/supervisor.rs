@@ -21,8 +21,8 @@ use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
 use crate::api::{
-    absolute_paths, CallError, Config, EndRun, NotStarted, Parts, ReapAnswer, Reaped, RunEnd,
-    RunSpec, RunnerExit, StartError,
+    absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, Reaped,
+    RunEnd, RunSpec, RunnerExit, StartError,
 };
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
@@ -188,6 +188,8 @@ impl Supervisor {
                         outcome: None,
                         finish: None,
                         end_run: EndRun::NoRunner,
+                        exit: None,
+                        forced: None,
                     },
                 );
                 return Err(not_started(None));
@@ -288,7 +290,7 @@ impl Supervisor {
     /// run whose runner has ended.
     pub fn kill(&self, run: &RunId) -> Result<(), CallError> {
         let slot = self.slot(run)?;
-        match slot.with_proc(RunProc::end_all) {
+        match slot.with_proc(RunProc::kill) {
             Some(()) => Ok(()),
             None if slot.ended() => Ok(()),
             None => Err(CallError::UnknownRun),
@@ -312,10 +314,11 @@ impl Supervisor {
                     run: mark.run,
                     answer: Reaped::Alive,
                     left: Vec::new(),
+                    forced: None,
                 });
                 continue;
             }
-            let (answer, left) = proc::reap_mark(&mark);
+            let (answer, left, forced) = proc::reap_mark(&mark);
             if answer == Reaped::Gone {
                 marks::remove(data_dir, &mark.run)?;
             }
@@ -323,6 +326,7 @@ impl Supervisor {
                 run: mark.run,
                 answer,
                 left,
+                forced,
             });
         }
         Ok(answers)
@@ -408,13 +412,22 @@ fn drive(
             Flow::Lost => Flow::Lost,
         };
         if let Flow::Lost = flow {
-            slot.with_proc(RunProc::end_all);
+            let path = if run.ending.finish.is_some() {
+                ForcedPath::AfterFinish
+            } else {
+                ForcedPath::LinkEnd
+            };
+            slot.with_proc(|p| {
+                p.set_path(path);
+                p.end_all();
+            });
             break;
         }
         if finished.is_none() && run.ending.finish.is_some() {
             finished = Some(Instant::now());
         }
         if finish_over(finished, Instant::now(), inner.config.link_end) {
+            slot.with_proc(|p| p.set_path(ForcedPath::AfterFinish));
             break;
         }
     }
@@ -602,10 +615,15 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     } else {
         EndRun::NotAcknowledged
     };
+    let (exit, forced) = slot
+        .with_proc(|p| (p.exit(), p.forced()))
+        .unwrap_or((None, None));
     let end = RunEnd {
         outcome: ending.outcome,
         finish: ending.finish,
         end_run,
+        exit,
+        forced,
     };
     slot.ended.store(true, Ordering::SeqCst);
     inner.parts.marks.end(&slot.spec.run, &end);
