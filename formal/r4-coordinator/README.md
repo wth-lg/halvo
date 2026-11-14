@@ -254,7 +254,10 @@ tick or of the link reads it, and a restart leaves it as it is. `Step` of `Confi
 `st` and the move. `Step` of `Schedule` takes one thing more, the facts that the owner
 answers when the coordinator asks it during that step (`Facts(h)`): for each agent the run
 that the agent store has not ended, and the newest run that it ended with `unknown` above
-0. That is the fresh read of step 3 of I5.5 and of the hold `check` (I5.4); the step
+0; and the agents whose hold `off` the owner's events hold (`offs`), which a step learns
+only where one of its stores for that agent meets `seq` and reads. That is the fresh read
+of step 3 of I5.5, of the hold `check` (I5.4) and of the read after a refusal `seq` (I7.2,
+ruling RD-52 (a)); the step
 keeps none of it, and nothing else of `h` reaches a step. Every one of the twenty-three
 invariants reads `h` alone.
 
@@ -298,6 +301,7 @@ The histories that this round added, each taken from the environment's move:
 | which run of an agent the agent store has not ended, and whether a request of it may have left | the stored start, the port of a start that failed at step 7 or 8, and the move that ended the runner: the frame of an `end`, the `left` of an `end` with no frame, of a `tick` that kills and of a `restart`; and the move `ack`, at which the store ends the run | C4 |
 | for which runs `reap` answered `alive` | the key `alive` of the move `restart` | C12 |
 | that the person answered a `check` | the move `check` | C4 |
+| that the owner stored a `hold_set` of the switch-off control whose acknowledgement was lost | the key `port` `lost` of the move `off`, which adds `off` to `h.holds` as an `off` with `ok` does | C4 |
 | which second step the runner waits on, which answer of `Runs::answer_bind` it received, and whether that answer came inside a press of Allow on that step while the newest row that this life tried to store for it is an acknowledged `allow` | the accepted move `bind`, the key `runs` of the move `press` (only `ok` hands the answer over), the key `store` of the press for the acknowledgement, and the choice and the item of the press; a lapse that still lives hands its `decline` over | L11 |
 
 ## Schedule
@@ -313,7 +317,7 @@ of the model is one call of the coordinator.
 | `dying` | the runs that were stopped and whose runner ended before the kill; the first tick at which the grace has passed calls `Runs::kill` for each | I5.7, I5.9 |
 | `queue` | the starts that wait, a person's before a scheduler's | I5.5 |
 | `ready` | the agents with an open `ready` item | I5.3 |
-| `off`, `paused` | the holds `off` and `failures` as the coordinator holds them | I5.4 |
+| `off`, `paused` | the holds `off` and `failures` as the coordinator holds them. A `hold_set` whose acknowledgement was lost joins `off` at the agent's next store, which meets `seq` and reads, or at a restart | I5.4, I7.2 |
 | `cleared` | the runs whose `check` the person answered: the `hold_cleared` events with the cause `check` | I5.4 |
 | `owing` | the runs for which the coordinator sent `end_run`, at a start whose step 7 or 8 failed or in this life's recovery, and of which the store has not shown the record at a tick yet | I5.5, I5.8 |
 | `f` | the owner's answers during one step, as the head of this section says; it is empty between steps | I5.5 step 3, I5.4 |
@@ -346,7 +350,9 @@ without a `finish` only at a move `ack`, and with `FALSE` it ends it at the end 
 move that ended the runner. `Lefts`: whether a request of such a run may have left
 (`TRUE`), may not (`FALSE`), or either. `MaxAlive`: for how many live runs a `reap` may
 answer `alive`. `Ports`: what the ports may answer a start: `ok`, `no_ack` (step 6 fails),
-`no_store` (step 7) and `no_run` (step 8).
+`no_store` (step 7) and `no_run` (step 8). `OffPorts`: what the owner answers the
+switch-off control's `hold_set`: `ok`, and `lost`, where it stores the event and its reply
+is lost (ruling RD-52 (a)).
 
 | Agent | Needs the person | Needs the model | Slots | A run ended `completed` before | Other |
 |---|---|---|---|---|---|
@@ -507,6 +513,22 @@ follow these readings.
     sends `end_run`, which is no call of the coordinator and stands in no line.
 21. The models hold no `kill` that the library answers with `unknown_run`: library and
     coordinator are one process (I5.7).
+22. A switch-off whose `hold_set` the owner stored and whose acknowledgement was lost
+    (`port` `lost`) is answered `no_service`, sends nothing and leaves the coordinator
+    without the hold; the model offers it for an agent with no live run whose hold `off`
+    the owner does not hold yet (ruling RD-52 (i)). The hold stands by the stored events at
+    once. The agent's next store meets `seq`, and its read brings the hold: a start decides
+    steps 0 to 4 again and answers `hold`, stores nothing more and starts nothing, after
+    the request to defer of step 5 where the start had passed step 4; the start by the
+    person under the hold `failures` stores its `hold_cleared` first and sends no `set_state`
+    `active`; and a start whose read brought the hold sends `set_state` `paused` once, after
+    its answer (ruling RD-52 (a)). A queued start is dropped with `hold` when it leaves the
+    queue; a start that would be queued is answered `hold` where the agent has an open
+    `ready` item, whose answer row is the store that reads, and is queued otherwise. A tick
+    that raises the agent's `ready` item and a `check` learn the hold with their store and
+    send nothing for it, and a restart learns it with its read. A second switch-off then
+    stores no second `hold_set`. A lost `hold_set` beside a live run is not in the model,
+    because the code acts on it only with U2.4b (RD-52 (b), rule 3).
 
 What the search does not cover. It follows a behaviour until its second stored start
 (`MaxRuns`) and checks the state after a third. It ends a run that was not stopped
@@ -680,6 +702,7 @@ does its work. TLC must report each one violated. To run one, add the line
 | Model | Properties |
 |---|---|
 | `Schedule`, as `INVARIANT` | `ReachPerson`, `ReachAuto`, `ReachDeletableAuto`, `ReachFailures`, `ReachSlots`, `ReachCatchUp`, `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueFull`, `ReachBudget`, `ReachTwoLive`, `ReachGoneStart`, `ReachGoneSeen`, `ReachUnknownAgent` |
+| `Schedule`, for the lost `hold_set`, as `PROPERTY` | `ReachOffRead` (the coordinator learns a stored hold `off` from a read in the same life) |
 | `Schedule`, as `PROPERTY` | `ReachFailuresCleared`, `ReachQueue`, `ReachQueueIdle`, `ReachRestart`, `ReachRestartDay`, `ReachRestartStopping`, `ReachGoneQueued`, `ReachOffLive`, `ReachOffQueued`, `ReachKillCancelled`, `ReachKillOff`, `ReachKillLapsed`, `ReachKillDeleted`, `ReachKillEnded`, `ReachRecause`, `ReachFailedFrame`, `ReachFailedStart`, `ReachQueuedStale` |
 | `Schedule`, for the store's view, as `INVARIANT` | `ReachStoreOpen` (a start that only the store's open run refuses), `ReachAlive` (a `reap` that answers `alive`) |
 | `Schedule`, for the store's view, as `PROPERTY` | `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart` (the store ends, with `unknown` above 0, a run that a kill, the end of a lapsed stop or a restart ended), `ReachCheckAnswered` (an agent starts again after its `check` was answered), `ReachOwedAgain` (a recovery sends `end_run` for a run that ended in the earlier life), `ReachSentAgain` (a tick sends `end_run` again), `ReachOwingEnds` (a tick sees that the store ended an owed run), `ReachFailedSentAgain` (a tick sends the `end_run` of a failed start again); and, as `INVARIANT`, `ReachFailedOwed` (a failed start is owed in the first life) |
@@ -792,6 +815,10 @@ replay of that design gives another answer, event, call or state at some move.
 | 62 | a press of Don't allow whose row lost its acknowledgement keeps the step at its stored `allow`, so that the next press of Allow sends it with no row of its own | L11 | 3 of 215 |
 | 63 | a lapse of a second step with `wait_limit` or `cancelled` does not stop the run | L9 | 200 of 215 |
 | 64 | a step closes when `Runs::answer_bind` answers `busy` | none: the runner waits and gets nothing | 199 of 215 |
+| 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 213 |
+| 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 |
+| 67 | the start by the person under the hold `failures` keeps the verdict that it computed before its store of `hold_cleared` | none: the start reads again at its `run_started` and answers `hold`, and `set_state` `active` goes before `paused` | 0 of 213 |
+| 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -799,7 +826,7 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. Rows 57 to 64 are the second step of a sign-in (ruling RD-48 (g)): rows 58 and 64 break no property and change traces alone, row 58 because the person's last press is an acknowledged Allow and row 64 because the runner gets nothing. Rows 51 and 52 need a second item after a lapse of the first, which
+round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. Rows 57 to 64 are the second step of a sign-in (ruling RD-48 (g)): rows 58 and 64 break no property and change traces alone, row 58 because the person's last press is an acknowledged Allow and row 64 because the runner gets nothing. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a), and only row 65 is reported: rows 66 to 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
 reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. These changes break no property and change traces alone: a tick that skips an agent
@@ -902,7 +929,7 @@ agent, and a confirm trace has one agent and names none.
 |---|---|---|
 | `run_started` | `run`, `slot` (a day or null), `trigger`; `agent` stands before `event` | every start that passes step 6: a `start`, a start that a `tick` or an `end` takes from the queue, a start of the scheduler in a `tick` |
 | `run_ended` | `run`, `cause`; `agent` before `event` | `end`; a `tick` for each live run that it kills; `restart` for each live run; a start under the port `no_run`, with `failed`. The end of a run whose workflow is gone stores none |
-| `hold_set` | `cause`; `agent` before `event` | `off`, with `person`; the line of a `run_ended` event that completes the failure streak while the hold `failures` does not stand, with `failures` |
+| `hold_set` | `cause`; `agent` before `event` | `off`, with `person`, also under `port` `lost`, since the owner holds the event, and not when the coordinator's read already brought it; the line of a `run_ended` event that completes the failure streak while the hold `failures` does not stand, with `failures` |
 | `hold_cleared` | `cause` (`failures`, or `check` and then `run`, the run whose `check` was answered); `agent` before `event` | a `start` of an agent under the hold `failures` whose workflow is in the list, also when the start is then refused; a `check` with `ok` |
 | `item_raised` | `item` | `issue` with `digest_ok` `yes`; `bind` with `ok`, for the second step `b1` or `b2` |
 | `item_answered` | `item`, `effect`, `approval`, `digest`, `answer`: one entry per effect | `record`: the coordinator sent the rows at the answer, and they count as stored when the acknowledgement comes; a `lapse` with `no_record` whose `stored` is `yes`, before its `item_lapsed` event: the rows that the store wrote without an acknowledgement |
@@ -921,7 +948,7 @@ An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
 | `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
 | `reap` | none | `Runs::reap` | `restart`; its answers are the key `alive` of the line |
 | `end_run` | `run` | `Owner::send` with the body `end_run` | a start under `no_store` or `no_run`, after its `run_ended` event; `restart`, for each run of a listed workflow that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each run that is owed after its kills until the store has ended it, and once more for a run whose workflow is gone |
-| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
+| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event but one under `port` `lost`, at a switch-off whose read already brought the hold, and once at a start whose read brought a `hold_set` of the cause `person` that the coordinator did not hold; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
 | `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
 | `answer_bind` | `item`, `answer` (`allow`, `decline`) | `Runs::answer_bind` | a `press` whose row is acknowledged or already stored, whatever the port answers; with `decline`, a `bind_lapse` with `wait_limit` or `cancelled` |
 
@@ -951,6 +978,8 @@ makes them in this order, and `formal_traces` holds the code to it on the memory
 - a `restart`: `reap`, then the ends by run number, then `end_run` by run number;
 - a `check`: `hold_cleared`;
 - `off`: `hold_set`, `cancel`, `set_state`;
+- a start whose read brings a lost `hold_set`: `defer` where it had passed step 4, or
+  `hold_cleared` under the hold `failures`, then `set_state` `paused`;
 - a `lapse`: `answer_confirm`, the decision of `sent`, `item_lapsed`, `cancel`;
 - a `press`: `item_answered`, then `answer_bind`; a `bind_lapse`: `answer_bind`,
   `item_lapsed`, `cancel`; a `kill`: the lapses by item number;
@@ -966,7 +995,9 @@ A line shows the state after its move, but not everything that decides the next 
   workflow on, also when the run was `stopping` before. It is the `cause` of the run's
   `run_ended` event unless a `restart` comes first; a run whose workflow is gone has no
   such event.
-- The holds of an agent in `held`: `off` from its `off` line on; `failures` from a
+- The holds of an agent in `held`: `off` from its `off` line with `ok` on, and after an
+  `off` line with `lost` from the agent's next line that stores for it or the next
+  `restart`; `failures` from a
   `hold_set` event with `failures` to the next `hold_cleared` event with `failures`;
   `check` while a run of the agent stands in `unknown` and not in `cleared`. A `start` of
   the person ends `failures` alone.
@@ -1059,7 +1090,7 @@ runner ended with `left` `yes`, and an agent's entry goes at its next stored sta
 | `ack` | `agent`, whose run the agent store ends: the owner's acknowledgement of `end_run` | `ok` | none | none: it changes what `Owner::agents` gives |
 | `check` | `agent`, whose item `check` the person answers with `try_again` | `ok`, `state` | none | the answer to a `check` (I5.4) |
 | `delete` | `agent`, whose workflow leaves the owner's list | `ok` | none | none: it changes the list that `Owner::workflows` gives |
-| `off` | `agent` | `ok` | `stopped`, the run that the control stopped | `holds` with `run_step` |
+| `off` | `agent`, `port` (`ok`, `lost`) | `ok`, `no_service` | `stopped`, the run that the control stopped | `holds` with `run_step` |
 
 A `start` with `ok` holds the move `spawn` of I5.6: the run is `starting` in `s`. A start
 of an agent whose workflow is gone is answered `state`. `port` says what the ports do

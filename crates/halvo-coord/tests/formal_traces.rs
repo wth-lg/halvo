@@ -4,7 +4,7 @@ use halvo_coord::items::{
     confirm_step, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation, Raise, Source,
 };
 use halvo_coord::mem::{Call, Config, Method, Ports};
-use halvo_coord::ports::{Clock, Owner, PortError, Reaped, Rng, Runs};
+use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{delete_step, drive, recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{self, holds, Answer, Board, Ended, Served};
 use halvo_coord::types::{
@@ -698,9 +698,19 @@ impl Sched {
             "off" => {
                 self.ports_for(None);
                 let n = self.index(&a["agent"]);
-                let done = self.act(Act::SwitchOff {
-                    agent: self.names.agents[n].clone(),
-                });
+                let lossy = Lossy {
+                    inner: &self.ports,
+                    lose: Cell::new(a["port"] == "lost"),
+                };
+                let done = drive(
+                    &lossy,
+                    &mut self.board,
+                    &mut self.table,
+                    &self.limits,
+                    Act::SwitchOff {
+                        agent: self.names.agents[n].clone(),
+                    },
+                );
                 answer = json!(cause_name(&done.report.answer));
                 keys.insert(
                     "stopped".into(),
@@ -1036,6 +1046,12 @@ impl Clock for Lossy<'_> {
 impl Rng for Lossy<'_> {
     fn bytes16(&self) -> Result<[u8; 16], PortError> {
         self.inner.bytes16()
+    }
+}
+
+impl Analysis for Lossy<'_> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.inner.defer(until)
     }
 }
 
