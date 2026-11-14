@@ -243,3 +243,142 @@ fn rows_removed_before_a_vacuum_and_after_it_leave_no_text() {
         "with secure delete off the search finds no removed row"
     );
 }
+
+fn marker_text(marker: &str, length: usize) -> String {
+    let mut text = marker.to_owned();
+    while text.len() < length {
+        text.push('v');
+    }
+    text
+}
+
+fn zero_blobs_and_same_length(mode: Mode) -> Vec<String> {
+    let scratch = Scratch::new(33, mode);
+    let conn = connect(&scratch.db(), mode);
+    conn.execute_batch(
+        "CREATE TABLE z(id INTEGER PRIMARY KEY, head TEXT NOT NULL, tail BLOB NOT NULL);
+         CREATE TABLE t(id INTEGER PRIMARY KEY, body TEXT NOT NULL);",
+    )
+    .unwrap();
+    let mut places: BTreeMap<String, usize> = BTreeMap::new();
+    let mut serial = 0u32;
+    let mut next = |places: &mut BTreeMap<String, usize>| {
+        serial += 1;
+        let marker = format!("h{serial:06}q");
+        places.insert(marker.clone(), 1);
+        marker
+    };
+    for id in 1..=10i64 {
+        let head = marker_text(&next(&mut places), 40);
+        conn.execute(
+            "INSERT INTO z(id, head, tail) VALUES (?1, ?2, zeroblob(6000))",
+            params![id, head],
+        )
+        .unwrap();
+    }
+    for id in 11..=20i64 {
+        let head = marker_text(&next(&mut places), 40);
+        conn.execute(
+            "INSERT INTO z(id, head, tail) VALUES (?1, ?2, CAST(?3 AS BLOB))",
+            params![id, head, "x".repeat(3000)],
+        )
+        .unwrap();
+    }
+    let mut heads: BTreeMap<i64, String> = BTreeMap::new();
+    for id in 1..=30i64 {
+        let length = if id <= 20 { 60 } else { 8200 };
+        let body = marker_text(&next(&mut places), length);
+        conn.execute("INSERT INTO t(id, body) VALUES (?1, ?2)", params![id, body])
+            .unwrap();
+        heads.insert(id, body[..8].to_owned());
+    }
+    checkpoint(&conn);
+    assert!(
+        one(
+            &conn,
+            "SELECT count(*) FROM dbstat WHERE name = 'z' AND pagetype = 'overflow'"
+        ) > 0,
+        "the rows that end in a zero blob have no overflow page"
+    );
+    assert!(
+        one(
+            &conn,
+            "SELECT count(*) FROM dbstat WHERE name = 't' AND pagetype = 'overflow'"
+        ) > 0,
+        "the long rows have no overflow page"
+    );
+    let mut found = search(&conn, &scratch, mode, &places, "after the inserts");
+    for id in 11..=20i64 {
+        let old: String = conn
+            .query_row(
+                "SELECT substr(head, 1, 8) FROM z WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let head = marker_text(&next(&mut places), 40);
+        conn.execute(
+            "UPDATE z SET head = ?2, tail = zeroblob(3000) WHERE id = ?1",
+            params![id, head],
+        )
+        .unwrap();
+        places.insert(old, 0);
+        checkpoint(&conn);
+        found.extend(search(
+            &conn,
+            &scratch,
+            mode,
+            &places,
+            &format!("after the same-size update of z row {id} to a zero blob"),
+        ));
+    }
+    for id in 1..=30i64 {
+        let length = if id <= 20 { 60 } else { 8200 };
+        let body = marker_text(&next(&mut places), length);
+        conn.execute("UPDATE t SET body = ?2 WHERE id = ?1", params![id, body])
+            .unwrap();
+        places.insert(heads[&id].clone(), 0);
+        checkpoint(&conn);
+        found.extend(search(
+            &conn,
+            &scratch,
+            mode,
+            &places,
+            &format!("after the same-length replacement of t row {id}"),
+        ));
+    }
+    for id in 1..=5i64 {
+        let old: String = conn
+            .query_row(
+                "SELECT substr(head, 1, 8) FROM z WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        conn.execute("DELETE FROM z WHERE id = ?1", [id]).unwrap();
+        places.insert(old, 0);
+        checkpoint(&conn);
+        found.extend(search(
+            &conn,
+            &scratch,
+            mode,
+            &places,
+            &format!("after the removal of z row {id}"),
+        ));
+    }
+    found
+}
+
+#[test]
+fn zero_blobs_and_same_length_replacements_leave_no_text() {
+    crate::initialize().unwrap();
+    let found = zero_blobs_and_same_length(Mode::Plain);
+    assert!(found.is_empty(), "{}", found.join("\n"));
+    let control = zero_blobs_and_same_length(Mode::Unsecured);
+    assert!(
+        control
+            .iter()
+            .any(|line| line.contains("where its rows allow")),
+        "with secure delete off the search finds no removed text"
+    );
+}
