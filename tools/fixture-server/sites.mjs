@@ -28,6 +28,7 @@ const ID = /^[a-z0-9-]{1,32}$/;
 const NAME = /^[a-z][a-z0-9_]{0,31}$/;
 const REFERENCE = /\{([a-z][a-z0-9_]{0,31})\}/g;
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/;
+const TITLE_MAX = 1024;
 
 /** Whether a value of --port is a port: decimal digits, 0 to 65535, where 0 asks the system for a free port. */
 export function isPort(value) {
@@ -201,6 +202,21 @@ function checkShape(site) {
   }
 }
 
+function filledTitleOk(site, title) {
+  const plain = title.replace(REFERENCE, '');
+  if (/[\u0000-\u001f\u007f]/.test(plain)) return false;
+  let low = Buffer.byteLength(plain, 'utf8');
+  let high = low;
+  for (const name of references(title)) {
+    const sizes = (site.values[name] ?? []).map((value) => Buffer.byteLength(value, 'utf8'));
+    if (sizes.length > 0) {
+      low += Math.min(...sizes);
+      high += Math.max(...sizes);
+    }
+  }
+  return low >= 1 && high <= TITLE_MAX;
+}
+
 function checkRules(site) {
   const seed = site.category !== 'other';
   if (site.pages.length === 0) fail('D3', 'no page');
@@ -235,12 +251,13 @@ function checkRules(site) {
   if (!seed && site.parameters.length !== 0) fail('D9', 'a service of the category other with parameters');
   if (site.pages.some((page) => !spacedWell(page.title))) fail('D10', 'a title has a space at an end or two in a row');
   if (site.parameters.some((name) => !used.has(name))) fail('unused', 'a parameter that no template uses');
+  if (site.pages.some((page) => !filledTitleOk(site, page.title))) fail('D12', 'a filled title is empty, over 1,024 bytes or holds a control character');
 }
 
 /**
  * Reads the bytes of one site data file (contracts.md C11.1) and returns the parsed object, or throws a
  * SiteDataError. The file is taken only when it is byte-equal to its own compact rewriting in the listed key
- * order, followed by one line feed, and when the rules D1 to D7, D9 and D10 hold. D8 is a rule over several
+ * order, followed by one line feed, and when the rules D1 to D7 and D9 to D13 hold. D8 is a rule over several
  * files and is checked by `loadSites`.
  */
 export function parseSiteData(bytes) {

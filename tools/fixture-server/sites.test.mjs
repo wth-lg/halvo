@@ -1,13 +1,85 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { scratchDir } from './servers.mjs';
-import { encodeValue, fill, isPort, loadSites, parseSiteData, readArgs, requestsOf } from './sites.mjs';
+import { encodeValue, fill, isPort, loadSites as loadSitesOf, parseSiteData as parseSiteBytes, readArgs, requestsOf } from './sites.mjs';
 
 const CHECKER = fileURLToPath(new URL('./check-sites.mjs', import.meta.url));
+const CASES = fileURLToPath(new URL('./site-cases.jsonl', import.meta.url));
+const fixtures = new Map();
+let listed = null;
+
+function caseKey(files) {
+  const hash = createHash('sha256');
+  for (const file of files) {
+    hash.update(`${file.length}\n`);
+    hash.update(file);
+  }
+  return hash.digest('hex');
+}
+
+function sharedCases() {
+  const bases = new Map();
+  const cases = [];
+  const text = readFileSync(CASES, 'utf8');
+  assert.ok(text.endsWith('\n'));
+  for (const line of text.slice(0, -1).split('\n')) {
+    const value = JSON.parse(line);
+    if (value.text !== undefined) {
+      bases.set(value.base, Buffer.from(`${value.text}\n`, 'utf8'));
+    } else {
+      const files = value.files.map((f) => {
+        const base = f.base === null ? Buffer.alloc(0) : bases.get(f.base);
+        assert.ok(base !== undefined && f.head + f.tail <= base.length, value.case);
+        return Buffer.concat([base.subarray(0, f.head), Buffer.from(f.put, 'hex'), base.subarray(base.length - f.tail)]);
+      });
+      cases.push({ name: value.case, taken: value.taken, rule: value.rule, files });
+    }
+  }
+  return cases;
+}
+
+function check(files, taken, rule) {
+  const key = caseKey(files);
+  fixtures.set(key, { files, taken, rule });
+  if (listed === null) listed = new Map(sharedCases().map((c) => [caseKey(c.files), c]));
+  const c = listed.get(key);
+  assert.ok(
+    c !== undefined && c.taken === taken && (taken || files.length > 1 || c.rule === rule),
+    'a fixture that tools/fixture-server/site-cases.jsonl lacks or holds with another verdict or rule',
+  );
+}
+
+function readAll(paths) {
+  try {
+    return paths.map((path) => readFileSync(path));
+  } catch {
+    return null;
+  }
+}
+
+function parseSiteData(buffer) {
+  let site;
+  try {
+    site = parseSiteBytes(buffer);
+  } catch (error) {
+    if (error.name === 'SiteDataError') check([buffer], false, error.rule);
+    throw error;
+  }
+  check([buffer], true, null);
+  return site;
+}
+
+function loadSites(paths) {
+  const result = loadSitesOf(paths);
+  const files = readAll(paths);
+  if (files !== null) check(files, result.refused === undefined, null);
+  return result;
+}
 
 function shop() {
   return {
@@ -410,7 +482,12 @@ function scratch() {
 }
 
 function runChecker(args) {
-  return spawnSync(process.execPath, [CHECKER, ...args], { encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [CHECKER, ...args], { encoding: 'utf8' });
+  const files = readAll(args.filter((arg, i) => !arg.startsWith('--') && args[i - 1] !== '--parameters'));
+  if (files !== null && files.length > 0 && (run.status !== 2 || run.stderr.startsWith('REFUSED site-data: '))) {
+    check(files, run.status !== 2, null);
+  }
+  return run;
 }
 
 test('checker: counts per category, the password and card pages, and the parameter rows', () => {
@@ -523,4 +600,36 @@ test('checker: usage and parameters refusals', () => {
   assert.equal(run.status, 2);
   assert.equal(run.stdout, '');
   assert.equal(run.stderr, `REFUSED parameters: ${join(dir, 'rows.md')}\n`);
+});
+
+test('site data: every case of the shared list of crates/halvo-sample gets its verdict and its rule here', () => {
+  const dir = scratch();
+  const cases = sharedCases();
+  assert.equal(new Set(cases.map((c) => c.name)).size, cases.length);
+  assert.equal(new Set(cases.map((c) => caseKey(c.files))).size, cases.length);
+  for (const [k, c] of cases.entries()) {
+    if (c.files.length === 1) {
+      let rule = null;
+      try {
+        parseSiteData(c.files[0]);
+      } catch (error) {
+        assert.equal(error.name, 'SiteDataError', c.name);
+        rule = error.rule;
+      }
+      assert.equal(rule === null, c.taken, c.name);
+      assert.equal(rule, c.rule, c.name);
+    } else {
+      const paths = c.files.map((file, i) => {
+        const path = join(dir, `case-${k}-${i}.json`);
+        writeFileSync(path, file);
+        return path;
+      });
+      assert.equal(loadSites(paths).refused === undefined, c.taken, c.name);
+    }
+  }
+});
+
+test('site data: every fixture of this file stands in the shared list with its verdict and rule', () => {
+  assert.ok(fixtures.size > 0);
+  for (const f of fixtures.values()) check(f.files, f.taken, f.rule);
 });
