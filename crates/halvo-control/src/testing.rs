@@ -402,16 +402,28 @@ impl ScriptedDaemon {
     /// Without it the daemon answers as a going life: a set-cap and the permission mutations of
     /// its form are served and write, a Stop answers stopped, a delete after the timed-out Pause
     /// answers the plain busy, and after a Stop a delete with the shown id is accepted (ruling
-    /// CT-13). In a life that is ending capture reads pausing (contracts.md C2.3), so the status
-    /// the daemon holds then reads pausing.
+    /// CT-13). In a life that is ending capture reads pausing with no reason (contracts.md C2.3):
+    /// the status held, and every status set or changed after it, reads so, in either order of
+    /// `set_life` and `set_status`. `set_life(Life::Going)` changes no status: pausing stands until
+    /// the process is gone, and a script that means the next life calls `set_status` (ruling
+    /// CT-14 K3).
     pub fn set_life(&mut self, life: Life) {
         self.life = life;
-        if life == Life::Ending && self.status.fields().capture != Capture::Pausing {
-            self.edit(|f| {
-                f.capture = Capture::Pausing;
-                f.capture_reason = None;
-            });
+        self.status = self.in_this_life(self.status.clone());
+    }
+
+    fn in_this_life(&self, status: DaemonStatus) -> DaemonStatus {
+        let f = status.fields();
+        if self.life == Life::Going || (f.capture == Capture::Pausing && f.capture_reason.is_none())
+        {
+            return status;
         }
+        let mut fields = status.into_fields();
+        fields.capture = Capture::Pausing;
+        fields.capture_reason = None;
+        DaemonStatus::new(fields).expect(
+            "the status type takes capture pausing with no reason beside every status that it took",
+        )
     }
 
     pub fn set_stop_answer(&mut self, source: SourceName, answer: StopAnswer) {
@@ -425,7 +437,7 @@ impl ScriptedDaemon {
 
     pub fn set_status(&mut self, status: DaemonStatus) {
         self.hold = status.fields().capture == Capture::AwaitingResume;
-        self.status = status;
+        self.status = self.in_this_life(status);
     }
 
     /// From the first answer that reads pausing until the process is gone, C2.3 has capture
@@ -477,7 +489,7 @@ impl ScriptedDaemon {
         change(&mut fields);
         fields.onboarding = onboarding_of(fields.platform, &fields.permissions);
         match DaemonStatus::new(fields) {
-            Ok(status) => self.status = status,
+            Ok(status) => self.status = self.in_this_life(status),
             Err(_) => self.refused_change = true,
         }
     }
@@ -1302,6 +1314,139 @@ mod tests {
                 matches!(delete, Reply::Deleted(_)),
                 "{platform:?}: a delete with the shown id after the Stop: {delete:?}"
             );
+        }
+    }
+
+    fn prepared(platform: Platform) -> Vec<DaemonStatus> {
+        let mut out = walk_starts(platform);
+        let mut f = sample_status(platform).into_fields();
+        for line in &mut f.sources {
+            if line.state != SourceState::Off {
+                line.state = SourceState::Failed {
+                    reason: Reason::Permission,
+                    error: None,
+                };
+            }
+        }
+        f.capture = Capture::Faulted;
+        f.capture_reason = Some(CaptureReason::Permission);
+        out.push(DaemonStatus::new(f).unwrap());
+        let mut f = sample_status(platform).into_fields();
+        f.enabled_sources.clear();
+        for line in &mut f.sources {
+            line.state = SourceState::Off;
+        }
+        f.capture = Capture::Faulted;
+        f.capture_reason = Some(CaptureReason::NoSource);
+        out.push(DaemonStatus::new(f).unwrap());
+        out
+    }
+
+    fn ending_in_order(status: &DaemonStatus, life_first: bool) -> ScriptedDaemon {
+        let mut daemon = ScriptedDaemon::new(sample_status(status.fields().platform));
+        if life_first {
+            daemon.set_life(Life::Ending);
+            daemon.set_status(status.clone());
+        } else {
+            daemon.set_status(status.clone());
+            daemon.set_life(Life::Ending);
+        }
+        daemon
+    }
+
+    #[test]
+    fn k3_both_orders_of_set_status_and_set_life_give_the_same_pausing_status_and_hold() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            for status in prepared(platform) {
+                let given = status.fields().capture;
+                let life_first = ending_in_order(&status, true);
+                let status_first = ending_in_order(&status, false);
+                assert_eq!(
+                    life_first.status(),
+                    status_first.status(),
+                    "{platform:?} {given:?}"
+                );
+                assert_eq!(life_first.hold, status_first.hold, "{platform:?} {given:?}");
+                assert_eq!(
+                    life_first.hold,
+                    given == Capture::AwaitingResume,
+                    "{platform:?} {given:?}"
+                );
+                let f = life_first.status().fields();
+                assert_eq!(
+                    (f.capture, f.capture_reason),
+                    (Capture::Pausing, None),
+                    "{platform:?} {given:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn k3_after_either_order_a_resume_exits_1_with_its_sentence_and_a_pause_keeps_the_word() {
+        let data_dir = crate::paths::DataDir::from_flag(if cfg!(windows) {
+            r"C:\halvo-data"
+        } else {
+            "/halvo-data"
+        })
+        .unwrap();
+        for platform in [Platform::Macos, Platform::Windows] {
+            for status in prepared(platform) {
+                for life_first in [true, false] {
+                    let at = format!(
+                        "{platform:?} {:?} life_first={life_first}",
+                        status.fields().capture
+                    );
+                    let mut daemon = ending_in_order(&status, life_first);
+                    let resumed = daemon.handle(Request::Resume);
+                    let printed = crate::ctl_text::print(
+                        &crate::ctl_text::Verb::Resume,
+                        Ok(resumed),
+                        &data_dir,
+                    );
+                    assert_eq!(printed.status, 1, "{at}: {printed:?}");
+                    assert!(
+                        printed
+                            .stderr
+                            .contains("capture=pausing, not the state that resume asks for"),
+                        "{at}: {printed:?}"
+                    );
+                    let paused = changed(daemon.handle(Request::Pause));
+                    assert_eq!(paused.fields().desired, CaptureState::Paused, "{at}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn k6_set_life_ending_from_a_faulted_status_clears_the_reason() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let faulted = prepared(platform).pop().unwrap();
+            assert_eq!(faulted.fields().capture, Capture::Faulted);
+            let mut daemon = ScriptedDaemon::new(faulted);
+            daemon.set_life(Life::Ending);
+            let f = daemon.status().fields();
+            assert_eq!(
+                (f.capture, f.capture_reason),
+                (Capture::Pausing, None),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn k6_set_life_going_changes_no_status_and_a_pausing_capture_stays() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            for status in prepared(platform) {
+                let mut daemon = ending_in_order(&status, true);
+                let ending = daemon.status().clone();
+                daemon.set_life(Life::Going);
+                assert_eq!(daemon.status(), &ending, "{platform:?}");
+                assert_eq!(daemon.life, Life::Going);
+                let mut daemon = ScriptedDaemon::new(status.clone());
+                daemon.set_life(Life::Going);
+                assert_eq!(daemon.status(), &status, "{platform:?}");
+            }
         }
     }
 
