@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::frame::Browser;
 use halvo_schema::executable::text::CreationTime;
 
-use crate::api::{Reaped, RunnerExit};
+use crate::api::{Reaped, RunnerExit, SystemValue};
 use crate::marks::{Group, Mark, ProcLine};
 use crate::sys;
 
@@ -61,50 +61,75 @@ fn created(us: u64) -> Option<CreationTime> {
     NonZeroU64::new(us).map(CreationTime::from_micros)
 }
 
+/// Reads one value of the runner's environment list from the system; none when the system does not give it.
+pub(crate) type ReadValue = fn(SystemValue) -> Option<OsString>;
+
+/// The value that the system gives for the account: on macOS `TMPDIR`, the per-user temporary directory; on Windows
+/// `SystemRoot`, the Windows directory, and `TEMP`, the directory Temp under the account's LocalAppData known folder.
+/// None for a value of the other system.
+pub(crate) fn system_value(value: SystemValue) -> Option<OsString> {
+    match value {
+        #[cfg(target_os = "macos")]
+        SystemValue::TmpDir => sys::user_temp_dir(),
+        #[cfg(windows)]
+        SystemValue::SystemRoot => {
+            use std::os::windows::ffi::OsStringExt;
+            sys::windows_directory().map(|root| OsString::from_wide(&root))
+        }
+        #[cfg(windows)]
+        SystemValue::Temp => {
+            use std::os::windows::ffi::OsStringExt;
+            sys::local_app_data().map(|local| {
+                let mut temp = OsString::from_wide(&local);
+                temp.push("\\Temp");
+                temp
+            })
+        }
+        _ => None,
+    }
+}
+
 /// The whole environment of a runner, from the closed list of its system (contracts.md A6.1 and A6.6, ruling CP-160
 /// (1) (b)); nothing else of the library's process reaches the runner. On macOS `HOME`, as the library's process has
-/// it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows `SystemRoot`, the Windows
-/// directory that the system answers, `TEMP` and `TMP`, the directory Temp under the account's LocalAppData known
-/// folder, and `LOCALAPPDATA`, as the library's process has it. `HOME` and `LOCALAPPDATA` are left out where the
-/// library's process has none, and a value of the system that cannot be read leaves its name out.
-pub(crate) fn environment() -> Vec<(OsString, OsString)> {
+/// it, and `TMPDIR`; on Windows `SystemRoot`, `TEMP` and `TMP`, and `LOCALAPPDATA`, as the library's process has it;
+/// the values of the system as `read` gives them. `HOME` and `LOCALAPPDATA` are left out where the library's process
+/// has none. A value of the system that `read` does not give is named in the error, and no list is made (ruling
+/// CP-178 (8) (b)).
+pub(crate) fn environment(read: ReadValue) -> Result<Vec<(OsString, OsString)>, SystemValue> {
     let mut env = Vec::new();
     #[cfg(target_os = "macos")]
     {
         if let Some(home) = std::env::var_os("HOME") {
             env.push(("HOME".into(), home));
         }
-        if let Some(temp) = sys::user_temp_dir() {
-            env.push(("TMPDIR".into(), temp));
-        }
+        let temp = read(SystemValue::TmpDir).ok_or(SystemValue::TmpDir)?;
+        env.push(("TMPDIR".into(), temp));
     }
     #[cfg(windows)]
     {
-        use std::os::windows::ffi::OsStringExt;
-        if let Some(root) = sys::windows_directory() {
-            env.push(("SystemRoot".into(), OsString::from_wide(&root)));
-        }
-        if let Some(local) = sys::local_app_data() {
-            let mut temp = OsString::from_wide(&local);
-            temp.push("\\Temp");
-            env.push(("TEMP".into(), temp.clone()));
-            env.push(("TMP".into(), temp));
-        }
+        let root = read(SystemValue::SystemRoot).ok_or(SystemValue::SystemRoot)?;
+        env.push(("SystemRoot".into(), root));
+        let temp = read(SystemValue::Temp).ok_or(SystemValue::Temp)?;
+        env.push(("TEMP".into(), temp.clone()));
+        env.push(("TMP".into(), temp));
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
             env.push(("LOCALAPPDATA".into(), local));
         }
     }
-    env
+    Ok(env)
 }
 
 /// Starts the runner of `cmd`, its program and arguments, with three handles or descriptors of the library's open in
 /// it and no other: the two ends of the link as its standard input and output and the null device as its standard
-/// error. It gives the runner the whole environment of `environment` and the system's directory as its working
+/// error. It gives the runner the whole environment `env`, made by `environment`, and the system's directory as its working
 /// directory: `/` on macOS, the system directory on Windows, never the library's own; a Windows start whose system
 /// directory cannot be read makes no process. On macOS the runner is the leader of a process group of its own and
 /// every other descriptor closes at its exec; on Windows it starts suspended, with the list of those three as the
 /// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line.
-pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
+pub(crate) fn spawn(
+    cmd: &mut Command,
+    env: &[(OsString, OsString)],
+) -> Result<RunProc, SpawnFailed> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
@@ -113,7 +138,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .env_clear()
-            .envs(environment())
+            .envs(env.iter().map(|(k, v)| (k, v)))
             .current_dir("/")
             .process_group(0);
         sys::close_beyond_three(cmd);
@@ -149,7 +174,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         let line =
             command_line(&program, args.iter().map(Vec::as_slice)).ok_or(SpawnFailed::NotMade)?;
         let application: Vec<u16> = program.into_iter().chain(Some(0)).collect();
-        let vars: Vec<(Vec<u16>, Vec<u16>)> = environment()
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = env
             .iter()
             .map(|(k, v)| (k.encode_wide().collect(), v.encode_wide().collect()))
             .collect();
@@ -288,13 +313,6 @@ impl RunProc {
     }
 
     /// How the runner ended, once the library has reaped it; none before, and none when the system reaped it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
-        )
-    )]
     pub(crate) fn exit(&self) -> Option<RunnerExit> {
         self.exit
     }
@@ -656,7 +674,8 @@ mod exit_tests {
     }
 
     fn started(mut cmd: Command) -> Ends {
-        match spawn(&mut cmd) {
+        let env = environment(system_value).expect("the system gives every value of the list");
+        match spawn(&mut cmd, &env) {
             Ok(p) => Ends(p),
             Err(SpawnFailed::Made(p)) => {
                 drop(Ends(p));

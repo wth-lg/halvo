@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use common::{gone, line_gone, wait_until, Rig};
 use halvo_agent_client::marks::Group;
-use halvo_agent_client::{process, CallError, EndRun};
+use halvo_agent_client::{
+    process, CallError, EndRun, NotStarted, RelativePath, RunnerExit, StartError,
+};
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{HandbackOutcome, Outcome};
 use halvo_schema::executable::text::V1;
@@ -49,7 +51,10 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     let script = rig.script(&["hello", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(rig.mark(&run).is_none());
     let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
     assert_eq!(end.end_run, EndRun::NoRunner);
@@ -58,13 +63,108 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     assert_eq!(rig.sup.cancel(&run), Err(CallError::Ended));
 }
 
+fn relative_start(
+    name: &str,
+    set: impl FnOnce(&mut halvo_agent_client::Config),
+    spec: impl FnOnce(&mut halvo_agent_client::RunSpec),
+) -> (Result<(), StartError>, common::Script, Rig) {
+    let rig = Rig::configured(name, set);
+    let script = rig.script(&["hello", "idle"]);
+    let mut s = rig.spec(&script);
+    spec(&mut s);
+    (rig.sup.start(s), script, rig)
+}
+
+#[test]
+fn a_start_whose_runner_browser_model_or_data_directory_is_relative_answers_not_started_naming_it_before_any_process_or_mark(
+) {
+    let relative_data = std::path::PathBuf::from(format!("relative-data-{}", common::run_id()));
+    let cases = vec![
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-runner",
+                |c| c.runner = std::path::PathBuf::from("agent-client-peer"),
+                |_| {},
+            );
+            ("runner", RelativePath::Runner, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-browser",
+                |_| {},
+                |s| s.browser = std::path::PathBuf::from("script"),
+            );
+            ("browser", RelativePath::Browser, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-model",
+                |_| {},
+                |s| s.model = Some(std::path::PathBuf::from("model.gguf")),
+            );
+            ("model", RelativePath::Model, script, rig, answer)
+        },
+        {
+            let data = relative_data.clone();
+            let (answer, script, rig) =
+                relative_start("relative-data", |c| c.data_dir = data, |_| {});
+            ("data directory", RelativePath::DataDir, script, rig, answer)
+        },
+    ];
+    std::thread::sleep(Duration::from_millis(500));
+    for (what, path, script, rig, answer) in &cases {
+        assert_eq!(
+            *answer,
+            Err(StartError::NotStarted(NotStarted::Relative(*path))),
+            "a start with a relative {what}"
+        );
+        assert!(
+            script.log().is_empty(),
+            "a runner was made for a start with a relative {what}: {}",
+            script.log()
+        );
+        assert!(
+            !rig.data().exists(),
+            "a start with a relative {what} wrote under the data directory"
+        );
+        assert!(
+            rig.rec.starts.lock().unwrap().is_empty() && rig.rec.ends.lock().unwrap().is_empty(),
+            "a start with a relative {what} called the mark sink"
+        );
+    }
+    assert!(
+        !relative_data.exists(),
+        "a start with a relative data directory made it"
+    );
+}
+
+#[test]
+fn a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_exit() {
+    let rig = Rig::new("start-refused");
+    let script = rig.script(&["exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(
+        rig.sup.start(spec),
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    assert!(script.wait_log("exit", SHORT), "{}", script.log());
+    assert_runner_gone(&script);
+    assert!(rig.rec.wait_end(&run, SHORT).is_some());
+}
+
 #[test]
 fn a_runner_that_ends_before_the_start_answers_gives_not_started_and_leaves_no_process() {
     let rig = Rig::new("start-ends");
     let script = rig.script(&["child", "sleep 200", "exit 3"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -160,7 +260,10 @@ fn a_runner_that_does_not_answer_within_the_wait_is_ended_before_not_started() {
     let script = rig.script(&["child", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -174,7 +277,10 @@ fn a_hello_of_another_run_is_no_start() {
     let script = rig.script(&["hello-other", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }
@@ -188,7 +294,10 @@ fn a_second_start_of_a_run_id_is_refused_with_started_and_makes_no_runner() {
     rig.sup.start(spec.clone()).unwrap();
     let before =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
-    assert_eq!(rig.sup.start(spec), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     let after =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
     assert_eq!(before, after);
@@ -205,7 +314,10 @@ fn a_start_of_a_run_whose_mark_of_an_earlier_life_stands_is_refused_with_started
     std::fs::create_dir_all(&dir).unwrap();
     let first = format!("mark run={}\n", spec.run);
     std::fs::write(dir.join(spec.run.as_str()), &first).unwrap();
-    assert_eq!(rig.sup.start(spec.clone()), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec.clone()).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     assert_eq!(
         std::fs::read_to_string(dir.join(spec.run.as_str())).unwrap(),
         first
@@ -278,7 +390,10 @@ fn a_browser_frame_before_hello_is_answered_and_its_browser_is_ended_by_a_start_
     );
     let script = rig.script(&["browser child", "idle"]);
     let spec = rig.spec(&script);
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(
         script.log().contains(r#"reply {"t":"browser_reply"}"#),
         "{}",
@@ -364,7 +479,10 @@ fn a_hello_of_another_agent_is_no_start() {
     let script = rig.script(&["hello-other-agent", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }

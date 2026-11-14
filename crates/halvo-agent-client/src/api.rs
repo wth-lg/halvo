@@ -52,6 +52,70 @@ impl fmt::Display for CallError {
 
 impl std::error::Error for CallError {}
 
+/// Why a start answered `not_started` (contracts.md A6.6): a path that is not absolute or a value of the runner's
+/// environment list that the system did not give, each found before any process is made and before a mark is
+/// written; or a runner that could not be made or was gone before the start answered, with its exit when the
+/// library reaped it, so that a refusal, the status 2, is told apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotStarted {
+    /// A path of the start is not absolute.
+    Relative(RelativePath),
+    /// A value of the runner's environment list could not be read.
+    Missing(SystemValue),
+    /// The runner was not made, or was made and was gone before the start answered; `exit` is how it ended, none
+    /// when no runner was made, when it was not reaped by the library, or when the system reaped it.
+    Runner { exit: Option<RunnerExit> },
+}
+
+/// The error of a start: a run id that the library has started, or whose mark of an earlier life stands
+/// (`started`), or a start that left no process of the run (`not_started`), with why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartError {
+    Started,
+    NotStarted(NotStarted),
+}
+
+impl StartError {
+    /// The name of the closed list `CallError` that the start answers.
+    pub fn call_error(self) -> CallError {
+        match self {
+            StartError::Started => CallError::Started,
+            StartError::NotStarted(_) => CallError::NotStarted,
+        }
+    }
+}
+
+impl fmt::Display for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.call_error().as_str())
+    }
+}
+
+impl std::error::Error for StartError {}
+
+/// A value of the runner's environment list that the library reads from the system for the account (contracts.md
+/// A6.1): on macOS `TMPDIR`, on Windows `SystemRoot` and `TEMP` with `TMP`, which are one read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SystemValue {
+    /// `TMPDIR`, the per-user temporary directory that `confstr` answers (macOS).
+    TmpDir,
+    /// `SystemRoot`, the Windows directory that the system answers (Windows).
+    SystemRoot,
+    /// `TEMP` and `TMP`, the directory Temp under the account's LocalAppData known folder (Windows).
+    Temp,
+}
+
+impl SystemValue {
+    /// The name of the variable, `TEMP` for the pair `TEMP` and `TMP`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SystemValue::TmpDir => "TMPDIR",
+            SystemValue::SystemRoot => "SystemRoot",
+            SystemValue::Temp => "TEMP",
+        }
+    }
+}
+
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
 /// caller gave it, `--model` and `--headed`.
 #[derive(Clone, Debug)]
@@ -142,22 +206,11 @@ pub enum RunnerExit {
     /// The runner exited with this status.
     Status(i32),
     /// A signal of this number ended the runner (macOS).
-    #[cfg_attr(
-        all(windows, not(test)),
-        expect(dead_code, reason = "no signal ends a process on Windows")
-    )]
     Signal(i32),
 }
 
 impl RunnerExit {
     /// Whether the runner refused: it exited with the status 2.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
-        )
-    )]
     pub fn is_refusal(self) -> bool {
         self == RunnerExit::Status(2)
     }
@@ -204,8 +257,7 @@ pub struct Parts {
 /// for the account of the library's token, `TEMP` and `TMP` the directory Temp under its LocalAppData known folder.
 /// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
 /// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
-/// `data_dir` and the paths of a `RunSpec` must be absolute; `absolute_paths` names the first that is not, and
-/// `Supervisor::start` does not call it yet.
+/// `data_dir` and the paths of a `RunSpec` must be absolute; `Supervisor::start` refuses a start whose path is not.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub data_dir: PathBuf,
@@ -241,16 +293,8 @@ pub enum RelativePath {
 
 /// Refuses a start whose runner path, `--browser`, `--model` or data directory is not absolute, naming the first of
 /// them in that order: the runner works in the system's directory and not in the library's, where a relative path
-/// names another file. `Supervisor::start` does not call it yet; until it does, a relative path reaches the runner
-/// as its caller gave it.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "its call at the top of Supervisor::start is the first line of the next unit of src/supervisor.rs"
-    )
-)]
-pub fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
+/// names another file. `Supervisor::start` calls it first.
+pub(crate) fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
     let paths = [
         (Some(&config.runner), RelativePath::Runner),
         (Some(&spec.browser), RelativePath::Browser),
