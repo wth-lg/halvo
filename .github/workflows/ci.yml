@@ -1,4 +1,5 @@
 name: ci
+# scratch: both jobs whole with one loop step each; never merged
 
 on:
   push:
@@ -93,6 +94,52 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of the new tests of halvo-sqlcipher (scratch)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          start=$(date +%s)
+          out=$(cargo test --locked -p halvo-sqlcipher --lib --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/.*Executable unittests src.lib\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\134' '/')
+          if [ -z "$bin" ]; then
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          printf 'LOOP build of the test binary: seconds %s\n' "$(($(date +%s) - start))"
+          status=0
+          for spec in 'page_gap::a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_place 20' 'page_gap::second_place::small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place 200' 'page_gap::second_place::a_table_of_the_fts5_form_with_its_secure_delete_leaves_no_removed_token 200' 'page_gap::second_place::rows_that_analyze_or_optimize_read_leave_no_text_after_their_removal 200' 'page_gap::layout::the_structural_check_sees_what_a_delete_leaves_with_secure_delete_off 200' 'page_gap::layout::the_structural_check_sees_four_bytes_of_text_planted_in_a_gap 200' 'page_gap::layout::the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads 200' 'page_gap::table::every_byte_write_of_the_page_code_has_a_row_in_the_table_of_adr_0013 200' 'page_gap::the_compiled_copy_is_the_pinned_file_with_a_statement_at_the_ends_of_lines_81262_and_81517_and_one_added_function 200' 'tests::the_linked_library_is_the_pinned_sqlcipher_with_the_page_gap_mend 200'; do
+            name=${spec% *}
+            runs=${spec##* }
+            passes=0
+            slowest=0
+            i=0
+            begun=$(date +%s)
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              t0=$(date +%s)
+              if "$bin" --exact "$name" 2>&1 | tr -d '\r' | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                passes=$((passes + 1))
+              fi
+              t=$(($(date +%s) - t0))
+              if [ "$t" -gt "$slowest" ]; then slowest=$t; fi
+            done
+            printf 'LOOP %s runs %s passes %s seconds %s slowest %s\n' "$name" "$runs" "$passes" "$(($(date +%s) - begun))" "$slowest"
+            if [ "$passes" -ne "$runs" ]; then status=1; fi
+          done
+          left=$(find target/tmp -maxdepth 1 -name 'halvo-sqlcipher-page-gap-*' 2>/dev/null | wc -l | tr -d ' ')
+          printf 'LOOP entries left under target/tmp named halvo-sqlcipher-page-gap-: %s\n' "$left"
+          touch crates/halvo-sqlcipher/build.rs
+          t0=$(date +%s)
+          cargo build --locked -p halvo-sqlcipher >/dev/null 2>&1 || status=1
+          printf 'LOOP build of the crate with the copy step (build script and C compile): seconds %s\n' "$(($(date +%s) - t0))"
+          git show f980b9eddef882da2d8ff0f00793992cc2c8e423:crates/halvo-sqlcipher/build.rs >crates/halvo-sqlcipher/build.rs
+          t0=$(date +%s)
+          cargo build --locked -p halvo-sqlcipher >/dev/null 2>&1 || status=1
+          printf 'LOOP build of the crate with the base build script (no copy step): seconds %s\n' "$(($(date +%s) - t0))"
+          git checkout -- crates/halvo-sqlcipher/build.rs
+          printf 'LOOP status lines after the restore: %s\n' "$(git status --porcelain | wc -l | tr -d ' ')"
+          exit "$status"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -144,6 +191,52 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop of the new tests of halvo-sqlcipher (scratch)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          start=$(date +%s)
+          out=$(cargo test --locked -p halvo-sqlcipher --lib --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/.*Executable unittests src.lib\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\134' '/')
+          if [ -z "$bin" ]; then
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          printf 'LOOP build of the test binary: seconds %s\n' "$(($(date +%s) - start))"
+          status=0
+          for spec in 'page_gap::a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_place 20' 'page_gap::second_place::small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place 200' 'page_gap::second_place::a_table_of_the_fts5_form_with_its_secure_delete_leaves_no_removed_token 200' 'page_gap::second_place::rows_that_analyze_or_optimize_read_leave_no_text_after_their_removal 200' 'page_gap::layout::the_structural_check_sees_what_a_delete_leaves_with_secure_delete_off 200' 'page_gap::layout::the_structural_check_sees_four_bytes_of_text_planted_in_a_gap 200' 'page_gap::layout::the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads 200' 'page_gap::table::every_byte_write_of_the_page_code_has_a_row_in_the_table_of_adr_0013 200' 'page_gap::the_compiled_copy_is_the_pinned_file_with_a_statement_at_the_ends_of_lines_81262_and_81517_and_one_added_function 200' 'tests::the_linked_library_is_the_pinned_sqlcipher_with_the_page_gap_mend 200'; do
+            name=${spec% *}
+            runs=${spec##* }
+            passes=0
+            slowest=0
+            i=0
+            begun=$(date +%s)
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              t0=$(date +%s)
+              if "$bin" --exact "$name" 2>&1 | tr -d '\r' | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                passes=$((passes + 1))
+              fi
+              t=$(($(date +%s) - t0))
+              if [ "$t" -gt "$slowest" ]; then slowest=$t; fi
+            done
+            printf 'LOOP %s runs %s passes %s seconds %s slowest %s\n' "$name" "$runs" "$passes" "$(($(date +%s) - begun))" "$slowest"
+            if [ "$passes" -ne "$runs" ]; then status=1; fi
+          done
+          left=$(find target/tmp -maxdepth 1 -name 'halvo-sqlcipher-page-gap-*' 2>/dev/null | wc -l | tr -d ' ')
+          printf 'LOOP entries left under target/tmp named halvo-sqlcipher-page-gap-: %s\n' "$left"
+          touch crates/halvo-sqlcipher/build.rs
+          t0=$(date +%s)
+          cargo build --locked -p halvo-sqlcipher >/dev/null 2>&1 || status=1
+          printf 'LOOP build of the crate with the copy step (build script and C compile): seconds %s\n' "$(($(date +%s) - t0))"
+          git show f980b9eddef882da2d8ff0f00793992cc2c8e423:crates/halvo-sqlcipher/build.rs >crates/halvo-sqlcipher/build.rs
+          t0=$(date +%s)
+          cargo build --locked -p halvo-sqlcipher >/dev/null 2>&1 || status=1
+          printf 'LOOP build of the crate with the base build script (no copy step): seconds %s\n' "$(($(date +%s) - t0))"
+          git checkout -- crates/halvo-sqlcipher/build.rs
+          printf 'LOOP status lines after the restore: %s\n' "$(git status --porcelain | wc -l | tr -d ' ')"
+          exit "$status"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
