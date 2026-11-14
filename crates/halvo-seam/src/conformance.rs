@@ -356,6 +356,7 @@ fn open_text(
 type Span = Option<(Instant, Instant)>;
 type Filter<'a> = (&'a str, Option<&'a [&'a str]>, Span);
 type FilterCase<'a> = (&'a str, Option<&'a [&'a str]>, Span, Vec<Entry>);
+type RangeRead<'a> = (&'a str, (Instant, Instant), Option<&'a [&'a str]>);
 
 struct Reading {
     store: StoreId,
@@ -1007,7 +1008,7 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
     let after = d.entries[STEP_BACK + 1].record.at();
     let just_after = Instant(keystroke.0.saturating_add(1));
     let keystrokes: &[&str] = &["keystroke"];
-    let reads: [(&str, (Instant, Instant), Option<&[&str]>); 5] = [
+    let reads: [RangeRead; 5] = [
         (
             "up to the pointer before its step back",
             (first, pointer.record.at()),
