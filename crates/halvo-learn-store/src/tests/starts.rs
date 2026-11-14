@@ -249,3 +249,65 @@ fn a_start_run_that_arrives_again_after_both_rows_stand_changes_nothing() {
     assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
     assert_eq!(w.handlers.starts, starts);
 }
+
+/// A row of rev 2 of workflow 1 and agent 1 written on `on`: stale since that day after a last occurrence 70 days
+/// before it with a period of 31, or not stale with its last occurrence on that day and a period of 30.
+fn rev_2_on(w: &mut World, on: u32, stale: bool) {
+    let (last, period) = if stale { (on - 70, 31) } else { (on, 30) };
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "rev": 2, "day": on,
+        "category": "utility_bill_payment",
+        "site": {"key": "northwind-power.test", "source": "address_field"},
+        "app": "com.example.browser", "period": period, "seen": 3, "first": last - 2 * period,
+        "last": last, "next": last + period, "missed": if stale { 2 } else { 0 },
+        "mark": if stale { "stale" } else { "none" },
+        "since": if stale { Value::from(on) } else { Value::Null },
+    });
+    w.host
+        .commit(vec![TypedRecord {
+            kind: "learn_routine",
+            json: row.to_string(),
+        }])
+        .expect("the row is stored");
+}
+
+/// The newest row of two rows of rev 2 and different days, the later one `none` and the earlier one `stale`, is
+/// written again at a start whatever the order in which the read visits them.
+fn the_later_of_two_rows_of_one_rev_is_written_again(later: u32, later_visited_first: bool) {
+    let mut w = active_world();
+    rev_2_on(&mut w, later, false);
+    rev_2_on(&mut w, later - 1, true);
+    w.host.day = later + 30;
+    let visited: Vec<u32> = w
+        .host
+        .learn_rows("learn_routine")
+        .iter()
+        .map(|row| LearnRoutine::parse(row.as_bytes()).expect("a routine row"))
+        .filter(|row| row.rev.get() == 2)
+        .map(|row| row.day.get())
+        .collect();
+    let order = if later_visited_first {
+        [later, later - 1]
+    } else {
+        [later - 1, later]
+    };
+    assert_eq!(visited, order);
+    w.start(2, "replay");
+    let rows = routines(&w);
+    let written = rows.last().expect("a routine row");
+    assert_eq!((written.rev.get(), written.day), (3, day(later + 30)));
+    assert_eq!(
+        (written.mark, written.period.map(|p| p.get()), written.last),
+        (Mark::None, Some(30), Some(day(later)))
+    );
+}
+
+#[test]
+fn the_start_writes_again_the_later_of_two_rows_of_one_rev_when_the_read_visits_it_last() {
+    the_later_of_two_rows_of_one_rev_is_written_again(DAY + 1, false);
+}
+
+#[test]
+fn the_start_writes_again_the_later_of_two_rows_of_one_rev_when_the_read_visits_it_first() {
+    the_later_of_two_rows_of_one_rev_is_written_again(100_000, true);
+}
