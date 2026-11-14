@@ -12,6 +12,11 @@ use crate::store::RootReading;
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
 
+/// A place where a test acts between the root step's listing and its first
+/// look at a name (ruling ST-46 K1).
+#[cfg(test)]
+pub(crate) const SEAM_AFTER_THE_LISTING: &str = "the root step, after its listing";
+
 /// The length of a root, from which the code writes a root file.
 const ROOT_LEN: usize = 32;
 
@@ -247,6 +252,8 @@ pub(crate) fn destroy_roots_in(
         }
     }
     found.sort_by_key(|(file, _)| !of_named(file));
+    #[cfg(test)]
+    crate::store::failpoint::seam(SEAM_AFTER_THE_LISTING);
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     for (file, entry) in &found {

@@ -1228,3 +1228,167 @@ fn delete_all_removes_a_second_name_at_another_root_name_without_writing_through
     );
     assert!(answer.is_ok(), "{}", report_line(&answer));
 }
+
+/// What a test does at the seam after the root step's listing (ruling ST-46
+/// K1): the root file, or a partial name of the root, renamed aside within the
+/// roots directory, and what then stands at its name.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum AfterTheListing {
+    Nothing,
+    RenameAlone,
+    RenameAndLinkAtTheName,
+    RenameAndEmptyFileAtTheName,
+    RenamePartialAside,
+}
+
+/// One delete-all on a handle with `what` done after its listing: the answer,
+/// the bytes of what was put aside (empty for Nothing), and whether a copy of
+/// the store taken before the delete opens and reads with the aside file put
+/// back at its name.
+fn delete_all_with_a_move_after_the_listing(
+    what: AfterTheListing,
+) -> (
+    StoreResult<crate::store::DeleteReport>,
+    RootId,
+    Vec<u8>,
+    bool,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment) = file_root_store(dir.path());
+    let copy = dir.path().join("copy-of-the-store");
+    copy_tree(&store_dir, &copy);
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let partial = roots_dir.join(format!("{root_id}.0123456789abcdef.root.tmp"));
+    if what == AfterTheListing::RenamePartialAside {
+        std::fs::copy(&root_file, &partial).unwrap();
+    }
+    let aside = roots_dir.join("put-aside");
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let (from, to, name) = (
+        if what == AfterTheListing::RenamePartialAside {
+            partial.clone()
+        } else {
+            root_file.clone()
+        },
+        aside.clone(),
+        root_file.clone(),
+    );
+    let _seam = crate::store::failpoint::at(
+        crate::custody::file_root::SEAM_AFTER_THE_LISTING,
+        move || match what {
+            AfterTheListing::Nothing => {}
+            AfterTheListing::RenameAlone | AfterTheListing::RenamePartialAside => {
+                std::fs::rename(&from, &to).unwrap()
+            }
+            AfterTheListing::RenameAndLinkAtTheName => {
+                std::fs::rename(&from, &to).unwrap();
+                std::os::unix::fs::symlink(&to, &name).unwrap();
+            }
+            AfterTheListing::RenameAndEmptyFileAtTheName => {
+                std::fs::rename(&from, &to).unwrap();
+                std::fs::write(&name, b"").unwrap();
+            }
+        },
+    );
+    let answer = store.delete_all();
+    drop(store);
+    let aside_bytes = std::fs::read(&aside).unwrap_or_default();
+    let mut copy_opens = false;
+    if what != AfterTheListing::Nothing && what != AfterTheListing::RenamePartialAside {
+        let _ = std::fs::remove_file(&root_file);
+        std::fs::rename(&aside, &root_file).unwrap();
+        copy_opens = copy_reads(&copy, &roots_dir, root_id, segment)
+            .starts_with("open=Ok segment_plaintext_equal=true");
+    }
+    println!(
+        "ST46 K1 {what:?} {} aside_len={} aside_nonzero={} copy_opens_and_reads={copy_opens}",
+        report_line(&answer),
+        aside_bytes.len(),
+        aside_bytes.iter().any(|&b| b != 0)
+    );
+    (answer, root_id, aside_bytes, copy_opens)
+}
+
+/// ST-46 K1, the review's case B1: the root file renamed aside after the
+/// listing and before the step's look. The call removed nothing, so it reads
+/// the root left and answers DeleteIncomplete, and no Ok stands over a copy
+/// of the store that still opens.
+#[test]
+fn a_root_file_renamed_aside_after_the_listing_reads_left_and_no_ok_stands_over_a_copy_that_opens()
+{
+    let (answer, root_id, aside, copy_opens) =
+        delete_all_with_a_move_after_the_listing(AfterTheListing::RenameAlone);
+    assert!(
+        !(answer.is_ok() && copy_opens),
+        "B1: delete-all answered Ok and a copy of the store opens with the root file renamed aside: {}",
+        report_line(&answer)
+    );
+    assert_eq!(
+        delete_report(&answer).root,
+        crate::store::RootReading::Left(Some(root_id)),
+        "{}",
+        report_line(&answer)
+    );
+    assert!(answer.is_err() && aside.iter().any(|&b| b != 0));
+}
+
+/// ST-46 K1: the root file renamed aside after the listing with a link to it
+/// put at its name. The link is removed as the entry that it is, nothing is
+/// written through it, and the root reads left.
+#[test]
+fn a_root_file_renamed_aside_after_the_listing_with_a_link_at_its_name_reads_left() {
+    let (answer, root_id, aside, _) =
+        delete_all_with_a_move_after_the_listing(AfterTheListing::RenameAndLinkAtTheName);
+    assert_eq!(
+        delete_report(&answer).root,
+        crate::store::RootReading::Left(Some(root_id)),
+        "{}",
+        report_line(&answer)
+    );
+    assert!(answer.is_err(), "{}", report_line(&answer));
+    assert!(
+        !aside.is_empty() && aside.iter().any(|&b| b != 0),
+        "the step wrote through the link into the renamed root file"
+    );
+}
+
+/// ST-46 K1: the root file renamed aside after the listing with an empty file
+/// put at its name: no file that can be the root's file was removed by this
+/// call, so the root reads left.
+#[test]
+fn a_root_file_renamed_aside_after_the_listing_with_an_empty_file_at_its_name_reads_left() {
+    let (answer, root_id, aside, _) =
+        delete_all_with_a_move_after_the_listing(AfterTheListing::RenameAndEmptyFileAtTheName);
+    assert_eq!(
+        delete_report(&answer).root,
+        crate::store::RootReading::Left(Some(root_id)),
+        "{}",
+        report_line(&answer)
+    );
+    assert!(answer.is_err() && aside.iter().any(|&b| b != 0));
+}
+
+/// ST-46 K1: a partial name of the named root that holds the root's bytes,
+/// renamed aside after the listing. An absent entry of the named id at any of
+/// its names reads the root left.
+#[test]
+fn a_partial_root_file_renamed_aside_after_the_listing_reads_the_root_left() {
+    let (answer, root_id, aside, _) =
+        delete_all_with_a_move_after_the_listing(AfterTheListing::RenamePartialAside);
+    assert_eq!(
+        delete_report(&answer).root,
+        crate::store::RootReading::Left(Some(root_id)),
+        "{}",
+        report_line(&answer)
+    );
+    assert!(answer.is_err() && aside.iter().any(|&b| b != 0));
+}
+
+/// ST-46 K1, the control: nothing moves after the listing, and the delete
+/// answers Ok with the root destroyed.
+#[test]
+fn with_nothing_moved_after_the_listing_the_root_reads_destroyed() {
+    let (answer, _, _, _) = delete_all_with_a_move_after_the_listing(AfterTheListing::Nothing);
+    assert!(answer.is_ok(), "{}", report_line(&answer));
+    assert!(delete_report(&answer).root_destroyed());
+}
