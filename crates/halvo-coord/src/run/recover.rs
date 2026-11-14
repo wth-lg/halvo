@@ -224,7 +224,8 @@ impl<C> Found<C> {
 /// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
 /// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
 /// with no item, an empty queue and no live run; then recovery raises the item `check` where
-/// `check_due` holds, since it read the store's records.
+/// `check_due` holds, since it read the store's records, and that raise lapses with the cause
+/// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
 where
     P: Owner + Runs + Analysis + Clock + Rng,

@@ -4,12 +4,13 @@ mod support;
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
-use halvo_coord::ports::{PortError, Reaped};
+use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, Act};
-use halvo_coord::schedule::{drive as schedule_drive, Answer, Move};
+use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owing};
 use halvo_coord::types::{
-    Answered, Cause, CheckAnswer, Doing, ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind,
-    Raised, ReadyAnswer, RunId, What,
+    Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
+    ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply, RunId,
+    RunSpec, What, Workflow,
 };
 use support::{agent, world, World, A, DAY, MANUAL, T0};
 
@@ -1255,4 +1256,488 @@ fn the_board_holds_the_body_that_the_raise_stored() {
         refused, 0,
         "the answer's log follows the body with no refusal"
     );
+}
+
+/// What the owner does at one log of `Late` (as in tests/run_recover.rs).
+enum Turn {
+    /// It refuses the log with the error.
+    Refuse(PortError),
+    /// It stores the log and answers `no_service`: the acknowledgement is lost.
+    Lose,
+}
+
+/// The ports whose owner takes the turns in order, one for each log, and then stores each log as
+/// the memory owner does.
+struct Late<'a, P> {
+    ports: &'a P,
+    turns: std::cell::RefCell<std::collections::VecDeque<Turn>>,
+}
+
+impl<P: Owner> Owner for Late<'_, P> {
+    type Config = P::Config;
+
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        match self.turns.borrow_mut().pop_front() {
+            Some(Turn::Refuse(e)) => Err(e),
+            Some(Turn::Lose) => self.ports.log(events).and(Err(PortError::NoService)),
+            None => self.ports.log(events),
+        }
+    }
+
+    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+        self.ports.history(agent, after)
+    }
+
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.ports.workflows()
+    }
+
+    fn agents(&self) -> Result<Vec<Agent<P::Config>>, PortError> {
+        self.ports.agents()
+    }
+
+    fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        self.ports.send(body)
+    }
+}
+
+impl<P: Runs> Runs for Late<'_, P> {
+    fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.ports.start(spec)
+    }
+
+    fn answer_confirm(
+        &self,
+        run: &RunId,
+        answers: &[halvo_coord::types::Answer],
+        record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.ports.answer_confirm(run, answers, record)
+    }
+
+    fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
+        self.ports.answer_handback(run, result)
+    }
+
+    fn answer_bind(
+        &self,
+        run: &RunId,
+        result: halvo_coord::types::BindResult,
+    ) -> Result<(), PortError> {
+        self.ports.answer_bind(run, result)
+    }
+
+    fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        self.ports.cancel(run)
+    }
+
+    fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        self.ports.kill(run)
+    }
+
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+        self.ports.reap()
+    }
+}
+
+impl<P: Analysis> Analysis for Late<'_, P> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.ports.defer(until)
+    }
+}
+
+impl<P: Clock> Clock for Late<'_, P> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.ports.now()
+    }
+
+    fn today(&self) -> Result<u32, PortError> {
+        self.ports.today()
+    }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.ports.day(at)
+    }
+}
+
+impl<P: Rng> Rng for Late<'_, P> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.ports.bytes16()
+    }
+}
+
+/// A new life whose recovery the owner answers by `turns`; the agents for which recovery raised
+/// the check.
+fn relife(w: &mut World, turns: Vec<Turn>) -> Vec<AgentId> {
+    w.ports.new_life();
+    w.forget();
+    let late = Late {
+        ports: &w.ports,
+        turns: std::cell::RefCell::new(turns.into()),
+    };
+    let life = recover(&late, &w.limits).expect("recovery");
+    w.board = life.board;
+    w.table = Table::new();
+    life.checked
+}
+
+/// The `ready` items of agent `n` whose `item_lapsed` the board owes.
+fn owed_ready(w: &World, n: usize) -> Vec<ItemId> {
+    w.board
+        .owed
+        .iter()
+        .filter(|o| o.agent == agent(n))
+        .filter_map(|o| match &o.what {
+            Owing::ItemLapsed {
+                item,
+                lapsed: Lapsed::Ready(_),
+                ..
+            } => Some(item.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The owner's rows that close `item`: its `item_lapsed` and `item_answered` rows.
+fn closes(w: &World, item: &ItemId) -> Vec<What> {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| match &e.what {
+            What::ItemLapsed { item: i, .. } | What::ItemAnswered { item: i, .. } => i == item,
+            _ => false,
+        })
+        .map(|e| e.what.clone())
+        .collect()
+}
+
+/// Fails when, after any log that the memory owner stored, an agent holds in the owner's events
+/// an open `ready` item beside an open `check` item, or a `hold_cleared` of a check beside an open
+/// `ready` item (I5.4, rulings RD-5, RD-38 and RD-96).
+fn never_ready_beside_check(w: &World) {
+    let events = w.ports.events.borrow().clone();
+    let stored: Vec<Vec<Event>> = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(body), None) => Some(body.clone()),
+            _ => None,
+        })
+        .collect();
+    for body in stored {
+        for e in &body {
+            let upto: Vec<&Event> = events
+                .iter()
+                .filter(|x| x.agent == e.agent && x.seq <= e.seq)
+                .collect();
+            let closed = |item: &ItemId| {
+                upto.iter().any(|x| {
+                    matches!(&x.what, What::ItemLapsed { item: i, .. } | What::ItemAnswered { item: i, .. } if i == item)
+                })
+            };
+            let open = |kind: fn(&Raised) -> bool| {
+                upto.iter().any(|x| {
+                    matches!(&x.what, What::ItemRaised { item, raised } if kind(raised) && !closed(item))
+                })
+            };
+            let ready = open(|r| matches!(r, Raised::Ready));
+            let check = open(|r| matches!(r, Raised::Check(None)));
+            let cleared = matches!(
+                &e.what,
+                What::HoldCleared {
+                    cause: halvo_coord::types::Cleared::Check { .. }
+                }
+            );
+            assert!(
+                !(ready && (check || cleared)),
+                "after the stored body {body:?} the agent holds an open ready item beside an open check"
+            );
+        }
+    }
+}
+
+/// Agent 0 (a `PERSON`) holds an open `ready` item, the agent store ended its newest run with
+/// `unknown` above 0, and a new life's recovery is answered by `turns`: the earlier `ready` item
+/// and the agents that recovery checked.
+fn ready_into_a_new_life(w: &mut World, turns: Vec<Turn>) -> (ItemId, Vec<AgentId>) {
+    let ready = ready_beside_an_unread_check(w, 0);
+    let checked = relife(w, turns);
+    (ready, checked)
+}
+
+/// Whether `body` lapses `item` with the cause `check` and then raises the item `check`, and holds
+/// nothing else.
+fn lapse_then_raise(body: &[Event], item: &ItemId) -> bool {
+    matches!(
+        body.iter().map(|e| &e.what).collect::<Vec<_>>()[..],
+        [What::ItemLapsed { item: i, lapsed: Lapsed::Ready(OtherLapse::Check) }, What::ItemRaised { raised: Raised::Check(None), .. }] if i == item
+    )
+}
+
+/// Review case seq 3 (ruling RD-96 (a)): recovery's body, the lapse of the earlier life's open
+/// `ready` item, and its raise of the check were refused, so the lapse is owed and the board holds
+/// no item. The person's start is answered `hold` and raises the check, in one body that lapses
+/// the earlier `ready` item with the cause `check` first; the debt stays on the board, and the
+/// next tick drops it with no send, so the item has one closing row.
+#[test]
+fn review_seq_3_a_start_lapses_the_owed_ready_item_with_the_check() {
+    let mut w = world(&[PERSON]);
+    let refused = vec![
+        Turn::Refuse(PortError::NoService),
+        Turn::Refuse(PortError::NoService),
+    ];
+    let (ready, checked) = ready_into_a_new_life(&mut w, refused);
+    assert!(checked.is_empty(), "recovery's raise was refused too");
+    assert_eq!(owed_ready(&w, 0), vec![ready.clone()]);
+    w.set_clock(T0 + 1_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Err(Cause::Hold));
+    assert_eq!(start.checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert_eq!(owed_ready(&w, 0), vec![ready.clone()], "the debt stays");
+    never_ready_beside_check(&w);
+    let from = w.ports.tried.borrow().len();
+    w.set_clock(T0 + 2_000, DAY);
+    w.act(Act::Tick);
+    assert!(owed_ready(&w, 0).is_empty(), "the tick drops the debt");
+    assert!(
+        bodies(&w, 0, from).iter().flatten().all(|e| !matches!(
+            &e.what,
+            What::ItemLapsed { item, .. } if *item == ready
+        )),
+        "with no send"
+    );
+    assert_eq!(closes(&w, &ready).len(), 1, "one closing row");
+    never_ready_beside_check(&w);
+}
+
+/// Recovery's own raise after its refused body: the raise lapses the owed `ready` item with the
+/// cause `check` and raises the check in one body, and `checked` names the agent (RD-96 (b)).
+#[test]
+fn recoverys_own_raise_after_its_refused_body_lapses_the_owed_ready_item() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    let from = w.ports.tried.borrow().len();
+    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    assert_eq!(checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    assert_eq!(owed_ready(&w, 0), vec![ready]);
+    never_ready_beside_check(&w);
+}
+
+/// Recovery's body stored with a lost acknowledgement: the raise meets `seq`, the read shows the
+/// lapse with `app_ended`, and the check goes alone, so the item has one closing row (RD-96 (c)).
+#[test]
+fn a_recovery_body_stored_with_a_lost_acknowledgement_lets_the_check_go_alone() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    let checked = relife(&mut w, vec![Turn::Lose]);
+    assert_eq!(checked, vec![agent(0)]);
+    assert_eq!(
+        closes(&w, &ready),
+        vec![What::ItemLapsed {
+            item: ready.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        }]
+    );
+    assert_eq!(check_items(&w, 0), 1);
+    never_ready_beside_check(&w);
+}
+
+/// The raise meets `seq` for another writer's event: the body is made again from the read and
+/// still holds the lapse of the owed `ready` item first (RD-96 (d)).
+#[test]
+fn a_raise_that_meets_seq_for_another_writer_still_lapses_the_owed_ready_item() {
+    let mut w = world(&[PERSON]);
+    let refused = vec![
+        Turn::Refuse(PortError::NoService),
+        Turn::Refuse(PortError::NoService),
+    ];
+    let (ready, _) = ready_into_a_new_life(&mut w, refused);
+    stored_unacknowledged(&w, 0, What::SlotSkipped { slot: None });
+    let from = w.ports.tried.borrow().len();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    let refused_seq = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq"))
+        .count();
+    assert_eq!(refused_seq, 1);
+    never_ready_beside_check(&w);
+}
+
+/// A tick whose read of the owner's list of workflows does not answer pays no debt, while the log
+/// answers: its raise lapses the owed `ready` item with the cause `check` (RD-96 (e)).
+#[test]
+fn a_tick_whose_list_does_not_answer_still_lapses_the_owed_ready_item() {
+    let mut w = world(&[PERSON]);
+    let refused = vec![
+        Turn::Refuse(PortError::NoService),
+        Turn::Refuse(PortError::NoService),
+    ];
+    let (ready, _) = ready_into_a_new_life(&mut w, refused);
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    w.set_clock(T0 + 1_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    w.ports.clear_refusals();
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(lapse_then_raise(&logged[0], &ready), "{logged:?}");
+    never_ready_beside_check(&w);
+}
+
+/// The person's answer to a check that finds no check item and an owed, unclosed `ready` item
+/// lapses it with the cause `check`, raises the check and answers it in one body, `slot_skipped`
+/// last for `went_through`; an answer whose log meets `seq` because the owner holds the item's
+/// lapse with `app_ended` writes no second lapse, and one whose log meets `seq` for another
+/// writer's event still lapses the item in the body that it makes again (RD-96 (f), RD-38).
+#[test]
+fn the_answer_over_an_owed_ready_item_lapses_it_in_its_body() {
+    for (answer_is, stored) in [
+        (CheckAnswer::TryAgain, None),
+        (CheckAnswer::WentThrough, None),
+        (CheckAnswer::TryAgain, Some(true)),
+        (CheckAnswer::WentThrough, Some(false)),
+    ] {
+        let mut w = world(&[PERSON]);
+        let refused = vec![
+            Turn::Refuse(PortError::NoService),
+            Turn::Refuse(PortError::NoService),
+        ];
+        let (ready, _) = ready_into_a_new_life(&mut w, refused);
+        match stored {
+            Some(true) => stored_unacknowledged(
+                &w,
+                0,
+                What::ItemLapsed {
+                    item: ready.clone(),
+                    lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+                },
+            ),
+            Some(false) => stored_unacknowledged(&w, 0, What::SlotSkipped { slot: None }),
+            None => {}
+        }
+        let late = stored == Some(true);
+        let from = w.ports.tried.borrow().len();
+        assert_eq!(answer(&mut w, 0, answer_is), Ok(Answer::Ok), "{answer_is}");
+        let logged = bodies(&w, 0, from);
+        assert_eq!(logged.len(), 1, "{answer_is} {stored:?}: {logged:?}");
+        let whats: Vec<&What> = logged[0].iter().map(|e| &e.what).collect();
+        if late {
+            assert!(
+                whats.iter().all(|w| !matches!(w, What::ItemLapsed { .. })),
+                "no second lapse: {whats:?}"
+            );
+        } else {
+            assert!(
+                matches!(whats[0], What::ItemLapsed { item, lapsed: Lapsed::Ready(OtherLapse::Check) } if *item == ready),
+                "{answer_is}: {whats:?}"
+            );
+            assert!(
+                matches!(
+                    whats[1],
+                    What::ItemRaised {
+                        raised: Raised::Check(None),
+                        ..
+                    }
+                ),
+                "{whats:?}"
+            );
+            let last = whats.last().unwrap();
+            assert_eq!(
+                matches!(last, What::SlotSkipped { .. }),
+                answer_is == CheckAnswer::WentThrough,
+                "{whats:?}"
+            );
+        }
+        assert_eq!(closes(&w, &ready).len(), 1, "{answer_is} {stored:?}");
+        never_ready_beside_check(&w);
+    }
+}
+
+/// Two agents whose checks stand, of which only the first owes the lapse of its earlier `ready`
+/// item: recovery's raise lapses the first one's item with the cause `check` in its body and
+/// raises the second one's check alone (RD-96 (g)).
+#[test]
+fn of_two_agents_only_the_one_that_owes_lapses_its_ready_item() {
+    let mut w = world(&[PERSON, PERSON]);
+    w.act(Act::Tick);
+    let first = ready_item(&w, 0);
+    for n in 0..2 {
+        let run = RunId::parse(&format!("{:032x}", 0x0100 + n)).unwrap();
+        w.store_end(n, &run, Outcome::EffectUnknown, 1);
+    }
+    let from = w.ports.tried.borrow().len();
+    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    assert_eq!(checked, vec![agent(0), agent(1)]);
+    let of_first = bodies(&w, 0, from);
+    assert!(
+        lapse_then_raise(of_first.last().unwrap(), &first),
+        "{of_first:?}"
+    );
+    let of_second = bodies(&w, 1, from);
+    let raise = of_second.last().unwrap();
+    assert!(
+        matches!(
+            &raise[..],
+            [Event {
+                what: What::ItemRaised {
+                    raised: Raised::Check(None),
+                    ..
+                },
+                ..
+            }]
+        ),
+        "{raise:?}"
+    );
+    assert!(owed_ready(&w, 1).is_empty());
+    never_ready_beside_check(&w);
+}
+
+/// A pin: the owed lapse of an earlier life's item `check` is not written by the raise of the new
+/// check, which goes alone and leaves that debt on the board (RD-96 (h), item 4).
+#[test]
+fn the_raise_writes_no_owed_lapse_of_a_check_item() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.act(Act::Tick);
+    let earlier = match &w.facts(0).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Check => o.item.clone(),
+        other => panic!("{other:?}"),
+    };
+    let from = w.ports.tried.borrow().len();
+    let checked = relife(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    assert_eq!(checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    let raise = logged.last().unwrap();
+    assert!(
+        raise
+            .iter()
+            .all(|e| !matches!(&e.what, What::ItemLapsed { item, .. } if *item == earlier)),
+        "{raise:?}"
+    );
+    assert!(w.board.owed.iter().any(|o| matches!(
+        &o.what,
+        Owing::ItemLapsed { item, lapsed: Lapsed::Check(_), .. } if *item == earlier
+    )));
 }

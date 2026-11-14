@@ -987,6 +987,26 @@ pub(crate) fn read_back<P: Owner, C: ConfigView>(
     Ok(())
 }
 
+/// The `ready` items of member `i` whose `item_lapsed` the board owes and whose close the agent's
+/// events do not hold: the raise of a check and the answer to it lapse them with the cause `check`
+/// (I5.4, I5.8, ruling RD-96).
+pub(crate) fn owed_ready<C>(board: &Board<C>, i: usize) -> Vec<ItemId> {
+    let facts = &board.members[i].facts;
+    board
+        .owed
+        .iter()
+        .filter(|o| o.agent == facts.agent)
+        .filter_map(|o| match &o.what {
+            Owing::ItemLapsed {
+                item,
+                lapsed: Lapsed::Ready(_),
+                ..
+            } if !item_closed(&facts.events, item) => Some(item.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
 /// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
 pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
@@ -1290,30 +1310,35 @@ where
     report
 }
 
-/// The body of the person's answer to the check of `run`, from the agent's facts (I5.4, rulings
-/// RD-5 and RD-38): with an open item `check`, its `item_answered`; with an open `ready` item and
-/// no item `check`, the lapse of that item with the cause `check`, the `item_raised` of a new item
-/// `check` and its `item_answered`, in that order; then `hold_cleared` with the run and the
-/// answer, and for `went_through` the `slot_skipped` of the slot that the run's `run_started`
-/// names, or of none.
+/// The body of the person's answer to the check of `run`, from the agent's facts and the `ready`
+/// items whose lapse the board owes, `owed` (I5.4, rulings RD-5, RD-38 and RD-96): with an open
+/// item `check`, its `item_answered`; with no item `check` and an open `ready` item or an owed
+/// one, the lapse of each with the cause `check`, the `item_raised` of a new item `check` and its
+/// `item_answered`, in that order; then `hold_cleared` with the run and the answer, and for
+/// `went_through` the `slot_skipped` of the slot that the run's `run_started` names, or of none.
 fn check_body<P: Rng, C>(
     cx: &Cx<'_, P>,
     facts: &Facts<C>,
+    owed: &[ItemId],
     run: &RunId,
     answer: CheckAnswer,
 ) -> Result<Vec<What>, PortError> {
     let mut whats = Vec::new();
+    let readies: Vec<ItemId> = own(&facts.doing, OwnItemKind::Ready)
+        .into_iter()
+        .chain(owed.iter().cloned())
+        .collect();
     if let Some(item) = own(&facts.doing, OwnItemKind::Check) {
         whats.push(What::ItemAnswered {
             item,
             answer: Answered::Check(answer),
         });
-    } else if let Some(ready) = own(&facts.doing, OwnItemKind::Ready) {
+    } else if !readies.is_empty() {
         let check = ItemId::parse(&minted(cx)?).map_err(|_| PortError::NoService)?;
-        whats.push(What::ItemLapsed {
-            item: ready,
+        whats.extend(readies.into_iter().map(|item| What::ItemLapsed {
+            item,
             lapsed: Lapsed::Ready(OtherLapse::Check),
-        });
+        }));
         whats.push(What::ItemRaised {
             item: check.clone(),
             raised: Raised::Check(None),
@@ -1354,7 +1379,8 @@ fn answer_check<P: Owner + Rng, C: ConfigView>(
     answer: CheckAnswer,
 ) -> Report {
     let (day, at) = (cx.stamp.day(), cx.stamp.at());
-    let whats = match check_body(cx, &board.members[i].facts, run, answer) {
+    let owed = owed_ready(board, i);
+    let whats = match check_body(cx, &board.members[i].facts, &owed, run, answer) {
         Ok(whats) => whats,
         Err(e) => return refused(port_cause(&e)),
     };
@@ -1379,7 +1405,7 @@ fn answer_check<P: Owner + Rng, C: ConfigView>(
                     None => refused(Cause::State),
                 };
             }
-            match check_body(cx, facts, run, answer) {
+            match check_body(cx, facts, &owed_ready(board, i), run, answer) {
                 Ok(again) => log_at(cx, board, i, &again, day, at),
                 Err(e) => Err(e),
             }
