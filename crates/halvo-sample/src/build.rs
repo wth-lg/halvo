@@ -267,13 +267,13 @@ fn sites_of_tier(tier: &str) -> Option<Sites> {
 
 /// Runs `build` and returns the lines it prints.
 pub fn build(args: &BuildArgs) -> Result<Vec<String>, Refusal> {
-    for p in &args.scripts {
+    for (k, p) in args.scripts.iter().enumerate() {
         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
         let file = fs::symlink_metadata(p).is_ok_and(|m| m.is_file());
         if !file || !name.ends_with(".jsonl") || name.starts_with('.') {
             return Err(Refusal::new(
                 "script",
-                format!("{}: not a script file", p.display()),
+                format!("SCRIPT {}: not a script file", k + 1),
             ));
         }
     }

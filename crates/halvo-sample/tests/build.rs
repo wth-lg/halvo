@@ -571,14 +571,24 @@ fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
             ],
         );
         refused(&o, "script");
-        assert!(
-            o.stderr.contains(&format!("{name}: not a script file")),
-            "{}",
-            o.stderr
-        );
+        assert_eq!(o.stderr, "REFUSED script: SCRIPT 1: not a script file\n");
         assert!(!dir.join(format!("out-{name}")).exists());
     }
     fs::create_dir_all(dir.join("s/sub.jsonl")).expect("a directory");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-sub")),
+            "marked.jsonl",
+            "sub.jsonl",
+        ],
+    );
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
     refused(
         &common::run_in(
             &dir.join("s"),
