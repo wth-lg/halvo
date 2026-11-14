@@ -1172,6 +1172,7 @@ mod tests {
             (WriteFault::Db(10), false, DrainCause::Io),
             (WriteFault::Db(266), false, DrainCause::Io),
             (WriteFault::Db(11), true, DrainCause::Db),
+            (WriteFault::Db(267), true, DrainCause::Db),
             (WriteFault::Db(26), true, DrainCause::Db),
             (WriteFault::Db(0), true, DrainCause::Db),
             (WriteFault::Db(1), false, DrainCause::Db),
