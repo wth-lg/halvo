@@ -20,7 +20,6 @@ const STORAGE_PATH: &str = "/.halvo-storage";
 pub(crate) const STORAGE_PAGE: &str = "<!doctype html><title>storage</title>";
 const READ_STORAGE_JS: &str = "(() => { const out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); out.push([k, localStorage.getItem(k)]); } return out; })()";
 const STOP_WAIT: Duration = Duration::from_secs(15);
-const KILL_AFTER: Duration = Duration::from_secs(10);
 const REMOVE_WAIT: Duration = Duration::from_secs(10);
 
 /// The state that carries a sign-in from one browser into the next: the origins it was exported
@@ -62,7 +61,8 @@ impl std::fmt::Debug for OriginStorage {
 
 /// What `stop_and_remove` did: the pids of the browser's process tree (`pids`); the processes that
 /// left the tree and were waited for but never ended (`adopted`, on macOS the crash handler); the
-/// pids of either kind that still ran when the wait ended (`left`); the profile directory and the
+/// pids that still ran when the wait ended and that it read as members, the tree's and the
+/// adopted ones that bear the run's mark (`left`, CP-189 G3); the profile directory and the
 /// temporary directory that the start made; and whether both are gone (`removed`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stopped {
@@ -448,11 +448,13 @@ impl Executor {
     }
 
     /// Stops the browser and removes the two directories that its start made, the profile and the
-    /// temporary directory beside it, and nothing else. It closes the browser (`stop`), then waits up
-    /// to 15 s for every process of the tree and for the adopted ones; from 10 s on it ends each
-    /// process of the tree that still has its recorded creation time, never an adopted one. Then it
-    /// removes both directories, following no link, and reports `removed` false when anything of
-    /// them is left.
+    /// temporary directory beside it, and nothing else. It closes the browser (`stop`, which ends the
+    /// first process through the child's handle and the run's own processes by the run's mark),
+    /// then waits up to 15 s for every process of the tree and for the adopted ones, and ends none
+    /// of them: the walk is for the wait and the report alone (CP-189 G3). After the wait it ends
+    /// the run's own processes once more by the mark (`end_runs_own`), removes both directories,
+    /// following no link, and reports `removed` false when anything of them is left. It names as
+    /// left only what it read as a member (`report_left`).
     pub async fn stop_and_remove(self) -> Stopped {
         let profile = self.profile.clone();
         let temp = self.temp.clone();
@@ -488,15 +490,7 @@ impl Executor {
                 .cloned()
                 .collect();
             if wait_ends(living.is_empty(), unread, stopped_at.elapsed() > STOP_WAIT) {
-                break living;
-            }
-            if stopped_at.elapsed() > KILL_AFTER {
-                for p in living
-                    .iter()
-                    .filter(|p| tree.iter().any(|t| procs::same(t, p)))
-                {
-                    procs::kill(p);
-                }
+                break report_left(&living, &tree, &mark, &crate::checks::command_args);
             }
             tokio::time::sleep(POLL).await;
         };
@@ -517,6 +511,23 @@ impl Executor {
             table_unread: unread,
         }
     }
+}
+
+/// What the stop's report names as left (CP-189 G3): of the processes that still run at the end of
+/// its wait, each member of the browser's tree, and each adopted process that bears the run's
+/// `mark`. An adopted process without the mark, a browser of the person's own among them, is no
+/// member and is not named as the run's.
+fn report_left(
+    living: &[procs::Proc],
+    tree: &[procs::Proc],
+    mark: &crate::checks::Mark,
+    args: &dyn Fn(u32) -> Option<Vec<String>>,
+) -> Vec<procs::Proc> {
+    living
+        .iter()
+        .filter(|p| tree.iter().any(|t| procs::same(t, p)) || mark.owns(p, args))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -806,6 +817,42 @@ mod tests {
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
         assert!(!removed);
         assert!(locked.join("file").exists());
+    }
+
+    /// CP-189 G3: the stop's report names as left a living member of the tree and an adopted
+    /// process that bears the run's mark, and not an adopted process without it.
+    #[test]
+    fn g3_the_stop_names_as_left_only_what_it_read_as_a_member() {
+        let p = |pid: u32, ppid: u32, exe: &str| procs::Proc {
+            pid,
+            ppid,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(exe.into()),
+        };
+        let mark = crate::checks::Mark {
+            profile: "/p".into(),
+            since_us: 7,
+            root: "/B.app".into(),
+        };
+        let args = |pid: u32| {
+            Some(vec![if pid == 3 {
+                "--user-data-dir=/person".to_string()
+            } else {
+                "--user-data-dir=/p".to_string()
+            }])
+        };
+        let tree = vec![p(1, 9, "/B.app/b")];
+        let living = vec![
+            p(1, 9, "/B.app/b"),
+            p(2, 1, "/B.app/crashpad_handler"),
+            p(3, 1, "/B.app/b"),
+        ];
+        let left: Vec<u32> = report_left(&living, &tree, &mark, &args)
+            .iter()
+            .map(|q| q.pid)
+            .collect();
+        assert_eq!(left, vec![1, 2]);
     }
 
     /// CP-189 G3, a ban: the stop's code in this file holds no call that ends a process but the end
