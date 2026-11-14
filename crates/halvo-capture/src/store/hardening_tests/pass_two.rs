@@ -298,7 +298,9 @@ fn delete_all_writes_nothing_through_a_second_name_at_store_key_tmp() {
 /// H5: a second name at store.key.tmp that is the store's own key file. The
 /// temporary name goes first without a zero-fill, and the zero-fill of
 /// store.key reaches every name of the file: a third name outside the store
-/// ends all zero.
+/// ends all zero. It passes at the commit with the tests and no change
+/// (hosted run 43578145799): it guards against a removal of store.key.tmp
+/// that would leave the key file's bytes, and is not a failing-first test.
 #[test]
 fn the_store_key_file_under_a_second_name_at_store_key_tmp_ends_all_zero_under_every_name() {
     let dir = tempfile::tempdir().unwrap();
@@ -690,6 +692,9 @@ enum RootsAfter {
     Both,
     /// The store's own root is gone and the other one stays.
     TheOtherOne,
+    /// The store's own root stays and the other one is gone; no row expects
+    /// it.
+    OnlyOwn,
     /// Nothing stands at the roots path.
     Nothing,
 }
@@ -726,7 +731,7 @@ const fn row(
 
 use Arm::*;
 use Naming::*;
-use RootsAfter::{Both, Empty, Nothing, TheOtherOne};
+use RootsAfter::{Both, Empty, Nothing, OnlyOwn, TheOtherOne};
 use RootsAt::*;
 
 /// One row for each arm of `delete_store_dir` by named or unnamed and by
@@ -912,7 +917,7 @@ fn run_row(row: &Row) -> Vec<String> {
             (false, false) => Empty,
             (true, true) => Both,
             (false, true) => TheOtherOne,
-            (true, false) => Both,
+            (true, false) => OnlyOwn,
         }
     };
     let line = report_line(&answer);
@@ -969,6 +974,42 @@ fn the_tail_opens_no_roots_path_through_a_link_at_the_store_name() {
     assert_eq!(root_files_in(&roots_behind), roots_before);
     assert!(std::fs::symlink_metadata(data.join("store")).is_err());
     assert!(answer.is_ok(), "{}", report_line(&answer));
+}
+
+/// H1: in the arm whose lock fails for a reason other than a holder (a test
+/// failpoint), beside a key file that this build does not handle, the tail
+/// opens no roots path, so its report reads the roots as not listed and the
+/// root files stay.
+#[test]
+fn the_tail_whose_lock_fails_beside_a_key_file_of_version_1_reads_the_roots_as_not_listed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    put_a_root(&roots_dir);
+    let older = RootId::fresh().unwrap();
+    std::fs::write(
+        KeyFile::path(&store_dir),
+        format!(
+            "{{\"version\":1,\"custody_kind\":\"dev_fallback\",\"root_id\":\"{}\",\"wrapped_store_key_b64\":\"AAAA\"}}",
+            uuid::Uuid::from_bytes(*older.as_bytes()).hyphenated()
+        ),
+    )
+    .unwrap();
+    let roots_before = root_files_in(&roots_dir);
+    crate::store::failpoint::arm("tail_lock");
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    crate::store::failpoint::arm("");
+    println!(
+        "ST45 H1 lock fails beside version 1 {}",
+        report_line(&answer)
+    );
+    let report = delete_report(&answer);
+    assert!(answer.is_err(), "{}", report_line(&answer));
+    assert_eq!(root_files_in(&roots_dir), roots_before);
+    assert!(
+        !report.roots.listed,
+        "the report reads the roots as listed, and no call opened them: {}",
+        report_line(&answer)
+    );
 }
 
 /// H1: beside a key file that this build does not handle the sweep runs; the
