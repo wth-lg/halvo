@@ -4,8 +4,12 @@
 //! no input event of the operating system is posted. Each press is timed from the dialog's report
 //! on screen, which the dialog makes when its window became the active window. A press of each
 //! control 100 ms after the report leaves the dialog open; a press after the hold answers; a
-//! refused press starts the hold anew; a second show holds again; and at each report the
-//! dialog's window was the active window. On macOS a press is the button's `performClick:`, the
+//! refused press starts the hold anew; a second show holds again; a press 100 ms after the
+//! window became active again leaves it open; and at each report the dialog's window was the
+//! active window. A show that has not reported itself in 1 s is brought to the front once a
+//! second, for at most 8 s, with a line that says what was active before it; the target makes its
+//! app finish launching and become the active app first, as the app is when a person asks for the
+//! dialog. On macOS a press is the button's `performClick:`, the
 //! system's click call, or the button's action sent through the application, as a key equivalent
 //! sends it; on Windows a press is the message TDM_CLICK_BUTTON for the allowing id, the rejecting
 //! id and the cancel response that the Escape key and the close control give, or the message
@@ -26,7 +30,8 @@ use std::time::{Duration, Instant};
 const OFF: &str = "hosted alone: not run on this machine";
 const BOUND: Duration = Duration::from_secs(10);
 const SETTLE: Duration = Duration::from_millis(150);
-const REPORT_WAIT: Duration = Duration::from_secs(3);
+const REPORT_WAIT: Duration = Duration::from_secs(1);
+const FRONT_LIMIT: Duration = Duration::from_secs(8);
 
 fn arm() -> Duration {
     Duration::from_millis(Limits::PRODUCT.arm_ms)
@@ -97,11 +102,11 @@ fn begin_show() {
 }
 
 /// The system's side of a case: a press of a control, whether the dialog is open, a move of the
-/// dialog to the front, and its close at the bound.
+/// dialog to the front with a reading of what was active before it, and its close at the bound.
 trait Ui<C> {
     fn press(&self, control: C) -> bool;
     fn open(&self) -> bool;
-    fn front(&self) -> bool;
+    fn front(&self) -> String;
     fn close(&self);
     fn word(control: C) -> String;
 }
@@ -128,15 +133,13 @@ fn wait(limit: Duration, done: impl Fn() -> bool) -> bool {
 fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>]) -> Vec<String> {
     let start = Instant::now();
     let mut failures = Vec::new();
-    if !wait(REPORT_WAIT, || reported().is_some()) {
-        let brought = ui.front();
-        println!("guard_hosted reading {label}: no report in 3 s, brought to the front: {brought}");
+    let mut fronts = 0;
+    while !wait(REPORT_WAIT, || reported().is_some()) && start.elapsed() < FRONT_LIMIT {
+        fronts += 1;
+        let state = ui.front();
+        println!("guard_hosted reading {label}: no report yet, brought to the front {fronts} times; {state}");
     }
-    let Some(base) = (if wait(REPORT_WAIT, || reported().is_some()) {
-        reported()
-    } else {
-        None
-    }) else {
+    let Some(base) = reported() else {
         failures.push("the dialog never reported itself on screen".into());
         while !DONE.load(Ordering::SeqCst) && start.elapsed() < BOUND {
             ui.close();
@@ -306,6 +309,8 @@ mod cases {
     use halvo_coord_app::{Card, Dialog, System};
     use objc2::runtime::{AnyClass, AnyObject, Sel};
     use objc2::{class, msg_send};
+    use objc2_app_kit::NSWindowDidBecomeKeyNotification;
+    use objc2_foundation::NSString;
     use std::ffi::c_void;
     use std::panic::{catch_unwind, AssertUnwindSafe};
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -316,11 +321,12 @@ mod cases {
     const ALLOW: isize = 1001;
 
     /// A button by its response, pressed by its click call or by its action sent through the
-    /// application.
+    /// application, or the notification that the alert's window became the key window again.
     #[derive(Clone, Copy)]
     pub enum Control {
         Click(isize),
         Action(isize),
+        Again,
     }
 
     const fn p(at: u64, control: Control, answers: bool) -> Press<Control> {
@@ -353,9 +359,14 @@ mod cases {
         p(100, Control::Click(ALLOW), false),
         p(800, Control::Click(ALLOW), true),
     ];
+    const ALLOW_AFTER_KEY_AGAIN: &[Press<Control>] = &[
+        p(700, Control::Again, false),
+        p(800, Control::Click(ALLOW), false),
+        p(1_400, Control::Click(ALLOW), true),
+    ];
 
     type Case = (&'static str, &'static [Show<Control>]);
-    const CASES: [Case; 5] = [
+    const CASES: [Case; 6] = [
         (
             "macos reject_action_at_100ms",
             &[(REJECT_ACTION, ConfirmAnswer::Reject)],
@@ -379,8 +390,12 @@ mod cases {
                 (ALLOW_CLICK, ConfirmAnswer::Allow),
             ],
         ),
+        (
+            "macos allow_click_100ms_after_the_key_window_again",
+            &[(ALLOW_AFTER_KEY_AGAIN, ConfirmAnswer::Allow)],
+        ),
     ];
-    pub const SHOWS: u32 = 6;
+    pub const SHOWS: u32 = 7;
 
     static SHOW: AtomicUsize = AtomicUsize::new(0);
 
@@ -472,10 +487,18 @@ mod cases {
                     if window.is_null() {
                         return false;
                     }
-                    let content: *mut AnyObject = msg_send![window, contentView];
                     let tag = match control {
                         Control::Click(tag) | Control::Action(tag) => tag,
+                        Control::Again => {
+                            let center: *mut AnyObject =
+                                msg_send![class!(NSNotificationCenter), defaultCenter];
+                            let name: &NSString = NSWindowDidBecomeKeyNotification;
+                            let _: () =
+                                msg_send![center, postNotificationName: name, object: window];
+                            return true;
+                        }
                     };
+                    let content: *mut AnyObject = msg_send![window, contentView];
                     let found = button(content, tag, 0);
                     if found.is_null() {
                         return false;
@@ -494,6 +517,7 @@ mod cases {
                                 msg_send![found, performClick: std::ptr::null_mut::<AnyObject>()];
                             true
                         }
+                        Control::Again => true,
                         Control::Action(_) => {
                             let action: Option<Sel> = msg_send![found, action];
                             let Some(action) = action else {
@@ -523,20 +547,25 @@ mod cases {
             .unwrap_or(false)
         }
 
-        fn front(&self) -> bool {
+        fn front(&self) -> String {
             on_main(|| {
                 // SAFETY: as in `press`.
                 unsafe {
                     let app = app();
-                    let _: () = msg_send![app, activateIgnoringOtherApps: true];
+                    let active: bool = msg_send![app, isActive];
                     let window: *mut AnyObject = msg_send![app, modalWindow];
+                    let key = !window.is_null() && {
+                        let key: bool = msg_send![window, isKeyWindow];
+                        key
+                    };
+                    activate_app(app);
                     if !window.is_null() {
                         let _: () = msg_send![window, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
                     }
-                    !window.is_null()
+                    format!("before it: app_active={active} modal_window={} key={key}", !window.is_null())
                 }
             })
-            .unwrap_or(false)
+            .unwrap_or_else(|| "the modal session ran nothing in 2 s".into())
         }
 
         fn close(&self) {
@@ -553,6 +582,7 @@ mod cases {
             match control {
                 Control::Click(tag) => format!("the click call on {tag}"),
                 Control::Action(tag) => format!("the action of {tag}"),
+                Control::Again => "the notification that the window became key".into(),
             }
         }
     }
@@ -568,12 +598,23 @@ mod cases {
         }
     }
 
+    /// # Safety
+    /// `app` is the shared application, and the caller runs on the main thread.
+    unsafe fn activate_app(app: *mut AnyObject) {
+        let _: () = msg_send![app, activateIgnoringOtherApps: true];
+        let running: *mut AnyObject = msg_send![class!(NSRunningApplication), currentApplication];
+        if !running.is_null() {
+            let _: bool = msg_send![running, activateWithOptions: 3usize];
+        }
+    }
+
     fn activate() {
         // SAFETY: this runs on the main thread, before any window of the target exists.
         unsafe {
             let app = app();
             let _: bool = msg_send![app, setActivationPolicy: 0isize];
-            let _: () = msg_send![app, activateIgnoringOtherApps: true];
+            let _: () = msg_send![app, finishLaunching];
+            activate_app(app);
         }
     }
 
@@ -607,17 +648,19 @@ mod cases {
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, SetForegroundWindow, WM_CLOSE,
-        WM_USER,
+        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, SetForegroundWindow, WA_ACTIVE,
+        WM_ACTIVATE, WM_CLOSE, WM_USER,
     };
 
     const TDM_CLICK_BUTTON: u32 = WM_USER + 102;
 
-    /// A press: the click message for a button id, or the message WM_CLOSE.
+    /// A press: the click message for a button id, or the message WM_CLOSE; or the message
+    /// WM_ACTIVATE that the window became active again.
     #[derive(Clone, Copy)]
     pub enum Control {
         Click(usize),
         Close,
+        Again,
     }
 
     const fn p(at: u64, control: Control, answers: bool) -> Press<Control> {
@@ -647,9 +690,14 @@ mod cases {
         p(1_250, Control::Click(100), true),
     ];
     const CLICK_100_AFTER: &[Press<Control>] = &[p(700, Control::Click(100), true)];
+    const CLICK_100_AFTER_ACTIVE_AGAIN: &[Press<Control>] = &[
+        p(700, Control::Again, false),
+        p(800, Control::Click(100), false),
+        p(1_400, Control::Click(100), true),
+    ];
 
     type Case = (&'static str, &'static [Show<Control>]);
-    const CASES: [Case; 7] = [
+    const CASES: [Case; 8] = [
         (
             "windows click_100_at_100ms",
             &[(CLICK_100, ConfirmAnswer::Allow)],
@@ -681,8 +729,12 @@ mod cases {
                 (CLICK_100, ConfirmAnswer::Allow),
             ],
         ),
+        (
+            "windows click_100_100ms_after_active_again",
+            &[(CLICK_100_AFTER_ACTIVE_AGAIN, ConfirmAnswer::Allow)],
+        ),
     ];
-    pub const SHOWS: u32 = 8;
+    pub const SHOWS: u32 = 9;
 
     #[derive(Clone)]
     struct Win {
@@ -712,6 +764,12 @@ mod cases {
                     // SAFETY: as above.
                     let _ = unsafe { PostMessageW(Some(window), WM_CLOSE, WPARAM(0), LPARAM(0)) };
                 }
+                Control::Again => {
+                    // SAFETY: as above.
+                    let _ = unsafe {
+                        SendMessageW(window, WM_ACTIVATE, Some(WPARAM(WA_ACTIVE as usize)), None)
+                    };
+                }
             }
             true
         }
@@ -722,10 +780,12 @@ mod cases {
                 .is_some_and(|window| unsafe { IsWindowVisible(window) }.as_bool())
         }
 
-        fn front(&self) -> bool {
+        fn front(&self) -> String {
             // SAFETY: as in `press`.
-            self.window()
-                .is_some_and(|window| unsafe { SetForegroundWindow(window) }.as_bool())
+            let set = self
+                .window()
+                .is_some_and(|window| unsafe { SetForegroundWindow(window) }.as_bool());
+            format!("set as the foreground window: {set}")
         }
 
         fn close(&self) {
@@ -739,6 +799,7 @@ mod cases {
             match control {
                 Control::Click(id) => format!("the click message for {id}"),
                 Control::Close => "WM_CLOSE".into(),
+                Control::Again => "WM_ACTIVATE".into(),
             }
         }
     }

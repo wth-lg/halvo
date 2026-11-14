@@ -9,7 +9,9 @@
 //! is no hosted runner; when it says that it is, the target fails (ruling RD-92). Every row
 //! waits for the dialog's report on screen before it acts, and a row that presses a control
 //! presses it after the hold of `arm_ms` from that report (ruling RD-91 item 7); on macOS the
-//! target makes its app the active app, as the app is when a person asks for the dialog, and on
+//! target makes its app finish launching and become the active app, as the app is when a person
+//! asks for the dialog, and brings an alert that has not reported itself to the front once a
+//! second, with a line that says what was active before it; and on
 //! Windows a dialog that has not reported itself in 3 s is brought to the foreground once, with
 //! a line that says so.
 //!
@@ -146,6 +148,8 @@ mod cases {
     static VISIBLE: Mutex<Option<String>> = Mutex::new(None);
     static TEXTS: Mutex<(String, String)> = Mutex::new((String::new(), String::new()));
     static READ: Mutex<Option<Reading>> = Mutex::new(None);
+    static STARTED: Mutex<Option<Instant>> = Mutex::new(None);
+    static FRONTED: AtomicUsize = AtomicUsize::new(0);
 
     #[derive(Clone, Default)]
     struct Reading {
@@ -227,6 +231,7 @@ mod cases {
         }
         let (name, _) = CASES[generation - 1];
         let Some(reported) = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) else {
+            front(generation, name);
             return;
         };
         if name.starts_with("macos press") && reported.elapsed() < arm() + MARGIN {
@@ -286,6 +291,34 @@ mod cases {
                     let _: () = msg_send![app, abortModal];
                 }
             }
+        }
+    }
+
+    /// Brings the alert of a case that has not reported itself to the front, once a second from
+    /// the case's first second on, with a line that says what was active before it.
+    fn front(generation: usize, name: &str) {
+        let Some(started) = *STARTED.lock().unwrap_or_else(PoisonError::into_inner) else {
+            return;
+        };
+        let due = started.elapsed().as_secs() as usize;
+        if due == 0
+            || FRONTED.swap(due, Ordering::SeqCst) == due
+            || CASE.load(Ordering::SeqCst) != generation
+        {
+            return;
+        }
+        // SAFETY: this runs on the main thread inside the alert's modal session.
+        unsafe {
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let window: *mut AnyObject = msg_send![app, modalWindow];
+            if app.is_null() || window.is_null() {
+                return;
+            }
+            let active: bool = msg_send![app, isActive];
+            let key: bool = msg_send![window, isKeyWindow];
+            activate_app(app);
+            let _: () = msg_send![window, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
+            println!("dialog_hosted reading {name}: no report after {due} s, brought to the front; before it: app_active={active} key={key}");
         }
     }
 
@@ -447,6 +480,8 @@ mod cases {
         REPORTS_AT_ACT.store(usize::MAX, Ordering::SeqCst);
         *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *VISIBLE.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        *STARTED.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+        FRONTED.store(0, Ordering::SeqCst);
         CASE.store(generation, Ordering::SeqCst);
         let done = Arc::new(AtomicBool::new(false));
         let poker = std::thread::spawn({
@@ -478,6 +513,16 @@ mod cases {
         }
     }
 
+    /// # Safety
+    /// `app` is the shared application, and the caller runs on the main thread.
+    unsafe fn activate_app(app: *mut AnyObject) {
+        let _: () = msg_send![app, activateIgnoringOtherApps: true];
+        let running: *mut AnyObject = msg_send![class!(NSRunningApplication), currentApplication];
+        if !running.is_null() {
+            let _: bool = msg_send![running, activateWithOptions: 3usize];
+        }
+    }
+
     fn activate() {
         // SAFETY: this runs on the main thread, before any window of the target exists.
         unsafe {
@@ -486,7 +531,8 @@ mod cases {
                 return;
             }
             let _: bool = msg_send![app, setActivationPolicy: 0isize];
-            let _: () = msg_send![app, activateIgnoringOtherApps: true];
+            let _: () = msg_send![app, finishLaunching];
+            activate_app(app);
         }
     }
 
