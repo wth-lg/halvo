@@ -2313,6 +2313,36 @@ async function holds(origin, dir) {
     await afterClose(h);
     if ((await k.says()).includes(B)) faults.push(h11 + ':added_at_the_release');
   });
+  const h12 = 'h12_a_reply_that_drops_an_answered_confirmation_and_another_item';
+  await flow(h12, [{ state: snap(1, [stuck, ready]) }, gate, { state: snap(2, [stuck, ready, confirm]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+    await pass(h, [stuck, ready, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    await pass(h, [stuck]);
+    await afterClose(h);
+    expect(h12, await k.says(), ['Ready went.']);
+  });
+  const h13 = 'h13_a_refusal_in_the_task_that_closes_a_confirmation_shown_again';
+  await flow(h13, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm, { hold: true }), answerLine(confirm)], async (h, k) => {
+    await h.page.locator(line).fill(xs(1018));
+    await pass(h, [setup, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    h.held.shift()({ error: 'busy' });
+    await h.page.waitForFunction(() => Boolean([...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'))), null, { timeout: 5000 });
+    await frames(h);
+    const inTask = await h.page.evaluate(([s, more]) => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+      const t = document.querySelector(s);
+      t.value = t.value + more;
+      t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+      return [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+    }, [line, 'y'.repeat(30)]);
+    expect(h13 + '_in_the_closing_task', inTask, []);
+    await afterClose(h);
+    expect(h13 + '_after_the_close', await k.says(), [B]);
+  });
   return faults;
 }
 
