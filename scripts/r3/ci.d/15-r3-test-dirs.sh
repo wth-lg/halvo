@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone: a test line that makes a directory by create_dir_all or a recursive DirBuilder, with a process id or a clock read and a format! or write! in the lines above it in its function (16 at most), is a place, and each file's count of places equals its count in the known list of this script, which names the places of other units and runs until they take halvo-test-dir (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone: in test code (a tests/ directory, tests.rs, testing.rs, a module under a cfg with test), a line that makes a directory by create_dir_all, a recursive DirBuilder or create_dir with no retry on a standing name, with a process id or clock read (also through a test function that returns one) beside a path or string build on one line, or with such a read and a format! or write! in the lines above it in its function (16 at most), is a place, and each file's count of places equals its count in the known list of this script, which names the places of other units and runs until they take halvo-test-dir (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -24,6 +24,7 @@ account/crates/halvo-secrets/tests/hosted.rs 1 account run
 account/crates/halvo-secrets/tests/walk.rs 1 account run
 account/crates/halvo-secrets/tests/wipe.rs 1 account run
 crates/halvo-agent-client/src/marks.rs 1 agent-setup run, U4.3
+crates/halvo-cap/src/lock.rs 1 workflow run
 crates/halvo-cap/tests/model_lock.rs 1 workflow run
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
 crates/halvo-checkpoint/tests/identity.rs 1 agent-setup run, U2.4
@@ -31,7 +32,8 @@ crates/halvo-derived/src/tests.rs 1 workflow run
 crates/halvo-derived/tests/common/mod.rs 1 workflow run
 crates/halvo-runner/tests/support/mod.rs 1 agent-setup run, U4.1
 crates/halvo-sheet/tests/common/mod.rs 1 agent-setup run, U2.4
-crates/halvo-web/src/guard.rs 1 agent-setup run, U2.6
+crates/halvo-web/src/child.rs 1 agent-setup run, U2.6
+crates/halvo-web/src/guard.rs 2 agent-setup run, U2.6
 src-tauri/src/tests.rs 1 capture run, app-3a
 tools/r3-trials/profile/src/bin/profile-trial.rs 1 agent-setup run, P0 trials
 tools/r3-trials/profile/src/lib.rs 4 agent-setup run, P0 trials
@@ -48,42 +50,101 @@ EOF
 }
 
 program='
-function source(s) {
-  return s ~ /process::id\(|getpid\(|GetCurrentProcessId|SystemTime|UNIX_EPOCH|Instant::now|(nanos|micros|millis)\(\)|Utc::now|Local::now/
+function code(s) {
+  sub(/\/\/.*/, "", s)
+  return s
 }
-function scan(path,   file, leaf, line, n, intest, pending, fnstart, lo, j, s, f, count, r) {
+function cfgtest(s) {
+  return s ~ /#\[cfg\(/ && s ~ /[(, ]test[),]/ && s !~ /not\([^)]*test/
+}
+function source(s,   i) {
+  if (s ~ /process::id\(|(^|[^A-Za-z0-9_.:])id\(\)|getpid\(|GetCurrentProcessId|SystemTime|UNIX_EPOCH|Instant::now|(nanos|micros|millis)\(\)|Utc::now|Local::now/) return 1
+  for (i = 1; i <= nfn; i++)
+    if (index(s, fname[i] "(") && s ~ ("(^|[^A-Za-z0-9_])" fname[i] "\\(")) return 1
+  return 0
+}
+function addfn(name,   i) {
+  for (i = 1; i <= nfn; i++)
+    if (fname[i] == name) return
+  fname[++nfn] = name
+}
+function addmod(t, base,   name, prefix) {
+  name = t
+  sub(/.*mod[ \t]+/, "", name)
+  sub(/[^A-Za-z0-9_].*/, "", name)
+  prefix = (base == "") ? "" : base "/"
+  modfile[prefix name ".rs"] = 1
+  modfile[prefix name "/mod.rs"] = 1
+}
+function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pending, fnstart, fnname, lo, j, s, f, m, l, count, r) {
   file = root "/" path
   leaf = path
   sub(/.*\//, "", leaf)
-  intest = (path ~ /(^|\/)tests\// || leaf == "tests.rs" || leaf == "testing.rs")
+  dir = ""
+  if (index(path, "/")) {
+    dir = path
+    sub(/\/[^\/]*\.rs/, "", dir)
+  }
+  if (leaf == "lib.rs" || leaf == "main.rs" || leaf == "mod.rs") base = dir
+  else base = ((dir == "") ? "" : dir "/") substr(leaf, 1, length(leaf) - 3)
+  intest = (path ~ /(^|\/)tests\// || leaf == "tests.rs" || leaf == "testing.rs" || (path in modfile))
   n = 0
   pending = 0
   fnstart = 0
+  fnname = ""
   count = 0
   while ((r = (getline line < file)) > 0) {
     n++
-    src[n] = source(line)
-    fmt[n] = (line ~ /(format|write)!\(/)
-    if (pending && line ~ /[^ \t\r]/ && line !~ /^[ \t]*(#|\/\/)/) {
-      if (line ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
+    c = code(line)
+    if (pending && c ~ /[^ \t\r]/ && c !~ /^[ \t]*#/) {
+      if (c ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
+      else if (mode == 1 && c ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*;/) addmod(c, base)
       pending = 0
     }
-    if (line ~ /#\[cfg\(test\)\]/) {
-      if (line ~ /\][ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
-      else pending = 1
+    if (cfgtest(c)) {
+      t = c
+      sub(/.*\][ \t]*/, "", t)
+      if (t ~ /^(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
+      else if (t ~ /^(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*;/) {
+        if (mode == 1) addmod(t, base)
+      } else pending = 1
     }
-    if (line ~ /(^|[^A-Za-z0-9_])fn [A-Za-z_]/) fnstart = n
-    if (intest && line ~ /create_dir_all\(|recursive\(true\)/ && line !~ /create_dir\(/) {
+    if (c ~ /(^|[^A-Za-z0-9_])fn [A-Za-z_]/) {
+      fnstart = n
+      fnname = ""
+      if (mode == 1 && intest && (c " ") ~ /->[ \t]*(String|OsString|u128|u64|u32|usize|i64|i128)[ \t{]/) {
+        fnname = c
+        sub(/.*fn[ \t]+/, "", fnname)
+        sub(/[^A-Za-z0-9_].*/, "", fnname)
+      }
+    }
+    if (mode == 1) {
+      if (fnname != "" && n - fnstart <= 16 && source(c)) {
+        addfn(fnname)
+        fnname = ""
+      }
+      continue
+    }
+    src[n] = source(c)
+    fmt[n] = (c ~ /(format|write)!\(/)
+    nam[n] = (src[n] && c ~ /\.join\(|to_string\(\)|push_str\(|\.push\(/)
+    lp[n] = ((" " c " ") ~ /[^A-Za-z0-9_](loop|for|while)[^A-Za-z0-9_]/ || c ~ /\.find(_map)?\(/)
+    if (intest && c ~ /create_dir_all\(|recursive\(true\)|create_dir\(/) {
       lo = n - 16
       if (fnstart > lo) lo = fnstart
       if (lo < 1) lo = 1
       s = 0
       f = 0
+      m = 0
+      l = 0
       for (j = lo; j <= n; j++) {
         s += src[j]
         f += fmt[j]
+        m += nam[j]
+        l += lp[j]
       }
-      if (s && f) {
+      if (c ~ /create_dir\(/ && l && c ~ /is_ok\(\)|match |Ok\(/) continue
+      if (m || (s && f)) {
         count++
         print path ":" n > placelist
       }
@@ -122,19 +183,23 @@ BEGIN {
       continue
     }
     if (substr(path, 1, length(skip)) == skip) continue
-    files++
-    c = scan(path)
-    if (c) {
-      got[path] = c
-      seen[++ns] = path
-      total += c
-    }
+    list[++files] = path
   }
   if (r < 0) {
     printf "test-dirs file-list=unread\n"
     faults++
   }
   close(filelist)
+  for (i = 1; i <= files; i++) scan(list[i], 1)
+  for (i = 1; i <= files; i++) {
+    path = list[i]
+    c = scan(path, 2)
+    if (c) {
+      got[path] = c
+      seen[++ns] = path
+      total += c
+    }
+  }
   for (i = 1; i <= ns; i++) {
     p = seen[i]
     if (!(p in want)) {
@@ -317,6 +382,74 @@ self_test() {
   repo seventeen-lines-above
   put crates/a/tests/t.rs "fn scratch() -> PathBuf {\n    let dir = base.join(format!(\"x-{}\", std::process::id()));\n$filler    let _ = 15;\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n"
   case_of seventeen-lines-above PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo pid-to-string-in-a-join
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = std::env::temp_dir().join(std::process::id().to_string());\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of pid-to-string-in-a-join FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo bare-id-after-use
+  put crates/a/tests/t.rs 'use std::process::id;\n\nfn scratch(name: &str) -> PathBuf {\n    let dir = base.join(format!("{name}-{}", id()));\n    create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of bare-id-after-use FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo cfg-all-test-unix
+  put crates/a/src/lib.rs "pub fn f() {}\n\n#[cfg(all(test, unix))]\nmod tests {\n$place}\n"
+  case_of cfg-all-test-unix FAIL 'test-dirs unknown=crates/a/src/lib.rs places=1'
+
+  repo cfg-not-test
+  put crates/a/src/lib.rs "#[cfg(not(test))]\nmod real {\n$place}\n"
+  case_of cfg-not-test PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo fn-in-a-comment
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    // this fn makes the directory once\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of fn-in-a-comment FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo test-file-module
+  put crates/a/src/lib.rs '#[cfg(test)]\nmod support;\n\npub fn f() {}\n'
+  put crates/a/src/support.rs "$place"
+  case_of test-file-module FAIL 'test-dirs unknown=crates/a/src/support.rs places=1'
+
+  repo test-file-module-of-a-module
+  put crates/a/src/lib.rs 'mod sheet;\n'
+  put crates/a/src/sheet.rs '#[cfg(test)]\nmod support;\n'
+  put crates/a/src/sheet/support/mod.rs "$place"
+  case_of test-file-module-of-a-module FAIL 'test-dirs unknown=crates/a/src/sheet/support/mod.rs places=1'
+
+  repo product-file-module
+  put crates/a/src/lib.rs 'mod support;\n'
+  put crates/a/src/support.rs "$place"
+  case_of product-file-module PASS 'test-dirs files=2 places=0 known=0 faults=0'
+
+  repo name-from-a-helper
+  put crates/a/tests/t.rs 'fn stamp() -> String {\n    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();\n    format!("x-{nanos}")\n}\n\nfn scratch() -> PathBuf {\n    let dir = base.join(stamp());\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of name-from-a-helper FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo both-calls-on-one-line
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    fs::create_dir_all(&dir).and_then(|()| fs::create_dir(dir.join("in"))).ok();\n    dir\n}\n'
+  case_of both-calls-on-one-line FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo create-dir-error-dropped
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    let _ = fs::create_dir(&dir);\n    dir\n}\n'
+  case_of create-dir-error-dropped FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo create-dir-retry-in-a-loop-without-a-test
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        fs::create_dir(&dir).unwrap();\n        return dir;\n    }\n}\n'
+  case_of create-dir-retry-in-a-loop-without-a-test FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo maker-match-in-a-loop
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Ok(()) => return dir,\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) => panic!("{e}"),\n        }\n    }\n    unreachable!()\n}\n'
+  case_of maker-match-in-a-loop PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo create-dir-tested-without-a-loop
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    if fs::create_dir(&dir).is_ok() {\n        return dir;\n    }\n    panic!("taken")\n}\n'
+  case_of create-dir-tested-without-a-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo maker-result-tested-below-is-a-place
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        let made = fs::create_dir(&dir);\n        if made.as_ref().err().map(|e| e.kind()) == Some(ErrorKind::AlreadyExists) {\n            continue;\n        }\n        made.unwrap();\n        return dir;\n    }\n    unreachable!()\n}\n'
+  case_of maker-result-tested-below-is-a-place FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo maker-find
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    (0..1_000)\n        .map(|n| base.join(format!("x-{}-{n}", std::process::id())))\n        .find(|dir| std::fs::create_dir(dir).is_ok())\n        .expect("a new directory")\n}\n'
+  case_of maker-find PASS 'test-dirs files=1 places=0 known=0 faults=0'
 
   repo two-places-known
   put crates/a/tests/t.rs "$place\n$place"
