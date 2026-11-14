@@ -217,6 +217,31 @@ pub const SET_B: [&str; 1] = [concat!(
 /// A and B writes it.
 pub const SET_C: [&str; 1] = [include_str!("conformance/set_c.jsonl")];
 
+/// Set D of C5.13 item 3: 1 batch-file text of 8 lines of a served kind inside the hour from 09:00:00 UTC of
+/// 2026-01-13. Its 5th line, a `keystroke` whose `at` is a whole second, follows a `scroll` pointer whose `at`
+/// lies 900 ms after it, so `at` steps back by under 1 s, as the resolutions of C4.7 allow; every other step
+/// rises by at least 60 s.
+pub const SET_D: [&str; 1] = [concat!(
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000000","at":1768294800000000000,"seq":0,"kind":"foreground_app","app":"com.example.mail","p":{}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000001","at":1768294860000000000,"seq":1,"kind":"window_title","app":"com.example.mail","p":{"text":"Inbox 61","cut":false,"why":"app_change"}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000002","at":1768294920000000000,"seq":2,"kind":"keystroke","app":"com.example.mail","p":{"class":"printable"}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000003","at":1768294980900000000,"seq":3,"kind":"pointer","app":"com.example.mail","p":{"class":"scroll","count":63}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000004","at":1768294980000000000,"seq":4,"kind":"keystroke","app":"com.example.mail","p":{"class":"enter"}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000005","at":1768295040000000000,"seq":5,"kind":"window_title","app":"com.example.mail","p":{"text":"Draft reply 65","cut":false,"why":"title_change"}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000006","at":1768295100000000000,"seq":6,"kind":"pointer","app":"com.example.mail","p":{"class":"move","count":66}}"#,
+    "\n",
+    r#"{"v":1,"id":"0195f000-0000-7000-8000-000006000007","at":1768295160000000000,"seq":7,"kind":"keystroke","app":"com.example.mail","p":{"class":"tab"}}"#,
+    "\n",
+)];
+
+const STEP_BACK: usize = 4;
+
 /// Runs the four cases in the order of `CASES` and returns, for each, its name and a pass or a failure text.
 pub fn run<S: Subject>(subject: &mut S) -> Vec<(&'static str, Result<(), String>)> {
     vec![
@@ -780,7 +805,12 @@ fn at_the_watermark<S: Subject>(
 /// the reference read that pass them, at their positions, from the zero position and from the position of
 /// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then the check
 /// `open_while_open` of `CHECKS` on that connection, a read of the reference read on a second connection,
-/// with no restart between, and `open_while_open` again on the second connection.
+/// with no restart between, and `open_while_open` again on the second connection. Last, after `load(D)`, a
+/// read of set D from the zero position must serve its records in order, the `keystroke` after the step back
+/// must have an `at` below that of the pointer before it, and a read with the range from the `at` of the first
+/// entry of D to that of the pointer before the step back must serve every entry of D whose `at` lies in it,
+/// at its position, that `keystroke` among them; a server that ends a ranged read at the first entry whose
+/// `at` is at or after the end of the range fails.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -901,7 +931,52 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
             CHECKS[4]
         ));
     }
-    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))?;
+    step_back(subject, conn.end())
+}
+
+fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), String> {
+    subject.load(&SET_D)?;
+    let mut conn = connect(subject, instants)?;
+    let d =
+        read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the read of set D: {e}"))?;
+    let data = records_of(&SET_D)?;
+    let matches = d.entries.len() == data.len()
+        && d.entries
+            .iter()
+            .zip(&data)
+            .all(|(e, r)| alike(&e.record, r));
+    if !matches {
+        return Err(format!(
+            "the read of set D served {} entries; want the {} records of D in order",
+            d.entries.len(),
+            data.len()
+        ));
+    }
+    let start = d.entries[0].record.at();
+    let end = d.entries[STEP_BACK - 1].record.at();
+    if d.entries[STEP_BACK].record.at() >= end {
+        return Err(
+            "set D as served holds no keystroke whose at is below that of the pointer before it"
+                .to_owned(),
+        );
+    }
+    let want: Vec<Entry> = d
+        .entries
+        .iter()
+        .filter(|e| e.record.at() >= start && e.record.at() < end)
+        .cloned()
+        .collect();
+    let reading = read(&mut conn, Some(&d.store), ZERO, None, Some((start, end)))
+        .map_err(|e| format!("the range of set D up to the pointer before its step back: {e}"))?;
+    if !same(&reading.entries, &want) {
+        return Err(format!(
+            "the range of set D up to the pointer before its step back: {} entries served, want {}",
+            reading.entries.len(),
+            want.len()
+        ));
+    }
+    Ok(())
 }
 
 fn another(store: &StoreId) -> Result<StoreId, String> {

@@ -9,7 +9,7 @@ use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
     decode_client, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
-    ServerMessage, ZERO,
+    ServerMessage, TimeRange, ZERO,
 };
 use halvo_seam::record::{CaptureRecord, ServedKind};
 
@@ -62,7 +62,12 @@ enum Fault {
     RisenWatermarkRefusesWAfterOneShred,
     OpenWithKindsWhileOpenServes,
     PhantomAfterTheRefusedOpenAtTheWatermark,
+    RangedReadEndsAtTheFirstAtFromItsEnd,
+    LoadRoundsTheKeystrokeAfterTheStepBackUp,
 }
+
+const STEP_BACK_KEYSTROKE_AT: &str = r#""at":1768294980000000000,"seq":4,"#;
+const STEP_BACK_KEYSTROKE_ROUNDED_UP: &str = r#""at":1768294981000000000,"seq":4,"#;
 
 use Fault::*;
 
@@ -165,6 +170,12 @@ impl Subject for Fixture {
         self.restarted = false;
         for (i, text) in batch_files.iter().enumerate() {
             let path = dir.join(format!("day-{:03}.jsonl", i + 1));
+            let text = match self.fault {
+                Some(LoadRoundsTheKeystrokeAfterTheStepBackUp) => {
+                    text.replace(STEP_BACK_KEYSTROKE_AT, STEP_BACK_KEYSTROKE_ROUNDED_UP)
+                }
+                _ => (*text).to_owned(),
+            };
             fs::write(&path, text).map_err(|e| format!("write failed: {e}"))?;
             self.files.push(path);
         }
@@ -207,6 +218,7 @@ impl Subject for Fixture {
                         first_null: None,
                         cursor_reads: 0,
                         phantom_next: false,
+                        cut: None,
                         connection,
                         further,
                         reads: 0,
@@ -279,10 +291,25 @@ struct Wrong {
     first_null: Option<bool>,
     cursor_reads: i64,
     phantom_next: bool,
+    cut: Option<TimeRange>,
+}
+
+fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
+    open.range()?;
+    match open.store() {
+        Some(store) => OpenCursor::at(store.clone(), open.position(), open.kinds().cloned(), None),
+        None if open.position() == ZERO => Some(OpenCursor::fresh(open.kinds().cloned(), None)),
+        None => None,
+    }
 }
 
 impl Wrong {
-    fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
+    fn open(&mut self, t: &mut FixtureTransport, asked: &OpenCursor) -> ServerMessage {
+        let unranged = match self.fault {
+            RangedReadEndsAtTheFirstAtFromItsEnd => without_range(asked),
+            _ => None,
+        };
+        let open = unranged.as_ref().unwrap_or(asked);
         let first_null = *self.first_null.get_or_insert(open.store().is_none());
         let refuses = matches!(
             self.fault,
@@ -427,6 +454,7 @@ impl Wrong {
             _ => reply,
         };
         if matches!(reply, ServerMessage::Batch(_)) {
+            self.cut = asked.range();
             self.last = Some(open.clone());
             self.opens += 1;
             self.at_watermark = false;
@@ -443,6 +471,21 @@ impl Wrong {
         };
         self.reads += 1;
         self.cursor_reads += 1;
+        if let (RangedReadEndsAtTheFirstAtFromItsEnd, Some(range)) = (self.fault, self.cut) {
+            let mut kept = Vec::new();
+            for e in std::mem::take(&mut b.records) {
+                if e.record.at() >= range.end() {
+                    b.next = b.watermark;
+                    break;
+                }
+                if range.contains(e.record.at()) {
+                    kept.push(e);
+                }
+            }
+            b.records = kept;
+            let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
+            b.expiry.retain(|x| segs.contains(&x.seg));
+        }
         let filtered = self
             .last
             .as_ref()
@@ -845,4 +888,34 @@ fn conformance_check_filtered_stops() {
             (OutsideRecordInPlaceUnderARange, [None, None, None, check]),
         ],
     );
+}
+
+#[test]
+fn conformance_filters_step_back() {
+    let servers = [
+        (
+            RangedReadEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back: 3 entries served, want 4",
+        ),
+        (
+            LoadRoundsTheKeystrokeAfterTheStepBackUp,
+            "set D as served holds no keystroke whose at is below that of the pointer before it",
+        ),
+    ];
+    let mut missed = Vec::new();
+    for (fault, reason) in servers {
+        let mut subject = Fixture::wrong("conformance_filters_step_back", fault);
+        let results = conformance::run(&mut subject);
+        for (case, got) in &results {
+            let caught = match (*case, got) {
+                ("filters", Err(e)) => e.ends_with(reason),
+                (_, Ok(())) => *case != "filters",
+                _ => false,
+            };
+            if !caught {
+                missed.push(format!("{fault:?}, case {case}: got {got:?}"));
+            }
+        }
+    }
+    assert!(missed.is_empty(), "{}", missed.join("\n"));
 }
