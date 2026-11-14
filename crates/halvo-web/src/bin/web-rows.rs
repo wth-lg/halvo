@@ -381,6 +381,32 @@ fn member_line(
         },
         adopted.len()
     );
+    // CP-189 G1, the coordinator's answer (a): for each adopted process and each member without the
+    // mark, its program's file name and the forms of its two profile arguments, never their values.
+    let form_of = |p: &procs::Proc| {
+        let program = p
+            .exe
+            .as_ref()
+            .and_then(|e| e.file_name())
+            .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"));
+        let (database, user_data_dir) = match args(p.pid) {
+            Some(a) => halvo_web::checks::profile_forms(&a, &mark.profile, cfg!(windows)),
+            None => ("unread", "unread"),
+        };
+        format!("{program}:database={database}:user_data_dir={user_data_dir}")
+    };
+    let list = |v: Vec<String>| {
+        if v.is_empty() {
+            "-".to_string()
+        } else {
+            v.join(",")
+        }
+    };
+    println!(
+        "{head} unmarked_forms={} adopted_forms={}",
+        list(unmarked.iter().map(|p| form_of(p)).collect()),
+        list(adopted.iter().map(form_of).collect())
+    );
     true
 }
 

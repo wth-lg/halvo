@@ -111,6 +111,41 @@ pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
     })
 }
 
+/// The forms of a process's two profile arguments, for the row `checks`'s report (CP-189 G1, the
+/// coordinator's answer to the stop-and-ask of run 43543209046): for `--database=` and then for
+/// `--user-data-dir=`, `exact` when a value is the form that bears the mark (`<profile>/Crashpad`
+/// and `<profile>`, by `same_path_on`), `other` when the argument is there with no such value, and
+/// `absent` when it is not there. On Windows the one command line is split as the mark splits it.
+/// It never gives a value, and the mark does not call it.
+pub fn profile_forms(
+    args: &[String],
+    profile: &str,
+    windows: bool,
+) -> (&'static str, &'static str) {
+    let split: Vec<String> = if windows {
+        args.iter().flat_map(|a| split_command_line(a)).collect()
+    } else {
+        args.to_vec()
+    };
+    let form = |prefix: &str, want: &str| {
+        let values: Vec<&str> = split
+            .iter()
+            .filter_map(|a| a.strip_prefix(prefix))
+            .collect();
+        if values.iter().any(|v| same_path_on(v, want, windows)) {
+            "exact"
+        } else if values.is_empty() {
+            "absent"
+        } else {
+            "other"
+        }
+    };
+    (
+        form("--database=", &format!("{profile}/Crashpad")),
+        form("--user-data-dir=", profile),
+    )
+}
+
 /// Whether two paths are one by the stated rule of CP-189 G1: component by component, a separator
 /// at the end and a repeated separator ignored; on macOS the letters as they stand; on Windows `/`
 /// and `\` as one and the letter case ignored, as `inside` reads paths there. No link is followed
@@ -137,8 +172,9 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// argument runs to the next space or tab outside quotes; 2n backslashes before a quote give n
 /// backslashes and the quote opens or closes the quoted part, 2n+1 give n backslashes and a
 /// quote; backslashes before any other character stand as they are; `""` inside a quoted part
-/// gives one quote. The mark alone calls it (`bears_profile`); `command_args` and `command_line`
-/// stay as they are for the six rules.
+/// gives one quote. The mark calls it (`bears_profile`), and beside the mark only the row's report
+/// of the profile's forms (`profile_forms`); `command_args` and `command_line` stay as they are
+/// for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
     let chars: Vec<char> = line.chars().collect();
     let space = |c: char| c == ' ' || c == '\t';
@@ -1037,6 +1073,38 @@ mod tests {
             false,
         );
         assert_eq!(counted, Some("flag"));
+    }
+
+    /// CP-189 G1, the row's report of the forms: each argument's form, never its value, and on
+    /// Windows from the one command line split as the mark splits it.
+    #[test]
+    fn g1_the_forms_of_the_profile_arguments_are_named_without_their_values() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            profile_forms(&v(&["h", "--database=/p/Crashpad"]), "/p", false),
+            ("exact", "absent")
+        );
+        assert_eq!(
+            profile_forms(
+                &v(&["h", "--database=/q/Crashpad", "--user-data-dir=/p/"]),
+                "/p",
+                false
+            ),
+            ("other", "exact")
+        );
+        assert_eq!(
+            profile_forms(&v(&["h", "--user-data-dir=/p2"]), "/p", false),
+            ("absent", "other")
+        );
+        assert_eq!(profile_forms(&v(&["h"]), "/p", false), ("absent", "absent"));
+        assert_eq!(
+            profile_forms(
+                &v(&[r#""C:\B.exe" --database="C:\P\Crashpad" --user-data-dir=C:\Q"#]),
+                "C:/p",
+                true
+            ),
+            ("exact", "other")
+        );
     }
 
     #[test]
