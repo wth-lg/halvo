@@ -22,18 +22,6 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
     !gone && idle && holds(facts).contains(&Hold::Check)
 }
 
-/// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
-/// holds: after the agent's last event it stores, in one body, `item_lapsed` with the cause `check`
-/// of the agent's open `ready` item where it holds one and of each `ready` item whose lapse the
-/// board owes and the events do not close (`owed_ready`), and then `item_raised` of the kind
-/// `check` with no run; the agent holds the item `check` once the owner acknowledged the body,
-/// the lapse stores no `slot_skipped`, and the debt stays on the board until a tick finds the item
-/// closed (I5.4, I5.8, rulings RD-5 and RD-96). When the owner refuses the body
-/// with `seq`, the move reads the owner's events and closes the lost starts that they bring
-/// (`read_back`), and goes on from there, once: the agent holds an item `check` that those events
-/// raised and left open, or else the body is made again from the item that the agent holds after
-/// the read and logged once more while `check_due` holds (rulings XB-31, RD-34 (b), RD-5).
-/// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,
     board: &mut Board<C>,

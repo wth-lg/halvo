@@ -118,7 +118,6 @@ fn the_answer_to_the_check_closes_its_item_and_ends_the_hold() {
     );
 }
 
-/// The open `ready` item of agent `n`.
 fn ready_item(w: &World, n: usize) -> ItemId {
     match &w.facts(n).doing {
         Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready => o.item.clone(),
@@ -126,7 +125,6 @@ fn ready_item(w: &World, n: usize) -> ItemId {
     }
 }
 
-/// The owner's `item_lapsed` rows of agent `n`, with the item and the lapse.
 fn lapses(w: &World, n: usize) -> Vec<(ItemId, Lapsed)> {
     w.ports
         .events
@@ -140,7 +138,6 @@ fn lapses(w: &World, n: usize) -> Vec<(ItemId, Lapsed)> {
         .collect()
 }
 
-/// The owner's `slot_skipped` rows of agent `n`.
 fn skips(w: &World, n: usize) -> usize {
     w.ports
         .events
@@ -150,8 +147,6 @@ fn skips(w: &World, n: usize) -> usize {
         .count()
 }
 
-/// Agent `n` needs the person and holds an open `ready` item, and the agent store's newest
-/// record of it has `unknown` above 0, which no move has read yet.
 fn ready_beside_an_unread_check(w: &mut World, n: usize) -> ItemId {
     w.act(Act::Tick);
     let item = ready_item(w, n);
@@ -186,7 +181,6 @@ fn a_check_lapses_an_open_ready_item_and_waits_for_a_failed_store() {
     );
 }
 
-/// The person's answer to the check of agent `n`, through the schedule's drive.
 fn answer(w: &mut World, n: usize, answer: CheckAnswer) -> Result<Answer, Cause> {
     let mv = Move::Check {
         agent: agent(n),
@@ -195,7 +189,6 @@ fn answer(w: &mut World, n: usize, answer: CheckAnswer) -> Result<Answer, Cause>
     schedule_drive(&w.ports, &mut w.board, &w.limits, mv).answer
 }
 
-/// The logs of agent `n` that the owner acknowledged from the tried call `from` on.
 fn bodies(w: &World, n: usize, from: usize) -> Vec<Vec<halvo_coord::types::Event>> {
     w.ports.tried.borrow()[from..]
         .iter()
@@ -208,10 +201,6 @@ fn bodies(w: &World, n: usize, from: usize) -> Vec<Vec<halvo_coord::types::Event
         .collect()
 }
 
-/// The person's answer to a check is a move that reads the hold `check`: when it finds an open
-/// `ready` item and no item `check`, it lapses the `ready` item with the cause `check`, raises the
-/// check and answers it, in one body, and the agent then holds no item (I5.4, rulings RD-5 and
-/// RD-38). Turned round from `the_answer_to_a_check_keeps_an_open_ready_item_open`.
 #[test]
 fn the_answer_to_a_check_lapses_an_open_ready_item_and_answers_its_check_in_one_body() {
     let mut w = world(&[PERSON]);
@@ -257,9 +246,6 @@ fn the_answer_to_a_check_lapses_an_open_ready_item_and_answers_its_check_in_one_
     );
 }
 
-/// The answer `went_through` over an open `ready` item stores the same body with the
-/// `slot_skipped` of the checked run's slot last, and that skip decides the next tick (I5.4): the
-/// checked run names no slot, so no `ready` item is raised again that day (I5.3).
 #[test]
 fn the_answer_went_through_over_an_open_ready_item_stores_its_slot_skipped_last() {
     let mut w = world(&[PERSON]);
@@ -279,10 +265,6 @@ fn the_answer_went_through_over_an_open_ready_item_stores_its_slot_skipped_last(
     assert!(w.act(Act::Tick).report.raised.is_empty());
 }
 
-/// The answer's body meets `seq` because the owner holds a raise of the check, with its lapse of
-/// the `ready` item, whose acknowledgement was lost: the answer reads the owner's events, finds
-/// the `ready` item closed and that check open, and answers that check, with no second lapse
-/// and no second check (I5.4, I7.2, rulings XB-31 and RD-38).
 #[test]
 fn the_answer_after_a_refusal_seq_answers_the_check_that_the_read_shows() {
     let mut w = world(&[PERSON]);
@@ -331,8 +313,6 @@ fn the_answer_after_a_refusal_seq_answers_the_check_that_the_read_shows() {
     assert_eq!(answers, vec![check]);
 }
 
-/// The owner stored the answer's own body with a lost acknowledgement: the next answer meets
-/// `seq`, its read shows the hold `check` answered, and it is taken with nothing stored again.
 #[test]
 fn an_answer_over_a_ready_item_stored_with_a_lost_acknowledgement_is_taken_once() {
     let mut w = world(&[PERSON]);
@@ -533,8 +513,6 @@ fn review_life_2() {
     );
 }
 
-/// Stores `what` as the owner's next event of agent `n`, as a log of the coordinator whose
-/// acknowledgement was lost.
 fn stored_unacknowledged(w: &World, n: usize, what: What) {
     let last = w
         .ports
@@ -699,12 +677,8 @@ fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
     assert_eq!(check_items(&w, 0), 1);
 }
 
-/// The end of the local day `DAY` in the zone of `world`.
 const MIDNIGHT: u64 = T0 + 6_400_000;
 
-/// The `item_raised` row of a check that a start raises, with the clock from 8 ms before local
-/// midnight to 3 ms after it and moving on 1 ms at each read, carries the local day of its `at`
-/// (I7.1).
 #[test]
 fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     let mut days = Vec::new();
@@ -737,10 +711,6 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
 
-/// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
-/// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
-/// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory
-/// clock's day of its `at` (I7.1; ruling RD-69 E1).
 #[test]
 fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
     let mut days = Vec::new();
@@ -773,8 +743,6 @@ fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)), "{days:?}");
 }
 
-/// The tick that first reads the record lapses the open `ready` item with the cause `check` and
-/// raises the item `check` in one log, the lapse first (I5.4, ruling RD-5).
 #[test]
 fn one_body_lapses_the_ready_item_before_it_raises_the_check() {
     let mut w = world(&[PERSON]);
@@ -808,9 +776,6 @@ fn one_body_lapses_the_ready_item_before_it_raises_the_check() {
     assert_eq!(skips(&w, 0), 0, "the lapse stores no slot_skipped");
 }
 
-/// After a refusal `seq` the move reads the open item anew from the owner's events: a skip of the
-/// `ready` item that the owner stored with a lost acknowledgement closed it, so the body that the
-/// move writes once more raises the check alone and lapses nothing (I5.4, ruling RD-5).
 #[test]
 fn after_a_refusal_seq_the_check_reads_the_ready_item_anew_and_lapses_none_that_a_skip_closed() {
     let mut w = world(&[PERSON]);
@@ -840,9 +805,6 @@ fn after_a_refusal_seq_the_check_reads_the_ready_item_anew_and_lapses_none_that_
     assert_eq!(refused_seq, 1, "the first body met seq");
 }
 
-/// The owner stored the move's body, the lapse and the raise, with a lost acknowledgement: the
-/// read after the refusal `seq` shows the `ready` item closed and the check open, and the board
-/// holds that check with nothing written again.
 #[test]
 fn a_lapse_body_that_the_owner_stored_with_a_lost_acknowledgement_is_held_and_not_written_again() {
     let mut w = world(&[PERSON]);
@@ -881,7 +843,6 @@ fn a_lapse_body_that_the_owner_stored_with_a_lost_acknowledgement_is_held_and_no
     assert_eq!(check_items(&w, 0), 1, "one check");
 }
 
-/// Sets what agent `n` is doing on the board, as the move that opened or closed its item left it.
 fn set_doing(w: &mut World, n: usize, doing: Doing) {
     let member = w
         .board
@@ -891,8 +852,6 @@ fn set_doing(w: &mut World, n: usize, doing: Doing) {
     member.expect("a member").facts.doing = doing;
 }
 
-/// An agent that holds an open `setup` item gets no check, and its item no lapse: the check waits
-/// until that item is closed, and the next move after it raises the check (I5.4).
 #[test]
 fn the_check_waits_behind_an_open_setup_item() {
     let mut w = world(&[MANUAL]);
@@ -916,8 +875,6 @@ fn the_check_waits_behind_an_open_setup_item() {
     assert!(lapses(&w, 0).is_empty());
 }
 
-/// The lapse stores no `slot_skipped`: after the answer `try_again` the next tick raises `ready`
-/// again (I5.4, ruling RD-5).
 #[test]
 fn the_lapse_stores_no_slot_skipped_and_after_try_again_the_next_tick_raises_ready_again() {
     let mut w = world(&[PERSON]);
@@ -947,8 +904,6 @@ fn the_lapse_stores_no_slot_skipped_and_after_try_again_the_next_tick_raises_rea
     );
 }
 
-/// Stores, as the owner's events of agent `n` with a lost acknowledgement, the raise of a check
-/// with its lapse of the `ready` item: the body of a move whose acknowledgement was lost.
 fn lost_check_body(w: &World, n: usize, ready: &ItemId, check: &ItemId) {
     stored_unacknowledged(
         w,
@@ -968,8 +923,6 @@ fn lost_check_body(w: &World, n: usize, ready: &ItemId, check: &ItemId) {
     );
 }
 
-/// Stores, as the owner's events of agent `n` with a lost acknowledgement, a person's start over
-/// the `ready` item: its `item_answered` with `start` and the `run_started` of `run`.
 fn lost_start(w: &World, n: usize, ready: &ItemId, run: &RunId) {
     stored_unacknowledged(
         w,
@@ -990,7 +943,6 @@ fn lost_start(w: &World, n: usize, ready: &ItemId, run: &RunId) {
     );
 }
 
-/// Whether the owner holds a `run_ended` of `run`, or the board owes one.
 fn ended_or_owed(w: &World, run: &RunId) -> bool {
     let stored = w
         .ports
@@ -1004,12 +956,6 @@ fn ended_or_owed(w: &World, run: &RunId) -> bool {
     stored || owed
 }
 
-/// The check's body meets `seq` because the owner holds a person's start over the `ready` item
-/// whose acknowledgement was lost. The read shows the `ready` item closed by that start and brings
-/// a `run_started` that no runner took up: the move closes that start, `run_ended` with
-/// `interrupted` and its `end_run`, as every read after a refusal `seq` does (ruling RD-34 (b)
-/// (5)). The agent's newest run is then that start, which the agent store has not ended, so the
-/// hold `check` does not stand and no check is raised in that move (I5.4).
 #[test]
 fn a_lost_start_that_the_checks_read_brings_is_closed() {
     let mut w = world(&[PERSON]);
@@ -1024,9 +970,6 @@ fn a_lost_start_that_the_checks_read_brings_is_closed() {
     assert_eq!(w.facts(0).doing, Doing::Idle(None));
 }
 
-/// The answer's body meets `seq` because the owner holds a person's start over the `ready` item
-/// whose acknowledgement was lost: the answer's read closes that start (ruling RD-34 (b) (5)), and
-/// the hold `check` then no longer stands, so the answer is `state` with nothing more stored.
 #[test]
 fn a_lost_start_that_the_answers_read_brings_is_closed() {
     let mut w = world(&[PERSON]);
@@ -1039,10 +982,6 @@ fn a_lost_start_that_the_answers_read_brings_is_closed() {
     assert_eq!(check_items(&w, 0), 0);
 }
 
-/// A skip of the `ready` item meets `seq` because the owner holds the check's body with its lapse
-/// of that item, stored with a lost acknowledgement: the skip pressed a lapsed card, so it is
-/// answered `stale` and stores no `slot_skipped` (I5.3, ruling RD-5), and the board holds the
-/// check that the read showed, so the next tick raises no second check.
 #[test]
 fn a_skip_whose_read_shows_the_ready_item_lapsed_is_stale_and_the_board_holds_the_check() {
     let mut w = world(&[PERSON]);
@@ -1069,8 +1008,6 @@ fn a_skip_whose_read_shows_the_ready_item_lapsed_is_stale_and_the_board_holds_th
     assert_eq!(check_items(&w, 0), 1, "one check item, not two");
 }
 
-/// A skip that the owner stored with a lost acknowledgement is taken when it is pressed again:
-/// the read shows the `ready` item answered with `skip`, and nothing is stored twice.
 #[test]
 fn a_skip_that_the_owner_stored_with_a_lost_acknowledgement_is_taken_once() {
     let mut w = world(&[PERSON]);
@@ -1099,9 +1036,6 @@ fn a_skip_that_the_owner_stored_with_a_lost_acknowledgement_is_taken_once() {
     assert_eq!(w.facts(0).doing, Doing::Idle(None));
 }
 
-/// A switch-off's `hold_set` meets `seq` because the owner holds the check's body with its lapse
-/// of the `ready` item, stored with a lost acknowledgement: the read takes the `ready` item off
-/// the board and takes up the check, so the next tick raises no second check.
 #[test]
 fn a_switch_off_whose_read_shows_the_check_body_holds_that_check() {
     let mut w = world(&[PERSON]);
@@ -1121,9 +1055,6 @@ fn a_switch_off_whose_read_shows_the_check_body_holds_that_check() {
     assert_eq!(check_items(&w, 0), 1, "one check item, not two");
 }
 
-/// The owner stored the answer `try_again` with a lost acknowledgement, and the person then
-/// answers `went_through`: the read shows the check answered otherwise, so the second answer is
-/// `stale` and nothing of it is stored (I5.4, I7.2, ruling RD-38).
 #[test]
 fn an_answer_whose_read_shows_the_check_answered_otherwise_is_stale() {
     let mut w = world(&[MANUAL]);
@@ -1161,8 +1092,6 @@ fn an_answer_whose_read_shows_the_check_answered_otherwise_is_stale() {
     assert_eq!(skips(&w, 0), 0);
 }
 
-/// The answer to the check of an agent whose workflow the owner's list no longer holds is `state`
-/// and sends nothing, as the model's move `check` answers for a gone agent (I5.7).
 #[test]
 fn the_answer_to_the_check_of_a_gone_workflow_is_state_and_sends_nothing() {
     let mut w = world(&[MANUAL]);
@@ -1180,9 +1109,6 @@ fn the_answer_to_the_check_of_a_gone_workflow_is_state_and_sends_nothing() {
     assert_eq!(sent, 0, "no log of a gone workflow");
 }
 
-/// A start reads the hold `check` of its own agent alone, as the model's `start` does: another
-/// agent whose check stands beside its open `ready` item, after a move whose raise failed, keeps
-/// that item until a move that reads its record.
 #[test]
 fn a_start_raises_the_check_of_its_own_agent_alone() {
     let mut w = world(&[PERSON, MANUAL]);
@@ -1197,9 +1123,6 @@ fn a_start_raises_the_check_of_its_own_agent_alone() {
     assert_eq!(check_items(&w, 0), 0);
 }
 
-/// The end of one agent's run reads the hold `check` of every agent, as the model's `end` does:
-/// it lapses another agent's open `ready` item with the cause `check` and raises its check, in
-/// one body, the lapse first (I5.4, ruling RD-5).
 #[test]
 fn the_end_of_a_run_reads_the_check_of_every_agent() {
     let mut w = world(&[PERSON, MANUAL]);
@@ -1230,8 +1153,6 @@ fn the_end_of_a_run_reads_the_check_of_every_agent() {
     ));
 }
 
-/// The board's events of the agent after the raise are the owner's, the stored body among them,
-/// so that the agent's next log follows it with no refusal `seq` (I7.2).
 #[test]
 fn the_board_holds_the_body_that_the_raise_stored() {
     let mut w = world(&[PERSON]);
@@ -1258,16 +1179,11 @@ fn the_board_holds_the_body_that_the_raise_stored() {
     );
 }
 
-/// What the owner does at one log of `Late` (as in tests/run_recover.rs).
 enum Turn {
-    /// It refuses the log with the error.
     Refuse(PortError),
-    /// It stores the log and answers `no_service`: the acknowledgement is lost.
     Lose,
 }
 
-/// The ports whose owner takes the turns in order, one for each log, and then stores each log as
-/// the memory owner does.
 struct Late<'a, P> {
     ports: &'a P,
     turns: std::cell::RefCell<std::collections::VecDeque<Turn>>,
@@ -1366,8 +1282,6 @@ impl<P: Rng> Rng for Late<'_, P> {
     }
 }
 
-/// A new life whose recovery the owner answers by `turns`; the agents for which recovery raised
-/// the check.
 fn relife(w: &mut World, turns: Vec<Turn>) -> Vec<AgentId> {
     w.ports.new_life();
     w.forget();
@@ -1381,7 +1295,6 @@ fn relife(w: &mut World, turns: Vec<Turn>) -> Vec<AgentId> {
     life.checked
 }
 
-/// The `ready` items of agent `n` whose `item_lapsed` the board owes.
 fn owed_ready(w: &World, n: usize) -> Vec<ItemId> {
     w.board
         .owed
@@ -1398,7 +1311,6 @@ fn owed_ready(w: &World, n: usize) -> Vec<ItemId> {
         .collect()
 }
 
-/// The owner's rows that close `item`: its `item_lapsed` and `item_answered` rows.
 fn closes(w: &World, item: &ItemId) -> Vec<What> {
     w.ports
         .events
@@ -1412,9 +1324,6 @@ fn closes(w: &World, item: &ItemId) -> Vec<What> {
         .collect()
 }
 
-/// Fails when, after any log that the memory owner stored, an agent holds in the owner's events
-/// an open `ready` item beside an open `check` item, or a `hold_cleared` of a check beside an open
-/// `ready` item (I5.4, rulings RD-5, RD-38 and RD-96).
 fn never_ready_beside_check(w: &World) {
     let events = w.ports.events.borrow().clone();
     let stored: Vec<Vec<Event>> = w
@@ -1459,17 +1368,12 @@ fn never_ready_beside_check(w: &World) {
     }
 }
 
-/// Agent 0 (a `PERSON`) holds an open `ready` item, the agent store ended its newest run with
-/// `unknown` above 0, and a new life's recovery is answered by `turns`: the earlier `ready` item
-/// and the agents that recovery checked.
 fn ready_into_a_new_life(w: &mut World, turns: Vec<Turn>) -> (ItemId, Vec<AgentId>) {
     let ready = ready_beside_an_unread_check(w, 0);
     let checked = relife(w, turns);
     (ready, checked)
 }
 
-/// Whether `body` lapses `item` with the cause `check` and then raises the item `check`, and holds
-/// nothing else.
 fn lapse_then_raise(body: &[Event], item: &ItemId) -> bool {
     matches!(
         body.iter().map(|e| &e.what).collect::<Vec<_>>()[..],
@@ -1477,11 +1381,6 @@ fn lapse_then_raise(body: &[Event], item: &ItemId) -> bool {
     )
 }
 
-/// Review case seq 3 (ruling RD-96 (a)): recovery's body, the lapse of the earlier life's open
-/// `ready` item, and its raise of the check were refused, so the lapse is owed and the board holds
-/// no item. The person's start is answered `hold` and raises the check, in one body that lapses
-/// the earlier `ready` item with the cause `check` first; the debt stays on the board, and the
-/// next tick drops it with no send, so the item has one closing row.
 #[test]
 fn review_seq_3_a_start_lapses_the_owed_ready_item_with_the_check() {
     let mut w = world(&[PERSON]);
@@ -1517,8 +1416,6 @@ fn review_seq_3_a_start_lapses_the_owed_ready_item_with_the_check() {
     never_ready_beside_check(&w);
 }
 
-/// Recovery's own raise after its refused body: the raise lapses the owed `ready` item with the
-/// cause `check` and raises the check in one body, and `checked` names the agent (RD-96 (b)).
 #[test]
 fn recoverys_own_raise_after_its_refused_body_lapses_the_owed_ready_item() {
     let mut w = world(&[PERSON]);
@@ -1536,8 +1433,6 @@ fn recoverys_own_raise_after_its_refused_body_lapses_the_owed_ready_item() {
     never_ready_beside_check(&w);
 }
 
-/// Recovery's body stored with a lost acknowledgement: the raise meets `seq`, the read shows the
-/// lapse with `app_ended`, and the check goes alone, so the item has one closing row (RD-96 (c)).
 #[test]
 fn a_recovery_body_stored_with_a_lost_acknowledgement_lets_the_check_go_alone() {
     let mut w = world(&[PERSON]);
@@ -1558,8 +1453,6 @@ fn a_recovery_body_stored_with_a_lost_acknowledgement_lets_the_check_go_alone() 
     never_ready_beside_check(&w);
 }
 
-/// The raise meets `seq` for another writer's event: the body is made again from the read and
-/// still holds the lapse of the owed `ready` item first (RD-96 (d)).
 #[test]
 fn a_raise_that_meets_seq_for_another_writer_still_lapses_the_owed_ready_item() {
     let mut w = world(&[PERSON]);
@@ -1583,8 +1476,6 @@ fn a_raise_that_meets_seq_for_another_writer_still_lapses_the_owed_ready_item() 
     never_ready_beside_check(&w);
 }
 
-/// A tick whose read of the owner's list of workflows does not answer pays no debt, while the log
-/// answers: its raise lapses the owed `ready` item with the cause `check` (RD-96 (e)).
 #[test]
 fn a_tick_whose_list_does_not_answer_still_lapses_the_owed_ready_item() {
     let mut w = world(&[PERSON]);
@@ -1605,11 +1496,6 @@ fn a_tick_whose_list_does_not_answer_still_lapses_the_owed_ready_item() {
     never_ready_beside_check(&w);
 }
 
-/// The person's answer to a check that finds no check item and an owed, unclosed `ready` item
-/// lapses it with the cause `check`, raises the check and answers it in one body, `slot_skipped`
-/// last for `went_through`; an answer whose log meets `seq` because the owner holds the item's
-/// lapse with `app_ended` writes no second lapse, and one whose log meets `seq` for another
-/// writer's event still lapses the item in the body that it makes again (RD-96 (f), RD-38).
 #[test]
 fn the_answer_over_an_owed_ready_item_lapses_it_in_its_body() {
     for (answer_is, stored) in [
@@ -1674,9 +1560,6 @@ fn the_answer_over_an_owed_ready_item_lapses_it_in_its_body() {
     }
 }
 
-/// Two agents whose checks stand, of which only the first owes the lapse of its earlier `ready`
-/// item: recovery's raise lapses the first one's item with the cause `check` in its body and
-/// raises the second one's check alone (RD-96 (g)).
 #[test]
 fn of_two_agents_only_the_one_that_owes_lapses_its_ready_item() {
     let mut w = world(&[PERSON, PERSON]);
@@ -1713,8 +1596,6 @@ fn of_two_agents_only_the_one_that_owes_lapses_its_ready_item() {
     never_ready_beside_check(&w);
 }
 
-/// A pin: the owed lapse of an earlier life's item `check` is not written by the raise of the new
-/// check, which goes alone and leaves that debt on the board (RD-96 (h), item 4).
 #[test]
 fn the_raise_writes_no_owed_lapse_of_a_check_item() {
     let mut w = world(&[MANUAL]);

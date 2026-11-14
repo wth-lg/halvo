@@ -122,9 +122,6 @@ fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError
     Ok(events)
 }
 
-/// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
-/// and `item_lapsed` with `app_ended` for each open item, after the agent's last event, which
-/// the agent's events take once the owner acknowledged them. An empty body calls no port.
 fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Result<(), PortError> {
     let mut whats: Vec<What> = f
         .step
@@ -160,10 +157,6 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
     Ok(())
 }
 
-/// The workflow of an agent of a new life as the owner's list holds it (ruling XB-28 (a)): the
-/// full shape as it is, and the dismissed shape with its id, its category and its site, the
-/// state `paused`, the trigger `manual` and no period, so that no tick starts its agent or
-/// sends `active` for it.
 fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
     match workflow {
         Workflow::Full(f) => f.clone(),
@@ -211,7 +204,7 @@ impl<C> Found<C> {
 }
 
 /// The recovery of a new life of the app (I5.8, I5.10), the coordinator's first move: it
-/// calls `Runs::reap` before anything else, so that no `Runs::start` comes before it, and
+/// calls `Runs::reap` so that no `Runs::start` comes before it, and
 /// answers that call's error with no board, so that no start can come before `reap` has
 /// answered. It reads the owner's list of workflows and every agent of `Owner::agents` whose
 /// workflow the list holds, with every ledger event of the agent, page by page of at most 64,

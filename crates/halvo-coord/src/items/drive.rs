@@ -72,10 +72,6 @@ impl Ledger {
         }
     }
 
-    /// The newest row by `seq` of the owner's events, as this ledger stored them or its reads
-    /// gave them, that closes `item`: an answer whose acknowledgement was lost, or a lapse (ruling
-    /// RD-40), or the decline that a `link_account` item stored after its `done` (ruling RD-46
-    /// (4) B4). One decision for both orders in which the coordinator learns of such a row.
     fn closing(&self, item: &ItemId) -> Option<&Event> {
         self.closing
             .iter()
@@ -83,7 +79,6 @@ impl Ledger {
             .max_by_key(|e| e.seq)
     }
 
-    /// Keeps the rows that close an item among `events`, which the owner acknowledged.
     fn kept(&mut self, events: &[Event]) {
         for e in events {
             if closed_item(&e.what).is_some_and(|item| closes(std::slice::from_ref(e), item)) {
@@ -92,10 +87,6 @@ impl Ledger {
         }
     }
 
-    /// The events of a read: the waiting events that the owner stored with no acknowledgement
-    /// leave the list, every waiting row that would close an item that the owner's events close
-    /// leaves it, the rows that close an item are kept for `closing`, and the rest is numbered
-    /// after the owner's last.
     fn absorb(&mut self, read: Vec<Event>) {
         for e in &read {
             if let Some(k) = self.waiting.iter().position(|w| same_but_seq(w, e)) {
@@ -156,11 +147,6 @@ fn same_but_seq(a: &Event, b: &Event) -> bool {
         && a.what == b.what
 }
 
-/// Reads the owner's events after the last acknowledged one and takes them as `Ledger::absorb`
-/// does: the waiting events that the owner stored with no acknowledgement leave the list, and so
-/// does every waiting row that would close an item that those events close, whatever row closed
-/// it (I7.2, rulings RD-34 (b) (1), RD-40); the rest is numbered after the owner's last. Gives up
-/// after a fixed count of calls.
 fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
     let mut after = ledger.last;
     let mut read = Vec::new();
@@ -179,7 +165,6 @@ fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
     Ok(())
 }
 
-/// The item that a row closes: an `item_answered` or an `item_lapsed`.
 fn closed_item(what: &What) -> Option<&ItemId> {
     match what {
         What::ItemAnswered { item, .. } | What::ItemLapsed { item, .. } => Some(item),
@@ -187,12 +172,6 @@ fn closed_item(what: &What) -> Option<&ItemId> {
     }
 }
 
-/// Whether the rows close the item: its `item_released` or its `item_lapsed`, or its
-/// `item_answered`, but for a confirmation, whose rows without their acknowledgement count as
-/// not stored (I4.5, ruling RD-34 (b) (3)), and for the second step of a sign-in, whose answer
-/// row that its run did not take is followed by the row of the person's next press or by its
-/// lapse (ruling RD-46 (2) b, d, e). The kind is the row's own, since the read need not hold the
-/// item's `item_raised`.
 fn closes(rows: &[Event], item: &ItemId) -> bool {
     rows.iter().any(|e| match &e.what {
         What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
@@ -229,7 +208,6 @@ pub fn log_bytes(events: &[Event]) -> usize {
         .map_or(0, |e| log_text(&e.workflow, &e.agent, events).len())
 }
 
-/// A `coord_log` body, its keys in the order of I7.2.
 #[derive(Serialize)]
 struct LogBody<'a> {
     op: &'static str,
@@ -238,7 +216,6 @@ struct LogBody<'a> {
     records: Vec<Record<'a>>,
 }
 
-/// A record of I7.1, its eighteen keys in their order, each set by the event or null.
 #[derive(Serialize, Default)]
 struct Record<'a> {
     v: u8,
@@ -365,8 +342,6 @@ impl<'a> Record<'a> {
     }
 }
 
-/// How many of the first `events` one body takes: as many as `request_records` and
-/// `request_bytes` allow, and at least one (I7.2; ruling RD-37 (3)).
 fn body_len(events: &[Event], limits: &Limits) -> usize {
     let records = events.len().min(limits.request_records.max(1) as usize);
     let mut n = 1;
@@ -413,9 +388,6 @@ pub fn store<P: Owner + Clock>(
     store_at(ports, ledger, limits, whats, stamp)
 }
 
-/// Stores the events after the waiting ones at the instant and on the day of `at`, read before
-/// the move that makes them, so that no failure of the clock after the move can lose them; an event
-/// that gets no acknowledgement waits and goes again with the next write or `flush`.
 fn store_at<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
@@ -432,13 +404,10 @@ fn store_at<P: Owner>(
     flush(ports, ledger, limits)
 }
 
-/// One read of the clock, or the cause of its failure.
 fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
     Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
-/// Stores the events in one body once the waiting ones are stored, and keeps none of them
-/// waiting: rows that get no acknowledgement count as not stored (I4.5).
 fn store_once<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
@@ -466,11 +435,6 @@ fn store_once<P: Owner>(
     }
 }
 
-/// Stores the answer `row` of an item of a kind other than `confirm` once the waiting rows are
-/// stored, and keeps it not waiting. After a refusal `seq` the read decides (ruling RD-34
-/// (b) (2)): where the owner's events hold a row that closes the item, nothing is logged and
-/// that row is answered, the person's earlier answer whose acknowledgement was lost, or a
-/// lapse; else the row goes once more.
 fn store_answer<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
@@ -931,7 +895,7 @@ pub fn answer_from_check<P: Runs>(
 /// `item_answered` row, which for a `link_account` item holds the request's whole origin (I7.1,
 /// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
 /// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
-/// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
+/// no acknowledgement the run gets nothing; a run that ended
 /// (`ended`) takes nothing back. Where the read after a refusal `seq` shows the item answered
 /// already, by an earlier choice whose acknowledgement was lost, nothing is stored: the same
 /// choice counts as stored and goes on, and another choice leaves the stored answer deciding,
@@ -1223,11 +1187,6 @@ pub enum SetupDone {
     AgentGone,
 }
 
-/// What the owner's refusal of a setup's body decides, in the three groups of names of I3.5
-/// (rulings IG-28, IG-34, IG-36) and with `no_workflow` (I5.7): still owed after a failure with
-/// no name, `busy`, `store_unavailable`, `internal` and `state`; gone after `no_workflow` and
-/// `binding`; asked again after `config`, `malformed`, `too_large`, `length` and every other
-/// name, so that the item always takes the person's answers again.
 fn refused_body(error: &PortError) -> SetupDone {
     let PortError::Refused(name) = error else {
         return SetupDone::Owed;
@@ -1251,10 +1210,6 @@ fn same_agent<C>(setup: &Setup, facts: &Facts<C>, ledger: &Ledger) -> Result<(),
     }
 }
 
-/// Stores the one `item_answered` row of a setup item, which closes at the owner's
-/// acknowledgement with the choice `choose` and holds no value (I7.1, rulings IG-30, IG-35,
-/// RD-23 (b)), at the time `at` that the clock gave before the move; a row that gets no
-/// acknowledgement waits in the ledger and goes with the next write.
 fn closed_row<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits, setup: &Setup, at: Stamp) {
     let row = What::ItemAnswered {
         item: setup.item().clone(),
@@ -1263,10 +1218,6 @@ fn closed_row<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits, setup: 
     let _ = store_at(ports, ledger, limits, vec![row], at);
 }
 
-/// The rule of `active` of I5.5, once, for the agent's facts with the slots of the acknowledged
-/// body among its newest bindings: sends `set_state` `active` where `wants_active` gives it and
-/// drops the answer, which the tick's own rule sends again until the owner's list shows the
-/// agent `active` (ruling IG-6a).
 fn activate<P: Owner, C: ConfigView + Clone>(
     ports: &P,
     facts: &Facts<C>,
@@ -1289,8 +1240,6 @@ fn activate<P: Owner, C: ConfigView + Clone>(
     wants
 }
 
-/// Sends the owed body: at the acknowledgement the item closes, its row is stored and the rule
-/// of `active` runs once; a refusal decides by `refused_body`.
 fn send_owed<P: Owner, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
