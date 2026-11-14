@@ -1871,6 +1871,41 @@ mod real_files {
         assert_eq!(found(file_item(label).read()), X);
     }
 
+    #[test]
+    fn a_file_that_another_process_replaces_with_bytes_of_the_same_length_during_the_move_is_kept()
+    {
+        let label = "replaced-same-length";
+        let y: &[u8] = b"credential Y of an earlier build";
+        assert_eq!((X.len(), y.len()), (32, 32));
+        assert_eq!(X.iter().zip(y).filter(|(a, b)| a != b).count(), 1);
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let later = y.to_vec();
+        let hook_label = label.to_string();
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            assert_eq!(file_item(&hook_label).delete(), Delete::Deleted);
+            assert_eq!(file_item(&hook_label).write(&secret(&later)), Write::Stored);
+        });
+        let signed = Mac {
+            keeps: Keeps::Keychain,
+            file: file_item(label),
+            keychain: keys(BeforeAdd {
+                inner: SharedKeys {
+                    items: Rc::clone(&items),
+                },
+                hook: RefCell::new(Some(hook)),
+            }),
+        };
+        let read = signed.read();
+        assert!(
+            matches!(read, Read::Locked(locked) if locked == moved(-1)),
+            "{read:?}"
+        );
+        assert_eq!(found(file_item(label).read()), y);
+        assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert_eq!(names_in(label), ["account"]);
+    }
+
     struct AfterRead {
         inner: Item<UnixFs, Plain>,
         hook: Hook,
