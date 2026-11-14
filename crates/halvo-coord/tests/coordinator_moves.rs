@@ -6752,3 +6752,125 @@ fn a_second_mark_of_a_stopping_run_keeps_the_time_of_its_first_stop() {
         "the grace counts from the first stop"
     );
 }
+
+fn allowed_records(
+    c: &Coordinator<Both>,
+    run: &RunId,
+    item: &ItemId,
+) -> [halvo_coord::guard::EffectRecord; 2] {
+    let entry = events(c)
+        .iter()
+        .find_map(|w| match w {
+            What::ItemAnswered {
+                item: i,
+                answer: halvo_coord::types::Answered::Confirm(e),
+            } if i == item => Some(e.clone()),
+            _ => None,
+        })
+        .expect("the allow is stored");
+    let record = |state| halvo_coord::guard::EffectRecord {
+        run: run.clone(),
+        agent: agent(0),
+        effect: entry.effect.clone(),
+        state,
+        class: Class::Send,
+        digest: entry.digest.clone(),
+        approval: Some(entry.approval.clone()),
+    };
+    [
+        record(halvo_coord::guard::EffectState::Approved),
+        record(halvo_coord::guard::EffectState::Releasing),
+    ]
+}
+
+#[test]
+fn a_switch_off_of_a_working_run_makes_the_guard_refuse_its_allowed_and_its_running_effects() {
+    let limits = Limits::PRODUCT;
+    let mut both = owner(&[MANUAL], limits);
+    both.policy = halvo_coord::mem::policy::Policy::new(&[(
+        halvo_coord::types::Autonomy::DraftAndConfirm,
+        Class::Prepare,
+        true,
+    )]);
+    let c = Coordinator::new(both, limits);
+    c.tick();
+    let (run, item) = allowed(&c);
+    assert_eq!(
+        c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(())
+    );
+    let [approved, releasing] = allowed_records(&c, &run, &item);
+    let running = halvo_coord::guard::EffectRecord {
+        run: run.clone(),
+        agent: agent(0),
+        effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe9)).unwrap(),
+        state: halvo_coord::guard::EffectState::Releasing,
+        class: Class::Prepare,
+        digest: halvo_coord::types::Digest::parse(&"cd".repeat(32)).unwrap(),
+        approval: None,
+    };
+    for record in [&approved, &releasing, &running] {
+        assert_eq!(
+            c.check_record(record),
+            Ok(()),
+            "{:?} while the run works",
+            record.state
+        );
+    }
+    assert!(c.snapshot().items.is_empty(), "the run works on, no card");
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    for record in [&approved, &releasing, &running] {
+        assert_eq!(
+            c.check_record(record),
+            Err(halvo_coord::guard::Refusal::Approval),
+            "{:?} {:?} after the switch-off",
+            record.class,
+            record.state
+        );
+    }
+}
+
+#[test]
+fn a_switch_off_whose_stuck_items_lapse_row_panics_leaves_the_guard_refusing_an_earlier_allow() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let (run, item) = allowed(&c);
+    assert_eq!(
+        c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(())
+    );
+    let records = allowed_records(&c, &run, &item);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    assert_eq!(open_item(&c).1, ItemKind::Stuck);
+    c.ports().panics.set(Some("log_lapsed"));
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.control(&agent(0), Action::SwitchOff);
+    }));
+    c.ports().panics.set(None);
+    assert!(out.is_err(), "the log of item_lapsed panicked");
+    for record in &records {
+        assert_eq!(
+            c.check_record(record),
+            Err(halvo_coord::guard::Refusal::Approval),
+            "{:?} after the switch-off",
+            record.state
+        );
+    }
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + 1_000 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 1, "the grace tick kills the run");
+}
