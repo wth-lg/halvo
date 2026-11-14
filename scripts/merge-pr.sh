@@ -572,6 +572,7 @@ EOF
   stub_path=$work/bin
 
   git init -q --bare "$work/github.git"
+  git -C "$work/github.git" symbolic-ref HEAD refs/heads/main
   git -C "$work/github.git" fetch -q "$root" HEAD:refs/heads/main
   git clone -q --no-local "$work/github.git" "$work/clone"
   commit() {
