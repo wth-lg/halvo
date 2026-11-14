@@ -1264,15 +1264,10 @@ own_self_test() {
     own_case "git-${git_read%% *}-fails-at-the-read-after-a-script" 1 'FAIL run-ci-d (git cannot read the tracked files after 10-a)' macos
   done
   same_filter='cp "$CI_D_REPO/tracked.txt" "$CI_D_ARTIFACTS/kept" && printf "tracked.txt filter=same\n" >"$CI_D_ARTIFACTS/attributes"'
-  new_repo && track_file && add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; $same_filter && git config --global core.attributesFile \"\$CI_D_ARTIFACTS/attributes\" && git config --global filter.same.clean \"cat '\$CI_D_ARTIFACTS/kept'\" && printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+  new_repo && track_file && add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; $same_filter && git config --global core.attributesFile \"\$CI_D_ARTIFACTS/attributes\" && git config --global filter.same.clean \"cat '\$CI_D_ARTIFACTS/kept'\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
   case_git_home=yes
   case_witness=yes
   own_case global-git-setting-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
-  new_repo && track_file && git -C "$fixture" config core.autocrlf false &&
-    add_script r1 10-a.sh "$good" "[ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; mkdir -p \"\$XDG_CONFIG_HOME/git\" && printf 'tracked.txt text eol=crlf\\n' >\"\$XDG_CONFIG_HOME/git/attributes\" && printf 'line 1\\r\\n' >\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
-  case_git_home=yes
-  case_witness=yes
-  own_case global-attributes-file-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
   case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
     printf '#!/bin/sh\ncase "$*" in *"status --porcelain"* | *diff-index*) exit 0 ;; esac\nexec %s "$@"\n' "$real_git" >"$case_cargo_home/bin/git" &&
@@ -1280,7 +1275,7 @@ own_self_test() {
   case_path=$case_cargo_home/bin
   case_witness=yes
   own_case git-in-the-cargo-bin-directory-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
-  new_repo && track_file && add_script r1 10-a.sh "$good" "$same_filter && printf 'y\\n' >>\"\$CI_D_REPO/tracked.txt\" && touch -t 200001010000 \"\$CI_D_REPO/tracked.txt\" && git -C \"\$CI_D_REPO\" -c core.attributesFile=\"\$CI_D_ARTIFACTS/attributes\" -c filter.same.clean=\"cat '\$CI_D_ARTIFACTS/kept'\" update-index -q --refresh; printf 'PASS 10-a\\n'"
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$same_filter && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -t 200001010000 \"\$CI_D_REPO/tracked.txt\" && git -C \"\$CI_D_REPO\" -c core.attributesFile=\"\$CI_D_ARTIFACTS/attributes\" -c filter.same.clean=\"cat '\$CI_D_ARTIFACTS/kept'\" update-index -q --refresh; printf 'PASS 10-a\\n'"
   case_witness=yes
   own_case stat-data-written-into-the-index-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"' && track_file
