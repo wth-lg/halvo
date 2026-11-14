@@ -393,7 +393,11 @@ fn member_line(
             Some(a) => halvo_web::checks::profile_forms(&a, &mark.profile, cfg!(windows)),
             None => ("unread", "unread"),
         };
-        format!("{program}:database={database}:user_data_dir={user_data_dir}")
+        let class = match args(p.pid) {
+            Some(a) => database_class(&a, &mark.profile),
+            None => "unread",
+        };
+        format!("{program}:database={database}:user_data_dir={user_data_dir}:class={class}")
     };
     let list = |v: Vec<String>| {
         if v.is_empty() {
@@ -408,6 +412,102 @@ fn member_line(
         list(adopted.iter().map(form_of).collect())
     );
     true
+}
+
+/// The class of a process's `--database=` value against the profile's own Crashpad directory
+/// (CP-189 G1, the coordinator's Addition 1 (2)), never the value: `exact` by the mark's rule
+/// (`same_path_on`, no link followed); `same_after_links` when both name one place once links are
+/// resolved (`/var` beside `/private/var`); `inside_profile_other_name` below the run's profile
+/// under another name; `outside_profile` anywhere else; `absent` with no such argument. Only this
+/// report resolves links; the mark does not call it.
+fn database_class(args: &[String], profile: &str) -> &'static str {
+    let split: Vec<String> = if cfg!(windows) {
+        args.iter()
+            .flat_map(|a| halvo_web::checks::split_command_line(a))
+            .collect()
+    } else {
+        args.to_vec()
+    };
+    let crashpad = format!("{profile}/Crashpad");
+    let Some(value) = split.iter().find_map(|a| a.strip_prefix("--database=")) else {
+        return "absent";
+    };
+    if halvo_web::checks::same_path_on(value, &crashpad, cfg!(windows)) {
+        return "exact";
+    }
+    let real = |p: &str| std::fs::canonicalize(p).unwrap_or_else(|_| PathBuf::from(p));
+    let (v, c, prof) = (real(value), real(&crashpad), real(profile));
+    if v == c {
+        "same_after_links"
+    } else if v.starts_with(&prof) || Path::new(value).starts_with(profile) {
+        "inside_profile_other_name"
+    } else {
+        "outside_profile"
+    }
+}
+
+/// CP-189 G1, Addition 1 (2): starts the browser as the row `checks` does, reads the member and
+/// forms lines once an adopted process runs (at most 15 s), and stops.
+async fn handler_class_row(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        scratch_of(argv, "class"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    let profile = dir.join("p");
+    let Some(opts) = options(&browser, profile.clone(), &relay) else {
+        return (0, 1);
+    };
+    let ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row handler_class machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let root = ex.root().clone();
+    let mark = halvo_web::checks::Mark::new(&profile, &browser, root.started_us);
+    let roots: Vec<PathBuf> = root
+        .exe
+        .as_deref()
+        .map(procs::bundle_root)
+        .into_iter()
+        .collect();
+    let waited = Instant::now();
+    while waited.elapsed() < Duration::from_secs(15) {
+        let adopted = procs::table()
+            .map(|t| {
+                let tree = procs::descendants(&t, std::slice::from_ref(&root));
+                procs::adopted(&t, &tree, root.started_us, &roots).len()
+            })
+            .unwrap_or(0);
+        if adopted > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    let mut watch = MemberWatch {
+        known: Vec::new(),
+        group_held: false,
+    };
+    let read = member_line(machine, &kind, "start", &root, &mark, &mut watch);
+    let stopped = ex.stop_and_remove().await;
+    let _ = std::fs::remove_dir_all(&dir);
+    println!(
+        "row handler_class machine={machine} browser={kind} member_read={read} removed={}",
+        if stopped.removed { "yes" } else { "no" }
+    );
+    (usize::from(read), 1)
 }
 
 /// The six rules of the start-to-stop check (A11.1, CP-89 (c)) with the product's flags, its means
@@ -1745,6 +1845,7 @@ fn main() -> ExitCode {
         "hold_release" => runtime.block_on(hold_release(&argv)),
         "ws_allowed" => runtime.block_on(ws_allowed(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
+        "handler_class" => runtime.block_on(handler_class_row(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");
             return ExitCode::from(64);

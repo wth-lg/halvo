@@ -380,6 +380,11 @@ fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
     Ok(())
 }
 
+/// The form of a profile path that the start writes into its flags and its mark.
+pub fn resolve_profile(profile: &Path) -> PathBuf {
+    profile.to_path_buf()
+}
+
 /// The browser's command line after its path, every flag the executor's own: the product's flags
 /// (`crate::PRODUCT_FLAGS`), its means against a crash's dump (`crate::CRASH_MEANS`, with the
 /// run's profile), the relay's flags, headless when asked, the profile, the debugging pipe
@@ -650,6 +655,11 @@ impl Executor {
     /// creation time and group, which the runner's frame `browser` carries (A6.2).
     pub fn root(&self) -> &crate::procs::Proc {
         &self.root
+    }
+
+    /// The profile directory that the start made, in the one form that its flags and its mark hold.
+    pub fn profile(&self) -> Option<&Path> {
+        self.profile.as_deref()
     }
 
     /// The identity of the browser's pipe, which the checks of a session read (CP-89 (c)).
@@ -2265,5 +2275,50 @@ pub(crate) mod tests {
         assert_eq!(crate::extract_amount("184467440737095516.16"), None);
         assert_eq!(crate::extract_amount("184467440737095517.00"), None);
         assert_eq!(crate::extract_amount("99999999999999999999.00"), None);
+    }
+
+    /// CP-189 G1, Addition 1 (3), the class `same_after_links` that the crash handler's
+    /// `--database=` showed on macOS: a profile named through a link is resolved once, when the
+    /// start makes it and before it writes a flag; the browser's flags and the executor's profile
+    /// hold that one form, and `resolve_profile` gives it before the start.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn g1_the_start_writes_every_flag_with_the_profile_resolved_once() {
+        let since_us = own_start_us();
+        let dir = crate::child::scratch("resolved");
+        let real = dir.join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        let link = dir.join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let stand_in = crate::standin::bundle(&dir);
+        let browser = crate::standin::launcher(stand_in.binary.parent().unwrap(), "browser");
+        let relay = crate::relay::Relay::start(crate::relay::Names::Fixture)
+            .await
+            .unwrap();
+        let profile = link.join("p");
+        let before = resolve_profile(&profile);
+        let opts = options_with(browser, profile.clone(), relay.handle());
+        let ex = Executor::start(&opts).await.expect("the stand-in starts");
+        let resolved = std::fs::canonicalize(&real).unwrap().join("p");
+        let args = crate::checks::command_args(ex.root().pid).unwrap_or_default();
+        let held = ex.profile().map(Path::to_path_buf);
+        let stopped = ex.stop_and_remove().await;
+        let left = named_within(&resolved, since_us, Duration::from_secs(2)).await;
+        end_left(&left, &dir);
+        assert!(
+            args.contains(&format!("--user-data-dir={}", resolved.display())),
+            "the profile flag holds another form"
+        );
+        assert!(
+            args.contains(&format!(
+                "--breakpad-dump-location={}/Crashpad",
+                resolved.display()
+            )),
+            "the dump flag holds another form"
+        );
+        assert_eq!(held, Some(resolved.clone()));
+        assert_eq!(before, resolved);
+        assert!(stopped.removed);
+        assert!(left.is_empty());
     }
 }
