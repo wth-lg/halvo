@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "B-35",
+  "about": "an attempt that ended with no status and EPIPE, the shape of 8 last attempts in the researcher's records, is a lost send",
+  "source": "evidence/researcher-check50/runs (8 last attempts with status null and error EPIPE, counted by bin/bodies.mjs of builder-47)",
+  "attempt": {
+    "status": null,
+    "error": "EPIPE"
+  },
+  "expect": {
+    "resend": true
+  }
+}

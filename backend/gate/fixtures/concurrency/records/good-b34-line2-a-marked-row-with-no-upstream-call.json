@@ -1,0 +1,35 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 2",
+  "about": "a marked row of an id sent twice whose upstream call never reached the mock: at most one call allows none",
+  "source": "by hand; written from the record good-b34-line2-marked-row-expired-sent-twice for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [],
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "expired": 1
+    }
+  }
+}

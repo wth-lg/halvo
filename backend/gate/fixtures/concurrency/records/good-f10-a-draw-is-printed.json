@@ -1,0 +1,80 @@
+{
+  "kind": "line",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (d)",
+  "about": "a run that counted after one draw: the line passes and prints the draw",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-rollover-at-20-plain-1-try2",
+      "cell": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 2,
+        "settled": 2,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": true,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-rollover-at-20-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 152,
+          "slow": false,
+          "burstWaits": [
+            100
+          ],
+          "burstMedianMs": 100,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "PASS concurrency: runs=1 of 1 cells=1 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=0 burst-p50-at-200=unmeasured rollover-redrawn=1"
+  }
+}

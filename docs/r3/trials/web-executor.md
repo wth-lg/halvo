@@ -1,116 +1,43 @@
 # Web executor trial
 
-Unit U0.2 of the agent-setup run picks the library that drives the browser of Halvo's agents.
-Contract A13.2 fixes the candidates, their order and the rule. The first candidate is `cdp`, the
-Rust crate chromiumoxide 0.9.1, which speaks the browser's own DevTools protocol. It needs no
-driver binary and no second runtime. The trial builds the adapter of a later candidate only after
-the one before it missed.
+Unit U0.2 of the agent-setup run picks the library that drives the browser of Halvo's agents
+(contract A13.2). The first candidate is `cdp`, the Rust crate chromiumoxide 0.9.1, which speaks
+the browser's DevTools protocol with no driver binary and no second runtime. The trial builds the
+adapter of a later candidate only after the one before it missed. `tools/r3-trials/web/README.md`
+says how each step runs and what each check reads, and holds the longer notes of U0.2.
 
-## How the cells ran
+What ran. Unit U0.7 changed the library, so the nine steps ran again at its head 4f494e9 with
+`sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port 18190 --runs 10`. On `mac`
+each step ran with Chrome as one call of the machine's timed-run helper, from 2026-11-12T01:28:12Z to
+2026-11-12T01:42:48Z, under a 1-minute load average between 223.21 and 504.32, so the times of
+`mac` are times under load. The extras line ran on `mac` in one more call, from 2026-11-12T01:54:14Z to
+2026-11-12T01:55:13Z. The hosted cells ran in run 43103175522, Chrome first and then Edge, on a scratch branch
+that holds the head plus one commit on the workflow file. U0.2's own cells, at 20d8421 in run
+42950082356, all had `ok=10`. The library grew from U0.7's changes, so `added_bytes` grew too.
 
-`sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port 18190 --runs 10` builds the
-trial program with `cargo build --release --locked`, starts the fixture server of unit U0.1 on the
-port, and runs the nine steps of A13.2 in their order, 10 runs each, with no model. Before each run
-it resets the fixture to seed 1 with the variants of the step, and starts the browser headless on a
-new profile directory, one per run, inside the one scratch directory of the call: a new mktemp
-directory, or the directory that `--scratch` names. After the run it stops the browser. The steps
-read the fixture's state through the program's own HTTP client, which sends no `Origin` and no
-`Sec-Fetch-Site` header. `--help` states every argument.
+Choices that the contract leaves. The flags of the start are the `flag` lines below. The resolver
+rule is one flag with two rules, `--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND`; the
+second keeps a `.localhost` name from reaching the fixture. On macOS the caller adds
+`--use-mock-keychain`, which no `flag` line holds. The `--browser` paths are
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` and
+`/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge` on the Macs, and
+`C:/Program Files/Google/Chrome/Application/chrome.exe` and
+`C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe` on `hosted-win`. Browser versions,
+as each run line reports them: `mac` Chrome 153.0.8010.48; `hosted-mac` Chrome 157.0.8103.39; `hosted-mac` Edge 156.0.4314.58 and 157.0.4341.46; `hosted-win` Chrome 156.0.8078.80; `hosted-win` Edge 156.0.4314.58. Edge on the macOS image updated itself during the
+job; the nine steps ran on 156. No image holds a second major version of Chrome.
+`pipe=no`: chromiumoxide 0.9.1 connects only over a WebSocket at `--remote-debugging-port`. The
+licence lines cover the 138 packages of the trial's lock file, which U0.7 did not change.
 
-- Each step checks the column "ok when" of A13.2 on the fixture's state. Where that state cannot see
-  what the browser did, the step also reads the request that the browser sent, through the
-  adapter's request rule, which pauses each request before it leaves. `form_fill` requires
-  `paperless=yes` in the body of the `POST /prefs`. `file_upload` requires that the file input
-  holds one file of 1,024 bytes before the click and that the browser sent one `POST /upload`.
-  The paused request carries no bytes of a file part, so the trial cannot read the file in the
-  request, and the fixture records no size. `payment_frame` chooses the second option of
-  `Payment method`, which the page does not select by default, reads the choice back from a new
-  snapshot, and requires that the payment holds the second instrument of the seed, so a choice that
-  does nothing misses. `changed_page_1` requires the first instrument, the page's default.
-  `block_request` requires that the browser accepted the command that fails the request and that
-  the page then shows the browser's error page, besides the unchanged `requests.state_changing`.
-  The fixture takes the amount of a payment from its token, not from the browser, so the amount
-  check holds whenever a payment is recorded.
-- `median_ms` is the median, over the runs of the cell that printed ok, of the time from the first
-  page open of the run to the end of its check. It leaves out the browser start. `cold_ms` is the
-  median of 10 starts, from the launch call to the load of `/signin`.
-- Each step was first seen to miss. `--fault NAME` puts `tools/r3-trials/web/faults.mjs` between
-  the browser and the fixture, and the proxy breaks one route or one page. Each step missed once
-  under its fault: `signin_form` under `signin_500`, `table_read` under `history_changed`,
-  `form_fill` and `session_expiry` under `prefs_500`, `payment_frame` under `frame_hangs` (the frame
-  never loads), `file_upload` under `upload_input_gone`, `changed_page_1` under `pay_now_renamed`,
-  `block_request` under `prefs_get_form` and `credential_mark` under `password_plain`. A control
-  run of all nine steps behind the proxy with `history_changed` missed only `table_read`.
-- The cells of `mac` ran through the machine's timed-run helper in two calls. The helper recorded
-  the nine steps from 2026-11-11T03:30:49Z to 2026-11-11T03:31:43Z, with the 1-minute load average
-  at 4.90 before and 9.06 after, and the extras from 2026-11-11T03:31:43Z to 2026-11-11T03:31:49Z,
-  with 9.06 before and 10.66 after. The fault runs above ran on the same code outside the helper,
-  one run each. Other work on this Mac set that load, so the times of `mac` are times under load.
-- The cells of the hosted machines ran in one job per machine, Chrome first and then Edge, on the
-  head of the trial code plus one commit that adds the call of `run.sh` to the workflow file. The
-  `hosted` lines name the run and that commit.
+The third round (U0.7c) measured again, at commit e72f083, the cells that the library's connection
+decided: `--extras --round 3` on `mac` with Chrome 153.0.8010.48, one call of the timed-run helper
+from 2026-11-12T21:37:14Z to 2026-11-12T21:47:14Z at a 1-minute load of 93.42, so `cold_ms` is a
+time under load. `added_bytes` is the binary with the protocol types and the pipe alone
+(`--no-default-features --features driver`) against one with no driver crate; `cold_ms` starts as
+the product does (pipe, relay, probe); `attach` and `pipe` are struck with the connect operation.
 
-## Start of the browser
-
-The `flag` lines in the block are the first flag set. The trial passes them, the resolver rule and,
-on macOS, `--use-mock-keychain`, and nothing else of its own. chromiumoxide adds these flags itself: `--remote-debugging-port=0` (the
-browser picks the port; `--extras` names one for the attach check), `--user-data-dir`,
-`--headless=new`, `--hide-scrollbars`, `--mute-audio` and `--disable-extensions`. The trial turns
-off chromiumoxide's own list of 24 default flags (`disable_default_args`).
-
-The resolver rule is one flag with two rules:
-`--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND`.
-
-`sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port 18190 --resolver-probe` showed
-the rule at work on this Mac on 2026-11-11. The name `halvo-resolver-probe.localhost` got
-`net::ERR_NAME_NOT_RESOLVED` and sent 0 requests to the fixture. Chrome resolves a `.localhost`
-name to loopback by itself, with no lookup, so without the second rule the fixture would have seen
-that request. `utility.agent.test` sent 2 requests to the fixture. The probe makes no lookup of a
-name.
-
-On macOS, both on this Mac and on the hosted macOS image, the caller adds `--use-mock-keychain`,
-which no `flag` line holds. The first start of a browser in this unit, at 2026-11-11T00:25:58Z,
-left the front app as it was (75 samples over 75 s, one app) and left no process behind.
-
-## Browsers
-
-Each run line holds the product and version that the browser reported over the protocol
-(`Browser.getVersion`). All 90 runs of each machine and browser, 9 cells of 10 runs, reported one
-version:
-
-| machine | browser | version | `--browser` path |
-|---|---|---|---|
-| `mac` | Chrome | 153.0.8010.48 | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` |
-| `hosted-mac` | Chrome | 157.0.8103.39 | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` |
-| `hosted-mac` | Edge | 156.0.4314.58 | `/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge` |
-| `hosted-win` | Chrome | 156.0.8078.80 | `C:/Program Files/Google/Chrome/Application/chrome.exe` |
-| `hosted-win` | Edge | 156.0.4314.58 | `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe` |
-
-No image holds a second major version of Chrome. The macos-15 image also holds Google Chrome for
-Testing 157.0.8103.38, the same major as its Chrome. The windows-2025 image holds one version
-directory under its Chrome install. All cells ran headless. Hosted runners can open a headed
-window, but this trial did not open one.
-
-## The library
-
-- `pipe=no`: chromiumoxide 0.9.1 starts the browser with `--remote-debugging-port` and reads the
-  WebSocket address from the browser's standard error, and it connects only over a WebSocket. It
-  has no way to use `--remote-debugging-pipe`. Read on 2026-11-11 in `src/browser/config.rs` and
-  `src/browser/mod.rs` of the package that cargo fetched from
-  `https://crates.io/crates/chromiumoxide/0.9.1`.
-- A snapshot gives each text node of the accessibility tree its own `text` line, so a label in the
-  frame and the amount beside it come out as two `text` lines. A credential field follows A8.2: an `input` of type
-  `password` or with one of the three `autocomplete` tokens, or a control whose parent or an
-  ancestor of it carries `data-halvo-captcha`.
-- The licence lines cover every crate in the trial's lock file, 138 packages, read from each
-  crate's manifest with `node tools/r3-trials/web/licences.mjs --read 2026-11-11`. `unicode-ident`
-  joins two licences with AND and has one line for each. The crate chromiumoxide is
-  `MIT OR Apache-2.0`, with both texts in its package. No driver binary and no runtime are fetched.
-- `added_bytes` is the growth of the stripped release binary of `web-trial` built with the feature
-  `driver` (chromiumoxide, tokio, futures) against the same program built with
-  `--no-default-features`, on this Mac.
-- `tools/r3-trials/web/snapshots/pay-seed-1.txt` is the snapshot of `/pay` of seed 1 with its frame
-  in the line form of A11.1.
+What the lines cannot show. Ten runs cannot show a miss rarer than about one in four. The verdict
+stands for these nine steps. It decides U2.1 only by the rule of A13.7, whose rows are in
+`docs/r3/trials/web-isolation.md`.
 
 ```text
 licence item=aho-corasick@1.1.5 spdx=MIT read=2026-11-11 ok=yes
@@ -263,53 +190,54 @@ flag --disable-domain-reliability
 flag --metrics-recording-only
 flag --no-first-run
 flag --no-default-browser-check
-hosted machine=hosted-mac run=42950082356 sha=20d84217dd7d84140f945b18245157ce76fb2381
-hosted machine=hosted-win run=42950082356 sha=20d84217dd7d84140f945b18245157ce76fb2381
-cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=99
-cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=102
-cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=199
-cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=195
-cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=178
-cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=198
-cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=181
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=183
-cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=169
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=514
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=492
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=786
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=762
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=763
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=797
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=672
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=719
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=681
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=504
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=481
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=694
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=727
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=637
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=662
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=656
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=592
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=558
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=1019
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=1077
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=1147
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=1191
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=1233
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=1196
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=1132
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=1122
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=1131
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=1588
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=1533
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=1651
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=1622
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=1587
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=1562
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=1623
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=1588
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=1613
-extras candidate=cdp added_bytes=7548224 cold_ms=367 record=ok attach=ok pipe=no
+hosted machine=hosted-mac run=43103175522 sha=f2e53eeb7893784891a5c9038a0f63dcaa4ec124
+hosted machine=hosted-win run=43103175522 sha=f2e53eeb7893784891a5c9038a0f63dcaa4ec124
+cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=121
+cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=123
+cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=235
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=245
+cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=231
+cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=237
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=226
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=216
+cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=232
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=540
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=514
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=821
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=993
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=963
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=819
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=812
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=768
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=658
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=637
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=582
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=912
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=895
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=863
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=903
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=868
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=776
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=697
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=864
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=901
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=988
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=990
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=986
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=1072
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=1052
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=1037
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=1005
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=1196
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=1321
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=1310
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=1569
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=1394
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=1488
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=1451
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=1384
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=1264
+extras candidate=cdp added_bytes=10867056 cold_ms=628 record=ok attach=ok pipe=no
+extras candidate=cdp form=pipe added_bytes=5651648 cold_ms=2131 record=ok
 verdict executor=cdp version=0.9.1
 ```

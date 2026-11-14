@@ -60,7 +60,8 @@ export const LINE_FORMS = {
     reading: {
       attrs: [TRIAL('dialog'), MAC, SYSTEM, ['default_attr', NAME], ['cancel_attr', NAME]],
       form: [TRIAL('dialog'), MAC, FORM, SYSTEM, ['default', CONTROL], ['cancel', CONTROL], ['close', CONTROL],
-        ['file', PATH], ['line', LINE_NO]],
+        ['default_file', PATH], ['default_line', LINE_NO], ['cancel_file', PATH], ['cancel_line', LINE_NO],
+        ['close_file', PATH], ['close_line', LINE_NO]],
       outcome: [TRIAL('dialog'), MAC, FORM, SYSTEM, ['outcome', one(...OUTCOMES)],
         ['gives', one('reject', 'allow', 'none', 'unknown')], ['file', PATH], ['line', LINE_NO]],
     },

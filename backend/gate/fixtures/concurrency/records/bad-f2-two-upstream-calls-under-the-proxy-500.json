@@ -1,0 +1,74 @@
+{
+  "kind": "judge",
+  "ruling": "contract 10 (one upstream call and one settle), read by P7-69 F2 (the review's B2, the verifier's first defect)",
+  "about": "an id reached the upstream twice and its last answer was the dev proxy's 500, a request lost in transport: its row and the mock's events are read by every clause",
+  "source": "by hand",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 2100,
+    "endedAt": 2101,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+      }
+    ]
+  },
+  "row": {
+    "state": "settled",
+    "dispatched": 1,
+    "ended_at": 2000,
+    "ended_by": "settle",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cost": 19
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 19,
+      "unreported": 0,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 1550,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 1600,
+      "id": "r",
+      "ev": "usage",
+      "final": true,
+      "input_tokens": 1,
+      "output_tokens": 1
+    },
+    {
+      "t": 1700,
+      "id": "r",
+      "ev": "end",
+      "clean": true
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

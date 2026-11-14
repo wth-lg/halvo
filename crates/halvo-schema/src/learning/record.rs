@@ -14,7 +14,7 @@ use crate::site::{AppId, SiteValue};
 
 use super::json::{self, list, opt, Refusal};
 use super::names::{state_name, EditCause, Mark, RunCause, EDIT_STATES, RUN_STATES};
-use super::{CLEAN_BOUND, LOCATORS_BOUND, RUNS_BOUND};
+use super::{CLEAN_BOUND, LOCATORS_BOUND, RUNS_BOUND, TARGET_BYTES};
 
 /// A stored day: the local calendar day counted in days from 1970-01-01, at least 1 (contracts.md L0.6). A
 /// parser refuses 0, the unset value, with the rule `zero`. It is written as its number.
@@ -388,6 +388,14 @@ impl LearnedTarget {
         for locator in &self.locators {
             locator.rules().map_err(json::agent_setup)?;
         }
+        let written = serde_json::to_vec(&TargetForm {
+            desc: &self.desc,
+            locators: &self.locators,
+        })
+        .map_or(usize::MAX, |bytes| bytes.len());
+        if written > TARGET_BYTES {
+            return Err(Refusal::new("LearnedTarget", "target_bytes"));
+        }
         Ok(())
     }
 
@@ -411,6 +419,21 @@ impl LearnedTarget {
     pub fn to_json(&self) -> Result<String, Refusal> {
         self.rules()?;
         json::write("LearnedTarget", self)
+    }
+}
+
+/// The form that the writer of a target writes, which `rules` measures.
+struct TargetForm<'a> {
+    desc: &'a OwnText,
+    locators: &'a [Locator],
+}
+
+impl Serialize for TargetForm<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(TARGET_KEYS.len()))?;
+        map.serialize_entry("desc", self.desc)?;
+        map.serialize_entry("locators", self.locators)?;
+        map.end()
     }
 }
 

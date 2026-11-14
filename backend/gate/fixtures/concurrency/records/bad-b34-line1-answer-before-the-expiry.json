@@ -1,0 +1,18 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1",
+  "about": "the answer reached the driver 1 ms before the row's expiry",
+  "source": "by hand",
+  "request": {
+    "headersAt": 4009
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

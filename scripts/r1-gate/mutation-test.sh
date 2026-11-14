@@ -1,92 +1,243 @@
 #!/bin/sh
+stop_signal=''
+stop_status=''
+stop_row=''
+stop_printed=no
+
+stop_on() {
+  [ -z "$stop_signal" ] || return 0
+  stop_signal=$1; stop_status=$2
+}
+
+stop_traps() {
+  trap 'stop_on TERM 143' TERM
+  trap 'stop_on INT 130' INT
+  trap 'stop_on HUP 129' HUP
+}
+
+stop_traps
 set -u
-DIR=$(cd "$(dirname "$0")" && pwd)
-. "$DIR/lib.sh"
 name=mutation
-TAB=$(printf '\t')
+TAB='	'
+stop_wait_s=60
+case $0 in */*) DIR=${0%/*} ;; *) DIR=. ;; esac
+DIR=$(cd "$DIR" && pwd)
+[ -n "$stop_signal" ] || . "$DIR/lib.sh"
 
 usage() {
   cat <<'EOF'
-Mutant runner of the R1 gate. It discovers every mutants.rows file of HEAD and
-runs its rows in a throwaway copy of HEAD with its own target directory. The
-row grammar is in scripts/r1-gate/README.md.
+Mutant runner of the R1 gate. It reads every tracked file named mutants.rows of
+HEAD and runs its rows in a throwaway copy of HEAD with its own target
+directory. The row grammar is in scripts/r1-gate/README.md. It is run on macOS:
+on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
 
   sh scripts/r1-gate/mutation-test.sh [--strict] [--budget SECONDS] [--only NAME]...
-      Build the unmutated copy, require PASS from the store, deletion and
-      no-ll-hook checks and one passing test for each test verdict, then apply
-      each row, build the mutant and judge it by the row's one verdict source.
-      PASS mutation:<name> names that source. A mutant that does not build is
-      FAIL mutation:<name> (the mutant does not build), never a caught mutant.
+      Apply each row, build the mutant and judge it by the row's one verdict
+      source. Once the first row on a file that cargo builds is reached, the
+      runner builds the unmutated copy and, except under --apply-only,
+      requires PASS from the store, deletion and no-ll-hook checks; a run of
+      rows on other files requires no PASS from them. Before a test row it
+      requires one passing run of the unmutated test. PASS mutation:<name>
+      names the verdict source.
+      A mutant that does not build is FAIL mutation:<name> (the mutant does not
+      build), never a caught mutant.
       --strict also fails on a pending or transitional row, on a row for the
-      measuring Mac that did not run, and on a name of mutants.expected that no
-      row file holds or retires.
+      measuring Mac that did not run, on a row that the budget left unrun, on a
+      name of mutants.expected that no row file holds or retires, and on a
+      required row, of any place, whose name mutants.expected lacks. With
+      --only, --strict reads no state of a row that --only leaves out; the
+      name rules still read every row.
       --only runs the named rows in the order given, each name once.
       --budget starts no row once SECONDS have passed since the first row
       started, lets a running row end, prints NOT-RUN mutation:<name> (the
       budget of SECONDS s is used) for each row that it did not start, and
       prints seconds mutation:<name> <n> after each row that it started.
   sh scripts/r1-gate/mutation-test.sh --apply-only
-      Check that every substitution still applies and that its mutant builds.
+      Apply the substitution of each row that a run would apply here and build
+      its mutant. A pending, a retired and a not-here row is listed and not
+      applied; the gate checks and the tests do not run.
   sh scripts/r1-gate/mutation-test.sh --list
       Print the rows: name, state, verdict, row file.
+  Every mode but --self-test first refuses a tracked path named mutants.rows
+  that is a symbolic link, that the copy lacks or whose path holds a tab, a
+  newline, a backslash or a quote, and a row name that stands in more than one
+  row, unless one of the two is a transitional row of
+  scripts/r1-gate/mutants.rows and the other the row that takes it over in the
+  rows file beside its file; it names each place.
+  --keep-scratch keeps the runner's scratch directory and prints
+  scratch mutation: <path>; without it the runner removes its scratch when it
+  ends, on every path but a KILL of the runner itself, after which the
+  throwaway copy and its build directory stay. --remove-scratch is accepted and
+  is the default.
   sh scripts/r1-gate/mutation-test.sh --self-test [-v]
-      Prove the classifier and the row rules on fixtures.
+      Prove the classifier, the row rules and the stop on fixtures.
+
+TERM, INT or HUP stops the runner in every mode but --self-test, which keeps
+the traps of lib.sh and exits with the signal's status and no STOPPED line.
+From the first signal on the runner starts no new step of the run (it still
+waits for the running test as below, and it removes its scratch), prints
+exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
+a step that the signal ended, and exits with 143, 130 or 129 for that first
+signal. A later signal changes nothing. The line by phase:
+
+  phase                                         STOPPED line
+  before the flags are read                     STOPPED mutation (signal S; no row had started)
+  the copy of HEAD                              STOPPED mutation (signal S; no row had started)
+  the read of the rows files, the name check    STOPPED mutation (signal S; no row had started)
+  the print of --list                           STOPPED mutation (signal S; no row had started)
+  the --only selection                          STOPPED mutation (signal S; no row had started)
+  the unmutated build                           STOPPED mutation:<row> (signal S; no test was running)
+  a gate check                                  STOPPED mutation:<row> (signal S; no test was running)
+  a short step of a row                         STOPPED mutation:<row> (signal S; no test was running)
+  the test                                      STOPPED mutation:<row> (signal S; the running case was let end)
+                                                or (signal S; the running case did not end within 60 s and was killed)
+  the tail: the expected list, the count line   STOPPED mutation:<last row> (signal S; no test was running)
+
+A cargo test runs with TERM, INT and HUP ignored, so that its case runs to its
+end and its own guard removes what it made; a gate self-test case keeps them at
+their defaults and ends its case by its own trap. On the signal the runner
+sends the test's process group TERM and waits up to 60 s for the test to end;
+then it kills the group, and what the case made may be left; so it is under a
+caller that sends KILL sooner. A test runs with its standard input from
+/dev/null and QUIT ignored. A gate check that runs when the signal comes is
+not shielded: the runner lets it end or the signal ends it, and starts no
+next one. Limits: a signal that comes after a test has started and before the
+runner waits for it is acted on when the test ends by itself, with the test's
+own limit (900 s for a cargo test, 300 s for a gate case) as its bound. A
+step whose own exit status says that a signal ended it (129, 130, 137 or 143)
+is never read as an answer: with a signal of the runner's own within 2 s the
+run ends as a stop, and without one it ends with exit 2 and the line
+  FAIL step:<step> (ended by signal S; the runner got no signal)
+A runner that was started with a signal ignored, as a shell does for INT in a
+background job, cannot trap that signal.
 
 Exit status: 0 when no line is FAIL (and, with --strict, nothing is open),
-1 otherwise, 2 when git or the copy of HEAD failed, 64 on bad usage.
+1 otherwise, 2 when a step that the runner needs failed (git, the copy of
+HEAD, a read of its own files) or ended by a signal that the runner did not
+get, 64 on bad usage, and 143, 130 or 129 after a stop by TERM, INT or HUP;
+2 never follows a stop.
 EOF
 }
 
 say() { printf '%s mutation:%s (%s)\n' "$1" "$2" "$3"; }
 
+stop_now() {
+  stop_printed=yes
+  if [ -n "$1" ]; then say STOPPED "$1" "signal $stop_signal; $2"
+  else printf 'STOPPED mutation (signal %s; no row had started)\n' "$stop_signal"; fi
+  exit "$stop_status"
+}
+
+stop_check() {
+  [ -z "$stop_signal" ] || stop_now "$stop_row" "no test was running"
+}
+
+step_check() {
+  step_check_status=$1; step_check_name=$2
+  stop_check
+  case $step_check_status in 129|130|137|143) ;; *) return "$step_check_status" ;; esac
+  step_check_waits=0
+  while [ "$step_check_waits" -lt 20 ]; do
+    sleep 0.1
+    stop_check
+    step_check_waits=$((step_check_waits + 1))
+  done
+  case $step_check_status in 129) step_check_sig=HUP ;; 130) step_check_sig=INT ;; 137) step_check_sig=KILL ;; *) step_check_sig=TERM ;; esac
+  printf 'FAIL step:%s (ended by signal %s; the runner got no signal)\n' "$step_check_name" "$step_check_sig"
+  exit 2
+}
+
+runner_exit() {
+  runner_exit_status=$?
+  gate_exit
+  if [ -n "$stop_signal" ] && [ "$stop_printed" = no ]; then
+    stop_printed=yes
+    if [ -n "$stop_row" ]; then say STOPPED "$stop_row" "signal $stop_signal; no test was running"
+    else printf 'STOPPED mutation (signal %s; no row had started)\n' "$stop_signal"; fi
+    exit "$stop_status"
+  fi
+  exit "$runner_exit_status"
+}
+
 rows_table() {
-  find "$1" -name mutants.rows -type f -not -path '*/target/*' > "$2.files" || return 1
-  LC_ALL=C sort "$2.files" > "$2.sorted" || return 1
-  : > "$2"
-  while IFS= read -r rows_path; do
-    awk -F '\t' -v file="${rows_path#"$1"/}" 'BEGIN { OFS = "\t" }
+  rows_repo=$1; rows_commit=$2; rows_tree=$3; rows_out=$4
+  stop_check
+  git -C "$rows_repo" -c core.quotePath=false ls-tree -r --full-tree "$rows_commit" > "$rows_out.tracked" 2> "$rows_out.err"
+  step_check $? "git ls-tree" || return 2
+  : > "$rows_out"
+  rows_refused=0
+  while IFS= read -r rows_entry; do
+    rows_path=${rows_entry#*"$TAB"}
+    case $rows_path in
+      mutants.rows|*/mutants.rows) ;;
+      \"mutants.rows\"|\"*/mutants.rows\")
+        say FAIL rows "the tracked path $rows_path holds a tab, a newline, a backslash or a quote"; rows_refused=$((rows_refused + 1)); continue ;;
+      *) continue ;;
+    esac
+    case $rows_entry in
+      120000\ *) say FAIL rows "the tracked path $rows_path is a symbolic link"; rows_refused=$((rows_refused + 1)); continue ;;
+    esac
+    if [ ! -f "$rows_tree/$rows_path" ] || [ -h "$rows_tree/$rows_path" ]; then
+      say FAIL rows "the tracked path $rows_path is not a file of the copy of HEAD"; rows_refused=$((rows_refused + 1)); continue
+    fi
+    stop_check
+    awk -F '\t' -v file="$rows_path" 'BEGIN { OFS = "\t" }
       /^[[:space:]]*$/ { next }
       { empty = 0; for (i = 1; i <= NF; i++) if ($i == "") empty = 1
         if (NF != 6 || empty) print file, NR, "malformed", "-", "-", "-", "-", "-"
-        else print file, NR, $1, $2, $3, $4, $5, $6 }' "$rows_path" >> "$2" || return 1
-  done < "$2.sorted"
+        else print file, NR, $1, $2, $3, $4, $5, $6 }' "$rows_tree/$rows_path" >> "$rows_out" 2>> "$rows_out.err"
+    step_check $? "awk of $rows_path" || return 2
+  done < "$rows_out.tracked"
+  [ "$rows_refused" -eq 0 ] || return 3
 }
 
-row_path() {
+row_place() {
   case $row_state in
-    transitional|control) printf '%s\n' "$row_file" ;;
-    *) row_dir=${rows_file%/*}
-       [ "$row_dir" != "$rows_file" ] || row_dir=.
-       printf '%s/%s\n' "$row_dir" "$row_file" ;;
+    transitional|control) mutated=$row_file ;;
+    *) row_place_dir=${rows_file%/*}
+       [ "$row_place_dir" != "$rows_file" ] || row_place_dir=.
+       mutated=$row_place_dir/$row_file ;;
   esac
 }
 
 row_defect() {
-  if [ "$row_name" = malformed ]; then
-    printf 'line %s of %s has no six fields separated by tabs: name, file, substitution, verdict, state, item\n' "$row_line" "$rows_file"; return 1
+  defect=''
+  if [ "$row_name" = malformed ] && [ "$row_state" = - ]; then
+    defect="line $row_line of $rows_file has no six fields separated by tabs: name, file, substitution, verdict, state, item"; return 1
   fi
   case $row_file in /*|../*|*/../*|*/..)
-    printf 'the file %s is not under the directory of %s\n' "$row_file" "$rows_file"; return 1 ;;
+    defect="the file $row_file is not under the directory of $rows_file"; return 1 ;;
   esac
   case $row_verdict in
     'measured '?*|'refused '?*|leak|'test '?*) ;;
-    *) printf 'the verdict %s is none of: measured KEY..., refused TEXT, leak, test NAME\n' "$row_verdict"; return 1 ;;
+    *) defect="the verdict $row_verdict is none of: measured KEY..., refused TEXT, leak, test NAME"; return 1 ;;
   esac
+  if [ "$row_state" = transitional ] && [ "$rows_file" != scripts/r1-gate/mutants.rows ]; then
+    defect="a transitional row stands in scripts/r1-gate/mutants.rows, not in $rows_file"; return 1
+  fi
   case $row_state in
     required|'required on measuring-mac'|'required on hosted-runner'|'required on test-bed'|transitional|control|'pending '?*|'retired '?*) ;;
-    *) printf 'the state %s is none of: required, required on PLACE, transitional, control, pending ITEM, retired REASON\n' "$row_state"; return 1 ;;
+    *) defect="the state $row_state is none of: required, required on PLACE, transitional, control, pending ITEM, retired REASON"; return 1 ;;
   esac
-  row_twice=$(awk -F '\t' -v n="$row_name" '$1 == n { print $2 }' "$work/twice.tsv")
-  [ -z "$row_twice" ] || { printf 'the name stands in %s\n' "$row_twice"; return 1; }
   return 0
 }
 
 names_twice() {
-  awk -F '\t' '
-    $3 == "malformed" { next }
-    { n[$3]++; files[$3] = files[$3] (files[$3] == "" ? "" : " and in ") $1
-      if ($7 == "transitional") { beside = $4; sub(/\/[^\/]*$/, "", beside); takeover[$3] = beside "/mutants.rows" } else holder[$3] = $1 }
-    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k])) print k "\t" files[k] }' "$table" > "$work/twice.tsv"
+  stop_check
+  awk -F '\t' -v gate=scripts/r1-gate/mutants.rows '
+    $3 == "malformed" && $7 == "-" { next }
+    { n[$3]++; files[$3] = files[$3] (files[$3] == "" ? "" : " and in ") $1 " line " $2
+      if ($7 == "transitional" && $1 == gate) { beside = $4; sub(/\/[^\/]*$/, "", beside); takeover[$3] = beside "/mutants.rows" } else holder[$3] = $1 }
+    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k] && takeover[k] != gate)) print k "\t" files[k] }' "$table" > "$work/twice.unsorted"
+  step_check $? "awk of the name check" || return 2
+  stop_check
+  LC_ALL=C sort "$work/twice.unsorted" > "$work/twice.tsv"
+  step_check $? "sort of the name check" || return 2
+  [ -s "$work/twice.tsv" ] || return 0
+  while IFS="$TAB" read -r twice_name twice_files; do
+    say FAIL "$twice_name" "the name stands in $twice_files"
+  done < "$work/twice.tsv"
+  return 3
 }
 
 needs_cargo() {
@@ -95,11 +246,14 @@ needs_cargo() {
 }
 
 tree_build() {
-  GATE_ROOT=$tree sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree"
+  stop_check
+  GATE_ROOT=$tree sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" > "$1" 2>&1
+  step_check $? "build of the copy"
 }
 
 mutant_builds() {
-  if needs_cargo "$1"; then tree_build > "$work/build.out" 2>&1; return; fi
+  if needs_cargo "$1"; then tree_build "$work/build.out"; return; fi
+  stop_check
   case $1 in
     *.sh) sh -n "$tree/$1" > "$work/build.out" 2>&1 ;;
     *.c) cc -fsyntax-only "$tree/$1" > "$work/build.out" 2>&1 ;;
@@ -107,6 +261,7 @@ mutant_builds() {
     *.swift) swiftc -parse "$tree/$1" > "$work/build.out" 2>&1 ;;
     *) return 1 ;;
   esac
+  step_check $? "build of the mutant"
 }
 
 buildable() {
@@ -117,10 +272,59 @@ buildable() {
 
 gate_lines() {
   : > "$work/gate.out"
-  { git init -q "$tree" && git -C "$tree" add -A; } > "$work/gate.err" 2>&1 || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
+  stop_check
+  { git init -q "$tree" && git -C "$tree" add -A; } > "$work/gate.err" 2>&1
+  step_check $? "git add of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
   for gate_check in store deletion no-ll-hook; do
+    stop_check
     env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
+    step_check $? "check-$gate_check"
   done
+  return 0
+}
+
+stop_past_bound() {
+  [ "$1" -ge "$2" ]
+}
+
+test_ended() {
+  case $(ps -o stat= -p "$1" 2> /dev/null) in ''|Z*) return 0 ;; esac
+  return 1
+}
+
+test_wait() {
+  test_kind=$1; test_limit=$2; shift 2
+  stop_check
+  case $test_kind in
+    cargo) ( cd "$tree" && trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" "$@" ) > "$work/test.out" 2>&1 & ;;
+    *) ( trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" perl -e '$SIG{$_} = "DEFAULT" for qw(TERM INT HUP); exec { $ARGV[0] } @ARGV or exit 127' "$@" ) > "$work/test.out" 2>&1 & ;;
+  esac
+  test_pid=$!
+  wait "$test_pid"
+  test_status=$?
+  if [ -z "$stop_signal" ]; then
+    step_check "$test_status" test
+    return 0
+  fi
+  test_group=''
+  stop_deadline=$(date +%s)
+  stop_deadline=$((stop_deadline + stop_wait_s))
+  until test_ended "$test_pid"; do
+    if [ -z "$test_group" ]; then
+      test_group=$(pgrep -P "$test_pid")
+      [ -z "$test_group" ] || kill -s TERM -- "-$test_group" 2> /dev/null
+    fi
+    stop_clock=$(date +%s)
+    if stop_past_bound "$stop_clock" "$stop_deadline"; then
+      [ -z "$test_group" ] || kill -s KILL -- "-$test_group" 2> /dev/null
+      kill -s KILL "$test_pid" 2> /dev/null
+      wait "$test_pid"
+      stop_now "$row_name" "the running case did not end within $stop_wait_s s and was killed"
+    fi
+    sleep 0.1
+  done
+  wait "$test_pid"
+  stop_now "$row_name" "the running case was let end"
 }
 
 test_run() {
@@ -128,19 +332,21 @@ test_run() {
   case $test_name in
     selftest:*/*)
       test_check=${test_name#selftest:}; test_case=${test_check#*/}; test_check=${test_check%%/*}
-      limited 300 env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --case "$test_case" > "$work/test.out" 2>&1
-      test_status=$?
-      [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
-      awk -v want="case $test_check/$test_case" '
+      test_wait case 300 env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --remove-scratch --case "$test_case"
+      [ "$test_status" -ne 124 ] || { outcome=hang; return 0; }
+      stop_check
+      outcome=$(awk -v want="case $test_check/$test_case" '
         index($0, want " want=") == 1 { n++; split($0, part, " "); verdict = (part[3] == "want=" substr(part[4], 5)) ? "passed" : "failed" }
-        END { if (n == 1) print verdict; else print "ran " n + 0 " cases" }' "$work/test.out" ;;
+        END { if (n == 1) print verdict; else print "ran " n + 0 " cases" }' "$work/test.out")
+      step_check $? "read of the test's output" ;;
     *)
       test_package=${rows_file#crates/}; test_package=${test_package%%/*}
       case $rows_file in crates/*) ;; *) test_package=halvo ;; esac
-      ( cd "$tree" && limited 900 env CARGO_TARGET_DIR="$tree/target/r1-gate" cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name" ) > "$work/test.out" 2>&1
-      test_status=$?
-      [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
-      cargo_test_outcome "$work/test.out" ;;
+      test_wait cargo 900 env CARGO_TARGET_DIR="$tree/target/r1-gate" cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name"
+      [ "$test_status" -ne 124 ] || { outcome=hang; return 0; }
+      stop_check
+      outcome=$(cargo_test_outcome "$work/test.out")
+      step_check $? "read of the test's output" ;;
   esac
 }
 
@@ -150,19 +356,36 @@ row_seconds() {
   timed_name=''
 }
 
+row_clock() {
+  stop_check
+  row_now=$(date +%s)
+  step_check $? date
+}
+
 run_rows() {
-  tree=$1
-  failures=0; opens=0; transitionals=0; unrun=0; caught=0
+  tree=$1; run_repo=$2; run_commit=$3
+  failures=0; opens=0; transitionals=0; unrun=0; budget_unrun=0; caught=0
   table=$work/rows.tsv
-  rows_table "$tree" "$table" || { say FAIL rows "the row files of the copy could not be read"; return 2; }
+  rows_table "$run_repo" "$run_commit" "$tree" "$table"
+  case $? in 0) ;; 3) return 1 ;; *) say FAIL rows "the row files of the copy could not be read"; return 2 ;; esac
   if [ ! -s "$table" ]; then say FAIL rows "no mutants.rows file holds a row"; return 1; fi
-  names_twice || return 2
+  names_twice
+  case $? in 0) ;; 3) return 1 ;; *) return 2 ;; esac
   if [ "$list" = yes ]; then
-    awk -F '\t' '{ printf "mutation:%s\t%s\t%s\t%s\n", $3, $7, $6, $1 }' "$table"
+    stop_check
+    awk -F '\t' '{ printf "mutation:%s\t%s\t%s\t%s\n", $3, $7, $6, $1 }' "$table" > "$work/list.out"
+    step_check $? "awk of the list" || return 2
+    while IFS= read -r list_line; do
+      stop_check
+      printf '%s\n' "$list_line"
+    done < "$work/list.out"
+    stop_check
     return 0
   fi
   for only_name in $only; do
-    only_hit=$(awk -F '\t' -v n="$only_name" '$3 == n' "$table")
+    stop_check
+    only_hit=$(awk -F '\t' -v n="$only_name" '$3 == n ""' "$table")
+    step_check $? "awk of --only" || return 2
     [ -n "$only_hit" ] || { say FAIL "$only_name" "--only names no row"; failures=$((failures + 1)); }
   done
   built_unmutated=no
@@ -172,25 +395,35 @@ run_rows() {
     for only_name in $only; do
       case $only_seen in *" $only_name "*) continue ;; esac
       only_seen="$only_seen$only_name "
-      awk -F '\t' -v n="$only_name" '$3 == n' "$table" >> "$work/rows.loop" || return 2
+      stop_check
+      awk -F '\t' -v n="$only_name" '$3 == n ""' "$table" >> "$work/rows.loop"
+      step_check $? "awk of --only" || return 2
     done
-    awk -F '\t' -v only=" $only " 'index(only, " " $3 " ") == 0' "$table" >> "$work/rows.loop" || return 2
+    stop_check
+    awk -F '\t' -v only=" $only " 'index(only, " " $3 " ") == 0' "$table" >> "$work/rows.loop"
+    step_check $? "awk of --only" || return 2
   else
-    cp "$table" "$work/rows.loop" || return 2
+    stop_check
+    cp "$table" "$work/rows.loop"
+    step_check $? "copy of the rows table" || return 2
   fi
   budget_start=''; timed_name=''
   while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ <&3; do
-    if ! defect=$(row_defect); then
+    stop_check
+    stop_row=$row_name
+    if ! row_defect; then
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
     fi
     case " $only " in "  "|*" $row_name "*) ;; *) continue ;; esac
     if [ -n "$budget" ]; then
-      row_now=$(date +%s)
+      row_clock
       row_seconds
       if [ -z "$budget_start" ]; then
         budget_start=$row_now
       elif [ "$((row_now - budget_start))" -ge "$budget" ]; then
-        say NOT-RUN "$row_name" "the budget of $budget s is used"; continue
+        say NOT-RUN "$row_name" "the budget of $budget s is used"; budget_unrun=$((budget_unrun + 1))
+        [ "$strict" = no ] || say FAIL "$row_name" "strict: the budget left the row unrun"
+        continue
       fi
       timed_name=$row_name; timed_start=$row_now
     fi
@@ -213,26 +446,31 @@ run_rows() {
       transitional)
         takeover=${row_file%/*}/mutants.rows
         if [ -f "$tree/$takeover" ]; then
-          taken=$(awk -F '\t' -v n="$row_name" -v f="$takeover" '$1 == f && $3 == n' "$table")
+          stop_check
+          taken=$(awk -F '\t' -v n="$row_name" -v f="$takeover" '$1 == f "" && $3 == n ""' "$table")
+          step_check $? "awk of the takeover" || return 2
           if [ -n "$taken" ]; then say MOVED "$row_name" "$takeover"; continue; fi
           say FAIL "$row_name" "transitional row not taken over by $takeover"; failures=$((failures + 1)); continue
         fi
         transitionals=$((transitionals + 1))
         [ "$strict" = no ] || say FAIL "$row_name" "strict: a transitional row, and no $takeover holds it yet" ;;
     esac
-    mutated=$(row_path)
+    row_place
     if [ ! -f "$tree/$mutated" ]; then say FAIL "$row_name" "the file $mutated is not in the copy"; failures=$((failures + 1)); continue; fi
     if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
-      if ! tree_build > "$work/unmutated.out" 2>&1; then
-        first=$(head -1 "$work/unmutated.out")
-        printf 'FAIL unmutated:build (%s)\n' "$first"; return 1
+      if ! tree_build "$work/unmutated.out"; then
+        unmutated_first=''
+        IFS= read -r unmutated_first < "$work/unmutated.out"
+        printf 'FAIL unmutated:build (%s)\n' "$unmutated_first"; return 1
       fi
       built_unmutated=yes
       if [ "$apply_only" = no ]; then
         gate_lines
         for gate_check in store deletion no-ll-hook; do
+          stop_check
           gate_line=$(grep -E "^[A-Z-]+ $gate_check( |\$)" "$work/gate.out")
+          step_check $? "read of the gate lines"
           case $gate_line in
             "PASS $gate_check"*) printf 'PASS unmutated:%s\n' "$gate_check" ;;
             *) printf 'FAIL unmutated:%s (gate said: %s)\n' "$gate_check" "${gate_line:-nothing}"; failures=$((failures + 1)) ;;
@@ -242,21 +480,32 @@ run_rows() {
     fi
     if [ "$apply_only" = no ] && [ "$row_state" != control ]; then
       case $row_verdict in 'test '*)
-        outcome=$(test_run "${row_verdict#test }")
+        test_run "${row_verdict#test }"
         if [ "$outcome" != passed ]; then
           say FAIL "$row_name" "unmutated, the test ${row_verdict#test } must run as one passing test: $outcome"; failures=$((failures + 1)); continue
         fi ;;
       esac
     fi
-    cp "$tree/$mutated" "$work/pristine" || return 2
-    if ! applied=$(ROW_SUBST=$row_subst perl "$DIR/helper/apply-row.pl" "$tree/$mutated" 2> "$work/perl.err"); then
+    stop_check
+    cp "$tree/$mutated" "$work/pristine"
+    step_check $? "copy of the file to mutate" || return 2
+    stop_check
+    applied=$(ROW_SUBST=$row_subst perl "$DIR/helper/apply-row.pl" "$tree/$mutated" 2> "$work/perl.err")
+    if ! step_check $? apply-row.pl; then
+      stop_check
       cp "$work/pristine" "$tree/$mutated"
+      step_check $? "restore of the mutated file" || return 2
       say FAIL "$row_name" "${applied:-the substitution could not be applied}"; failures=$((failures + 1)); continue
     fi
-    if cmp -s "$work/pristine" "$tree/$mutated"; then
+    stop_check
+    cmp -s "$work/pristine" "$tree/$mutated"
+    step_check $? cmp
+    row_cmp=$?
+    if [ "$row_cmp" -eq 0 ]; then
       say FAIL "$row_name" "the substitution did not apply"; failures=$((failures + 1)); continue
     fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
+    stop_check
     if [ "$row_state" = control ]; then
       if [ "$builds" = no ]; then say PASS "$row_name" "control: the mutant does not build, and the runner did not count it as caught"
       else say FAIL "$row_name" "control: the mutant built, so the build step proves nothing"; failures=$((failures + 1)); fi
@@ -267,40 +516,61 @@ run_rows() {
     else
       case $row_verdict in
         'test '*)
-          outcome=$(test_run "${row_verdict#test }")
+          test_run "${row_verdict#test }"
           if [ "$outcome" = failed ]; then say PASS "$row_name" "$row_verdict: the one test failed"; caught=$((caught + 1))
           else say FAIL "$row_name" "$row_verdict: $outcome"; failures=$((failures + 1)); fi ;;
         *)
           gate_lines
-          if gate_line=$(mutant_verdict "$row_verdict" "$work/gate.out"); then say PASS "$row_name" "$row_verdict: gate said: $gate_line"; caught=$((caught + 1))
+          stop_check
+          gate_line=$(mutant_verdict "$row_verdict" "$work/gate.out")
+          if step_check $? "read of the gate lines"; then say PASS "$row_name" "$row_verdict: gate said: $gate_line"; caught=$((caught + 1))
           else
+            stop_check
             gate_line=$(tr '\n' ' ' < "$work/gate.out")
+            step_check $? "read of the gate lines"
             say FAIL "$row_name" "$row_verdict not shown; gate said: $gate_line"; failures=$((failures + 1))
           fi ;;
       esac
     fi
-    cp "$work/pristine" "$tree/$mutated" || return 2
+    stop_check
+    cp "$work/pristine" "$tree/$mutated"
+    step_check $? "restore of the mutated file" || return 2
   done 3< "$work/rows.loop"
+  stop_check
   if [ -n "$budget" ]; then
-    row_now=$(date +%s)
+    row_clock
     row_seconds
   fi
-  missing=0
-  if [ -f "$tree/scripts/r1-gate/mutants.expected" ]; then
-    while IFS= read -r expected_name; do
-      [ -n "$expected_name" ] || continue
-      expected_row=$(awk -F '\t' -v n="$expected_name" '$3 == n' "$table")
-      [ -z "$expected_row" ] || continue
-      missing=$((missing + 1))
-      [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
-    done < "$tree/scripts/r1-gate/mutants.expected"
-  elif [ "$strict" = yes ]; then
-    say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1))
+  missing=0; unnamed=0; expected_list=$tree/scripts/r1-gate/mutants.expected
+  if [ ! -f "$expected_list" ]; then
+    expected_list=/dev/null
+    [ "$strict" = no ] || { say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1)); }
   fi
-  printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing"
+  stop_check
+  awk -F '\t' 'FILENAME == ARGV[1] { if ($0 != "") listed[++names] = $0; next }
+    $3 == "malformed" && $7 == "-" { next }
+    { have[$3] = 1; if ($7 ~ /^required/) required[++rows] = $3 "\t" $1 }
+    END {
+      for (i = 1; i <= names; i++) { named[listed[i]] = 1; if (!(listed[i] in have)) print "missing\t" listed[i] }
+      for (j = 1; j <= rows; j++) { split(required[j], part, "\t"); if (!(part[1] in named)) print "unnamed\t" required[j] }
+    }' "$expected_list" "$table" > "$work/tail.tsv"
+  step_check $? "read of mutants.expected" || return 2
+  while IFS="$TAB" read -r tail_kind tail_name tail_file; do
+    stop_check
+    case $tail_kind in
+      missing)
+        missing=$((missing + 1))
+        [ "$strict" = no ] || say FAIL "$tail_name" "named in mutants.expected, and no row file holds or retires it" ;;
+      *)
+        unnamed=$((unnamed + 1))
+        [ "$strict" = no ] || [ "$expected_list" = /dev/null ] || say FAIL "$tail_name" "strict: a required row of $tail_file, and mutants.expected does not name it" ;;
+    esac
+  done < "$work/tail.tsv"
+  stop_check
+  printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row, %s required rows with no expected name\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing" "$unnamed"
   [ "$failures" -eq 0 ] || return 1
   [ "$strict" = no ] && return 0
-  [ "$((opens + transitionals + unrun + missing))" -eq 0 ]
+  [ "$((opens + transitionals + unrun + budget_unrun + missing + unnamed))" -eq 0 ]
 }
 
 fixture_tree() {
@@ -316,11 +586,18 @@ row() {
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" "$7" >> "$gate_scratch/$1"
 }
 
+fixture_commit() {
+  ( cd "$1" && git init -q . && git add -A -- . ':(exclude)target' && fixture_commit_tree=$(git write-tree) &&
+    fixture_commit_id=$(printf 'tree %s\nauthor fixture <fixture@example.invalid> 1 +0000\ncommitter fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_commit_tree" | git hash-object -t commit -w --stdin) &&
+    git update-ref HEAD "$fixture_commit_id" ) > /dev/null 2>&1
+}
+
 fixture_run() {
-  list=no; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}; budget=${fixture_budget:-}
+  list=${fixture_list:-no}; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}; budget=${fixture_budget:-}
   work=$gate_scratch/work-$1
   mkdir -p "$work"
-  run_rows "$gate_scratch/$1"
+  fixture_commit "$gate_scratch/$1"
+  run_rows "$gate_scratch/$1" "$gate_scratch/$1" HEAD
 }
 
 fixture_says() {
@@ -353,6 +630,7 @@ stub_test() {
 #!/bin/sh
 here=${0%/*}
 read -r mode < "$here/demo.mode"
+printf '%s\n' "$*" > "$here/demo.args"
 got=FAIL
 if grep -q three "$here/b.sh"; then got=PASS; fi
 case $mode in
@@ -368,6 +646,125 @@ STUB
 
 with_only() {
   fixture_only=" $1"; shift
+  "$@"
+}
+
+stub_cargo() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf '%s\n' "$2" > "$gate_scratch/$1/bin/hold"
+  cat > "$gate_scratch/$1/bin/cargo" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+read -r hold < "$here/hold"
+printf 'cargo\n' >> "$here/starts"
+if [ "$hold" -gt 0 ]; then
+  : > "$here/marker"
+  sleep "$hold"
+  mv "$here/marker" "$here/marker.released"
+fi
+printf 'itself\n' > "$here/ended"
+printf 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n'
+STUB
+  chmod +x "$gate_scratch/$1/bin/cargo"
+}
+
+stub_cc() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf 'int x = 1;\n' > "$gate_scratch/$1/scripts/r1-gate/x.c"
+  cat > "$gate_scratch/$1/bin/cc" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+printf 'cc\n' >> "$here/starts"
+: > "$here/marker"
+sleep 2
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+STUB
+  chmod +x "$gate_scratch/$1/bin/cc"
+}
+
+stub_held_case() {
+  mkdir -p "$gate_scratch/$1/bin"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-hold.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+trap 'kill "$sleeper"; mv "$here/marker" "$here/marker.released"; printf "TERM\n" > "$here/ended"; exit 143' TERM
+printf 'case\n' >> "$here/starts"
+sleep 30 &
+sleeper=$!
+: > "$here/marker"
+wait
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'case hold/c1 want=FAIL got=FAIL\n'
+STUB
+}
+
+descendants_of() {
+  ps -axo pid=,ppid= | awk -v root="$1" '
+    { parent[$1] = $2 }
+    END { mark[root] = 1; grew = 1
+      while (grew) { grew = 0; for (p in parent) if (!(p in mark) && (parent[p] in mark)) { mark[p] = 1; grew = 1 } }
+      for (p in mark) if (p != root) print p }'
+}
+
+stopped_by() {
+  stop_fixture=$gate_scratch/$1; stop_signal_sent=$2; stop_whom=$3; stop_bound=$4; stop_mode=$5
+  stop_status_wanted=$6; stop_marker_wanted=$7; stop_ended_wanted=$8; stop_starts_wanted=$9; shift 9; stop_line_wanted=$1
+  fixture_commit "$stop_fixture"
+  perl -e 'setpgrp(0, 0); $SIG{$_} = "DEFAULT" for qw(INT TERM HUP QUIT); exec { $ARGV[0] } @ARGV or exit 127' sh -c 'stop_arg_fixture=$1; stop_arg_bound=$2; stop_arg_mode=$3; set -- --help; . "$0" > /dev/null 2>&1
+    PATH=$stop_arg_fixture/bin:$PATH; stop_wait_s=$stop_arg_bound; list=no; apply_only=no; strict=no; only=; budget=
+    [ "$stop_arg_mode" = run ] || apply_only=yes
+    work=$stop_arg_fixture.work; mkdir -p "$work"; stop_traps; run_rows "$stop_arg_fixture" "$stop_arg_fixture" HEAD' "$DIR/mutation-test.sh" "$stop_fixture" "$stop_bound" "$stop_mode" > "$stop_fixture.out" 2>&1 &
+  stop_pid=$!
+  stop_polls=0
+  until [ -f "$stop_fixture/bin/marker" ]; do
+    stop_polls=$((stop_polls + 1))
+    [ "$stop_polls" -lt 300 ] || { kill -s KILL -- "-$stop_pid"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$stop_polls"; return 1; }
+    sleep 0.1
+  done
+  case $stop_whom in
+    tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
+      kill -s "$stop_signal_sent" "$stop_pid" ;;
+    group) kill -s "$stop_signal_sent" -- "-$stop_pid" ;;
+    twice) kill -s "$stop_signal_sent" "$stop_pid"; sleep 0.5; kill -s TERM "$stop_pid" ;;
+    *) kill -s "$stop_signal_sent" "$stop_pid" ;;
+  esac
+  stop_polls=0
+  while kill -0 "$stop_pid" 2> /dev/null; do
+    stop_polls=$((stop_polls + 1))
+    [ "$stop_polls" -lt 400 ] || { kill -s KILL -- "-$stop_pid"; printf 'the runner did not end within %s polls of 0.1 s after the signal\n' "$stop_polls"; return 1; }
+    sleep 0.1
+  done
+  wait "$stop_pid"
+  stopped_status=$?
+  sleep 0.2
+  stop_starts=0
+  [ ! -f "$stop_fixture/bin/starts" ] || stop_starts=$(wc -l < "$stop_fixture/bin/starts" | tr -d ' ')
+  stop_left=$(pgrep -f "$stop_fixture/" | wc -l | tr -d ' ')
+  stop_marker=gone
+  [ ! -e "$stop_fixture/bin/marker" ] || stop_marker=left
+  stop_ended=none
+  [ ! -f "$stop_fixture/bin/ended" ] || read -r stop_ended < "$stop_fixture/bin/ended"
+  stop_defects=''
+  grep -F -x -q -e "$stop_line_wanted" "$stop_fixture.out" || stop_defects="$stop_defects; the runner printed no line $stop_line_wanted"
+  [ "$stopped_status" -eq "$stop_status_wanted" ] || stop_defects="$stop_defects; the runner exited $stopped_status, not $stop_status_wanted"
+  ! grep -q '^mutation rows: ' "$stop_fixture.out" || stop_defects="$stop_defects; the runner printed its count line"
+  stopped_lines=$(grep -c '^STOPPED ' "$stop_fixture.out")
+  [ "$stopped_lines" -le 1 ] || stop_defects="$stop_defects; the runner printed $stopped_lines STOPPED lines"
+  [ "$stop_marker" = "$stop_marker_wanted" ] || stop_defects="$stop_defects; the marker of the stand-in is $stop_marker, not $stop_marker_wanted"
+  [ "$stop_ended" = "$stop_ended_wanted" ] || stop_defects="$stop_defects; the stand-in ended by $stop_ended, not by $stop_ended_wanted"
+  [ "$stop_starts" -eq "$stop_starts_wanted" ] || stop_defects="$stop_defects; the stand-ins started $stop_starts times, not $stop_starts_wanted"
+  [ "$stop_left" -eq 0 ] || stop_defects="$stop_defects; $stop_left processes of the stand-ins are left"
+  stop_fail=$(grep -m 1 '^FAIL ' "$stop_fixture.out")
+  [ -z "$stop_fail" ] || stop_defects="$stop_defects; the runner printed $stop_fail"
+  [ -n "$stop_defects" ] || return 0
+  printf '%s\n' "${stop_defects#; }"
+  return 1
+}
+
+with_list() {
+  fixture_list=yes
   "$@"
 }
 
@@ -575,6 +972,57 @@ cases() {
   row twice/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
   row twice/code/mutants.rows same a.sh 's/one/1/' leak required X-2
   t name-twice FAIL fixture_run twice yes
+  t name-in-two-files-fails-the-list FAIL with_list fixture_run twice
+  t name-in-two-files-names-both PASS with_list fixture_says twice 'FAIL mutation:same (the name stands in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  fixture_tree twice-late
+  row twice-late/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  row twice-late/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row twice-late/code/mutants.rows same a.sh 's/one/1/' leak required X-2
+  t name-in-two-files-applies-no-row FAIL fixture_says twice-late 'PASS mutation:applies' yes
+  fixture_tree thrice
+  mkdir -p "$gate_scratch/thrice/code/inner"
+  printf 'echo three\n' > "$gate_scratch/thrice/code/inner/c.sh"
+  row thrice/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row thrice/code/mutants.rows same a.sh 's/one/1/' leak required X-2
+  row thrice/code/inner/mutants.rows same c.sh 's/three/3/' leak required X-3
+  t name-in-three-files-names-all-three PASS with_list fixture_says thrice 'FAIL mutation:same (the name stands in code/inner/mutants.rows line 1 and in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  t transitional-and-its-takeover-pass-the-list PASS with_list fixture_run moved
+  fixture_tree same-file
+  row same-file/code/mutants.rows shared code/a.sh 's/one/1/' leak transitional X-1
+  row same-file/code/mutants.rows shared a.sh 's/one/uno/' leak required X-2
+  t name-twice-in-one-file-with-a-transitional-row-is-refused FAIL with_list fixture_run same-file
+  fixture_tree lone
+  row lone/code/mutants.rows solo code/a.sh 's/one/1/' leak transitional X-1
+  t transitional-row-outside-the-gate-file-is-refused FAIL fixture_run lone yes
+  t transitional-row-outside-the-gate-file-is-named PASS fixture_says lone 'FAIL mutation:solo (a transitional row stands in scripts/r1-gate/mutants.rows, not in code/mutants.rows)' yes
+  fixture_tree malformed-name
+  row malformed-name/scripts/r1-gate/mutants.rows malformed b.sh 's/two/2/' leak required X-1
+  row malformed-name/code/mutants.rows malformed a.sh 's/one/1/' leak required X-2
+  t row-named-malformed-in-two-files-is-refused PASS with_list fixture_says malformed-name 'FAIL mutation:malformed (the name stands in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  fixture_tree numeric
+  row numeric/scripts/r1-gate/mutants.rows 1 code/a.sh 's/one/1/' leak transitional X-1
+  row numeric/code/mutants.rows 1.0 a.sh 's/one/uno/' leak required X-2
+  t transitional-row-not-taken-over-by-a-name-of-the-same-number FAIL fixture_run numeric yes
+  fixture_tree malformed-alone
+  row malformed-alone/scripts/r1-gate/mutants.rows malformed b.sh 's/two/three/' leak required X-1
+  t row-named-malformed-runs-as-a-row PASS fixture_says malformed-alone 'PASS mutation:malformed (applies and builds)' yes
+  fixture_tree takeover-gate
+  row takeover-gate/scripts/r1-gate/mutants.rows inner scripts/r1-gate/b.sh 's/two/2/' leak transitional X-1
+  row takeover-gate/scripts/r1-gate/mutants.rows inner b.sh 's/two/3/' leak required X-2
+  t transitional-row-on-a-file-beside-the-gate-file-is-refused FAIL with_list fixture_run takeover-gate
+  fixture_tree target-dir
+  mkdir -p "$gate_scratch/target-dir/code/target"
+  row target-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row target-dir/code/target/mutants.rows same c.sh 's/x/y/' leak required X-2
+  t rows-file-under-a-directory-named-target-is-read FAIL with_list fixture_run target-dir
+  fixture_tree build-dir
+  mkdir -p "$gate_scratch/build-dir/target"
+  row build-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row build-dir/target/mutants.rows same c.sh 's/x/y/' leak required X-2
+  t rows-file-in-the-build-directory-of-the-copy-is-not-read PASS with_list fixture_run build-dir
+  fixture_tree numeric-only
+  row numeric-only/scripts/r1-gate/mutants.rows 1.0 b.sh 's/two/2/' leak required X-1
+  t only-a-name-that-reads-as-the-number-of-another-names-no-row FAIL with_only 1 fixture_run numeric-only yes
   fixture_tree five
   printf 'five\tb.sh\ts/two/2/\tleak\trequired\n' >> "$gate_scratch/five/scripts/r1-gate/mutants.rows"
   t row-with-five-fields FAIL fixture_run five yes
@@ -607,6 +1055,34 @@ cases() {
   t expected-file-missing-fails-strict FAIL fixture_run no-expected yes yes
   t expected-file-missing-is-named PASS fixture_says no-expected 'FAIL mutation:expected (scripts/r1-gate/mutants.expected is missing, and --strict needs it)' yes yes
   t expected-file-missing-passes-without-strict PASS fixture_run no-expected yes
+  fixture_tree unnamed
+  row unnamed/scripts/r1-gate/mutants.rows unnamed-row b.sh 's/two/three/' leak required X-1
+  t required-row-with-no-expected-name-fails-strict FAIL fixture_run unnamed yes yes
+  t required-row-with-no-expected-name-is-named PASS fixture_says unnamed 'FAIL mutation:unnamed-row (strict: a required row of scripts/r1-gate/mutants.rows, and mutants.expected does not name it)' yes yes
+  t required-row-with-no-expected-name-passes-without-strict PASS fixture_run unnamed yes
+  fixture_tree named
+  row named/scripts/r1-gate/mutants.rows named-row b.sh 's/two/three/' leak required X-1
+  row named/code/mutants.rows other-row a.sh 's/one/1/' leak 'required on hosted-runner' X-2
+  printf 'named-row\nother-row\n' > "$gate_scratch/named/scripts/r1-gate/mutants.expected"
+  t required-rows-with-their-expected-names-pass-strict PASS not_ci fixture_run named yes yes
+  fixture_tree unnamed-place
+  row unnamed-place/scripts/r1-gate/mutants.rows named-row b.sh 's/two/three/' leak required X-1
+  row unnamed-place/code/mutants.rows other-row a.sh 's/one/1/' leak 'required on hosted-runner' X-2
+  printf 'named-row\n' > "$gate_scratch/unnamed-place/scripts/r1-gate/mutants.expected"
+  t required-on-a-place-row-with-no-expected-name-fails-strict FAIL not_ci fixture_run unnamed-place yes yes
+  t required-on-a-place-row-is-named-with-its-file PASS not_ci fixture_says unnamed-place 'FAIL mutation:other-row (strict: a required row of code/mutants.rows, and mutants.expected does not name it)' yes yes
+  fixture_tree unterminated
+  row unterminated/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\nnever-written' > "$gate_scratch/unterminated/scripts/r1-gate/mutants.expected"
+  t expected-name-on-a-last-line-without-its-line-end-fails-strict FAIL fixture_run unterminated yes yes
+  fixture_tree no-list-counted
+  row no-list-counted/scripts/r1-gate/mutants.rows counted b.sh 's/two/three/' leak required X-1
+  mv "$gate_scratch/no-list-counted/scripts/r1-gate/mutants.expected" "$gate_scratch/no-list-counted/expected-moved-away"
+  t required-row-is-counted-when-mutants-expected-is-missing PASS fixture_says no-list-counted ', 1 required rows with no expected name' yes
+  fixture_tree numeric-expected
+  row numeric-expected/scripts/r1-gate/mutants.rows 1.0 b.sh 's/two/2/' leak required X-1
+  printf '1.0\n1\n' > "$gate_scratch/numeric-expected/scripts/r1-gate/mutants.expected"
+  t expected-name-that-reads-as-the-number-of-a-row-fails-strict FAIL fixture_run numeric-expected yes yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
@@ -618,6 +1094,7 @@ cases() {
   t measuring-mac-row-under-ci-is-not-run PASS under_ci fixture_says mac 'NOT-RUN mutation:mac-only (runs on the measuring Mac)' yes
   fixture_tree input
   row input/scripts/r1-gate/mutants.rows typed b.sh 's/two/2/' leak 'required on hosted-runner' X-1
+  printf 'typed\n' > "$gate_scratch/input/scripts/r1-gate/mutants.expected"
   t input-row-here-is-not-run-and-no-fail PASS not_ci fixture_run input yes yes
   t input-row-here-is-named PASS not_ci fixture_says input 'NOT-RUN mutation:typed (needs input; runs on the hosted runner)' yes
   t input-row-runs-under-ci PASS under_ci fixture_says input 'PASS mutation:typed (applies and builds)' yes
@@ -634,6 +1111,486 @@ cases() {
   t limit-ends-a-hang FAIL limited 1 sleep 5
   t limit-passes-a-status PASS limited 5 true
   t limit-passes-a-failure FAIL limited 5 false
+  for stop_fixture_name in stop-tree stop-twice stop-case stop-group stop-bound stop-build stop-build-apply stop-build-last; do
+    fixture_tree "$stop_fixture_name"
+    stop_file=b.sh; stop_first='s/two/three/'; stop_second='s/echo two/echo 2/'; stop_verdict='test stand::in'
+    case $stop_fixture_name in
+      stop-case|stop-group) stub_held_case "$stop_fixture_name"; stop_verdict='test selftest:hold/c1' ;;
+      stop-bound) stub_cargo "$stop_fixture_name" 30 ;;
+      stop-build*) stub_cc "$stop_fixture_name"; stub_cargo "$stop_fixture_name" 0; stop_file=x.c; stop_first='s/1/2/'; stop_second='s/int/long/' ;;
+      *) stub_cargo "$stop_fixture_name" 2 ;;
+    esac
+    row "$stop_fixture_name/scripts/r1-gate/mutants.rows" held "$stop_file" "$stop_first" "$stop_verdict" required X-1
+    [ "$stop_fixture_name" = stop-build-last ] || row "$stop_fixture_name/scripts/r1-gate/mutants.rows" after "$stop_file" "$stop_second" "$stop_verdict" required X-1
+  done
+  stop_let_end='the running case was let end)'
+  t stop-by-term-to-every-process-lets-the-case-end PASS stopped_by stop-tree TERM tree 60 run 143 gone itself 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-by-hup-then-term-keeps-the-first-signal PASS stopped_by stop-twice HUP twice 60 run 129 gone itself 1 "STOPPED mutation:held (signal HUP; $stop_let_end"
+  t stop-by-term-to-the-runner-ends-a-self-test-case-by-its-trap PASS stopped_by stop-case TERM runner 60 run 143 gone TERM 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-by-term-to-the-runner-s-group-ends-a-self-test-case-by-its-trap PASS stopped_by stop-group TERM group 60 run 143 gone TERM 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-past-the-bound-kills-the-case PASS stopped_by stop-bound TERM runner 1 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running case did not end within 1 s and was killed)'
+  t stop-during-a-build-starts-no-test PASS stopped_by stop-build TERM runner 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-during-a-build-starts-no-new-row PASS stopped_by stop-build-apply TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-during-the-last-build-prints-no-count PASS stopped_by stop-build-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-build-group
+  stub_cc stop-build-group
+  row stop-build-group/scripts/r1-gate/mutants.rows held x.c 's/1/2/' leak required X-1
+  t stop-by-term-to-the-group-during-a-build-reports-no-build-failure PASS stopped_by stop-build-group TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-unmutated
+  mkdir -p "$gate_scratch/stop-unmutated/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-unmutated/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-unmutated/scripts/r1-gate/lib.sh"
+  stub_cargo stop-unmutated 30
+  row stop-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-gate
+  stub_gate_hold stop-gate
+  row stop-gate/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t stop-by-term-to-the-group-during-a-gate-check-reports-no-failure PASS stopped_by stop-gate TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-gate-unmutated
+  mkdir -p "$gate_scratch/stop-gate-unmutated/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-gate-unmutated/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-gate-unmutated/scripts/r1-gate/lib.sh"
+  stub_cargo stop-gate-unmutated 0
+  stub_gate_hold stop-gate-unmutated
+  row stop-gate-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-to-the-group-during-an-unmutated-gate-check-reports-no-failure PASS with_cargo_home stop-gate-unmutated stopped_by stop-gate-unmutated TERM group 60 run 143 left itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  for stop_fixture_name in stop-restore stop-restore-last; do
+    fixture_tree "$stop_fixture_name"
+    stub_cp "$stop_fixture_name"
+    row "$stop_fixture_name/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' leak required X-1
+    [ "$stop_fixture_name" = stop-restore-last ] || row "$stop_fixture_name/scripts/r1-gate/mutants.rows" after b.sh 's/echo two/echo 2/' leak required X-1
+  done
+  t stop-while-a-row-ends-starts-no-new-row PASS stopped_by stop-restore TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-while-the-last-row-ends-prints-no-count PASS stopped_by stop-restore-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  stop_cases_by_step
+  stop_cases_by_main
+  rule_cases
+}
+
+stop_line() {
+  case $1 in
+    TERM) stop_line_status=143; stop_line_lower=term ;;
+    INT) stop_line_status=130; stop_line_lower=int ;;
+    *) stop_line_status=129; stop_line_lower=hup ;;
+  esac
+}
+
+stop_cases_by_step() {
+  for step_fixture in p5-term p5-int p5-hup p5-group; do
+    fixture_tree "stop-$step_fixture"
+    mkdir -p "$gate_scratch/stop-$step_fixture/crates/x/src"
+    printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-$step_fixture/crates/x/src/lib.rs"
+    cp "$DIR/lib.sh" "$gate_scratch/stop-$step_fixture/scripts/r1-gate/lib.sh"
+    stub_cargo "stop-$step_fixture" 1
+    stub_gate_hold "stop-$step_fixture"
+    row "stop-$step_fixture/crates/x/mutants.rows" held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  done
+  for step_signal in TERM INT HUP; do
+    stop_line "$step_signal"
+    t "stop-by-$stop_line_lower-to-the-runner-during-the-unmutated-build-starts-no-gate-check" PASS with_cargo_home "stop-p5-$stop_line_lower" stopped_by "stop-p5-$stop_line_lower" "$step_signal" runner 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $step_signal; no test was running)"
+  done
+  t stop-by-term-to-the-group-during-the-unmutated-build-starts-no-gate-check PASS with_cargo_home stop-p5-group stopped_by stop-p5-group TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  for step_fixture in p6-term p6-int p6-hup p6-group; do
+    fixture_tree "stop-$step_fixture"
+    stub_gate_hold "stop-$step_fixture"
+    row "stop-$step_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'measured rows' required X-1
+  done
+  for step_signal in TERM INT HUP; do
+    stop_line "$step_signal"
+    t "stop-by-$stop_line_lower-to-the-runner-during-a-gate-check-starts-no-next-check" PASS stopped_by "stop-p6-$stop_line_lower" "$step_signal" runner 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $step_signal; no test was running)"
+  done
+  t stop-by-term-to-the-group-during-a-gate-check-starts-no-next-check PASS stopped_by stop-p6-group TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  for step_fixture in p7-term p7-int p7-hup; do
+    fixture_tree "stop-$step_fixture"
+    stub_hold "stop-$step_fixture" perl '*apply-row*'
+    row "stop-$step_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' leak required X-1
+  done
+  for step_signal in TERM INT HUP; do
+    stop_line "$step_signal"
+    t "stop-by-$stop_line_lower-to-the-group-during-the-apply-step-prints-no-fail" PASS stopped_by "stop-p7-$stop_line_lower" "$step_signal" group 60 apply-only "$stop_line_status" left none 0 "STOPPED mutation:held (signal $step_signal; no test was running)"
+  done
+  for step_fixture in p8-int p8-tree-int p8-tree-hup; do
+    fixture_tree "stop-$step_fixture"
+    stub_cargo "stop-$step_fixture" 2
+    row "stop-$step_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'test stand::in' required X-1
+    row "stop-$step_fixture/scripts/r1-gate/mutants.rows" after b.sh 's/echo two/echo 2/' 'test stand::in' required X-1
+  done
+  t stop-by-int-to-the-runner-lets-the-case-end PASS stopped_by stop-p8-int INT runner 60 run 130 gone itself 1 'STOPPED mutation:held (signal INT; the running case was let end)'
+  t stop-by-int-to-every-process-lets-the-case-end PASS stopped_by stop-p8-tree-int INT tree 60 run 130 gone itself 1 'STOPPED mutation:held (signal INT; the running case was let end)'
+  t stop-by-hup-to-every-process-lets-the-case-end PASS stopped_by stop-p8-tree-hup HUP tree 60 run 129 gone itself 1 'STOPPED mutation:held (signal HUP; the running case was let end)'
+}
+
+stop_cases_by_main() {
+  for main_phase in p1 p2 p3 p4 p9; do
+    for main_how in term int hup other; do main_fixture "main-$main_phase-$main_how"; done
+  done
+  for main_how in term int hup other; do
+    stub_hold "main-p1-$main_how" sort '*'
+    stub_hold "main-p3-$main_how" awk '*malformed*'
+    stub_hold "main-p4-$main_how" awk '*mutation:%s*'
+    stub_hold "main-p9-$main_how" awk '*ARGV*'
+  done
+  stub_hold main-p2-term git '*archive*'
+  stub_hold main-p2-other git '*archive*'
+  stub_hold main-p2-int tar '*'
+  stub_hold main-p2-hup cp '*-Rpc*'
+  mkdir -p "$gate_scratch/main-p2-hup/target/r1-gate"
+  printf 'built\n' > "$gate_scratch/main-p2-hup/target/r1-gate/x"
+  no_row='no row had started)'
+  for main_signal in TERM INT HUP; do
+    stop_line "$main_signal"
+    t "stop-by-$stop_line_lower-to-the-runner-before-the-flags-are-read" PASS main_stopped_by "main-p1-$stop_line_lower" "$main_signal" runner "$stop_line_status" "STOPPED mutation (signal $main_signal; $no_row" --list
+    t "stop-by-$stop_line_lower-to-the-group-during-the-copy-of-head" PASS main_stopped_by "main-p2-$stop_line_lower" "$main_signal" group "$stop_line_status" "STOPPED mutation (signal $main_signal; $no_row" --list
+    t "stop-by-$stop_line_lower-to-the-group-during-the-read-of-the-rows" PASS main_stopped_by "main-p3-$stop_line_lower" "$main_signal" group "$stop_line_status" "STOPPED mutation (signal $main_signal; $no_row" --list
+    t "stop-by-$stop_line_lower-to-the-runner-during-the-print-of-the-list" PASS main_stopped_by "main-p4-$stop_line_lower" "$main_signal" runner "$stop_line_status" "STOPPED mutation (signal $main_signal; $no_row" --list
+    t "stop-by-$stop_line_lower-to-the-runner-during-the-tail" PASS main_stopped_by "main-p9-$stop_line_lower" "$main_signal" runner "$stop_line_status" "STOPPED mutation:applies (signal $main_signal; no test was running)" --apply-only
+  done
+  t stop-by-term-to-the-group-before-the-flags-are-read PASS main_stopped_by main-p1-other TERM group 143 "STOPPED mutation (signal TERM; $no_row" --list
+  t stop-by-term-to-the-runner-during-the-copy-of-head PASS main_stopped_by main-p2-other TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --list
+  t stop-by-term-to-the-runner-during-the-read-of-the-rows PASS main_stopped_by main-p3-other TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --list
+  t stop-by-term-to-the-group-during-the-print-of-the-list PASS main_stopped_by main-p4-other TERM group 143 "STOPPED mutation (signal TERM; $no_row" --list
+  main_fixture main-step-first
+  stub_hold main-step-first awk '*malformed*'
+  t stop-by-term-to-a-step-and-then-to-the-runner-ends-as-a-stop PASS main_stopped_by main-step-first TERM step-first 143 "STOPPED mutation (signal TERM; $no_row" --list
+  main_fixture main-help
+  stub_hold main-help cat '*'
+  t stop-by-term-to-the-runner-during-the-help PASS main_stopped_by main-help TERM runner 143 "STOPPED mutation (signal TERM; $no_row" --help
+  t stop-by-term-to-the-group-during-the-tail-prints-no-false-fail PASS main_stopped_by main-p9-other TERM group 143 'STOPPED mutation:applies (signal TERM; no test was running)' --apply-only --strict
+  main_fixture main-p8
+  stub_cargo main-p8 2
+  row main-p8/scripts/r1-gate/mutants.rows tested b.sh 's/echo two/echo 2/' 'test stand::in' required X-1
+  printf 'applies\ntested\n' > "$gate_scratch/main-p8/scripts/r1-gate/mutants.expected"
+  t scratch-is-removed-after-a-stop-of-a-test PASS main_stopped_by main-p8 TERM runner 143 'STOPPED mutation:tested (signal TERM; the running case was let end)' --only tested
+  main_fixture main-clean
+  t scratch-is-removed-after-a-run-that-ends-0 PASS main_run main-clean 0 '' 0 --apply-only
+  main_fixture main-fail
+  row main-fail/scripts/r1-gate/mutants.rows stale b.sh 's/no such text/x/' leak required X-1
+  printf 'applies\nstale\n' > "$gate_scratch/main-fail/scripts/r1-gate/mutants.expected"
+  t scratch-is-removed-after-a-run-with-a-fail-line PASS main_run main-fail 1 'FAIL mutation:stale (the substitution did not apply)' 0 --apply-only
+  main_fixture main-keep
+  t scratch-is-kept-with-keep-scratch PASS main_run main-keep 0 'scratch mutation: ' 1 --apply-only --keep-scratch
+  main_fixture main-export
+  row main-export/code/mutants.rows other a.sh 's/one/1/' leak required X-2
+  printf 'applies\nother\n' > "$gate_scratch/main-export/scripts/r1-gate/mutants.expected"
+  printf 'code/mutants.rows export-ignore\n' > "$gate_scratch/main-export/.gitattributes"
+  t rows-file-that-the-export-leaves-out-is-refused PASS main_run main-export 1 'FAIL mutation:rows (the tracked path code/mutants.rows is not a file of the copy of HEAD)' 0 --list
+}
+
+rule_cases() {
+  t stop-bound-is-60-s PASS stop_bound_is_60
+  t no-test-starts-after-a-recorded-signal PASS test_after_a_signal
+  t a-step-ended-by-a-signal-that-the-runner-did-not-get-exits-2 PASS step_ended_by_a_signal_of_its_own
+  t a-gate-case-that-a-row-runs-gets-remove-scratch PASS case_args_hold tested
+  fixture_tree two-takeovers
+  row two-takeovers/scripts/r1-gate/mutants.rows shared code/a.sh 's/one/1/' leak transitional X-1
+  row two-takeovers/code/mutants.rows shared a.sh 's/one/uno/' leak required X-2
+  row two-takeovers/code/mutants.rows shared a.sh 's/one/eins/' leak required X-3
+  t transitional-row-with-two-takeovers-is-refused FAIL with_list fixture_run two-takeovers
+  fixture_tree unrelated
+  mkdir -p "$gate_scratch/unrelated/other"
+  printf 'echo x\n' > "$gate_scratch/unrelated/other/x.sh"
+  row unrelated/scripts/r1-gate/mutants.rows shared code/a.sh 's/one/1/' leak transitional X-1
+  row unrelated/other/mutants.rows shared x.sh 's/x/y/' leak required X-2
+  t transitional-row-and-a-row-in-an-unrelated-rows-file-are-refused FAIL with_list fixture_run unrelated
+  fixture_tree two-malformed
+  printf 'broken\tline\nalso\tbroken\n' >> "$gate_scratch/two-malformed/scripts/r1-gate/mutants.rows"
+  t two-malformed-lines-give-the-six-field-fail PASS fixture_says two-malformed 'FAIL mutation:malformed (line 2 of scripts/r1-gate/mutants.rows has no six fields' yes
+  fixture_tree linked
+  row linked/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\n' > "$gate_scratch/linked/scripts/r1-gate/mutants.expected"
+  row linked/code/real.rows unread a.sh 's/one/1/' leak required X-2
+  ln -s real.rows "$gate_scratch/linked/code/mutants.rows"
+  t rows-file-that-is-a-symbolic-link-fails-strict FAIL fixture_run linked yes yes
+  t rows-file-that-is-a-symbolic-link-is-named PASS with_list fixture_says linked 'FAIL mutation:rows (the tracked path code/mutants.rows is a symbolic link)'
+  fixture_tree slashed
+  mkdir -p "$gate_scratch/slashed/a\\b"
+  row 'slashed/a\b/mutants.rows' other x.sh 's/x/y/' leak required X-2
+  t rows-file-whose-path-holds-a-backslash-is-refused PASS with_list fixture_says slashed 'holds a tab, a newline, a backslash or a quote)'
+  fixture_tree capital
+  mkdir -p "$gate_scratch/capital/other"
+  row capital/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  row capital/other/Mutants.rows applies x.sh 's/x/y/' leak required X-2
+  t a-file-named-Mutants-rows-is-no-rows-file PASS with_list fixture_run capital
+  fixture_tree backslash-name
+  row backslash-name/scripts/r1-gate/mutants.rows 'a\b' b.sh 's/two/three/' leak 'retired replaced by the test store::x' X-1
+  printf '%s\n' 'a\\b' > "$gate_scratch/backslash-name/scripts/r1-gate/mutants.expected"
+  t expected-name-with-two-backslashes-has-no-row-of-one FAIL fixture_run backslash-name yes yes
+  fixture_tree budget-strict
+  row budget-strict/scripts/r1-gate/mutants.rows first b.sh 's/two/three/' leak required X-1
+  row budget-strict/scripts/r1-gate/mutants.rows second b.sh 's/echo two/echo 2/' leak required X-1
+  printf 'first\nsecond\n' > "$gate_scratch/budget-strict/scripts/r1-gate/mutants.expected"
+  t strict-fails-on-a-row-that-the-budget-left-unrun FAIL with_budget 0 with_only 'first second' fixture_run budget-strict yes yes
+  t strict-names-a-row-that-the-budget-left-unrun PASS with_budget 0 with_only 'first second' fixture_says budget-strict 'FAIL mutation:second (strict: the budget left the row unrun)' yes yes
+  t the-bound-is-passed-at-it-and-after-it-and-not-before PASS bound_compare
+  fixture_tree empty-line
+  row empty-line/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\n\n' > "$gate_scratch/empty-line/scripts/r1-gate/mutants.expected"
+  t an-empty-line-of-the-list-is-no-name PASS fixture_run empty-line yes yes
+  killed_cases
+}
+
+bound_compare() {
+  stop_past_bound 59 60 && { printf 'one second under the bound reads as past it\n'; return 1; }
+  stop_past_bound 60 60 || { printf 'the bound itself does not read as past it\n'; return 1; }
+  stop_past_bound 61 60 || { printf 'one second over the bound does not read as past it\n'; return 1; }
+  return 0
+}
+
+killed_cases() {
+  for killed_fixture in killed-control killed-measured killed-build; do
+    fixture_tree "$killed_fixture"
+  done
+  mkdir -p "$gate_scratch/killed-control/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/killed-control/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/killed-control/scripts/r1-gate/lib.sh"
+  stub_cargo killed-control 0
+  stub_killable_store killed-control
+  row killed-control/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t a-killed-gate-check-of-the-control-pass-is-no-gate-line PASS with_cargo_home killed-control killed_by_case killed-control run 'FAIL step:check-store (ended by signal KILL; the runner got no signal)'
+  stub_killable_store killed-measured
+  row killed-measured/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t a-killed-gate-check-of-a-measured-row-is-no-gate-line PASS killed_by_case killed-measured run 'FAIL step:check-store (ended by signal KILL; the runner got no signal)'
+  stub_killable_cc killed-build
+  row killed-build/scripts/r1-gate/mutants.rows held x.c 's/1/2/' leak required X-1
+  t a-killed-build-of-a-mutant-is-no-build-failure PASS killed_by_case killed-build apply-only 'FAIL step:build of the mutant (ended by signal KILL; the runner got no signal)'
+}
+
+stub_killable_store() {
+  mkdir -p "$gate_scratch/$1/bin"
+  for stub in deletion no-ll-hook; do
+    # shellcheck disable=SC2016
+    printf '#!/bin/sh\nprintf "%s\\n" >> "${0%%/*}/../../bin/starts"\nprintf "PASS %s\\n"\n' "$stub" "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+printf '%s\n' "$$" > "$here/killme.tmp"
+mv "$here/killme.tmp" "$here/killme.pid"
+exec sleep 30
+STUB
+}
+
+stub_killable_cc() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf 'int x = 1;\n' > "$gate_scratch/$1/scripts/r1-gate/x.c"
+  cat > "$gate_scratch/$1/bin/cc" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+printf '%s\n' "$$" > "$here/killme.tmp"
+mv "$here/killme.tmp" "$here/killme.pid"
+exec sleep 30
+STUB
+  chmod +x "$gate_scratch/$1/bin/cc"
+}
+
+killed_by_case() {
+  killed_fx=$gate_scratch/$1; killed_mode=$2; killed_line=$3
+  fixture_commit "$killed_fx"
+  perl -e 'setpgrp(0, 0); $SIG{$_} = "DEFAULT" for qw(INT TERM HUP QUIT); exec { $ARGV[0] } @ARGV or exit 127' sh -c 'killed_arg_fixture=$1; killed_arg_mode=$2; set -- --help; . "$0" > /dev/null 2>&1
+    PATH=$killed_arg_fixture/bin:$PATH; list=no; apply_only=no; strict=no; only=; budget=
+    [ "$killed_arg_mode" = run ] || apply_only=yes
+    work=$killed_arg_fixture.work; mkdir -p "$work"; stop_traps; run_rows "$killed_arg_fixture" "$killed_arg_fixture" HEAD' "$DIR/mutation-test.sh" "$killed_fx" "$killed_mode" > "$killed_fx.out" 2>&1 &
+  killed_runner=$!
+  killed_polls=0
+  until [ -s "$killed_fx/bin/killme.pid" ]; do
+    killed_polls=$((killed_polls + 1))
+    [ "$killed_polls" -lt 300 ] || { kill -s KILL -- "-$killed_runner"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$killed_polls"; return 1; }
+    sleep 0.1
+  done
+  read -r killed_victim < "$killed_fx/bin/killme.pid"
+  kill -s KILL "$killed_victim"
+  killed_polls=0
+  while kill -0 "$killed_runner" 2> /dev/null; do
+    killed_polls=$((killed_polls + 1))
+    [ "$killed_polls" -lt 400 ] || { kill -s KILL -- "-$killed_runner"; printf 'the runner did not end within %s polls of 0.1 s\n' "$killed_polls"; return 1; }
+    sleep 0.1
+  done
+  wait "$killed_runner"
+  killed_status=$?
+  killed_defects=''
+  [ "$killed_status" -eq 2 ] || killed_defects="$killed_defects; the runner exited $killed_status, not 2"
+  grep -F -x -q -e "$killed_line" "$killed_fx.out" || killed_defects="$killed_defects; the runner printed no line $killed_line"
+  ! grep -q '^mutation rows: ' "$killed_fx.out" || killed_defects="$killed_defects; the runner printed its count line"
+  ! grep -q '^PASS mutation:' "$killed_fx.out" || killed_defects="$killed_defects; the runner counted a row as caught"
+  ! grep -q '^STOPPED ' "$killed_fx.out" || killed_defects="$killed_defects; the runner printed a STOPPED line"
+  [ -n "$killed_defects" ] || return 0
+  printf '%s\n' "${killed_defects#; }"
+  return 1
+}
+
+stub_cp() {
+  mkdir -p "$gate_scratch/$1/bin"
+  cat > "$gate_scratch/$1/bin/cp" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+case $1 in
+  *pristine)
+    printf 'cp\n' >> "$here/starts"
+    : > "$here/marker"
+    sleep 2
+    mv "$here/marker" "$here/marker.released"
+    printf 'itself\n' > "$here/ended" ;;
+esac
+exec /bin/cp "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/cp"
+}
+
+stub_gate_hold() {
+  mkdir -p "$gate_scratch/$1/bin"
+  for stub in deletion no-ll-hook; do
+    # shellcheck disable=SC2016
+    printf '#!/bin/sh\nprintf "%s\\n" >> "${0%%/*}/../../bin/starts"\nprintf "PASS %s\\n"\n' "$stub" "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+: > "$here/marker"
+sleep 1
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'PASS store\n'
+STUB
+}
+
+stub_hold() {
+  mkdir -p "$gate_scratch/$1/bin"
+  stub_hold_real=$(command -v "$2")
+  printf '%s\n' "$stub_hold_real" > "$gate_scratch/$1/bin/$2.real"
+  [ -z "${3:-}" ] || printf '%s\n' "$3" > "$gate_scratch/$1/bin/$2.when"
+  cat > "$gate_scratch/$1/bin/$2" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+tool=${0##*/}
+printf '%s %s\n' "$tool" "$*" >> "$here/calls"
+read -r real < "$here/$tool.real"
+when=''
+[ ! -f "$here/$tool.when" ] || read -r when < "$here/$tool.when"
+if [ -n "$when" ] && [ ! -e "$here/held" ]; then
+  case "$*" in
+    $when) printf '%s\n' "$$" > "$here/held"; : > "$here/marker"; sleep 1; mv "$here/marker" "$here/marker.released" ;;
+  esac
+fi
+exec "$real" "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/$2"
+}
+
+main_fixture() {
+  fixture_tree "$1"
+  main_fixture_dir=$gate_scratch/$1
+  mkdir -p "$main_fixture_dir/bin" "$main_fixture_dir.tmp" "$main_fixture_dir/scripts/r1-gate/helper"
+  cp "$DIR/helper/"* "$main_fixture_dir/scripts/r1-gate/helper/"
+  cp "$DIR/lib.sh" "$main_fixture_dir/scripts/r1-gate/lib.sh"
+  for main_fixture_tool in git tar cp awk sort perl cmp grep mkdir mktemp; do
+    stub_hold "$1" "$main_fixture_tool"
+  done
+  row "$1/scripts/r1-gate/mutants.rows" applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\n' > "$main_fixture_dir/scripts/r1-gate/mutants.expected"
+}
+
+main_launch() {
+  main_launch_fx=$gate_scratch/$1; shift
+  fixture_commit "$main_launch_fx"
+  : > "$main_launch_fx/bin/calls"
+  perl -e 'setpgrp(0, 0); $SIG{$_} = "DEFAULT" for qw(INT TERM HUP QUIT); exec { $ARGV[0] } @ARGV or exit 127' env GATE_ROOT="$main_launch_fx" CARGO_HOME="$main_launch_fx" TMPDIR="$main_launch_fx.tmp" PATH="$main_launch_fx/bin:$PATH" sh "$DIR/mutation-test.sh" "$@" > "$main_launch_fx.out" 2>&1 &
+  main_launch_pid=$!
+}
+
+main_ended() {
+  main_ended_polls=0
+  while kill -0 "$main_launch_pid" 2> /dev/null; do
+    main_ended_polls=$((main_ended_polls + 1))
+    [ "$main_ended_polls" -lt 600 ] || { kill -s KILL -- "-$main_launch_pid"; printf 'the runner did not end within %s polls of 0.1 s\n' "$main_ended_polls"; return 1; }
+    sleep 0.1
+  done
+  wait "$main_launch_pid"
+  main_ended_status=$?
+  main_ended_left=$(find "$main_launch_fx.tmp" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+}
+
+main_run() {
+  main_run_want=$2; main_run_line=$3; main_run_left=$4; main_run_name=$1; shift 4
+  main_launch "$main_run_name" "$@"
+  main_ended || return 1
+  main_run_defects=''
+  [ "$main_ended_status" -eq "$main_run_want" ] || main_run_defects="$main_run_defects; the runner exited $main_ended_status, not $main_run_want"
+  [ -z "$main_run_line" ] || grep -F -q -e "$main_run_line" "$main_launch_fx.out" || main_run_defects="$main_run_defects; the runner printed no line with $main_run_line"
+  [ "$main_ended_left" -eq "$main_run_left" ] || main_run_defects="$main_run_defects; TMPDIR holds $main_ended_left entries, not $main_run_left"
+  [ -n "$main_run_defects" ] || return 0
+  printf '%s\n' "${main_run_defects#; }"
+  return 1
+}
+
+main_stopped_by() {
+  main_stop_name=$1; main_stop_signal=$2; main_stop_whom=$3; main_stop_want=$4; main_stop_line=$5; shift 5
+  main_launch "$main_stop_name" "$@"
+  main_stop_polls=0
+  until [ -f "$main_launch_fx/bin/marker" ]; do
+    main_stop_polls=$((main_stop_polls + 1))
+    [ "$main_stop_polls" -lt 300 ] || { kill -s KILL -- "-$main_launch_pid"; printf 'the held step did not start within %s polls of 0.1 s\n' "$main_stop_polls"; return 1; }
+    sleep 0.1
+  done
+  main_stop_calls=$(wc -l < "$main_launch_fx/bin/calls" | tr -d ' ')
+  case $main_stop_whom in
+    group) kill -s "$main_stop_signal" -- "-$main_launch_pid" ;;
+    step-first) read -r main_stop_step < "$main_launch_fx/bin/held"; kill -s "$main_stop_signal" "$main_stop_step"; sleep 0.5; kill -s "$main_stop_signal" "$main_launch_pid" ;;
+    *) kill -s "$main_stop_signal" "$main_launch_pid" ;;
+  esac
+  main_ended || return 1
+  sleep 0.2
+  main_stop_calls_end=$(wc -l < "$main_launch_fx/bin/calls" | tr -d ' ')
+  main_stop_defects=''
+  grep -F -x -q -e "$main_stop_line" "$main_launch_fx.out" || main_stop_defects="$main_stop_defects; the runner printed no line $main_stop_line"
+  main_stop_count=$(grep -c '^STOPPED ' "$main_launch_fx.out")
+  [ "$main_stop_count" -eq 1 ] || main_stop_defects="$main_stop_defects; the runner printed $main_stop_count STOPPED lines"
+  [ "$main_ended_status" -eq "$main_stop_want" ] || main_stop_defects="$main_stop_defects; the runner exited $main_ended_status, not $main_stop_want"
+  main_stop_fail=$(grep -m 1 -e '^FAIL ' -e '^mutation rows: ' "$main_launch_fx.out")
+  [ -z "$main_stop_fail" ] || main_stop_defects="$main_stop_defects; the runner printed $main_stop_fail"
+  [ "$main_stop_calls_end" -eq "$main_stop_calls" ] || main_stop_defects="$main_stop_defects; $((main_stop_calls_end - main_stop_calls)) steps started after the signal"
+  [ "$main_ended_left" -eq 0 ] || main_stop_defects="$main_stop_defects; TMPDIR holds $main_ended_left entries after the stop"
+  [ -n "$main_stop_defects" ] || return 0
+  printf '%s\n' "${main_stop_defects#; }"
+  return 1
+}
+
+stop_bound_is_60() {
+  [ "$stop_wait_s" -eq 60 ]
+}
+
+test_after_a_signal() {
+  test_after_dir=$gate_scratch/test-after-a-signal
+  mkdir -p "$test_after_dir/work"
+  ( work=$test_after_dir/work; tree=$test_after_dir; row_name=held; stop_row=held; stop_signal=TERM; stop_status=143
+    # shellcheck disable=SC2016
+    test_wait case 30 sh -c ': > "$1/started"' sh "$test_after_dir" ) > "$test_after_dir.out" 2>&1
+  test_after_status=$?
+  [ "$test_after_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$test_after_status"; return 1; }
+  [ ! -e "$test_after_dir/started" ] || { printf 'the test started after the signal\n'; return 1; }
+  grep -F -x -q 'STOPPED mutation:held (signal TERM; no test was running)' "$test_after_dir.out" || { printf 'no STOPPED line\n'; return 1; }
+}
+
+step_ended_by_a_signal_of_its_own() {
+  step_own_out=$gate_scratch/step-ended-by-a-signal.out
+  ( stop_row=held; step_check 143 cmp ) > "$step_own_out" 2>&1
+  step_own_status=$?
+  [ "$step_own_status" -eq 2 ] || { printf 'exit %s, not 2\n' "$step_own_status"; return 1; }
+  grep -F -x -q 'FAIL step:cmp (ended by signal TERM; the runner got no signal)' "$step_own_out" || { printf 'no FAIL step line\n'; return 1; }
+}
+
+case_args_hold() {
+  fixture_run "$1" > /dev/null
+  grep -q -e '--remove-scratch' "$gate_scratch/$1/scripts/r1-gate/demo.args"
+}
+
+with_cargo_home() {
+  CARGO_HOME=$gate_scratch/$1
+  export CARGO_HOME
+  shift
+  "$@"
 }
 
 under_ci() {
@@ -647,7 +1604,8 @@ not_ci() {
 }
 
 main() {
-  mode=run; strict=no; apply_only=no; list=no; only=''; budget=''
+  mode=run; strict=no; apply_only=no; list=no; only=''; budget=''; main_help=no; main_bad=''
+  gate_remove_scratch=yes
   while [ $# -gt 0 ]; do
     case $1 in
       --self-test) mode=self-test ;;
@@ -656,26 +1614,58 @@ main() {
       --strict) strict=yes ;;
       --apply-only) apply_only=yes ;;
       --list) list=yes ;;
-      --only) shift; [ -n "${1:-}" ] || { usage >&2; return 64; }; only="$only $1" ;;
-      --budget) shift; case ${1:-} in ''|*[!0-9]*) usage >&2; return 64 ;; esac; budget=$1 ;;
+      --only) shift; [ -n "${1:-}" ] || { main_bad=--only; break; }; only="$only $1" ;;
+      --budget) shift; case ${1:-} in ''|*[!0-9]*) main_bad=--budget; break ;; esac; budget=$1 ;;
       --remove-scratch) gate_remove_scratch=yes ;;
-      -h|--help) usage; return 0 ;;
-      *) printf 'mutation-test.sh: unknown argument: %s\n' "$1" >&2; usage >&2; return 64 ;;
+      --keep-scratch) gate_remove_scratch=no ;;
+      -h|--help) main_help=yes; break ;;
+      *) main_bad=$1; break ;;
     esac
     shift
   done
-  gate_traps
-  if [ "$mode" = self-test ]; then selftest_run; return; fi
-  scratch_root
-  work=$gate_scratch/work; tree=$gate_scratch/tree
-  mkdir "$work" "$tree" || return 2
-  git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { say FAIL copy "git archive of HEAD failed"; return 2; }
-  tar -xmf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
-  if [ -d "$GATE_TARGET" ]; then
-    mkdir "$tree/target" || return 2
-    cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null || cp -Rp "$GATE_TARGET" "$tree/target/r1-gate" || return 2
+  stop_check
+  if [ "$mode" = self-test ] && [ "$main_help" = no ] && [ -z "$main_bad" ]; then
+    gate_traps
+    selftest_run
+    return
   fi
-  run_rows "$tree"
+  trap runner_exit EXIT
+  if [ "$main_help" = yes ]; then usage; return 0; fi
+  case $main_bad in
+    '') ;;
+    --only|--budget) usage >&2; return 64 ;;
+    *) printf 'mutation-test.sh: unknown argument: %s\n' "$main_bad" >&2; usage >&2; return 64 ;;
+  esac
+  stop_check
+  main_base=${TMPDIR:-/tmp}
+  gate_scratch=$(mktemp -d "${main_base%/}/r1-gate-$name.XXXXXX")
+  step_check $? mktemp || { gate_scratch=''; say FAIL copy "mktemp could not make a scratch directory"; return 2; }
+  work=$gate_scratch/work; tree=$gate_scratch/tree
+  stop_check
+  mkdir "$work" "$tree"
+  step_check $? mkdir || return 2
+  stop_check
+  main_commit=$(git -C "$GATE_ROOT" rev-parse --verify -q 'HEAD^{commit}')
+  step_check $? "git rev-parse" || { say FAIL copy "git could not read HEAD"; return 2; }
+  stop_check
+  git -C "$GATE_ROOT" archive -o "$work/head.tar" "$main_commit"
+  step_check $? "git archive" || { say FAIL copy "git archive of HEAD failed"; return 2; }
+  stop_check
+  tar -xmf "$work/head.tar" -C "$tree"
+  step_check $? tar || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
+  if [ -d "$GATE_TARGET" ]; then
+    stop_check
+    mkdir "$tree/target"
+    step_check $? mkdir || return 2
+    stop_check
+    cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null
+    if ! step_check $? "copy of the build directory"; then
+      stop_check
+      cp -Rp "$GATE_TARGET" "$tree/target/r1-gate"
+      step_check $? "copy of the build directory" || return 2
+    fi
+  fi
+  run_rows "$tree" "$GATE_ROOT" "$main_commit"
 }
 
 main "$@"

@@ -1,0 +1,18 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1; B-51, condition status 409",
+  "about": "the body says stopped and every other condition of line 1 holds, but the status is 500",
+  "source": "by hand",
+  "request": {
+    "status": 500
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

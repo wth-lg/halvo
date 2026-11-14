@@ -7,6 +7,8 @@ const TRACES: &str = "../../formal/r6-spend/traces.jsonl";
 const MICRO_PER_MINOR: u64 = 10_000;
 const LEAST_TRACES: usize = 200;
 const MOST_MOVES: usize = 12;
+const DIRECTED: usize = 6;
+const DIRECTED_MOVES: usize = 5;
 const HEADER_KEYS: [&str; 2] = ["count", "seed"];
 const TRACE_KEYS: [&str; 5] = ["active", "cap", "held", "moves", "spent"];
 const MOVE_KEYS: [&str; 7] = ["answer", "arg", "cost", "held", "move", "spent", "state"];
@@ -209,10 +211,24 @@ fn read_file(text: &str) -> Result<Vec<Trace>, String> {
         .enumerate()
         .map(|(index, text)| read_trace(text, index + 2))
         .collect::<Result<Vec<_>, String>>()?;
-    if traces.len() < LEAST_TRACES {
+    for (index, trace) in traces.iter().enumerate() {
+        let (kind, want) = if index < DIRECTED {
+            ("directed", DIRECTED_MOVES)
+        } else {
+            ("drawn", MOST_MOVES)
+        };
+        if trace.moves.len() != want {
+            return Err(format!(
+                "line {}: the trace has {} moves, and a {kind} trace {want}",
+                trace.line,
+                trace.moves.len()
+            ));
+        }
+    }
+    let drawn = traces.len().saturating_sub(DIRECTED);
+    if drawn < LEAST_TRACES {
         return Err(format!(
-            "the file holds {} traces, fewer than {LEAST_TRACES}",
-            traces.len()
+            "the file holds {drawn} drawn traces, fewer than {LEAST_TRACES}"
         ));
     }
     if u64::try_from(traces.len()) != Ok(count) {
@@ -280,7 +296,56 @@ fn check(text: &str) -> Result<(usize, usize), String> {
             faults[..faults.len().min(20)].join("\n")
         ));
     }
+    directed(&traces[..DIRECTED])?;
     Ok((traces.len(), moves))
+}
+
+fn directed(traces: &[Trace]) -> Result<(), String> {
+    let pattern = [
+        ("reserve", Ok(())),
+        ("dispatch", Ok(())),
+        ("settle", Ok(())),
+        ("reserve", Err(SpendCause::Repeat)),
+        ("settle", Err(SpendCause::State)),
+    ];
+    let mut classes = [0; 3];
+    for trace in traces {
+        let shape: Vec<(&str, Result<(), SpendCause>)> = trace
+            .moves
+            .iter()
+            .map(|(mv, want)| (mv.name(), want.answer))
+            .collect();
+        let costs = match (trace.moves[0].0, trace.moves[2].0, trace.moves[4].0) {
+            (Move::Reserve { amount }, Move::Settle { cost }, Move::Settle { cost: again })
+                if shape == pattern && again == cost + MICRO_PER_MINOR =>
+            {
+                Some((amount, cost))
+            }
+            _ => None,
+        };
+        let class = match costs {
+            Some((_, 0)) => 0,
+            Some((amount, cost)) if cost < amount => 1,
+            Some((amount, cost)) if cost == amount => 2,
+            _ => {
+                return Err(format!(
+                    "line {}: a directed trace is a reserve, a dispatch and a settle at or under \
+                     the amount that go through, then the reserve again, answered repeat, and a \
+                     settle at one more cost, answered state",
+                    trace.line
+                ))
+            }
+        };
+        classes[class] += 1;
+    }
+    if classes != [2, 2, 2] {
+        return Err(format!(
+            "the costs of the directed settles are 0 in {}, below the amount in {} and at it in \
+             {}, and the six directed traces have two of each",
+            classes[0], classes[1], classes[2]
+        ));
+    }
+    Ok(())
 }
 
 fn committed() -> String {
@@ -619,6 +684,109 @@ fn a_fault_names_its_file_line_and_its_move() {
         let name = format!("line {line} move {} ", index + 1);
         assert!(fault.contains(&name), "{name}: {fault}");
     }
+}
+
+fn with_header(count: usize, lines: &[&str]) -> String {
+    let mut text = format!("{{\"seed\":3,\"count\":{count}}}");
+    for line in lines {
+        text.push('\n');
+        text.push_str(line);
+    }
+    text
+}
+
+#[test]
+fn the_floor_refuses_a_file_without_the_directed_traces() {
+    let text = committed();
+    let drawn: Vec<&str> = text.lines().skip(7).collect();
+    let fault = check(&with_header(drawn.len(), &drawn)).expect_err("no directed traces");
+    assert!(fault.contains("line 2: the trace has 12 moves"), "{fault}");
+}
+
+#[test]
+fn the_floor_refuses_199_drawn_traces() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().skip(1).collect();
+    let fewer = &lines[..lines.len() - 1];
+    let fault = check(&with_header(fewer.len(), fewer)).expect_err("199 drawn traces");
+    assert!(
+        fault.contains("the file holds 199 drawn traces, fewer than 200"),
+        "{fault}"
+    );
+}
+
+#[test]
+fn the_floor_refuses_one_trace_written_206_times() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().collect();
+    for (line, fragment) in [
+        (2, "line 8: the trace has 5 moves"),
+        (8, "line 2: the trace has 12 moves"),
+    ] {
+        let copies = vec![lines[line - 1]; 206];
+        let fault = check(&with_header(206, &copies)).expect_err("one trace 206 times");
+        assert!(fault.contains(fragment), "line {line}: {fault}");
+    }
+}
+
+#[test]
+fn the_floor_refuses_directed_traces_that_are_not_the_six() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().collect();
+    let mut first_six_times = vec![lines[1]; 6];
+    first_six_times.extend(&lines[7..]);
+    let mut no_below = lines[1..].to_vec();
+    no_below[0] = lines[3];
+    no_below[1] = lines[4];
+    let mut swapped = lines[1..].to_vec();
+    swapped.swap(5, 6);
+    let cases = [
+        (
+            "the first directed trace six times",
+            with_header(206, &first_six_times),
+            "the costs of the directed settles",
+        ),
+        (
+            "two settles at the amount in place of the two below it",
+            with_header(206, &no_below),
+            "the costs of the directed settles are 0 in 2, below the amount in 0 and at it in 4",
+        ),
+        (
+            "a drawn trace among the directed ones",
+            with_header(206, &swapped),
+            "the trace has",
+        ),
+        (
+            "a last settle with the same cost",
+            with_line(&text, 3, |trace| {
+                trace["moves"][4]["arg"] = trace["moves"][2]["arg"].clone()
+            }),
+            "line 3: a directed trace",
+        ),
+        (
+            "no reserve answered repeat",
+            with_line(&text, 4, |trace| {
+                let moves = trace["moves"].as_array_mut().expect("a list of moves");
+                moves[3] = moves[2].clone();
+                moves[3]["move"] = json!("dispatch");
+                moves[3]["arg"] = Value::Null;
+                moves[3]["answer"] = json!("used");
+            }),
+            "line 4: a directed trace",
+        ),
+    ];
+    let taken: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, fragment)| match check(text) {
+            Err(fault) if fault.contains(fragment) => None,
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+            Ok(_) => Some(format!("{name}: accepted")),
+        })
+        .collect();
+    assert!(
+        taken.is_empty(),
+        "the floor took or refused otherwise: {taken:?}"
+    );
 }
 
 #[test]

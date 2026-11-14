@@ -1,0 +1,17 @@
+{
+  "kind": "gateway",
+  "ruling": "B-33, B-37",
+  "about": "the driver starts the gateway of a void cell with the void hold life",
+  "source": "by hand",
+  "cell": {
+    "name": "void@20",
+    "kind": "void",
+    "level": 20,
+    "switch": "usage-last"
+  },
+  "expect": {
+    "holdLifeMs": 1700,
+    "deadlineMs": 1500,
+    "marginMs": 400
+  }
+}

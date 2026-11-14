@@ -763,7 +763,7 @@ impl Decoded {
     }
 }
 
-/// The failure of a decoder: the error name, with the request id where it could be read.
+/// The failure of a decoder: the error name, with the request id where the decoder read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecodeError {
     pub id: Option<RequestId>,
@@ -958,8 +958,15 @@ pub struct Reply {
 /// run declares (`ErrorName::read`), and any other name is `malformed`. A result is the null
 /// result when it is `null`, a workflows page when it is an object whose keys are exactly `workflows` and
 /// `next`, an evidence page when they are exactly `evidence` and `next`, and else the raw value; a page that
-/// breaks a rule of its type is `malformed`. It applies no length bound.
+/// breaks a rule of its type is `malformed`. Before it reads anything it refuses an input longer than
+/// `REPLY_MAX` bytes as given, white space included, with `too_large` and a null id.
 pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
+    if bytes.len() > REPLY_MAX {
+        return Err(DecodeError {
+            id: None,
+            error: ErrorName::TooLarge,
+        });
+    }
     let fields = Fields::read(bytes).ok_or(DecodeError {
         id: None,
         error: ErrorName::Malformed,
@@ -995,7 +1002,8 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
 /// The one writer of a reply. It takes the request id, or none when the request's id could not be read, and
 /// either a result or an error name, and returns `{"v":1,"id":..,"ok":..}` or `{"v":1,"id":..,"error":..}`.
 /// It writes an error name of the nine and a declared name alike, and `ErrorName` holds no other name.
-/// It refuses with `malformed` a result that `decode_reply` would refuse, and applies no length bound: the owner
+/// It refuses with `malformed` a result that breaks a rule of `decode_reply` on the result, and applies no length
+/// bound: it writes a reply longer than `REPLY_MAX`, which `decode_reply` refuses with `too_large`, so the owner
 /// keeps a page inside 261,120 bytes.
 pub fn write_reply(
     id: Option<&RequestId>,

@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: tslib-es6@2.9.1 has the license 0BSD, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "tslib-es6@2.9.1",
+      "license": "0BSD"
+    }
+  ]
+}

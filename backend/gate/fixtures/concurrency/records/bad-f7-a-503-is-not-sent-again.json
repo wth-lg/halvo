@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "P7-69 F7 (the review's m2)",
+  "about": "an attempt answered 503 is the gateway's answer, not a lost send",
+  "source": "by hand",
+  "attempt": {
+    "status": 503,
+    "error": null
+  },
+  "expect": {
+    "resend": false
+  }
+}
