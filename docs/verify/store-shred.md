@@ -1092,13 +1092,33 @@ it in the plan before weakening an assertion.
 
 What the code does since store-3, each sentence with the test that shows it.
 
-- Delete-all destroys the root first, then every other root file under the
-  custody's roots directory, then seals the handle, then removes `store.key`
-  (also when its zero-fill fails), the database files and the segments tree,
-  every step attempted, through the store's handle and never by its kept
-  name (`EncryptedStore::delete_all`, store/expiry.rs). It answers `Ok` with
-  a `DeleteReport` when the roots directory holds no root file and nothing
-  is left, `DeleteIncomplete` with the same report otherwise. Tests:
+- Delete-all runs the root step first, then seals the handle, then removes
+  `store.key` (also when its zero-fill fails), the database files and the
+  segments tree, every step attempted, through the store's handle and never
+  by its kept name (`EncryptedStore::delete_all`, store/expiry.rs). For a
+  custody with a roots directory the root step opens the roots location
+  once and lists, destroys and reads again through that one handle; it
+  makes no second walk of the path and does not call the custody's destroy
+  by path. It destroys there only when the directory holds an entry of the
+  root that the handle names, or when an earlier call on the same handle
+  removed that root (the witness), and then it destroys every root file of
+  that directory, the store's own first. Otherwise it destroys nothing
+  there and the root reads left: a directory put at the roots directory's
+  old name is not touched, and a roots directory that left its name is not
+  read as destroyed. For a custody without a roots directory the custody's
+  own answer decides. The report reads the root as destroyed, left (with
+  its id when the call knows it) or unnamed, the readings of C11.4; the
+  line prints `root_destroyed=yes`, `no` or `unknown`. It answers `Ok`
+  with a `DeleteReport` when the root reads destroyed or unnamed, no root
+  file that the step counted stays and nothing is left, and
+  `DeleteIncomplete` with the same report otherwise; a root that reads left
+  never gives `Ok` (ruling ST-44 F1). Tests:
+  `delete_all_answers_ok_only_when_no_root_unwraps_after_the_roots_directory_moved`,
+  `delete_all_answers_ok_only_when_no_root_unwraps_after_an_empty_directory_took_the_roots_name`,
+  `delete_all_answers_ok_only_when_no_root_unwraps_after_the_data_directory_moved`,
+  `p1_with_the_roots_inside_the_store_directory_leaves_no_root_that_unwraps`,
+  `delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name`,
+  `delete_all_after_the_data_directory_moved_keeps_the_root_of_a_store_made_at_the_old_names`,
   `delete_all_destroys_every_root_file_under_its_roots_directory_and_names_one_that_stays` (P4),
   `delete_all_on_a_damaged_page_destroys_the_root_and_the_key_file_in_its_first_call`,
   `delete_all_under_query_only_destroys_the_root_and_the_key_file`,
@@ -1109,13 +1129,34 @@ What the code does since store-3, each sentence with the test that shows it.
   counts when it no longer leads to the handle's directory. Tests:
   `delete_all_acts_through_its_handle_and_leaves_a_directory_put_at_the_store_name_as_it_was` (P1),
   `delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_name` (P2),
-  `the_delete_tail_removes_a_link_at_the_store_name_and_every_root_and_follows_nothing` (P3).
+  `the_delete_tail_removes_a_link_at_the_store_name_and_destroys_no_root_that_it_cannot_name` (P3).
 - `EncryptedStore::delete_store_dir(store_dir, roots)` is the tail for a
-  directory that no handle holds: it takes the directory lock, destroys
-  the root that `store.key` or `create.pending` names and then every other
-  root file under `roots`, and never opens the database. A key file of
-  version 1 is removed, and its root is reported as not handled by this
-  build.
+  directory that no handle holds: it takes the directory lock, runs the
+  root step for the root that `store.key` or a `create.pending` that reads
+  made names (never one that reads owed), removes the store's files in
+  every case, and never opens the database. Named, and no directory or no
+  listable directory at the roots location: `DeleteIncomplete`, the root
+  left, and no file named for removal. Named, and the directory holds no
+  entry of that root: `DeleteIncomplete` with the root left as not found,
+  because the tail cannot tell a delete that was stopped after its root
+  step from a root file that was moved out. Nothing names a root: `Ok` with
+  the reading unnamed, also for a tail that finds neither a store directory
+  nor a roots directory, and nothing is destroyed under the roots
+  directory. So after a delete that was stopped between its root step and
+  its file step, the first tail answers `DeleteIncomplete` (not found) and
+  the next `Ok` (unnamed). A key file of version 1, of a newer version
+  whose version field parses, or of a custody kind that keeps no root file
+  under the roots directory is removed with the rest, and its root is
+  reported as not handled and never as destroyed; a later tail, with
+  nothing left that names a root, answers `Ok` unnamed (ruling ST-44 F1
+  (d), (e) and F5). Tests:
+  `the_tail_answers_ok_only_when_no_root_unwraps_after_the_roots_directory_moved`,
+  `the_second_tail_after_the_roots_directory_moved_does_not_read_the_root_as_destroyed`,
+  `the_tail_with_the_roots_inside_a_moved_store_directory_answers_ok_only_when_the_store_is_gone`,
+  `the_tail_after_a_delete_stopped_after_its_root_step_answers_not_found_then_unnamed`,
+  `the_tail_on_a_key_file_of_a_custody_with_no_root_file_names_the_root_as_not_handled`,
+  `a_second_tail_on_a_key_file_of_version_1_does_not_answer_ok_for_a_root_that_no_call_destroyed`,
+  `a_second_tail_on_a_key_file_of_version_3_does_not_read_its_root_as_destroyed`.
 - `create` records `create.pending` with the reading owed before its
   root, writes it again with the reading made once the custody's
   `create_root` answered Ok and before the key file is published, and
@@ -1215,6 +1256,17 @@ set, and the root's own volume name answers the root.
 
 ## Not covered
 
+- The roots reached by path (ruling ST-44 F1 (f)). At a create, before the
+  root is made, the cleanup of a stopped create, `abandon_create` and the
+  look for a live root reach the roots directory by its path. The delete
+  does not follow a roots directory that was moved: it says that it is not
+  finished, and the root that stands in the moved directory can still
+  unwrap a copy of the store. Following a moved roots directory with a
+  handle held for the store's life is store-3b's.
+- The root of a key file that this build does not handle (ruling ST-44
+  F5). Its name is given once, by the call that removes its key file; a
+  root of a key file of version 1 is an item of the login keychain, and its
+  cleanup is the owner's (H-9).
 - The window after the store's last look on macOS (ruling ST-33 (3)).
   L1: "Read in the kernel's public source at xnu-12377.121.6 (this Mac runs xnu-13432.41.4, whose source is not published): for /.vol/<device>/<file number>/store.db the kernel gets the directory's node by its number, builds that node's path as a string, adds /store.db and walks the string from the root. It does not check that the walk ended in the directory with that number. It tries again only when the walk answers ENOENT, at most five more times. So a move of the directory with another directory put at its old path, or one exchange of two directories, between the build and the walk can make SQLite's open act in that other directory; the name /.vol/<device>/<file number> alone, with nothing after the number, is checked by the kernel and answers that directory or ENOENT."
   The store's look refuses a single landing elsewhere of the database's
@@ -1260,9 +1312,10 @@ set, and the root's own volume name answers the root.
   own names. The delete tail does not ask SQLite whether another program
   holds `store.db`, because it never opens the database: a holder that does
   not hold the directory lock is not refused. The tail on a name where no
-  directory stands still destroys every root file under the roots directory,
-  as ruling ST-30 (1)(d) has the product's delete do; the daemon's instance
-  lock on the data directory keeps it from running beside a live daemon. A
+  directory stands destroys nothing under the roots directory and answers
+  `Ok` with the root unnamed (ruling ST-44 F1 (d), which amends ST-30 (1)
+  (d)); the daemon's instance lock on the data directory keeps the tail from
+  running beside a live daemon. A
   program that takes `store.db` between the probe and the open makes `open`
   answer `Locked` after it asked its custody. A caller that gives a create
   another roots directory than the one where a stopped create made its root

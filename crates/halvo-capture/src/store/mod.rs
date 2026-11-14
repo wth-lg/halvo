@@ -132,17 +132,43 @@ impl fmt::Display for Met {
     }
 }
 
+/// What a delete says of the store's root. `Destroyed`: this call, or an
+/// earlier call on the same handle, removed that root's file itself, and the
+/// last reading of the roots directory shows none. `Left`: a root may stand,
+/// the one named when the call knows its id. `Unnamed`: nothing that the call
+/// could read names a root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootReading {
+    Destroyed,
+    Left(Option<RootId>),
+    Unnamed,
+}
+
+impl RootReading {
+    /// The reading as the delete's line prints it: yes, no or unknown.
+    pub fn as_text(&self) -> &'static str {
+        match self {
+            RootReading::Destroyed => "yes",
+            RootReading::Left(_) => "no",
+            RootReading::Unnamed => "unknown",
+        }
+    }
+}
+
 /// What a delete-all, or the delete tail on a directory, did: each step was
 /// attempted. `keyed_segments` is the count of keyed segments read before the
-/// root step, `None` when it could not be read. `roots` lists the root files
-/// that stay under the roots directory after the root step; `root_not_handled`
-/// names the root of a version 1 key file of an older build, which this build
-/// cannot destroy. `not_followed` counts the store names, the store
-/// directory's own name among them, at which the delete met a link, an entry
-/// of another kind or a directory that was not the handle's.
+/// root step, `None` when it could not be read. `root` reads the store's own
+/// root. `roots` lists the root files that stay under the roots directory
+/// after the root step; `root_not_handled` names the root of a key file that
+/// this build cannot destroy (a key file of another version, or of a custody
+/// that keeps no root file under the roots directory). `not_followed` counts
+/// the store names, the store directory's own name among them, at which the
+/// delete met a link, an entry of another kind or a directory that was not
+/// the handle's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteReport {
     pub keyed_segments: Option<u64>,
+    pub root: RootReading,
     pub roots: RootsLeft,
     pub root_not_handled: Option<RootId>,
     pub key_file_gone: bool,
@@ -154,14 +180,21 @@ pub struct DeleteReport {
 pub use crate::custody::file_root::RootsLeft;
 
 impl DeleteReport {
-    /// The roots directory holds no root file.
+    /// The store's root reads destroyed.
     pub fn root_destroyed(&self) -> bool {
-        self.roots.none_left() && self.root_not_handled.is_none()
+        self.root == RootReading::Destroyed
     }
 
-    /// The root is gone and the delete left nothing of the store.
+    /// The root reads destroyed or unnamed, no root file that the step
+    /// counted stays, and the delete left nothing of the store: the report of
+    /// an `Ok`. A root that reads left never gives `Ok`.
     pub fn complete(&self) -> bool {
-        self.root_destroyed() && self.key_file_gone && !self.database_left && self.files_left == 0
+        matches!(self.root, RootReading::Destroyed | RootReading::Unnamed)
+            && self.roots.none_left()
+            && self.root_not_handled.is_none()
+            && self.key_file_gone
+            && !self.database_left
+            && self.files_left == 0
     }
 }
 

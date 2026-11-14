@@ -6312,7 +6312,7 @@ fn delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_nam
 
 #[cfg(unix)]
 #[test]
-fn the_delete_tail_removes_a_link_at_the_store_name_and_every_root_and_follows_nothing() {
+fn the_delete_tail_removes_a_link_at_the_store_name_and_destroys_no_root_that_it_cannot_name() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path().join("data");
     let roots_dir = data.join("roots");
@@ -6329,15 +6329,19 @@ fn the_delete_tail_removes_a_link_at_the_store_name_and_every_root_and_follows_n
     std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
     let behind_before = files_with_bytes(&behind);
 
-    let report = delete_report(&EncryptedStore::delete_store_dir(
-        &data.join("store"),
-        &roots_dir,
-    ));
+    let roots_before = root_files_in(&roots_dir);
+    let answer = EncryptedStore::delete_store_dir(&data.join("store"), &roots_dir);
+    let report = delete_report(&answer);
 
-    assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+    assert_eq!(
+        root_files_in(&roots_dir),
+        roots_before,
+        "the tail destroyed a root that nothing it read names"
+    );
     assert!(std::fs::symlink_metadata(data.join("store")).is_err());
     assert_eq!(files_with_bytes(&behind), behind_before);
-    assert!(report.root_destroyed(), "{report:?}");
+    assert_eq!(report.root, super::RootReading::Unnamed, "{report:?}");
+    assert!(answer.is_ok(), "{report:?}");
     assert_eq!(report.not_followed, 1, "{report:?}");
 }
 
@@ -7261,11 +7265,17 @@ fn the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_i
     let (store_dir, roots_dir, _, segment_id) = file_root_store(dir.path());
     let len = std::fs::metadata(KeyFile::path(&store_dir)).unwrap().len() as usize;
     std::fs::write(KeyFile::path(&store_dir), vec![0u8; len]).unwrap();
+    let roots_before = root_files_in(&roots_dir);
     let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
+    assert_eq!(delete_report(&tail).root, super::RootReading::Unnamed);
     assert_eq!(store_files_in(&store_dir), Vec::<String>::new());
     assert!(!segment_path(&store_dir, segment_id).exists());
-    assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+    assert_eq!(
+        root_files_in(&roots_dir),
+        roots_before,
+        "the tail destroyed a root that nothing it read names"
+    );
     let custody = file_root_custody(
         &roots_dir,
         TestProtector::new(0x5a).0,
@@ -9505,6 +9515,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
     let (left, not_handled) = (RootId::fresh().unwrap(), RootId::fresh().unwrap());
     let report = super::DeleteReport {
         keyed_segments: None,
+        root: super::RootReading::Left(Some(left)),
         roots: super::RootsLeft {
             left: vec![left],
             listed: true,

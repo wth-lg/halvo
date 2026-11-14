@@ -7,6 +7,7 @@ use zeroize::Zeroizing;
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
 use super::{associated_data, CustodyError, KeyLabel, RootId, StoreKey, WrappedKey};
 use crate::store::durable::{self, Dir, EntryKind};
+use crate::store::RootReading;
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
@@ -142,30 +143,43 @@ impl RootsLeft {
     }
 }
 
-pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLeft {
-    let dir = match Dir::open(roots) {
-        Ok(dir) => dir,
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            return RootsLeft {
-                left: Vec::new(),
-                listed: true,
-            }
-        }
-        Err(_) => {
-            return RootsLeft {
-                left: first.into_iter().collect(),
-                listed: false,
-            }
-        }
+/// The root step through one opened handle of the roots location. `named`
+/// is the root that the handle, the key file or a mark that reads made names;
+/// `removed_before` says that an earlier call on the same handle removed it.
+/// The step lists, destroys and reads again through that one handle, and it
+/// destroys there only when the directory holds an entry of the named root or
+/// an earlier call removed it (the witness): a directory put at the old name
+/// is not touched, and a roots directory that left its name is not read as
+/// destroyed. With the witness every root file of the directory is destroyed,
+/// the named one first. With nothing named it destroys nothing.
+pub(crate) fn destroy_roots_in(
+    roots: &Path,
+    named: Option<RootId>,
+    removed_before: bool,
+) -> (RootReading, RootsLeft) {
+    let none_counted = |listed: bool| RootsLeft {
+        left: Vec::new(),
+        listed,
     };
-    let mut names: Vec<(RootFile, OsString)> = match dir.entries() {
-        Ok(entries) => entries
-            .into_iter()
-            .filter_map(|entry| RootFile::named(&entry.name).map(|file| (file, entry.name)))
-            .collect(),
-        Err(_) => Vec::new(),
+    let Some(named) = named else {
+        return (RootReading::Unnamed, none_counted(true));
     };
-    names.sort_by_key(|(file, _)| Some(file.id()) != first);
+    let left_unread = (RootReading::Left(Some(named)), none_counted(false));
+    let Ok(dir) = Dir::open(roots) else {
+        return left_unread;
+    };
+    let Ok(entries) = dir.entries() else {
+        return left_unread;
+    };
+    let mut names: Vec<(RootFile, OsString)> = entries
+        .into_iter()
+        .filter_map(|entry| RootFile::named(&entry.name).map(|file| (file, entry.name)))
+        .collect();
+    let holds_named = names.iter().any(|(file, _)| file.id() == named);
+    if !holds_named && !removed_before {
+        return (RootReading::Left(Some(named)), none_counted(true));
+    }
+    names.sort_by_key(|(file, _)| file.id() != named);
     for (_, name) in &names {
         let _ = scrub_and_remove(&dir, name);
     }
@@ -180,12 +194,14 @@ pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLe
                 })
                 .collect();
             left.sort_by_key(|id| id.to_string());
-            RootsLeft { left, listed: true }
+            let reading = if left.contains(&named) {
+                RootReading::Left(Some(named))
+            } else {
+                RootReading::Destroyed
+            };
+            (reading, RootsLeft { left, listed: true })
         }
-        Err(_) => RootsLeft {
-            left: first.into_iter().collect(),
-            listed: false,
-        },
+        Err(_) => (RootReading::Left(Some(named)), none_counted(false)),
     }
 }
 

@@ -104,13 +104,15 @@ impl EncryptedStore {
     /// Delete-all on this handle, in the order of the contract, every step
     /// attempted whatever the others answered, each through the handle and
     /// never by its kept name, following no link: (1) the count of keyed
-    /// segments, unknown when it cannot be read; (2) the root step, which
-    /// destroys the custody's root and then every other root file under the
-    /// custody's roots directory; (3) the handle refuses writes from here on,
+    /// segments, unknown when it cannot be read; (2) the root step, which opens
+    /// the custody's roots location once and, when that directory holds the
+    /// store's root or an earlier call on this handle removed it, destroys
+    /// every root file there, the store's own first, and otherwise destroys
+    /// nothing and reads the root as left; (3) the handle refuses writes from here on,
     /// whatever step 2 answered; (4) the key file, removed even when its
     /// zero-fill failed; (5) the three database files and the journal; (6)
-    /// the segments tree. `Ok` with the report when the root is gone and
-    /// nothing is left, [`StoreError::DeleteIncomplete`] with it otherwise. A
+    /// the segments tree. `Ok` with the report when the root reads destroyed
+    /// and nothing is left, [`StoreError::DeleteIncomplete`] with it otherwise. A
     /// second call on the same handle runs the steps again where they are
     /// left. It runs no bulk key delete, no checkpoint and no keyless sweep.
     pub fn delete_all(&mut self) -> StoreResult<DeleteReport> {

@@ -24,7 +24,7 @@ use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
-use super::{DeleteReport, Met, SegmentStore, StoreError, StoreName, StoreResult};
+use super::{DeleteReport, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult};
 
 const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
@@ -107,6 +107,16 @@ enum KeyNames {
     Absent,
     Root(RootId),
     Unknown,
+}
+
+/// What a key file names for the delete tail: a root whose file this build
+/// destroys under the roots directory, a root that it does not handle (a key
+/// file of another version, or of a custody that keeps no root file under the
+/// roots directory), or nothing.
+enum KeyFileNames {
+    Destroys(RootId),
+    NotHandled(RootId),
+    Nothing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,14 +222,26 @@ impl KeyFilePlace {
         Ok(key_file)
     }
 
-    fn older_root(&self) -> Option<RootId> {
-        let json = self.bytes().ok()?;
-        let head: KeyFileVersion = serde_json::from_slice(&json).ok()?;
-        if head.version != 1 {
-            return None;
+    fn what_it_names(&self) -> KeyFileNames {
+        let Some(root_id) = self.named_root() else {
+            return KeyFileNames::Nothing;
+        };
+        let fields = self
+            .bytes()
+            .ok()
+            .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok());
+        let version = fields.as_ref().and_then(|f| f["version"].as_i64());
+        let kind = fields
+            .as_ref()
+            .and_then(|f| serde_json::from_value::<CustodyKind>(f["custody_kind"].clone()).ok());
+        match (version, kind) {
+            (Some(version), Some(CustodyKind::DevFallback | CustodyKind::Dpapi))
+                if version == i64::from(KEY_FILE_VERSION) =>
+            {
+                KeyFileNames::Destroys(root_id)
+            }
+            _ => KeyFileNames::NotHandled(root_id),
         }
-        let older: OlderKeyFile = serde_json::from_slice(&json).ok()?;
-        RootId::parse(&older.root_id)
     }
 
     pub(crate) fn named_root(&self) -> Option<RootId> {
@@ -1741,7 +1763,10 @@ enum Keyed {
 
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
-pub(crate) struct RootStep(RootsLeft);
+pub(crate) struct RootStep {
+    reading: RootReading,
+    roots: RootsLeft,
+}
 
 pub struct EncryptedStore {
     dir: Dir,
@@ -1758,6 +1783,7 @@ pub struct EncryptedStore {
         )
     )]
     pending_left: bool,
+    root_removed: bool,
     _writer_lock: DirLock,
 }
 
@@ -1848,6 +1874,7 @@ impl EncryptedStore {
                 fs: Arc::new(OsFs),
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
+                root_removed: false,
                 _writer_lock,
             }),
             Err(e) => {
@@ -1987,6 +2014,7 @@ impl EncryptedStore {
             fs: Arc::new(OsFs),
             unwrap_time,
             pending_left,
+            root_removed: false,
             _writer_lock,
         })
     }
@@ -2102,22 +2130,29 @@ impl EncryptedStore {
     }
 
     pub(crate) fn root_step(&self) -> RootStep {
-        let destroyed = self.custody.destroy_root();
         let named = self.custody.root_id();
-        RootStep(match self.custody.roots() {
-            Some(roots) => file_root::destroy_every_root(roots, Some(named)),
-            None => RootsLeft {
-                left: destroyed.err().map(|_| named).into_iter().collect(),
-                listed: true,
-            },
-        })
+        let (reading, roots) = match self.custody.roots() {
+            Some(roots) => file_root::destroy_roots_in(roots, Some(named), self.root_removed),
+            None => (
+                match self.custody.destroy_root() {
+                    Ok(()) => RootReading::Destroyed,
+                    Err(_) => RootReading::Left(Some(named)),
+                },
+                RootsLeft {
+                    left: Vec::new(),
+                    listed: true,
+                },
+            ),
+        };
+        RootStep { reading, roots }
     }
 
     pub(crate) fn untouched(&self) -> DeleteReport {
         DeleteReport {
             keyed_segments: None,
+            root: RootReading::Left(Some(self.custody.root_id())),
             roots: RootsLeft {
-                left: vec![self.custody.root_id()],
+                left: Vec::new(),
                 listed: true,
             },
             root_not_handled: None,
@@ -2130,7 +2165,11 @@ impl EncryptedStore {
 
     pub(crate) fn remove_files_after(&mut self, root_step: RootStep) {
         self.keyed = Keyed::Deleting(None);
-        let mut report = remove_the_store_files(&self.dir, None, root_step.0);
+        if root_step.reading == RootReading::Destroyed {
+            self.root_removed = true;
+        }
+        let mut report =
+            remove_the_store_files(&self.dir, None, root_step.reading, root_step.roots);
         if !matches!(self.dir.still_named(), Ok(true)) {
             report.not_followed += 1;
         }
@@ -2159,14 +2198,19 @@ impl EncryptedStore {
     }
 
     /// The delete tail on a store directory that no handle holds: it takes
-    /// the writer lock, destroys the root that `store.key` or `create.pending`
-    /// names and then every other root file under `roots`, removes the key
-    /// file, the database files and the segments tree through a handle of the
-    /// directory, never opens the database and follows no link. A link or an
+    /// the writer lock, runs the root step for the root that `store.key` or a
+    /// `create.pending` that reads made names (never one that reads owed),
+    /// removes the key file, the database files and the segments tree through
+    /// a handle of the directory in every case, never opens the database and
+    /// follows no link. A named root that the roots location does not hold
+    /// reads left, as not found, and the answer is
+    /// [`StoreError::DeleteIncomplete`]; with nothing that names a root the
+    /// root reads unnamed and nothing is destroyed under `roots`. A link or an
     /// entry of another kind at the directory's own name is removed as the
-    /// entry that it is and counted as not followed. A key file of version 1
-    /// is removed with the rest, and its root is reported as not handled by
-    /// this build. Answers as [`EncryptedStore::delete_all`] does, and
+    /// entry that it is and counted as not followed. A key file of another
+    /// version, or of a custody that keeps no root file under `roots`, is
+    /// removed with the rest, and its root is reported as not handled and
+    /// never as destroyed. Answers as [`EncryptedStore::delete_all`] does, and
     /// [`StoreError::Locked`] while another process holds the directory.
     pub fn delete_store_dir(store_dir: &Path, roots: &Path) -> StoreResult<DeleteReport> {
         let store = match Dir::open(store_dir) {
@@ -2174,7 +2218,11 @@ impl EncryptedStore {
             Err(e) if e.kind() == ErrorKind::NotFound => {
                 return finished(DeleteReport {
                     keyed_segments: None,
-                    roots: file_root::destroy_every_root(roots, None),
+                    root: RootReading::Unnamed,
+                    roots: RootsLeft {
+                        left: Vec::new(),
+                        listed: true,
+                    },
                     root_not_handled: None,
                     key_file_gone: true,
                     database_left: false,
@@ -2183,20 +2231,33 @@ impl EncryptedStore {
                 })
             }
             Err(e) if durable::refusal(&e).is_some() => {
-                return finished(remove_what_stands_at(store_dir, roots))
+                return finished(remove_what_stands_at(store_dir))
             }
             Err(e) => return Err(io_error(e)),
         };
         let _writer_lock = DirLock::take(&store)?;
         let place = KeyFile::of_store(&store)?;
-        let named = place.named_root().or_else(|| {
-            read_pending(&store)
-                .filter(|pending| pending.reading == PendingReading::Made)
-                .map(|pending| pending.root_id)
-        });
-        let root_not_handled = place.older_root();
-        let roots = file_root::destroy_every_root(roots, named);
-        let mut report = remove_the_store_files(&store, None, roots);
+        let (named, root_not_handled) = match place.what_it_names() {
+            KeyFileNames::Destroys(root_id) => (Some(root_id), None),
+            KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
+            KeyFileNames::Nothing => (
+                read_pending(&store)
+                    .filter(|pending| pending.reading == PendingReading::Made)
+                    .map(|pending| pending.root_id),
+                None,
+            ),
+        };
+        let (reading, roots) = match root_not_handled {
+            Some(root_id) => (
+                RootReading::Left(Some(root_id)),
+                RootsLeft {
+                    left: Vec::new(),
+                    listed: true,
+                },
+            ),
+            None => file_root::destroy_roots_in(roots, named, false),
+        };
+        let mut report = remove_the_store_files(&store, None, reading, roots);
         report.root_not_handled = root_not_handled;
         finished(report)
     }
@@ -2210,8 +2271,7 @@ fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {
     }
 }
 
-fn remove_what_stands_at(store_dir: &Path, roots: &Path) -> DeleteReport {
-    let roots = file_root::destroy_every_root(roots, None);
+fn remove_what_stands_at(store_dir: &Path) -> DeleteReport {
     let gone = match (store_dir.parent(), store_dir.file_name()) {
         (Some(parent), Some(name)) => Dir::open(parent)
             .and_then(|parent| {
@@ -2223,7 +2283,11 @@ fn remove_what_stands_at(store_dir: &Path, roots: &Path) -> DeleteReport {
     };
     DeleteReport {
         keyed_segments: None,
-        roots,
+        root: RootReading::Unnamed,
+        roots: RootsLeft {
+            left: Vec::new(),
+            listed: true,
+        },
         root_not_handled: None,
         key_file_gone: true,
         database_left: false,
@@ -2235,6 +2299,7 @@ fn remove_what_stands_at(store_dir: &Path, roots: &Path) -> DeleteReport {
 fn remove_the_store_files(
     store: &Dir,
     keyed_segments: Option<u64>,
+    root: RootReading,
     roots: RootsLeft,
 ) -> DeleteReport {
     let key_file = match KeyFile::of_store(store) {
@@ -2249,6 +2314,7 @@ fn remove_the_store_files(
     let pending_left = u64::from(remove_pending(store).is_err());
     DeleteReport {
         keyed_segments,
+        root,
         roots,
         root_not_handled: None,
         key_file_gone: key_file.gone,

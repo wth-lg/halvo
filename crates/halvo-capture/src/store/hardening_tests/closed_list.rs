@@ -761,8 +761,12 @@ fn delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name(
         adv1_shapes(&roots)
     );
     assert!(
-        second_reads.starts_with("open=Ok") && first_root != "Ok",
-        "delete-all of the moved store answered {line}; its own root unwraps: {first_root}; the store at its old name: {second_reads}"
+        second_reads.starts_with("open=Ok"),
+        "delete-all of the moved store destroyed the root of the store made at its old name: {line}; the store at its old name: {second_reads}"
+    );
+    assert!(
+        answer.is_err() && !delete_report(&answer).root_destroyed(),
+        "delete-all of the moved store must answer DeleteIncomplete with its root not destroyed, while that root stays in the moved directory (unwraps: {first_root}): {line}"
     );
 }
 
@@ -1211,8 +1215,13 @@ fn delete_all_after_the_data_directory_moved_keeps_the_root_of_a_store_made_at_t
         ver12_shapes(&second_roots)
     );
     assert!(
-        second_reads.starts_with("open=Ok") && first_root != "Ok",
-        "delete-all of the moved store answered {}; its own root unwraps: {first_root}; the store at the old names: {second_reads}",
+        second_reads.starts_with("open=Ok"),
+        "delete-all of the moved store destroyed the root of the store at the old names: {}; the store at the old names: {second_reads}",
+        ver12_report_line(&answer)
+    );
+    assert!(
+        answer.is_err() && !delete_report(&answer).root_destroyed(),
+        "delete-all of the moved store must answer DeleteIncomplete with its root not destroyed (unwraps: {first_root}): {}",
         ver12_report_line(&answer)
     );
 }

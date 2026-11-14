@@ -893,7 +893,7 @@ impl Harness {
                         .expect("the key file of the store")
                         .root_id;
                     prop_assert!(
-                        report.roots.left == vec![root_id],
+                        report.root == crate::store::RootReading::Left(Some(root_id)),
                         "a delete-all whose root step failed reported {:?}, which does not name the root of the store as the one that stays",
                         report
                     );
