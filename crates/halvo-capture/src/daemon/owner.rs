@@ -2326,9 +2326,30 @@ mod tests {
                 thread.handle.call(Command::ClosePause),
                 Ok(Answer::Resumed(_))
             ));
+            let zone_in_use = || {
+                let mut stats = std::mem::MaybeUninit::<libc::malloc_statistics_t>::zeroed();
+                // SAFETY: malloc_default_zone returns the process's default zone, and
+                // malloc_zone_statistics writes one statistics value into the zeroed
+                // buffer sized for one that lives across the call.
+                unsafe { libc::malloc_zone_statistics(libc::malloc_default_zone(), stats.as_mut_ptr()) };
+                // SAFETY: a zeroed malloc_statistics_t is a valid value, and the call filled it.
+                unsafe { stats.assume_init() }.size_in_use as u64
+            };
+            let ready_in_use = zone_in_use();
             let ready = crate::daemon::signal::peak_rss_bytes().unwrap();
             let started = std::time::Instant::now();
-            for _ in 0..RECORDS {
+            let mut queued_high_water = 0u64;
+            let mut at_80000_ms = 0u128;
+            for record in 0..RECORDS {
+                if record % 1024 == 0 {
+                    let counts = sink.counts();
+                    let accepted: u64 = Modality::ALL
+                        .into_iter()
+                        .map(|kind| counts.of(kind).accepted)
+                        .sum();
+                    let received = thread.snapshot().events_received();
+                    queued_high_water = queued_high_water.max(accepted.saturating_sub(received));
+                }
                 assert_eq!(
                     sink.emit_event(title_of(
                         crate::floor::text::TEXT_MAX_BYTES,
@@ -2336,11 +2357,27 @@ mod tests {
                     )),
                     sink::Emitted::Queued
                 );
+                let accepted = record + 1;
+                if matches!(accepted, 2_048 | 10_000 | 20_000 | 40_000 | 80_000) || accepted % 250_000 == 0 {
+                    println!(
+                        "owner_growth_peak accepted={accepted} peak={} elapsed_ms={}",
+                        crate::daemon::signal::peak_rss_bytes().unwrap(),
+                        started.elapsed().as_millis()
+                    );
+                }
+                if accepted == 80_000 {
+                    at_80000_ms = started.elapsed().as_millis();
+                }
             }
             let Ok(Answer::Settled(settled)) = thread.handle.call(Command::Settle) else {
                 panic!("the owner did not settle");
             };
             let peak = crate::daemon::signal::peak_rss_bytes().unwrap();
+            let settled_in_use = zone_in_use();
+            println!(
+                "owner_growth_detail peak_before_first_record={ready} peak_after_settle={peak} queued_high_water={queued_high_water} queue_slots={QUEUE_SLOTS} elapsed_ms_at_80000={at_80000_ms} zone_in_use_at_ready={ready_in_use} zone_in_use_after_settle={settled_in_use} zone_in_use_growth={}",
+                settled_in_use as i64 - ready_in_use as i64
+            );
             assert_eq!(settled.events_persisted, RECORDS);
             println!(
                 "owner_growth_bytes={} records={RECORDS} elapsed_ms={}",
@@ -2361,6 +2398,11 @@ mod tests {
             .lines()
             .find_map(|line| line.find("owner_growth_bytes=").map(|at| &line[at..]))
             .expect("the child printed no growth line");
+        for other in text.lines().filter_map(|line| line.find("owner_growth_").map(|at| &line[at..])) {
+            if !other.starts_with("owner_growth_bytes=") {
+                println!("{other}");
+            }
+        }
         println!("{line}");
         let growth: u64 = line["owner_growth_bytes=".len()..]
             .split(' ')
