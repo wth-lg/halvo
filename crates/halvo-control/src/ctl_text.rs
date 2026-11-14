@@ -431,7 +431,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
     match (verb, reply) {
         (_, Reply::Error(error)) if error.ending() => failed(ending_line(verb), crate::exit::BUSY),
         (_, Reply::Error(error)) => {
-            let status = match error.code {
+            let status = match error.code() {
                 ErrorCode::Busy => crate::exit::BUSY,
                 ErrorCode::InvalidArgument => crate::exit::USAGE,
                 _ => crate::exit::ERROR,
@@ -1336,7 +1336,7 @@ mod tests {
     fn pl17_the_busy_of_a_life_that_is_ending_exits_75_with_a_line_that_names_what_did_not_happen()
     {
         let ending = ErrorReply::busy_of_an_ending_life();
-        assert_eq!(ending.code, ErrorCode::Busy);
+        assert_eq!(ending.code(), ErrorCode::Busy);
         assert!(ending.ending());
         for (verb, line) in [
             (
@@ -1384,7 +1384,7 @@ mod tests {
         let plain = print(
             &Verb::Stop,
             Ok(Reply::Error(ErrorReply::new(
-                ending.code,
+                ending.code(),
                 ending.message.clone(),
             ))),
             &data_dir(),

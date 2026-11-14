@@ -977,7 +977,7 @@ mod tests {
         assert_eq!(daemon.status(), &before);
         let refused = daemon.handle(Request::Status { indicator: false });
         assert!(
-            matches!(&refused, Reply::Error(e) if e.code == ErrorCode::Internal),
+            matches!(&refused, Reply::Error(e) if e.code() == ErrorCode::Internal),
             "{refused:?}"
         );
         assert_eq!(daemon.status(), &before);
@@ -1157,7 +1157,7 @@ mod tests {
                             Step::Ask(request) => {
                                 let reply = daemon.handle(request());
                                 assert!(
-                                    !matches!(&reply, Reply::Error(e) if e.code == ErrorCode::Internal),
+                                    !matches!(&reply, Reply::Error(e) if e.code() == ErrorCode::Internal),
                                     "{platform:?} from {:?}, steps {taken:?}: {reply:?}",
                                     start.fields().capture
                                 );
@@ -1284,7 +1284,7 @@ mod tests {
             );
             let delete = daemon.handle(Request::DeleteAll { store: shown });
             assert!(
-                matches!(&delete, Reply::Error(e) if e.code == ErrorCode::Busy && !e.ending()),
+                matches!(&delete, Reply::Error(e) if e.code() == ErrorCode::Busy && !e.ending()),
                 "{platform:?}: a delete after the timed-out Pause: {delete:?}"
             );
             let mut daemon = ScriptedDaemon::new(sample.clone());
@@ -1334,7 +1334,7 @@ mod tests {
     }
 
     fn is_the_busy_of_an_ending_life(reply: &Reply) -> bool {
-        matches!(reply, Reply::Error(e) if e.code == ErrorCode::Busy && e.ending())
+        matches!(reply, Reply::Error(e) if e.code() == ErrorCode::Busy && e.ending())
     }
 
     #[test]
@@ -1373,13 +1373,13 @@ mod tests {
                 permission: Permission::Accessibility,
             });
             assert!(
-                matches!(&other_form, Reply::Error(e) if e.code == ErrorCode::UnsupportedOp && !e.ending()),
+                matches!(&other_form, Reply::Error(e) if e.code() == ErrorCode::UnsupportedOp && !e.ending()),
                 "{platform:?}: {other_form:?}"
             );
             for read in [Request::Status { indicator: false }, Request::Inventory] {
                 let reply = daemon.handle(read.clone());
                 assert!(
-                    !matches!(reply, Reply::Error(ref e) if e.code == ErrorCode::Busy),
+                    !matches!(reply, Reply::Error(ref e) if e.code() == ErrorCode::Busy),
                     "{platform:?} {read:?}: {reply:?}"
                 );
             }

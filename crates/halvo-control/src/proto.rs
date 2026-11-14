@@ -506,10 +506,25 @@ struct ErrorReplyWire {
 /// use halvo_control::proto::{ErrorCode, ErrorReply};
 /// let wrong = ErrorReply { code: ErrorCode::Internal, message: String::new(), ending: true };
 /// ```
+///
+/// and no code outside this module changes the code of a reply:
+///
+/// ```compile_fail,E0616
+/// use halvo_control::proto::{ErrorCode, ErrorReply};
+/// let mut reply = ErrorReply::busy_of_an_ending_life();
+/// reply.code = ErrorCode::Internal;
+/// ```
+///
+/// A caller reads the code through [`ErrorReply::code`]:
+///
+/// ```
+/// use halvo_control::proto::{ErrorCode, ErrorReply};
+/// assert_eq!(ErrorReply::busy_of_an_ending_life().code(), ErrorCode::Busy);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "ErrorReplyWire", into = "ErrorReplyWire")]
 pub struct ErrorReply {
-    pub code: ErrorCode,
+    code: ErrorCode,
     pub message: String,
     ending: bool,
 }
@@ -522,6 +537,10 @@ impl ErrorReply {
             message: message.into(),
             ending: false,
         }
+    }
+
+    pub const fn code(&self) -> ErrorCode {
+        self.code
     }
 
     /// Whether the reply is the busy of a life that is ending.

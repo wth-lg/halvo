@@ -59,7 +59,7 @@ pub enum ClientError {
     PeerRejected(PeerRejection),
     #[error("no reply within {seconds} s")]
     Deadline { seconds: u64 },
-    #[error("{}: {}", .0.code.as_str(), .0.message)]
+    #[error("{}: {}", .0.code().as_str(), .0.message)]
     Daemon(ErrorReply),
     /// The busy of a life that is ending (ruling PL-17 (h)): the reply carries the mark
     /// `ending`.
@@ -489,7 +489,7 @@ mod tests {
 
     fn daemon_error(result: Result<impl std::fmt::Debug, ClientError>) -> ErrorCode {
         match result {
-            Err(ClientError::Daemon(reply)) => reply.code,
+            Err(ClientError::Daemon(reply)) => reply.code(),
             other => panic!("{other:?}"),
         }
     }
@@ -1906,7 +1906,7 @@ mod tests {
         ] {
             match result {
                 Err(ClientError::ServiceEnding(reply)) => {
-                    assert_eq!(reply.code, ErrorCode::Busy);
+                    assert_eq!(reply.code(), ErrorCode::Busy);
                     assert!(reply.ending());
                 }
                 other => panic!("{other:?}"),
@@ -1918,7 +1918,7 @@ mod tests {
         let (plain_client, _) = client(plain);
         assert!(matches!(
             plain_client.stop(),
-            Err(ClientError::Daemon(reply)) if reply.code == ErrorCode::Busy && !reply.ending()
+            Err(ClientError::Daemon(reply)) if reply.code() == ErrorCode::Busy && !reply.ending()
         ));
     }
 
