@@ -315,7 +315,8 @@ measure() {
   built_from=$(date +%s)
   cargo test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run --message-format json >"$work/build.json" ||
     fail "the test build failed: cargo test --no-run exited $?"
-  printf 'test build of the library and the stall file: seconds=%s\n' "$(($(date +%s) - built_from))"
+  built_at=$(date +%s)
+  printf 'test build of the library and the stall file: seconds=%s\n' "$((built_at - built_from))"
   lib=$(sed -n 's/.*"kind":\["lib"\].*"name":"halvo_capture".*"executable":"\([^"]*\)".*/\1/p' "$work/build.json" | tail -n 1)
   [ -n "$lib" ] && [ -f "$lib" ] ||
     fail "the gap of the test's own could not be measured: cargo named no test executable of the library"
