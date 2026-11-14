@@ -1238,6 +1238,7 @@ own_self_test() {
   own_case script-stages-a-change-and-restores-the-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   for bit in assume-unchanged skip-worktree; do
     new_repo && track_file && add_script r1 10-a.sh "$good" "git -C \"\$CI_D_REPO\" update-index --$bit tracked.txt; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+    case_once='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
     own_case "script-changes-a-tracked-file-under-$bit" 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   done
   new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; printf "x\n" >>"$r/tracked.txt"; git -C "$r" add tracked.txt; t=$(git -C "$r" write-tree); p=$(git -C "$r" rev-parse HEAD); c=$(printf "tree %s\nparent %s\nauthor f <f@example.invalid> 1 +0000\ncommitter f <f@example.invalid> 1 +0000\n\nf\n" "$t" "$p" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref HEAD "$c"; printf "PASS 10-a\n"'
@@ -1267,6 +1268,11 @@ own_self_test() {
   case_git_home=yes
   case_witness=yes
   own_case global-git-setting-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && git -C "$fixture" config core.autocrlf false &&
+    add_script r1 10-a.sh "$good" "[ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; mkdir -p \"\$XDG_CONFIG_HOME/git\" && printf 'tracked.txt text eol=crlf\\n' >\"\$XDG_CONFIG_HOME/git/attributes\" && printf 'line 1\\r\\n' >\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+  case_git_home=yes
+  case_witness=yes
+  own_case global-attributes-file-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
   case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
     printf '#!/bin/sh\ncase "$*" in *"status --porcelain"* | *diff-index*) exit 0 ;; esac\nexec %s "$@"\n' "$real_git" >"$case_cargo_home/bin/git" &&
