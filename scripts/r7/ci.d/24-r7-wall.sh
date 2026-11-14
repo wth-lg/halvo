@@ -474,7 +474,7 @@ judge() {
         if (g != r) what = ", a glob over " g ", a tracked directory of the app"
         else if (r in known) what = ", a tracked file of the app"
         else what = ", a tracked directory of the app"
-        if (g == "" || !index(r, "/") || !((g in tracked_dir) || (g == r && (r in known)))) return 0
+        if (!index(r, "/") || !((g in tracked_dir) || (g == r && (r in known)))) return 0
         if (tracked("backend/" g) || inside(g)) return 0
         problem(where, "names " r what ", read from the top of the repository: " c fix_top)
         return 1
@@ -1233,7 +1233,7 @@ texts_case() {
   want=$1
   case_name=$2
   rule=$(sed -n 's/^# rule: //p' "$0") || exit 2
-  changelog=$(awk -v s='scripts/r7/ci.d/24-r7-wall.sh' '/^## / { if (found) exit } index($0, s) && index($0, " named limits of --help: ") { line = $0; found = 1 } END { print line }' "${CI_D_REPO:-.}/CHANGELOG.md") || changelog=
+  changelog=$(awk -v s='scripts/r7/ci.d/24-r7-wall.sh' '/^## / { if (found) exit } index($0, s) && index($0, " named limits of --help: ") { line = $0; found = 1 } END { print line }' "${4:-${CI_D_REPO:-.}/CHANGELOG.md}") || changelog=
   usage >"$scratch/help.txt" || exit 2
   sed -n 's/^  known limit \([a-z0-9-]*\): .*/\1/p' "$scratch/help.txt" >"$scratch/help-names.txt" || exit 2
   help_names=$(tr '\n' ' ' <"$scratch/help-names.txt") || exit 2
@@ -1795,6 +1795,8 @@ const files = globSync("crates/halvo-capture/src/*.rs", { cwd: root });' 'backen
   case_with f1c-l3-a-run-of-64-strings-that-ends-in-an-app-path-is-read-and-refused backend/src/list.ts "$run64app" 'backend/src/list.ts:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
   pairs=$(awk 'BEGIN { printf "{"; for (i = 1; i <= 300; i++) printf "%s\"k%d\":\"../v%d\"", (i > 1 ? "," : ""), i, i; printf "}" }') || exit 2
   pass_with f1c-l3-a-line-of-600-strings-in-short-runs-is-read backend/test/fixtures/pairs.json "$pairs" 'read:backend/test/fixtures/pairs.json'
+  case_with f1c-l3-a-long-run-before-a-short-one-is-refused backend/src/list.ts "$run65 const one = \"../z\";" 'backend/src/list.ts:1: holds a run of 65 strings joined by'
+  pass_with f1c-an-app-line-with-the-word-names-an-app-file-in-full scripts/note.sh 'echo "the backend reads nothing of crates/halvo-capture/src/lib.rs"' 'read:scripts/note.sh'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
@@ -1865,6 +1867,11 @@ esac' 'read:scripts/b9.sh'
   collect
   texts_case PASS the-three-texts-and-the-fixtures-name-the-same-limits
   texts_case FAIL a-text-that-drops-a-limit-is-refused bracket-glob
+  listed=$(awk -v l="$limits" 'BEGIN { n = split(l, w, " "); for (i = 1; i <= n; i++) out = out (i > 1 ? ", " : "") w[i]; print n " named limits of --help: " out "." }') || exit 2
+  printf '%s\n' '## [Unreleased]' "- Changed: scripts/r7/ci.d/24-r7-wall.sh states the $listed" '- Fixed: scripts/r7/ci.d/24-r7-wall.sh reads one more line.' >"$scratch/changelog-later-line.md" || exit 2
+  texts_case PASS the-changelog-line-with-the-limits-is-read-past-a-later-line-of-the-script '' "$scratch/changelog-later-line.md"
+  printf '%s\n' '## [Unreleased]' "- Changed: scripts/r7/ci.d/24-r7-wall.sh states the $listed" '## [0.1.0]' '- Added: scripts/r7/ci.d/24-r7-wall.sh with the 1 named limits of --help: names-v0.' >"$scratch/changelog-release.md" || exit 2
+  texts_case PASS the-changelog-line-of-the-newest-section-is-read '' "$scratch/changelog-release.md"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
