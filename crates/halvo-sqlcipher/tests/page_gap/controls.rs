@@ -371,11 +371,14 @@ fn a_draw_that_frees_a_second_trunk_leaves_no_text_and_its_plants_are_named() {
     for entry in std::fs::read_dir(&scratch.0).unwrap() {
         let path = entry.unwrap().path();
         let bytes = std::fs::read(&path).unwrap();
-        for id in 1..=1100i64 {
-            for at in memchr::memmem::find_iter(&bytes, marker(id).as_bytes()) {
+        for at in memchr::memmem::find_iter(&bytes, b"r00") {
+            let Some(text) = bytes.get(at..at + 8) else {
+                continue;
+            };
+            if text[1..7].iter().all(u8::is_ascii_digit) && text[7] == b'x' {
                 left.push(format!(
                     "the removed text {} stands in {} page {} offset {}",
-                    marker(id),
+                    String::from_utf8_lossy(text),
                     path.file_name().unwrap().to_string_lossy(),
                     at / PAGE + 1,
                     at % PAGE

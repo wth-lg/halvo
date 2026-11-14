@@ -6,6 +6,12 @@
 
 const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/page_gap");
 
+/// A source of this directory with its line ends as LF, as a checkout with
+/// core.autocrlf (Windows) has them as CRLF.
+fn source(path: &str) -> String {
+    std::fs::read_to_string(path).unwrap().replace("\r\n", "\n")
+}
+
 /// (the line as rules.rs writes it, the control: `file::function`, a fragment
 /// of the line that the control's body holds).
 const LIST: [(&str, &str, &str); 17] = [
@@ -80,7 +86,7 @@ fn body<'a>(source: &'a str, name: &str) -> Option<&'a str> {
 
 #[test]
 fn every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list() {
-    let rules = std::fs::read_to_string(format!("{DIR}/rules.rs")).unwrap();
+    let rules = source(&format!("{DIR}/rules.rs"));
     let printed = pushed_lines(&rules);
     let listed: Vec<&str> = LIST.iter().map(|(line, _, _)| *line).collect();
     let unlisted: Vec<&String> = printed
@@ -98,8 +104,8 @@ fn every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list() {
     let mut faults = Vec::new();
     for (line, control, fragment) in LIST {
         let (file, name) = control.split_once("::").unwrap();
-        let source = std::fs::read_to_string(format!("{DIR}/{file}.rs")).unwrap();
-        match body(&source, name) {
+        let text = source(&format!("{DIR}/{file}.rs"));
+        match body(&text, name) {
             None => faults.push(format!("{line:?}: no function {control}")),
             Some(text) if !text.contains(fragment) => {
                 faults.push(format!("{line:?}: {control} holds no {fragment:?}"))
@@ -107,11 +113,11 @@ fn every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list() {
             Some(_) => {}
         }
     }
-    let layout = std::fs::read_to_string(format!("{DIR}/layout.rs")).unwrap();
+    let layout = source(&format!("{DIR}/layout.rs"));
     if !layout.contains("rules::plants(") {
         faults.push("no test of layout.rs runs rules::plants".to_owned());
     }
-    let controls = std::fs::read_to_string(format!("{DIR}/controls.rs")).unwrap();
+    let controls = source(&format!("{DIR}/controls.rs"));
     if !body(&controls, "the_four_rules_of_a_tree_page_name_their_plants_on_each_kind_of_page_with_a_low_and_a_high_byte")
         .is_some_and(|text| text.contains("four_rules("))
     {
