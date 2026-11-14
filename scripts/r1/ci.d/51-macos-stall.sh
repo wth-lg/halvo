@@ -149,8 +149,9 @@ measure() {
   proof_build "$proofs" "$work/proofs.txt"
   status=$?
   [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions passed another bound or printed a held key"
+  cut -d ' ' -f 2 "$work/proofs" >"$work/proof-codes" || fail "the list of proofs cannot be read"
   while read -r proof code; do
-    wanted=$(grep -c " $code\$" "$work/proofs")
+    wanted=$(grep -c -x -e "$code" "$work/proof-codes")
     found=$(grep -c "error\[$code\]" "$work/proofs.txt")
     [ "$found" -ge "$wanted" ] || fail "the proof $proof did not fail with $code ($found errors $code for $wanted proofs)"
     printf 'proof %s: refused with %s\n' "$proof" "$code"
