@@ -52,7 +52,6 @@ const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
 const F_SETFD: i32 = 2;
 const FD_CLOEXEC: i32 = 1;
 const EMFILE: i32 = 24;
-const SZOMB: u32 = 5;
 const SIGKILL: i32 = 9;
 const SIGSTOP: i32 = 17;
 const ESRCH: i32 = 3;
@@ -149,7 +148,6 @@ pub(crate) struct Info {
     pub ppid: u32,
     pub pgid: u32,
     pub started_us: u64,
-    pub zombie: bool,
 }
 
 /// One read of the process table for a pid.
@@ -190,7 +188,6 @@ pub(crate) fn info(pid: u32) -> Read {
             ppid: i.pbi_ppid,
             pgid: i.pbi_pgid,
             started_us,
-            zombie: i.pbi_status == SZOMB,
         }),
         _ => Read::Unknown,
     }

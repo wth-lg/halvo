@@ -350,7 +350,6 @@ impl RunProc {
             let ok = i.ppid == runner.pid.get()
                 && i.started_us == frame.created.micros().get()
                 && i.pgid == group.get()
-                && !i.zombie
                 && led;
             ok.then_some(ProcLine {
                 pid: frame.pid,
@@ -578,7 +577,7 @@ impl RunProc {
                 })
                 .collect();
             groups.push(self.child.id());
-            sys::table().is_ok_and(|t| !t.iter().any(|p| !p.zombie && groups.contains(&p.pgid)))
+            sys::table().is_ok_and(|t| !t.iter().any(|p| groups.contains(&p.pgid)))
         }
         #[cfg(windows)]
         {
@@ -654,7 +653,7 @@ pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>, Option<Forced>
 fn lives(line: &ProcLine) -> bool {
     matches!(
         sys::info(line.pid.get()),
-        sys::Read::Found(i) if i.started_us == line.created.micros().get() && !i.zombie
+        sys::Read::Found(i) if i.started_us == line.created.micros().get()
     )
 }
 
@@ -666,7 +665,7 @@ fn members(line: &ProcLine) -> Vec<NonZeroU32> {
     sys::table()
         .unwrap_or_default()
         .into_iter()
-        .filter(|p| p.pgid == g.get() && !p.zombie)
+        .filter(|p| p.pgid == g.get())
         .filter_map(|p| NonZeroU32::new(p.pid))
         .collect()
 }
@@ -685,7 +684,9 @@ fn holds_group(line: &ProcLine) -> bool {
 
 /// Ends the group of a line only while the line's process, with the line's number and creation time, is in it,
 /// read just before the signal: a group that holds a process of the mark keeps its number, so the signal reaches
-/// that group alone, the browser in the runner's group among it.
+/// that group alone, the browser in the runner's group among it. The table's read finds no process that has exited
+/// and is not reaped: a browser that has exited and is not yet reaped by its runner is gone to that read, so its
+/// group gets no signal while members are left in it, and `reap` reports them as left.
 #[cfg(target_os = "macos")]
 pub(crate) fn end_line_group(line: &ProcLine) -> bool {
     match line.group {
@@ -697,7 +698,7 @@ pub(crate) fn end_line_group(line: &ProcLine) -> bool {
 #[cfg(target_os = "macos")]
 const GROUP_WAIT: Duration = Duration::from_secs(2);
 
-/// Signals the group `g`, then reads it again and signals it again while a process that is no zombie is in it, until
+/// Signals the group `g`, then reads it again and signals it again while a process that the table reads is in it, until
 /// none is or `GROUP_WAIT` passes: a process forked while the signal goes out joins the group after it. While a
 /// member is left the group keeps its number, so each later signal reaches the same group.
 #[cfg(target_os = "macos")]
@@ -708,7 +709,7 @@ fn end_group(g: u32) -> bool {
     let deadline = Instant::now() + GROUP_WAIT;
     while Instant::now() < deadline {
         thread::sleep(Duration::from_millis(10));
-        let left = sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g && !p.zombie));
+        let left = sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g));
         if !left || !sys::kill_group(g) {
             break;
         }
@@ -979,7 +980,6 @@ mod tests {
             ppid,
             pgid: pid,
             started_us,
-            zombie: false,
         }
     }
 
