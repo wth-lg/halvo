@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, the crates that the app links start no child but the two named limits, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
+# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, the crates that the app links start no child but the two named limits, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
 set -u
 name=20-r4-core
 
@@ -495,6 +495,7 @@ measure() {
   lint_allows
   tauri_features
   child_starts
+  git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   : >"$log" 2>/dev/null || fail setup
   app=no
   if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -506,6 +507,8 @@ measure() {
   code=$?
   printf 'cargo test exit=%s halvo-coord-app=%s\n' "$code" "$app"
   [ "$code" -eq 0 ] || fail cargo
+  git diff --binary >"$artifacts/tracked-after.txt" || fail setup
+  cmp -s "$artifacts/tracked-before.txt" "$artifacts/tracked-after.txt" || fail changed
   tr -d '\r' <"$log" >"$lines" || fail setup
   git -C "$repo" grep -h -o -E 'fn refusal_[a-z0-9_]+' -- crates/halvo-coord crates/halvo-coord-app >"$sources"
   code=$?
@@ -544,7 +547,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT STUB_LINKED
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TREE_EXIT STUB_LINKED STUB_WRITE
     "$@" 2>&1
   )
   code=$?
@@ -568,6 +571,7 @@ check() {
   STUB_EXIT=0
   STUB_TREE_EXIT=0
   STUB_TAURI=default,wry
+  STUB_WRITE=
 }
 
 put() {
@@ -661,6 +665,7 @@ if [ -f crates/halvo-coord-app/Cargo.toml ]; then
 else
   [ "$*" = 'test -p halvo-coord --locked' ] || exit 95
 fi
+[ -z "$STUB_WRITE" ] || printf 'changed\n' >>"$STUB_WRITE"
 cat "$STUB_OUT"
 exit "$STUB_EXIT"
 EOF
@@ -669,6 +674,7 @@ EOF
   STUB_EXIT=0
   STUB_TREE_EXIT=0
   STUB_TAURI=default,wry
+  STUB_WRITE=
   STUB_LINKED=$work/linked.txt
   printf 'halvo v0.0.0 (/fixture/src-tauri)\nhalvo-control v0.0.0 (/fixture/crates/halvo-control)\nhalvo-control v0.0.0 (/fixture/crates/halvo-control) (*)\nserde v1.0.0\n' >"$STUB_LINKED" || exit 2
   rejected=0
@@ -744,6 +750,8 @@ EOF
   variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
+  STUB_WRITE=$work/one/crates/halvo-coord/src/words.rs
+  check a-test-run-that-changes-a-tracked-file FAIL "FAIL $name (changed)" run_one
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
