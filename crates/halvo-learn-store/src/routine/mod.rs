@@ -27,12 +27,11 @@ const AHEAD_DAYS_KEPT: u32 = 2;
 /// today, where its mark, `period` or `last` differs from the newest row's or the newest row is 30 or more days
 /// old. A summary is an occurrence when its category and its whole site value, the source included, equal the
 /// row's, or, where both have no site, its category and its app equal the row's. While the day of a pair's newest
-/// row lies one or two days after the clock's day, it returns no row for that pair and does not apply
-/// `routine_step` to it; two days is the workflow run's store's own number for a row stamped after its clock. A
-/// `learn_routine` or `learn_run` row that its typed parser refuses stops the step for the workflow that the row's
-/// top-level `workflow` key names, read with the registry's entry of the kind, and for every workflow where that key
-/// cannot be read; the rows of the other workflows are returned. It returns `learn_routine` rows alone, and nothing
-/// when the clock gives day 0.
+/// row lies one or two days after the clock's day, it returns no row for that pair. A `learn_routine` or
+/// `learn_run` row that its typed parser refuses stops the step for the workflow that the row's top-level
+/// `workflow` key names, read with the registry's entry of the kind, and for every workflow where that key cannot
+/// be read; the rows of the other workflows are returned. It returns `learn_routine` rows alone, and nothing when
+/// the clock gives day 0.
 pub struct LearnStep<C> {
     clock: C,
 }
