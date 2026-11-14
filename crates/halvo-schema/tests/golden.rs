@@ -777,7 +777,7 @@ fn the_committed_names_file_holds_none_of_the_five_gateway_keys() {
 #[test]
 fn a_copy_of_the_names_file_with_one_gateway_key_added_fails_the_check_for_that_key() {
     let held = leaf("golden-gateway-keys");
-    let five = ["effort", "max_output_tokens", "messages", "role", "content"];
+    let five: [&str; 5] = ["effort", "max_output_tokens", "messages", "role", "content"];
     let missed: Vec<(&str, Result<(), Vec<&str>>)> = five
         .into_iter()
         .map(|key| {
