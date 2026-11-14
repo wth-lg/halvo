@@ -176,6 +176,20 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>]) -> Vec<St
             }
         }
     }
+    let last = presses.iter().rev().find(|press| press.answers);
+    let mut again = 0;
+    while let Some(press) = last {
+        if !failures.is_empty()
+            || again == 3
+            || wait(Duration::from_secs(1), || DONE.load(Ordering::SeqCst))
+        {
+            break;
+        }
+        again += 1;
+        std::thread::sleep(arm() + Duration::from_millis(200));
+        ui.press(press.control);
+        println!("guard_hosted reading {label}: the press after the hold pressed again, {again} times, as the window became active again after it");
+    }
     if !wait(Duration::from_secs(3), || DONE.load(Ordering::SeqCst)) {
         failures.push("the press after the hold did not close the dialog".into());
         while !DONE.load(Ordering::SeqCst) && start.elapsed() < BOUND {

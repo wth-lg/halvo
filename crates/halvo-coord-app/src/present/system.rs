@@ -21,8 +21,10 @@ use tauri::{AppHandle, Runtime};
 /// hold anew, that a second show holds again, and that the window was the active window at the
 /// report. On macOS it is the alert of AppKit, shown on the main thread, whose buttons send their
 /// action to the hold, which ends the modal session with the button's response when the button's
-/// window is the modal window and the hold lets the press through; the report comes from the window's notification that it became the key
-/// window. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
+/// window is the modal window and the hold lets the press through; the window became the active
+/// window when it is the key window of the active app, read at the notification that it became the
+/// key window and at the notification that the app became active, and the report comes at the
+/// first such moment. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
 /// text with the response 1000 and the allowing text with 1001; that no button is titled Cancel or
 /// holds the Escape key; that its message text is the card's title and its informative text the
 /// card's text; and that a press on each button after the hold, a stopped and an aborted modal
@@ -135,7 +137,10 @@ mod macos {
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, NSObject};
     use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker, MainThreadOnly};
-    use objc2_app_kit::{NSAlert, NSApplication, NSButton, NSWindowDidBecomeKeyNotification};
+    use objc2_app_kit::{
+        NSAlert, NSApplication, NSApplicationDidBecomeActiveNotification, NSButton,
+        NSWindowDidBecomeKeyNotification,
+    };
     use objc2_foundation::{NSNotification, NSNotificationCenter, NSString};
     use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError};
     use std::time::{Duration, Instant};
@@ -182,12 +187,30 @@ mod macos {
                 let ours = note
                     .object()
                     .is_some_and(|object| std::ptr::eq(Retained::as_ptr(&object), Retained::as_ptr(&window).cast()));
-                if ours && lock(&self.ivars().guard).active(Instant::now()) {
-                    let _ = self.ivars().shown.send(Step::Shown);
+                if ours {
+                    active(self);
                 }
+            }
+
+            #[unsafe(method(becameActive:))]
+            fn became_active(&self, _: &NSNotification) {
+                active(self);
             }
         }
     );
+
+    fn active(hold: &Hold) {
+        let Some(window) = hold.ivars().button.window() else {
+            return;
+        };
+        let app = NSApplication::sharedApplication(hold.mtm());
+        if app.isActive()
+            && window.isKeyWindow()
+            && lock(&hold.ivars().guard).active(Instant::now())
+        {
+            let _ = hold.ivars().shown.send(Step::Shown);
+        }
+    }
 
     pub fn show<R: Runtime>(
         app: &AppHandle<R>,
@@ -229,13 +252,19 @@ mod macos {
                 }
             }
             let center = NSNotificationCenter::defaultCenter();
-            // SAFETY: `hold` answers the selector `becameKey:` with a notification, and it is
-            // removed as an observer before it is dropped.
+            // SAFETY: `hold` answers the selectors `becameKey:` and `becameActive:` with a
+            // notification, and it is removed as an observer before it is dropped.
             unsafe {
                 center.addObserver_selector_name_object(
                     target,
                     sel!(becameKey:),
                     Some(NSWindowDidBecomeKeyNotification),
+                    None,
+                );
+                center.addObserver_selector_name_object(
+                    target,
+                    sel!(becameActive:),
+                    Some(NSApplicationDidBecomeActiveNotification),
                     None,
                 );
             }
