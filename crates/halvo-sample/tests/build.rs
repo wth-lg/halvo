@@ -516,3 +516,36 @@ fn the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_name
     let o = run(&["check-labels", &s(&out)]);
     assert_eq!(o.code, 0, "{}", o.stdout);
 }
+
+#[test]
+fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
+    let dir = scratch("script-names");
+    let g = golden();
+    let script = fs::read_to_string(g.join("script.jsonl")).expect("golden");
+    let marked = fs::read_to_string(g.join("marked.jsonl")).expect("golden");
+    write(&dir.join("s/marked.jsonl"), &marked);
+    for name in ["script.json", "script.jsonl.txt", "script.JSONL", ".script.jsonl", ".jsonl"] {
+        write(&dir.join("s").join(name), &script);
+        let o = common::run_in(
+            &dir.join("s"),
+            &["build", "--seed", "1", "--out", &s(&dir.join(format!("out-{name}"))), name, "marked.jsonl"],
+        );
+        refused(&o, "script");
+        assert!(o.stderr.contains(&format!("{name}: not a script file")), "{}", o.stderr);
+        assert!(!dir.join(format!("out-{name}")).exists());
+    }
+    fs::create_dir_all(dir.join("s/sub.jsonl")).expect("a directory");
+    refused(
+        &common::run_in(
+            &dir.join("s"),
+            &["build", "--seed", "1", "--out", &s(&dir.join("out-dir")), "sub.jsonl", "marked.jsonl"],
+        ),
+        "script",
+    );
+    write(&dir.join("s/script.jsonl"), &script);
+    let o = common::run_in(
+        &dir.join("s"),
+        &["build", "--seed", "1", "--out", &s(&dir.join("out-good")), "./script.jsonl", "marked.jsonl"],
+    );
+    assert_eq!(o.code, 0, "{}", o.stderr);
+}
