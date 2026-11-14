@@ -1276,13 +1276,19 @@ What the code does since store-3, each sentence with the test that shows it.
   number outside that range or one that is not an integer
   `KeyFileUnparseable`. On Windows the tail on a store path of which a part
   ends in a dot or a space removes nothing at or beside that path: it runs
-  the root step from the key file that it reads through the verbatim form
-  of the path, takes no lock there, counts `not_followed` 1 and answers
-  `DeleteIncomplete`; a path that has no verbatim form leaves the root
-  unread. A roots path of that form leaves the named root unread and listed
-  no (ruling ST-44 F8). Tests:
+  the root step for the named root alone from the key file that it reads
+  through the verbatim form of the path, takes no lock there, counts
+  `not_followed` 1 and answers `DeleteIncomplete`. The verbatim form is
+  built from the path's parts with the system's separator, whatever
+  separator the path was written with, a doubled separator and a `.` part
+  dropped (ruling ST-45 H6 (a)); a relative path, a path on a drive with no
+  root and a path with a `..` part have none and leave the root unread. A
+  roots path of that form leaves the named root unread and listed no
+  (ruling ST-44 F8). Tests:
   `a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store`,
-  `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`.
+  `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`,
+  `the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone`,
+  `the_tail_without_the_lock_destroys_the_named_root_alone`.
 - An open that is refused destroys no root file, writes nothing under the
   roots directory and leaves `create.pending` as it found it (ruling
   ST-43). Tests, each with a `create.pending` of a killed create that names

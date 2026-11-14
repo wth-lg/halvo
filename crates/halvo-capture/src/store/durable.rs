@@ -974,8 +974,12 @@ pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
 }
 
 /// The verbatim form of a path, which Win32 opens without trimming: the path
-/// itself when it is verbatim, `\\?\` before an absolute path on a drive that
-/// holds no `.` or `..` part, and nothing for any other path.
+/// itself when it is verbatim; for an absolute path on a drive or a share,
+/// `\\?\` (or `\\?\UNC\`) and the path's parts joined with the system's
+/// separator, whatever separator the path was written with, a doubled
+/// separator and a `.` part dropped (ruling ST-45 H6 (a)); nothing for a
+/// relative path, a path on a drive with no root and a path with a `..`
+/// part.
 #[cfg(windows)]
 pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
     use std::path::{Component, Prefix};
@@ -983,20 +987,34 @@ pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
     let Some(Component::Prefix(prefix)) = parts.next() else {
         return None;
     };
-    match prefix.kind() {
+    let mut form = match prefix.kind() {
         Prefix::Verbatim(_) | Prefix::VerbatimDisk(_) | Prefix::VerbatimUNC(..) => {
-            Some(path.to_path_buf())
+            return Some(path.to_path_buf())
         }
-        Prefix::Disk(_)
-            if parts.next() == Some(Component::RootDir)
-                && parts.all(|part| matches!(part, Component::Normal(_))) =>
-        {
-            let mut verbatim = std::ffi::OsString::from(r"\\?\");
-            verbatim.push(path.as_os_str());
-            Some(std::path::PathBuf::from(verbatim))
+        Prefix::Disk(letter) => std::ffi::OsString::from(format!(r"\\?\{}:", char::from(letter))),
+        Prefix::UNC(server, share) => {
+            let mut form = std::ffi::OsString::from(r"\\?\UNC\");
+            form.push(server);
+            form.push(r"\");
+            form.push(share);
+            form
         }
-        _ => None,
+        _ => return None,
+    };
+    if parts.next() != Some(Component::RootDir) {
+        return None;
     }
+    for part in parts {
+        match part {
+            Component::Normal(name) => {
+                form.push(r"\");
+                form.push(name);
+            }
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    Some(std::path::PathBuf::from(form))
 }
 
 #[cfg(windows)]
