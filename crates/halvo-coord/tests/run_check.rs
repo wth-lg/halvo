@@ -945,3 +945,286 @@ fn the_lapse_stores_no_slot_skipped_and_after_try_again_the_next_tick_raises_rea
         "neither the lapse nor try_again stores slot_skipped"
     );
 }
+
+/// Stores, as the owner's events of agent `n` with a lost acknowledgement, the raise of a check
+/// with its lapse of the `ready` item: the body of a move whose acknowledgement was lost.
+fn lost_check_body(w: &World, n: usize, ready: &ItemId, check: &ItemId) {
+    stored_unacknowledged(
+        w,
+        n,
+        What::ItemLapsed {
+            item: ready.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        },
+    );
+    stored_unacknowledged(
+        w,
+        n,
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
+    );
+}
+
+/// Stores, as the owner's events of agent `n` with a lost acknowledgement, a person's start over
+/// the `ready` item: its `item_answered` with `start` and the `run_started` of `run`.
+fn lost_start(w: &World, n: usize, ready: &ItemId, run: &RunId) {
+    stored_unacknowledged(
+        w,
+        n,
+        What::ItemAnswered {
+            item: ready.clone(),
+            answer: Answered::Ready(ReadyAnswer::Start),
+        },
+    );
+    stored_unacknowledged(
+        w,
+        n,
+        What::RunStarted {
+            run: run.clone(),
+            trigger: halvo_coord::types::Trigger::Person,
+            slot: None,
+        },
+    );
+}
+
+/// Whether the owner holds a `run_ended` of `run`, or the board owes one.
+fn ended_or_owed(w: &World, run: &RunId) -> bool {
+    let stored = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run));
+    let owed = w.board.owed.iter().any(
+        |o| matches!(&o.what, halvo_coord::schedule::Owing::RunEnded { run: r, .. } if r == run),
+    );
+    stored || owed
+}
+
+/// The check's body meets `seq` because the owner holds a person's start over the `ready` item
+/// whose acknowledgement was lost. The read shows the `ready` item closed by that start and brings
+/// a `run_started` that no runner took up: the move closes that start, `run_ended` with
+/// `interrupted` and its `end_run`, as every read after a refusal `seq` does (ruling RD-34 (b)
+/// (5)). The agent's newest run is then that start, which the agent store has not ended, so the
+/// hold `check` does not stand and no check is raised in that move (I5.4).
+#[test]
+fn a_lost_start_that_the_checks_read_brings_is_closed() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let lost = RunId::parse(&format!("{:032x}", 0x7a01)).unwrap();
+    lost_start(&w, 0, &ready, &lost);
+    let tick = w.act(Act::Tick);
+    assert!(ended_or_owed(&w, &lost), "the lost start is closed or owed");
+    assert!(lapses(&w, 0).is_empty(), "the start closed the ready item");
+    assert!(tick.checked.is_empty(), "the hold check no longer stands");
+    assert_eq!(check_items(&w, 0), 0);
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+}
+
+/// The answer's body meets `seq` because the owner holds a person's start over the `ready` item
+/// whose acknowledgement was lost: the answer's read closes that start (ruling RD-34 (b) (5)), and
+/// the hold `check` then no longer stands, so the answer is `state` with nothing more stored.
+#[test]
+fn a_lost_start_that_the_answers_read_brings_is_closed() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let lost = RunId::parse(&format!("{:032x}", 0x7a02)).unwrap();
+    lost_start(&w, 0, &ready, &lost);
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Err(Cause::State));
+    assert!(ended_or_owed(&w, &lost), "the lost start is closed or owed");
+    assert!(lapses(&w, 0).is_empty());
+    assert_eq!(check_items(&w, 0), 0);
+}
+
+/// A skip of the `ready` item meets `seq` because the owner holds the check's body with its lapse
+/// of that item, stored with a lost acknowledgement: the skip pressed a lapsed card, so it is
+/// answered `stale` and stores no `slot_skipped` (I5.3, ruling RD-5), and the board holds the
+/// check that the read showed, so the next tick raises no second check.
+#[test]
+fn a_skip_whose_read_shows_the_ready_item_lapsed_is_stale_and_the_board_holds_the_check() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let check = ItemId::parse(&format!("{:032x}", 0x7901)).unwrap();
+    lost_check_body(&w, 0, &ready, &check);
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(skip.answer, Err(Cause::Stale));
+    assert_eq!(skips(&w, 0), 0, "no slot_skipped after the lapse");
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(OwnItem {
+            item: check,
+            kind: OwnItemKind::Check,
+        }))
+    );
+    w.set_clock(T0 + 1_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(check_items(&w, 0), 1, "one check item, not two");
+}
+
+/// A skip that the owner stored with a lost acknowledgement is taken when it is pressed again:
+/// the read shows the `ready` item answered with `skip`, and nothing is stored twice.
+#[test]
+fn a_skip_that_the_owner_stored_with_a_lost_acknowledgement_is_taken_once() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let skip = |w: &mut World| {
+        let mv = Move::Skip { agent: agent(0) };
+        schedule_drive(&w.ports, &mut w.board, &w.limits, mv).answer
+    };
+    w.ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(skip(&mut w), Err(Cause::NoService));
+    let refused = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .rev()
+        .find_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .expect("the skip's refused log");
+    w.ports.events.borrow_mut().extend(refused);
+    w.ports.clear_refusals();
+    assert_eq!(skip(&mut w), Ok(Answer::Ok));
+    assert_eq!(skips(&w, 0), 1);
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+}
+
+/// A switch-off's `hold_set` meets `seq` because the owner holds the check's body with its lapse
+/// of the `ready` item, stored with a lost acknowledgement: the read takes the `ready` item off
+/// the board and takes up the check, so the next tick raises no second check.
+#[test]
+fn a_switch_off_whose_read_shows_the_check_body_holds_that_check() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let check = ItemId::parse(&format!("{:032x}", 0x7903)).unwrap();
+    lost_check_body(&w, 0, &ready, &check);
+    w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(OwnItem {
+            item: check,
+            kind: OwnItemKind::Check,
+        }))
+    );
+    w.set_clock(T0 + 1_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(check_items(&w, 0), 1, "one check item, not two");
+}
+
+/// The owner stored the answer `try_again` with a lost acknowledgement, and the person then
+/// answers `went_through`: the read shows the check answered otherwise, so the second answer is
+/// `stale` and nothing of it is stored (I5.4, I7.2, ruling RD-38).
+#[test]
+fn an_answer_whose_read_shows_the_check_answered_otherwise_is_stale() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.act(Act::Tick);
+    let check = match &w.facts(0).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Check => o.item.clone(),
+        other => panic!("{other:?}"),
+    };
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemAnswered {
+            item: check,
+            answer: Answered::Check(CheckAnswer::TryAgain),
+        },
+    );
+    stored_unacknowledged(
+        &w,
+        0,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check {
+                run,
+                answer: CheckAnswer::TryAgain,
+            },
+        },
+    );
+    let before = w.ports.events.borrow().len();
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::WentThrough),
+        Err(Cause::Stale)
+    );
+    assert_eq!(w.ports.events.borrow().len(), before, "nothing stored");
+    assert_eq!(skips(&w, 0), 0);
+}
+
+/// The answer to the check of an agent whose workflow the owner's list no longer holds is `state`
+/// and sends nothing, as the model's move `check` answers for a gone agent (I5.7).
+#[test]
+fn the_answer_to_the_check_of_a_gone_workflow_is_state_and_sends_nothing() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0));
+    w.ports.workflows.borrow_mut().clear();
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Err(Cause::State));
+    let sent = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Log(_)))
+        .count();
+    assert_eq!(sent, 0, "no log of a gone workflow");
+}
+
+/// A start reads the hold `check` of its own agent alone, as the model's `start` does: another
+/// agent whose check stands beside its open `ready` item, after a move whose raise failed, keeps
+/// that item until a move that reads its record.
+#[test]
+fn a_start_raises_the_check_of_its_own_agent_alone() {
+    let mut w = world(&[PERSON, MANUAL]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.set_clock(T0 + 1_000, DAY);
+    assert!(w.act(Act::Tick).checked.is_empty(), "the raise failed");
+    w.ports.clear_refusals();
+    let start = w.act(Act::Start { agent: agent(1) });
+    assert!(start.checked.is_empty());
+    assert_eq!(ready_item(&w, 0), ready);
+    assert_eq!(check_items(&w, 0), 0);
+}
+
+/// The end of one agent's run reads the hold `check` of every agent, as the model's `end` does:
+/// it lapses another agent's open `ready` item with the cause `check` and raises its check, in
+/// one body, the lapse first (I5.4, ruling RD-5).
+#[test]
+fn the_end_of_a_run_reads_the_check_of_every_agent() {
+    let mut w = world(&[PERSON, MANUAL]);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    let run = w
+        .act(Act::Start { agent: agent(1) })
+        .report
+        .run
+        .expect("agent 1 starts");
+    let checked = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    w.store_end(0, &checked, Outcome::EffectUnknown, 1);
+    let from = w.ports.tried.borrow().len();
+    let end = w.act(Act::End { run, outcome: None });
+    assert_eq!(end.checked, vec![agent(0)]);
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(
+        matches!(&logged[0][0].what, What::ItemLapsed { item, lapsed: Lapsed::Ready(OtherLapse::Check) } if *item == ready),
+        "{logged:?}"
+    );
+    assert!(matches!(
+        logged[0][1].what,
+        What::ItemRaised {
+            raised: Raised::Check(None),
+            ..
+        }
+    ));
+}

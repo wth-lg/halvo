@@ -1,7 +1,7 @@
 use crate::ports::{Clock, Owner, Rng, Stamp};
-use crate::schedule::{holds, read_after_seq, seq_refusal, Board, Hold};
+use crate::schedule::{holds, read_back, seq_refusal, Board, Hold};
 use crate::types::{
-    hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, Lapsed, OtherLapse, OwnItem,
+    hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, Lapsed, Limits, OtherLapse, OwnItem,
     OwnItemKind, Raised, What,
 };
 use std::num::NonZeroU32;
@@ -26,14 +26,15 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
 /// `ready` item with the cause `check` where it holds one, and then `item_raised` of the kind
 /// `check` with no run; the agent holds the item `check` once the owner acknowledged the body,
 /// and the lapse stores no `slot_skipped` (I5.4, ruling RD-5). When the owner refuses the body
-/// with `seq`, the facts take the owner's events after their last one, and the move goes on from
-/// there, once: the agent holds an item `check` that those events raised and left open, or else
-/// the body is made again from the item that the agent holds after the read and logged once more
-/// while `check_due` holds (rulings XB-31, RD-5). The agents that hold the item `check` so, in
-/// ascending agent id.
+/// with `seq`, the move reads the owner's events and closes the lost starts that they bring
+/// (`read_back`), and goes on from there, once: the agent holds an item `check` that those events
+/// raised and left open, or else the body is made again from the item that the agent holds after
+/// the read and logged once more while `check_due` holds (rulings XB-31, RD-34 (b), RD-5).
+/// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,
     board: &mut Board<C>,
+    limits: &Limits,
     only: Option<&AgentId>,
 ) -> Vec<AgentId>
 where
@@ -46,9 +47,9 @@ where
     let (day, at) = (stamp.day(), stamp.at());
     let mut raised = Vec::new();
     for i in 0..board.members.len() {
+        let agent = board.members[i].facts.agent.clone();
         let gone = board.gone.contains(&board.members[i].facts.workflow.id);
-        let facts = &mut board.members[i].facts;
-        if only.is_some_and(|a| a != &facts.agent) || !check_due(facts, gone) {
+        if only.is_some_and(|a| a != &agent) || !check_due(&board.members[i].facts, gone) {
             continue;
         }
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
@@ -83,23 +84,23 @@ where
                 })
                 .collect()
         };
-        let mut events = body(facts);
+        let mut events = body(&board.members[i].facts);
         let mut held = None;
         match ports.log(&events) {
             Ok(()) => held = Some(item.clone()),
             Err(e) if seq_refusal(&e) => {
-                if read_after_seq(ports, facts).is_err() {
+                if read_back(ports, limits, stamp, board, i).is_err() {
                     continue;
                 }
-                if matches!(&facts.doing, Doing::Idle(Some(own)) if own.kind == OwnItemKind::Check)
-                {
-                    raised.push(facts.agent.clone());
+                let doing = &board.members[i].facts.doing;
+                if matches!(doing, Doing::Idle(Some(own)) if own.kind == OwnItemKind::Check) {
+                    raised.push(agent);
                     continue;
                 }
-                if !check_due(facts, gone) {
+                if !check_due(&board.members[i].facts, gone) {
                     continue;
                 }
-                events = body(facts);
+                events = body(&board.members[i].facts);
                 if ports.log(&events).is_ok() {
                     held = Some(item.clone());
                 }
@@ -107,12 +108,13 @@ where
             Err(_) => {}
         }
         if let Some(item) = held {
+            let facts = &mut board.members[i].facts;
             facts.events.extend(events);
             facts.doing = Doing::Idle(Some(OwnItem {
                 item,
                 kind: OwnItemKind::Check,
             }));
-            raised.push(facts.agent.clone());
+            raised.push(agent);
         }
     }
     raised

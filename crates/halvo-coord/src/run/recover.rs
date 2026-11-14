@@ -355,7 +355,7 @@ where
         .collect();
     let mut board = Board::new(day, members);
     board.owed = owed;
-    let checked = raise_checks(ports, &mut board, None);
+    let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {
         board,
         ended,
