@@ -384,6 +384,48 @@ fn each_state_of_the_view_equals_its_fixture() {
     }
 }
 
+fn every_service() -> Vec<Service> {
+    let following = |service: Service| match service {
+        Service::Connecting => Some(Service::Running),
+        Service::Running => Some(Service::NotRunning),
+        Service::NotRunning => Some(Service::HeldUnreachable),
+        Service::HeldUnreachable => Some(Service::StatusRefused),
+        Service::StatusRefused => Some(Service::Unsupported),
+        Service::Unsupported => Some(Service::AnotherVersion),
+        Service::AnotherVersion => None,
+    };
+    std::iter::successors(Some(Service::Connecting), |service| following(*service)).collect()
+}
+
+#[test]
+fn the_states_show_every_service_every_capture_and_every_store_state() {
+    let views: Vec<(&str, StatusView)> = states();
+    let services: Vec<Service> = views.iter().map(|(_, view)| view.service).collect();
+    let captures: Vec<Capture> = views.iter().filter_map(|(_, view)| view.capture).collect();
+    let stores: Vec<StoreState> = views
+        .iter()
+        .filter_map(|(_, view)| view.store.as_ref().map(|store| store.state))
+        .collect();
+    let unshown: Vec<String> = every_service()
+        .into_iter()
+        .filter(|service| !services.contains(service))
+        .map(|service| format!("service {service:?}"))
+        .chain(
+            Capture::ALL
+                .iter()
+                .filter(|capture| !captures.contains(capture))
+                .map(|capture| format!("capture {}", capture.as_str())),
+        )
+        .chain(
+            StoreState::ALL
+                .iter()
+                .filter(|state| !stores.contains(state))
+                .map(|state| format!("store {}", state.as_str())),
+        )
+        .collect();
+    assert_eq!(unshown, Vec::<String>::new(), "no state shows these");
+}
+
 #[test]
 fn a_view_with_no_status_names_the_system_that_the_app_runs_on() {
     let expected = if cfg!(windows) {
