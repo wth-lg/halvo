@@ -87,6 +87,37 @@ pub enum Mode {
 #[error("halvo-capture: {0}\n{USAGE}")]
 pub struct Usage(pub &'static str);
 
+/// The binary's answer to a refused command line: the usage text on `err`,
+/// and exit 64.
+pub fn usage_answer(usage: &Usage, err: &mut dyn std::io::Write) -> i32 {
+    let _ = writeln!(err, "{usage}");
+    halvo_control::exit::USAGE
+}
+
+/// The binary's answer to a timed run's outcome: the report on `out`, the
+/// loss line on `err`, and the run's status. A report that cannot be written,
+/// as into a pipe whose reader is gone, gives exit 1 with a line, and the
+/// loss line still follows it.
+pub fn outcome_answer(
+    outcome: &RunOutcome,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    let printed = out
+        .write_all(outcome.report.render().as_bytes())
+        .and_then(|()| out.flush());
+    if let Err(error) = &printed {
+        let _ = writeln!(err, "halvo-capture: the report was not written: {error}");
+    }
+    if let Some(loss) = &outcome.loss {
+        let _ = writeln!(err, "{loss}");
+    }
+    match printed {
+        Ok(()) => outcome.status,
+        Err(_) => halvo_control::exit::ERROR,
+    }
+}
+
 /// Whether a timed run holds secure input in its second phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecureInput {

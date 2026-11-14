@@ -687,3 +687,42 @@ fn a_refusal_that_the_sources_learn_at_their_stop_ends_the_run() {
         "{answer:?}"
     );
 }
+
+/// Ruling DM-12 G3: the binary answers a refused command line with its usage
+/// text and exit 64.
+#[test]
+fn a_usage_refusal_gives_its_text_and_exit_64() {
+    let mut err = Vec::new();
+    let status = super::usage_answer(&super::Usage("SECONDS is a decimal integer"), &mut err);
+    assert_eq!(status, 64);
+    let text = String::from_utf8(err).unwrap();
+    assert!(
+        text.starts_with("halvo-capture: SECONDS is a decimal integer\n"),
+        "{text}"
+    );
+}
+
+/// Ruling DM-12 G3 (contracts.md line 216): the binary prints the report,
+/// prints the loss line on stderr and returns the run's status.
+#[test]
+fn an_outcome_with_a_loss_prints_its_report_and_line_and_returns_its_status() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Refused));
+    let mut scripted = four_events();
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_millis(300),
+    )
+    .unwrap();
+    let line = outcome.loss.as_ref().expect("no loss").line.clone();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = super::outcome_answer(&outcome, &mut out, &mut err);
+    assert_eq!(status, exit::ERROR);
+    assert_eq!(String::from_utf8(out).unwrap(), outcome.report.render());
+    assert_eq!(String::from_utf8(err).unwrap(), format!("{line}\n"));
+}

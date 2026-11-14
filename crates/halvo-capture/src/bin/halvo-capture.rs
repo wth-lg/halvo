@@ -17,17 +17,11 @@ fn main() -> ExitCode {
         }
         #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
-            Ok(outcome) => {
-                let printed =
-                    print_or_exit_error(&mut std::io::stdout().lock(), &outcome.report.render());
-                if let Some(loss) = &outcome.loss {
-                    let _ = writeln!(std::io::stderr(), "{loss}");
-                }
-                if printed != ExitCode::SUCCESS {
-                    return printed;
-                }
-                status(outcome.status)
-            }
+            Ok(outcome) => status(daemon::outcome_answer(
+                &outcome,
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr(),
+            )),
             Err(error) => fail(format_args!("{error}")),
         },
         #[cfg(debug_assertions)]
@@ -36,10 +30,7 @@ fn main() -> ExitCode {
             halvo_capture::store::measure_store,
             halvo_capture::store::measure_deletion,
         ),
-        Err(usage) => {
-            let _ = writeln!(std::io::stderr(), "{usage}");
-            status(exit::USAGE)
-        }
+        Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }
 
