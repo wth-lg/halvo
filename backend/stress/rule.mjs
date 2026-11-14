@@ -102,9 +102,14 @@ function readMock(events) {
 
 const GATEWAY_STACK = /\.ts:\d+|Durable Object/;
 const gatewayFailed = (attempt) => attempt.why === "500" && GATEWAY_STACK.test(attempt.body);
-const PROXY_LOST_THE_REQUEST = "Network connection lost";
-const lostInTransport = (request) =>
-  request.status === 500 && typeof request.body === "string" && request.body.includes(PROXY_LOST_THE_REQUEST) && !GATEWAY_STACK.test(request.body);
+const PROXY_ERROR_LINE = "Error: Network connection lost.";
+const PROXY_FILE = String.raw`file:\/\/\/[^\s()]*\/node_modules\/miniflare\/[^\s()]+:\d+:\d+`;
+const PROXY_FRAME = new RegExp(String.raw`^ {4}at (?:async )?(?:(?:new )?[^\s()]+ \(${PROXY_FILE}\)|${PROXY_FILE})$`);
+function isProxyText(body) {
+  const [first, ...frames] = body.split("\n");
+  return first === PROXY_ERROR_LINE && frames.length > 0 && frames.every((frame) => PROXY_FRAME.test(frame));
+}
+const lostInTransport = (request) => request.status === 500 && typeof request.body === "string" && isProxyText(request.body);
 const EXPIRY_OF_DUE_HOLDS = 0;
 const OWN_WORK_OF_THE_STEP = 1;
 
