@@ -807,4 +807,30 @@ mod tests {
         assert!(!removed);
         assert!(locked.join("file").exists());
     }
+
+    /// CP-189 G3, a ban: the stop's code in this file holds no call that ends a process but the end
+    /// of the run's own processes by the run's mark (`end_runs_own`). The first process is ended
+    /// through the child's handle in cdp.rs. The text before this file's tests is read.
+    #[test]
+    fn g3_the_stop_holds_no_call_that_ends_a_process_without_the_mark() {
+        let source = include_str!("session.rs");
+        let code = source
+            .split("#[cfg(test)]\nmod tests {")
+            .next()
+            .unwrap_or(source);
+        for banned in [
+            "procs::kill(",
+            "procs::ask_end(",
+            "libc::kill(",
+            "TerminateProcess(",
+            "end_tree_now(",
+            ".kill()",
+            "kill_tree(",
+        ] {
+            assert!(
+                !code.contains(banned),
+                "cdp/session.rs calls {banned}, which ends a process without the run's mark"
+            );
+        }
+    }
 }
