@@ -704,6 +704,11 @@ fn a_limits_line_beside_a_named_driver_or_writer_or_of_another_task_stands() {
         "limits steps=9 wall_s=400 model_tokens=9000",
         "limit task=bill steps=9",
         "the limits task=bill steps=9",
+        "limits task=billing steps=9 wall_s=400 model_tokens=9000",
+        "limitstask=bill steps=9 wall_s=400 model_tokens=9000",
+        "limits task=bill,reply wall_s=120 model_tokens=700",
+        "limits subtask=order steps=9",
+        "limits task=reply_order wall_s=120 model_tokens=700",
     ] {
         run(&[ATTEMPT, line, VERDICT], &[BOUND]).passed();
     }

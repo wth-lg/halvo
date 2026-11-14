@@ -51,20 +51,23 @@ pub struct Limits {
     pub reply: bool,
 }
 
-/// A line whose first bytes, after any spaces and tabs and compared without ASCII letter case, are
-/// `limits`, with the tasks that it names anywhere in the line, compared without letter case. In
-/// the driver file a `limits` line that names `bill` or `order` while the verdict's driver is
-/// `none`, or `reply` while its writer is `none`, is the refusal `source` with its line number
-/// (T5.4).
+/// A `limits` line with the tasks that it names, read by its words: words are divided by spaces
+/// and tabs, the first word is `limits` and a later word names a task as `task=bill`, `task=order` or
+/// `task=reply`, each compared without ASCII letter case. In the driver file a `limits` line that
+/// names `bill` or `order` while the verdict's driver is `none`, or `reply` while its writer is
+/// `none`, is the refusal `source` with its line number (T5.4).
 pub fn limits(line: &[u8]) -> Option<Limits> {
-    if !starts_folded(after_blanks(line), b"limits") {
+    let mut words = line
+        .split(|byte| *byte == b' ' || *byte == b'\t')
+        .filter(|word| !word.is_empty());
+    if !words.next()?.eq_ignore_ascii_case(b"limits") {
         return None;
     }
-    let folded = line.to_ascii_lowercase();
-    let holds = |key: &[u8]| folded.windows(key.len()).any(|window| window == key);
+    let words: Vec<&[u8]> = words.collect();
+    let names = |task: &[u8]| words.iter().any(|word| word.eq_ignore_ascii_case(task));
     Some(Limits {
-        drive: holds(b"task=bill") || holds(b"task=order"),
-        reply: holds(b"task=reply"),
+        drive: names(b"task=bill") || names(b"task=order"),
+        reply: names(b"task=reply"),
     })
 }
 
