@@ -157,30 +157,21 @@ fn mouse_registration(hwnd: HWND) -> RAWINPUTDEVICE {
     }
 }
 
-/// The keyboard's window registers the mouse when no source has it. While
-/// the registration fails, the gate withholds every key (W3-7 L7), and the
-/// gate's poll tries again until the registration stands.
+/// The keyboard's window registers the mouse when no source has it, and
+/// ends the time with no click route that the pointer's removal began. While
+/// the registration fails that time stays open, so the gate withholds every
+/// key (W3-7 L7), and the gate's poll tries again until the call stands.
 fn keyboard_takes_mouse(hwnd: HWND, register: RegisterCall) -> windows::core::Result<()> {
     let mut route = clicks();
     if route.owner.is_some() {
         return Ok(());
     }
-    let asked = super::now_tick();
-    match register(&mouse_registration(hwnd)) {
-        Ok(()) => {
-            route.owner = Some(RawDevice::Keyboard);
-            if let Some(gate) = &route.gate {
-                gate.clicks_back(super::now_tick());
-            }
-            Ok(())
-        }
-        Err(error) => {
-            if let Some(gate) = &route.gate {
-                gate.clicks_lost(asked);
-            }
-            Err(error)
-        }
+    register(&mouse_registration(hwnd))?;
+    route.owner = Some(RawDevice::Keyboard);
+    if let Some(gate) = &route.gate {
+        gate.clicks_back(super::now_tick());
     }
+    Ok(())
 }
 
 /// The keyboard's window takes the mouse again when no source has it, with

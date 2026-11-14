@@ -9,6 +9,7 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+mod browser;
 mod stall;
 use stall::FieldWindow;
 mod stamp_phases;
@@ -931,6 +932,13 @@ impl TestWindow {
     }
 
     fn activate(&self) -> (bool, &'static str) {
+        self.activate_with(true)
+    }
+
+    /// Brings the window to the front, with the Alt key among the ways
+    /// tried only when `keys` is set: a key here reaches every keyboard
+    /// source that runs (W3-7 O3).
+    fn activate_with(&self, keys: bool) -> (bool, &'static str) {
         // SAFETY: the three calls take this thread's window handle by value.
         unsafe {
             let _ = ShowWindow(self.hwnd, SW_SHOW);
@@ -942,12 +950,14 @@ impl TestWindow {
             return (true, "SetForegroundWindow");
         }
 
-        send(&[key_input(VK_MENU, false)]);
-        set_foreground(self.hwnd);
-        send(&[key_input(VK_MENU, true)]);
-        pump_thread(Duration::from_millis(200));
-        if self.is_foreground() {
-            return (true, "alt-key-unlock");
+        if keys {
+            send(&[key_input(VK_MENU, false)]);
+            set_foreground(self.hwnd);
+            send(&[key_input(VK_MENU, true)]);
+            pump_thread(Duration::from_millis(200));
+            if self.is_foreground() {
+                return (true, "alt-key-unlock");
+            }
         }
 
         let current_thread = {
@@ -2358,7 +2368,7 @@ fn x8_raw_input_across_the_integrity_boundary() {
         ))
         .expect("elevated window");
         pump_thread(Duration::from_millis(2500));
-        let (own_foreground, method) = own.activate();
+        let (own_foreground, method) = own.activate_with(false);
         pump_thread(Duration::from_millis(300));
         let elevated_from = unix_millis(SystemTime::now());
         press_keys(5);
@@ -2538,6 +2548,11 @@ fn x8_raw_input_across_the_integrity_boundary() {
         assert!(
             at_medium_from.is_some(),
             "INCONCLUSIVE: the listener wrote no withheld or late value before the medium phase"
+        );
+        assert_eq!(
+            at_elevated_from,
+            Some((0, 0)),
+            "INCONCLUSIVE: the listener's withheld or late value was set before the elevated phase"
         );
         assert!(
             !set_by_the_elevated_phase,
@@ -4197,6 +4212,11 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
             "phase D: a key of the revealed password field was recorded"
         );
         assert_eq!(
+            gate_d,
+            Some(halvo_capture::secure_input::windows::FieldState::Password),
+            "phase D: after a click inside the revealed field the gate did not keep Password"
+        );
+        assert_eq!(
             e.letters_recorded, 0,
             "phase E: a key typed right after Tab into the password field was recorded"
         );
@@ -4536,11 +4556,36 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let unknown_class = !browser.chromium;
+        // W3-7 K10: for a kind that reads Unknown, a control in the same run
+        // that the same source records the letters of a plain field of a
+        // kind that reads Clear, before the browser's phases and after.
+        let control = |which: &str| -> usize {
+            let fields = FieldWindow::open(test, Field::Plain);
+            let focused = fields.focus(Field::Plain);
+            let _ = events.drain_for(Duration::from_millis(600));
+            type_letters_slowly(5);
+            let recorded = count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            );
+            say(
+                test,
+                format!(
+                    "control={which} window=native-plain-field foreground={} focused={focused} \
+                     letters_sent=5 keystroke_events={recorded}",
+                    fields.foreground
+                ),
+            );
+            recorded
+        };
+        let control_before = if unknown_class { control("before") } else { 5 };
 
         let _ = browser_phase(test, run, &keyboard, &events, 'W', Vec::new);
         let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || letters(5));
+        let gate_a = keyboard.field_state();
         let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
         let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
+        let gate_b = keyboard.field_state();
         let withheld_b = keyboard.health().counters.keys_withheld;
         let (c, c_seen, c_page, c_sent) = browser_phase(test, run, &keyboard, &events, 'C', || {
             std::thread::sleep(Duration::from_millis(1000));
@@ -4569,6 +4614,24 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             Vec::new()
         });
         let e_decided = seam::take();
+        // W3-7 O10: each round of phase E, with the decision of each key.
+        let mut sorted: Vec<&seam::Decided> = e_decided.iter().collect();
+        sorted.sort_by_key(|key| key.os_tick);
+        let mut round = 0;
+        let mut last: Option<u32> = None;
+        for key in sorted {
+            if last.is_some_and(|last| key.os_tick.wrapping_sub(last) > 300) {
+                round += 1;
+            }
+            last = Some(key.os_tick);
+            say(
+                test,
+                format!(
+                    "phase=E round={round} class={:?} verdict={:?} rule={:?}",
+                    key.class, key.verdict, key.rule
+                ),
+            );
+        }
         let recorded = |class: seam::KeyClass| {
             e_decided
                 .iter()
@@ -4596,6 +4659,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             f += keys;
             f_password += page.map_or(0, |p| p.password);
         }
+        let control_after = if unknown_class { control("after") } else { 5 };
         let _ = stop_counted(&mut keyboard, "keyboard");
         let page = |p: &Option<PageCounts>| {
             p.as_ref()
@@ -4644,12 +4708,32 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             "phase F: a key of the autofocus password input was recorded"
         );
         if unknown_class {
+            say(
+                test,
+                format!(
+                    "gate_while_the_plain_input_had_the_focus={gate_a:?} \
+                     gate_while_the_password_input_had_the_focus={gate_b:?} \
+                     control_before={control_before} control_after={control_after}"
+                ),
+            );
+            assert!(
+                control_before == 5 && control_after == 5,
+                "the control in a plain field of a kind that reads Clear did not record its letters: \
+                 the source recorded nothing"
+            );
+            assert_eq!(
+                (gate_a, gate_b),
+                (
+                    Some(halvo_capture::secure_input::windows::FieldState::Unknown),
+                    Some(halvo_capture::secure_input::windows::FieldState::Unknown)
+                ),
+                "the gate did not read Unknown while the page's input had the focus"
+            );
             assert_eq!(
                 a + m + c + e,
                 0,
                 "a Firefox focus must read Unknown and give no keystroke event"
             );
-            say(test, "detector_state=Unknown keystroke_events=0");
         } else {
             assert_eq!(a, 5, "phase A: every key of the text input");
             assert_eq!(
@@ -4774,6 +4858,96 @@ macro_rules! defect {
 
 mod known_defect {
     use super::*;
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+    fn browser_self_move_after_a_held_main_thread_in_chrome() {
+        let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
+        defect!(
+            "W3-5-A2",
+            recorded == 0,
+            format!("TF browser-self-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+    fn browser_self_move_after_a_held_main_thread_in_edge() {
+        let recorded = browser::self_move_phases("browser-self-edge", "edge");
+        defect!(
+            "W3-5-A2",
+            recorded == 0,
+            format!("TF browser-self-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+    fn browser_swaps_on_a_held_main_thread_in_chrome() {
+        let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-held-swap-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+    fn browser_swaps_on_a_held_main_thread_in_edge() {
+        let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-held-swap-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a burst of five letters of which the first makes the swap"]
+    fn browser_burst_whose_first_letter_swaps_in_chrome() {
+        let recorded = browser::burst_phase("browser-burst-chrome", "chrome");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-burst-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 Q2 (i), a burst of five letters of which the first makes the swap"]
+    fn browser_burst_whose_first_letter_swaps_in_edge() {
+        let recorded = browser::burst_phase("browser-burst-edge", "edge");
+        defect!(
+            "W3-7-Q2i",
+            recorded == 0,
+            format!("TF browser-burst-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
+    fn browser_letter_and_tab_out_of_a_swapped_field_in_chrome() {
+        let recorded =
+            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-chrome", "chrome");
+        defect!(
+            "W3-7-C5",
+            recorded == 0,
+            format!("TF browser-tab-after-chrome password_keys_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-7 correction (5), a letter and a Tab out of a field that a timer made a password field"]
+    fn browser_letter_and_tab_out_of_a_swapped_field_in_edge() {
+        let recorded =
+            browser::letter_and_tab_out_of_a_swapped_field("browser-tab-after-edge", "edge");
+        defect!(
+            "W3-7-C5",
+            recorded == 0,
+            format!("TF browser-tab-after-edge password_keys_recorded={recorded}")
+        );
+    }
 
     #[test]
     #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]

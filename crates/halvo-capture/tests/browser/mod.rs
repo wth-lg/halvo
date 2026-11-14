@@ -1,0 +1,1233 @@
+//! W3-7 L4, O11 and Q3 (e), (f): the phases of a fixture page in Chrome and
+//! in Edge (the stall phases of W3-5 C7, the type swaps of Q2 (h) and (i),
+//! the cold and warm orders of Q3 (e)), and renamed copies of Firefox and of
+//! Chrome (Q3 (f), O9). The page counts each key by the type of the input
+//! when its character went in, and each Tab by the type of the input that
+//! took its key-down; the gate's decisions come through the test seam. Every
+//! line prints numbers, flags and fixed names alone.
+
+use super::*;
+use halvo_capture::secure_input::windows::FieldState;
+use halvo_capture::source::Started;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicI64, Ordering};
+use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSE_EVENT_FLAGS, VK_A,
+    VK_F22, VK_F24, VK_TAB,
+};
+
+/// The page of the phases. `phase` names what the page does after each
+/// reset (the key F24), `hold` how long its main thread is held.
+const PHASE_PAGE: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><title>halvo-phase</title>
+<style>body{margin:0} input,button{display:block;width:320px;height:40px;margin:24px;font-size:20px}</style>
+</head>
+<body>
+<input id="plain" type="text">
+<input id="password" type="password">
+<button id="show">show</button>
+<script>
+const q = new URLSearchParams(location.search);
+const phase = q.get('phase') || 'none';
+const hold = Number(q.get('hold') || '0');
+const run = q.get('run') || '0';
+const plain = document.getElementById('plain');
+const password = document.getElementById('password');
+const button = document.getElementById('show');
+const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0 };
+let armed = false;
+let timers = [];
+const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end) {} };
+const where = () => document.activeElement ? (document.activeElement.id || 'body') : 'none';
+function show() {
+  const r = password.getBoundingClientRect();
+  const top = window.screenY + (window.outerHeight - window.innerHeight);
+  const left = window.screenX + (window.outerWidth - window.innerWidth) / 2;
+  document.title = 'halvo-phase ' + phase + run + ' text=' + c.text + ' password=' + c.password +
+    ' tp=' + c.tp + ' tt=' + c.tt + ' downs=' + c.downs + ' round=' + c.round +
+    ' focus=' + where() + ' ptype=' + plain.type +
+    ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) + ' end';
+}
+const later = (ms, f) => timers.push(setTimeout(() => { f(); show(); }, ms));
+const swap = () => { busy(hold); plain.type = 'password'; busy(hold); };
+for (const el of [plain, password]) {
+  el.addEventListener('input', () => { if (el.type === 'password') c.password++; else c.text++; show(); });
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { if (el.type === 'password') c.tp++; else c.tt++; show(); }
+  });
+}
+plain.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab' && phase === 'tab') busy(hold);
+  if (e.key !== 'F24' && armed && (phase === 'swap-keydown' || phase === 'burst')) { armed = false; swap(); }
+});
+plain.addEventListener('keyup', (e) => {
+  if (e.key !== 'F24' && armed && phase === 'swap-keyup') { armed = false; swap(); }
+});
+plain.addEventListener('focus', () => {
+  if (armed && phase === 'swap-focus') { armed = false; swap(); }
+});
+password.addEventListener('mousedown', () => { c.downs++; show(); if (phase === 'click') busy(hold); });
+function reset() {
+  for (const t of timers) clearTimeout(t);
+  timers = [];
+  plain.type = 'text'; password.type = 'password'; plain.value = ''; password.value = '';
+  password.tabIndex = phase === 'tab-after' ? -1 : 0;
+  c.text = 0; c.password = 0; c.tp = 0; c.tt = 0; c.downs = 0; c.round++;
+  armed = true;
+  if (phase === 'cold' || phase === 'show-hide' || phase === 'show-control') password.focus();
+  else if (phase === 'swap-focus') { button.focus(); later(300, () => plain.focus()); }
+  else plain.focus();
+  if (phase === 'swap-timer' || phase === 'tab-after') later(400, () => { armed = false; swap(); });
+  if (phase === 'show-hide') { later(300, () => { password.type = 'text'; }); later(1300, () => { password.type = 'password'; }); }
+  if (phase === 'show-control') {
+    later(300, () => { button.focus(); password.type = 'text'; });
+    later(600, () => password.focus());
+    later(1300, () => { password.type = 'password'; });
+  }
+  if (phase === 'self') later(600, () => { busy(hold); password.focus(); });
+  show();
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F24') { e.preventDefault(); reset(); }
+  if (e.key === 'F22') { e.preventDefault(); password.focus(); show(); }
+}, true);
+reset();
+</script>
+</body></html>
+"#;
+
+/// The page's own counts, read from its title.
+#[derive(Debug, Default, Clone)]
+struct PageRead {
+    text: i64,
+    password: i64,
+    tabs_password: i64,
+    tabs_text: i64,
+    downs: i64,
+    focus: String,
+    plain_type: String,
+    px: i64,
+    py: i64,
+}
+
+fn page_read(hwnd: HWND) -> Option<PageRead> {
+    let title = title_of(hwnd);
+    let field = |key: &str| -> Option<String> {
+        let at = title.find(&format!(" {key}="))? + key.len() + 2;
+        Some(title[at..].split(' ').next()?.to_string())
+    };
+    let number = |key: &str| field(key).and_then(|v| v.parse::<i64>().ok());
+    Some(PageRead {
+        text: number("text")?,
+        password: number("password")?,
+        tabs_password: number("tp")?,
+        tabs_text: number("tt")?,
+        downs: number("downs")?,
+        focus: field("focus")?,
+        plain_type: field("ptype")?,
+        px: number("px")?,
+        py: number("py")?,
+    })
+}
+
+/// What the gate decided for the keys since the seam was read last.
+#[derive(Debug, Default, Clone, Copy)]
+struct Decisions {
+    letters: usize,
+    letters_decided: usize,
+    tabs: usize,
+    other: usize,
+    first_tab_rule: Option<seam::Rule>,
+    first_letter_rule: Option<seam::Rule>,
+}
+
+fn decisions() -> Decisions {
+    let mut d = Decisions::default();
+    for key in seam::take() {
+        let recorded = key.verdict == seam::Verdict::Recorded;
+        match key.class {
+            seam::KeyClass::Printable => {
+                d.letters_decided += 1;
+                if d.first_letter_rule.is_none() {
+                    d.first_letter_rule = key.rule;
+                }
+                d.letters += usize::from(recorded);
+            }
+            seam::KeyClass::Tab => {
+                if d.first_tab_rule.is_none() {
+                    d.first_tab_rule = key.rule;
+                }
+                d.tabs += usize::from(recorded);
+            }
+            _ => d.other += usize::from(recorded),
+        }
+    }
+    d
+}
+
+fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx,
+                dy,
+                mouseData: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn key(vkey: VIRTUAL_KEY) -> u32 {
+    send(&[key_input(vkey, false), key_input(vkey, true)])
+}
+
+/// Sends a letter every `every` for `span`, and answers how many it sent.
+fn letters_for(span: Duration, every: Duration) -> i64 {
+    let began = Instant::now();
+    let mut sent = 0;
+    while began.elapsed() < span {
+        key(VK_A);
+        sent += 1;
+        std::thread::sleep(every);
+    }
+    sent
+}
+
+/// Brings `hwnd` to the front with no key of the test's own: the Alt key
+/// that the other fixtures send takes the focus to a browser's menu. Answers
+/// whether it is there, with the code of the call (1 SetForegroundWindow,
+/// 3 joined input, 4 minimize and restore, 0 none).
+fn bring_to_front(hwnd: HWND) -> (bool, u8) {
+    // SAFETY: the window calls take a window handle by value.
+    unsafe {
+        let _ = SetForegroundWindow(hwnd);
+    }
+    std::thread::sleep(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, 1);
+    }
+    // SAFETY: GetWindowThreadProcessId takes a handle and no out pointer
+    // here; GetCurrentThreadId takes no argument.
+    let (front, this) = unsafe {
+        (
+            GetWindowThreadProcessId(foreground_window(), None),
+            GetCurrentThreadId(),
+        )
+    };
+    if front != 0 && front != this {
+        // SAFETY: the two threads' input is joined only around the window
+        // calls and detached again before the block ends.
+        unsafe {
+            let _ = AttachThreadInput(this, front, true);
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
+            let _ = AttachThreadInput(this, front, false);
+        }
+    }
+    std::thread::sleep(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, 3);
+    }
+    // SAFETY: ShowWindow takes a window handle by value.
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_MINIMIZE);
+        let _ = ShowWindow(hwnd, SW_RESTORE);
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    let there = foreground_window() == hwnd;
+    (there, if there { 4 } else { 0 })
+}
+
+/// A browser with a profile of its own and the phase page.
+struct PhaseBrowser {
+    name: &'static str,
+    exe: PathBuf,
+    chromium: bool,
+    profile: tempfile::TempDir,
+    page: String,
+    runs: u32,
+}
+
+impl PhaseBrowser {
+    fn installed(browser: &'static Browser) -> Option<PhaseBrowser> {
+        let exe = browser
+            .paths
+            .iter()
+            .find(|path| Path::new(path).is_file())?;
+        PhaseBrowser::at(browser.name, PathBuf::from(exe), browser.chromium)
+    }
+
+    fn at(name: &'static str, exe: PathBuf, chromium: bool) -> Option<PhaseBrowser> {
+        let profile = scratch_dir();
+        if !chromium {
+            let prefs = "user_pref(\"browser.shell.checkDefaultBrowser\", false);\n\
+                         user_pref(\"browser.aboutwelcome.enabled\", false);\n\
+                         user_pref(\"datareporting.policy.dataSubmissionEnabled\", false);\n\
+                         user_pref(\"browser.startup.homepage_override.mstone\", \"ignore\");\n\
+                         user_pref(\"trailhead.firstrun.didSeeAboutWelcome\", true);\n";
+            std::fs::write(profile.path().join("user.js"), prefs).ok()?;
+        }
+        let page_path = profile.path().join("phase.html");
+        std::fs::write(&page_path, PHASE_PAGE).ok()?;
+        let page = format!("file:///{}", page_path.to_string_lossy().replace('\\', "/"));
+        Some(PhaseBrowser {
+            name,
+            exe,
+            chromium,
+            profile,
+            page,
+            runs: 0,
+        })
+    }
+
+    fn image(&self) -> String {
+        self.exe
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+
+    fn kill(&self) {
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", &self.image(), "/F", "/T"])
+            .output();
+        std::thread::sleep(Duration::from_millis(700));
+    }
+
+    /// Opens the page of `phase` and brings its window to the front.
+    fn open(&mut self, test: &str, phase: &str, hold: u64) -> Option<HWND> {
+        self.runs += 1;
+        let url = format!("{}?phase={phase}&hold={hold}&run={}", self.page, self.runs);
+        let profile = self.profile.path().to_string_lossy().into_owned();
+        let args: Vec<String> = if self.chromium {
+            vec![
+                format!("--user-data-dir={profile}"),
+                "--no-first-run".to_string(),
+                "--no-default-browser-check".to_string(),
+                "--disable-features=Translate".to_string(),
+                "--new-window".to_string(),
+                url,
+            ]
+        } else {
+            vec![
+                "-profile".to_string(),
+                profile,
+                "-new-window".to_string(),
+                url,
+            ]
+        };
+        Command::new(&self.exe)
+            .args(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let prefix = format!("halvo-phase {phase}{} ", self.runs);
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(40) {
+            if let Some((hwnd, _)) = window_titled(&prefix) {
+                std::thread::sleep(Duration::from_millis(800));
+                let (front, method) = bring_to_front(hwnd);
+                std::thread::sleep(Duration::from_millis(700));
+                say(
+                    test,
+                    format!(
+                        "browser={} phase={phase} hold={hold} opened=1 foreground={front} method={method}",
+                        self.name
+                    ),
+                );
+                return Some(hwnd);
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        say(
+            test,
+            format!("browser={} phase={phase} hold={hold} opened=0", self.name),
+        );
+        None
+    }
+}
+
+impl Drop for PhaseBrowser {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+/// The keyboard source of a test, with its events.
+struct Keyboard {
+    source: RawInputSource,
+    events: Events,
+    start: Result<Started, CaptureError>,
+}
+
+impl Keyboard {
+    fn start() -> Keyboard {
+        let (sink, events) = capture(8192);
+        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = source.begin(SourceContext::new(sink));
+        Keyboard {
+            source,
+            events,
+            start,
+        }
+    }
+
+    fn stop(mut self) -> Result<(), CaptureError> {
+        stop_counted(&mut self.source, "keyboard")
+    }
+
+    /// The gate's state, read until it reads `wanted` or `limit` passes.
+    fn state_within(&self, wanted: FieldState, limit: Duration) -> Option<FieldState> {
+        let began = Instant::now();
+        loop {
+            let state = self.source.field_state();
+            if state == Some(wanted) || began.elapsed() >= limit {
+                return state;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    fn settle(&self, span: Duration) {
+        let _ = self.events.drain_for(span);
+    }
+}
+
+/// The element that the gate's last reading of a browser's process saw.
+fn element_seen(file: &str) -> String {
+    seam::take_marks()
+        .iter()
+        .rev()
+        .filter_map(|mark| mark.element.as_deref())
+        .find(|element| {
+            element
+                .to_ascii_lowercase()
+                .contains(&format!("file={}", file.to_ascii_lowercase()))
+        })
+        .unwrap_or("element=none")
+        .to_string()
+}
+
+/// Starts a round: the reset key, then the page's start state, with the
+/// seam emptied of the reset's own key.
+fn reset(keyboard: &Keyboard, hwnd: HWND) -> Option<PageRead> {
+    key(VK_F24);
+    keyboard.settle(Duration::from_millis(450));
+    let _ = seam::take();
+    page_read(hwnd)
+}
+
+/// One round's numbers, printed on one line.
+#[derive(Debug, Default, Clone)]
+struct Round {
+    counted: bool,
+    sent: i64,
+    page: PageRead,
+    keys: Decisions,
+}
+
+impl Round {
+    /// Letters recorded beyond the letters that landed as text by the
+    /// page's own count: each is a letter of a password field.
+    fn password_letters_recorded(&self) -> i64 {
+        (self.keys.letters as i64 - self.page.text).max(0)
+    }
+
+    fn line(&self) -> String {
+        format!(
+            "counted={} letters_sent={} landed_text={} landed_password={} tabs_into_password={} \
+             tabs_into_text={} button_downs={} focus_after={} letters_decided={} letters_recorded={} \
+             tabs_recorded={} other_recorded={} first_letter_rule={:?} first_tab_rule={:?}",
+            u8::from(self.counted),
+            self.sent,
+            self.page.text,
+            self.page.password,
+            self.page.tabs_password,
+            self.page.tabs_text,
+            self.page.downs,
+            self.page.focus,
+            self.keys.letters_decided,
+            self.keys.letters,
+            self.keys.tabs,
+            self.keys.other,
+            self.keys.first_letter_rule,
+            self.keys.first_tab_rule,
+        )
+    }
+}
+
+/// The ending of every round: the keys' decisions and the page's counts.
+fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -> Round {
+    keyboard.settle(Duration::from_millis(800));
+    let keys = decisions();
+    let page = page_read(hwnd).unwrap_or_default();
+    Round {
+        counted: counted_before,
+        sent,
+        page,
+        keys,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum StallKind {
+    Tab,
+    Click,
+    SelfMove,
+}
+
+/// The stall phases of W3-5 C7 for one browser: the page holds its main
+/// thread for `hold` ms at the Tab, at a button-down in the password input,
+/// or before a focus move that it makes itself. Answers, per round, the
+/// letters of a password field that the gate recorded.
+fn stall_rounds(
+    test: &str,
+    browser: &mut PhaseBrowser,
+    keyboard: &Keyboard,
+    kind: StallKind,
+    hold: u64,
+    rounds: u32,
+) -> Vec<Round> {
+    let phase = match kind {
+        StallKind::Tab => "tab",
+        StallKind::Click => "click",
+        StallKind::SelfMove => "self",
+    };
+    let Some(hwnd) = browser.open(test, phase, hold) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for round in 0..rounds {
+        let start = reset(keyboard, hwnd).unwrap_or_default();
+        let front = foreground_window() == hwnd;
+        let ready = front && start.focus == "plain";
+        let sent = match kind {
+            StallKind::Tab => {
+                send(&[
+                    key_input(VK_TAB, false),
+                    key_input(VK_TAB, true),
+                    key_input(VK_A, false),
+                    key_input(VK_A, true),
+                ]);
+                1 + letters_for(Duration::from_millis(hold + 300), Duration::from_millis(60))
+            }
+            StallKind::Click => {
+                let (cx, cy) = screen_size();
+                let to = |v: i64, span: i32| (v * 65_535 / i64::from(span - 1)) as i32;
+                send(&[mouse_input(
+                    to(start.px, cx),
+                    to(start.py, cy),
+                    MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+                )]);
+                std::thread::sleep(Duration::from_millis(40));
+                send(&[
+                    mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+                    mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+                    key_input(VK_A, false),
+                    key_input(VK_A, true),
+                ]);
+                1 + letters_for(Duration::from_millis(hold + 300), Duration::from_millis(60))
+            }
+            StallKind::SelfMove => {
+                std::thread::sleep(Duration::from_millis(150));
+                letters_for(Duration::from_millis(1_400), Duration::from_millis(60))
+            }
+        };
+        let mut r = end_round(keyboard, hwnd, sent, ready);
+        r.counted = ready
+            && match kind {
+                StallKind::Tab => r.page.text == 0 && r.page.password == sent,
+                StallKind::Click => {
+                    r.page.downs == 1 && r.page.text == 0 && r.page.password == sent
+                }
+                StallKind::SelfMove => r.page.password >= 1,
+            };
+        say(
+            test,
+            format!(
+                "browser={} phase={phase} hold={hold} round={round} foreground={front} {}",
+                browser.name,
+                r.line()
+            ),
+        );
+        out.push(r);
+    }
+    out
+}
+
+/// The verdict of the stall phases of W3-5 C7 and W3-7 (3): in a counted
+/// round no letter is recorded and no event but the Tab's; a recorded
+/// letter that did not land as text fails in any round. Answers the counted
+/// rounds.
+fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usize {
+    let counted = rounds.iter().filter(|r| r.counted).count();
+    let failing = rounds
+        .iter()
+        .filter(|r| {
+            (r.counted && (r.keys.letters > 0 || r.keys.other > 0))
+                || r.password_letters_recorded() > 0
+        })
+        .count();
+    say(
+        test,
+        format!(
+            "phase={phase} rounds={} counted={counted} failing_rounds={failing}",
+            rounds.len()
+        ),
+    );
+    assert_eq!(
+        failing, 0,
+        "{phase}: a letter of the password input, or an event of another class, was recorded"
+    );
+    assert!(
+        counted >= wanted,
+        "INCONCLUSIVE: {phase} counted {counted} rounds of {}",
+        rounds.len()
+    );
+    counted
+}
+
+fn chromium(name: &str) -> &'static Browser {
+    if name == "edge" {
+        &EDGE
+    } else {
+        &CHROME
+    }
+}
+
+fn open_browser(test: &str, name: &str) -> PhaseBrowser {
+    let browser = PhaseBrowser::installed(chromium(name));
+    say(
+        test,
+        format!("browser={name} installed={}", browser.is_some()),
+    );
+    let browser = browser.expect("the browser is not installed on this runner: FAIL");
+    browser.kill();
+    browser
+}
+
+/// W3-5 C7 and W3-7 O11, in one browser: a Tab and a button-down into the
+/// password input while the page holds its main thread for 150 and 300 ms.
+pub(super) fn stall_phases(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(420), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let mut all = Vec::new();
+        for kind in [StallKind::Tab, StallKind::Click] {
+            for hold in [150, 300] {
+                let rounds = stall_rounds(test, &mut browser, &keyboard, kind, hold, 5);
+                all.push((format!("{kind:?}-{hold}"), rounds));
+            }
+        }
+        let late = keyboard.source.health().counters.late_events;
+        let stopped = keyboard.stop();
+        say(
+            test,
+            format!("keyboard_stop={} late_value={late}", show(&stopped)),
+        );
+        for (phase, rounds) in &all {
+            assert_stall(test, phase, rounds, 3);
+        }
+    });
+}
+
+/// W3-5 C7's third phase, a known defect: the page holds its main thread and
+/// then moves the focus into the password input by itself. Answers the
+/// letters of the password input that the gate recorded.
+pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
+    let total = Arc::new(AtomicI64::new(0));
+    let out = Arc::clone(&total);
+    with_deadline(test, Duration::from_secs(300), move || {
+        let mut recorded = 0;
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let mut counted = 0;
+        for hold in [150, 300] {
+            for r in stall_rounds(test, &mut browser, &keyboard, StallKind::SelfMove, hold, 5) {
+                counted += usize::from(r.counted);
+                recorded += r.password_letters_recorded();
+            }
+        }
+        let _ = keyboard.stop();
+        say(
+            test,
+            format!("phase=self counted={counted} password_letters_recorded={recorded}"),
+        );
+        out.store(recorded, Ordering::SeqCst);
+        assert!(
+            counted >= 5,
+            "INCONCLUSIVE: the self-move phase counted {counted} rounds"
+        );
+    });
+    total.load(Ordering::SeqCst)
+}
+
+/// One round of a type swap or of a shown password field (Q2 (h)): the
+/// letters typed after the page's change, by the page's own count and the
+/// gate's decisions, with the letters typed while the field was shown kept
+/// apart for `show-control`.
+fn swap_round(
+    test: &str,
+    browser_name: &str,
+    keyboard: &Keyboard,
+    hwnd: HWND,
+    phase: &str,
+    round: u32,
+) -> (Round, Option<Round>) {
+    let start = reset(keyboard, hwnd).unwrap_or_default();
+    let front = foreground_window() == hwnd;
+    let mut shown = None;
+    let sent = match phase {
+        "swap-timer" | "swap-focus" => {
+            std::thread::sleep(Duration::from_millis(900));
+            i64::from(type_letters_slowly(5) / 2)
+        }
+        "swap-keydown" | "swap-keyup" => {
+            std::thread::sleep(Duration::from_millis(300));
+            i64::from(type_letters_slowly(5) / 2)
+        }
+        "burst" => {
+            std::thread::sleep(Duration::from_millis(300));
+            let mut burst = Vec::new();
+            for _ in 0..5 {
+                burst.push(key_input(VK_A, false));
+                burst.push(key_input(VK_A, true));
+            }
+            i64::from(send(&burst) / 2)
+        }
+        "show-hide" => {
+            std::thread::sleep(Duration::from_millis(500));
+            let first = i64::from(type_letters_slowly(3) / 2);
+            std::thread::sleep(Duration::from_millis(1_000));
+            first + i64::from(type_letters_slowly(3) / 2)
+        }
+        "show-control" => {
+            std::thread::sleep(Duration::from_millis(800));
+            let first = i64::from(type_letters_slowly(3) / 2);
+            shown = Some(end_round(keyboard, hwnd, first, front));
+            std::thread::sleep(Duration::from_millis(200));
+            i64::from(type_letters_slowly(3) / 2)
+        }
+        _ => 0,
+    };
+    let mut r = end_round(keyboard, hwnd, sent, front);
+    if let Some(shown) = &shown {
+        r.page.text -= shown.page.text;
+        r.page.password -= shown.page.password;
+    }
+    let start_ok = match phase {
+        "show-hide" | "show-control" => start.focus == "password",
+        "swap-focus" => true,
+        _ => start.focus == "plain",
+    };
+    r.counted = front && start_ok && r.page.text + r.page.password == sent;
+    if let Some(shown) = &shown {
+        say(
+            test,
+            format!(
+                "browser={browser_name} phase={phase} round={round} part=shown printed_only=1 {}",
+                shown.line()
+            ),
+        );
+    }
+    say(
+        test,
+        format!(
+            "browser={browser_name} phase={phase} round={round} {}",
+            r.line()
+        ),
+    );
+    (r, shown)
+}
+
+/// Q2 (h): the swaps of an input's type while it has the focus, and a
+/// password field that is shown and hidden while the cursor stays in it, in
+/// one browser. Each reads 0 recorded letters among the letters that the
+/// page counted as letters of a password field; `show-hide` reads 0 for
+/// every letter, since the field first read Password.
+pub(super) fn swap_phases(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(420), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let mut failures = Vec::new();
+        let mut thin = Vec::new();
+        for phase in [
+            "swap-timer",
+            "swap-focus",
+            "swap-keydown",
+            "swap-keyup",
+            "show-hide",
+            "show-control",
+        ] {
+            let Some(hwnd) = browser.open(test, phase, 0) else {
+                thin.push(phase);
+                continue;
+            };
+            let mut counted = 0;
+            for round in 0..3 {
+                let (r, _) = swap_round(test, name, &keyboard, hwnd, phase, round);
+                counted += u32::from(r.counted);
+                let failed = if phase == "show-hide" {
+                    r.keys.letters > 0
+                } else {
+                    r.password_letters_recorded() > 0
+                };
+                if failed {
+                    failures.push(format!("{phase}#{round}"));
+                }
+            }
+            if counted < 2 {
+                thin.push(phase);
+            }
+        }
+        let stopped = keyboard.stop();
+        say(
+            test,
+            format!(
+                "keyboard_stop={} failing_rounds={} thin_phases={}",
+                show(&stopped),
+                failures.len(),
+                thin.len()
+            ),
+        );
+        assert!(
+            failures.is_empty(),
+            "a letter of a password field was recorded: {failures:?}"
+        );
+        assert!(
+            thin.is_empty(),
+            "INCONCLUSIVE: phases with fewer than 2 counted rounds: {thin:?}"
+        );
+    });
+}
+
+/// Q2 (i), the swaps against a page that holds its main thread for 150 and
+/// for 300 ms around them: a known defect. Answers the letters of a password
+/// field that the gate recorded.
+pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
+    let total = Arc::new(AtomicI64::new(0));
+    let out = Arc::clone(&total);
+    with_deadline(test, Duration::from_secs(600), move || {
+        let mut recorded = 0;
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let mut counted = 0;
+        for phase in ["swap-timer", "swap-focus", "swap-keydown", "swap-keyup"] {
+            for hold in [150, 300] {
+                let Some(hwnd) = browser.open(test, phase, hold) else {
+                    continue;
+                };
+                for round in 0..2 {
+                    let start = reset(&keyboard, hwnd).unwrap_or_default();
+                    let front = foreground_window() == hwnd;
+                    if phase == "swap-timer" || phase == "swap-focus" {
+                        std::thread::sleep(Duration::from_millis(150));
+                    }
+                    let sent = letters_for(Duration::from_millis(1_300), Duration::from_millis(60));
+                    let mut r = end_round(&keyboard, hwnd, sent, front);
+                    r.counted = front
+                        && (phase == "swap-focus" || start.focus == "plain")
+                        && r.page.password >= 1;
+                    counted += usize::from(r.counted);
+                    recorded += r.password_letters_recorded();
+                    say(
+                        test,
+                        format!(
+                            "browser={name} phase={phase}-held hold={hold} round={round} {}",
+                            r.line()
+                        ),
+                    );
+                }
+            }
+        }
+        let _ = keyboard.stop();
+        say(
+            test,
+            format!("phase=held-swaps counted={counted} password_letters_recorded={recorded}"),
+        );
+        out.store(recorded, Ordering::SeqCst);
+        assert!(
+            counted >= 8,
+            "INCONCLUSIVE: the held swaps counted {counted} rounds"
+        );
+    });
+    total.load(Ordering::SeqCst)
+}
+
+/// Q2 (i), five letters in one burst of which the first makes the swap: a
+/// known defect until the looped hosted proof reads 0 for it.
+pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
+    let total = Arc::new(AtomicI64::new(0));
+    let out = Arc::clone(&total);
+    with_deadline(test, Duration::from_secs(240), move || {
+        let mut recorded = 0;
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let hwnd = browser
+            .open(test, "burst", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let mut counted = 0;
+        for round in 0..5 {
+            let (r, _) = swap_round(test, name, &keyboard, hwnd, "burst", round);
+            counted += u32::from(r.counted);
+            recorded += r.password_letters_recorded();
+        }
+        let _ = keyboard.stop();
+        say(
+            test,
+            format!("phase=burst counted={counted} password_letters_recorded={recorded}"),
+        );
+        out.store(recorded, Ordering::SeqCst);
+        assert!(
+            counted >= 3,
+            "INCONCLUSIVE: the burst counted {counted} rounds"
+        );
+    });
+    total.load(Ordering::SeqCst)
+}
+
+/// W3-7 correction (5): a letter and a Tab 50 ms later, out of an input that
+/// a timer made a password input with no key before the letter; the Tab
+/// goes to the page's button. A known defect. Answers the letters and Tabs
+/// that landed in the password-type input and were recorded.
+pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str) -> i64 {
+    let total = Arc::new(AtomicI64::new(0));
+    let out = Arc::clone(&total);
+    with_deadline(test, Duration::from_secs(240), move || {
+        let mut recorded = 0;
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let hwnd = browser
+            .open(test, "tab-after", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let mut counted = 0;
+        for round in 0..5 {
+            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let front = foreground_window() == hwnd;
+            std::thread::sleep(Duration::from_millis(800));
+            let swapped = page_read(hwnd).is_some_and(|p| p.plain_type == "password");
+            key(VK_A);
+            std::thread::sleep(Duration::from_millis(50));
+            key(VK_TAB);
+            let mut r = end_round(&keyboard, hwnd, 1, front);
+            r.counted = front
+                && start.focus == "plain"
+                && swapped
+                && r.page.password == 1
+                && r.page.tabs_password == 1;
+            counted += u32::from(r.counted);
+            if r.counted {
+                recorded += r.keys.letters as i64 + r.keys.tabs as i64;
+            }
+            say(
+                test,
+                format!(
+                    "browser={name} phase=tab-after round={round} swapped={swapped} {}",
+                    r.line()
+                ),
+            );
+        }
+        let _ = keyboard.stop();
+        say(
+            test,
+            format!("phase=tab-after counted={counted} password_keys_recorded={recorded}"),
+        );
+        out.store(recorded, Ordering::SeqCst);
+        assert!(
+            counted >= 3,
+            "INCONCLUSIVE: the phase counted {counted} rounds"
+        );
+    });
+    total.load(Ordering::SeqCst)
+}
+
+/// Q3 (e): the cold order (a fresh program and a fresh client; the first
+/// focus move after the client attaches goes into the password input, which
+/// the page focuses itself, and the gate reads Password before the first key
+/// of that input is decided) and the warm order, with a control that the
+/// same source recorded the letters of the plain input. The element that
+/// the gate read is printed, so that the values rest on the input itself.
+pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(300), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let file = browser.image();
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let _ = seam::take_marks();
+        let cold = browser
+            .open(test, "cold", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let cold_front = foreground_window() == cold;
+        let cold_state = keyboard.state_within(FieldState::Password, Duration::from_secs(5));
+        let cold_element = element_seen(&file);
+        let cold_page = page_read(cold).unwrap_or_default();
+        let _ = seam::take();
+        let sent = i64::from(type_letters_slowly(3) / 2);
+        let cold_round = end_round(&keyboard, cold, sent, cold_front);
+        say(
+            test,
+            format!(
+                "browser={name} order=cold foreground={cold_front} focus_before={} gate_while_focused={cold_state:?} \
+                 {} {cold_element}",
+                cold_page.focus,
+                cold_round.line()
+            ),
+        );
+
+        let warm = browser
+            .open(test, "warm", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let start = reset(&keyboard, warm).unwrap_or_default();
+        let warm_front = foreground_window() == warm;
+        let plain_state = keyboard.state_within(FieldState::Clear, Duration::from_secs(3));
+        let plain_element = element_seen(&file);
+        let sent = i64::from(type_letters_slowly(5) / 2);
+        let control = end_round(&keyboard, warm, sent, warm_front);
+        key(VK_F22);
+        let warm_state = keyboard.state_within(FieldState::Password, Duration::from_secs(3));
+        let warm_element = element_seen(&file);
+        let _ = seam::take();
+        let sent = i64::from(type_letters_slowly(3) / 2);
+        let warm_round = end_round(&keyboard, warm, sent, warm_front);
+        let stopped = keyboard.stop();
+        say(
+            test,
+            format!(
+                "browser={name} order=warm-control foreground={warm_front} focus_before={} \
+                 gate_while_focused={plain_state:?} {} {plain_element}",
+                start.focus,
+                control.line()
+            ),
+        );
+        say(
+            test,
+            format!(
+                "browser={name} order=warm gate_while_focused={warm_state:?} {} {warm_element} keyboard_stop={}",
+                warm_round.line(),
+                show(&stopped)
+            ),
+        );
+        assert!(
+            cold_front
+                && warm_front
+                && cold_round.page.password == 3
+                && warm_round.page.password == 3,
+            "INCONCLUSIVE: the page window was not in front or did not take the letters"
+        );
+        assert_eq!(
+            cold_state,
+            Some(FieldState::Password),
+            "cold: the gate did not read Password while the input had the focus"
+        );
+        assert!(
+            cold_element.contains("is_password=1"),
+            "cold: the gate's reading was not of the password input"
+        );
+        assert_eq!(
+            cold_round.keys.letters, 0,
+            "cold: a letter of the password input was recorded"
+        );
+        assert_eq!(
+            plain_state,
+            Some(FieldState::Clear),
+            "warm: the gate did not read Clear in the plain input"
+        );
+        assert_eq!(
+            control.page.text, 5,
+            "INCONCLUSIVE: the plain input did not take the control's letters"
+        );
+        assert_eq!(
+            control.keys.letters, 5,
+            "warm: the control's letters of the plain input were not recorded"
+        );
+        assert_eq!(
+            warm_state,
+            Some(FieldState::Password),
+            "warm: the gate did not read Password while the input had the focus"
+        );
+        assert!(
+            warm_element.contains("is_password=1"),
+            "warm: the gate's reading was not of the password input"
+        );
+        assert_eq!(
+            warm_round.keys.letters, 0,
+            "warm: a letter of the password input was recorded"
+        );
+    });
+}
+
+/// A copy of a browser's directory with its executable renamed.
+fn renamed_copy(source_exe: &Path, into: &Path, name: &str) -> Option<PathBuf> {
+    let source = source_exe.parent()?;
+    let copied = Command::new("robocopy.exe")
+        .args([
+            source.to_string_lossy().as_ref(),
+            into.to_string_lossy().as_ref(),
+            "/E",
+            "/NFL",
+            "/NDL",
+            "/NJH",
+            "/NJS",
+            "/NP",
+        ])
+        .output()
+        .ok()?;
+    let _ = copied;
+    let renamed = into.join(name);
+    let original = into.join(source_exe.file_name()?);
+    std::fs::rename(original, &renamed).ok()?;
+    Some(renamed)
+}
+
+/// Q3 (f) and O9: a renamed copy of a browser reads Unknown from the gate,
+/// and no letter of its plain input or of its password input is recorded.
+pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser) {
+    with_deadline(test, Duration::from_secs(420), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let exe = browser
+            .paths
+            .iter()
+            .map(PathBuf::from)
+            .find(|p| p.is_file());
+        say(
+            test,
+            format!("browser={} installed={}", browser.name, exe.is_some()),
+        );
+        let exe = exe.expect("the browser is not installed on this runner: FAIL");
+        let dir = scratch_dir();
+        let copy = renamed_copy(&exe, &dir.path().join("copy"), "renamed-browser.exe");
+        say(test, format!("renamed_copy_made={}", copy.is_some()));
+        let copy = copy.expect("INCONCLUSIVE: the copy of the browser was not made");
+        let mut renamed = PhaseBrowser::at(browser.name, copy, browser.chromium)
+            .expect("INCONCLUSIVE: no profile for the copy");
+        renamed.kill();
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let _ = seam::take_marks();
+        let hwnd = renamed
+            .open(test, "warm", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let start = reset(&keyboard, hwnd).unwrap_or_default();
+        let front = foreground_window() == hwnd;
+        let plain_state = keyboard.state_within(FieldState::Clear, Duration::from_secs(2));
+        let plain_element = element_seen("renamed-browser.exe");
+        let sent = i64::from(type_letters_slowly(5) / 2);
+        let plain = end_round(&keyboard, hwnd, sent, front);
+        key(VK_F22);
+        std::thread::sleep(Duration::from_millis(500));
+        let password_state = keyboard.source.field_state();
+        let password_element = element_seen("renamed-browser.exe");
+        let _ = seam::take();
+        let sent = i64::from(type_letters_slowly(5) / 2);
+        let password = end_round(&keyboard, hwnd, sent, front);
+        let stopped = keyboard.stop();
+        say(
+            test,
+            format!(
+                "browser=renamed-{} field=plain foreground={front} focus_before={} gate_while_focused={plain_state:?} {} {plain_element}",
+                browser.name,
+                start.focus,
+                plain.line()
+            ),
+        );
+        say(
+            test,
+            format!(
+                "browser=renamed-{} field=password gate_while_focused={password_state:?} {} {password_element} keyboard_stop={}",
+                browser.name,
+                password.line(),
+                show(&stopped)
+            ),
+        );
+        assert!(
+            front && plain.page.text == 5 && password.page.password == 5,
+            "INCONCLUSIVE: the copy's page did not take the letters"
+        );
+        assert_eq!(
+            plain_state,
+            Some(FieldState::Unknown),
+            "the copy's plain input did not read Unknown"
+        );
+        assert_eq!(
+            password_state,
+            Some(FieldState::Unknown),
+            "the copy's password input did not read Unknown"
+        );
+        assert_eq!(
+            plain.keys.letters + password.keys.letters,
+            0,
+            "a letter typed into the renamed copy was recorded"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn stall_phases_of_the_page_in_chrome() {
+    stall_phases("browser-stall-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn stall_phases_of_the_page_in_edge() {
+    stall_phases("browser-stall-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn swap_phases_of_the_page_in_chrome() {
+    swap_phases("browser-swap-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn swap_phases_of_the_page_in_edge() {
+    swap_phases("browser-swap-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn cold_and_warm_orders_in_chrome() {
+    cold_and_warm("browser-cold-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn cold_and_warm_orders_in_edge() {
+    cold_and_warm("browser-cold-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Firefox"]
+fn a_renamed_copy_of_firefox_reads_unknown_and_records_nothing() {
+    renamed_copy_phases("browser-renamed-firefox", &FIREFOX);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_renamed_copy_of_chrome_reads_unknown_and_records_nothing() {
+    renamed_copy_phases("browser-renamed-chrome", &CHROME);
+}

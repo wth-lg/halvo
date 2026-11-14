@@ -1772,9 +1772,8 @@ mod detector {
             });
             gate.attach().expect("the detector starts");
             HOLD_READS.store(true, Ordering::SeqCst);
-            let now = tick();
-            let key = gate.hold(now, false, 0);
-            let _ = gate.decide(&key, now, 0, false);
+            gate.shared.lock().ask_read(tick());
+            gate.wake_detector();
             std::thread::sleep(Duration::from_millis(300));
             let stopped = gate.detach(Duration::from_millis(200));
             let second = gate.attach();

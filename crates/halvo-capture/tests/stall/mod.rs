@@ -55,6 +55,8 @@ const CMD_FOCUS: usize = 5;
 const CMD_REVEAL: usize = 6;
 const CMD_WANDER: usize = 7;
 const CMD_AIM: usize = 8;
+const CMD_MASK: usize = 9;
+const CMD_NOTIFY_FOCUS: usize = 10;
 const ARG_SELF_FOCUS: usize = 0x1_0000;
 const ARG_AIM: usize = 0x2_0000;
 const ARG_SERVE_SENT: usize = 0x4_0000;
@@ -471,6 +473,11 @@ fn fixture_main() {
                     if reactivated {
                         window.activate();
                     }
+                    // SAFETY: SendMessageW passes a plain value to this
+                    // thread's edit control; 0 takes a mask away.
+                    unsafe {
+                        let _ = SendMessageW(plain, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
+                    }
                     clear_text(plain);
                     clear_text(second);
                     clear_text(password);
@@ -523,6 +530,33 @@ fn fixture_main() {
                         let _ = SendMessageW(password, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
                     }
                     println!("STALLC revealed ok=1");
+                }
+                CMD_MASK => {
+                    // SAFETY: SendMessageW passes a plain value to this
+                    // thread's edit control; a mask character sets
+                    // ES_PASSWORD on the edit while it keeps the focus.
+                    unsafe {
+                        let _ =
+                            SendMessageW(field(arg), EM_SETPASSWORDCHAR, Some(WPARAM(0x2A)), None);
+                    }
+                    println!("STALLC masked ok=1");
+                }
+                CMD_NOTIFY_FOCUS => {
+                    use windows::Win32::UI::Accessibility::NotifyWinEvent;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        CHILDID_SELF, EVENT_OBJECT_FOCUS, OBJID_CLIENT,
+                    };
+                    // SAFETY: NotifyWinEvent takes a window handle of this
+                    // thread and plain values.
+                    unsafe {
+                        NotifyWinEvent(
+                            EVENT_OBJECT_FOCUS,
+                            field(arg),
+                            OBJID_CLIENT.0,
+                            CHILDID_SELF as i32,
+                        );
+                    }
+                    println!("STALLC notified ok=1");
                 }
                 CMD_AIM => {
                     let aimed = aim_at(field(arg));
@@ -1790,6 +1824,158 @@ fn five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorde
         );
         assert_eq!(late, 0, "the source's late value moved");
     });
+}
+
+/// Five letters at the step of a person's typing, sent one by one.
+fn five_letters() -> u32 {
+    let mut accepted = 0;
+    for _ in 0..5 {
+        accepted += send(&[key_input(VK_A, false), key_input(VK_A, true)]);
+        std::thread::sleep(LETTER_STEP);
+    }
+    accepted
+}
+
+/// One round of a phase on the native fixture: the fixture's own focus
+/// move to `start`, then `act`, then five letters; it answers whether the
+/// round counted (the window in front, the focus in `landing` at the end
+/// and the five letters in that field) and the letters recorded.
+fn native_round(
+    (test, phase): (&str, &str),
+    round: u32,
+    fixture: &mut Fixture,
+    events: &Events,
+    (start, landing): (usize, &str),
+    act: impl FnOnce(&mut Fixture) -> bool,
+) -> (bool, u32) {
+    let reset = fixture.ask(CMD_RESET, 0, "reset");
+    let other = if start == FIELD_PLAIN {
+        FIELD_PASSWORD
+    } else {
+        FIELD_PLAIN
+    };
+    let _ = fixture.ask(CMD_FOCUS, other, "focused");
+    std::thread::sleep(Duration::from_millis(250));
+    let _ = fixture.ask(CMD_FOCUS, start, "focused");
+    let _ = events.drain_for(Duration::from_millis(400));
+    let _ = seam::take();
+    let acted = act(fixture);
+    let accepted = five_letters();
+    let _ = events.drain_for(Duration::from_millis(900));
+    let decided = Decisions::of(&seam::take());
+    let state = fixture.ask(CMD_STATE, 0, "state");
+    let counted = get(&reset, "fg") == 1
+        && acted
+        && get(&state, &format!("focus_{landing}")) == 1
+        && get(&state, &format!("letters_{landing}")) == 5;
+    say(
+        test,
+        format!(
+            "phase={phase} round={round} fg={} acted={} accepted={accepted} focus_{landing}={} \
+             letters_{landing}={} letters_decided={} letters_recorded={} first_letter_rule={} counted={}",
+            get(&reset, "fg"),
+            u8::from(acted),
+            get(&state, &format!("focus_{landing}")),
+            get(&state, &format!("letters_{landing}")),
+            decided.letters_recorded + decided.letters_withheld + decided.letters_late,
+            decided.letters_recorded,
+            decided.first_letter_rule,
+            u8::from(counted),
+        ),
+    );
+    (counted, decided.letters_recorded)
+}
+
+/// The phase of a native fixture: the controls before and after, `rounds`
+/// rounds, and the asserts that no letter of a counted round is recorded.
+fn native_phase(
+    test: &'static str,
+    phase: &'static str,
+    start: usize,
+    landing: &'static str,
+    act: fn(&mut Fixture) -> bool,
+) {
+    with_deadline(test, Duration::from_secs(150), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let started = keyboard.begin(SourceContext::new(sink.clone()));
+        assert!(
+            started.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let mut counted = 0;
+        let mut recorded = 0;
+        for round in 0..5 {
+            let (c, r) = native_round(
+                (test, phase),
+                round,
+                &mut fixture,
+                &events,
+                (start, landing),
+                act,
+            );
+            counted += u32::from(c);
+            recorded += r;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!("phase={phase} counted={counted} letters_recorded={recorded} control_before={before} control_after={after}"),
+        );
+        assert!(
+            before == CONTROL_LETTERS && after == CONTROL_LETTERS,
+            "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: the source did not record"
+        );
+        assert!(
+            counted >= 4,
+            "INCONCLUSIVE: {phase} counted {counted} rounds of 5"
+        );
+        assert_eq!(
+            recorded, 0,
+            "{phase}: a letter of a password field was recorded"
+        );
+        assert_eq!(late, 0, "the source's late value moved");
+    });
+}
+
+/// W3-7 Q2 (h), native: the plain edit is masked while it has the focus,
+/// and none of the five letters typed into it after the mask is recorded.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
+    native_phase("stall-mask", "mask", FIELD_PLAIN, "plain", |fixture| {
+        get(&fixture.ask(CMD_MASK, FIELD_PLAIN, "masked"), "ok") == 1
+    });
+}
+
+/// W3-7 O1: with the password field focused, the program raises a focus
+/// notice for the plain edit, which does not take the focus; none of the
+/// five letters typed into the password field after it is recorded.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_focus_notice_for_a_field_that_does_not_take_the_focus_records_no_letter() {
+    native_phase(
+        "stall-stale-focus",
+        "stale-focus",
+        FIELD_PASSWORD,
+        "password",
+        |fixture| {
+            let notified = get(
+                &fixture.ask(CMD_NOTIFY_FOCUS, FIELD_PLAIN, "notified"),
+                "ok",
+            ) == 1;
+            std::thread::sleep(Duration::from_millis(20));
+            notified
+        },
+    );
 }
 
 /// W3-5 C6 with K2: a letter with no focus key and no click before it, and
