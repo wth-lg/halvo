@@ -1179,7 +1179,18 @@ What the code does since store-3, each sentence with the test that shows it.
   root's own name (the root name in any letter case, never a partial name
   alone), a regular file that is not empty and, off Windows, of the root
   file's length of 32 bytes (an all-zero file of that length counts, so
-  that a delete stopped after its zeros resumes); left (not found) when one
+  that a delete stopped after its zeros resumes). That rests on what the
+  step met at its own look, never on the listing: it opened a regular file
+  at that name whose length, read through the kept handle, can be the
+  root's file, and its zero-fill went through that handle or the count
+  read through it after its own removal is 0. A name of the root that is
+  absent at the look (the root name, or a partial name) never counts as
+  removed by this call, and the root reads left (ruling ST-46 K1; tests
+  `a_root_file_renamed_aside_after_the_listing_reads_left_and_no_ok_stands_over_a_copy_that_opens`,
+  `a_root_file_renamed_aside_after_the_listing_with_a_link_at_its_name_reads_left`,
+  `a_root_file_renamed_aside_after_the_listing_with_an_empty_file_at_its_name_reads_left`,
+  `a_partial_root_file_renamed_aside_after_the_listing_reads_the_root_left`,
+  `with_nothing_moved_after_the_listing_the_root_reads_destroyed`). Left (not found) when one
   was named and not removed; and unnamed when nothing named one. A link,
   an entry of another kind, an empty file or, off Windows, a file of
   another length at that name is removed as the entry that it is, with no
@@ -1269,7 +1280,9 @@ What the code does since store-3, each sentence with the test that shows it.
   roots directory whose name, with its ASCII letters lowered, is a root name
   or a partial name of a root, on every volume; the report names a file that
   stays by the name it has. The removal of `store.key.tmp` is counted:
-  `key_file_gone` reads no while it stays. A directory of the store that
+  `key_file_gone` reads no while it stays. `key_file_gone` means that no
+  entry stands at `store.key` and `store.key.tmp` after the call, never that
+  this call removed a key file (ruling ST-46 K1). A directory of the store that
   cannot be removed is counted in `files_left`. The tail on a store
   directory that it cannot open, or whose lock it cannot take for a reason
   other than a holder, runs the root step without the lock and answers
@@ -1478,7 +1491,14 @@ set, and the root's own volume name answers the root.
   file, because the protected form has no fixed length. A root file that a
   program renamed aside, with a file of the right length put at its name,
   reads destroyed while the renamed file can still unwrap; binding the
-  reading to the file's identity is store-3b's.
+  reading to the file's identity is store-3b's. A rename alone, or with a
+  link, an empty file or a file of another length put at the name, reads
+  left, because the step's own look met no root file there (ruling ST-46
+  K1). `destroy_root_at`, which the cleanup of a create and the custody's
+  destroy call, looks at the root's name with no listing and answers Ok
+  when the name is absent, so that a cleanup that runs again ends; a root
+  of an abandoned create that a program renamed aside in that window
+  stays, beside the limit (i) of the pending mark below.
 - The tail's sweep (ruling ST-45 H1). The roots location that a caller
   gives the tail is that data directory's own (ruling ST-32 (a)), so two
   stores that share one roots directory both lose their root at a tail.

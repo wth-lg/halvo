@@ -33,9 +33,12 @@ const ROOT_FILE_LEN: Option<u64> = None;
 /// that length. An all-zero file of that length counts, so that a delete
 /// stopped after its zeros resumes (ruling ST-45 H4).
 fn can_be_the_root_file(entry: &durable::Entry) -> bool {
-    entry.kind == EntryKind::File
-        && entry.len > 0
-        && ROOT_FILE_LEN.is_none_or(|len| entry.len == len)
+    entry.kind == EntryKind::File && can_be_the_root_len(entry.len)
+}
+
+/// Whether a regular file of `len` bytes can be a root's file.
+fn can_be_the_root_len(len: u64) -> bool {
+    len > 0 && ROOT_FILE_LEN.is_none_or(|fixed| len == fixed)
 }
 
 pub(crate) trait Protector {
@@ -196,7 +199,9 @@ pub(crate) enum RootStepForm {
 /// not listed when one is named. The root reads destroyed only when one is
 /// named and this call removed, at the root's own name in any letter case, a
 /// file that can be the root's file (a partial name alone is no witness),
-/// and no entry of the root stays; left when one is named and not removed;
+/// as `destroy_root_entry` met it at its own look and never as the listing
+/// saw it, and no entry of the root stays; a name of the root that is absent
+/// at that look reads the root left (ruling ST-46 K1); left when one is named and not removed;
 /// unnamed when nothing names one. An entry at the root's own name that
 /// cannot be its file (a link, an entry of another kind, an empty file, or
 /// off Windows a file of another length) is removed as the entry that it
@@ -257,20 +262,16 @@ pub(crate) fn destroy_roots_in(
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     for (file, entry) in &found {
-        let root_name = matches!(file, RootFile::Root(_));
-        let own_name = root_name && of_named(file);
-        let written_through_by_no_form = root_name
-            && !can_be_the_root_file(entry)
-            && (own_name || (entry.kind == EntryKind::File && !has_one_name(&dir, &entry.name)));
-        if written_through_by_no_form {
-            let _ = dir.remove_entry(&entry.name);
-            continue;
-        }
-        let fate = destroy_root_entry(&dir, &entry.name);
+        let at = match file {
+            RootFile::Root(_) if of_named(file) => EntryName::OwnRoot,
+            RootFile::Root(_) => EntryName::OtherRoot,
+            RootFile::Partial(_) => EntryName::Partial,
+        };
+        let fate = destroy_root_entry(&dir, &entry.name, at);
         if of_named(file) && fate != EntryFate::Gone {
             every_named_entry_destroyed = false;
         }
-        if own_name && fate == EntryFate::Gone {
+        if at == EntryName::OwnRoot && fate == EntryFate::Gone {
             own_root_file_removed = true;
         }
     }
@@ -312,11 +313,30 @@ pub(crate) fn destroy_roots_in(
     }
 }
 
-/// What the destruction of one entry of a roots directory left.
+/// Which name of a roots directory an entry stands at, for its destruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EntryName {
+    /// The named root's own name, in any letter case.
+    OwnRoot,
+    /// The root name of another id.
+    OtherRoot,
+    /// A partial name.
+    Partial,
+}
+
+/// What the destruction of one entry of a roots directory met and left.
 #[derive(Debug)]
 enum EntryFate {
-    /// The name is gone, and no name of the file keeps the key.
+    /// This call met a file that can be the root's, zero-filled it through
+    /// its kept handle or read its count 0 after its own removal: the name is
+    /// gone, and no name of the file keeps the key.
     Gone,
+    /// Nothing stood at the name at this call's own look (ruling ST-46 K1).
+    Absent,
+    /// What stood at the root's own name could not be the root's file: it is
+    /// removed as the entry that it is, with no write through it, and counts
+    /// as no removal of the root (ruling ST-45 H4, ST-46 K1).
+    NotTheRootFile,
     /// The zero-fill reached every name of the file, and the name stays.
     ZeroedAndNamed,
     /// A key may stay behind the name: the removal's error when there is one.
@@ -331,12 +351,6 @@ impl PartialEq for EntryFate {
 
 /// Whether the regular file at `name` has one name, by the count read through
 /// a handle that follows no link; a count that cannot be read is not one.
-fn has_one_name(dir: &Dir, name: &OsStr) -> bool {
-    dir.open_file(name)
-        .and_then(|file| durable::file_link_count(&file))
-        .is_ok_and(|links| links == 1)
-}
-
 /// Destroys one entry of a roots directory. An entry that is no regular file
 /// is removed as the entry that it is. For a regular file the step first sets
 /// its mode to 0600 by its name through the directory's handle, following no
@@ -352,21 +366,28 @@ fn has_one_name(dir: &Dir, name: &OsStr) -> bool {
 /// removal is 0; with more than one name, or a count that cannot be read, the
 /// name is kept and a key may stay. When no open succeeds the name is kept
 /// and a key may stay, and every later tail tries it and names it again
-/// (ruling ST-45 H2).
-fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
+/// (ruling ST-45 H2). Everything rests on what this call met at its own look,
+/// never on a listing (ruling ST-46 K1): a name that is absent at the look is
+/// `Absent`; at the root's own name, an entry of another kind, or a file
+/// whose length read through the kept handle cannot be a root file's, is
+/// removed as the entry that it is with no write through it and is
+/// `NotTheRootFile`; at another root's name such a file with more than one
+/// name, or a count that cannot be read, is removed with no write through it
+/// (ruling ST-45 Addition 2 (b)).
+fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         other => other,
     };
+    let removed_unwritten = |dir: &Dir| match remove(dir) {
+        Ok(()) if at == EntryName::OwnRoot => EntryFate::NotTheRootFile,
+        Ok(()) => EntryFate::Gone,
+        Err(e) => EntryFate::KeyMayStay(Some(e)),
+    };
     match dir.entry(name) {
-        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Gone,
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
-        Ok(entry) if entry.kind != EntryKind::File => {
-            return match remove(dir) {
-                Ok(()) => EntryFate::Gone,
-                Err(e) => EntryFate::KeyMayStay(Some(e)),
-            }
-        }
+        Ok(entry) if entry.kind != EntryKind::File => return removed_unwritten(dir),
         Ok(_) => {}
     }
     #[cfg(unix)]
@@ -377,8 +398,19 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr) -> EntryFate {
         .or_else(|_| dir.open_file_for_write(name))
     {
         Ok(kept) => kept,
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) if durable::refusal(&e).is_some() => return removed_unwritten(dir),
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
+    if at != EntryName::Partial {
+        let root_len = kept
+            .metadata()
+            .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
+        let one_name = matches!(durable::file_link_count(&kept), Ok(1));
+        if !root_len && (at == EntryName::OwnRoot || !one_name) {
+            return removed_unwritten(dir);
+        }
+    }
     #[cfg(windows)]
     make_writable(dir, name, &kept);
     let zeroed = matches!(dir.names_file(name, &kept), Ok(true))
@@ -456,20 +488,27 @@ pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), Custo
         for entry in entries {
             match RootFile::named_in_any_case(&entry.name) {
                 Some(RootFile::Partial(id)) if id == root_id => {
-                    let _ = destroy_root_entry(&dir, &entry.name);
+                    let _ = destroy_root_entry(&dir, &entry.name, EntryName::Partial);
                 }
                 Some(RootFile::Root(id)) if id == root_id && entry.name != root_name(root_id) => {
-                    fates.push(destroy_root_entry(&dir, &entry.name));
+                    fates.push(destroy_root_entry(&dir, &entry.name, EntryName::OwnRoot));
                 }
                 _ => {}
             }
         }
     }
-    fates.push(destroy_root_entry(&dir, &root_name(root_id)));
+    fates.push(destroy_root_entry(
+        &dir,
+        &root_name(root_id),
+        EntryName::OwnRoot,
+    ));
     let _ = dir.sync();
     for fate in fates {
         match fate {
-            EntryFate::Gone | EntryFate::ZeroedAndNamed => {}
+            EntryFate::Gone
+            | EntryFate::Absent
+            | EntryFate::NotTheRootFile
+            | EntryFate::ZeroedAndNamed => {}
             EntryFate::KeyMayStay(Some(e)) => return Err(root_io(e)),
             EntryFate::KeyMayStay(None) => return Err(CustodyError::RootDenied),
         }
