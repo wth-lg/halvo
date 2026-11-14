@@ -82,13 +82,52 @@
     return element;
   };
 
+  function wordsOf(e) {
+    var w = Halvo.words;
+    if (!e) return "";
+    if (typeof e === "object" && "error" in e) return Halvo.errorWords(e);
+    if (typeof e === "string" && Object.keys(w).some(function (k) { return w[k] === e; })) return e;
+    if (e instanceof Error) return w.ERROR_BROKEN;
+    return w.ERROR_OTHER;
+  }
+
   Halvo.showError = function (e) {
-    document.getElementById("error").textContent = e ? String(e) : "";
+    var text = wordsOf(e);
+    document.getElementById("error").textContent = text;
+    document.getElementById("dismiss-error").classList.toggle("hidden", text === "");
+  };
+
+  Halvo.showConnection = function (text) {
+    document.getElementById("connection").textContent = text || "";
+  };
+
+  var answers = 0;
+
+  Halvo.markAnswer = function () {
+    answers += 1;
+  };
+
+  Halvo.answersSoFar = function () {
+    return answers;
+  };
+
+  Halvo.loadAgain = function (mark) {
+    window.location.hash = mark;
+    window.location.reload();
+  };
+
+  Halvo.takeLoadMark = function () {
+    var mark = String(window.location.hash || "").replace(/^#/, "");
+    if (mark && window.history && typeof window.history.replaceState === "function") {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    return mark;
   };
 
   Halvo.formatBytes = function (n) {
-    if (n < 1024) return n + " B";
-    var units = ["KB", "MB", "GB", "TB"];
+    var w = Halvo.words;
+    if (n < 1024) return n + w.UNIT_B;
+    var units = [w.UNIT_KB, w.UNIT_MB, w.UNIT_GB, w.UNIT_TB];
     var v = n / 1024;
     var i = 0;
     while (v >= 1024 && i < units.length - 1) {
@@ -100,6 +139,11 @@
 
   function start() {
     var main = document.getElementById("views");
+    var dismiss = document.getElementById("dismiss-error");
+    dismiss.textContent = Halvo.words.DISMISS;
+    dismiss.onclick = function () {
+      Halvo.showError("");
+    };
     entries
       .slice()
       .sort(function (a, b) {
@@ -121,7 +165,7 @@
       .then(function (version) {
         document.getElementById("version").textContent = version;
       })
-      .catch(Halvo.showError);
+      .catch(function () {});
   }
 
   document.addEventListener("visibilitychange", function () {
