@@ -2700,6 +2700,34 @@ mod tests {
                 let _ = seam::take();
             }
         }
+        let step = |state: &mut GateState, tick: u32| {
+            release_held_at(state, &producer, false, (tick, front), || false);
+            if read_the_seam {
+                let _ = seam::take();
+            }
+        };
+        for _ in 0..=state.gate.latch_count() {
+            tick = tick.wrapping_add(110);
+            state.gate.read_at(tick, FieldState::Clear, Moved::Same);
+            tick = tick.wrapping_add(10);
+            state.gate.read_at(tick, FieldState::Clear, Moved::Another);
+            step(&mut state, tick);
+        }
+        tick = tick.wrapping_add(1);
+        let last = state.gate.hold(tick, false, front);
+        state.held.push_back((
+            last,
+            KeyStroke {
+                vkey: 0x41,
+                released: false,
+            },
+            Some("last".to_string()),
+        ));
+        for _ in 0..5 {
+            tick = tick.wrapping_add(30);
+            state.gate.read_at(tick, FieldState::Clear, Moved::Same);
+            step(&mut state, tick);
+        }
         release_held_at(&mut state, &producer, true, (tick, front), || false);
         let mut apps = Vec::new();
         while let Ok(received) = writer.recv_timeout(std::time::Duration::from_millis(300)) {
