@@ -5,6 +5,8 @@ use std::time::Instant;
 
 use rusqlite::{params, Connection};
 
+mod second_place;
+
 const SEEDS: [u64; 4] = [1, 2, 3, 4];
 const CYCLES: u32 = 2;
 const ROUND_CAP: u32 = 120;
@@ -13,9 +15,11 @@ const PAGE: usize = 4096;
 const MARKER_HEAD: &[u8] = b"hgap";
 const MARKER_LEN: usize = 13;
 const FILL: &[u8] = b"bcdefjkmnrstvwxyz";
-const MEND_LINE: usize = 81262;
-const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 1; }";
-const MEND: &str = " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }";
+const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 2; }";
+const MENDS: [(usize, &str); 2] = [
+    (81262, " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }"),
+    (81517, " if( (pPg->pBt->btsFlags & BTS_FAST_SECURE) && pData>pBegin ){ memset(pBegin, 0, (size_t)(pData - pBegin)); }"),
+];
 const KEY: &str =
     "PRAGMA key = \"x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'\";";
 const SCHEMA: &str =
@@ -622,7 +626,7 @@ fn a_removed_or_replaced_row_leaves_no_byte_in_the_gap_of_a_page_that_the_databa
 }
 
 #[test]
-fn the_compiled_copy_is_the_pinned_file_with_the_mend_at_the_end_of_line_81262_and_one_added_function(
+fn the_compiled_copy_is_the_pinned_file_with_a_statement_at_the_ends_of_lines_81262_and_81517_and_one_added_function(
 ) {
     let pinned = std::fs::read(env!("HALVO_SQLCIPHER_PINNED_SOURCE")).unwrap();
     let copy = std::fs::read(concat!(env!("OUT_DIR"), "/sqlcipher.c"))
@@ -637,9 +641,11 @@ fn the_compiled_copy_is_the_pinned_file_with_the_mend_at_the_end_of_line_81262_a
         .filter(|&at| copy[at] != pinned[at])
         .map(|at| at + 1)
         .collect();
-    assert_eq!(differ, [MEND_LINE]);
-    assert_eq!(
-        copy[MEND_LINE - 1],
-        [pinned[MEND_LINE - 1], MEND.as_bytes()].concat()
-    );
+    assert_eq!(differ, MENDS.map(|(line, _)| line));
+    for (line, statement) in MENDS {
+        assert_eq!(
+            copy[line - 1],
+            [pinned[line - 1], statement.as_bytes()].concat()
+        );
+    }
 }

@@ -50,11 +50,10 @@ const PINNED: &str = "sqlcipher-src 419.0.6 (SQLCipher 4.19.0 on SQLite 3.53.4)"
 
 const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";
 
-const MEND_FUNCTION: &str = "static int rebuildPage(";
-
 const FIX: &str = "read rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and \
-    balance_nonroot from its divider loop again in the new source, move or delete the mend, and run \
-    the test page_gap of halvo-sqlcipher on the source with and without it";
+    balance_nonroot from its divider loop again in the new source, with every row of the table of \
+    docs/adr/0013, move or delete the mends, and run the tests page_gap of halvo-sqlcipher, the \
+    structural check of every page among them, on the source with and without the mends";
 
 const SHA256_ROUND: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -67,12 +66,26 @@ const SHA256_ROUND: [u32; 64] = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
-const MEND_LINE: &str =
-    "  /* The pPg->nFree field is now set incorrectly. The caller will fix it. */";
+struct Mend {
+    function: &'static str,
+    line: &'static str,
+    statement: &'static str,
+}
 
-const MEND: &str = " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }";
+const MENDS: [Mend; 2] = [
+    Mend {
+        function: "static int rebuildPage(",
+        line: "  /* The pPg->nFree field is now set incorrectly. The caller will fix it. */",
+        statement: " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }",
+    },
+    Mend {
+        function: "static int editPage(",
+        line: "  pPg->nCell = (u16)nNew;",
+        statement: " if( (pPg->pBt->btsFlags & BTS_FAST_SECURE) && pData>pBegin ){ memset(pBegin, 0, (size_t)(pData - pBegin)); }",
+    },
+];
 
-const MARK: &str = "int halvo_sqlcipher_page_gap_mend(void){ return 1; }\n";
+const MARK: &str = "int halvo_sqlcipher_page_gap_mend(void){ return 2; }\n";
 
 fn libtomcrypt_build(source_dir: &Path) -> cc::Build {
     let mut build = cc::Build::new();
@@ -152,7 +165,7 @@ fn sha256_hex(data: &[u8]) -> String {
 
 fn stop(found: String) -> ! {
     panic!(
-        "halvo-sqlcipher: the mend of rebuildPage was read in {PINNED}, sqlcipher.c with sha256 \
+        "halvo-sqlcipher: the mends of rebuildPage and editPage were read in {PINNED}, sqlcipher.c with sha256 \
          {PINNED_SHA256}; {found}. Fix: {FIX}."
     )
 }
@@ -163,6 +176,56 @@ fn occurrences(line: &[u8], text: &str) -> usize {
         .count()
 }
 
+fn place(source: &[u8], mend: &Mend) -> (usize, &'static str) {
+    let Mend {
+        function,
+        line,
+        statement,
+    } = mend;
+    let found: Vec<(usize, (usize, &[u8]))> = lines(source)
+        .enumerate()
+        .filter(|(_, (_, text))| *text == line.as_bytes())
+        .collect();
+    let [(line_number, (at, text))] = found[..] else {
+        stop(format!(
+            "looked for the line `{line}` once, found it {} times",
+            found.len()
+        ))
+    };
+    let opening: Vec<usize> = lines(source)
+        .enumerate()
+        .flat_map(|(number, (_, text))| std::iter::repeat_n(number, occurrences(text, function)))
+        .collect();
+    let [function_number] = opening[..] else {
+        stop(format!(
+            "looked for the text `{function}` once, found it {} times",
+            opening.len()
+        ))
+    };
+    if function_number >= line_number {
+        stop(format!(
+            "looked for the text `{function}` before the line `{line}`, line {}, found it on line {}",
+            line_number + 1,
+            function_number + 1
+        ));
+    }
+    if let Some((end, _)) = lines(source)
+        .enumerate()
+        .take(line_number)
+        .skip(function_number + 1)
+        .find(|(_, (_, text))| text.first() == Some(&b'}'))
+    {
+        stop(format!(
+            "looked for no function end between the text `{function}` on line {} and the line \
+             `{line}`, line {}, found one on line {}",
+            function_number + 1,
+            line_number + 1,
+            end + 1
+        ));
+    }
+    (at + text.len(), statement)
+}
+
 fn mended_source(source: &[u8], name: &Path) -> Vec<u8> {
     let hash = sha256_hex(source);
     if hash != PINNED_SHA256 {
@@ -171,54 +234,19 @@ fn mended_source(source: &[u8], name: &Path) -> Vec<u8> {
             name.display()
         ));
     }
-    let mend: Vec<(usize, (usize, &[u8]))> = lines(source)
-        .enumerate()
-        .filter(|(_, (_, line))| *line == MEND_LINE.as_bytes())
-        .collect();
-    let [(mend_number, (at, line))] = mend[..] else {
-        stop(format!(
-            "looked for the line `{MEND_LINE}` once, found it {} times",
-            mend.len()
-        ))
-    };
-    let function: Vec<usize> = lines(source)
-        .enumerate()
-        .flat_map(|(number, (_, line))| {
-            std::iter::repeat_n(number, occurrences(line, MEND_FUNCTION))
-        })
-        .collect();
-    let [function_number] = function[..] else {
-        stop(format!(
-            "looked for the text `{MEND_FUNCTION}` once, found it {} times",
-            function.len()
-        ))
-    };
-    if function_number >= mend_number {
-        stop(format!(
-            "looked for the text `{MEND_FUNCTION}` before the line of the mend, line {}, found it on line {}",
-            mend_number + 1,
-            function_number + 1
-        ));
+    let mut ends = Vec::new();
+    for mend in &MENDS {
+        ends.push(place(source, mend));
     }
-    if let Some((end, _)) = lines(source)
-        .enumerate()
-        .take(mend_number)
-        .skip(function_number + 1)
-        .find(|(_, (_, line))| line.first() == Some(&b'}'))
-    {
-        stop(format!(
-            "looked for no function end between the text `{MEND_FUNCTION}` on line {} and the line \
-             of the mend, line {}, found one on line {}",
-            function_number + 1,
-            mend_number + 1,
-            end + 1
-        ));
+    ends.sort_unstable_by_key(|(end, _)| *end);
+    let mut copy = Vec::with_capacity(source.len() + 256);
+    let mut from = 0;
+    for (end, statement) in ends {
+        copy.extend_from_slice(&source[from..end]);
+        copy.extend_from_slice(statement.as_bytes());
+        from = end;
     }
-    let end = at + line.len();
-    let mut copy = Vec::with_capacity(source.len() + MEND.len());
-    copy.extend_from_slice(&source[..end]);
-    copy.extend_from_slice(MEND.as_bytes());
-    copy.extend_from_slice(&source[end..]);
+    copy.extend_from_slice(&source[from..]);
     copy.extend_from_slice(MARK.as_bytes());
     copy
 }

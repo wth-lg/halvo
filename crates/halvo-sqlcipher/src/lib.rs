@@ -40,7 +40,7 @@ pub fn os_entropy_hook_installed() -> bool {
 /// this links that object or does not link at all. Each store's open is to
 /// require `true`, as it requires secure delete.
 pub fn page_gap_mend_linked() -> bool {
-    unsafe { halvo_sqlcipher_page_gap_mend() == 1 }
+    unsafe { halvo_sqlcipher_page_gap_mend() == 2 }
 }
 
 #[cfg(test)]
