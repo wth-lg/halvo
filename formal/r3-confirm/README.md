@@ -118,8 +118,8 @@ alone. Its PASS is a statement about the commit:
   fails the check until the counts in the check and in that section are written again.
 - It exports the two files again with the seed and the count of `Export.cfg` and compares
   both byte for byte with the committed files.
-- It runs twelve controls, and each must report its invariant and no other: the control copy
-  `Control.cfg`, which must report P1, and eleven copies of `Confirm.tla` that the script
+- It runs thirteen controls, and each must report its invariant and no other: the control copy
+  `Control.cfg`, which must report P1, and twelve copies of `Confirm.tla` that the script
   makes with exact replacements of their lines, each run under the bounds of `Rebinds.cfg`
   with its one invariant in the list, three at a time with one worker each. A replacement
   that no longer finds its lines fails the check.
@@ -138,6 +138,7 @@ alone. Its PASS is a statement about the commit:
 | P10 | P10 | `lose` comes while the runner lives, and the request leaves after it |
 | P10-live | P10 | the paused request of a `releasing` effect leaves after the run's end and before `lose` |
 | P11 | P11 | the end of the run loses the `releasing` row |
+| P9-made | P9 | `Reply` takes every answer as `made`, so `commit` is stored after a reply that says that the effect was not made |
 
 It prints:
 
@@ -153,8 +154,8 @@ formal table rows=3840 same=yes
 formal traces count=400 same=yes
 formal control violated=1
 formal control name=P2 invariant=P2 reported=P2 status=12 states=<n> seconds=<n>
-... one such line for each of P3 to P11 and P10-live ...
-formal controls count=12 reported=12 seconds=<n>
+... one such line for each of P3 to P11, P10-live and P9-made ...
+formal controls count=13 reported=13 seconds=<n>
 PASS 30-r3-formal
 ```
 
@@ -187,9 +188,6 @@ What the check does not see:
   committed file. The review of U1.8 (a) found that a `Step` that refuses `begin` after
   `not_made` with `unknown`, or a cause that does not fit with `effect`, passes the crate's
   tests after an export.
-- A runner that commits an effect after a reply that says that it was not made. P9, as A5.3
-  states it, holds for any reply; the model's `Commit` takes only a reply that says `made`,
-  and no invariant holds that. A copy whose `Reply` takes every answer as `made` passes.
 - Each job fetches the jar twice, once for the check and once for its self-test.
 - An input that the commit does not hold. The test of `same-as-commit=yes` is `git diff
   --quiet HEAD`, which sees tracked files alone: a commit that drops a configuration file
@@ -400,7 +398,7 @@ holds.
 | P6 | An effect whose decision is `handback` or `refuse` never reaches `releasing`. | The same, for an effect for which `Decide` ever gave one of the two. |
 | P7 | `allow` never holds a money class, `sign` or `credential`, in any reachable configuration. | A configuration that the guard let through, or under which an effect exists, has none of `purchase`, `payment`, `sign`, `credential` in `allow`. |
 | P8 | An effect for which `decide` gave `confirm` reaches `releasing` only from `approved`, and its request leaves only after that. | As P1, for every effect for which `Decide` gave `confirm`. |
-| P9 | An effect reaches `committed` only after its request left and the reply to that request came. | At each arrival of a row in `committed`, the wire held a request of the effect with its reply. |
+| P9 | An effect reaches `committed` only after its request left and a reply came that its maker reads as made. | At each arrival of a row in `committed`, the wire held a request of the effect with its reply, and that reply's answer was `made`. The control P9-made shows that a copy that commits after a reply that says that the effect was not made breaks P9. |
 | P10 | Every request that leaves carries the digest of its effect's row at `begin`, and for an effect for which `decide` gave `confirm` that is the digest that the person was shown for the approval that moved it to `approved` last. | Each request left while its row was `releasing` and while the run went on, after a stored `begin`, with the digest that the row had at that `begin`; for an effect for which `Decide` gave `confirm` it is also the shown digest of the last arrival in `approved`. |
 | P11 | An effect whose row once was `releasing` is `releasing`, `committed`, `unknown` or `not_made`, and in no other state, and it reaches `not_made` only by a move of the runner and never by a move of the run's end. | An effect with an arrival in `releasing` has a row in one of the four states. It reads the rows and not the wire for that, so it also covers an end of the run between the stored `begin` and the send. A row in `not_made` was stored by the runner's `NotMade` while the run went on, and its cause is true: it fits the class (the row of `class` in the step relation), `not_sent` and a `not_replaced` that the runner withheld have no request on the wire, and a `not_replaced` that the executor answered, `unauthorized` and `throttled` have a request whose reply answered `not_replaced`, `401` and `429`. After the run's end an effect is `not_made` only when it was `not_made` when the run ended, so no move of the run's end makes it, whatever that move writes of itself. |
 

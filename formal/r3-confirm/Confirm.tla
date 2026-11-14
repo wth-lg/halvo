@@ -185,7 +185,8 @@ Noted(h, x, y, a, w) ==
              THEN Append(@, [from |-> x.st, dig |-> y.dig])
              ELSE @,
      !.com = IF y.st = "committed" /\ x.st # "committed"
-             THEN @ \cup {IF \E i \in DOMAIN w : w[i].reply = "yes" THEN "replied"
+             THEN @ \cup {IF \E i \in DOMAIN w : w[i].reply = "yes" /\ w[i].ans = "made" THEN "replied"
+                          ELSE IF \E i \in DOMAIN w : w[i].reply = "yes" THEN "answered"
                           ELSE IF Len(w) > 0 THEN "sent" ELSE "unsent"}
              ELSE @]
 

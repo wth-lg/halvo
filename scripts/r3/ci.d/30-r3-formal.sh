@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of twelve controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of thirteen controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -18,7 +18,7 @@ fetch_connect=10
 fetch_time=25
 fetch_pause=5
 fetch_bound=60
-controls_list='P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P10-live'
+controls_list='P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P10-live P9-made'
 control_slots=3
 
 fail() {
@@ -236,6 +236,7 @@ control_prepare() {
   k=$1
   case $k in
     P10-live) invariant=P10 ;;
+    P9-made) invariant=P9 ;;
     *) invariant=$k ;;
   esac
   model=$tmp/model-$k.tla
@@ -254,6 +255,7 @@ control_report() {
   k=$1
   case $k in
     P10-live) invariant=P10 ;;
+    P9-made) invariant=P9 ;;
     *) invariant=$k ;;
   esac
   tlc_read "control-$k"
@@ -301,7 +303,7 @@ controls() {
   done
   controls_wait
   ended=$(date +%s)
-  printf 'formal controls count=12 reported=%s seconds=%s\n' "$reported" "$((ended - started))"
+  printf 'formal controls count=13 reported=%s seconds=%s\n' "$reported" "$((ended - started))"
   [ "$wrong" = no ] || fail control
 }
 
@@ -395,6 +397,8 @@ block() {
     P10-live:1new) printf '%s\n' '  /\ mem[e] = "begun"' '  /\ (alive = "yes" \/ eff[e].st = "releasing")' '  /\ Len(wire[e]) < 2' ;;
     P10-live:2old) printf '%s\n' "  /\\ mem' = [e \\in Effects |-> \"idle\"]" ;;
     P10-live:2new) printf '%s\n' "  /\\ mem' = [e \\in Effects |-> IF mem[e] = \"begun\" THEN \"begun\" ELSE \"idle\"]" ;;
+    P9-made:1old) printf '%s\n' "  /\\ mem' = [mem EXCEPT ![e] = IF a = \"made\" THEN \"replied\" ELSE \"answered\"]" ;;
+    P9-made:1new) printf '%s\n' "  /\\ mem' = [mem EXCEPT ![e] = \"replied\"]" ;;
     *) return 1 ;;
   esac
 }
