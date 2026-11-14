@@ -722,10 +722,13 @@ search_case() {
 
 test_search() {
   search_tools
-  search_case search/none-takes-1 'takes 1' - -
-  search_case search/another-run-claims-4-first-takes-5 'takes 5' - race dir:1 dir:2 dir:3
-  search_case search/a-file-at-the-number-is-refused 'refused target/egress/3' - - dir:1 dir:2 file:3
-  search_case search/names-that-are-no-number-passed-over 'takes 3' - - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:1234567890123456789 dir:12345678901234567890 file:50
+  search_case search/none-takes-1 'takes 1' 1 -
+  search_case search/holding-1-to-5-and-9-takes-10 'takes 10' 10 - dir:1 dir:2 dir:3 dir:4 dir:5 dir:9
+  search_case search/another-run-claims-4-first-takes-5 'takes 5' '4 5' race dir:1 dir:2 dir:3
+  search_case search/a-file-at-the-number-is-refused 'refused target/egress/3' 3 - dir:1 dir:2 file:3
+  search_case search/holding-9-and-10-takes-11 'takes 11' 11 - dir:9 dir:10
+  search_case search/a-name-of-18-digits-is-a-number 'takes 100000000000000001' 100000000000000001 - dir:100000000000000000
+  search_case search/names-that-are-no-number-passed-over 'takes 3' 3 - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:1234567890123456789 dir:12345678901234567890 file:50 dir:99999999999999999999
 }
 
 [ $# -gt 0 ] || set -- probe lists
