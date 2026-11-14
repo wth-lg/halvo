@@ -58,7 +58,7 @@ struct Waited {
 }
 
 #[derive(Clone, Copy)]
-struct By {
+struct AnsweredBy {
     step: Option<u32>,
     from: Presenter,
     now: Option<u64>,
@@ -114,7 +114,7 @@ fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &
     &mut ledgers[k].1
 }
 
-fn mark<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
+fn hold_stop<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
     *table = table.stop(run);
     schedule::stop_run(board, run, now, by.cause().end());
 }
@@ -126,7 +126,7 @@ fn waiting_on(doing: &Doing) -> Option<RunItem> {
     }
 }
 
-fn reachable<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
+fn live_unstopped_run<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
     board
         .runs
         .iter()
@@ -163,7 +163,7 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
         l.take(&facts.events);
         let agent = facts.agent.clone();
         let off = schedule::holds(facts).contains(&schedule::Hold::Off);
-        self.stopped = !self.off_before && off && reachable(self.board, &agent).is_some();
+        self.stopped = !self.off_before && off && live_unstopped_run(self.board, &agent).is_some();
         match (read, self.stopped) {
             (Err(_), _) => items::Read::Failed,
             (Ok(()), true) => items::Read::Off,
@@ -172,7 +172,7 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
     }
 }
 
-struct Parts<'a> {
+struct LapseParts<'a> {
     table: &'a mut Table,
     ledgers: &'a mut Vec<(AgentId, Ledger)>,
     held: &'a mut Vec<Held>,
@@ -248,9 +248,9 @@ where
             }
             let _ = self.act(&mut st, Act::QuitTick);
         } else {
-            let before = Self::offs(&st);
+            let before = Self::agents_held_off(&st);
             self.tick_in(&mut st, &before);
-            self.after_reads(&mut st, &before);
+            self.finish_switch_offs_after_reads(&mut st, &before);
         }
         self.publish(&mut st);
     }
@@ -286,7 +286,7 @@ where
             schedule::drive(&self.ports, board, &self.limits, Move::Create);
             self.flush_ledgers(board, ledgers);
         }
-        self.after_reads(st, before);
+        self.finish_switch_offs_after_reads(st, before);
         let State {
             board,
             table,
@@ -431,7 +431,7 @@ where
                     Some(ConfirmMove::Lapse(LapseCause::WaitLimit))
                 );
                 if lapses {
-                    mark(board, table, h.ask().run(), now, StopBy::WaitLimit);
+                    hold_stop(board, table, h.ask().run(), now, StopBy::WaitLimit);
                 }
             }
             let l = ledger(ledgers, &board.members[i].facts);
@@ -475,7 +475,7 @@ where
             if now < at.saturating_add(limit) {
                 return true;
             }
-            mark(board, table, &w.run, now, StopBy::WaitLimit);
+            hold_stop(board, table, &w.run, now, StopBy::WaitLimit);
             let l = ledger(ledgers, &board.members[i].facts);
             let _ = items::time_out(&self.ports, l, table, &w.run, &w.item, &self.limits);
             self.read_back(board, i);
@@ -501,7 +501,7 @@ where
             let Some(i) = index(board, &b.ask().agent) else {
                 continue;
             };
-            mark(board, table, &b.ask().run, now, StopBy::WaitLimit);
+            hold_stop(board, table, &b.ask().run, now, StopBy::WaitLimit);
             let l = ledger(ledgers, &board.members[i].facts);
             let _ = items::lapse_bind(
                 &self.ports,
@@ -529,9 +529,9 @@ where
     /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.lock();
-        let before = Self::offs(&st);
+        let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
-        self.after_reads(&mut st, &before);
+        self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
@@ -799,7 +799,7 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
-        let mut parts = Parts {
+        let mut parts = LapseParts {
             table,
             ledgers,
             held,
@@ -812,13 +812,13 @@ where
     fn lapse_open(
         &self,
         board: &mut Board<Cfg<P>>,
-        parts: &mut Parts<'_>,
+        parts: &mut LapseParts<'_>,
         i: usize,
         run: &RunId,
         open: &RunItem,
         stop: bool,
     ) {
-        let Parts {
+        let LapseParts {
             table,
             ledgers,
             held,
@@ -851,7 +851,7 @@ where
         self.read_back(board, i);
     }
 
-    fn off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
+    fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
         let State {
             board,
             table,
@@ -864,7 +864,7 @@ where
         } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         let open = waiting_on(&board.members[i].facts.doing);
-        let mut parts = Parts {
+        let mut parts = LapseParts {
             table,
             ledgers,
             held,
@@ -888,11 +888,11 @@ where
             .as_ref()
             .map(|b| b.members[i].facts.agent.clone())
             .ok_or(Cause::State)?;
-        self.off(st, i, Move::Off { agent })?;
+        self.switch_off(st, i, Move::Off { agent })?;
         Err(Cause::State)
     }
 
-    fn offs(st: &State<Cfg<P>>) -> Vec<AgentId> {
+    fn agents_held_off(st: &State<Cfg<P>>) -> Vec<AgentId> {
         st.board.as_ref().map_or_else(Vec::new, |b| {
             b.members
                 .iter()
@@ -902,16 +902,16 @@ where
         })
     }
 
-    fn after_reads(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
-        for agent in Self::offs(st) {
+    fn finish_switch_offs_after_reads(&self, st: &mut State<Cfg<P>>, before: &[AgentId]) {
+        for agent in Self::agents_held_off(st) {
             let Some(board) = st.board.as_ref() else {
                 return;
             };
             let (Some(i), false) = (index(board, &agent), before.contains(&agent)) else {
                 continue;
             };
-            if reachable(board, &agent).is_some() || board.queue.holds(&agent) {
-                let _ = self.off(st, i, Move::Off { agent });
+            if live_unstopped_run(board, &agent).is_some() || board.queue.holds(&agent) {
+                let _ = self.switch_off(st, i, Move::Off { agent });
             }
         }
     }
@@ -1035,14 +1035,14 @@ where
     ) -> Result<(), Cause> {
         let now = self.ports.now().ok();
         let mut st = self.lock();
-        let before = Self::offs(&st);
-        let by = By {
+        let before = Self::agents_held_off(&st);
+        let by = AnsweredBy {
             step: Some(step),
             from: Presenter::Page,
             now,
         };
         let out = self.answer_in(&mut st, item, choice, pick, by);
-        self.after_reads(&mut st, &before);
+        self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
@@ -1055,14 +1055,14 @@ where
         };
         let now = self.ports.now().ok();
         let mut st = self.lock();
-        let before = Self::offs(&st);
-        let by = By {
+        let before = Self::agents_held_off(&st);
+        let by = AnsweredBy {
             step: None,
             from: Presenter::Native,
             now,
         };
         let out = self.answer_in(&mut st, item, choice, None, by);
-        self.after_reads(&mut st, &before);
+        self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
@@ -1090,7 +1090,7 @@ where
         item: &ItemId,
         choice: Choice,
         pick: Option<(Param, u32)>,
-        by: By,
+        by: AnsweredBy,
     ) -> Result<(), Cause> {
         let (i, doing) = self.owner_of(st, item)?;
         let step = by.step.unwrap_or_else(|| Self::step_of(st, item));
@@ -1140,7 +1140,7 @@ where
                         self.read_back(board, i);
                     }
                     if stopped {
-                        self.off(st, i, Move::Off { agent })?;
+                        self.switch_off(st, i, Move::Off { agent })?;
                         return Err(Cause::UnknownItem);
                     }
                     match out {
@@ -1181,7 +1181,7 @@ where
         run: &RunId,
         item: &ItemId,
         choice: Choice,
-        by: By,
+        by: AnsweredBy,
     ) -> Result<(), Cause> {
         let answer = match choice {
             Choice::Allow => ConfirmAnswer::Allow,
@@ -1287,9 +1287,9 @@ where
         step: u32,
     ) -> Result<(), Cause> {
         let mut st = self.lock();
-        let before = Self::offs(&st);
+        let before = Self::agents_held_off(&st);
         let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
-        self.after_reads(&mut st, &before);
+        self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
@@ -1413,9 +1413,9 @@ where
     /// switch-off control lapses that item in the same way before its own move.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.lock();
-        let before = Self::offs(&st);
+        let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
-        self.after_reads(&mut st, &before);
+        self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
@@ -1438,7 +1438,7 @@ where
                     agent: agent.clone(),
                 },
             ),
-            Action::SwitchOff => self.off(
+            Action::SwitchOff => self.switch_off(
                 st,
                 i,
                 Move::SwitchOff {
@@ -1453,7 +1453,7 @@ where
         let State { board, table, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         let agent = board.members[i].facts.agent.clone();
-        let Some(run) = reachable(board, &agent) else {
+        let Some(run) = live_unstopped_run(board, &agent) else {
             return Ok(());
         };
         let Some(open) = waiting_on(&board.members[i].facts.doing) else {
@@ -1466,7 +1466,7 @@ where
             );
         };
         let now = self.ports.now().map_err(|e| cause_of(&e))?;
-        mark(board, table, &run, now, StopBy::Person);
+        hold_stop(board, table, &run, now, StopBy::Person);
         self.close_run_item(st, i, &run, &open, true);
         Ok(())
     }
@@ -1530,9 +1530,9 @@ where
         let Some(board) = st.board.as_ref() else {
             return Vec::new();
         };
-        Self::offs(&st)
+        Self::agents_held_off(&st)
             .into_iter()
-            .filter(|a| reachable(board, a).is_some())
+            .filter(|a| live_unstopped_run(board, a).is_some())
             .collect()
     }
 
@@ -1544,7 +1544,7 @@ where
         let Some(board) = st.board.as_ref() else {
             return Vec::new();
         };
-        let offs = Self::offs(&st);
+        let offs = Self::agents_held_off(&st);
         board
             .queue
             .entries()

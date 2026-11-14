@@ -33,8 +33,8 @@ pub struct Both {
     pub panics: Cell<Option<&'static str>>,
     pub loss: Cell<Option<Loss>>,
     pub lost: std::cell::RefCell<Vec<Event>>,
-    pub unread: Cell<bool>,
-    pub loss_at: Cell<Option<Names>>,
+    pub next_history_fails: Cell<bool>,
+    pub loss_waits_for_row: Cell<Option<LostAckRow>>,
     pub clock_fails: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
@@ -42,7 +42,7 @@ pub struct Both {
     pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
 }
 
-pub type Names = fn(&halvo_coord::types::What) -> bool;
+pub type LostAckRow = fn(&halvo_coord::types::What) -> bool;
 
 /// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and
 /// the reply is lost, so that the coordinator's read right after the call brings them; or the
@@ -97,13 +97,13 @@ impl Owner for Both {
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.note("::log");
         let waits = self
-            .loss_at
+            .loss_waits_for_row
             .get()
             .is_some_and(|names| !events.iter().any(|e| names(&e.what)));
         let loss = if waits {
             None
         } else {
-            self.loss_at.set(None);
+            self.loss_waits_for_row.set(None);
             self.loss.take()
         };
         match loss {
@@ -117,7 +117,7 @@ impl Owner for Both {
             }
             Some(Loss::Unread) => {
                 self.ports.log(events)?;
-                self.unread.set(true);
+                self.next_history_fails.set(true);
                 Err(PortError::NoService)
             }
             Some(Loss::Nothing) => Err(PortError::NoService),
@@ -126,7 +126,7 @@ impl Owner for Both {
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
-        if self.unread.take() {
+        if self.next_history_fails.take() {
             return Err(PortError::NoService);
         }
         self.ports.history(agent, after)
@@ -297,8 +297,8 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         panics: Cell::new(None),
         loss: Cell::new(None),
         lost: std::cell::RefCell::new(Vec::new()),
-        unread: Cell::new(false),
-        loss_at: Cell::new(None),
+        next_history_fails: Cell::new(false),
+        loss_waits_for_row: Cell::new(None),
         clock_fails: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),

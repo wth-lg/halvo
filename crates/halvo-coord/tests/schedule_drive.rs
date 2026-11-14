@@ -1151,8 +1151,8 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     live.doing = Doing::Live(halvo_coord::types::Live::Working);
     assert_eq!(tick_step(&live, true, &l), Ask::Nothing);
     let mut w = world(&[AUTO, manual()]);
-    nothing_first(&mut w, 0);
-    nothing_first(&mut w, 1);
+    store_clean_run_without_finished(&mut w, 0);
+    store_clean_run_without_finished(&mut w, 1);
     assert_eq!(
         tick_step(w.facts(0), true, &l),
         Ask::Ready,
@@ -1165,7 +1165,7 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     );
 }
 
-fn nothing_first(w: &mut World, n: usize) {
+fn store_clean_run_without_finished(w: &mut World, n: usize) {
     let to_nothing = |e: &mut Event| {
         if let What::RunEnded { cause, .. } = &mut e.what {
             if e.agent == agent(n) {
@@ -1193,7 +1193,7 @@ fn nothing_first(w: &mut World, n: usize) {
 #[test]
 fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
     let mut w = world(&[AUTO]);
-    nothing_first(&mut w, 0);
+    store_clean_run_without_finished(&mut w, 0);
     assert_eq!(w.tick().raised, vec![agent(0)]);
     w.forget();
     assert_eq!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
@@ -1202,7 +1202,7 @@ fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
         vec!["log item_answered ready skip, slot_skipped 0".to_string()]
     );
     let mut s = world(&[AUTO]);
-    nothing_first(&mut s, 0);
+    store_clean_run_without_finished(&mut s, 0);
     let run = ok_run(&s.start(0));
     let slot = s.stored().iter().find_map(|e| match &e.what {
         What::RunStarted { run: r, slot, .. } if *r == run => Some(*slot),
@@ -2982,7 +2982,7 @@ fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
     assert_eq!(started, [DAY + 1]);
 }
 
-fn stored_at_owner(w: &mut World, n: usize, what: What, seen: bool) {
+fn stored_at_owner(w: &mut World, n: usize, what: What, also_on_board: bool) {
     let last = w
         .stored()
         .iter()
@@ -2999,7 +2999,7 @@ fn stored_at_owner(w: &mut World, n: usize, what: What, seen: bool) {
         what,
     };
     w.ports.events.borrow_mut().push(event.clone());
-    if seen {
+    if also_on_board {
         let i = w
             .board
             .members

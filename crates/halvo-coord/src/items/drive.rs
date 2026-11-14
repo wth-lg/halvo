@@ -540,7 +540,7 @@ enum Decided {
     Own(HandbackResult),
     Other(HandbackResult),
     Lapsed,
-    Log,
+    LogOwnRow,
     Stopped,
 }
 
@@ -559,11 +559,13 @@ pub enum Read {
 impl Press<'_> {
     fn decide(&self, newest: Option<&What>) -> Decided {
         match newest {
-            None => Decided::Log,
+            None => Decided::LogOwnRow,
             Some(What::ItemAnswered { answer, .. }) if answer == self.answer => {
                 Decided::Own(self.result)
             }
-            Some(What::ItemAnswered { answer, .. }) if self.declines_after(answer) => Decided::Log,
+            Some(What::ItemAnswered { answer, .. }) if self.declines_after(answer) => {
+                Decided::LogOwnRow
+            }
             Some(What::ItemAnswered { answer, .. }) => answer
                 .choice()
                 .and_then(|c| handback_result(self.kind, c).ok())
@@ -609,10 +611,10 @@ fn log_press<P: Owner>(
                 once = true;
                 let newest = ledger.closing(press.item).map(|e| &e.what);
                 match press.decide(newest) {
-                    Decided::Log if refused_with(&e, "seq") || newest.is_some() => {
+                    Decided::LogOwnRow if refused_with(&e, "seq") || newest.is_some() => {
                         events = ledger.number(vec![row.clone()], stamp);
                     }
-                    Decided::Log => return Err(e),
+                    Decided::LogOwnRow => return Err(e),
                     decided => return Ok(decided),
                 }
             }
@@ -948,9 +950,12 @@ pub fn lapse<P: Owner + Runs + Clock>(
 }
 
 /// The person's stop of the run of a held confirmation (I5.7, rulings RD-6 and RD-83): the lapse
-/// with `cancelled` where the machine takes it, whose cancel comes before its decision; else, for
-/// an item that is `recorded`, the run is stopped in the guard's table and `Runs::cancel` is
-/// sent, the fact that `Act::Stop` reads, and the item stays to the end of its run.
+/// with `cancelled` where the machine takes it, from `shown`, `armed` or `answered`, whose cancel
+/// comes before its decision; else, for an item that is `recorded`, `released` or `lapsed`, the
+/// run is stopped in the guard's table and `Runs::cancel` is sent, the fact that `Act::Stop`
+/// reads, and the item keeps its state: a `recorded` one stays to the end of its run, a
+/// `released` one stays released while the guard refuses the run's records `approved` and
+/// `releasing` with `approval`, and a `lapsed` one stores nothing more.
 pub fn stop_confirm<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1179,12 +1184,12 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     };
     flush(ports, ledger, limits).map_err(|e| cause_of(&e))?;
     let decided = if ledger.unsure.contains(item) {
-        Decided::Log
+        Decided::LogOwnRow
     } else {
         press.decide(ledger.closing(item).map(|e| &e.what))
     };
     let decided = match decided {
-        Decided::Log => match log_press(ports, ledger, &press, &row, stamp, read) {
+        Decided::LogOwnRow => match log_press(ports, ledger, &press, &row, stamp, read) {
             Ok(decided) => decided,
             Err(e) => {
                 if !ledger.unsure.contains(item) {
@@ -1204,7 +1209,7 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     match decided {
         Decided::Own(result) => hand(result),
         Decided::Other(result) => hand(result).and(Err(Cause::UnknownItem)),
-        Decided::Lapsed | Decided::Log | Decided::Stopped => Err(Cause::UnknownItem),
+        Decided::Lapsed | Decided::LogOwnRow | Decided::Stopped => Err(Cause::UnknownItem),
     }
 }
 

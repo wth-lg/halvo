@@ -44,9 +44,18 @@ fn ledger() -> Ledger {
     Ledger::new(workflow_id(1), agent_id(1), 0)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PanicAt {
+    Cancel,
+    AnswerConfirm,
+    AnswerHandback,
+    AnswerBind,
+    LogLapsed,
+}
+
 struct Panicky<'a> {
     inner: &'a Ports<Config>,
-    panics: Cell<Option<&'static str>>,
+    panics: Cell<Option<PanicAt>>,
 }
 
 impl<'a> Panicky<'a> {
@@ -57,9 +66,9 @@ impl<'a> Panicky<'a> {
         }
     }
 
-    fn at(&self, name: &str) {
-        if self.panics.get() == Some(name) {
-            panic!("the port {name} panics");
+    fn at(&self, call: PanicAt) {
+        if self.panics.get() == Some(call) {
+            panic!("the port panics at {call:?}");
         }
     }
 }
@@ -71,7 +80,7 @@ impl Owner for Panicky<'_> {
             .iter()
             .any(|e| matches!(e.what, What::ItemLapsed { .. }))
         {
-            self.at("log_lapsed");
+            self.at(PanicAt::LogLapsed);
         }
         self.inner.log(events)
     }
@@ -99,19 +108,19 @@ impl Runs for Panicky<'_> {
         answers: &[Answer],
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError> {
-        self.at("answer_confirm");
+        self.at(PanicAt::AnswerConfirm);
         self.inner.answer_confirm(run, answers, record)
     }
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
-        self.at("answer_handback");
+        self.at(PanicAt::AnswerHandback);
         self.inner.answer_handback(run, result)
     }
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
-        self.at("answer_bind");
+        self.at(PanicAt::AnswerBind);
         self.inner.answer_bind(run, result)
     }
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
-        self.at("cancel");
+        self.at(PanicAt::Cancel);
         self.inner.cancel(run)
     }
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
@@ -140,7 +149,7 @@ impl Rng for Panicky<'_> {
     }
 }
 
-fn held<P: Owner + Runs + Clock + Rng>(
+fn issue_run1_confirmation<P: Owner + Runs + Clock + Rng>(
     p: &P,
     inner: &Ports<Config>,
     l: &mut Ledger,
@@ -159,7 +168,7 @@ fn held<P: Owner + Runs + Clock + Rng>(
     held
 }
 
-fn methods(p: &Ports<Config>, from: usize) -> Vec<&'static str> {
+fn tried_methods_from(p: &Ports<Config>, from: usize) -> Vec<&'static str> {
     p.tried.borrow()[from..]
         .iter()
         .map(|t| t.call.method())
@@ -200,11 +209,11 @@ fn rd83_a_stopping_lapse_cancels_then_decides_then_sends_its_row() {
             let case = format!("{cause} armed={armed}");
             let p = ports();
             let (mut l, mut t) = (ledger(), Table::new());
-            let mut h = held(&p, &p, &mut l, &mut t, armed);
+            let mut h = issue_run1_confirmation(&p, &p, &mut l, &mut t, armed);
             let from = p.tried.borrow().len();
             lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS).unwrap();
             assert_eq!(
-                methods(&p, from),
+                tried_methods_from(&p, from),
                 ["cancel", "answer_confirm", "log"],
                 "{case}"
             );
@@ -233,7 +242,7 @@ fn rd83_the_guard_at_the_lapses_decision_refuses_the_records_of_an_earlier_allow
         let inner = ports();
         let p = Panicky::new(&inner);
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut one = held(&p, &inner, &mut l, &mut t, true);
+        let mut one = issue_run1_confirmation(&p, &inner, &mut l, &mut t, true);
         answer(
             &p,
             &mut l,
@@ -255,7 +264,7 @@ fn rd83_the_guard_at_the_lapses_decision_refuses_the_records_of_an_earlier_allow
         assert!(passes(&t), "{cause}: the first card's rows count");
         let second = ask_of(1, 1, vec![asked(3, Class::Send, 3, true)]);
         let mut two = issue(&p, &mut l, &t, &LIMITS, &second).unwrap();
-        p.panics.set(Some("answer_confirm"));
+        p.panics.set(Some(PanicAt::AnswerConfirm));
         let out = catch_unwind(AssertUnwindSafe(|| {
             lapse(&p, &mut l, &mut t, &mut two, cause, &LIMITS)
         }));
@@ -271,9 +280,9 @@ fn rd83_a_cancel_that_panics_leaves_the_stop_the_lapse_and_the_row_owed() {
         let inner = ports();
         let p = Panicky::new(&inner);
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut h = held(&p, &inner, &mut l, &mut t, false);
+        let mut h = issue_run1_confirmation(&p, &inner, &mut l, &mut t, false);
         let from = inner.tried.borrow().len();
-        p.panics.set(Some("cancel"));
+        p.panics.set(Some(PanicAt::Cancel));
         let out = catch_unwind(AssertUnwindSafe(|| {
             lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS)
         }));
@@ -284,7 +293,11 @@ fn rd83_a_cancel_that_panics_leaves_the_stop_the_lapse_and_the_row_owed() {
             "{cause}: the table holds the stop"
         );
         assert_eq!(h.confirmation().state(), &ConfirmState::Lapsed(cause));
-        assert_eq!(methods(&inner, from), Vec::<&str>::new(), "{cause}");
+        assert_eq!(
+            tried_methods_from(&inner, from),
+            Vec::<&str>::new(),
+            "{cause}"
+        );
         assert_eq!(waiting_lapses(&l), 1, "{cause}: the row is owed");
         assert_eq!(lapsed_rows(&inner), 0, "{cause}");
         flush(&p, &mut l, &LIMITS).unwrap();
@@ -298,15 +311,15 @@ fn rd83_a_decision_that_panics_after_the_cancel_leaves_the_same() {
         let inner = ports();
         let p = Panicky::new(&inner);
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut h = held(&p, &inner, &mut l, &mut t, true);
+        let mut h = issue_run1_confirmation(&p, &inner, &mut l, &mut t, true);
         let from = inner.tried.borrow().len();
-        p.panics.set(Some("answer_confirm"));
+        p.panics.set(Some(PanicAt::AnswerConfirm));
         let out = catch_unwind(AssertUnwindSafe(|| {
             lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS)
         }));
         p.panics.set(None);
         assert!(out.is_err(), "{cause}");
-        assert_eq!(methods(&inner, from), ["cancel"], "{cause}");
+        assert_eq!(tried_methods_from(&inner, from), ["cancel"], "{cause}");
         assert!(t.is_stopped(&run_id(1)), "{cause}");
         assert_eq!(h.confirmation().state(), &ConfirmState::Lapsed(cause));
         assert_eq!(waiting_lapses(&l), 1, "{cause}: the row is owed");
@@ -321,16 +334,16 @@ fn rd83_a_row_store_that_panics_leaves_the_cancel_sent() {
         let inner = ports();
         let p = Panicky::new(&inner);
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut h = held(&p, &inner, &mut l, &mut t, false);
+        let mut h = issue_run1_confirmation(&p, &inner, &mut l, &mut t, false);
         let from = inner.tried.borrow().len();
-        p.panics.set(Some("log_lapsed"));
+        p.panics.set(Some(PanicAt::LogLapsed));
         let out = catch_unwind(AssertUnwindSafe(|| {
             lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS)
         }));
         p.panics.set(None);
         assert!(out.is_err(), "{cause}");
         assert_eq!(
-            methods(&inner, from),
+            tried_methods_from(&inner, from),
             ["cancel", "answer_confirm"],
             "{cause}"
         );
@@ -350,7 +363,7 @@ fn rd83_a_cancel_that_fails_sends_no_decision_and_one_that_answers_ended_does() 
             let case = format!("{cause} {error:?}");
             let p = ports();
             let (mut l, mut t) = (ledger(), Table::new());
-            let mut h = held(&p, &p, &mut l, &mut t, true);
+            let mut h = issue_run1_confirmation(&p, &p, &mut l, &mut t, true);
             let from = p.tried.borrow().len();
             p.refuse(Method::Cancel, error);
             lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS).unwrap();
@@ -359,7 +372,7 @@ fn rd83_a_cancel_that_fails_sends_no_decision_and_one_that_answers_ended_does() 
             } else {
                 &["cancel", "log"]
             };
-            assert_eq!(methods(&p, from), want, "{case}");
+            assert_eq!(tried_methods_from(&p, from), want, "{case}");
             assert!(t.is_stopped(&run_id(1)), "{case}");
             assert_eq!(lapsed_rows(&p), 1, "{case}");
         }
@@ -372,7 +385,7 @@ fn rd83_time_out_holds_the_stop_before_its_result_and_keeps_its_order() {
     let p = Panicky::new(&inner);
     let (mut l, mut t) = (ledger(), Table::new());
     let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
-    p.panics.set(Some("answer_handback"));
+    p.panics.set(Some(PanicAt::AnswerHandback));
     let out = catch_unwind(AssertUnwindSafe(|| {
         time_out(&p, &mut l, &mut t, &run_id(1), &open, &LIMITS)
     }));
@@ -384,7 +397,10 @@ fn rd83_time_out_holds_the_stop_before_its_result_and_keeps_its_order() {
     let open = raise_run_item(&inner, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
     let from = inner.tried.borrow().len();
     time_out(&inner, &mut l, &mut t, &run_id(1), &open, &LIMITS).unwrap();
-    assert_eq!(methods(&inner, from), ["answer_handback", "log", "cancel"]);
+    assert_eq!(
+        tried_methods_from(&inner, from),
+        ["answer_handback", "log", "cancel"]
+    );
     assert!(matches!(
         inner.calls.borrow()[from].call,
         Call::AnswerHandback(_, HandbackResult::Timeout)
@@ -403,7 +419,7 @@ fn rd83_lapse_bind_holds_the_stop_before_its_decline_and_keeps_its_order() {
         let p = Panicky::new(&inner);
         let (mut l, mut t) = (ledger(), Table::new());
         let mut held = raise_bind(&p, &mut l, &Table::new(), &LIMITS, &bind).unwrap();
-        p.panics.set(Some("answer_bind"));
+        p.panics.set(Some(PanicAt::AnswerBind));
         let out = catch_unwind(AssertUnwindSafe(|| {
             lapse_bind(&p, &mut l, &mut t, &mut held, cause, &LIMITS)
         }));
@@ -419,7 +435,7 @@ fn rd83_lapse_bind_holds_the_stop_before_its_decline_and_keeps_its_order() {
         let from = inner.tried.borrow().len();
         lapse_bind(&inner, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();
         assert_eq!(
-            methods(&inner, from),
+            tried_methods_from(&inner, from),
             ["answer_bind", "log", "cancel"],
             "{cause}"
         );
@@ -440,10 +456,10 @@ fn rd83_a_lapse_that_stops_no_run_sends_no_cancel() {
     ] {
         let p = ports();
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut h = held(&p, &p, &mut l, &mut t, true);
+        let mut h = issue_run1_confirmation(&p, &p, &mut l, &mut t, true);
         let from = p.tried.borrow().len();
         lapse(&p, &mut l, &mut t, &mut h, cause, &LIMITS).unwrap();
-        assert!(!methods(&p, from).contains(&"cancel"), "{cause}");
+        assert!(!tried_methods_from(&p, from).contains(&"cancel"), "{cause}");
         assert!(!t.is_stopped(&run_id(1)), "{cause}");
         assert_eq!(
             h.confirmation().state(),
