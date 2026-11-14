@@ -81,6 +81,58 @@ pub(crate) fn newest_routine<'a>(
         .max_by_key(|r| (r.rev, r.day))
 }
 
+/// The workflow that a row of `kind` names, read from its text by the registry's entry of the kind and never by the
+/// kind's typed parser, for a row that the typed parser refused (contracts.md L4.5, L4.2; the coordinator's ruling
+/// LM-58 (d), (e)): the value under the entry's `workflow_key` at the top level of the one JSON object that the text
+/// holds. It gives none where the kind has no entry or no workflow key, the text is not one JSON object, the key
+/// does not stand exactly once at its top level, or the key's value is not a string of the form of a workflow id;
+/// a caller stops every workflow then.
+pub(crate) fn refused_workflow(kind: &str, json: &str) -> Option<WorkflowId> {
+    let key = halvo_schema::kinds::registry()
+        .find(|entry| entry.name == kind)?
+        .workflow_key?;
+    let mut reader = serde_json::Deserializer::from_str(json);
+    let text = serde::de::DeserializeSeed::deserialize(TopLevelKey(key), &mut reader).ok()??;
+    reader.end().ok()?;
+    WorkflowId::parse(&text).ok()
+}
+
+struct TopLevelKey(&'static str);
+
+impl<'de> serde::de::DeserializeSeed<'de> for TopLevelKey {
+    type Value = Option<String>;
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, d: D) -> Result<Option<String>, D::Error> {
+        d.deserialize_map(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for TopLevelKey {
+    type Value = Option<String>;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("one JSON object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut map: A,
+    ) -> Result<Option<String>, A::Error> {
+        let mut found: Vec<serde_json::Value> = Vec::new();
+        while let Some(name) = map.next_key::<String>()? {
+            if name == self.0 {
+                found.push(map.next_value()?);
+            } else {
+                map.next_value::<serde::de::IgnoredAny>()?;
+            }
+        }
+        Ok(match found.as_slice() {
+            [serde_json::Value::String(text)] => Some(text.clone()),
+            _ => None,
+        })
+    }
+}
+
 /// Every row of the family's kind `learn_edit`, by edit, each edit's rows in the order of `rev`.
 #[derive(Clone)]
 pub(crate) struct Edits {
