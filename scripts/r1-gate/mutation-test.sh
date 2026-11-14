@@ -834,6 +834,34 @@ stopped_by() {
       [ ! -e "$stop_fixture/bin/marker" ] || stop_held_at_end=yes
       stop_rest=$(pgrep -g "$stop_pid")
       [ -z "$stop_rest" ] || kill -s KILL -- "-$stop_pid" ;;
+    helper-then-int|helper-then-hup)
+      case $stop_pid in ''|*[!0-9]*|0|1) printf 'the case holds no id of its runner\n'; return 1 ;; esac
+      stop_then=INT
+      [ "$stop_whom" = helper-then-int ] || stop_then=HUP
+      kill -s "$stop_signal_sent" -- "-$stop_pid"
+      stop_polls=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt 300 ]; do
+        polls_of_the_step "$stop_fixture"
+        [ "$step_polls" -lt 3 ] || break
+        stop_polls=$((stop_polls + 1))
+        sleep 0.1
+      done
+      stop_again=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_again" -lt 10 ]; do
+        kill -s "$stop_then" -- "-$stop_pid"
+        stop_again=$((stop_again + 1))
+        sleep 0.1
+      done
+      if ! kill -0 "$stop_pid" 2> /dev/null && [ -e "$stop_fixture/bin/marker" ]; then stop_held_at_end=yes; fi
+      : > "$stop_fixture/bin/go"
+      stop_polls=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt "$((helper_kill_after_s * 10))" ]; do
+        stop_polls=$((stop_polls + 1))
+        sleep 0.1
+      done
+      [ ! -e "$stop_fixture/bin/marker" ] || stop_held_at_end=yes
+      stop_rest=$(pgrep -g "$stop_pid")
+      [ -z "$stop_rest" ] || kill -s KILL -- "-$stop_pid" ;;
     group) kill -s "$stop_signal_sent" -- "-$stop_pid" ;;
     twice) kill -s "$stop_signal_sent" "$stop_pid"; sleep 0.5; kill -s TERM "$stop_pid" ;;
     *) kill -s "$stop_signal_sent" "$stop_pid" ;;
@@ -1277,7 +1305,139 @@ cases() {
   stop_cases_by_step
   stop_cases_by_main
   shield_cases
+  verifier_cases
   rule_cases
+}
+
+verifier_cases() {
+  for vf_fixture in then-int then-hup clock; do
+    fixture_tree "vf-$vf_fixture"
+    stub_gate_until_go "vf-$vf_fixture"
+    stub_ps "vf-$vf_fixture"
+    row "vf-$vf_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'measured rows' required X-1
+  done
+  for vf_fixture in then-int then-hup; do
+    : > "$gate_scratch/vf-$vf_fixture/bin/ps.slow"
+  done
+  t vf-stop-by-term-then-int-while-the-runner-waits-for-a-gate-check-changes-nothing PASS stopped_by vf-then-int TERM helper-then-int 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t vf-stop-by-term-then-hup-while-the-runner-waits-for-a-gate-check-changes-nothing PASS stopped_by vf-then-hup TERM helper-then-hup 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree vf-note
+  stub_gate_hold vf-note
+  row vf-note/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t vf-a-stop-note-of-the-caller-s-environment-is-not-printed PASS vf_with_stop_note stopped_by vf-note TERM runner 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  vf_stub_date vf-clock
+  t vf-the-bound-of-a-shielded-step-ends-at-its-second-on-a-made-up-clock PASS vf_clock_reads vf-clock 4 stopped_by vf-clock TERM group 3 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running check-store did not end within 3 s and was killed)'
+  fixture_tree vf-fork
+  stub_gate_hold vf-fork
+  vf_stub_forking vf-fork
+  row vf-fork/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t vf-the-bound-s-kill-leaves-no-process-that-forks-at-the-read-of-the-table PASS vf_no_fork_after_the_stop vf-fork stopped_by vf-fork TERM group 1 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running check-store did not end within 1 s and was killed)'
+}
+
+vf_with_stop_note() {
+  stop_note='a note from the environment'
+  export stop_note
+  "$@"
+}
+
+vf_stub_date() {
+  vf_date_real=$(command -v date)
+  printf '%s\n' "$vf_date_real" > "$gate_scratch/$1/bin/date.real"
+  printf '1000\n' > "$gate_scratch/$1/bin/date.now"
+  cat > "$gate_scratch/$1/bin/date" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+if [ "$*" = +%s ]; then
+  read -r now < "$here/date.now"
+  if [ -e "$here/marker" ]; then
+    now=$((now + 1))
+    printf '%s\n' "$now" > "$here/date.now"
+    printf 'read\n' >> "$here/date.reads"
+  fi
+  printf '%s\n' "$now"
+  exit 0
+fi
+read -r real < "$here/date.real"
+exec "$real" "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/date"
+}
+
+vf_clock_reads() {
+  vf_clock_fixture=$gate_scratch/$1; vf_clock_wanted=$2; shift 2
+  "$@" || return 1
+  vf_clock_got=0
+  [ ! -f "$vf_clock_fixture/bin/date.reads" ] || vf_clock_got=$(wc -l < "$vf_clock_fixture/bin/date.reads" | tr -d ' ')
+  [ "$vf_clock_got" -eq "$vf_clock_wanted" ] || { printf 'the runner read the made-up clock %s times while the step held its marker, not %s\n' "$vf_clock_got" "$vf_clock_wanted"; return 1; }
+}
+
+vf_stub_forking() {
+  vf_ps_real=$(command -v ps)
+  printf '%s\n' "$vf_ps_real" > "$gate_scratch/$1/bin/ps.real"
+  cat > "$gate_scratch/$1/bin/ps" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+read -r real < "$here/ps.real"
+case "$*" in
+  *pid=,ppid=*)
+    table=$("$real" "$@")
+    reads=0
+    [ ! -f "$here/reads" ] || read -r reads < "$here/reads"
+    reads=$((reads + 1))
+    printf '%s\n' "$reads" > "$here/reads"
+    : > "$here/fork-request.$reads"
+    polls=0
+    until [ -e "$here/fork-ack.$reads" ] || [ "$polls" -ge 20 ]; do
+      polls=$((polls + 1))
+      sleep 0.1
+    done
+    printf '%s\n' "$table" ;;
+  *) exec "$real" "$@" ;;
+esac
+STUB
+  chmod +x "$gate_scratch/$1/bin/ps"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+: > "$here/marker"
+exec perl -e '
+  my $here = shift;
+  my $child = fork();
+  my $role = $child ? "step" : "child";
+  my $serves = $child ? 3 : 1;
+  my %served;
+  for (my $poll = 0; $poll < 1200; $poll++) {
+    for my $request (glob("$here/fork-request.*")) {
+      my ($n) = $request =~ /(\d+)$/;
+      next if $served{$n}++ || ($n != $serves && $n != 3);
+      open(my $mark, ">", "$here/forked-by-$role.$n"); close($mark);
+      my $grandchild = fork();
+      if (defined $grandchild && $grandchild == 0) {
+        select(undef, undef, undef, 0.05) for 1 .. 1200;
+        exit 0;
+      }
+      open(my $ack, ">", "$here/fork-ack.$n"); close($ack);
+    }
+    select(undef, undef, undef, 0.05);
+  }
+' "$here"
+STUB
+}
+
+vf_group_end() {
+  case ${1:-} in ''|*[!0-9]*|0|1) printf 'the case holds no id of its runner\n'; return 1 ;; esac
+  vf_group_rest=$(pgrep -g "$1")
+  [ -z "$vf_group_rest" ] || kill -s KILL -- "-$1"
+}
+
+vf_no_fork_after_the_stop() {
+  vf_fork_fixture=$gate_scratch/$1; shift
+  "$@"
+  vf_fork_status=$?
+  vf_group_end "${stop_pid:-}" || return 1
+  [ -e "$vf_fork_fixture/bin/forked-by-child.1" ] || { printf 'the child of the stand-in did not fork at the read of the table, so the case shows nothing\n'; return 1; }
+  return "$vf_fork_status"
 }
 
 shield_cases() {
@@ -1295,6 +1455,13 @@ shield_cases() {
     t "stop-by-$stop_line_lower-as-the-helper-ends-a-run-lets-a-gate-check-end" PASS stopped_by "stop-shield-$stop_line_lower" "$shield_signal" helper 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $shield_signal; no test was running)"
   done
   t stop-past-the-bound-kills-a-gate-check-and-names-it PASS stopped_by stop-shield-bound TERM group 1 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running check-store did not end within 1 s and was killed)'
+  for shield_check in deletion:2 no-ll-hook:3; do
+    bound_holder=${shield_check%:*}
+    fixture_tree "stop-shield-bound-$bound_holder"
+    stub_gate_holds_at "stop-shield-bound-$bound_holder" "$bound_holder"
+    row "stop-shield-bound-$bound_holder/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'measured rows' required X-1
+    t "stop-past-the-bound-kills-check-$bound_holder-and-names-it" PASS stopped_by "stop-shield-bound-$bound_holder" TERM group 1 run 143 left none "${shield_check#*:}" "STOPPED mutation:held (signal TERM; the running check-$bound_holder did not end within 1 s and was killed)"
+  done
   fixture_tree stop-shield-unmutated
   mkdir -p "$gate_scratch/stop-shield-unmutated/crates/x/src"
   printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-shield-unmutated/crates/x/src/lib.rs"
@@ -1314,6 +1481,31 @@ shield_cases() {
   stub_gate_hold stop-shield-build
   row stop-shield-build/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
   t stop-by-term-as-the-helper-ends-a-run-lets-the-unmutated-build-end PASS with_cargo_home stop-shield-build stopped_by stop-shield-build TERM helper 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+stub_gate_holds_at() {
+  mkdir -p "$gate_scratch/$1/bin"
+  for stub in store deletion no-ll-hook; do
+    # shellcheck disable=SC2016
+    printf '#!/bin/sh\nprintf "%s\\n" >> "${0%%/*}/../../bin/starts"\nprintf "PASS %s\\n"\n' "$stub" "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-$2.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+me=${0##*/check-}
+me=${me%.sh}
+printf '%s\n' "$me" >> "$here/starts"
+: > "$here/marker"
+polls=0
+until [ -e "$here/go" ]; do
+  polls=$((polls + 1))
+  [ "$polls" -lt 300 ] || { printf 'timeout\n' > "$here/ended"; exit 1; }
+  sleep 0.1
+done
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'PASS %s\n' "$me"
+STUB
 }
 
 stub_ps() {
