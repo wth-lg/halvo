@@ -162,9 +162,19 @@ mod by_reference {
     }
 
     fn datas(account: &str) -> Vec<Vec<u8>> {
-        let mut options = search(account);
-        options.load_data(true).limit(Limit::All);
-        match options.search() {
+        let mut count = search(account);
+        count.load_attributes(true).limit(Limit::All);
+        let items = match count.search() {
+            Ok(found) => found.len(),
+            Err(error) if error.code() == -25300 => 0,
+            Err(error) => panic!("the count failed with {}", error.code()),
+        };
+        if items != 1 {
+            return vec![Vec::new(); items];
+        }
+        let mut data = search(account);
+        data.load_data(true).limit(1);
+        match data.search() {
             Ok(found) => found
                 .into_iter()
                 .map(|result| match result {
@@ -172,7 +182,6 @@ mod by_reference {
                     _ => panic!("a search for data gave another kind"),
                 })
                 .collect(),
-            Err(error) if error.code() == -25300 => Vec::new(),
             Err(error) => panic!("the search failed with {}", error.code()),
         }
     }
@@ -214,6 +223,10 @@ mod by_reference {
     fn the_switch_that_keeps_a_read_from_asking_the_person_is_as_it_was_after_each_operation() {
         on_a_hosted_runner();
         let before = SecKeychain::user_interaction_allowed().expect("the switch is read");
+        assert!(
+            before,
+            "the switch was off before this test: a store call of an earlier test left it off"
+        );
         let store = store("switch");
         let mut seen = Vec::new();
         let mut look = |op: &str| {

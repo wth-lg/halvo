@@ -12,13 +12,20 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 const HELD: &[u8] = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn scratch(label: &str) -> PathBuf {
-    let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
-        "halvo-secrets-ops-{}-{label}-{n}",
-        std::process::id()
-    ));
-    fs::create_dir_all(&path).expect("a scratch directory");
-    path.join("store")
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    fs::create_dir_all(base).expect("the target's temporary directory");
+    loop {
+        let n = NEXT.fetch_add(1, Ordering::SeqCst);
+        let path = base.join(format!(
+            "halvo-secrets-ops-{}-{label}-{n}",
+            std::process::id()
+        ));
+        match fs::create_dir(&path) {
+            Ok(()) => return path.join("store"),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => panic!("a scratch directory: {error}"),
+        }
+    }
 }
 
 fn store_in(dir: &Path) -> Store {

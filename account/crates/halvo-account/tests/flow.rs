@@ -1323,12 +1323,19 @@ mod against_the_store {
     }
 
     fn place(label: &str, n: usize) -> PathBuf {
-        let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
-            "halvo-account-delete-{}-{label}-{n}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&parent).expect("the parent of the store directory");
-        parent.join("store")
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+        for again in 0.. {
+            let parent = base.join(format!(
+                "halvo-account-delete-{}-{label}-{n}-{again}",
+                std::process::id()
+            ));
+            match std::fs::create_dir_all(base).and_then(|()| std::fs::create_dir(&parent)) {
+                Ok(()) => return parent.join("store"),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => panic!("the parent of the store directory: {error}"),
+            }
+        }
+        unreachable!("a fresh directory is found")
     }
 
     #[test]
