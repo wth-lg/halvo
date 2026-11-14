@@ -357,11 +357,13 @@ fn case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
         });
         let answer = show();
         DONE.store(true, Ordering::SeqCst);
-        let kind = if PRESSED_BEFORE_REPORT.load(Ordering::SeqCst) {
+        let kind = if !PRESSED_BEFORE_REPORT.load(Ordering::SeqCst) {
+            ui.kind()
+        } else if REPORTS.load(Ordering::SeqCst) > 0 {
             PRESS_MOMENTS.fetch_add(1, Ordering::SeqCst);
             "a press"
         } else {
-            ui.kind()
+            "nothing: no report followed the press"
         };
         println!("guard_hosted reading {label}: report made by {kind}");
         match driver.join() {
@@ -915,7 +917,14 @@ mod cases {
         std::thread::spawn(move || {
             let dialog = System::new(handle);
             let mut verdicts = Vec::new();
+            let mut not_active = 0;
             for (name, shows) in CASES {
+                // SAFETY: one read of a flag of the shared application off the main thread, between
+                // two cases, by a test on a hosted runner.
+                let active: bool = unsafe { msg_send![self::app(), isActive] };
+                if !active {
+                    not_active += 1;
+                }
                 let verdict = case(&Mac, name, shows, &|| {
                     *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner) = None;
                     SHOW.fetch_add(1, Ordering::SeqCst);
@@ -924,6 +933,10 @@ mod cases {
                 print(&verdict);
                 verdicts.push(verdict);
             }
+            println!(
+                "guard_hosted between cases: the app read not active {not_active} times of {}",
+                CASES.len()
+            );
             end(&verdicts, CASES.len());
         });
         app.run(|_, _| {});
