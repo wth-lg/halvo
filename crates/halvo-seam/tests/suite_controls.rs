@@ -731,15 +731,25 @@ impl Subject for Control {
     }
 }
 
+fn reason(text: &str) -> &str {
+    text.rsplit(": ").next().unwrap_or(text)
+}
+
 fn check(fault: Fault, want: [Want; 4]) {
     let mut subject = Control::new(fault);
     let results = conformance::run(&mut subject);
     let names: Vec<&str> = results.iter().map(|(name, _)| *name).collect();
     assert_eq!(names, CASES);
     for ((name, got), want) in results.iter().zip(want) {
+        if let Fail(text) = want {
+            assert!(
+                !reason(text).trim().is_empty(),
+                "{fault:?}, case {name}: the expectation {text:?} names no reason after its last \": \""
+            );
+        }
         match (want, got) {
             (Pass, Ok(())) => {}
-            (Fail(text), Err(e)) if e.contains(text) => {}
+            (Fail(text), Err(e)) if e.contains(text) && reason(e).contains(reason(text)) => {}
             _ => panic!("{fault:?}, case {name}: want {want:?}, got {got:?}"),
         }
     }
@@ -756,8 +766,8 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
         [
             Pass,
             Pass,
-            Fail("the filter foreground_app: "),
-            Fail("check filtered_stops: "),
+            Fail("the filter foreground_app: 44 entries served, want 8"),
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 178 records"),
         ],
     );
     check(
@@ -765,8 +775,8 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
         [
             Pass,
             Pass,
-            Fail("the filter the range: "),
-            Fail("check filtered_stops: "),
+            Fail("the filter the range: 44 entries served, want 19"),
+            Fail("check filtered_stops: the filter the range on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 86 records"),
         ],
     );
     check(
@@ -815,7 +825,7 @@ fn control_a_next_that_falls() {
             Fail("next fell"),
             Fail("next fell"),
             Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Fail("check filtered_stops: "),
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: next fell"),
         ],
     );
 }
@@ -1154,7 +1164,7 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
             Pass,
             Pass,
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
-            Fail("check filtered_stops: "),
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} does not rise"),
         ],
     );
 }
