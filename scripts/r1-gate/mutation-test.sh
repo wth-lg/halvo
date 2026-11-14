@@ -1452,6 +1452,20 @@ form_cases() {
     row "form-spelling-$form_spelling/scripts/r1-gate/mutants.rows" ctl "$form_path" 's/1 }/2 }/' leak control X-1
     t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build"
   done
+  form_fixture form-sqlcipher-not-rust crates/halvo-sqlcipher 0
+  mkdir -p "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/csrc"
+  printf 'int x = 1;\n' > "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/csrc/x.c"
+  printf '[package]\nname = "x"\n' > "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/Cargo.toml"
+  row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows c-file csrc/x.c 's/1;/2;/' leak required X-1
+  row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows manifest Cargo.toml 's/"x"/"y"/' leak required X-1
+  t apply-only-builds-a-c-file-and-the-manifest-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher-not-rust form_args_are form-sqlcipher-not-rust yes "$form_check$form_nl$form_build$form_nl$form_build"
+  form_fixture form-sqlcipher-upper-case crates/Halvo-SQLCipher 0
+  row form-sqlcipher-upper-case/crates/Halvo-SQLCipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-builds-a-halvo-sqlcipher-path-in-upper-case PASS with_cargo_home form-sqlcipher-upper-case form_args_are form-sqlcipher-upper-case yes "$form_check$form_nl$form_build"
+  form_fixture form-build-script-upper-case crates/x 0
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/form-build-script-upper-case/crates/x/BUILD.RS"
+  row form-build-script-upper-case/crates/x/mutants.rows held BUILD.RS 's/1;/2;/' leak required X-1
+  t apply-only-builds-a-build-script-in-upper-case PASS with_cargo_home form-build-script-upper-case form_args_are form-build-script-upper-case yes "$form_check$form_nl$form_build"
 }
 
 verifier_cases() {
