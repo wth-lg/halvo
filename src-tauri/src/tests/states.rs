@@ -9,7 +9,7 @@ use halvo_control::testing::{onboarding_of, sample_status, FIXTURE_STORE_ID};
 use serde_json::Value;
 
 use super::{fixtures_dir, read_json};
-use crate::view_state::{Service, StatusView};
+use crate::view_state::{NoStatusService, RunningView, Service, StatusView};
 
 fn at(text: &str) -> UtcSecond {
     text.parse().expect("a fixed instant")
@@ -88,17 +88,14 @@ fn timeout_record(f: &mut StatusFields) {
 pub fn states() -> Vec<(&'static str, StatusView)> {
     let mac = Platform::Macos;
     let of = |status: DaemonStatus| StatusView::of(&status);
-    let none = |service: Service| StatusView {
-        platform: mac,
-        ..StatusView::without_status(service)
-    };
+    let none = |service: NoStatusService| StatusView::no_status(service, mac);
     vec![
-        ("connecting", none(Service::Connecting)),
-        ("not-running", none(Service::NotRunning)),
-        ("held-unreachable", none(Service::HeldUnreachable)),
-        ("status-refused", none(Service::StatusRefused)),
-        ("unsupported", none(Service::Unsupported)),
-        ("another-version", none(Service::AnotherVersion)),
+        ("connecting", none(NoStatusService::Connecting)),
+        ("not-running", none(NoStatusService::NotRunning)),
+        ("held-unreachable", none(NoStatusService::HeldUnreachable)),
+        ("status-refused", none(NoStatusService::StatusRefused)),
+        ("unsupported", none(NoStatusService::Unsupported)),
+        ("another-version", none(NoStatusService::AnotherVersion)),
         ("running", of(sample_status(mac))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
@@ -400,12 +397,16 @@ fn every_service() -> Vec<Service> {
 #[test]
 fn the_states_show_every_service_every_capture_and_every_store_state() {
     let views: Vec<(&str, StatusView)> = states();
-    let services: Vec<Service> = views.iter().map(|(_, view)| view.service).collect();
-    let captures: Vec<Capture> = views.iter().filter_map(|(_, view)| view.capture).collect();
-    let stores: Vec<StoreState> = views
+    let services: Vec<Service> = views.iter().map(|(_, view)| view.service()).collect();
+    let running: Vec<&RunningView> = views
         .iter()
-        .filter_map(|(_, view)| view.store.as_ref().map(|store| store.state))
+        .filter_map(|(_, view)| match view {
+            StatusView::Running(view) => Some(view.as_ref()),
+            StatusView::NoStatus(_) => None,
+        })
         .collect();
+    let captures: Vec<Capture> = running.iter().map(|view| view.capture).collect();
+    let stores: Vec<StoreState> = running.iter().map(|view| view.store.state).collect();
     let unshown: Vec<String> = every_service()
         .into_iter()
         .filter(|service| !services.contains(service))
@@ -433,10 +434,10 @@ fn a_view_with_no_status_names_the_system_that_the_app_runs_on() {
     } else {
         Platform::Macos
     };
-    assert_eq!(
-        StatusView::without_status(Service::NotRunning).platform,
-        expected
-    );
+    let StatusView::NoStatus(view) = StatusView::without_status(NoStatusService::NotRunning) else {
+        panic!("a view without status")
+    };
+    assert_eq!(view.platform, expected);
 }
 
 #[test]
@@ -474,7 +475,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
             ],
             "{name}"
         );
-        if view.service != Service::Running {
+        if view.service() != Service::Running {
             for (key, value) in &map {
                 if ["service", "platform", "window", "last_exit"].contains(&key.as_str()) {
                     continue;
@@ -502,11 +503,14 @@ fn no_reply_holds_the_key_of_the_old_store_description() {
 #[test]
 fn the_store_id_and_the_custody_sentence_come_from_the_status() {
     let running = StatusView::of(&sample_status(Platform::Macos));
-    assert_eq!(
-        running.store.as_ref().and_then(|s| s.id),
-        Some(FIXTURE_STORE_ID)
-    );
-    let custody = |view: &StatusView| view.texts.as_ref().map(|t| t.custody);
+    let custody = |view: &StatusView| match view {
+        StatusView::Running(view) => Some(view.texts.custody),
+        StatusView::NoStatus(_) => None,
+    };
+    let StatusView::Running(shown) = &running else {
+        panic!("the sample status makes a running view")
+    };
+    assert_eq!(shown.store.id, Some(FIXTURE_STORE_ID));
     assert_eq!(
         custody(&running),
         Some("This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.")

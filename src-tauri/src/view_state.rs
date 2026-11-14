@@ -1,5 +1,6 @@
 use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId};
+use halvo_control::onboarding::Permission;
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DrainError, ErrorCode, ExpiryError,
     Health, InventoryReply, LastStop, Lease, LostRecord, PasswordGuard, Platform, RootDestroyed,
@@ -67,29 +68,144 @@ pub struct SourceView {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct StatusView {
-    pub service: Service,
-    pub last_exit: Option<i32>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoStatusService {
+    Connecting,
+    NotRunning,
+    HeldUnreachable,
+    StatusRefused,
+    Unsupported,
+    AnotherVersion,
+}
+
+impl NoStatusService {
+    pub const fn word(self) -> Service {
+        match self {
+            NoStatusService::Connecting => Service::Connecting,
+            NoStatusService::NotRunning => Service::NotRunning,
+            NoStatusService::HeldUnreachable => Service::HeldUnreachable,
+            NoStatusService::StatusRefused => Service::StatusRefused,
+            NoStatusService::Unsupported => Service::Unsupported,
+            NoStatusService::AnotherVersion => Service::AnotherVersion,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunningView {
     pub platform: Platform,
-    pub desired: Option<CaptureState>,
-    pub capture: Option<Capture>,
+    pub window: ObservationWindow,
+    pub desired: CaptureState,
+    pub capture: Capture,
     pub capture_reason: Option<CaptureReason>,
-    pub lease: Option<Lease>,
-    pub store: Option<StoreView>,
+    pub lease: Lease,
+    pub store: StoreView,
     pub store_bytes: Option<u64>,
     pub store_logical_bytes: Option<u64>,
     pub store_cap_bytes: Option<u64>,
-    pub window: ObservationWindow,
-    pub drain: Option<DrainView>,
-    pub expiry: Option<ExpiryView>,
-    pub loss: Option<LossView>,
-    pub sources: Option<Vec<SourceView>>,
-    pub lost_grants: Option<Vec<halvo_control::onboarding::Permission>>,
-    pub password_guard: Option<PasswordGuard>,
+    pub drain: DrainView,
+    pub expiry: ExpiryView,
+    pub loss: LossView,
+    pub sources: Vec<SourceView>,
+    pub lost_grants: Vec<Permission>,
+    pub password_guard: PasswordGuard,
     pub screen_filter_excludes_app: Option<bool>,
-    pub texts: Option<Texts>,
-    pub ext: Option<Vec<Section>>,
+    pub texts: Texts,
+    pub ext: Vec<Section>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoStatusView {
+    pub service: NoStatusService,
+    pub platform: Platform,
+    pub window: ObservationWindow,
+    pub last_exit: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatusView {
+    Running(Box<RunningView>),
+    NoStatus(NoStatusView),
+}
+
+#[derive(Serialize)]
+struct WireView<'a> {
+    service: Service,
+    last_exit: Option<i32>,
+    platform: Platform,
+    desired: Option<CaptureState>,
+    capture: Option<Capture>,
+    capture_reason: Option<CaptureReason>,
+    lease: Option<Lease>,
+    store: Option<&'a StoreView>,
+    store_bytes: Option<u64>,
+    store_logical_bytes: Option<u64>,
+    store_cap_bytes: Option<u64>,
+    window: ObservationWindow,
+    drain: Option<&'a DrainView>,
+    expiry: Option<&'a ExpiryView>,
+    loss: Option<&'a LossView>,
+    sources: Option<&'a [SourceView]>,
+    lost_grants: Option<&'a [Permission]>,
+    password_guard: Option<PasswordGuard>,
+    screen_filter_excludes_app: Option<bool>,
+    texts: Option<&'a Texts>,
+    ext: Option<&'a [Section]>,
+}
+
+impl Serialize for StatusView {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let wire = match self {
+            StatusView::Running(view) => WireView {
+                service: Service::Running,
+                last_exit: None,
+                platform: view.platform,
+                desired: Some(view.desired),
+                capture: Some(view.capture),
+                capture_reason: view.capture_reason,
+                lease: Some(view.lease),
+                store: Some(&view.store),
+                store_bytes: view.store_bytes,
+                store_logical_bytes: view.store_logical_bytes,
+                store_cap_bytes: view.store_cap_bytes,
+                window: view.window,
+                drain: Some(&view.drain),
+                expiry: Some(&view.expiry),
+                loss: Some(&view.loss),
+                sources: Some(&view.sources),
+                lost_grants: Some(&view.lost_grants),
+                password_guard: Some(view.password_guard),
+                screen_filter_excludes_app: view.screen_filter_excludes_app,
+                texts: Some(&view.texts),
+                ext: Some(&view.ext),
+            },
+            StatusView::NoStatus(view) => WireView {
+                service: view.service.word(),
+                last_exit: view.last_exit,
+                platform: view.platform,
+                desired: None,
+                capture: None,
+                capture_reason: None,
+                lease: None,
+                store: None,
+                store_bytes: None,
+                store_logical_bytes: None,
+                store_cap_bytes: None,
+                window: view.window,
+                drain: None,
+                expiry: None,
+                loss: None,
+                sources: None,
+                lost_grants: None,
+                password_guard: None,
+                screen_filter_excludes_app: None,
+                texts: None,
+                ext: None,
+            },
+        };
+        wire.serialize(serializer)
+    }
 }
 
 pub type Status = StatusView;
@@ -101,66 +217,59 @@ pub const APP_PLATFORM: Platform = if cfg!(windows) {
 };
 
 impl StatusView {
-    pub fn without_status(service: Service) -> Self {
-        StatusView {
+    pub fn no_status(service: NoStatusService, platform: Platform) -> Self {
+        StatusView::NoStatus(NoStatusView {
             service,
-            last_exit: None,
-            platform: APP_PLATFORM,
-            desired: None,
-            capture: None,
-            capture_reason: None,
-            lease: None,
-            store: None,
-            store_bytes: None,
-            store_logical_bytes: None,
-            store_cap_bytes: None,
+            platform,
             window: ObservationWindow::r1(),
-            drain: None,
-            expiry: None,
-            loss: None,
-            sources: None,
-            lost_grants: None,
-            password_guard: None,
-            screen_filter_excludes_app: None,
-            texts: None,
-            ext: None,
+            last_exit: None,
+        })
+    }
+
+    pub fn without_status(service: NoStatusService) -> Self {
+        StatusView::no_status(service, APP_PLATFORM)
+    }
+
+    #[cfg(test)]
+    pub fn service(&self) -> Service {
+        match self {
+            StatusView::Running(_) => Service::Running,
+            StatusView::NoStatus(view) => view.service.word(),
         }
     }
 
     pub fn of(status: &DaemonStatus) -> Self {
         let f = status.fields();
-        StatusView {
-            service: Service::Running,
-            last_exit: None,
+        StatusView::Running(Box::new(RunningView {
             platform: f.platform,
-            desired: Some(f.desired),
-            capture: Some(f.capture),
+            window: ObservationWindow::r1(),
+            desired: f.desired,
+            capture: f.capture,
             capture_reason: f.capture_reason,
-            lease: Some(f.lease),
-            store: Some(StoreView {
+            lease: f.lease,
+            store: StoreView {
                 state: f.store,
                 id: f.store_id,
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
-            }),
+            },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
             store_cap_bytes: match f.cap_bytes {
                 Cap::Known(cap) => Some(cap.bytes()),
                 Cap::Unknown => None,
             },
-            window: ObservationWindow::r1(),
-            drain: Some(DrainView {
+            drain: DrainView {
                 state: f.drain,
                 error: f.drain_error,
                 since: f.drain_since,
-            }),
-            expiry: Some(ExpiryView {
+            },
+            expiry: ExpiryView {
                 state: f.expiry,
                 error: f.expiry_error,
                 last_at: f.last_expiry_at,
-            }),
-            loss: Some(LossView {
+            },
+            loss: LossView {
                 events_pending: f.events_pending,
                 events_lost: f.events_lost,
                 last_stop: f.last_stop,
@@ -175,24 +284,23 @@ impl StatusView {
                         error: line.error.to_string(),
                     })
                     .collect(),
-            }),
-            sources: Some(
-                f.sources
-                    .iter()
-                    .map(|line| SourceView {
-                        name: line.name,
-                        state: line.state.name(),
-                        reason: line.state.reason(),
-                        error: line.state.error().map(ToString::to_string),
-                    })
-                    .collect(),
-            ),
-            lost_grants: Some(f.onboarding.lost_grants.clone()),
-            password_guard: Some(f.password_guard),
+            },
+            sources: f
+                .sources
+                .iter()
+                .map(|line| SourceView {
+                    name: line.name,
+                    state: line.state.name(),
+                    reason: line.state.reason(),
+                    error: line.state.error().map(ToString::to_string),
+                })
+                .collect(),
+            lost_grants: f.onboarding.lost_grants.clone(),
+            password_guard: f.password_guard,
             screen_filter_excludes_app: f.screen_filter_excludes_app,
-            texts: Some(texts(status)),
-            ext: Some(f.ext.clone()),
-        }
+            texts: texts(status),
+            ext: f.ext.clone(),
+        }))
     }
 }
 
@@ -212,7 +320,7 @@ pub enum ActionError {
     BrokenReply,
     ChannelFailed,
     PaneNotOpened,
-    NotAnswering { service: Service },
+    NotAnswering { service: NoStatusService },
 }
 
 impl ActionError {
@@ -226,39 +334,52 @@ impl ActionError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
-    pub service: Service,
+    pub service: NoStatusService,
     pub command_error: Option<ActionError>,
 }
 
 #[deny(clippy::wildcard_enum_match_arm)]
 pub fn read_error(error: &ClientError) -> Reading {
     let (service, command_error) = match error {
-        ClientError::Unsupported => (Service::Unsupported, None),
-        ClientError::Unreachable { .. } => (Service::NotRunning, None),
-        ClientError::DataDirInUse { .. } => (Service::HeldUnreachable, None),
-        ClientError::StateDoesNotHoldTogether(_) => (Service::StatusRefused, None),
-        ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => {
-            (Service::AnotherVersion, Some(ActionError::UpdateTheApp))
-        }
-        ClientError::PeerRejected(_) => (Service::HeldUnreachable, Some(ActionError::PeerRejected)),
+        ClientError::Unsupported => (NoStatusService::Unsupported, None),
+        ClientError::Unreachable { .. } => (NoStatusService::NotRunning, None),
+        ClientError::DataDirInUse { .. } => (NoStatusService::HeldUnreachable, None),
+        ClientError::StateDoesNotHoldTogether(_) => (NoStatusService::StatusRefused, None),
+        ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => (
+            NoStatusService::AnotherVersion,
+            Some(ActionError::UpdateTheApp),
+        ),
+        ClientError::PeerRejected(_) => (
+            NoStatusService::HeldUnreachable,
+            Some(ActionError::PeerRejected),
+        ),
         ClientError::Deadline { seconds } => (
-            Service::HeldUnreachable,
+            NoStatusService::HeldUnreachable,
             Some(ActionError::Deadline { seconds: *seconds }),
         ),
-        ClientError::Io(_) => (Service::HeldUnreachable, Some(ActionError::ChannelFailed)),
-        ClientError::Protocol(_) => (Service::StatusRefused, Some(ActionError::BrokenReply)),
-        ClientError::UnexpectedReply { .. } => {
-            (Service::StatusRefused, Some(ActionError::BrokenReply))
-        }
+        ClientError::Io(_) => (
+            NoStatusService::HeldUnreachable,
+            Some(ActionError::ChannelFailed),
+        ),
+        ClientError::Protocol(_) => (
+            NoStatusService::StatusRefused,
+            Some(ActionError::BrokenReply),
+        ),
+        ClientError::UnexpectedReply { .. } => (
+            NoStatusService::StatusRefused,
+            Some(ActionError::BrokenReply),
+        ),
         ClientError::Daemon(reply) => (
             match reply.code {
-                ErrorCode::UnsupportedVersion | ErrorCode::UnsupportedOp => Service::AnotherVersion,
+                ErrorCode::UnsupportedVersion | ErrorCode::UnsupportedOp => {
+                    NoStatusService::AnotherVersion
+                }
                 ErrorCode::Busy
                 | ErrorCode::InvalidArgument
                 | ErrorCode::StoreUnavailable
                 | ErrorCode::StateFile
                 | ErrorCode::Internal
-                | ErrorCode::PeerRejected => Service::StatusRefused,
+                | ErrorCode::PeerRejected => NoStatusService::StatusRefused,
             },
             Some(match reply.code {
                 ErrorCode::Busy => ActionError::Busy,

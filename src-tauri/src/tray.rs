@@ -5,7 +5,7 @@ use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::commands::capture::AppState;
-use crate::view_state::{Service, StatusView};
+use crate::view_state::{NoStatusService, StatusView};
 
 const TRAY_ID: &str = "halvo-status";
 const TOGGLE_ID: &str = "toggle-capture";
@@ -70,39 +70,36 @@ pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
 }
 
 pub fn labels(view: &StatusView) -> TrayLabels {
-    let mut labels = match (view.service, view.capture) {
-        (Service::Connecting, _) => line(
-            "Halvo",
-            "Connecting",
-            "Halvo is connecting to its capture service",
-        ),
-        (Service::NotRunning, _) => line("Halvo", NOT_RUNNING, NOT_RUNNING),
-        (Service::HeldUnreachable, _) => line(
-            "Halvo",
-            "Capture service not answering",
-            "Halvo's capture service is not answering",
-        ),
-        (Service::StatusRefused, _) => line(
-            "Halvo",
-            "Capture state unclear",
-            "Halvo cannot rely on what its capture service reported",
-        ),
-        (Service::AnotherVersion, _) => line(
-            "Halvo",
-            "Update Halvo",
-            "Halvo's capture service is of another version",
-        ),
-        (Service::Unsupported, _) => line(
-            "Halvo",
-            "Capture not available on Windows yet",
-            "Capture is not available on Windows in this version",
-        ),
-        (Service::Running, None) => line(
-            "Halvo",
-            "Capture state unclear",
-            "Halvo cannot rely on what its capture service reported",
-        ),
-        (Service::Running, Some(capture)) => match capture {
+    let mut labels = match view {
+        StatusView::NoStatus(view) => match view.service {
+            NoStatusService::Connecting => line(
+                "Halvo",
+                "Connecting",
+                "Halvo is connecting to its capture service",
+            ),
+            NoStatusService::NotRunning => line("Halvo", NOT_RUNNING, NOT_RUNNING),
+            NoStatusService::HeldUnreachable => line(
+                "Halvo",
+                "Capture service not answering",
+                "Halvo's capture service is not answering",
+            ),
+            NoStatusService::StatusRefused => line(
+                "Halvo",
+                "Capture state unclear",
+                "Halvo cannot rely on what its capture service reported",
+            ),
+            NoStatusService::AnotherVersion => line(
+                "Halvo",
+                "Update Halvo",
+                "Halvo's capture service is of another version",
+            ),
+            NoStatusService::Unsupported => line(
+                "Halvo",
+                "Capture not available on Windows yet",
+                "Capture is not available on Windows in this version",
+            ),
+        },
+        StatusView::Running(view) => match view.capture {
             Capture::Running => line("Halvo ●", "Capturing", "Halvo is capturing"),
             Capture::Partial => line(
                 "Halvo ●",
@@ -129,16 +126,17 @@ pub fn labels(view: &StatusView) -> TrayLabels {
             ),
         },
     };
-    match view.desired {
-        Some(CaptureState::Running) => {
-            labels.toggle_text = "Pause capture";
-            labels.toggle_enabled = true;
+    if let StatusView::Running(view) = view {
+        match view.desired {
+            CaptureState::Running => {
+                labels.toggle_text = "Pause capture";
+                labels.toggle_enabled = true;
+            }
+            CaptureState::Paused => {
+                labels.toggle_text = "Resume capture";
+                labels.toggle_enabled = true;
+            }
         }
-        Some(CaptureState::Paused) => {
-            labels.toggle_text = "Resume capture";
-            labels.toggle_enabled = true;
-        }
-        None => {}
     }
     labels
 }
@@ -208,10 +206,12 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
 
 fn toggle<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
-    let next = match state.views.view().desired {
-        Some(CaptureState::Running) => CaptureState::Paused,
-        Some(CaptureState::Paused) => CaptureState::Running,
-        None => return,
+    let StatusView::Running(view) = state.views.view() else {
+        return;
+    };
+    let next = match view.desired {
+        CaptureState::Running => CaptureState::Paused,
+        CaptureState::Paused => CaptureState::Running,
     };
     let made = state.control.places().make();
     let control = std::sync::Arc::clone(&state.control);
@@ -267,10 +267,12 @@ mod tests {
     use halvo_control::testing::sample_status;
 
     fn running_with(capture: Capture, desired: CaptureState) -> StatusView {
-        let mut view = StatusView::of(&sample_status(Platform::Macos));
-        view.capture = Some(capture);
-        view.desired = Some(desired);
-        view
+        let StatusView::Running(mut view) = StatusView::of(&sample_status(Platform::Macos)) else {
+            panic!("the sample status makes a running view")
+        };
+        view.capture = capture;
+        view.desired = desired;
+        StatusView::Running(view)
     }
 
     #[test]
@@ -287,14 +289,14 @@ mod tests {
     #[test]
     fn with_no_status_the_tray_names_the_service_and_claims_neither_capturing_nor_paused() {
         for service in [
-            Service::Connecting,
-            Service::NotRunning,
-            Service::HeldUnreachable,
-            Service::StatusRefused,
-            Service::Unsupported,
-            Service::AnotherVersion,
+            NoStatusService::Connecting,
+            NoStatusService::NotRunning,
+            NoStatusService::HeldUnreachable,
+            NoStatusService::StatusRefused,
+            NoStatusService::Unsupported,
+            NoStatusService::AnotherVersion,
         ] {
-            let texts = labels(&StatusView::without_status(service));
+            let texts = labels(&StatusView::no_status(service, Platform::Macos));
             for text in [texts.title, texts.tooltip, texts.status_text] {
                 let lower = text.to_lowercase();
                 assert!(
@@ -305,11 +307,18 @@ mod tests {
             assert!(!texts.toggle_enabled, "{service:?}");
         }
         assert_eq!(
-            labels(&StatusView::without_status(Service::NotRunning)).status_text,
+            labels(&StatusView::no_status(
+                NoStatusService::NotRunning,
+                Platform::Macos
+            ))
+            .status_text,
             "Capture service not running"
         );
-        for service in [Service::HeldUnreachable, Service::StatusRefused] {
-            assert!(!labels(&StatusView::without_status(service))
+        for service in [
+            NoStatusService::HeldUnreachable,
+            NoStatusService::StatusRefused,
+        ] {
+            assert!(!labels(&StatusView::no_status(service, Platform::Macos))
                 .status_text
                 .contains("not running"));
         }

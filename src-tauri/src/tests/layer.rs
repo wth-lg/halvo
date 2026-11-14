@@ -29,7 +29,14 @@ use crate::commands::names::{Names, CAPTURE};
 use crate::commands::Registration;
 use crate::poller::{self, PollAnswer, Views};
 use crate::tray;
-use crate::view_state::{Service, Status, StatusView};
+use crate::view_state::{NoStatusService, RunningView, Service, Status, StatusView};
+
+fn running_view(view: StatusView) -> RunningView {
+    match view {
+        StatusView::Running(view) => *view,
+        StatusView::NoStatus(view) => panic!("a running view, not {:?}", view.service),
+    }
+}
 
 fn no_pane(_: Permission) -> Result<(), String> {
     Ok(())
@@ -58,7 +65,7 @@ fn the_app_state_of_a_failing_resolver_builds_and_its_set_up_returns_ok() {
         connector,
     );
     let view = test.poll();
-    assert_eq!(view.service, Service::HeldUnreachable);
+    assert_eq!(view.service(), Service::HeldUnreachable);
     assert_eq!(
         call(&test, "capture_status", json!({})).map(|v| v["service"].clone()),
         Ok(json!("held_unreachable"))
@@ -127,9 +134,9 @@ fn an_app_started_on_a_sealed_store_sends_the_id_of_the_status_and_the_store_is_
     });
     let test = app_on(ScriptedDaemon::new(sealed), "sealed");
     let view = test.poll();
-    let shown = view
+    let shown = running_view(view)
         .store
-        .and_then(|s| s.id)
+        .id
         .expect("the sealed store shows its id");
     let reply = call(&test, "delete_all", json!({ "storeId": hex(shown) })).expect("a reply");
     assert_eq!(reply["outcome"], json!("deleted"));
@@ -151,7 +158,7 @@ fn an_unavailable_store_takes_the_delete_with_the_id_of_the_status() {
     });
     let test = app_on(ScriptedDaemon::new(unavailable), "unavailable");
     let view = test.poll();
-    let store = view.store.expect("a store view");
+    let store = running_view(view).store;
     assert_eq!(store.state, StoreState::Unavailable);
     assert_eq!(store.retry_in_s, Some(5));
     let id = store.id.expect("an id");
@@ -314,7 +321,7 @@ fn with_no_daemon_every_command_answers_ok_with_the_not_running_state_and_claims
         },
         "not-running",
     );
-    assert_eq!(test.poll().service, Service::NotRunning);
+    assert_eq!(test.poll().service(), Service::NotRunning);
     let status = call(&test, "capture_status", json!({})).expect("a view");
     assert_eq!(status["service"], json!("not_running"));
     assert_eq!(status["desired"], Value::Null);
@@ -434,7 +441,7 @@ fn the_poller_runs_a_fake_client_through_unreachable_starting_and_running_and_th
         Ok(sample_status(Platform::Macos)),
     ]);
     let views = Views::default();
-    assert_eq!(views.view().service, Service::Connecting);
+    assert_eq!(views.view().service(), Service::Connecting);
     assert_eq!(tray::labels(&views.view()).status_text, "Connecting");
     let texts: Vec<&str> = (0..3)
         .map(|_| tray::labels(&poller::pass(&fake, &views, None)).status_text)
@@ -471,13 +478,13 @@ fn a_status_made_before_a_mutation_was_answered_does_not_replace_its_view() {
         PollAnswer::DroppedAsOlderThanTheLastMutation,
         "a poll made before the answer is dropped"
     );
-    assert_eq!(views.view().capture, Some(Capture::Paused));
+    assert_eq!(running_view(views.view()).capture, Capture::Paused);
     assert_eq!(
         views.take_poll(5, &running),
         PollAnswer::Stands,
         "a poll made after the answer stands"
     );
-    assert_eq!(views.view().capture, Some(Capture::Running));
+    assert_eq!(running_view(views.view()).capture, Capture::Running);
 }
 
 #[test]
@@ -507,7 +514,7 @@ impl Registration for Counting {
     }
 
     fn on_status(&self, status: &Status) {
-        let _ = status.service;
+        let _ = status.service();
         self.0.fetch_add(1, Ordering::SeqCst);
     }
 }
@@ -525,7 +532,10 @@ fn on_status_is_made_once_per_pass_for_every_module_and_a_second_module_compiles
 {
     let counting = Counting(AtomicUsize::new(0));
     let second = Second;
-    second.on_status(&StatusView::without_status(Service::NotRunning));
+    second.on_status(&StatusView::no_status(
+        NoStatusService::NotRunning,
+        Platform::Macos,
+    ));
     let modules: [&dyn Registration; 3] = [&crate::commands::capture::Capture, &counting, &second];
     let fake = Fake::with(vec![
         Ok(sample_status(Platform::Macos)),
@@ -535,7 +545,7 @@ fn on_status_is_made_once_per_pass_for_every_module_and_a_second_module_compiles
     ]);
     let views = Views::default();
     let services: Vec<Service> = (0..3)
-        .map(|_| poller::round(&fake, &views, None, &modules, &|_| {}).service)
+        .map(|_| poller::round(&fake, &views, None, &modules, &|_| {}).service())
         .collect();
     assert_eq!(
         services,
@@ -571,7 +581,7 @@ fn the_commands_reach_the_fake_server_over_the_socket_of_a_data_directory() {
         app::context(),
         connector,
     );
-    assert_eq!(test.poll().service, Service::Running);
+    assert_eq!(test.poll().service(), Service::Running);
     let reply = call(
         &test,
         "delete_all",
@@ -597,8 +607,8 @@ fn a_poll_made_after_a_mutation_was_answered_and_taken_first_is_not_replaced_by_
     let running = sample_status(Platform::Macos);
     views.take_mutation(5, &running);
     assert_eq!(
-        views.view().capture,
-        Some(Capture::Paused),
+        running_view(views.view()).capture,
+        Capture::Paused,
         "the poll of call 7 was made after the mutation's answer at mark 5"
     );
     assert_eq!(
@@ -636,7 +646,7 @@ fn a_service_of_another_version_reads_update_the_app_and_never_not_running_or_pa
     ];
     for (answer, name) in cases {
         let test = app_answering(answer, "another-version");
-        assert_eq!(test.poll().service, Service::AnotherVersion, "{name}");
+        assert_eq!(test.poll().service(), Service::AnotherVersion, "{name}");
         let view = call(&test, "capture_status", json!({})).expect("a view");
         assert_eq!(view["service"], json!("another_version"), "{name}");
         for key in ["desired", "capture", "store", "texts"] {
@@ -656,7 +666,7 @@ fn a_service_of_another_version_reads_update_the_app_and_never_not_running_or_pa
 #[test]
 fn a_broken_reply_stays_a_broken_reply_and_not_an_update() {
     let test = app_answering(|| ClientError::Protocol("a frame".to_string()), "broken");
-    assert_eq!(test.poll().service, Service::StatusRefused);
+    assert_eq!(test.poll().service(), Service::StatusRefused);
     assert_eq!(
         call(&test, "set_capture_state", json!({ "capture": "paused" })),
         Err(json!({ "error": "broken_reply" }))

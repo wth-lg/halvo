@@ -7,7 +7,7 @@ use halvo_control::proto::DaemonStatus;
 use crate::commands::control::Control;
 use crate::commands::Registration;
 use crate::tray::TrayInstalled;
-use crate::view_state::{view_of, Service, StatusView};
+use crate::view_state::{view_of, NoStatusService, StatusView};
 
 pub const POLL: Duration = Duration::from_millis(halvo_control::POLL_MS);
 
@@ -34,7 +34,7 @@ impl Default for Views {
     fn default() -> Self {
         Views {
             latest: Mutex::new(Latest {
-                view: StatusView::without_status(Service::Connecting),
+                view: StatusView::without_status(NoStatusService::Connecting),
                 status: None,
                 mutation_mark: 0,
                 poll_number: None,
