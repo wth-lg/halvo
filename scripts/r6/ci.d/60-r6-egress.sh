@@ -257,7 +257,7 @@ run_canary() {
     if grep -q -x -F -e "finding $code src/lib.rs $at" "$work/canary-read.txt"; then
       found=$((found + 1))
     else
-      printf 'egress canary missing=%s:%s\n' "$code" "$at"
+      [ "$((wanted - found))" -gt 5 ] || printf 'egress canary missing=%s:%s\n' "$code" "$at"
     fi
   done <"$canary/expected.txt"
   if grep -q -x -F -e refer "$work/canary-read.txt"; then
@@ -363,9 +363,114 @@ count_entries() {
   entries=$((entries + odd))
 }
 
-read_graph() {
+closed_graph() {
+  started=$(date +%s)
+  cargo tree --locked -e normal,build --target all -p halvo-route-gate --prefix none --format '{p}' \
+    >"$artifacts/cargo-tree-build.txt" 2>"$artifacts/cargo-tree-build.err" || fail setup
   cargo tree --locked -e normal,no-proc-macro --target all -p halvo-route-gate --prefix none --format '{p}' \
     >"$artifacts/cargo-tree.txt" 2>"$artifacts/cargo-tree.err" || fail setup
+  cargo metadata --locked --format-version 1 --no-deps >"$artifacts/cargo-metadata.json" 2>"$artifacts/cargo-metadata.err" ||
+    fail setup
+  awk -v linked_file="$artifacts/cargo-tree.txt" '
+    function name_of(line) {
+      sub(/ \(\*\)$/, "", line)
+      sub(/ \(proc-macro\)$/, "", line)
+      return line
+    }
+    BEGIN {
+      split("halvo-route halvo-route-gate halvo-route-wire", w, " ")
+      for (i in w) path_ok[w[i]] = 1
+      split("itoa memchr serde serde_core serde_json zmij", w, " ")
+      for (i in w) linked_ok[w[i]] = 1
+      split("proc-macro2 quote serde_derive syn unicode-ident", w, " ")
+      for (i in w) build_ok[w[i]] = 1
+      while ((getline line < linked_file) > 0) {
+        line = name_of(line)
+        if (line ~ / \(.*\)$/) continue
+        split(line, f, " ")
+        if (f[1] != "") linked[f[1]] = 1
+      }
+    }
+    {
+      line = name_of($0)
+      split(line, f, " ")
+      if (f[1] == "") next
+      if (line ~ / \(.*\)$/) {
+        path = line
+        sub(/^[^(]*\(/, "", path)
+        sub(/\)$/, "", path)
+        gsub(/\\/, "/", path)
+        if (!(f[1] in path_ok) || path !~ ("/crates/" f[1] "$")) print "graph unknown=" f[1]
+        else paths[f[1]] = 1
+        next
+      }
+      if (f[1] in linked) {
+        if (!(f[1] in linked_ok)) print "graph unknown=" f[1]
+        else seen_linked[f[1]] = 1
+      } else if (!(f[1] in build_ok)) print "graph unknown=" f[1]
+      else seen_build[f[1]] = 1
+    }
+    END {
+      for (k in path_ok) if (!(k in paths)) print "graph missing=" k
+      for (k in linked_ok) if (!(k in seen_linked)) print "graph missing=" k
+      for (k in build_ok) if (!(k in seen_build)) print "graph missing=" k
+    }
+  ' "$artifacts/cargo-tree-build.txt" >"$work/graph-read.txt" || fail setup
+  awk '
+    {
+      n = split($0, part, "\"manifest_path\":\"")
+      for (i = 2; i <= n; i++) {
+        path = substr(part[i], 1, index(part[i], "\"") - 1)
+        gsub(/\\\\/, "/", path)
+        crate = ""
+        if (path ~ /\/crates\/halvo-route\/Cargo\.toml$/) crate = "halvo-route"
+        if (path ~ /\/crates\/halvo-route-gate\/Cargo\.toml$/) crate = "halvo-route-gate"
+        if (path ~ /\/crates\/halvo-route-wire\/Cargo\.toml$/) crate = "halvo-route-wire"
+        if (crate == "") continue
+        body = part[i - 1]
+        print "graph seen=" crate
+        rest = body
+        while (match(rest, /"kind":\[[^]]*\]/)) {
+          kinds = substr(rest, RSTART, RLENGTH)
+          if (kinds ~ /"custom-build"/) print "graph target=" crate " kind=custom-build"
+          if (kinds ~ /"proc-macro"/) print "graph target=" crate " kind=proc-macro"
+          rest = substr(rest, RSTART + RLENGTH)
+        }
+        last = 0
+        rest = body
+        while ((k = index(rest, "\"features\":{")) > 0) {
+          last += k
+          rest = substr(rest, k + 1)
+        }
+        if (last == 0 || substr(body, last + 11, 2) != "{}") print "graph features=" crate
+      }
+    }
+  ' "$artifacts/cargo-metadata.json" >>"$work/graph-read.txt" || fail setup
+  for crate in halvo-route halvo-route-gate halvo-route-wire; do
+    grep -q -x -F -e "graph seen=$crate" "$work/graph-read.txt" || printf 'graph unread=%s\n' "$crate" >>"$work/graph-read.txt"
+    if grep -q -E '^[[:space:]]*\[features' "crates/$crate/Cargo.toml" 2>/dev/null; then
+      printf 'graph features=%s\n' "$crate" >>"$work/graph-read.txt"
+    fi
+  done
+  if grep -q -E '^[[:space:]]*\[patch' Cargo.toml 2>/dev/null; then
+    printf 'graph patch=Cargo.toml\n' >>"$work/graph-read.txt"
+  fi
+  graph_seconds=$(($(date +%s) - started))
+  graph_holds=yes
+  while IFS= read -r line; do
+    case $line in
+      'graph seen='*) ;;
+      *)
+        printf 'egress %s\n' "$line"
+        graph_holds=no
+        ;;
+    esac
+  done <"$work/graph-read.txt"
+  printf 'egress graph paths=3 linked=6 build=5 holds=%s\n' "$graph_holds"
+  [ "$graph_holds" = yes ] || holds=no
+}
+
+read_graph() {
   awk '
     / \(\*\)$/ { sub(/ \(\*\)$/, "") }
     / \(.*\)$/ {
@@ -583,11 +688,12 @@ check() {
   count_entries
   not_observed
 
+  closed_graph
   write_forbid_list
   write_canary
   run_canary
   forbid_crates
-  printf 'egress seconds canary=%s forbid=%s\n' "$canary_seconds" "$forbid_seconds"
+  printf 'egress seconds graph=%s canary=%s forbid=%s\n' "$graph_seconds" "$canary_seconds" "$forbid_seconds"
 
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || fail setup
   cargo build --locked -p halvo-route-gate --bin route-gate --message-format=json \
@@ -649,6 +755,17 @@ exec '$real_git' "\$@"
 EOF
   cat >"$work/bin/cargo" <<'EOF' || self_failed setup
 #!/bin/sh
+paths() {
+  for crate in halvo-route-gate halvo-route halvo-route-wire; do
+    printf '%s v0.0.0 (%s/crates/%s)\n' "$crate" "$CI_D_REPO" "$crate"
+  done
+  [ "$STUB_GRAPH" != extra-path ] || printf 'halvo-cap v0.0.0 (%s/crates/halvo-cap)\n' "$CI_D_REPO"
+}
+linked_rest() {
+  printf 'serde_json v1.0.154\nitoa v1.0.19\nmemchr v2.8.3\nserde v1.0.229 (*)\n'
+  [ "$STUB_GRAPH" = missing ] || printf 'zmij v1.0.23\n'
+  [ "$STUB_GRAPH" != extra-third ] || printf 'libc v0.2.180\n'
+}
 case $* in
   'build --locked -p halvo-route-gate --bin route-gate') exit 0 ;;
   'build --locked -p halvo-route-gate --bin route-gate --message-format=json')
@@ -685,8 +802,32 @@ case $* in
     fi
     exit "$STUB_CLIPPY_EXIT"
     ;;
+  "tree --locked -e normal,build --target all -p halvo-route-gate --prefix none --format {p}")
+    paths
+    printf 'serde v1.0.229\nserde_core v1.0.229\nserde_derive v1.0.229 (proc-macro)\nproc-macro2 v1.0.107\nunicode-ident v1.0.27\nquote v1.0.47\nsyn v3.0.10\nproc-macro2 v1.0.107 (*)\n'
+    linked_rest
+    exit 0
+    ;;
   "tree --locked -e normal,no-proc-macro --target all -p halvo-route-gate --prefix none --format {p}")
-    printf 'halvo-route-gate v0.0.0 (%s/crates/halvo-route-gate)\nserde v1.0.0\nserde v1.0.0 (*)\n' "$CI_D_REPO"
+    paths
+    printf 'serde v1.0.229\nserde_core v1.0.229\n'
+    linked_rest
+    exit 0
+    ;;
+  'metadata --locked --format-version 1 --no-deps')
+    printf '{"packages":['
+    sep=
+    for crate in halvo-route halvo-route-gate halvo-route-wire; do
+      kind=lib
+      features={}
+      [ "$STUB_GRAPH:$crate" != build-target:halvo-route ] || kind=custom-build
+      [ "$STUB_GRAPH:$crate" != proc-macro-target:halvo-route-wire ] || kind=proc-macro
+      [ "$STUB_GRAPH:$crate" != features:halvo-route-gate ] || features='{"net":[]}'
+      printf '%s{"name":"%s","dependencies":[{"name":"serde","kind":null}],"targets":[{"kind":["lib"],"crate_types":["lib"],"name":"x","src_path":"%s/crates/%s/src/lib.rs"},{"kind":["%s"],"crate_types":["lib"],"name":"y","src_path":"%s/crates/%s/build.rs"}],"features":%s,"manifest_path":"%s/crates/%s/Cargo.toml","metadata":null}' \
+        "$sep" "$crate" "$CI_D_REPO" "$crate" "$kind" "$CI_D_REPO" "$crate" "$features" "$CI_D_REPO" "$crate"
+      sep=,
+    done
+    printf '],"workspace_root":"%s"}\n' "$CI_D_REPO"
     exit 0
     ;;
 esac
@@ -737,6 +878,8 @@ fn main() {
 EOF
   printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed setup
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed setup
+  printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed setup
+  printf '[package]\nname = "halvo-route-gate"\n%s' "${4:-}" >"$dir/crates/halvo-route-gate/Cargo.toml" || self_failed setup
   cat >"$dir/scripts/egress/check.sh" <<'EOF' || self_failed setup
 #!/bin/sh
 list=$1
@@ -780,6 +923,7 @@ case_reset() {
   STUB_CLIPPY_EXIT=0
   STUB_CANARY=synth
   STUB_CANARY_DROP=0
+  STUB_GRAPH=good
   case_job=$own_job
   case_actions=
   case_arg=
@@ -790,7 +934,7 @@ case_run() {
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
-    STUB_CANARY_DROP=$STUB_CANARY_DROP REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -840,6 +984,8 @@ self_test() {
   write_stubs
   good_tree=$(write_repo "$work/repo" '') || self_failed setup
   entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed setup
+  patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed setup
+  features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed setup
   system=$(uname -s) || self_failed setup
   case $system in
     Darwin)
@@ -870,9 +1016,28 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=13 run=6 cannot=1 crates=1'
-  case_run third-party PASS - 'egress limit third-party crates=1 names=serde'
+  case_run commands PASS - 'egress commands=7 asked=13 run=6 cannot=1 crates=3'
+  case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
+  case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
+  STUB_GRAPH=extra-third
+  case_run graph-third-party-package-added FAIL check 'egress graph unknown=libc'
+  STUB_GRAPH=extra-path
+  case_run graph-path-package-added FAIL check 'egress graph unknown=halvo-cap'
+  STUB_GRAPH=missing
+  case_run graph-package-gone FAIL check 'egress graph missing=zmij'
+  STUB_GRAPH=build-target
+  case_run graph-build-script FAIL check 'egress graph target=halvo-route kind=custom-build'
+  STUB_GRAPH=proc-macro-target
+  case_run graph-proc-macro FAIL check 'egress graph target=halvo-route-wire kind=proc-macro'
+  STUB_GRAPH=features
+  case_run graph-features-in-metadata FAIL check 'egress graph features=halvo-route-gate'
+  case_repo=$work/repo-features
+  case_tree=$features_tree
+  case_run graph-features-table FAIL check 'egress graph features=halvo-route-gate'
+  case_repo=$work/repo-patch
+  case_tree=$patch_tree
+  case_run graph-patch-table FAIL check 'egress graph patch=Cargo.toml'
   STUB_CANARY=real
   case_run canary-on-the-real-cargo PASS - 'egress canary entries='
   STUB_CANARY_DROP=1
