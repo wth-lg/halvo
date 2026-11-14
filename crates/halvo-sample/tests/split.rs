@@ -375,3 +375,26 @@ fn two_script_arguments_of_one_name_are_refused_by_their_place_alone() {
     refused(&o, "script");
     assert_eq!(o.stderr, "REFUSED script: SCRIPT 2\n");
 }
+
+#[test]
+fn an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name() {
+    let dir = scratch("split-output");
+    let a = stream_file(&dir.join("x"), "s1", "zz-mill.test", None, "Mill page");
+    let b = stream_file(&dir.join("y"), "s2", "zz-oak.test", None, "Weekly report");
+    let a2 = dir.join("x/Zz-Mill.jsonl");
+    let b2 = dir.join("y/zz-mill.jsonl");
+    fs::copy(&a, &a2).expect("copy");
+    fs::copy(&b, &b2).expect("copy");
+    write(&dir.join("fold/X"), "x\n");
+    let folds = dir.join("fold/x").exists();
+    let o = split(&dir, "4", "out", &[s(&a2), s(&b2)]);
+    if folds {
+        refused(&o, "output");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED output: {}: SCRIPT 2\n", s(&dir.join("out")))
+        );
+    } else {
+        assert_eq!(o.code, 0, "{}", o.stderr);
+    }
+}
