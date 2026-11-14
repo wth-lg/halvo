@@ -475,9 +475,13 @@ tree_start() {
   own_git_index read-tree HEAD >/dev/null 2>&1
   own_git_index update-index -q --refresh >/dev/null 2>&1
   tree_state "$tmp/tree.before"
+  own_git --no-optional-locks status --porcelain --untracked-files=no >"$tmp/tree.checkout" 2>/dev/null || printf 'status failed\n' >"$tmp/tree.checkout"
   while IFS= read -r tree_line; do
     tree_report '' "$tree_line"
   done <"$tmp/tree.before"
+  while IFS= read -r tree_line; do
+    tree_report '' "$tree_line"
+  done <"$tmp/tree.checkout"
 }
 
 note() {
@@ -1321,6 +1325,32 @@ own_self_test() {
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && printf 'x\n' >>"$fixture/tracked.txt"
   case_absent='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
   own_case tracked-file-differs-before-the-first-script 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tracked.txt)' macos
+  tool_line='FAIL run-ci-d (a tracked file differs from HEAD before the first script: tool.sh)'
+  new_repo && printf '*.sh text eol=lf\n' >"$fixture/.gitattributes" && printf 'echo hi\n' >"$fixture/tool.sh" &&
+    git -C "$fixture" add .gitattributes tool.sh >/dev/null 2>&1 && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit &&
+    printf 'echo hi\r\n' >"$fixture/tool.sh"
+  case_witness=yes
+  case_absent='FAIL run-ci-d (10-a changed a tracked file: tool.sh)'
+  own_case tracked-script-rewritten-with-crlf-before-the-first-script 1 "$tool_line" macos
+  late_crlf='d=$(cd "$TMPDIR/../.." && pwd); perl -e "setpgrp(0, 0); exec @ARGV" sh -c '"'"'n=0; while [ -d "$1" ] && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n + 1)); done; printf "echo hi\r\n" >"$0/tool.sh"; : >"$0/rewritten"'"'"' "$CI_D_REPO" "$d" >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  new_repo && printf '*.sh text eol=lf\n' >"$fixture/.gitattributes" && printf 'echo hi\n' >"$fixture/tool.sh" &&
+    git -C "$fixture" add .gitattributes tool.sh >/dev/null 2>&1 &&
+    add_script r1 10-a.sh "$good" "if [ \"\${1:-}\" = --self-test ]; then $late_crlf; printf 'PASS self-test:10-a (1 failing fixtures rejected)\\n'; else printf 'PASS 10-a\\n'; fi" && fixture_commit
+  case_witness=yes
+  own_case self-test-that-leaves-a-writer-of-the-checkout 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  n=0
+  while [ ! -e "$fixture/rewritten" ] && [ "$n" -lt 100 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  case_witness=yes
+  case_absent='FAIL run-ci-d (10-a changed a tracked file: tool.sh)'
+  own_case writer-left-by-the-self-test-step-is-named-before-the-step-ci.d 1 "$tool_line" macos
+  new_repo && git -C "$fixture" config core.autocrlf true && printf 'line 1\r\n' >"$fixture/tool.txt" &&
+    git -C "$fixture" add tool.txt >/dev/null 2>&1 && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit &&
+    printf 'line 1\n' >"$fixture/tool.txt"
+  case_witness=yes
+  own_case file-of-an-autocrlf-checkout-rewritten-with-lf-before-the-first-script 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tool.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" checkout -q -- tracked.txt; printf "PASS 10-a\n"' && printf 'x\n' >>"$fixture/tracked.txt"
   own_case script-restores-a-file-that-differed-before 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" config core.checkStat minimal; printf "PASS 10-a\n"'
