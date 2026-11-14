@@ -16,44 +16,77 @@ pub fn day_of(name: &str) -> Option<u32> {
     (1..=93).contains(&d).then_some(d)
 }
 
-/// One stream directory of a body: its id, its day files in the order of name and the path of its label file.
+/// One stream directory of a body: its id, its day files in the order of name, the path of its label file, and
+/// the names of its day files and label file that are symbolic links, which a reader refuses and never follows.
 #[derive(Clone, Debug)]
 pub struct StreamDir {
     pub id: String,
     pub days: Vec<(u32, PathBuf)>,
     pub labels: PathBuf,
+    pub links: Vec<String>,
 }
 
-/// The directories under `dir/streams/`, in byte order of name, each with its day files. None when
-/// `dir/streams` is missing or cannot be read.
-pub fn stream_dirs(dir: &Path) -> Option<Vec<StreamDir>> {
+/// True when `path` names a symbolic link.
+pub fn is_link(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink())
+}
+
+/// What `dir/streams/` holds: its stream directories, and the names of its entries that are symbolic links,
+/// which are not followed (contracts.md C12.6, C12.8). Both in byte order of name.
+#[derive(Clone, Debug, Default)]
+pub struct Streams {
+    pub dirs: Vec<StreamDir>,
+    pub links: Vec<String>,
+}
+
+/// The directories under `dir/streams/`, in byte order of name, each with its day files, and the links there.
+/// None when `dir/streams` is missing, is itself a symbolic link or cannot be read.
+pub fn stream_dirs(dir: &Path) -> Option<Streams> {
     let root = dir.join("streams");
+    if fs::symlink_metadata(&root).ok()?.file_type().is_symlink() {
+        return None;
+    }
     let mut names: Vec<String> = Vec::new();
+    let mut links: Vec<String> = Vec::new();
     for entry in fs::read_dir(&root).ok()? {
         let entry = entry.ok()?;
-        if entry.file_type().ok()?.is_dir() {
+        let kind = entry.file_type().ok()?;
+        if kind.is_symlink() {
+            links.push(entry.file_name().to_str()?.to_owned());
+        } else if kind.is_dir() {
             names.push(entry.file_name().to_str()?.to_owned());
         }
     }
     names.sort();
+    links.sort();
     let mut out = Vec::new();
     for id in names {
         let sd = root.join(&id);
         let mut days: Vec<(u32, PathBuf)> = Vec::new();
+        let mut file_links: Vec<String> = Vec::new();
         for entry in fs::read_dir(&sd).ok()? {
             let entry = entry.ok()?;
-            if let Some(d) = entry.file_name().to_str().and_then(day_of) {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let read = day_of(name);
+            if (read.is_some() || name == "labels.jsonl") && entry.file_type().ok()?.is_symlink() {
+                file_links.push(name.to_owned());
+            } else if let Some(d) = read {
                 days.push((d, entry.path()));
             }
         }
         days.sort();
+        file_links.sort();
         out.push(StreamDir {
             labels: sd.join("labels.jsonl"),
             id,
             days,
+            links: file_links,
         });
     }
-    Some(out)
+    Some(Streams { dirs: out, links })
 }
 
 /// Calls `each` with every record of a batch file in line order. Err with the line number, counted from 1,

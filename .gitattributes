@@ -5,3 +5,4 @@ docs/baseline/r1-gate-bounds.txt text eol=lf
 mutants.rows text eol=lf
 mutants.expected text eol=lf
 crates/halvo-capture/src/store/testdata/segment-v1.golden -text
+/scripts/r3/egress/fixtures.txt text eol=lf
