@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,52 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 19-control-links-no-store 21-tree-bans 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 19-control-links-no-store 21-tree-bans 19-home-paths
+      - name: control-2c tests 200 times
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp="${RUNNER_TEMP:-/tmp}"
+          found=0
+          bad=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            "$bin" --list >"$tmp/control-2c-list.txt" 2>&1
+            tr -d '\r' <"$tmp/control-2c-list.txt" | sed -n 's/: test$//p' >"$tmp/control-2c-held.txt"
+            want=""
+            n=0
+            for name in paths::tests::st36_check::k1_a_lock_on_a_path_with_a_part_dot_dot_or_a_relative_path_is_refused_as_invalid_input paths::tests::st36_check::k1_a_lock_taken_on_the_link_s_name_with_a_slash_a_dot_or_two_slashes_is_through_a_link paths::tests::st36_check::k4_a_link_to_a_standing_folder_behind_a_closed_parent_answers_cannot_be_read paths::tests::st36_check::k4_a_linked_folder_of_mode_0600_is_not_changed_and_its_store_answers_cannot_be_read paths::tests::st36_check::k4_a_missing_folder_two_levels_below_a_real_directory_is_still_a_first_run paths::tests::st36_check::k4_a_store_in_a_folder_of_mode_0600_answers_cannot_be_read_until_the_check_sets_0700 paths::tests::st36_check::k4_a_store_in_a_folder_or_below_a_parent_of_mode_0000_answers_cannot_be_read_from_the_four paths::tests::st36_check::k4_an_own_folder_whose_bits_are_not_0700_is_set_to_0700_and_special_bits_beside_0700_stay paths::tests::st36_check::k5_the_resolved_line_is_one_line_with_each_control_character_and_line_separator_as_a_question_mark paths::tests::st36_check::k6_each_single_bit_of_group_or_others_is_set_to_0700_at_its_own_name_and_refused_through_a_link paths::tests::st36_check::k6_the_check_with_no_lock_sets_a_real_directory_of_mode_0755_to_0700 proto::tests::k6_running_beside_exactly_one_required_source_is_taken testing::tests::k3_after_either_order_a_resume_exits_1_with_its_sentence_and_a_pause_keeps_the_word testing::tests::k3_both_orders_of_set_status_and_set_life_give_the_same_pausing_status_and_hold testing::tests::k6_set_life_ending_from_a_faulted_status_clears_the_reason testing::tests::k6_set_life_going_changes_no_status_and_a_pausing_capture_stays; do
+              if grep -qxF "$name" "$tmp/control-2c-held.txt"; then
+                want="$want $name"
+                n=$((n + 1))
+              fi
+            done
+            [ "$n" -gt 0 ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              "$bin" --exact --test-threads 4 $want >"$tmp/control-2c-loop.txt" 2>&1
+              code=$?
+              ok=$(tr -d '\r' <"$tmp/control-2c-loop.txt" | grep -c "^test result: ok. $n passed; 0 failed")
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "$tmp/control-2c-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2c loop (macos): binary $(basename "$bin"): tests $n, runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || bad=1
+          done
+          echo "control-2c loop (macos): binaries run: $found"
+          [ "$found" -gt 0 ] && [ "$bad" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +164,52 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 19-control-links-no-store 21-tree-bans 19-home-paths
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 19-control-links-no-store 21-tree-bans 19-home-paths
+      - name: control-2c tests 200 times
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp="${RUNNER_TEMP:-/tmp}"
+          found=0
+          bad=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            "$bin" --list >"$tmp/control-2c-list.txt" 2>&1
+            tr -d '\r' <"$tmp/control-2c-list.txt" | sed -n 's/: test$//p' >"$tmp/control-2c-held.txt"
+            want=""
+            n=0
+            for name in paths::tests::st36_check::k1_a_lock_on_a_path_with_a_part_dot_dot_or_a_relative_path_is_refused_as_invalid_input paths::tests::st36_check::k1_a_lock_taken_on_the_link_s_name_with_a_slash_a_dot_or_two_slashes_is_through_a_link paths::tests::st36_check::k4_a_link_to_a_standing_folder_behind_a_closed_parent_answers_cannot_be_read paths::tests::st36_check::k4_a_linked_folder_of_mode_0600_is_not_changed_and_its_store_answers_cannot_be_read paths::tests::st36_check::k4_a_missing_folder_two_levels_below_a_real_directory_is_still_a_first_run paths::tests::st36_check::k4_a_store_in_a_folder_of_mode_0600_answers_cannot_be_read_until_the_check_sets_0700 paths::tests::st36_check::k4_a_store_in_a_folder_or_below_a_parent_of_mode_0000_answers_cannot_be_read_from_the_four paths::tests::st36_check::k4_an_own_folder_whose_bits_are_not_0700_is_set_to_0700_and_special_bits_beside_0700_stay paths::tests::st36_check::k5_the_resolved_line_is_one_line_with_each_control_character_and_line_separator_as_a_question_mark paths::tests::st36_check::k6_each_single_bit_of_group_or_others_is_set_to_0700_at_its_own_name_and_refused_through_a_link paths::tests::st36_check::k6_the_check_with_no_lock_sets_a_real_directory_of_mode_0755_to_0700 proto::tests::k6_running_beside_exactly_one_required_source_is_taken testing::tests::k3_after_either_order_a_resume_exits_1_with_its_sentence_and_a_pause_keeps_the_word testing::tests::k3_both_orders_of_set_status_and_set_life_give_the_same_pausing_status_and_hold testing::tests::k6_set_life_ending_from_a_faulted_status_clears_the_reason testing::tests::k6_set_life_going_changes_no_status_and_a_pausing_capture_stays; do
+              if grep -qxF "$name" "$tmp/control-2c-held.txt"; then
+                want="$want $name"
+                n=$((n + 1))
+              fi
+            done
+            [ "$n" -gt 0 ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              "$bin" --exact --test-threads 4 $want >"$tmp/control-2c-loop.txt" 2>&1
+              code=$?
+              ok=$(tr -d '\r' <"$tmp/control-2c-loop.txt" | grep -c "^test result: ok. $n passed; 0 failed")
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "$tmp/control-2c-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2c loop (windows): binary $(basename "$bin"): tests $n, runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || bad=1
+          done
+          echo "control-2c loop (windows): binaries run: $found"
+          [ "$found" -gt 0 ] && [ "$bad" = 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
