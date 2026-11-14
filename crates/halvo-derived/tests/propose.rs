@@ -4,18 +4,23 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, count, domain, episode, open_host, position, store_id, summary_id, token, Fixed,
-    Grouping, Recorder, Scratch, Seq, SignInGroup, TestClock,
+    bodies, count, domain, episode, open_host, position, raw_request, store_id, summary_id, token,
+    Fixed, Grouping, Recorder, Scratch, Seq, SignInGroup, TestClock,
 };
-use halvo_derived::{Host, IdSource, ProposalOutcome};
+use halvo_derived::{
+    Error, Handler, HandlerCx, Host, IdSource, MoveTo, ProposalOutcome, Store, Takes,
+};
 use halvo_schema_core::category::SeedCategory;
-use halvo_schema_core::ids::{RequestId, WorkflowId};
+use halvo_schema_core::ids::{AgentId, RequestId, WorkflowId};
 use halvo_schema_core::record::{
     Confidence, Episode, Proposal, Recurrence, RecurrenceStep, SummaryRead, Support, Trigger,
     Workflow, WorkflowState,
 };
-use halvo_schema_core::request::{InterfaceRead, InterfaceRole, ReplyResult};
+use halvo_schema_core::request::{
+    ErrorName, InterfaceDecision, InterfaceRead, InterfaceRole, RawRequest, ReplyResult,
+};
 use halvo_schema_core::site::{AppId, DomainSource, ObservedSite, SiteDomain, SiteValue};
+use serde_json::value::RawValue;
 
 const DAY: u32 = 20_767;
 
@@ -436,6 +441,182 @@ fn over(ids: &[u64]) -> Proposal {
     let mut p = proposal(SeedCategory::UtilityBillPayment, ids);
     p.recurrence.count = ids.len() as u32;
     p
+}
+
+/// A handler that makes the state call that its body names:
+/// `{"op":"set_state","workflow":<id>,"state":"approved"|"active"|"paused","agent":<id>|null}`.
+struct SetState;
+
+impl Handler for SetState {
+    fn handle(
+        &self,
+        request: &RawRequest,
+        cx: &mut HandlerCx<'_>,
+    ) -> Result<Box<RawValue>, ErrorName> {
+        let body: serde_json::Value = serde_json::from_str(request.body().get()).unwrap();
+        let workflow = WorkflowId::parse(body["workflow"].as_str().unwrap()).unwrap();
+        let to = match body["state"].as_str().unwrap() {
+            "approved" => MoveTo::Approved,
+            "active" => MoveTo::Active,
+            _ => MoveTo::Paused,
+        };
+        let agent = body["agent"].as_str().map(|a| AgentId::parse(a).unwrap());
+        match cx.state(&workflow, to, agent) {
+            Ok(()) => Ok(RawValue::from_string("null".to_owned()).unwrap()),
+            Err(Error::Refused(name)) => Err(name),
+            Err(Error::Fault(_)) => Err(ErrorName::Internal),
+        }
+    }
+}
+
+fn set_state(store: &mut Store, workflow: &str, state: &str, agent: Option<&str>) {
+    let agent = agent.map_or("null".to_owned(), |a| format!("\"{a}\""));
+    let body = format!(
+        r#"{{"op":"set_state","workflow":"{workflow}","state":"{state}","agent":{agent}}}"#
+    );
+    store
+        .handle(&raw_request("coordinator_write", &body))
+        .unwrap();
+}
+
+/// The bodies of the stored workflows and of the support rows and the revision of the family `workflow`, read through
+/// the test's own connection.
+fn held(scratch: &Scratch) -> (Vec<String>, Vec<String>, i64) {
+    (
+        bodies(scratch, "workflow"),
+        bodies(scratch, "support"),
+        revision(scratch),
+    )
+}
+
+/// C2.4, the row of a kept workflow whose `agent` is not null (the coordinator's ruling S-64, point 1, item 2): a
+/// proposal with the key of a workflow that is `active` with an agent, or `paused` with an agent, leaves the row, its
+/// support rows and the revision as they are, and is counted in `unchanged`; the same proposal for the same workflow
+/// with `agent` null, `approved` with no agent or `approved` after its agent was cleared, changes the row and its
+/// support rows and raises the revision by one, as before. In each case the five counts sum to the two proposals of
+/// the call, the second of which names no summary and is refused.
+#[test]
+fn a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision(
+) {
+    let agent = "4".repeat(32);
+    let cases: [(&str, &[(&str, bool)], bool); 4] = [
+        ("guard-active", &[("active", true)], true),
+        ("guard-paused", &[("active", true), ("paused", true)], true),
+        ("guard-approved", &[], false),
+        (
+            "guard-cleared",
+            &[("active", true), ("approved", false)],
+            false,
+        ),
+    ];
+    for (name, moves, guarded) in cases {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let fixed = Rc::new(RefCell::new(vec![over(&[1])]));
+        let host = || {
+            Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed)))).handler(
+                "test",
+                Takes::Coordinator(&["set_state"]),
+                Box::new(SetState),
+            )
+        };
+        let mut store = open_host(&scratch, host()).unwrap();
+        let first = store
+            .commit_batch(
+                &store_id(1),
+                &[episode(1, DAY, None), episode(2, DAY, None)],
+                position(1, 0),
+                &mut Seq(100),
+            )
+            .unwrap();
+        assert_eq!(first.proposals.stored, 1, "{name}");
+        let id = minted(&mut Seq(100));
+        store
+            .decide(&InterfaceDecision::approve(
+                &InterfaceRole::claim(),
+                RequestId::from_random([2; 16]),
+                id.clone(),
+            ))
+            .unwrap();
+        for (state, with_agent) in moves {
+            set_state(
+                &mut store,
+                id.as_str(),
+                state,
+                with_agent.then_some(&agent[..]),
+            );
+        }
+        drop(store);
+        let before = held(&scratch);
+        let Workflow::Full(set) = serde_json::from_str(&before.0[0]).unwrap() else {
+            panic!("{name}: the workflow is dismissed");
+        };
+        let mut changed = over(&[1, 2]);
+        changed.trigger = Trigger::Schedule;
+        changed.confidence = Confidence(90);
+        let mut names_none = over(&[]);
+        names_none.app = AppId::parse("com.example.other").unwrap();
+        *fixed.borrow_mut() = vec![changed, names_none];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+            .unwrap()
+            .proposals;
+        drop(store);
+        let after = held(&scratch);
+        let sum = outcome.stored
+            + outcome.updated
+            + outcome.unchanged
+            + outcome.dismissed
+            + outcome.refused;
+        assert_eq!(sum, 2, "{name}: the counts sum to the proposals");
+        let Workflow::Full(stored) = serde_json::from_str(&after.0[0]).unwrap() else {
+            panic!("{name}: the workflow is dismissed");
+        };
+        assert_eq!(
+            (stored.id.clone(), stored.state, stored.agent.clone()),
+            (set.id.clone(), set.state, set.agent.clone()),
+            "{name}: the id, the state and the agent stay"
+        );
+        if guarded {
+            assert!(set.agent.is_some(), "{name}");
+            assert_eq!(
+                outcome,
+                ProposalOutcome {
+                    unchanged: 1,
+                    refused: 1,
+                    ..ProposalOutcome::default()
+                },
+                "{name}"
+            );
+            assert_eq!(
+                after, before,
+                "{name}: (the workflow, the support rows, the revision) stay as they were"
+            );
+        } else {
+            assert_eq!(set.agent, None, "{name}");
+            assert_eq!(
+                outcome,
+                ProposalOutcome {
+                    updated: 1,
+                    refused: 1,
+                    ..ProposalOutcome::default()
+                },
+                "{name}"
+            );
+            assert_eq!(
+                (
+                    stored.trigger,
+                    stored.confidence,
+                    stored.recurrence.count,
+                    after.1.len(),
+                    after.2
+                ),
+                (Trigger::Schedule, Confidence(90), 2, 2, before.2 + 1),
+                "{name}: (trigger, confidence, count, support rows, revision) as the proposal gives them"
+            );
+        }
+    }
 }
 
 fn support_ids(scratch: &Scratch) -> Vec<String> {
