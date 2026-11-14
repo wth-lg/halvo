@@ -1,18 +1,26 @@
 //! The structural check: every page of a keyless image of a database read by
-//! the database's own layout. Every byte that holds no cell, no header and no
-//! pointer must be zero: the rest of a freeblock after its 4 header bytes, the
-//! content area that no cell and no freeblock covers, a leaf of the freelist,
-//! and bytes 52 to 55 of the file header. The allowances, each a limit of the
-//! check: in the gap between the pointer array and the content area, a run of
-//! whole 2-byte slots from the end of the pointer array, in step with it, whose
-//! values lie between the slot's own offset plus 2 and the usable size less 4
-//! (stale pointers); in the tail of an overflow page and in a freelist trunk
-//! past its count, 4-byte values no larger than the page count. A leftover made
-//! only of such values is not seen. Every page that dbstat names overflow must
-//! be walked by exactly one chain of the cells that the check reads. This file
-//! uses `std` and `rusqlite` alone, so that another crate's tests can include
-//! it by a path attribute; such a caller runs [`plants`] on its own images as
-//! its failing control and reads every field of [`Checked`].
+//! the database's own layout. Every byte up to the usable size that holds no
+//! cell, no header and no pointer must be zero: the rest of a freeblock after
+//! its 4 header bytes, the content area that no cell and no freeblock covers,
+//! the gap past its run of stale slots, a leaf of the freelist, and bytes 52
+//! to 55 and 72 to 91 of the file header. The reserved tail of a page past the
+//! usable size is the codec's and is not read. The allowances, each a limit
+//! of the check: in the gap between the pointer array and the content area, a
+//! run of whole 2-byte slots from the end of the pointer array, in step with
+//! it, whose values lie between the slot's own offset plus 2 and the usable
+//! size less 4 (stale pointers); in the tail of an overflow page and in a
+//! freelist trunk past its count, 4-byte values no larger than the page
+//! count. A leftover made only of such values is not seen. Every page that
+//! dbstat names overflow must be walked by exactly one chain of the cells that
+//! the check reads, every page must be read as a b-tree page, an overflow
+//! page, a freelist trunk or a freelist leaf, and the four must add up to the
+//! page count; a page that dbstat cannot read as a tree page ("corrupted") or
+//! whose type byte is no b-tree page is a line. [`check`] also names a log of
+//! the connection's file that holds frames. This file uses `std` and
+//! `rusqlite` alone, so that another crate's tests can include it by a path
+//! attribute; such a caller runs [`plants`] on its own images and reads every
+//! field of [`Checked`]. The controls of the rules that need pages a caller's
+//! image may lack stand in the tests page_gap of halvo-sqlcipher.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -333,11 +341,21 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
     }
 }
 
-/// The failing control of [`check`] on the caller's own image `db`, which
-/// must pass the check: a byte planted, in a copy, in each place that the
-/// check reads, and the line that must name it. Returns one line for each
-/// plant that no line names, and for each place that the image has no page
-/// for; an empty answer is the pass.
+/// Plants in copies of the caller's own image `db`, which must pass the
+/// check, and requires the line that names each: header byte 52; the first
+/// leaf of the first freelist trunk at byte 100 and at its last usable byte;
+/// that trunk's last 4 bytes, its first entry set to 0, to the page count
+/// plus 1 and to the trunk itself, and a b-tree page added to its entries; a
+/// page appended to the file; the type byte of the first leaf after page 1
+/// set to 0; the last 4 bytes of an overflow tail with room; a byte past the
+/// header of the first freeblock longer than 4 bytes; text in a freeblock of
+/// 8 bytes or more shortened by 4; in the first leaf with 8 bytes of gap past
+/// its stale run, the page size in the first slot, a valid offset past the run
+/// and, under 32 reserved bytes, an offset inside the page past the usable
+/// size; and a page size of 8,192. Returns one line for each plant that no
+/// line names, and for each such page that the image lacks; an empty answer
+/// is the pass. It shows that the check sees these plants on the caller's
+/// image, not that the caller's draw would leave anything.
 pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
     let (clean, tails) = read_pages(conn, db);
     if !clean.problems.is_empty() {

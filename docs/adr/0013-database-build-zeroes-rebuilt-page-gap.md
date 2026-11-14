@@ -58,22 +58,25 @@ two functions, rebuildPage and editPage, and in one added function.
   build.rs or the environment (CFLAGS) set it. The stop on BTS_FAST_SECURE
   stands first: MSVC's compiler ends at the first #error, and with the
   database's code compiled out the macros of the later stops are undefined
-  too (a hosted Windows build named SQLITE_DEFAULT_AUTOVACUUM when that stop
-  stood third). A flag that redefines an
-  identifier of the source is not read. The test
+  too (the builder's hosted run 43582177071 at c57666d5 named
+  SQLITE_DEFAULT_AUTOVACUUM on Windows when that stop stood fourth). A flag
+  that redefines an identifier of the source is not read. The test
   `page_gap::pins::the_compile_options_of_this_build_are_its_closed_list`
   reads PRAGMA compile_options, less the compiler's line, against a closed
   list for each system. The function halvo_sqlcipher_page_gap_mend answers 2
   and touches no structure of the database. `halvo_sqlcipher::page_gap_mend_linked`
-  is true only for that answer, so a program that calls it does not link
-  another SQLCipher and refuses a library of the earlier one-statement build.
+  is true only for that answer, so a program that calls it links that object
+  or does not link at all, and a library of the earlier build with one
+  statement, which answers 1, reads false.
   The open of each store is to require it, in the next unit that changes that
   open.
 - The build has no SQLITE_ENABLE_STAT4, and the compiler stops if a flag
   defines it: with it, ANALYZE and PRAGMA optimize copy whole index keys into
-  sqlite_stat4, where they outlive the rows. No store runs either.
+  sqlite_stat4, where they outlive the rows. No store runs either, by a search
+  of the stores' sources today; no check holds it.
 - No cargo feature and no switch of the environment or of the build takes a
-  statement out.
+  statement out, within the limit above: a flag that redefines an identifier
+  of the source is not read.
 
 ## How it is held
 
@@ -100,13 +103,19 @@ in the draws of the tests", with the limits below.
   pins the first. Only the capture store has such a table (events_fts); its
   unit store-4 removes it (rulings A2 and E11 of that run's contract).
 - The structural check reads every page of the file by the database's own
-  layout after each round and requires zero in every byte that holds no cell,
-  no header and no pointer, a cell of fewer than 4 bytes included, and that
-  every page that dbstat names overflow is walked by exactly one chain of the
-  cells that it reads. Its rules
-  stand in tests/page_gap/rules.rs, which uses rusqlite alone so that another
-  crate's tests can include it; its `plants` function plants a byte in each
-  place that it reads in a copy of a caller's own image. Its allowances are
+  layout after each round and requires zero in every byte up to the usable
+  size that holds no cell, no header and no pointer, a cell of fewer than 4
+  bytes included (the reserved tail of a page is the codec's and is not
+  read), bytes 52 to 55 and 72 to 91 of the file header, that every page that
+  dbstat names overflow is walked by exactly one chain of the cells that it
+  reads, that the pages it read as a b-tree page, an overflow page, a freelist
+  trunk or a freelist leaf add up to the page count, and that the log of the
+  connection's file holds no frame. Its rules stand in
+  tests/page_gap/rules.rs, which uses rusqlite alone so that another crate's
+  tests can include it; its `plants` function plants a byte in the places
+  that its doc lists, in a copy of a caller's own image, and the controls of
+  the other rules stand in this crate's tests, because they need pages that a
+  caller's image may lack. Its allowances are
   its limit: a run of stale 2-byte offsets right after the pointer array whose
   values are at least the slot's own offset plus 2 and at most the usable size
   less 4, and 4-byte values no larger than the page count in the tail of an
@@ -119,9 +128,11 @@ in the draws of the tests", with the limits below.
   encoding of Latin letters, small numbers); under a key the bound is the
   smaller usable size. It is a limit of the check and not of the build: both
   statements zero the gap after every edit and rebuild, the byte search sees
-  whole markers wherever they stand, a count over the head's files read
-  508,159 stale slots with no printable pair, and two draws never formed such
-  a leftover even without the rebuildPage statement. The bound of the slot's
+  whole markers wherever they stand, and in the runs of the stress step's
+  fourth adversary (interrogate-sqlcipher1-adversary-4 of the capture run,
+  part 2) a count over the images of its draw r03 read 508,159 stale slots
+  with no printable pair, and two draws never formed such a leftover even
+  without the rebuildPage statement; no test holds those counts. The bound of the slot's
   offset plus 2 and the usable size less 4 was tried on every drawn file and
   kept because each passes it; the test
   `page_gap::layout::a_stale_offset_passes_only_between_its_slot_plus_2_and_the_usable_size_less_4`
@@ -129,6 +140,9 @@ in the draws of the tests", with the limits below.
 - The keyed draws get no byte search and no structural check: they read the
   rows back against the model and run the integrity check alone. The stores'
   own checks read the keyed layout (rulings ST-42 (2) and S-83 7 (b)).
+- The look after a close is the byte search alone: the structural check runs
+  only while the store is open, and the draws close a store after a
+  truncating checkpoint, which leaves nothing for the close to write.
 - A copy of a table by `INSERT INTO b SELECT * FROM a` takes the transfer path
   (sqlite3BtreeTransferRow, lines 83309 and 83341, which write the payload
   into the new cell and its overflow pages). VACUUM attaches an empty file
@@ -146,16 +160,43 @@ in the draws of the tests", with the limits below.
   `page_gap::pins::a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table`
   requires `PRAGMA auto_vacuum` to read 0 on a new file after its first table,
   and the structural check's rule on bytes 52 to 55 of the file header (the
-  auto-vacuum field) is the same pin on every drawn file. The fifteen rows of
-  auto-vacuum code in the table run in no draw under that pin, and the row of
-  line 77342 in none because a file that this build made does not reach it.
+  auto-vacuum field) is the same pin on every drawn file. The sixteen rows of
+  auto-vacuum code in the table (74665 among them) run in no draw under that
+  pin, and the row of line 77342 in none because a file that this build made
+  does not reach it; with the five rows that write into memory alone, 22 rows
+  read 0 in both columns.
 - Its controls fail by name: each statement taken out, secure delete off, and
   4 bytes of text planted in a gap of a copy of the file. The mutant rows
   rebuilt-page-gap-not-zeroed and edited-page-gap-not-zeroed take each
   statement out. A narrowing of the editPage statement to the bytes of line
   81461 is caught by the structural check alone: the byte search does not see
-  it in the draws. The tests page_gap::holes hold a control for each rule of
-  the search and the check that the draws do not reach: a checkpoint that
+  it in the draws. For each line that the structural check or a search can
+  print, a test of page_gap makes the fault in a copy or in a file and
+  requires that line, and a test fails when a line of rules.rs has no control
+  (`page_gap::lines::every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list`,
+  a closed list as the table below has). The parts of rules that have no
+  control: page 1 read as a b-tree page (every plant is on a later page), the
+  last 1 to 3 bytes of a range of words that is no multiple of 4, a cell whose
+  payload or rowid takes a varint of 9 bytes, bytes 0 to 3 of the last
+  overflow page of a chain and the bytes of the file past its last whole
+  page, which no rule reads, and the three walks that stop without a line of
+  their own (the trunks past the page count or seen twice, a chain that leaves
+  the file before its payload ends, a freeblock chain longer than the page),
+  whose pages the line of a page in no tree and the sum of the four kinds
+  then name. The tests page_gap::controls plant the four rules of a tree page
+  on an interior index page, an interior table page, an index leaf and a
+  table leaf with a byte of 0x01 and one of 0x80 (the last byte of a gap
+  among them), a low and a high byte in a freelist leaf and in the header,
+  the page count and the count plus 1 in a trunk and in a tail, a cell that
+  takes the overflow chain of another (a page of 2 chains and one of 0), a
+  leaf whose type byte is 0 on disk (dbstat reads it corrupted), a log with
+  frames, and a draw that frees a second freelist trunk, with plants in its
+  last leaf, past its count and in its first entry; `plants` holds a page
+  appended to the file, a b-tree page that a trunk names, a trunk that names
+  page 0, a page past the count and itself, and a leaf whose type byte is 0.
+  The rule on a log is one function that the three searches call, each with a
+  control, and the search of rewrites has a control of its structural check.
+  The tests page_gap::holes hold the controls of S-86 E5: a checkpoint that
   does not truncate (the log's own line), 4 bytes of text planted past the
   stale run of a gap with the store closed and with it open, a removed marker
   written after a close and one in a file of another name, a stored marker
@@ -166,8 +207,17 @@ in the draws of the tests", with the limits below.
   local payload that dbstat reads as such (a local part of 1,002 bytes, and a
   record of 1,003 bytes that spills). The secure-delete-off control requires
   that for at least one seed the first line is found after a single delete.
-- On a file that passes the database's integrity check, every result is as
-  with the pinned source. On a page that is malformed before the edit, the
+- In every draw of page_gap the rows that the test did not remove read back
+  equal to its model, by table and by index, and the integrity check passes,
+  keyless and under a key (`Run::model_and_integrity`, before and after each
+  close). Every result was held against the pinned source without the
+  statements on 64 drawn workloads at the stress step and at the gates; no
+  tracked test holds that. The reading against the model has no failing
+  control of its own: a mutant row that widened the editPage statement's
+  zeroing by 1, 2, 4 or 8 bytes ended the main test and the keyed test at
+  their first statement with "database disk image is malformed", before any
+  line of the model or of the integrity check, so no such row was kept
+  (ruling S-87 G2 K 4). On a page that is malformed before the edit, the
   results can differ: when the content-start field of a leaf lies above live
   cells, the editPage statement zeroes those cells on a delete, where the
   pinned source keeps them until a row of that page grows or is inserted, and

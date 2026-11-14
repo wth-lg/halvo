@@ -49,9 +49,9 @@ fn places(conn: &Connection, dir: &Path, removed: &BTreeSet<String>, when: &str)
     found
 }
 
-fn small_rows_with_single_deletes(seed: u64) -> Vec<String> {
-    let scratch = Scratch::new(seed, Mode::Plain);
-    let conn = connect(&scratch.db(), Mode::Plain);
+fn small_rows_with_single_deletes(seed: u64, mode: Mode) -> Vec<String> {
+    let scratch = Scratch::new(seed, mode);
+    let conn = connect(&scratch.db(), mode);
     conn.execute_batch("CREATE TABLE c(id INTEGER PRIMARY KEY, c0 TEXT NOT NULL);")
         .unwrap();
     let mut rng = Rng::new(seed);
@@ -159,7 +159,7 @@ fn small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place() {
     crate::initialize().unwrap();
     let found: Vec<String> = [1, 8]
         .into_iter()
-        .flat_map(small_rows_with_single_deletes)
+        .flat_map(|seed| small_rows_with_single_deletes(seed, Mode::Plain))
         .collect();
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
@@ -240,5 +240,16 @@ fn with_a_checkpoint_that_does_not_truncate_the_search_of_second_place_names_the
             .any(|line| line
                 .starts_with("after a passive checkpoint: the log page-gap.db-wal holds ")),
         "the search of second_place does not name a log that holds frames: {found:?}"
+    );
+}
+
+#[test]
+fn with_secure_delete_off_the_search_of_second_place_finds_a_removed_small_row() {
+    crate::initialize().unwrap();
+    let found = small_rows_with_single_deletes(1, Mode::Unsecured);
+    assert!(
+        found.iter().any(|line| line.contains(": the removed text ")
+            && line.contains(" stands in page-gap.db page ")),
+        "with secure delete off the search of second_place finds no removed small row: {found:?}"
     );
 }
