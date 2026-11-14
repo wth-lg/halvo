@@ -196,7 +196,7 @@ pub fn hold_row(seq: u32, event: &str, cause: &str, run_n: Option<u32>) -> Strin
 }
 
 /// A row `item_answered` of workflow 1 and agent 1 at noon of its day: the answer `reject_once` to effect `n` of the
-/// confirmation item 1 of run 1.
+/// confirmation item 1.
 pub fn confirm_answered(seq: u32, day: u32, n: u32) -> String {
     format!(
         r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{},"event":"item_answered","run":null,"slot":null,"item":"{}","kind":"confirm","effect":"{}","approval":"{}","digest":"{}","answer":"reject_once","cause":null,"trigger":null,"origin":null}}"#,

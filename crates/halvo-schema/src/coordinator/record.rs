@@ -227,7 +227,8 @@ pub enum Cleared {
 /// What the coordinator saw of the defers of a run whose whole life it saw, the keys `defer_launch` and
 /// `defer_ticks_failed` of `run_ended` (contracts.md I7.1, ruling RD-86 items 1 and 2): whether the defer of its own
 /// launch was acknowledged, and the count of the ticks at which the run stood on the board and no defer was
-/// acknowledged. Where the life did not see the run whole both keys are null, never `no` or 0.
+/// acknowledged. Where the life did not see the run whole the writer of U2.4f writes both keys null and never `no`
+/// or 0; that is its duty, and this reader takes `no` and 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Defers {
     pub launch: YesNo,
@@ -294,11 +295,11 @@ impl What {
 /// A record of the kind `coord_event` (contracts.md I7.1): `{"v":1,"workflow":..,"agent":..,"seq":..,"day":..,
 /// "at":..,"event":..,"run":..,"slot":..,"item":..,"kind":..,"effect":..,"approval":..,"digest":..,"answer":..,
 /// "cause":..,"trigger":..,"origin":..}`, every key always written, those that the event does not set as null.
-/// The reader also takes a row with the keys `defer_launch` and `defer_ticks_failed` after these, both of them or
-/// neither, null on every event but `run_ended` (contracts.md I7.1, ruling RD-86), so that it reads a row of a
-/// sender that writes them; the writer writes them only on a `run_ended` whose `defers` is set, and the registry's
-/// entry lists neither key yet, so the store's commit refuses such a row until the entry and the writers change
-/// together. `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
+/// The reader also takes a row with the keys `defer_launch` and `defer_ticks_failed`, both of them or neither, in
+/// any place among these, null on every event and set on `run_ended` alone (contracts.md I7.1, ruling RD-86), so
+/// that it reads a row of a sender that writes them; the writer writes them after `origin`, only on a `run_ended`
+/// whose `defers` is set, and the registry's entry lists neither key yet, so the store's commit refuses a row with
+/// their values until the entry and the writers change together. `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
 /// what a row holds: the registry's `check_record` takes free text under `origin` and free names for this kind, so
 /// a `coord_event` is committed only after `CoordEvent::parse` or `CoordLog::parse` has read it.
 #[derive(Clone, Debug, PartialEq, Eq)]

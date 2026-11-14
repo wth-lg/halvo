@@ -98,14 +98,16 @@ pub const NAMES: &[&str] = &[
     "no",
 ];
 
-/// The most records of one `coord_log` body, so that a confirmation of up to 20 effects is recorded in one body
-/// (ruling RD-73 7.1). It is never below `request_records` of `Limits::PRODUCT` of halvo-coord, because a reader
-/// that takes more serves an older sender and not the reverse (RD-73 7.2).
+/// The most records of one `coord_log` body: the schema and the store take a body of up to 20 records, the rows of
+/// a confirmation of up to 20 effects (ruling RD-73 7.1), while halvo-coord's `Limits::PRODUCT` stays at 8 records
+/// and 4,096 bytes until U2.4f raises it. It is never below `request_records` of `Limits::PRODUCT`, because a
+/// reader that takes more serves an older sender and not the reverse (RD-73 7.2).
 pub const REQUEST_RECORDS: usize = 20;
 
-/// The most bytes of one `coord_log` body as it arrives and as written, a quarter of the 65,536 bytes that the
-/// owner stream's reader takes for a whole frame (ruling RD-73 7.1). It is never below `request_bytes` of
-/// `Limits::PRODUCT` of halvo-coord (RD-73 7.2).
+/// The most bytes of one `coord_log` body as it arrives, a quarter of the 65,536 bytes that the owner stream's
+/// reader takes for a whole frame (ruling RD-73 7.1). It is never below `request_bytes` of `Limits::PRODUCT` of
+/// halvo-coord (RD-73 7.2). The writer holds the same bound, but no valid body of 20 records reaches it; it stays as
+/// a guard for a later row form, and no test reaches it.
 pub const REQUEST_BYTES: usize = 16_384;
 
 /// The most records of one reply of `coord_history`.
