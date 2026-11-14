@@ -2760,4 +2760,157 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(held, first.line() + "\n");
     }
+
+    /// CP-189 G2, adversary 1's A: a child of the first process is the browser's program at the
+    /// read that makes it a member; from 500 ms on the table gives the same number and creation
+    /// time with another program (an exec on macOS keeps both), with the run's own profile
+    /// argument, so that only its program differs. At the read of the ask it does not bear the
+    /// mark, so it is neither asked nor ended.
+    #[test]
+    fn g2_a_member_that_is_another_program_at_the_ask_is_neither_asked_nor_ended() {
+        let (_, _, ends, _) = run_timed(
+            executor(50),
+            10,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                if t < 500 {
+                    v.push(stranger(5, 1, 50, 5));
+                    v.push(row(20, ROOT, 8, ROOT));
+                } else if t < 20_000 {
+                    v.push(stranger(20, ROOT, 8, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(ends.iter().all(|e| e.0 != 20), "{ends:?}");
+    }
+
+    /// CP-189 G2, adversary 1's A2: the first process is another program at the guard's first read
+    /// and the browser's program with the run's profile from 100 ms on (a launcher's exec). At the
+    /// read of the ask it bears the mark, so it is asked, ended, and the port freed after it.
+    #[test]
+    fn g2_a_first_process_that_bears_the_mark_at_the_ask_is_asked_and_ended() {
+        let (code, _, ends, records) = run_timed(
+            executor(50),
+            10,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if t < 100 {
+                    v.push(stranger(ROOT, 1, 7, ROOT));
+                } else if t < 400_000 && forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                if t < 500 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(forced(&ends, ROOT).is_some(), "exit {code}: {ends:?}");
+        assert_eq!(code, 0);
+        let last = records.last().expect("a record");
+        assert_eq!(last.programs, vec!["b".to_string()], "{last:?}");
+    }
+
+    /// CP-189 G2, adversary 2's lens 1 case 1: the first process's program cannot be read at every
+    /// read from 2 s on, and the ask comes at about 4 s; a process whose program cannot be read at
+    /// the read of the ask is neither asked nor ended.
+    #[test]
+    fn g2_a_first_process_whose_program_is_unread_at_the_ask_is_not_asked() {
+        let (_, _, ends, _) = run_timed(
+            executor(50),
+            100,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if forced(ends, ROOT).is_none() && t < 400_000 {
+                    let mut r = row(ROOT, 1, 7, ROOT);
+                    if t >= 2_000 {
+                        r.exe = None;
+                    }
+                    v.push(r);
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(ends.iter().all(|e| e.0 != ROOT), "{ends:?}");
+    }
+
+    /// CP-189 G2, adversary 2's lens 1 case 2: a member asked at about 4 s, when it bore the mark,
+    /// runs another program outside the bundle from 5 s on with the same number and creation time;
+    /// at the forced end it does not bear the mark and is not ended.
+    #[test]
+    fn g2_a_member_that_runs_another_program_at_the_forced_end_is_not_forced() {
+        let (_, _, ends, _) = run_timed(
+            executor(50),
+            100,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                if forced(ends, 20).is_none() && t < 400_000 {
+                    let mut c = row(20, ROOT, 10, ROOT);
+                    if t >= 5_000 {
+                        c.exe = Some(std::path::PathBuf::from("/usr/local/bin/foo"));
+                    }
+                    v.push(c);
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(
+            ends.iter().any(|e| e.0 == 20 && !e.1 && e.2 < 5_000),
+            "asked while it bore the mark: {ends:?}"
+        );
+        assert!(
+            ends.iter().all(|e| !(e.0 == 20 && e.2 >= 5_000)),
+            "{ends:?}"
+        );
+    }
+
+    /// CP-189 G2, the review's guard/01: process 101, a child of the first process, is the
+    /// browser's program until 1,000 ms and /bin/sh from then on, with its arguments still naming
+    /// the profile; at the read of the ask it does not bear the mark and is never passed to the end.
+    #[test]
+    fn g2_a_member_whose_program_at_the_ask_lies_outside_the_bundle_is_not_asked() {
+        let (_, _, ends, _) = run_timed(
+            executor(50),
+            100,
+            &|t, ends| {
+                if t > 400_000 {
+                    return Some(Vec::new());
+                }
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                if forced(ends, 101).is_none() {
+                    let mut c = row(101, ROOT, 20, ROOT);
+                    if t >= 1_000 {
+                        c.exe = Some(std::path::PathBuf::from("/bin/sh"));
+                    }
+                    v.push(c);
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(ends.iter().all(|e| e.0 != 101), "{ends:?}");
+    }
 }
