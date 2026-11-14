@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 637933 and 61728 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of twelve controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of twelve controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -10,7 +10,7 @@ label=$name
 self_path=scripts/r3/ci.d/30-r3-formal.sh
 workers=3
 invariants='P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11'
-reach_want=637933+61728
+reach_want=1732182+70129
 seed_want=20261113
 count_want=400
 fetch_tries=2
@@ -386,10 +386,10 @@ block() {
     P9:1new) printf '%s\n' '  /\ Plain(e, Bare("commit"))' ;;
     P10:1old) printf '%s\n' 'Lose(e) ==' '  /\ alive = "no"' ;;
     P10:1new) printf '%s\n' 'Lose(e) ==' ;;
-    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire, seen>>' ;;
+    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire>>' ;;
     P11:1new)
       printf '%s\n' "  /\\ eff' = [e \\in Effects |-> IF eff[e].st = \"releasing\" THEN [eff[e] EXCEPT !.st = IF eff[e].apr \\in Approvals THEN \"approved\" ELSE \"cleared\"] ELSE eff[e]]" \
-        '  /\ UNCHANGED <<cfg, val, given, wire, seen>>'
+        '  /\ UNCHANGED <<cfg, val, given, wire>>'
       ;;
     P10-live:1old) printf '%s\n' '  /\ alive = "yes"' '  /\ mem[e] = "begun"' '  /\ Len(wire[e]) < 2' ;;
     P10-live:1new) printf '%s\n' '  /\ mem[e] = "begun"' '  /\ (alive = "yes" \/ eff[e].st = "releasing")' '  /\ Len(wire[e]) < 2' ;;
@@ -501,29 +501,29 @@ case $names in
     violation "$one"
     ;;
 esac
-distinct=61728
-grep -q 'Effects = {e1, e2}' "$cfg" && distinct=637933
+distinct=70129
+grep -q 'Effects = {e1, e2}' "$cfg" && distinct=1732182
 case $mode:$distinct in
-  rebinds-violated:61728) violation P3 ;;
-  rebinds-status:61728)
+  rebinds-violated:70129) violation P3 ;;
+  rebinds-status:70129)
     printf 'Model checking completed. No error has been found.\n'
-    printf '1 states generated, 61728 distinct states found, 0 states left on queue.\n'
+    printf '1 states generated, 70129 distinct states found, 0 states left on queue.\n'
     exit 1
     ;;
-  rebinds-incomplete:61728)
+  rebinds-incomplete:70129)
     printf '1 states generated, 1 distinct states found, 0 states left on queue.\n'
     exit 0
     ;;
-  rebinds-silent:61728)
+  rebinds-silent:70129)
     printf 'Error: Invariant P3 is violated.\nModel checking completed. No error has been found.\n'
-    printf '1 states generated, 61728 distinct states found, 0 states left on queue.\n'
+    printf '1 states generated, 70129 distinct states found, 0 states left on queue.\n'
     exit 0
     ;;
-  confirm-no-states:637933)
+  confirm-no-states:1732182)
     printf 'Model checking completed. No error has been found.\n'
     exit 0
     ;;
-  reach:61728) distinct=61727 ;;
+  reach:70129) distinct=70128 ;;
 esac
 printf 'Model checking completed. No error has been found.\n'
 printf '%s states generated, %s distinct states found, 0 states left on queue.\n' "$distinct" "$distinct"

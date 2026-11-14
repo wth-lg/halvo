@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use halvo_schema::executable::{ActionClass, Digest, EffectId, EffectState};
 use serde_json::Value;
 
+use crate::not_made::{followed, NotMadeCause};
 use crate::{effect_step, Decided, Decision, Effect, EffectMove};
 
-const MOVE_KEYS: [&str; 10] = [
+const MOVE_KEYS: [&str; 11] = [
     "class",
     "move",
     "decision",
@@ -14,6 +15,7 @@ const MOVE_KEYS: [&str; 10] = [
     "digest",
     "bound_class",
     "used",
+    "cause",
     "answer",
     "state",
     "bound",
@@ -23,6 +25,12 @@ const MODEL_LIMIT: u32 = 2;
 
 const MOVES: [&str; 8] = [
     "propose", "rebind", "approve", "reject", "end", "begin", "commit", "lose",
+];
+
+const NOT_MADE: &str = "not_made";
+
+const KINDS: [&str; 9] = [
+    "propose", "rebind", "approve", "reject", "end", "begin", "commit", "lose", NOT_MADE,
 ];
 
 const STATES: [EffectState; 8] = [
@@ -166,6 +174,13 @@ fn decision(name: &str) -> Decision {
     }
 }
 
+fn cause(name: &str) -> NotMadeCause {
+    match NotMadeCause::parse(name) {
+        Some(c) => c,
+        None => panic!("cause {name}"),
+    }
+}
+
 struct Step {
     kind: &'static str,
     class: ActionClass,
@@ -174,8 +189,10 @@ struct Step {
     digest: Option<usize>,
     bound_class: Option<ActionClass>,
     used: Option<bool>,
+    cause: Option<NotMadeCause>,
     ok: bool,
     state: Option<EffectState>,
+    not_made: bool,
     bound: usize,
 }
 
@@ -214,9 +231,10 @@ fn parsed(traces: &[Value]) -> Vec<Trace> {
                 .iter()
                 .map(|m| {
                     let name = text(m, "move");
-                    let Some(kind) = MOVES.iter().copied().find(|k| *k == name) else {
+                    let Some(kind) = KINDS.iter().copied().find(|k| *k == name) else {
                         panic!("move {name}");
                     };
+                    let reached = opt(m, "state");
                     Step {
                         kind,
                         class: class(text(m, "class")),
@@ -225,8 +243,10 @@ fn parsed(traces: &[Value]) -> Vec<Trace> {
                         digest: opt(m, "digest").map(index),
                         bound_class: opt(m, "bound_class").map(class),
                         used: opt(m, "used").map(used),
+                        cause: opt(m, "cause").map(cause),
                         ok: text(m, "answer") == "ok",
-                        state: opt(m, "state").map(state),
+                        state: reached.filter(|s| *s != NOT_MADE).map(state),
+                        not_made: reached == Some(NOT_MADE),
                         bound: index(text(m, "bound")),
                     }
                 })
@@ -299,13 +319,36 @@ fn alike(m: &Step, rebinds: u32) -> Vec<(Option<ActionClass>, u32)> {
     out
 }
 
-fn keys_of(m: &str) -> [bool; 5] {
+fn not_made_row(m: &Step, now: Option<EffectState>, gone: bool) -> Option<String> {
+    let takes = m.kind == NOT_MADE
+        && !gone
+        && now == Some(EffectState::Releasing)
+        && m.cause.is_some_and(|c| c.fits(m.class));
+    let (state, not_made) = if takes || gone {
+        (None, true)
+    } else {
+        (now, false)
+    };
+    if m.ok == takes && m.state == state && m.not_made == not_made {
+        return None;
+    }
+    Some(format!(
+        "the model {} to {:?} (not_made {}), the row of A5.2 {} to {state:?} (not_made {not_made})",
+        if m.ok { "accepts" } else { "refuses" },
+        m.state,
+        m.not_made,
+        if takes { "accepts" } else { "refuses" },
+    ))
+}
+
+fn keys_of(m: &str) -> [bool; 6] {
     [
         m == "propose",
         m == "approve",
         matches!(m, "rebind" | "approve" | "begin"),
         m == "rebind",
         m == "approve",
+        m == NOT_MADE,
     ]
 }
 
@@ -373,15 +416,22 @@ fn the_committed_traces_have_the_form_that_the_model_writes() {
         );
         for (i, m) in moves.iter().enumerate() {
             let kind = text(m, "move");
-            assert!(MOVES.contains(&kind), "move {kind} in trace {n:?}");
+            assert!(KINDS.contains(&kind), "move {kind} in trace {n:?}");
             assert_eq!(
                 m.get("class"),
                 first.get("class"),
                 "the class of trace {n:?} changes"
             );
-            for (key, held) in ["decision", "entry", "digest", "bound_class", "used"]
-                .iter()
-                .zip(keys_of(kind))
+            for (key, held) in [
+                "decision",
+                "entry",
+                "digest",
+                "bound_class",
+                "used",
+                "cause",
+            ]
+            .iter()
+            .zip(keys_of(kind))
             {
                 assert_eq!(
                     opt(m, key).is_some(),
@@ -451,9 +501,23 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
             let mut now: Option<EffectState> = None;
             let mut bound = trace.bound;
             let mut rebinds = 0u32;
+            let mut gone = false;
             for (i, m) in trace.steps.iter().enumerate() {
                 moves += 1;
                 let kind = m.kind;
+                if !followed(kind, gone) {
+                    if let Some(why) = not_made_row(m, now, gone) {
+                        differ.push(format!("trace {n} move {} {kind}: {why}", i + 1));
+                    }
+                    if bound != m.bound {
+                        differ.push(format!(
+                            "trace {n} move {} {kind}: the digest after the move differs",
+                            i + 1
+                        ));
+                    }
+                    gone = gone || (kind == NOT_MADE && m.ok);
+                    continue;
+                }
                 let effect = now.map(|s| Effect {
                     id: id.clone(),
                     state: s,
@@ -544,4 +608,83 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
         assert!(higher_counts > 0, "no move at the limit of rebinds");
         assert!(lower_counts > 0, "no move below the limit of rebinds");
     }
+}
+
+fn before(steps: &[Step], i: usize) -> (Option<EffectState>, bool) {
+    match i.checked_sub(1).map(|j| &steps[j]) {
+        Some(m) => (m.state, m.not_made),
+        None => (None, false),
+    }
+}
+
+#[test]
+fn the_traces_hold_a_trace_for_each_cause_and_one_in_which_the_end_of_a_run_never_makes_not_made() {
+    let (_, raw) = traces();
+    let traces = parsed(&raw);
+    for c in NotMadeCause::ALL {
+        let made = traces.iter().any(|t| {
+            t.steps.iter().enumerate().any(|(i, m)| {
+                m.kind == NOT_MADE
+                    && m.cause == Some(c)
+                    && m.ok
+                    && m.not_made
+                    && before(&t.steps, i) == (Some(EffectState::Releasing), false)
+                    && i + 1 < t.steps.len()
+                    && t.steps[i + 1..]
+                        .iter()
+                        .all(|later| !later.ok && later.not_made && later.state.is_none())
+            })
+        });
+        assert!(
+            made,
+            "no trace makes not_made with the cause {} from releasing and then refuses every later move",
+            c.as_str()
+        );
+        let refused = traces.iter().any(|t| {
+            t.steps.iter().enumerate().any(|(i, m)| {
+                m.kind == NOT_MADE
+                    && m.cause == Some(c)
+                    && !m.ok
+                    && !c.fits(m.class)
+                    && before(&t.steps, i) == (Some(EffectState::Releasing), false)
+                    && m.state == Some(EffectState::Releasing)
+            })
+        });
+        assert!(
+            refused,
+            "no trace refuses not_made with the cause {} from releasing for a class that it does not fit",
+            c.as_str()
+        );
+    }
+    let ended = traces.iter().any(|t| {
+        let s = &t.steps;
+        let end = s.iter().enumerate().position(|(i, m)| {
+            m.kind == "end"
+                && !m.ok
+                && before(s, i) == (Some(EffectState::Releasing), false)
+                && m.state == Some(EffectState::Releasing)
+        });
+        let lose = s.iter().enumerate().position(|(i, m)| {
+            m.kind == "lose"
+                && m.ok
+                && before(s, i) == (Some(EffectState::Releasing), false)
+                && m.state == Some(EffectState::Unknown)
+        });
+        match (end, lose) {
+            (Some(e), Some(l)) if e < l => NotMadeCause::ALL.iter().all(|c| {
+                s[l + 1..].iter().any(|m| {
+                    m.kind == NOT_MADE
+                        && m.cause == Some(*c)
+                        && !m.ok
+                        && !m.not_made
+                        && m.state == Some(EffectState::Unknown)
+                })
+            }),
+            _ => false,
+        }
+    });
+    assert!(
+        ended,
+        "no trace in which end is refused and lose is taken from releasing, and then not_made with each cause is refused"
+    );
 }

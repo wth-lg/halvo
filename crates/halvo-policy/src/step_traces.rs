@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use halvo_schema::executable::{ActionClass, Digest, EffectId, EffectState};
 use serde_json::Value;
 
+use crate::not_made::followed;
 use crate::{effect_step, Decided, Decision, Effect, EffectMove, StepCause};
 
 fn traces() -> String {
@@ -140,8 +141,13 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
         let Some(steps) = trace.get("moves").and_then(Value::as_array) else {
             panic!("trace {n} has no moves");
         };
+        let mut gone = false;
         for (i, m) in steps.iter().enumerate() {
             moves += 1;
+            if !followed(text(m, "move"), gone) {
+                gone = gone || (text(m, "move") == "not_made" && text(m, "answer") == "ok");
+                continue;
+            }
             let effect_class = class(text(m, "class"));
             let mv = step_move(m, effect_class);
             let effect = now.map(|s| Effect {
