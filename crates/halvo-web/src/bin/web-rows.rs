@@ -450,12 +450,21 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     member_reads += usize::from(member_line(machine, &kind, "end", &root, &mark, &mut watch));
     drop(kept);
     relay.stop();
-    let fine = start && session && end && control && stopped.removed;
+    // CP-189 G7: a row that did not print its three member lines reads as not run, never as ok.
+    let read_all = member_reads == 3;
+    let fine = read_all && start && session && end && control && stopped.removed;
     println!("row checks machine={machine} browser={kind} member_reads={member_reads} of=3");
     println!(
-        "row checks machine={machine} browser={kind} removed={} result={}",
+        "row checks machine={machine} browser={kind} removed={} result={}{}",
         if stopped.removed { "yes" } else { "no" },
-        if fine { "ok" } else { "miss" }
+        if fine {
+            "ok"
+        } else if read_all {
+            "miss"
+        } else {
+            "notrun"
+        },
+        if read_all { "" } else { " cause=member_reads" }
     );
     let _ = std::fs::remove_dir(&dir);
     (usize::from(fine), 1)

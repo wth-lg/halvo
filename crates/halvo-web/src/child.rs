@@ -26,6 +26,48 @@ pub fn pipe_child() -> (PathBuf, Vec<std::ffi::OsString>) {
     }
 }
 
+/// The arguments that run this test binary as the entry `entry` alone, with `extra` after `--`,
+/// where the harness takes them as filters that name no test.
+pub fn entry_args(entry: &str, extra: &[String]) -> Vec<std::ffi::OsString> {
+    let mut v: Vec<std::ffi::OsString> = ["--exact", "--test-threads=1", "--quiet", entry, "--"]
+        .iter()
+        .map(|a| a.into())
+        .collect();
+    v.extend(extra.iter().map(|a| a.into()));
+    v
+}
+
+/// A stand-in browser of the fenced test of CP-189 G7: with `--hold-parent` it starts this test
+/// binary as `hold_child_entry`, a child that names no profile, and runs for up to 60 s; in a run
+/// of the tests it returns at once.
+#[test]
+fn hold_parent_entry() {
+    use crate::start::Start;
+    if !std::env::args().any(|a| a == "--hold-parent") {
+        return;
+    }
+    let me = std::env::current_exe().unwrap();
+    let _child = std::process::Command::new(&me)
+        .args(entry_args(
+            "child::hold_child_entry",
+            &["--hold-child".to_string()],
+        ))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .start();
+    std::thread::sleep(std::time::Duration::from_secs(60));
+}
+
+/// The child of `hold_parent_entry`, and the stand-in executor of the same test: with
+/// `--hold-child` it runs for up to 60 s; in a run of the tests it returns at once.
+#[test]
+fn hold_child_entry() {
+    if std::env::args().any(|a| a == "--hold-child") {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+    }
+}
+
 /// The child of `pipe_child` on Windows: with the start's pipe argument it holds the pipe's ends
 /// for up to 10 s; in a run of the tests, with no such argument, it returns at once.
 #[test]
