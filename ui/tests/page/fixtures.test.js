@@ -9,20 +9,21 @@ const rowsOf = (page) =>
 
 test("the running status fixture renders the heading, the toggle, the totals and the window", async () => {
   const page = await openPage({ replies: { capture_status: () => fixture("capture_status-running") } });
-  assert.equal(page.text("state"), "capturing");
+  assert.equal(page.text("state"), "Halvo is capturing");
   assert.equal(page.byId("dot").classList.contains("on"), true);
   assert.equal(page.text("toggle"), "Pause");
   assert.equal(page.byId("toggle").disabled, false);
-  assert.equal(page.text("total"), "370 B");
+  assert.equal(page.text("total"), "1.0 MB");
+  assert.equal(page.text("logical"), "512 KB");
   assert.equal(page.text("cap"), "25 GB");
   assert.match(page.text("window-text"), /the last 14 days/);
-  assert.match(page.text("window-text"), /after day 7\./);
-  assert.equal(page.text("backend"), `(${fixture("capture_status-running").store_backend})`);
+  assert.doesNotMatch(page.document.body.textContent, /report/);
+  assert.equal(page.document.body.textContent.includes("store_backend"), false);
 });
 
 test("the paused status fixture renders paused and Resume", async () => {
   const page = await openPage({ replies: { capture_status: () => fixture("capture_status-paused") } });
-  assert.equal(page.text("state"), "paused");
+  assert.equal(page.text("state"), "Halvo is paused");
   assert.equal(page.byId("dot").classList.contains("on"), false);
   assert.equal(page.text("toggle"), "Resume");
 });
@@ -32,7 +33,7 @@ test("two rows on one day render in the order of the reply", async () => {
   assert.equal(page.visible("empty"), false);
   assert.equal(page.visible("inventory"), true);
   assert.deepEqual(rowsOf(page), [
-    ["2026-11-08", "Screen", "3", "300 B"],
+    ["2026-11-08", "Screen activity", "3", "300 B"],
     ["2026-11-08", "Typing", "7", "70 B"],
   ]);
 });
@@ -113,7 +114,8 @@ test("the toggle sends the argument object of calls.json and renders the reply",
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0].args, { capture: "paused" });
   assert.ok(argsOf("set_capture_state").every((keys) => keys.join() === Object.keys(sent[0].args).sort().join()));
-  assert.equal(page.text("state"), "paused");
+  assert.equal(page.text("state"), "Halvo is paused");
+  assert.equal(page.text("error"), "");
 });
 
 test("Save sends the cap in bytes under the key of calls.json and renders the reply", async () => {
@@ -127,7 +129,7 @@ test("Save sends the cap in bytes under the key of calls.json and renders the re
   assert.equal(page.text("cap"), "10 GB");
 });
 
-test("a cap that the app refuses shows the error text of its fixture", async () => {
+test("a cap that the app refuses shows the page's words for the error of its fixture, in GB", async () => {
   const page = await openPage({
     replies: {
       set_storage_cap: () => {
@@ -138,7 +140,7 @@ test("a cap that the app refuses shows the error text of its fixture", async () 
   page.byId("cap-gb").value = "5";
   await page.click("save-cap");
   assert.deepEqual(page.calls("set_storage_cap").map((c) => c.args), [{ capBytes: 5 * 1024 * 1024 * 1024 }]);
-  assert.equal(page.text("error"), fixture("set_storage_cap-zero-error"));
+  assert.equal(page.text("error"), "The cap must be from 1 GB to 1024 GB.");
 });
 
 test("the permission steps send the argument object of calls.json", async () => {
@@ -161,17 +163,18 @@ test("the permission steps send the argument object of calls.json", async () => 
 
 test("calls.json names a fixture that exists for every reply and error", () => {
   for (const call of calls()) {
-    for (const name of [call.reply, call.error, call.reply_off_macos].filter(Boolean)) {
+    for (const name of [call.reply, call.error].filter(Boolean)) {
       assert.doesNotThrow(() => fixture(name), `${name}.json`);
     }
   }
 });
 
-test("Delete everything, once confirmed, sends delete_all and renders the report of its fixture", async () => {
+test("Delete everything, once confirmed, sends the id of the status under the key of calls.json and says that nothing is left", async () => {
   const page = await openPage({ replies: { delete_all: () => fixture("delete_all-deleted") } });
   await page.click("delete");
   await page.clock.advance(600);
   await page.press("confirm-delete");
-  assert.equal(page.calls("delete_all").length, 1);
-  assert.equal(page.text("delete-result"), "Deleted. 2 segments shredded, 2 keys destroyed.");
+  assert.deepEqual(page.calls("delete_all").map((c) => c.args), [{ storeId: fixture("capture_status-running").store.id }]);
+  assert.ok(argsOf("delete_all").every((keys) => keys.join() === "storeId"));
+  assert.equal(page.text("delete-result"), "Deleted. Nothing that Halvo recorded can be read again, and nothing is left.");
 });

@@ -73,7 +73,7 @@ function defaultReplies() {
   };
 }
 
-async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
+async function openPage({ dir = APP, replies = {}, globalTauri = false, timezoneOffset } = {}) {
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);
   const clock = new Clock();
@@ -104,6 +104,9 @@ async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
   context.window = context;
   context.self = context;
   vm.createContext(context);
+  if (timezoneOffset !== undefined) {
+    vm.runInContext(`(function () { var D = Date; globalThis.Date = class extends D { getTimezoneOffset() { return ${Number(timezoneOffset)}; } }; })()`, context);
+  }
   const loaded = [];
   for (const script of scripts) {
     const src = script.getAttribute("src");
