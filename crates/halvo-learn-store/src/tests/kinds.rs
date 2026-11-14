@@ -280,6 +280,8 @@ fn a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run() {
     w.start(10, "replay");
     w.start(11, "replay");
     w.load(11);
+    w.start(12, "replay");
+    w.load(12);
     w.host.put_raw("learn_run", &refused_run(1));
     let runs = rows_of(&w, "learn_run", 1);
     w.load(10);
@@ -291,7 +293,10 @@ fn a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run() {
     assert!(!w.handlers.facts.contains_key(&id));
     w.log(11, &[(1, "step_ok", 2, None)]);
     assert_eq!(w.finish(11, "replay", "completed"), Ok(stored(1)));
+    w.log(12, &[(1, "step_ok", 2, None)]);
+    assert_eq!(w.finish(12, "replay", "completed"), Ok(stored(1)));
     assert_eq!(rows_of(&w, "learn_run", 1), runs);
+    assert!(w.handlers.faults.is_empty(), "a stopped read is no fault");
 }
 
 #[test]
