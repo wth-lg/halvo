@@ -27,7 +27,7 @@ const run = q.get('run') || '0';
 const plain = document.getElementById('plain');
 const password = document.getElementById('password');
 const button = document.getElementById('show');
-const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0 };
+const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0, seq: '', lt: [], base: Date.now(), ev: -1 };
 let armed = false;
 let timers = [];
 const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end) {} };
@@ -41,12 +41,19 @@ function show() {
     ' tp=' + c.tp + ' tt=' + c.tt + ' downs=' + c.downs + ' round=' + c.round +
     ' focus=' + where() + ' ptype=' + plain.type +
     ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) +
-    ' tx=' + Math.round(left + t.left + t.width / 2) + ' ty=' + Math.round(top + t.top + t.height / 2) + ' end';
+    ' tx=' + Math.round(left + t.left + t.width / 2) + ' ty=' + Math.round(top + t.top + t.height / 2) +
+    ' seq=' + (c.seq || '-') + ' lt=' + (c.lt.length ? c.lt.join(',') : '-') + ' ev=' + c.ev + ' end';
 }
 const later = (ms, f) => timers.push(setTimeout(() => { f(); show(); }, ms));
-const swap = () => { busy(hold); plain.type = 'password'; busy(hold); };
+const freed = () => { c.ev = Date.now() - c.base; };
+const swap = () => { busy(hold); plain.type = 'password'; busy(hold); freed(); };
 for (const el of [plain, password]) {
-  el.addEventListener('input', () => { if (el.type === 'password') c.password++; else c.text++; show(); });
+  el.addEventListener('input', () => {
+    if (el.type === 'password') c.password++; else c.text++;
+    c.seq += el.type === 'password' ? 'p' : 't';
+    c.lt.push(Date.now() - c.base);
+    show();
+  });
   el.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { if (el.type === 'password') c.tp++; else c.tt++; show(); }
   });
@@ -68,6 +75,7 @@ function reset() {
   plain.type = 'text'; password.type = 'password'; plain.value = ''; password.value = '';
   password.tabIndex = phase === 'tab-after' ? -1 : 0;
   c.text = 0; c.password = 0; c.tp = 0; c.tt = 0; c.downs = 0; c.round++;
+  c.seq = ''; c.lt = []; c.base = Date.now(); c.ev = -1;
   // The burst's swap is armed 1 s after the reset, so that the control's
   // letters before it go into the text input (W3-10 T5).
   armed = phase !== 'burst';
@@ -77,7 +85,7 @@ function reset() {
   // The burst's page moves its own focus there and back, so that the gate's
   // newest mark is a focus event of this page and not a stale event of the
   // window that lost the front (W3-10 T5; run w39-2).
-  else if (phase === 'burst') { button.focus(); later(150, () => plain.focus()); }
+  else if (phase === 'burst' || phase === 'control') { button.focus(); later(150, () => plain.focus()); }
   else plain.focus();
   if (phase === 'swap-timer' || phase === 'tab-after') later(400, () => { armed = false; swap(); });
   if (phase === 'show-hide') { later(300, () => { password.type = 'text'; }); later(1300, () => { password.type = 'password'; }); }
@@ -86,7 +94,7 @@ function reset() {
     later(600, () => password.focus());
     later(1300, () => { password.type = 'password'; });
   }
-  if (phase === 'self') later(600, () => { busy(hold); password.focus(); });
+  if (phase === 'self') later(600, () => { busy(hold); password.focus(); freed(); });
   show();
 }
 document.addEventListener('focusin', () => show());
@@ -112,6 +120,9 @@ struct PageRead {
     py: i64,
     tx: i64,
     ty: i64,
+    landings: String,
+    landed_at: Vec<i64>,
+    freed_at: i64,
 }
 
 fn page_read(hwnd: HWND) -> Option<PageRead> {
@@ -133,10 +144,17 @@ fn page_read(hwnd: HWND) -> Option<PageRead> {
         py: number("py")?,
         tx: number("tx")?,
         ty: number("ty")?,
+        landings: field("seq").map(|seq| if seq == "-" { String::new() } else { seq })?,
+        landed_at: field("lt").map(|list| {
+            list.split(',')
+                .filter_map(|at| at.parse::<i64>().ok())
+                .collect()
+        })?,
+        freed_at: number("ev")?,
     })
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct Decisions {
     letters: usize,
     letters_decided: usize,
@@ -144,6 +162,7 @@ struct Decisions {
     other: usize,
     first_tab_rule: Option<seam::Rule>,
     first_letter_rule: Option<seam::Rule>,
+    letters_in_order: Vec<bool>,
 }
 
 fn decisions() -> Decisions {
@@ -161,6 +180,7 @@ fn decisions_of(keys: &[seam::Decided]) -> Decisions {
                     d.first_letter_rule = key.rule;
                 }
                 d.letters += usize::from(recorded);
+                d.letters_in_order.push(recorded);
             }
             seam::KeyClass::Tab => {
                 if d.first_tab_rule.is_none() {
@@ -554,18 +574,78 @@ struct Round {
     sent: i64,
     page: PageRead,
     keys: Decisions,
+    sink: usize,
+    why: Vec<&'static str>,
 }
 
+const LANDED_WHILE_HELD_MS: i64 = 100;
+
 impl Round {
+    fn by_key(&self) -> Option<Vec<(bool, u8, Option<i64>)>> {
+        let landings = self.page.landings.as_bytes();
+        (self.keys.letters_in_order.len() == landings.len()).then(|| {
+            self.keys
+                .letters_in_order
+                .iter()
+                .zip(landings)
+                .enumerate()
+                .map(|(i, (recorded, landing))| {
+                    (*recorded, *landing, self.page.landed_at.get(i).copied())
+                })
+                .collect()
+        })
+    }
+
     fn password_letters_recorded(&self) -> i64 {
-        (self.keys.letters as i64 - self.page.text).max(0)
+        match self.by_key() {
+            Some(keys) => keys
+                .iter()
+                .filter(|(recorded, landing, _)| *recorded && *landing == b'p')
+                .count() as i64,
+            None if self.page.password > 0 || self.page.landings.contains('p') => {
+                self.keys.letters as i64
+            }
+            None => 0,
+        }
+    }
+
+    fn password_letters_recorded_while_the_page_was_held(&self) -> i64 {
+        let Some(keys) = self.by_key() else {
+            return 0;
+        };
+        if self.page.freed_at < 0 {
+            return 0;
+        }
+        keys.iter()
+            .filter(|(recorded, landing, at)| {
+                *recorded
+                    && *landing == b'p'
+                    && at.is_some_and(|at| at <= self.page.freed_at + LANDED_WHILE_HELD_MS)
+            })
+            .count() as i64
+    }
+
+    fn sink_differs(&self) -> bool {
+        self.sink != self.keys.letters + self.keys.tabs + self.keys.other
+    }
+
+    fn uncounted_because(&self) -> String {
+        if self.counted {
+            "none".to_string()
+        } else if self.why.is_empty() {
+            "the_page_counts".to_string()
+        } else {
+            self.why.join(",")
+        }
     }
 
     fn line(&self) -> String {
         format!(
             "counted={} letters_sent={} landed_text={} landed_password={} tabs_into_password={} \
              tabs_into_text={} button_downs={} focus_after={} letters_decided={} letters_recorded={} \
-             tabs_recorded={} other_recorded={} first_letter_rule={:?} first_tab_rule={:?}",
+             tabs_recorded={} other_recorded={} first_letter_rule={:?} first_tab_rule={:?} \
+             keystroke_events={} sink_differs_from_the_seam={} landings={} landed_at_ms={} freed_at_ms={} \
+             password_letters_recorded_by_key={} uncounted_because={}",
             u8::from(self.counted),
             self.sent,
             self.page.text,
@@ -580,12 +660,64 @@ impl Round {
             self.keys.other,
             self.keys.first_letter_rule,
             self.keys.first_tab_rule,
+            self.sink,
+            u8::from(self.sink_differs()),
+            if self.page.landings.is_empty() {
+                "-"
+            } else {
+                &self.page.landings
+            },
+            self.page
+                .landed_at
+                .iter()
+                .map(i64::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+            self.page.freed_at,
+            self.password_letters_recorded(),
+            self.uncounted_because(),
         )
     }
 }
 
+fn not_in_front(front: bool) -> Option<&'static str> {
+    (!front).then_some("own_window_not_in_front")
+}
+
+fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, which: &str) -> usize {
+    let Some(hwnd) = browser.open(test, "control", 0) else {
+        say(
+            test,
+            format!("browser={} control={which} page=none", browser.name),
+        );
+        return 0;
+    };
+    let start = reset(keyboard, hwnd).unwrap_or_default();
+    let front = foreground_window() == hwnd;
+    let sent = i64::from(type_letters_slowly(5) / 2);
+    let r = end_round(keyboard, hwnd, sent, front);
+    say(
+        test,
+        format!(
+            "browser={} control={which} foreground={front} focus_at_the_reset={} {}",
+            browser.name,
+            start.focus,
+            r.line()
+        ),
+    );
+    assert!(
+        front && start.focus == "plain" && sent == 5 && r.page.text == 5,
+        "INCONCLUSIVE: the control's page was not in front or did not take its 5 letters"
+    );
+    assert!(
+        !r.sink_differs(),
+        "the control's sink held another number of keystroke events than the seam recorded"
+    );
+    r.sink
+}
+
 fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -> Round {
-    keyboard.settle(Duration::from_millis(800));
+    let sink = keyboard.keystrokes_for(Duration::from_millis(800));
     let keys = decisions();
     let page = page_read(hwnd).unwrap_or_default();
     Round {
@@ -593,6 +725,8 @@ fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -
         sent,
         page,
         keys,
+        sink,
+        why: Vec::new(),
     }
 }
 
@@ -657,6 +791,10 @@ fn stall_rounds(
             }
         };
         let mut r = end_round(keyboard, hwnd, sent, ready);
+        r.why.extend(not_in_front(front));
+        if start.focus != "plain" {
+            r.why.push("not_on_the_text_input_at_the_reset");
+        }
         r.counted = ready
             && match kind {
                 StallKind::Tab => r.page.text == 0 && r.page.password == sent,
@@ -683,8 +821,9 @@ fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usi
     let failing = rounds
         .iter()
         .filter(|r| {
-            (r.counted && (r.keys.letters > 0 || r.keys.other > 0))
+            (r.counted && (r.keys.letters > 0 || r.keys.other > 0 || r.sink > r.keys.tabs))
                 || r.password_letters_recorded() > 0
+                || r.sink_differs()
         })
         .count();
     say(
@@ -696,7 +835,8 @@ fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usi
     );
     assert_eq!(
         failing, 0,
-        "{phase}: a letter of the password input, or an event of another class, was recorded"
+        "{phase}: a letter of the password input, or an event of another class, was recorded, \
+         or the sink held another number of keystroke events than the seam recorded"
     );
     assert!(
         counted >= wanted,
@@ -732,6 +872,7 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
         let mut browser = open_browser(test, name);
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let before = page_control(test, &mut browser, &keyboard, "before");
         let mut all = Vec::new();
         for kind in [StallKind::Tab, StallKind::Click] {
             for hold in [150, 300] {
@@ -739,11 +880,16 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
                 all.push((format!("{kind:?}-{hold}"), rounds));
             }
         }
+        let after = page_control(test, &mut browser, &keyboard, "after");
         let late = keyboard.source.health().counters.late_events;
         let stopped = keyboard.stop();
         say(
             test,
             format!("keyboard_stop={} late_value={late}", show(&stopped)),
+        );
+        assert!(
+            before == 5 && after == 5,
+            "a control recorded fewer than 5 letters of the text input: control_before={before} control_after={after}"
         );
         for (phase, rounds) in &all {
             assert_stall(test, phase, rounds, 3);
@@ -761,21 +907,40 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
         let mut counted = 0;
+        let mut another_way = 0;
+        let mut sink_differs = 0;
         for hold in [150, 300] {
             for r in stall_rounds(test, &mut browser, &keyboard, StallKind::SelfMove, hold, 5) {
                 counted += usize::from(r.counted);
-                recorded += r.password_letters_recorded();
+                let held = r.password_letters_recorded_while_the_page_was_held();
+                if r.counted {
+                    recorded += held;
+                    another_way += r.password_letters_recorded() - held;
+                } else {
+                    another_way += r.password_letters_recorded();
+                }
+                another_way += (r.keys.other + r.keys.tabs) as i64;
+                sink_differs += usize::from(r.sink_differs());
             }
         }
         let _ = keyboard.stop();
         say(
             test,
-            format!("phase=self counted={counted} password_letters_recorded={recorded}"),
+            format!(
+                "phase=self counted={counted} password_letters_recorded_while_the_page_was_held={recorded} \
+                 keys_recorded_another_way={another_way} rounds_where_the_sink_differs_from_the_seam={sink_differs}"
+            ),
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
             counted >= 5,
             "INCONCLUSIVE: the self-move phase counted {counted} rounds"
+        );
+        assert_eq!(
+            (another_way, sink_differs),
+            (0, 0),
+            "a key was recorded in another way than a letter that landed in the password input \
+             while the page held its thread before its own move, or the sink differs from the seam"
         );
     });
     total.load(Ordering::SeqCst)
@@ -820,7 +985,12 @@ fn swap_round(
     if let Some(shown) = &shown {
         r.page.text -= shown.page.text;
         r.page.password -= shown.page.password;
+        let first = shown.page.landings.len().min(r.page.landings.len());
+        r.page.landings = r.page.landings[first..].to_string();
+        let first = shown.page.landed_at.len().min(r.page.landed_at.len());
+        r.page.landed_at.drain(..first);
     }
+    r.why.extend(not_in_front(front));
     let start_ok = match phase {
         "show-hide" | "show-control" => start.focus == "password",
         "swap-focus" => true,
@@ -853,6 +1023,7 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
         let mut browser = open_browser(test, name);
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let before = page_control(test, &mut browser, &keyboard, "before");
         let mut failures = Vec::new();
         let mut thin = Vec::new();
         for phase in [
@@ -869,13 +1040,16 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
             };
             let mut counted = 0;
             for round in 0..3 {
-                let (r, _) = swap_round(test, name, &keyboard, hwnd, phase, round);
+                let (r, shown) = swap_round(test, name, &keyboard, hwnd, phase, round);
                 counted += u32::from(r.counted);
-                let failed = if phase == "show-hide" {
-                    r.keys.letters > 0
-                } else {
-                    r.password_letters_recorded() > 0
-                };
+                let failed = r.sink_differs()
+                    || shown.as_ref().is_some_and(Round::sink_differs)
+                    || r.keys.other > 0
+                    || if phase == "show-hide" {
+                        r.keys.letters > 0
+                    } else {
+                        r.password_letters_recorded() > 0
+                    };
                 if failed {
                     failures.push(format!("{phase}#{round}"));
                 }
@@ -884,6 +1058,7 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
                 thin.push(phase);
             }
         }
+        let after = page_control(test, &mut browser, &keyboard, "after");
         let stopped = keyboard.stop();
         say(
             test,
@@ -895,8 +1070,12 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
             ),
         );
         assert!(
+            before == 5 && after == 5,
+            "a control recorded fewer than 5 letters of the text input: control_before={before} control_after={after}"
+        );
+        assert!(
             failures.is_empty(),
-            "a letter of a password field was recorded: {failures:?}"
+            "a letter of a password field was recorded, or the sink differs from the seam: {failures:?}"
         );
         assert!(
             thin.is_empty(),
@@ -915,6 +1094,8 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
         let mut counted = 0;
+        let mut another_way = 0;
+        let mut sink_differs = 0;
         for phase in ["swap-timer", "swap-focus", "swap-keydown", "swap-keyup"] {
             for hold in [150, 300] {
                 let Some(hwnd) = browser.open(test, phase, hold) else {
@@ -928,11 +1109,20 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
                     }
                     let sent = letters_for(Duration::from_millis(1_300), Duration::from_millis(60));
                     let mut r = end_round(&keyboard, hwnd, sent, front);
+                    r.why.extend(not_in_front(front));
                     r.counted = front
                         && (phase == "swap-focus" || start.focus == "plain")
                         && r.page.password >= 1;
                     counted += usize::from(r.counted);
-                    recorded += r.password_letters_recorded();
+                    let held = r.password_letters_recorded_while_the_page_was_held();
+                    if r.counted {
+                        recorded += held;
+                        another_way += r.password_letters_recorded() - held;
+                    } else {
+                        another_way += r.password_letters_recorded();
+                    }
+                    another_way += (r.keys.other + r.keys.tabs) as i64;
+                    sink_differs += usize::from(r.sink_differs());
                     say(
                         test,
                         format!(
@@ -946,12 +1136,21 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
         let _ = keyboard.stop();
         say(
             test,
-            format!("phase=held-swaps counted={counted} password_letters_recorded={recorded}"),
+            format!(
+                "phase=held-swaps counted={counted} password_letters_recorded_while_the_page_was_held={recorded} \
+                 keys_recorded_another_way={another_way} rounds_where_the_sink_differs_from_the_seam={sink_differs}"
+            ),
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
             counted >= 8,
             "INCONCLUSIVE: the held swaps counted {counted} rounds"
+        );
+        assert_eq!(
+            (another_way, sink_differs),
+            (0, 0),
+            "a key was recorded in another way than a letter that landed in the swapped input \
+             while the page held its thread, or the sink differs from the seam"
         );
     });
     total.load(Ordering::SeqCst)
@@ -970,6 +1169,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             .open(test, "burst", 0)
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
+        let mut sink_differs = 0;
         let mut closed_before_the_step = 0;
         let mut waited_for_the_type = 0;
         for round in 0..5 {
@@ -1004,7 +1204,15 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             let control_sent = i64::from(type_letters_slowly(3) / 2);
             let control = keyboard.keystrokes_for(Duration::from_millis(600));
             let control_marks = seam::take_marks();
-            super::control_reads(test, "burst-control", &control_marks, &seam::take());
+            let control_keys = seam::take();
+            let control_by_the_seam = decisions_of(&control_keys);
+            sink_differs += usize::from(
+                control
+                    != control_by_the_seam.letters
+                        + control_by_the_seam.tabs
+                        + control_by_the_seam.other,
+            );
+            super::control_reads(test, "burst-control", &control_marks, &control_keys);
             std::thread::sleep(Duration::from_millis(250));
             let gate_before = keyboard.source.field_state();
             let control_page = page_read(hwnd).unwrap_or_default();
@@ -1049,10 +1257,12 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                 && r.page.text == control_sent
                 && r.page.password == sent;
             counted += u32::from(r.counted);
-            let password_recorded = r.keys.letters as i64;
+            r.why.extend(not_in_front(front));
+            let password_recorded = r.password_letters_recorded();
             if r.counted {
                 recorded += password_recorded;
             }
+            sink_differs += usize::from(r.sink_differs());
             say(
                 test,
                 format!(
@@ -1079,13 +1289,18 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             format!(
                 "phase=burst counted={counted} password_letters_recorded={recorded} \
                  rounds_whose_step_found_a_closed_gate={closed_before_the_step} \
-                 rounds_that_waited_for_the_page_type={waited_for_the_type}"
+                 rounds_that_waited_for_the_page_type={waited_for_the_type} \
+                 rounds_where_the_sink_differs_from_the_seam={sink_differs}"
             ),
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
             counted >= 1,
             "the burst counted no round that began from an open gate"
+        );
+        assert_eq!(
+            sink_differs, 0,
+            "the sink held another number of keystroke events than the seam recorded"
         );
     });
     total.load(Ordering::SeqCst)
@@ -1104,6 +1319,7 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
             .open(test, "tab-after", 0)
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
+        let mut sink_differs = 0;
         for round in 0..5 {
             let _ = seam::take_marks();
             let start = reset(&keyboard, hwnd).unwrap_or_default();
@@ -1113,7 +1329,7 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
             key(VK_A);
             std::thread::sleep(Duration::from_millis(50));
             key(VK_TAB);
-            keyboard.settle(Duration::from_millis(800));
+            let sink = keyboard.keystrokes_for(Duration::from_millis(800));
             let keys = seam::take();
             super::mark_trail(
                 test,
@@ -1126,6 +1342,8 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
                 sent: 1,
                 page: page_read(hwnd).unwrap_or_default(),
                 keys: decisions_of(&keys),
+                sink,
+                why: not_in_front(front).into_iter().collect(),
             };
             r.counted = front
                 && start.focus == "plain"
@@ -1134,7 +1352,10 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
                 && r.page.tabs_password == 1;
             counted += u32::from(r.counted);
             if r.counted {
-                recorded += r.keys.letters as i64 + r.keys.tabs as i64;
+                recorded += (r.keys.letters + r.keys.tabs + r.keys.other).max(r.sink) as i64;
+            }
+            if r.sink_differs() {
+                sink_differs += 1;
             }
             say(
                 test,
@@ -1147,12 +1368,19 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
         let _ = keyboard.stop();
         say(
             test,
-            format!("phase=tab-after counted={counted} password_keys_recorded={recorded}"),
+            format!(
+                "phase=tab-after counted={counted} password_keys_recorded={recorded} \
+                 rounds_where_the_sink_differs_from_the_seam={sink_differs}"
+            ),
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
             counted >= 3,
             "INCONCLUSIVE: the phase counted {counted} rounds"
+        );
+        assert_eq!(
+            sink_differs, 0,
+            "the sink held another number of keystroke events than the seam recorded"
         );
     });
     total.load(Ordering::SeqCst)
@@ -1177,7 +1405,7 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         let cold_page = page_read(cold).unwrap_or_default();
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(3) / 2);
-        keyboard.settle(Duration::from_millis(800));
+        let cold_sink = keyboard.keystrokes_for(Duration::from_millis(800));
         let cold_keys = seam::take();
         cold_marks.extend(seam::take_marks());
         let cold_round = Round {
@@ -1185,6 +1413,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             sent,
             page: page_read(cold).unwrap_or_default(),
             keys: decisions_of(&cold_keys),
+            sink: cold_sink,
+            why: not_in_front(cold_front).into_iter().collect(),
         };
         let cold_seen = seen_of(&cold_marks);
         let cold_evidence = cold_keys
@@ -1219,7 +1449,7 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         }
         let _ = seam::take();
         let sent = i64::from(type_letters_slowly(5) / 2);
-        keyboard.settle(Duration::from_millis(800));
+        let control_sink = keyboard.keystrokes_for(Duration::from_millis(800));
         let control_keys = seam::take();
         let control_marks = seam::take_marks();
         super::control_reads(test, "warm-control", &control_marks, &control_keys);
@@ -1230,6 +1460,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             sent,
             page: page_read(warm).unwrap_or_default(),
             keys: decisions_of(&control_keys),
+            sink: control_sink,
+            why: not_in_front(warm_front).into_iter().collect(),
         };
         key(VK_F22);
         let warm_state = keyboard.state_within(FieldState::Password, Duration::from_secs(3));
@@ -1276,7 +1508,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             "cold: the marks that decided the letters were not a reading of the password input: {cold_evidence:?}"
         );
         assert_eq!(
-            cold_round.keys.letters, 0,
+            (cold_round.keys.letters, cold_round.sink),
+            (0, 0),
             "cold: a letter of the password input was recorded"
         );
         assert_eq!(
@@ -1289,7 +1522,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             "INCONCLUSIVE: the plain input did not take the control's letters"
         );
         assert_eq!(
-            control.keys.letters, 5,
+            (control.keys.letters, control.sink),
+            (5, 5),
             "warm: the control's letters of the plain input were not recorded"
         );
         assert_eq!(
@@ -1302,7 +1536,8 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
             "warm: the gate's reading was not of the password input"
         );
         assert_eq!(
-            warm_round.keys.letters, 0,
+            (warm_round.keys.letters, warm_round.sink),
+            (0, 0),
             "warm: a letter of the password input was recorded"
         );
     });
@@ -1413,8 +1648,11 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
             "the copy's password input read neither Unknown nor Password"
         );
         assert_eq!(
-            plain.keys.letters + password.keys.letters,
-            0,
+            (
+                plain.keys.letters + password.keys.letters,
+                plain.sink + password.sink
+            ),
+            (0, 0),
             "a letter typed into the renamed copy was recorded"
         );
     });

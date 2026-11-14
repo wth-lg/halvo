@@ -4471,7 +4471,7 @@ fn window_titled(prefix: &str) -> Option<(HWND, String)> {
     use windows::core::BOOL;
     use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW};
     unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
-        let mut buf = [0u16; 512];
+        let mut buf = [0u16; 2048];
         // SAFETY: `buf` is a live buffer whose length the call takes, and
         // `found` is the address of the vector that the caller holds across
         // the enumeration on this thread.
@@ -4497,7 +4497,7 @@ fn window_titled(prefix: &str) -> Option<(HWND, String)> {
 
 fn title_of(hwnd: HWND) -> String {
     use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
-    let mut buf = [0u16; 512];
+    let mut buf = [0u16; 2048];
     // SAFETY: `buf` is a live buffer whose length the call takes.
     let len = unsafe { GetWindowTextW(hwnd, &mut buf) };
     String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
@@ -4717,6 +4717,14 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         control_reads(test, "phase-A", &seam::take_marks(), &seam::take());
         let gate_a = keyboard.field_state();
         let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
+        say(
+            test,
+            format!(
+                "browser={} phase=M uia_of_the_focused_element {}",
+                run.browser.name,
+                seam::focused_element_properties()
+            ),
+        );
         let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
         let gate_b = keyboard.field_state();
         let withheld_b = keyboard.health().counters.keys_withheld;
@@ -5002,7 +5010,7 @@ mod known_defect {
         defect!(
             "W3-5-A2",
             recorded == 0,
-            format!("TF browser-self-chrome password_letters_recorded={recorded}")
+            format!("TF browser-self-chrome password_letters_recorded_while_the_page_was_held={recorded}")
         );
     }
 
@@ -5013,7 +5021,9 @@ mod known_defect {
         defect!(
             "W3-5-A2",
             recorded == 0,
-            format!("TF browser-self-edge password_letters_recorded={recorded}")
+            format!(
+                "TF browser-self-edge password_letters_recorded_while_the_page_was_held={recorded}"
+            )
         );
     }
 
@@ -5024,7 +5034,7 @@ mod known_defect {
         defect!(
             "W3-7-Q2i",
             recorded == 0,
-            format!("TF browser-held-swap-chrome password_letters_recorded={recorded}")
+            format!("TF browser-held-swap-chrome password_letters_recorded_while_the_page_was_held={recorded}")
         );
     }
 
@@ -5035,7 +5045,7 @@ mod known_defect {
         defect!(
             "W3-7-Q2i",
             recorded == 0,
-            format!("TF browser-held-swap-edge password_letters_recorded={recorded}")
+            format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
         );
     }
 

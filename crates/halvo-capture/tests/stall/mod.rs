@@ -64,6 +64,38 @@ const TWO_STEP_MS: u64 = 200;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
 const CONTROL_LETTERS: u32 = 5;
+const FORM_ENV: &str = "HALVO_WF_FORM";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Form {
+    Short,
+    Long,
+}
+
+impl Form {
+    fn word(self) -> &'static str {
+        match self {
+            Form::Short => "short",
+            Form::Long => "long",
+        }
+    }
+}
+
+fn form() -> Form {
+    match std::env::var(FORM_ENV).as_deref() {
+        Ok("short") => Form::Short,
+        Ok("long") => Form::Long,
+        other => panic!("{FORM_ENV} is short or long, not {other:?}"),
+    }
+}
+
+fn rounds_at(form: Form, stall_ms: u64) -> u32 {
+    match (form, stall_ms) {
+        (_, 2_000..) => 5,
+        (Form::Short, 150) | (Form::Long, _) => 20,
+        (Form::Short, _) => 5,
+    }
+}
 
 fn flag(value: bool) -> u8 {
     u8::from(value)
@@ -1079,7 +1111,7 @@ struct Decisions {
     first_tab_rule: Option<seam::Rule>,
 }
 
-const RULES: [seam::Rule; 8] = [
+const RULES: [seam::Rule; 10] = [
     seam::Rule::PasswordEdit,
     seam::Rule::NotClearedInTime,
     seam::Rule::AnotherThreadInFront,
@@ -1088,6 +1120,8 @@ const RULES: [seam::Rule; 8] = [
     seam::Rule::ReadAfterTheHold,
     seam::Rule::NoClickRoute,
     seam::Rule::ElementNotTheSame,
+    seam::Rule::MarksLost,
+    seam::Rule::ClicksNotForwarded,
 ];
 
 fn rule_index(rule: Option<seam::Rule>) -> i64 {
@@ -1187,6 +1221,8 @@ pub(super) struct Totals {
     pub(super) withheld_set: u32,
     pub(super) rounds_with_a_recorded_letter: u32,
     pub(super) rounds_not_withheld_by_the_password_field: u32,
+    pub(super) sink_differs: u32,
+    pub(super) keystroke_events: u32,
 }
 
 impl Totals {
@@ -1203,6 +1239,8 @@ impl Totals {
         self.rounds_with_a_recorded_letter += other.rounds_with_a_recorded_letter;
         self.rounds_not_withheld_by_the_password_field +=
             other.rounds_not_withheld_by_the_password_field;
+        self.sink_differs += other.sink_differs;
+        self.keystroke_events += other.keystroke_events;
     }
 }
 
@@ -1325,18 +1363,39 @@ fn run_rounds(
             Landing::Password => get(&woke, "password_len") == 0,
             Landing::Plain => get(&woke, "password_len") == get(&ack, "password_len"),
         };
-        let counted = get(&reset, "fg") == 1
-            && get(&reset, "reactivated") == 0
-            && get(&reset, "focused") == 1
-            && get(&ack, "fg") == 1
-            && get(&ack, start_focus) == 1
-            && (phase.start_in_password || get(&ack, "password_len") == 0)
-            && get(&ack, "aimed") == 1
-            && accepted == inputs
-            && password_unchanged_at_the_wake
-            && (phase.other_front || get(&state, "fg") == 1)
-            && letters_landed == letters_sent
-            && letters_elsewhere == 0;
+        let conditions = [
+            (
+                "own_window_not_in_front_at_the_reset",
+                get(&reset, "fg") == 1,
+            ),
+            ("reactivated", get(&reset, "reactivated") == 0),
+            ("not_focused_at_the_reset", get(&reset, "focused") == 1),
+            ("own_window_not_in_front_at_the_send", get(&ack, "fg") == 1),
+            ("start_field_not_focused", get(&ack, start_focus) == 1),
+            (
+                "password_not_empty_at_the_send",
+                phase.start_in_password || get(&ack, "password_len") == 0,
+            ),
+            ("not_aimed", get(&ack, "aimed") == 1),
+            ("inputs_not_accepted", accepted == inputs),
+            (
+                "password_changed_before_the_wake",
+                password_unchanged_at_the_wake,
+            ),
+            (
+                "own_window_not_in_front_after",
+                phase.other_front || get(&state, "fg") == 1,
+            ),
+            ("letters_not_all_landed", letters_landed == letters_sent),
+            ("letters_elsewhere", letters_elsewhere == 0),
+        ];
+        let why: Vec<&str> = conditions
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(name, _)| *name)
+            .collect();
+        let counted = why.is_empty();
+        let sink_differs = keystroke_events != decided.recorded();
         let late_moved = after.late_events.saturating_sub(before.late_events);
         let withheld_set = !before.keys_withheld && after.keys_withheld;
         say(
@@ -1350,7 +1409,8 @@ fn run_rounds(
                  plain_len_at_wake={} password_len_at_wake={} plain_len_after={} password_len_after={} \
                  letters_plain={} letters_password={} letters_second={} letters_other={} tabs_plain={} \
                  tabs_password={} tabs_second={} fg_after={} reactivated={} aimed={} \
-                 late_events_moved_by={late_moved} keys_withheld_before={} keys_withheld_after={}",
+                 late_events_moved_by={late_moved} keys_withheld_before={} keys_withheld_after={} \
+                 sink_differs_from_the_seam={} uncounted_because={}",
                 phase.name,
                 flag(counted),
                 decided.letters_recorded,
@@ -1383,9 +1443,17 @@ fn run_rounds(
                 get(&ack, "aimed"),
                 flag(before.keys_withheld),
                 flag(after.keys_withheld),
+                flag(sink_differs),
+                if why.is_empty() {
+                    "none".to_string()
+                } else {
+                    why.join(",")
+                },
             ),
         );
         totals.rounds += 1;
+        totals.sink_differs += u32::from(sink_differs);
+        totals.keystroke_events += keystroke_events;
         totals.late_moved += late_moved;
         totals.withheld_set += u32::from(withheld_set);
         if counted {
@@ -1411,7 +1479,19 @@ fn run_rounds(
 fn stall_test(phase: Phase) {
     let test = phase.test;
     with_deadline(test, Duration::from_secs(300), move || {
+        let form = form();
+        let wanted = phase.rounds;
         let totals = stall_phase(phase);
+        say(
+            test,
+            format!(
+                "form={} rounds_of_the_phase={wanted} rounds={} counted_rounds={}",
+                form.word(),
+                totals.rounds,
+                totals.counted
+            ),
+        );
+        assert!(totals.counted > 0, "no round counted");
         assert_eq!(
             totals.letters_recorded, 0,
             "a letter typed ahead of the program was recorded in a counted round"
@@ -1470,7 +1550,8 @@ fn stall_phase(phase: Phase) -> Totals {
         format!(
             "summary phase={} rounds={} counted_rounds={} letters_sent={} letters_landed={} \
              letters_recorded={} rounds_with_a_recorded_letter={} tabs_recorded={} other_recorded={} \
-             late_events_moved_by={} rounds_that_set_keys_withheld={} control_before={first} control_after={last}",
+             late_events_moved_by={} rounds_that_set_keys_withheld={} keystroke_events={} \
+             rounds_where_the_sink_differs_from_the_seam={} control_before={first} control_after={last}",
             phase.name,
             totals.rounds,
             totals.counted,
@@ -1482,11 +1563,17 @@ fn stall_phase(phase: Phase) -> Totals {
             totals.other_recorded,
             totals.late_moved,
             totals.withheld_set,
+            totals.keystroke_events,
+            totals.sink_differs,
         ),
     );
     assert!(
-        first > 0 && last > 0,
-        "a control recorded no letter, so the source did not show that it records"
+        first == CONTROL_LETTERS && last == CONTROL_LETTERS,
+        "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: control_before={first} control_after={last}"
+    );
+    assert_eq!(
+        totals.sink_differs, 0,
+        "the sink held another number of keystroke events than the seam recorded in a round"
     );
     totals
 }
@@ -1517,11 +1604,46 @@ impl FieldWindow {
 }
 
 fn tab(test: &'static str, name: &'static str, wait: Wait, stall_ms: u64) -> Phase {
-    phase(test, name, Lead::Tab, wait, stall_ms)
+    Phase {
+        rounds: rounds_at(form(), stall_ms),
+        ..phase(test, name, Lead::Tab, wait, stall_ms)
+    }
 }
 
 fn click(test: &'static str, name: &'static str, wait: Wait, stall_ms: u64) -> Phase {
-    phase(test, name, Lead::Click, wait, stall_ms)
+    Phase {
+        rounds: rounds_at(form(), stall_ms),
+        ..phase(test, name, Lead::Click, wait, stall_ms)
+    }
+}
+
+#[test]
+#[ignore = "functional: reads the round word that 50-windows-functional passes"]
+fn the_round_count_of_the_stall_tests() {
+    const WAITS_MS: [u64; 5] = [150, 200, 300, 600, 2_000];
+    let form = form();
+    let rounds: Vec<String> = WAITS_MS
+        .iter()
+        .map(|ms| format!("{ms}:{}", rounds_at(form, *ms)))
+        .collect();
+    println!(
+        "form={} counted_rounds_at_each_wait_ms={}",
+        form.word(),
+        rounds.join(",")
+    );
+    if form == Form::Short {
+        for ms in WAITS_MS {
+            let (short, long) = (rounds_at(Form::Short, ms), rounds_at(Form::Long, ms));
+            if short < long {
+                println!(
+                    "left_out {} of the {long} counted rounds of each native stall test at the wait of {ms} ms, \
+                     which the long form runs",
+                    long - short
+                );
+            }
+        }
+        println!("left_out the loops by exact name, which the long form runs");
+    }
 }
 
 #[test]
@@ -1896,8 +2018,12 @@ fn native_round(
     let _ = seam::take_marks();
     let acted = act(fixture);
     let accepted = five_letters();
-    let _ = events.drain_for(Duration::from_millis(900));
+    let seen = events.drain_for(Duration::from_millis(900));
     let decided = Decisions::of(&seam::take());
+    let keystroke_events = seen
+        .iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .count() as u32;
     let state = fixture.ask(CMD_STATE, 0, "state");
     let counted = get(&reset, "fg") == 1
         && acted
@@ -1907,7 +2033,8 @@ fn native_round(
         test,
         format!(
             "phase={phase} round={round} fg={} acted={} accepted={accepted} focus_{landing}={} \
-             letters_{landing}={} letters_decided={} letters_recorded={} first_letter_rule={} counted={}",
+             letters_{landing}={} letters_decided={} letters_recorded={} keystroke_events={keystroke_events} \
+             first_letter_rule={} counted={}",
             get(&reset, "fg"),
             u8::from(acted),
             get(&state, &format!("focus_{landing}")),
@@ -1918,7 +2045,7 @@ fn native_round(
             u8::from(counted),
         ),
     );
-    (counted, decided.letters_recorded)
+    (counted, decided.recorded().max(keystroke_events))
 }
 
 fn native_phase(
