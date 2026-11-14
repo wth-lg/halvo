@@ -3,3 +3,6 @@ disallowed-methods = [
   { path = "std::process::Command::output", reason = "use r3_web::start::output, which starts the child under the start lock (A11.1)" },
   { path = "std::process::Command::status", reason = "start a child through r3_web::start::StartLock (A11.1)" },
 ]
+disallowed-types = [
+  { path = "tokio::process::Command", reason = "start a child through r3_web::start, so that no runtime holds a child that the start's hard kill could meet reaped (start.rs, hard_kill)" },
+]

@@ -239,7 +239,9 @@ mod sys {
         // child that a start made, and every other wait in the crate names its own child (std's
         // `Child::wait` and `try_wait` call waitpid with that child's number); nothing waits for
         // any child (waitpid with -1, wait), the crate sets no SIGCHLD disposition (SIG_IGN would
-        // let the system reap it).
+        // let the system reap it), and no code of the crate uses tokio::process (clippy.toml
+        // disallows its Command), so tokio's process driver, which chromiumoxide 0.9.1 turns on,
+        // has no child to wait for and would wait only for its own, each by its number.
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
