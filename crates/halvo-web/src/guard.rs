@@ -122,6 +122,11 @@ pub struct GuardAct {
     pub cause: &'static str,
     /// Whether the guard asked or ended anything, or left a member at an ask or forced end.
     pub acted: bool,
+    /// The file names of the programs of the members that run at this write; `None` when the
+    /// last read of the table failed (CP-189 G4).
+    pub running: Option<Vec<String>>,
+    /// The guard's clock at this write, in ms (CP-189 G4).
+    pub at_ms: u128,
 }
 
 impl GuardAct {
@@ -2421,5 +2426,166 @@ mod tests {
             "returned at {at} ms"
         );
         assert_eq!(records.last().expect("a record").cause, "now_marked");
+    }
+
+    /// CP-189 G4, adversary 2's case A and the review's guard/05: a member without the mark that
+    /// appears after the ask is left at the forced end, and the record written at that read names
+    /// it, with the forced end counted.
+    #[test]
+    fn g4_a_member_left_at_the_forced_end_is_written_at_that_read() {
+        let (_, _, ends, records) = run_timed(
+            executor(50),
+            100,
+            &|t, ends| {
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if t >= 4_500 {
+                    v.push(stranger(80, ROOT, 4_500, 0));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        let forced_at = forced(&ends, ROOT).expect("forced");
+        let at_force = records
+            .iter()
+            .find(|r| r.at_ms == forced_at)
+            .expect("a record written at the read of the forced end");
+        assert_eq!(
+            (
+                at_force.forced,
+                at_force.left,
+                at_force.left_programs.clone()
+            ),
+            (1, 1, vec!["Mail".to_string()]),
+            "{at_force:?}"
+        );
+    }
+
+    /// CP-189 G4, adversary 2's case B: at the cap the last line names what still runs at that
+    /// write, apart from what was left so far. Mail and foo are left at the ask; Mail ends at 10 s.
+    #[test]
+    fn g4_the_last_line_names_what_still_runs() {
+        let foo = |pid| Proc {
+            exe: Some("/usr/local/bin/foo".into()),
+            ..row(pid, ROOT, 20, 0)
+        };
+        let (code, _, _, records) = run_timed(
+            executor(50),
+            1_000,
+            &move |t, ends| {
+                let mut v = vec![foo(71)];
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if t < 10_000 {
+                    v.push(stranger(70, ROOT, 20, 0));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 4);
+        let last = records.last().expect("a last line");
+        assert_eq!(last.cause, "left_unmarked");
+        assert_eq!(last.running, Some(vec!["foo".to_string()]), "{last:?}");
+        assert!(
+            last.line().contains("running=1 running_programs=foo"),
+            "{}",
+            last.line()
+        );
+    }
+
+    /// CP-189 G4, the review's guard/02: a member left at the forced end, then a table that stays
+    /// unread until the guard's exit 3: the last record names the member, says that the last read
+    /// failed, and has the exit's cause.
+    #[test]
+    fn g4_the_exit_after_an_unread_table_writes_what_was_left() {
+        let (code, _, _, records) = run_timed(
+            executor(50),
+            1_000,
+            &|t, ends| {
+                if t > 10_000 {
+                    return None;
+                }
+                let mut v = Vec::new();
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if t >= 4_500 {
+                    v.push(stranger(80, ROOT, 4_500, 0));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 3);
+        let last = records.last().expect("a last record");
+        assert_eq!(last.cause, "table_unread");
+        assert_eq!(last.left_programs, vec!["Mail".to_string()]);
+        assert_eq!(last.running, None);
+        assert!(last.line().contains("running=unread"), "{}", last.line());
+    }
+
+    /// CP-189 G4, the review's guard/03: a cap at which the guard asked and ended nothing says
+    /// `ended_by=none`; once it asked or ended, every line says `ended_by=guard`.
+    #[test]
+    fn g4_the_first_word_says_ended_by_guard_only_when_something_was_sent() {
+        let (code, _, ends, records) = run_timed(
+            executor(50),
+            1_000,
+            &|_, _| Some(vec![stranger(5, 1, 50, 5), stranger(ROOT, 1, 7, ROOT)]),
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 4);
+        assert!(ends.is_empty());
+        let last = records.last().expect("a last line");
+        assert!(last.line().starts_with("ended_by=none "), "{}", last.line());
+        let (_, _, _, records) = run_timed(
+            executor(50),
+            100,
+            &g7_table(row(ROOT, 1, 7, ROOT), None, false),
+            &|p, _| every_marked(p),
+        );
+        assert!(!records.is_empty());
+        for r in &records {
+            assert!(r.line().starts_with("ended_by=guard "), "{}", r.line());
+        }
+    }
+
+    /// CP-189 G4: a member that was left at the ask and later bears the mark and is ended by force
+    /// is in no list as left.
+    #[test]
+    fn g4_a_member_left_and_later_ended_is_not_left() {
+        let (_, _, ends, records) = run_timed(
+            executor(50),
+            100,
+            &g7_table(row(ROOT, 1, 7, ROOT), Some(row(36, ROOT, 20, 0)), false),
+            &|p, t| {
+                if p == 36 && t < 4_500 {
+                    Some(vec!["--user-data-dir=/other".to_string()])
+                } else {
+                    every_marked(p)
+                }
+            },
+        );
+        assert!(ends.iter().any(|e| e.0 == 36 && e.1), "{ends:?}");
+        let last = records.last().expect("a record");
+        assert_eq!(
+            (last.left, last.left_programs.clone()),
+            (0, Vec::<String>::new()),
+            "{last:?}"
+        );
     }
 }
