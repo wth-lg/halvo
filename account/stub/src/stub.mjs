@@ -60,7 +60,14 @@ function closes({ version, headers }) {
   return version === "1.0" || tokens.some((token) => token.trim().toLowerCase() === "close");
 }
 
-function serve(socket, connection, app, record, idleMs) {
+/**
+ * Serves one connection of the app-facing port: reads its requests from `socket`, answers them with `app`, writes
+ * their lines to `record` under the number `connection`, and ends and closes it as startStub describes, with `idleMs`
+ * as its idle limit. Returns `{cut, closeNow}`: `cut()` ends the connection for the stop, and `closeNow()` closes its
+ * socket at once, with the line `forced-close` where startStub's rule asks for it. startStub calls it for each
+ * connection; a test may call it with any duplex stream in place of a socket.
+ */
+export function serve(socket, connection, app, record, idleMs) {
   let timer = null;
   let held = false;
   let ended = false;
@@ -145,7 +152,9 @@ function serve(socket, connection, app, record, idleMs) {
       stop(stopping ? undefined : answerBytes("", app.malformed(), true));
     },
     full: () => !stopping && socket.writableNeedDrain,
-    interim: () => socket.write(CONTINUE),
+    interim: () => {
+      if (!stopping) socket.write(CONTINUE);
+    },
   });
   function arm() {
     quiet();
@@ -268,6 +277,7 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   let closing = null;
   const close = () => {
     if (closing === null) {
+      const listening = new Promise((resolve) => appServer.close(() => resolve()));
       const peer = (socket) => `${socket.remoteAddress}:${socket.remotePort}`;
       const kept = new Set([...served.keys()].map(peer));
       for (const socket of sockets) if (!kept.has(peer(socket))) socket.destroy();
@@ -280,8 +290,10 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
       const waited = Promise.race([Promise.all(closed), limit]).then(() => {
         clearTimeout(timer);
         for (const { closeNow } of served.values()) closeNow();
+        for (const socket of sockets) socket.destroy();
+        return listening;
       });
-      closing = Promise.all([waited.then(() => shut(appServer, sockets)), shut(controlServer, controlSockets)]).then(() => {
+      closing = Promise.all([waited, shut(controlServer, controlSockets)]).then(() => {
         record.close();
         done();
       });
@@ -326,7 +338,7 @@ async function main(argv) {
     process.exitCode = 64;
     return;
   }
-  for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => stub.close());
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stub.close());
   process.stdout.write(`${JSON.stringify({ app: stub.app, control: stub.control })}\n`);
   await stub.stopped;
 }
