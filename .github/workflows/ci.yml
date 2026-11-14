@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,96 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 31-fixture-server
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 31-fixture-server
+      - name: Loop of the unit's new and changed tests (scratch, U2.2b)
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          set +e +o pipefail
+          cargo test --locked -p halvo-sample --no-run >"$RUNNER_TEMP/u22b-no-run.txt" 2>&1 || { tail -n 20 "$RUNNER_TEMP/u22b-no-run.txt"; exit 1; }
+          bin_of() {
+            tr '\134' '/' <"$RUNNER_TEMP/u22b-no-run.txt" | sed -n "s|^ *Executable $1 (\(.*\))\$|\1|p" | head -n 1
+          }
+          bad=0
+          run_loop() {
+            label=$1
+            bin=$(bin_of "$2")
+            shift 2
+            want=$#
+            if [ -z "$bin" ]; then
+              echo "loop $label: no test binary"
+              bad=1
+              return
+            fi
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$bin" --exact "$@" --test-threads=1 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | tail -n 15
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          started=$(date +%s)
+          run_loop check_labels 'tests/check_labels.rs' \
+            the_later_row_of_every_overlapping_pair_is_named_when_the_farthest_range_lies_between \
+            overlap_of_a_last_range_that_starts_first_and_reaches_farthest_names_each_later_row \
+            case_210_every_row_of_a_one_off_task_deleted_fails \
+            case_211_every_row_of_a_twice_task_deleted_fails \
+            case_212_every_row_of_a_planted_task_deleted_fails \
+            a_seed_step_whose_mark_is_false_fails_with_a_seed_line_for_each_of_its_ranges \
+            a_script_manifest_line_without_its_seed_mark_is_refused \
+            the_fail_lines_of_one_range_stand_in_the_order_range_seed_unmarked_keys
+          run_loop links 'tests/links.rs' \
+            a_stream_directory_that_is_a_link_fails_with_its_line_first \
+            a_streams_directory_that_is_a_link_is_refused_as_batches \
+            a_streams_directory_with_links_alone_fails_and_is_not_refused \
+            a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms \
+            a_link_inside_a_walk_is_not_followed \
+            a_stream_directory_that_is_a_link_in_the_tier_or_in_a_body_is_refused \
+            a_day_file_or_a_label_file_that_is_a_link_is_refused_by_check_labels \
+            a_file_of_a_body_that_is_a_link_is_refused_by_leak_with_the_argument_alone \
+            the_link_lines_stand_in_byte_order_of_the_stream_id \
+            a_tier_manifest_that_is_a_link_is_refused_also_when_it_reads_well \
+            each_manifest_of_a_walked_body_that_is_a_link_is_refused_alone \
+            a_path_argument_through_a_link_and_dot_dot_is_refused_where_it_names_a_link \
+            a_script_argument_that_is_a_link_is_refused_by_build
+          run_loop leak 'tests/leak.rs' a_hit_line_names_a_file_by_its_number_in_the_walk_and_never_by_its_name
+          run_loop build 'tests/build.rs' \
+            the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_names_it \
+            a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused
+          run_loop lib 'unittests src/lib.rs' build::tests::a_record_that_cannot_be_made_takes_no_seq
+          run_loop split 'tests/split.rs' \
+            two_script_arguments_of_one_name_are_refused_by_their_place_alone \
+            an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name
+          run_loop compose 'tests/compose.rs' compose_takes_and_refuses_each_fixture_of_the_reader_as_the_reader_does
+          pass=0
+          failed=0
+          i=0
+          while [ "$i" -lt 200 ]; do
+            out=$(node --test --test-reporter=tap tools/fixture-server/sites.test.mjs 2>&1)
+            if printf '%s\n' "$out" | grep -q '^# fail 0$' && printf '%s\n' "$out" | grep -q '^# pass 58$' && printf '%s\n' "$out" | grep -q '^# tests 58$'; then
+              pass=$((pass + 1))
+            else
+              failed=$((failed + 1))
+              printf '%s\n' "$out" | grep -E '^(# |not ok)' | head -n 10
+            fi
+            i=$((i + 1))
+          done
+          echo "loop sites.test.mjs tests=58 new=3 runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+          [ "$failed" = 0 ] || bad=1
+          echo "loop seconds $(( $(date +%s) - started ))"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +204,96 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-sample 31-fixture-server
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-sample 31-fixture-server
+      - name: Loop of the unit's new and changed tests (scratch, U2.2b)
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          set +e +o pipefail
+          cargo test --locked -p halvo-sample --no-run >"$RUNNER_TEMP/u22b-no-run.txt" 2>&1 || { tail -n 20 "$RUNNER_TEMP/u22b-no-run.txt"; exit 1; }
+          bin_of() {
+            tr '\134' '/' <"$RUNNER_TEMP/u22b-no-run.txt" | sed -n "s|^ *Executable $1 (\(.*\))\$|\1|p" | head -n 1
+          }
+          bad=0
+          run_loop() {
+            label=$1
+            bin=$(bin_of "$2")
+            shift 2
+            want=$#
+            if [ -z "$bin" ]; then
+              echo "loop $label: no test binary"
+              bad=1
+              return
+            fi
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$bin" --exact "$@" --test-threads=1 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | tail -n 15
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          started=$(date +%s)
+          run_loop check_labels 'tests/check_labels.rs' \
+            the_later_row_of_every_overlapping_pair_is_named_when_the_farthest_range_lies_between \
+            overlap_of_a_last_range_that_starts_first_and_reaches_farthest_names_each_later_row \
+            case_210_every_row_of_a_one_off_task_deleted_fails \
+            case_211_every_row_of_a_twice_task_deleted_fails \
+            case_212_every_row_of_a_planted_task_deleted_fails \
+            a_seed_step_whose_mark_is_false_fails_with_a_seed_line_for_each_of_its_ranges \
+            a_script_manifest_line_without_its_seed_mark_is_refused \
+            the_fail_lines_of_one_range_stand_in_the_order_range_seed_unmarked_keys
+          run_loop links 'tests/links.rs' \
+            a_stream_directory_that_is_a_link_fails_with_its_line_first \
+            a_streams_directory_that_is_a_link_is_refused_as_batches \
+            a_streams_directory_with_links_alone_fails_and_is_not_refused \
+            a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms \
+            a_link_inside_a_walk_is_not_followed \
+            a_stream_directory_that_is_a_link_in_the_tier_or_in_a_body_is_refused \
+            a_day_file_or_a_label_file_that_is_a_link_is_refused_by_check_labels \
+            a_file_of_a_body_that_is_a_link_is_refused_by_leak_with_the_argument_alone \
+            the_link_lines_stand_in_byte_order_of_the_stream_id \
+            a_tier_manifest_that_is_a_link_is_refused_also_when_it_reads_well \
+            each_manifest_of_a_walked_body_that_is_a_link_is_refused_alone \
+            a_path_argument_through_a_link_and_dot_dot_is_refused_where_it_names_a_link \
+            a_script_argument_that_is_a_link_is_refused_by_build
+          run_loop leak 'tests/leak.rs' a_hit_line_names_a_file_by_its_number_in_the_walk_and_never_by_its_name
+          run_loop build 'tests/build.rs' \
+            the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_names_it \
+            a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused
+          run_loop lib 'unittests src/lib.rs' build::tests::a_record_that_cannot_be_made_takes_no_seq
+          run_loop split 'tests/split.rs' \
+            two_script_arguments_of_one_name_are_refused_by_their_place_alone \
+            an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name
+          run_loop compose 'tests/compose.rs' compose_takes_and_refuses_each_fixture_of_the_reader_as_the_reader_does
+          pass=0
+          failed=0
+          i=0
+          while [ "$i" -lt 200 ]; do
+            out=$(node --test --test-reporter=tap tools/fixture-server/sites.test.mjs 2>&1)
+            if printf '%s\n' "$out" | grep -q '^# fail 0$' && printf '%s\n' "$out" | grep -q '^# pass 58$' && printf '%s\n' "$out" | grep -q '^# tests 58$'; then
+              pass=$((pass + 1))
+            else
+              failed=$((failed + 1))
+              printf '%s\n' "$out" | grep -E '^(# |not ok)' | head -n 10
+            fi
+            i=$((i + 1))
+          done
+          echo "loop sites.test.mjs tests=58 new=3 runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+          [ "$failed" = 0 ] || bad=1
+          echo "loop seconds $(( $(date +%s) - started ))"
+          exit "$bad"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
