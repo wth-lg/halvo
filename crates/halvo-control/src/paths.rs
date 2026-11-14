@@ -31,6 +31,184 @@ pub enum PathError {
     SocketPathTooLong,
 }
 
+/// What stands at a data directory's own name when it is no directory that a link at that name
+/// leads to or that stands there itself (ruling ST-36 (e)). It is never a missing directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum EntryAtDataDir {
+    #[error("the data directory's name is a link whose target is away")]
+    LinkLeadsNowhere,
+    #[error("the entry at the data directory's name is no directory")]
+    NotADirectory,
+}
+
+/// The cause of ruling ST-36 (e) at `dir`, read by the name; `None` when nothing stands there or
+/// a directory does, through a link or not.
+pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
+    let named = std::fs::symlink_metadata(dir).ok()?;
+    match std::fs::metadata(dir) {
+        Ok(target) if target.is_dir() => None,
+        Ok(_) => Some(EntryAtDataDir::NotADirectory),
+        Err(_) if named.file_type().is_symlink() => Some(EntryAtDataDir::LinkLeadsNowhere),
+        Err(_) if named.is_dir() => None,
+        Err(_) => Some(EntryAtDataDir::NotADirectory),
+    }
+}
+
+/// The cause of ruling ST-36 (e) that an error of the instance lock's open carries.
+pub fn entry_cause(error: &std::io::Error) -> Option<EntryAtDataDir> {
+    error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<EntryAtDataDir>())
+        .copied()
+}
+
+#[cfg(target_os = "macos")]
+/// The error of an open of `dir` that failed with `error`: the cause of ruling ST-36 (e) when one
+/// stands at the name, and `error` otherwise.
+pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Error {
+    match entry_fault(dir) {
+        Some(cause @ EntryAtDataDir::NotADirectory) => {
+            std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
+        }
+        Some(cause @ EntryAtDataDir::LinkLeadsNowhere) => std::io::Error::other(cause),
+        None => error,
+    }
+}
+
+/// What the check of a data directory found (ruling ST-36 (b), (c)).
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DataDirCheck {
+    /// Nothing stands at the name; the daemon makes the directory.
+    Missing,
+    /// The directory stands at its own name; `tightened` when its mode gave group or others
+    /// access and was set to 0700 on the descriptor.
+    Own { tightened: bool },
+    /// The directory was reached through a link at its last name; it was not narrowed.
+    /// `resolved` is the folder as the descriptor names it.
+    Linked { resolved: PathBuf },
+}
+
+#[cfg(target_os = "macos")]
+impl DataDirCheck {
+    /// The line with the resolved folder, for the person and no second spelling for
+    /// `--data-dir` (ruling ST-36 (f)); `None` unless the directory was reached through a link.
+    pub fn resolved_line(&self) -> Option<String> {
+        match self {
+            DataDirCheck::Linked { resolved } => {
+                Some(format!("data_dir_resolved={}", resolved.display()))
+            }
+            DataDirCheck::Missing | DataDirCheck::Own { .. } => None,
+        }
+    }
+}
+
+/// Why a data directory failed its check. A failed check is a slot of the daemon and never an
+/// end of the process, and it never gates a delete (ruling ST-36 (c)).
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum DataDirFault {
+    #[error("{0}")]
+    Entry(EntryAtDataDir),
+    #[error("the data directory belongs to another user")]
+    OtherOwner,
+    #[error(
+        "the data directory is reached through a link and its mode gives group or others access"
+    )]
+    LinkedAndOpenToOthers,
+    #[error("the data directory could not be read or tightened: {0}")]
+    Io(std::io::ErrorKind),
+}
+
+/// The check of a data directory, on the lock's own descriptor when `held` is given and on a
+/// descriptor of its own otherwise (the app's call when no daemon answers): the owner must be this
+/// user; a directory at its own name whose mode gives group or others access is set to 0700 on
+/// the descriptor; a directory reached through a link at its last name is never narrowed, and its
+/// mode must give group and others no access. A parent that is a link is no fault. Windows has no
+/// such check in this release (ruling ST-36 (b) to (d)).
+#[cfg(target_os = "macos")]
+pub fn check_data_dir(
+    dir: &DataDir,
+    held: Option<&crate::instance_lock::InstanceLock>,
+) -> Result<DataDirCheck, DataDirFault> {
+    let opened;
+    let directory = match held {
+        Some(lock) => lock.directory(),
+        None => {
+            opened = match crate::instance_lock::open(dir.path()) {
+                Ok(directory) => directory,
+                Err(e) => {
+                    return match entry_cause(&e) {
+                        Some(cause) => Err(DataDirFault::Entry(cause)),
+                        None if e.kind() == std::io::ErrorKind::NotFound => {
+                            Ok(DataDirCheck::Missing)
+                        }
+                        None => Err(DataDirFault::Io(e.kind())),
+                    }
+                }
+            };
+            &opened
+        }
+    };
+    // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
+    let me = unsafe { libc::geteuid() };
+    check_opened(dir.path(), directory, me)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn check_opened(
+    dir: &Path,
+    directory: &std::fs::File,
+    me: u32,
+) -> Result<DataDirCheck, DataDirFault> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let io = |e: std::io::Error| DataDirFault::Io(e.kind());
+    let held = directory.metadata().map_err(io)?;
+    if held.uid() != me {
+        return Err(DataDirFault::OtherOwner);
+    }
+    let open_to_others = held.mode() & 0o077 != 0;
+    let at_its_own_name = std::fs::symlink_metadata(dir).is_ok_and(|named| {
+        !named.file_type().is_symlink()
+            && named.is_dir()
+            && (named.dev(), named.ino()) == (held.dev(), held.ino())
+    });
+    if at_its_own_name {
+        if open_to_others {
+            directory
+                .set_permissions(std::fs::Permissions::from_mode(0o700))
+                .map_err(io)?;
+        }
+        return Ok(DataDirCheck::Own {
+            tightened: open_to_others,
+        });
+    }
+    if open_to_others {
+        return Err(DataDirFault::LinkedAndOpenToOthers);
+    }
+    Ok(DataDirCheck::Linked {
+        resolved: path_of(directory).map_err(io)?,
+    })
+}
+
+/// The path that the system gives for an open descriptor.
+#[cfg(target_os = "macos")]
+fn path_of(directory: &std::fs::File) -> std::io::Result<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::io::AsRawFd;
+
+    let mut buf = vec![0u8; libc::PATH_MAX as usize];
+    // SAFETY: the descriptor is the open file of `directory`, which outlives the call, and
+    // F_GETPATH writes at most PATH_MAX bytes into `buf`, which holds that many.
+    if unsafe { libc::fcntl(directory.as_raw_fd(), libc::F_GETPATH, buf.as_mut_ptr()) } == -1 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let text = std::ffi::CStr::from_bytes_until_nul(&buf)
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+    Ok(PathBuf::from(std::ffi::OsStr::from_bytes(text.to_bytes())))
+}
+
 pub trait AccountLookup {
     /// The home directory of the account on macOS, and its LocalAppData known
     /// folder on Windows; `None` when the account gives none.
@@ -238,8 +416,13 @@ impl DataDir {
         &self.0
     }
 
-    pub fn is_provisioned(&self) -> bool {
-        self.state_file().exists()
+    /// Whether the state file stands. An entry at the directory's own name that leads nowhere or
+    /// is no directory answers its cause, never a first run (ruling ST-36 (e)).
+    pub fn is_provisioned(&self) -> Result<bool, EntryAtDataDir> {
+        if let Some(cause) = entry_fault(self.path()) {
+            return Err(cause);
+        }
+        Ok(self.state_file().exists())
     }
 
     pub fn entry(&self, entry: &Entry) -> PathBuf {
@@ -1150,9 +1333,192 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let data = DataDir::from_flag(root.path()).unwrap();
         assert_eq!(data.state_file(), root.path().join("daemon-state.json"));
-        assert!(!data.is_provisioned());
+        assert_eq!(data.is_provisioned(), Ok(false));
         std::fs::write(data.state_file(), "{}").unwrap();
-        assert!(data.is_provisioned());
+        assert_eq!(data.is_provisioned(), Ok(true));
+        let missing = DataDir::from_flag(root.path().join("missing")).unwrap();
+        assert_eq!(missing.is_provisioned(), Ok(false));
+    }
+
+    #[test]
+    fn st36_a_file_at_the_data_directory_s_name_is_a_cause_of_its_own_and_never_a_first_run() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("d");
+        std::fs::write(&path, b"x").unwrap();
+        let data = DataDir::from_flag(&path).unwrap();
+        assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::NotADirectory));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn st36_a_link_whose_target_is_away_is_a_cause_of_its_own_and_a_link_to_a_directory_is_followed(
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let away = root.path().join("d");
+        std::os::unix::fs::symlink(root.path().join("unplugged"), &away).unwrap();
+        let data = DataDir::from_flag(&away).unwrap();
+        assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::LinkLeadsNowhere));
+        let target = root.path().join("moved");
+        std::fs::create_dir(&target).unwrap();
+        let linked = root.path().join("l");
+        std::os::unix::fs::symlink(&target, &linked).unwrap();
+        let data = DataDir::from_flag(&linked).unwrap();
+        assert_eq!(data.is_provisioned(), Ok(false));
+        std::fs::write(target.join(STATE_FILE), "{}").unwrap();
+        assert_eq!(data.is_provisioned(), Ok(true));
+        let file = root.path().join("f");
+        std::fs::write(&file, b"x").unwrap();
+        let to_file = root.path().join("lf");
+        std::os::unix::fs::symlink(&file, &to_file).unwrap();
+        assert_eq!(
+            DataDir::from_flag(&to_file).unwrap().is_provisioned(),
+            Err(EntryAtDataDir::NotADirectory)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    mod st36_check {
+        use super::super::*;
+        use crate::instance_lock::InstanceLock;
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        fn mode(path: &Path) -> u32 {
+            std::fs::metadata(path).unwrap().mode() & 0o7777
+        }
+
+        fn dir_of_mode(path: &Path, bits: u32) {
+            std::fs::create_dir(path).unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).unwrap();
+        }
+
+        fn link(target: &Path, at: &Path) -> DataDir {
+            std::os::unix::fs::symlink(target, at).unwrap();
+            DataDir::from_flag(at).unwrap()
+        }
+
+        #[test]
+        fn a_link_to_a_directory_of_mode_0700_passes_and_names_the_resolved_folder() {
+            let root = tempfile::tempdir().unwrap();
+            let target = root.path().join("moved");
+            dir_of_mode(&target, 0o700);
+            let data = link(&target, &root.path().join("d"));
+            let resolved = target.canonicalize().unwrap();
+            let want = DataDirCheck::Linked {
+                resolved: resolved.clone(),
+            };
+            assert_eq!(check_data_dir(&data, None), Ok(want.clone()));
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            assert_eq!(check_data_dir(&data, Some(&lock)), Ok(want.clone()));
+            assert_eq!(
+                want.resolved_line(),
+                Some(format!("data_dir_resolved={}", resolved.display()))
+            );
+            assert_eq!(mode(&target), 0o700);
+        }
+
+        #[test]
+        fn a_link_to_a_directory_of_mode_0755_fails_the_check_and_nothing_is_narrowed() {
+            let root = tempfile::tempdir().unwrap();
+            let target = root.path().join("moved");
+            dir_of_mode(&target, 0o755);
+            let data = link(&target, &root.path().join("d"));
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            assert_eq!(
+                check_data_dir(&data, Some(&lock)),
+                Err(DataDirFault::LinkedAndOpenToOthers)
+            );
+            assert_eq!(
+                check_data_dir(&data, None),
+                Err(DataDirFault::LinkedAndOpenToOthers)
+            );
+            assert_eq!(mode(&target), 0o755);
+        }
+
+        #[test]
+        fn a_real_directory_of_mode_0755_is_tightened_to_0700_on_the_descriptor() {
+            for bits in [0o755, 0o750, 0o705, 0o701] {
+                let root = tempfile::tempdir().unwrap();
+                let path = root.path().join("d");
+                dir_of_mode(&path, bits);
+                let data = DataDir::from_flag(&path).unwrap();
+                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                assert_eq!(
+                    check_data_dir(&data, Some(&lock)),
+                    Ok(DataDirCheck::Own { tightened: true }),
+                    "{bits:o}"
+                );
+                assert_eq!(mode(&path), 0o700, "{bits:o}");
+                assert_eq!(
+                    check_data_dir(&data, Some(&lock)),
+                    Ok(DataDirCheck::Own { tightened: false })
+                );
+                assert_eq!(DataDirCheck::Own { tightened: true }.resolved_line(), None);
+            }
+        }
+
+        #[test]
+        fn a_directory_of_another_owner_fails_through_the_seam_at_the_read_of_the_owner_and_is_not_narrowed(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("d");
+            dir_of_mode(&path, 0o755);
+            let lock = InstanceLock::take(&path).unwrap().unwrap();
+            let me = std::fs::metadata(&path).unwrap().uid();
+            assert_eq!(
+                check_opened(&path, lock.directory(), me.wrapping_add(1)),
+                Err(DataDirFault::OtherOwner)
+            );
+            assert_eq!(mode(&path), 0o755);
+            let target = root.path().join("moved");
+            dir_of_mode(&target, 0o700);
+            let linked = link(&target, &root.path().join("l"));
+            let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
+            assert_eq!(
+                check_opened(linked.path(), lock.directory(), me.wrapping_add(1)),
+                Err(DataDirFault::OtherOwner)
+            );
+        }
+
+        #[test]
+        fn a_parent_that_is_a_link_is_no_fault() {
+            let root = tempfile::tempdir().unwrap();
+            let real = root.path().join("real");
+            std::fs::create_dir(&real).unwrap();
+            std::os::unix::fs::symlink(&real, root.path().join("p")).unwrap();
+            for (bits, tightened) in [(0o700, false), (0o755, true)] {
+                let name = format!("d{bits:o}");
+                dir_of_mode(&real.join(&name), bits);
+                let data = DataDir::from_flag(root.path().join("p").join(&name)).unwrap();
+                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                assert_eq!(
+                    check_data_dir(&data, Some(&lock)),
+                    Ok(DataDirCheck::Own { tightened }),
+                    "{bits:o}"
+                );
+                assert_eq!(mode(&real.join(&name)), 0o700);
+            }
+        }
+
+        #[test]
+        fn a_link_whose_target_is_away_and_a_file_at_the_name_give_their_cause_and_a_missing_directory_none(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let away = link(&root.path().join("unplugged"), &root.path().join("d"));
+            assert_eq!(
+                check_data_dir(&away, None),
+                Err(DataDirFault::Entry(EntryAtDataDir::LinkLeadsNowhere))
+            );
+            let file = root.path().join("f");
+            std::fs::write(&file, b"x").unwrap();
+            assert_eq!(
+                check_data_dir(&DataDir::from_flag(&file).unwrap(), None),
+                Err(DataDirFault::Entry(EntryAtDataDir::NotADirectory))
+            );
+            assert_eq!(
+                check_data_dir(&DataDir::from_flag(root.path().join("m")).unwrap(), None),
+                Ok(DataDirCheck::Missing)
+            );
+        }
     }
 
     #[test]

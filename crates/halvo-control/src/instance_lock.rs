@@ -17,7 +17,7 @@ pub const TAKE_FOR_MS: u64 = 1_000;
 pub enum LockRead {
     Free,
     Held,
-    /// The data directory does not exist.
+    /// Nothing stands at the data directory's name.
     NoDirectory,
 }
 
@@ -43,13 +43,15 @@ fn flock(file: &std::fs::File, operation: libc::c_int) -> std::io::Result<bool> 
 
 /// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
 /// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
-/// open never waits; std adds close-on-exec.
-fn open(dir: &Path) -> std::io::Result<std::fs::File> {
+/// open never waits; std adds close-on-exec. A link whose target is away and an entry that is no
+/// directory carry their cause of ruling ST-36 (e), which [`crate::paths::entry_cause`] reads.
+pub(crate) fn open(dir: &Path) -> std::io::Result<std::fs::File> {
     use std::os::unix::fs::OpenOptionsExt;
     std::fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
         .open(dir)
+        .map_err(|e| crate::paths::with_entry_cause(dir, e))
 }
 
 impl InstanceLock {
@@ -73,6 +75,13 @@ impl InstanceLock {
             }
             std::thread::sleep(left.min(Duration::from_millis(TAKE_STEP_MS)));
         }
+    }
+}
+
+impl InstanceLock {
+    /// The directory's own descriptor, which the check of the data directory reads.
+    pub(crate) fn directory(&self) -> &std::fs::File {
+        &self.directory
     }
 }
 
@@ -265,6 +274,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn st36_a_link_whose_target_is_away_and_a_file_at_the_name_are_a_cause_of_their_own_from_the_read_and_the_take(
+    ) {
+        use crate::paths::{entry_cause, EntryAtDataDir};
+        let base = dir();
+        let away = base.path().join("d");
+        std::os::unix::fs::symlink(base.path().join("unplugged"), &away).unwrap();
+        let file = base.path().join("f");
+        std::fs::write(&file, b"x").unwrap();
+        for (path, cause) in [
+            (&away, EntryAtDataDir::LinkLeadsNowhere),
+            (&file, EntryAtDataDir::NotADirectory),
+        ] {
+            let read = read(path).map(|r| format!("{r:?}"));
+            let try_take = InstanceLock::try_take(path).map(|l| l.is_some());
+            let take = InstanceLock::take(path).map(|l| l.is_some());
+            for (call, answer) in [
+                ("read", read.map_err(|e| (e.kind(), entry_cause(&e)))),
+                (
+                    "try_take",
+                    try_take
+                        .map(|t| format!("{t}"))
+                        .map_err(|e| (e.kind(), entry_cause(&e))),
+                ),
+                (
+                    "take",
+                    take.map(|t| format!("{t}"))
+                        .map_err(|e| (e.kind(), entry_cause(&e))),
+                ),
+            ] {
+                match answer {
+                    Err((kind, Some(got))) => {
+                        assert_eq!(got, cause, "{call} on {path:?}");
+                        assert_ne!(kind, std::io::ErrorKind::NotFound, "{call} on {path:?}");
+                    }
+                    other => {
+                        panic!("{call} on {path:?}: {other:?}; never NoDirectory and never a lock")
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            read(&base.path().join("missing")).unwrap(),
+            LockRead::NoDirectory
+        );
     }
 
     #[test]
