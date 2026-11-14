@@ -251,6 +251,19 @@ function refusalsOf(record) {
   return refusals;
 }
 
+const REFUSAL = "refused: ";
+async function resultOf(path) {
+  try {
+    const record = JSON.parse(readFileSync(path, "utf8"));
+    const refusals = refusalsOf(record);
+    if (refusals.length > 0) return { good: null, problems: refusals.map((refusal) => `${REFUSAL}${refusal}`) };
+    const reading = READINGS[record.kind];
+    return reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
+  } catch (error) {
+    return { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
+  }
+}
+
 const REFUSED = join(HERE, "refused");
 const refusedFiles = existsSync(REFUSED)
   ? readdirSync(REFUSED)
@@ -264,18 +277,12 @@ if (refusedFiles.length === 0) {
 }
 for (const file of refusedFiles) {
   const name = file.slice(0, -".json".length);
-  let refusals;
-  try {
-    refusals = refusalsOf(JSON.parse(readFileSync(join(REFUSED, file), "utf8")));
-  } catch (error) {
-    refusals = [];
-    console.log(`self-test concurrency: refused record ${name} threw: ${String(error?.message ?? error).split("\n")[0]}`);
-  }
-  if (refusals.length > 0) {
-    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${refusals.join("; ")}`);
+  const result = await resultOf(join(REFUSED, file));
+  if (result.problems.length > 0 && result.problems.every((problem) => problem.startsWith(REFUSAL))) {
+    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${result.problems.join("; ")}`);
   } else {
     failed++;
-    console.log(`self-test concurrency: refused record ${name}: not refused, where it pins nothing`);
+    console.log(`self-test concurrency: refused record ${name}: not refused, where it pins nothing${result.problems.length > 0 ? ` (${result.problems.join("; ")})` : ""}`);
   }
 }
 console.log(`concurrency: refused records: ${refusedFiles.length - failed} of ${refusedFiles.length} refused as expected`);
@@ -291,16 +298,7 @@ const failedRefusals = failed;
 for (const file of files) {
   const name = file.slice(0, -".json".length);
   const said = name.startsWith("good-") ? "good" : name.startsWith("bad-") ? "bad" : null;
-  let result;
-  try {
-    const record = JSON.parse(readFileSync(join(RECORDS, file), "utf8"));
-    const reading = READINGS[record.kind];
-    const refusals = refusalsOf(record);
-    if (refusals.length > 0) result = { good: null, problems: refusals.map((refusal) => `refused: ${refusal}`) };
-    else result = reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
-  } catch (error) {
-    result = { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
-  }
+  const result = await resultOf(join(RECORDS, file));
   if (said === null) result.problems.push("its name starts with neither good- nor bad-");
   else if (result.good !== null && result.good !== (said === "good")) result.problems.push(`its expectation is ${result.good ? "good" : "bad"}, its name says ${said}`);
   if (result.problems.length === 0) {
