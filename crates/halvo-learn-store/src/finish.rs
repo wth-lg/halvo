@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use halvo_learn::{
     build_list, candidate_move, counted, use_move, verify_run, CandidateFacts, CandidateMove,
-    EditCause, RunCause,
+    EditCause, EditMove, RunCause,
 };
 use halvo_schema::executable::body::{Finish, PutLog};
 use halvo_schema::executable::names::LogEvent;
@@ -210,7 +210,9 @@ impl Ended<'_> {
                 let counted = first_counted(facts, *n);
                 let step_ok = lines_of(facts, *n).any(|(_, l)| l.event == LogEvent::StepOk);
                 let any_line = lines_of(facts, *n).next().is_some();
-                let edit_move = use_move(counted.is_some(), verified, step_ok, any_line);
+                let marked = facts.marked.contains(n);
+                let edit_move = use_move(counted.is_some(), verified, step_ok, any_line)
+                    .filter(|m| !(marked && *m == EditMove::UseOk));
                 if let Some(edit_move) = edit_move {
                     if let Some(next) =
                         moved(&edit, edit_move, Some((&self.started.run, day)), counted)?

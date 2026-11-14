@@ -112,7 +112,9 @@ impl CoordinatorAnswer {
 /// mode comes from the remembered start; a `learn_routine` row its routine rows. A body that the agent store answered
 /// gets the agent store's reply whatever the learning part could read or store, and a replay `put_playbook` its count;
 /// `list_refinements` alone answers `store` (LM-58 (b)). An accepted `start_run` also stores the pair's `learn_routine` row
-/// where none can be read, and its newest row again at 30 days with the mark `none` (L4.3; S-69, LM-57).
+/// where none can be read, and its newest row again at 30 days with the mark `none` (L4.3; S-69, LM-57). A step whose
+/// `load_steps` replies to a run, under the number that it loaded, carried different edits gets no `use_ok` in that run,
+/// and a counted failure of it is laid on the edit of the last reply (L3.7; LM-60).
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,

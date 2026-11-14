@@ -152,6 +152,13 @@ impl LearnHandlers {
                     }
                 }
             }
+            if facts
+                .served
+                .get(&step.n)
+                .is_some_and(|before| before.edit != carried)
+            {
+                facts.marked.insert(step.n);
+            }
             let served = Served {
                 step: step.clone(),
                 edit: carried,

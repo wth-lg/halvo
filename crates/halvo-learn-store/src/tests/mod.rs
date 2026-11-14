@@ -5,6 +5,7 @@ mod finish;
 mod host;
 mod kinds;
 mod lines;
+mod mark;
 mod pass;
 mod pins;
 mod propose;
