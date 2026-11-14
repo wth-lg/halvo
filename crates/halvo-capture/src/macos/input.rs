@@ -1014,6 +1014,7 @@ pub struct InputSource {
     plan: HoldPlan,
     hold: Hold,
     bounds: Bounds,
+    session: fn() -> Session,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     tap: Option<TapThread>,
     failure: Option<CaptureError>,
@@ -1046,6 +1047,23 @@ impl InputSource {
         )
     }
 
+    /// A source with a shorter bound whose session is read by `session` in
+    /// place of the system's session: for the hosted stall tests alone, whose
+    /// runner may have no session at the console. Only a test build of this
+    /// crate, which turns the feature `stall-seam` on, has it.
+    #[cfg(all(debug_assertions, feature = "stall-seam"))]
+    pub fn with_hold_bound_and_session(
+        foreground: ForegroundReader,
+        counters: InputCounters,
+        plan: HoldPlan,
+        bound: Duration,
+        session: fn() -> Session,
+    ) -> Self {
+        let mut source = Self::with_hold_bound(foreground, counters, plan, bound);
+        source.session = session;
+        source
+    }
+
     fn with_bounds(
         foreground: ForegroundReader,
         counters: InputCounters,
@@ -1058,6 +1076,7 @@ impl InputSource {
             plan,
             hold: hold_secure_input,
             bounds,
+            session: read_session,
             refusal: Arc::new(Mutex::new(None)),
             tap: None,
             failure: None,
@@ -1082,7 +1101,10 @@ impl InputSource {
         }
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
-        let settings = tap_settings();
+        let settings = TapSettings {
+            session: self.session,
+            ..tap_settings()
+        };
         let stop = Arc::new(AtomicBool::new(false));
         let ctx = tap_context(
             sink,
@@ -2154,9 +2176,11 @@ mod tests {
         };
         let over_gap = spacing.iter().filter(|&&ns| ns > 30 * MS).count();
         println!(
-            "measure session={session:?} read_ns={read_ns} session_ns={session_ns} readings={} \
+            "measure dictionary={} on_console={} read_ns={read_ns} session_ns={session_ns} readings={} \
              wakeups_per_s={:.1} spacing_p50_us={} spacing_p99_us={} spacing_max_us={} \
              gaps_over_30ms={over_gap} key_still_held={held}",
+            u8::from(session != Session::NoDictionary),
+            u8::from(session == Session::AtConsole),
             times.len(),
             times.len() as f64 / window.as_secs_f64(),
             at(0.5),
@@ -2904,6 +2928,26 @@ mod tests {
         // SAFETY: as in `monotonic_raw`.
         let uptime_after = unsafe { clock_gettime_nsec_np(libc::CLOCK_UPTIME_RAW) };
         assert!((uptime..=uptime_after).contains(&read));
+    }
+
+    #[test]
+    fn the_product_constructors_read_the_session_of_the_system() {
+        let source = source_with(HoldPlan::Never);
+        assert!(std::ptr::fn_addr_eq(
+            source.session,
+            read_session as fn() -> Session
+        ));
+        let (_writer, reader) = foreground_state_for_test();
+        let short = InputSource::with_hold_bound(
+            reader,
+            InputCounters::new(),
+            HoldPlan::Never,
+            Duration::from_millis(5),
+        );
+        assert!(std::ptr::fn_addr_eq(
+            short.session,
+            read_session as fn() -> Session
+        ));
     }
 
     #[test]

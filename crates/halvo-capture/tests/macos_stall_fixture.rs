@@ -18,7 +18,7 @@ use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType};
 use halvo_capture::event::Modality;
 use halvo_capture::macos::foreground::ForegroundReader;
 use halvo_capture::macos::input::{HoldPlan, InputCounters, InputSource};
-use halvo_capture::secure_input_macos::secure_input_active;
+use halvo_capture::secure_input_macos::{read_session, secure_input_active, Session};
 use halvo_capture::sink;
 use halvo_capture::source::{CaptureSource, SourceContext};
 use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
@@ -67,13 +67,48 @@ fn hosted_fixture() -> std::path::PathBuf {
     }
 }
 
-fn source_for(bound: Duration) -> InputSource {
-    InputSource::with_hold_bound(
-        ForegroundReader::nothing_in_front(),
-        InputCounters::new(),
-        HoldPlan::Never,
-        bound,
+fn at_the_console() -> Session {
+    Session::AtConsole
+}
+
+fn session_reader() -> Option<fn() -> Session> {
+    match std::env::var("HALVO_STALL_SESSION").as_deref() {
+        Err(_) | Ok("real") => None,
+        Ok("console") => Some(at_the_console),
+        Ok(_) => panic!("refused: HALVO_STALL_SESSION is real or console"),
+    }
+}
+
+fn session_line() -> String {
+    let session = read_session();
+    format!(
+        "session_reader={} dictionary={} on_console={}",
+        if session_reader().is_some() {
+            "console"
+        } else {
+            "real"
+        },
+        u8::from(session != Session::NoDictionary),
+        u8::from(session == Session::AtConsole)
     )
+}
+
+fn source_for(bound: Duration) -> InputSource {
+    match session_reader() {
+        None => InputSource::with_hold_bound(
+            ForegroundReader::nothing_in_front(),
+            InputCounters::new(),
+            HoldPlan::Never,
+            bound,
+        ),
+        Some(session) => InputSource::with_hold_bound_and_session(
+            ForegroundReader::nothing_in_front(),
+            InputCounters::new(),
+            HoldPlan::Never,
+            bound,
+            session,
+        ),
+    }
 }
 
 struct Fixture {
@@ -590,6 +625,7 @@ fn round(
 }
 
 fn started_fixture(name: &str) -> Fixture {
+    println!("{name} {}", session_line());
     let (fixture, front) = Fixture::start();
     println!(
         "{name} fixture={} front_by={}",
@@ -884,12 +920,21 @@ fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_
     control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), ROUNDS);
 }
 
-fn product_source(_bound: Duration) -> InputSource {
-    InputSource::new(
-        ForegroundReader::nothing_in_front(),
-        InputCounters::new(),
-        HoldPlan::Never,
-    )
+fn product_source(bound: Duration) -> InputSource {
+    match session_reader() {
+        None => InputSource::new(
+            ForegroundReader::nothing_in_front(),
+            InputCounters::new(),
+            HoldPlan::Never,
+        ),
+        Some(session) => InputSource::with_hold_bound_and_session(
+            ForegroundReader::nothing_in_front(),
+            InputCounters::new(),
+            HoldPlan::Never,
+            bound,
+            session,
+        ),
+    }
 }
 
 #[test]
@@ -1076,6 +1121,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
         "probe clocks timebase_numer={} timebase_denom={}",
         info.numer, info.denom
     );
+    println!("probe {}", session_line());
     let started = Instant::now();
     let (mut fixture, front) = Fixture::start();
     println!(
