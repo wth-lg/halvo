@@ -2,7 +2,7 @@ use crate::start::Start;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -94,8 +94,13 @@ impl Seed {
     }
 }
 
+/// The fixture server of a trial. Its standard input is a pipe that this value holds, so the server
+/// ends by itself within the fixture's own bound when the trial process dies without unwinding
+/// (killed by a signal or by `TerminateProcess`); on every way out that unwinds, a stop, a return or
+/// a panic, its drop kills the server and waits for it.
 pub struct Server {
     child: Child,
+    input: Option<ChildStdin>,
     pub port: u16,
 }
 
@@ -104,11 +109,12 @@ impl Server {
         let mut child = Command::new("node")
             .arg(program)
             .args(args)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .start()
             .map_err(|e| format!("node: {e}"))?;
+        let input = child.stdin.take();
         let stdout = child.stdout.take().ok_or("no stdout")?;
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -122,8 +128,9 @@ impl Server {
             .strip_prefix("listening 127.0.0.1:")
             .and_then(|p| p.parse::<u16>().ok());
         match port {
-            Some(port) => Ok(Server { child, port }),
+            Some(port) => Ok(Server { child, input, port }),
             None => {
+                drop(input);
                 let _ = child.kill();
                 let mut err = String::new();
                 if let Some(mut e) = child.stderr.take() {
@@ -139,7 +146,14 @@ impl Server {
         self.child.id()
     }
 
-    pub fn stop(mut self) {
+    pub fn stop(self) {
+        drop(self);
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        drop(self.input.take());
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
