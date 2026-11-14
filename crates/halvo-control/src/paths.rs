@@ -1455,32 +1455,28 @@ mod tests {
             );
         }
 
-        fn leads_nowhere(path: &Path) {
+        fn caused(path: &Path, cause: EntryAtDataDir) {
             let data = DataDir::from_flag(path).unwrap();
-            assert_eq!(
-                data.is_provisioned(),
-                Err(EntryAtDataDir::LinkLeadsNowhere),
-                "{path:?}"
-            );
+            assert_eq!(data.is_provisioned(), Err(cause), "{path:?}");
             assert_eq!(
                 check_data_dir(&data, None),
-                Err(DataDirFault::Entry(EntryAtDataDir::LinkLeadsNowhere)),
+                Err(DataDirFault::Entry(cause)),
                 "{path:?}"
             );
             match read(path) {
                 Ok(LockRead::NoDirectory) => panic!("read gave NoDirectory for {path:?}"),
                 Ok(_) => panic!("read succeeded for {path:?}"),
-                Err(e) => assert_eq!(
-                    entry_cause(&e),
-                    Some(EntryAtDataDir::LinkLeadsNowhere),
-                    "{path:?}: {e}"
-                ),
+                Err(e) => assert_eq!(entry_cause(&e), Some(cause), "{path:?}: {e}"),
             }
             let taken = InstanceLock::try_take(path);
             assert!(
-                matches!(&taken, Err(e) if entry_cause(e) == Some(EntryAtDataDir::LinkLeadsNowhere)),
-                "{path:?}"
+                matches!(&taken, Err(e) if entry_cause(e) == Some(cause)),
+                "{path:?}: {taken:?}"
             );
+        }
+
+        fn leads_nowhere(path: &Path) {
+            caused(path, EntryAtDataDir::LinkLeadsNowhere);
         }
 
         #[test]
@@ -1536,15 +1532,17 @@ mod tests {
             let root = tempfile::tempdir().unwrap();
             let volume = root.path().join("Volume");
             std::os::unix::fs::symlink(root.path().join("unplugged"), &volume).unwrap();
-            let data = DataDir::from_flag(volume.join("halvo")).unwrap();
-            let provisioned = data.is_provisioned();
-            let check = check_data_dir(&data, None);
-            assert_ne!(
-                provisioned,
-                Ok(false),
-                "is_provisioned answers a first run; check gave {check:?}"
-            );
-            assert_ne!(check, Ok(DataDirCheck::Missing));
+            leads_nowhere(&volume.join("halvo"));
+            leads_nowhere(&volume.join("a").join("halvo"));
+        }
+
+        #[test]
+        fn a_data_directory_below_a_file_as_the_nearest_standing_part_is_never_a_first_run() {
+            let root = tempfile::tempdir().unwrap();
+            let file = root.path().join("f");
+            std::fs::write(&file, b"x").unwrap();
+            caused(&file.join("halvo"), EntryAtDataDir::NotADirectory);
+            caused(&file.join("a").join("halvo"), EntryAtDataDir::NotADirectory);
         }
 
         fn mode(path: &Path) -> u32 {
