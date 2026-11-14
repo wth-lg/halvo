@@ -7,6 +7,7 @@ use rusqlite::{params, Connection};
 
 mod layout;
 mod second_place;
+mod table;
 
 const SEEDS: [u64; 4] = [1, 2, 3, 4];
 const CYCLES: u32 = 2;
