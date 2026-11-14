@@ -6,8 +6,9 @@ use super::{
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
-    Doing, Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised,
-    ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId, WorkflowState,
+    Doing, Event, Facts, HoldSetCause, ItemId, Lapsed, Live, OtherLapse, Outcome, OwnItem,
+    OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId,
+    WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -1278,6 +1279,110 @@ where
     report
 }
 
+/// The body of the person's answer to the check of `run`, from the agent's facts (I5.4, rulings
+/// RD-5 and RD-38): with an open item `check`, its `item_answered`; with an open `ready` item and
+/// no item `check`, the lapse of that item with the cause `check`, the `item_raised` of a new item
+/// `check` and its `item_answered`, in that order; then `hold_cleared` with the run and the
+/// answer, and for `went_through` the `slot_skipped` of the slot that the run's `run_started`
+/// names, or of none.
+fn check_body<P: Rng, C>(
+    cx: &Cx<'_, P>,
+    facts: &Facts<C>,
+    run: &RunId,
+    answer: CheckAnswer,
+) -> Result<Vec<What>, PortError> {
+    let mut whats = Vec::new();
+    if let Some(item) = own(&facts.doing, OwnItemKind::Check) {
+        whats.push(What::ItemAnswered {
+            item,
+            answer: Answered::Check(answer),
+        });
+    } else if let Some(ready) = own(&facts.doing, OwnItemKind::Ready) {
+        let check = ItemId::parse(&minted(cx)?).map_err(|_| PortError::NoService)?;
+        whats.push(What::ItemLapsed {
+            item: ready,
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        });
+        whats.push(What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        });
+        whats.push(What::ItemAnswered {
+            item: check,
+            answer: Answered::Check(answer),
+        });
+    }
+    whats.push(What::HoldCleared {
+        cause: Cleared::Check {
+            run: run.clone(),
+            answer,
+        },
+    });
+    if answer == CheckAnswer::WentThrough {
+        let slot = facts.events.iter().find_map(|e| match &e.what {
+            What::RunStarted { run: r, slot, .. } if r == run => *slot,
+            _ => None,
+        });
+        whats.push(What::SlotSkipped { slot });
+    }
+    Ok(whats)
+}
+
+/// The person's answer to the check of `run` (I5.4, I7.2, rulings XB-31, RD-5 and RD-38): it logs
+/// `check_body` of the agent's facts, and the agent then holds no item `check` or `ready`. After
+/// a refusal `seq` it reads the owner's events once and closes the lost starts that they bring;
+/// where the hold `check` of that run still stands it logs once more the body that the facts as
+/// read give, and where those events hold a `hold_cleared` of that run, the answer was stored with
+/// a lost acknowledgement and is taken with nothing logged.
+fn answer_check<P: Owner + Rng, C: ConfigView>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    run: &RunId,
+    answer: CheckAnswer,
+) -> Report {
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
+    let whats = match check_body(cx, &board.members[i].facts, run, answer) {
+        Ok(whats) => whats,
+        Err(e) => return refused(port_cause(&e)),
+    };
+    let logged = match log_at(cx, board, i, &whats, day, at) {
+        Err(e) if seq_refusal(&e) => {
+            let before = board.members[i].facts.events.len();
+            if read_after_seq(cx.ports, &mut board.members[i].facts).is_err() {
+                return refused(port_cause(&e));
+            }
+            close_lost_starts(cx, board, i, before, day, at);
+            let facts = &board.members[i].facts;
+            let stands = holds(facts).contains(&Hold::Check)
+                && facts.runs.first().is_some_and(|r| &r.run == run);
+            if !stands {
+                let taken = facts.events.iter().any(|e| {
+                    matches!(&e.what, What::HoldCleared { cause: Cleared::Check { run: r, .. } } if r == run)
+                });
+                return if taken {
+                    Report::default()
+                } else {
+                    refused(Cause::State)
+                };
+            }
+            match check_body(cx, facts, run, answer) {
+                Ok(again) => log_at(cx, board, i, &again, day, at),
+                Err(e) => Err(e),
+            }
+        }
+        other => other,
+    };
+    if let Err(e) = logged {
+        return refused(port_cause(&e));
+    }
+    let doing = &board.members[i].facts.doing;
+    if own(doing, OwnItemKind::Check).is_some() || own(doing, OwnItemKind::Ready).is_some() {
+        board.members[i].facts.doing = without_item(doing);
+    }
+    Report::default()
+}
+
 fn member_move<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, mv: Move) -> Report
 where
     P: Owner<Config = C> + Runs + Analysis + Rng,
@@ -1353,37 +1458,7 @@ where
                 return refused(Cause::State);
             };
             let run = newest.run.clone();
-            let mut whats = Vec::new();
-            if let Some(item) = own(&facts.doing, OwnItemKind::Check) {
-                whats.push(What::ItemAnswered {
-                    item,
-                    answer: Answered::Check(answer),
-                });
-            }
-            whats.push(What::HoldCleared {
-                cause: Cleared::Check {
-                    run: run.clone(),
-                    answer,
-                },
-            });
-            if answer == CheckAnswer::WentThrough {
-                let slot = facts.events.iter().find_map(|e| match &e.what {
-                    What::RunStarted { run: r, slot, .. } if *r == run => *slot,
-                    _ => None,
-                });
-                whats.push(What::SlotSkipped { slot });
-            }
-            let checked = own(&board.members[i].facts.doing, OwnItemKind::Check).is_some();
-            match store(cx, board, i, whats) {
-                Ok(()) => {
-                    if checked {
-                        let doing = without_item(&board.members[i].facts.doing);
-                        board.members[i].facts.doing = doing;
-                    }
-                    Report::default()
-                }
-                Err(e) => refused(port_cause(&e)),
-            }
+            answer_check(cx, board, i, &run, answer)
         }
         Move::SwitchOn { .. } => {
             let mut whats = Vec::new();

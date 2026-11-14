@@ -185,27 +185,190 @@ fn a_check_lapses_an_open_ready_item_and_waits_for_a_failed_store() {
     );
 }
 
+/// The person's answer to the check of agent `n`, through the schedule's drive.
+fn answer(w: &mut World, n: usize, answer: CheckAnswer) -> Result<Answer, Cause> {
+    let mv = Move::Check {
+        agent: agent(n),
+        answer,
+    };
+    schedule_drive(&w.ports, &mut w.board, &w.limits, mv).answer
+}
+
+/// The logs of agent `n` that the owner acknowledged from the tried call `from` on.
+fn bodies(w: &World, n: usize, from: usize) -> Vec<Vec<halvo_coord::types::Event>> {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), None) if events.iter().any(|e| e.agent == agent(n)) => {
+                Some(events.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The person's answer to a check is a move that reads the hold `check`: when it finds an open
+/// `ready` item and no item `check`, it lapses the `ready` item with the cause `check`, raises the
+/// check and answers it, in one body, and the agent then holds no item (I5.4, rulings RD-5 and
+/// RD-38). Turned round from `the_answer_to_a_check_keeps_an_open_ready_item_open`.
 #[test]
-fn the_answer_to_a_check_keeps_an_open_ready_item_open() {
+fn the_answer_to_a_check_lapses_an_open_ready_item_and_answers_its_check_in_one_body() {
     let mut w = world(&[PERSON]);
-    w.act(Act::Tick);
-    assert!(matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready));
-    let before = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
-    w.store_end(0, &before, Outcome::EffectUnknown, 1);
-    let answered = schedule_drive(
-        &w.ports,
-        &mut w.board,
-        &w.limits,
-        Move::Check {
-            agent: agent(0),
-            answer: CheckAnswer::TryAgain,
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None), "no item stays open");
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "one body: {logged:?}");
+    let checked = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    match logged[0].iter().map(|e| &e.what).collect::<Vec<_>>()[..] {
+        [What::ItemLapsed {
+            item: lapsed,
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        }, What::ItemRaised {
+            item: raised,
+            raised: Raised::Check(None),
+        }, What::ItemAnswered {
+            item: answered,
+            answer: Answered::Check(CheckAnswer::TryAgain),
+        }, What::HoldCleared {
+            cause:
+                halvo_coord::types::Cleared::Check {
+                    run,
+                    answer: CheckAnswer::TryAgain,
+                },
+        }] => {
+            assert_eq!(lapsed, &ready);
+            assert_eq!(
+                raised, answered,
+                "the check that the body raises is the one it answers"
+            );
+            assert_eq!(run, &checked);
+        }
+        ref other => panic!("the body: {other:?}"),
+    }
+    assert_eq!(skips(&w, 0), 0);
+    w.set_clock(T0 + 1_000, DAY);
+    assert_eq!(
+        w.act(Act::Tick).report.raised,
+        vec![agent(0)],
+        "after try_again the next tick raises ready again"
+    );
+}
+
+/// The answer `went_through` over an open `ready` item stores the same body with the
+/// `slot_skipped` of the checked run's slot last, and that skip decides the next tick (I5.4): the
+/// checked run names no slot, so no `ready` item is raised again that day (I5.3).
+#[test]
+fn the_answer_went_through_over_an_open_ready_item_stores_its_slot_skipped_last() {
+    let mut w = world(&[PERSON]);
+    ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(answer(&mut w, 0, CheckAnswer::WentThrough), Ok(Answer::Ok));
+    let logged = bodies(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert_eq!(logged[0].len(), 5, "{logged:?}");
+    assert!(matches!(logged[0][0].what, What::ItemLapsed { .. }));
+    assert!(matches!(
+        logged[0][4].what,
+        What::SlotSkipped { slot: None }
+    ));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    w.set_clock(T0 + 1_000, DAY);
+    assert!(w.act(Act::Tick).report.raised.is_empty());
+}
+
+/// The answer's body meets `seq` because the owner holds a raise of the check, with its lapse of
+/// the `ready` item, whose acknowledgement was lost: the answer reads the owner's events, finds
+/// the `ready` item closed and that check open, and answers that check, with no second lapse
+/// and no second check (I5.4, I7.2, rulings XB-31 and RD-38).
+#[test]
+fn the_answer_after_a_refusal_seq_answers_the_check_that_the_read_shows() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let check = ItemId::parse(&format!("{:032x}", 0x7501)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: ready.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::Check),
         },
     );
-    assert_eq!(answered.answer, Ok(Answer::Ok));
-    assert!(
-        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
-        "the ready item stays open: only its answer or its lapse closes it (I7.1)"
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
     );
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert_eq!(
+        lapses(&w, 0),
+        vec![(ready, Lapsed::Ready(OtherLapse::Check))]
+    );
+    assert_eq!(
+        check_items(&w, 0),
+        1,
+        "the check that the read showed, alone"
+    );
+    let answers: Vec<ItemId> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemAnswered {
+                item,
+                answer: Answered::Check(_),
+            } => Some(item.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(answers, vec![check]);
+}
+
+/// The owner stored the answer's own body with a lost acknowledgement: the next answer meets
+/// `seq`, its read shows the hold `check` answered, and it is taken with nothing stored again.
+#[test]
+fn an_answer_over_a_ready_item_stored_with_a_lost_acknowledgement_is_taken_once() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let checked = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    let check = ItemId::parse(&format!("{:032x}", 0x7601)).unwrap();
+    for what in [
+        What::ItemLapsed {
+            item: ready.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::Check),
+        },
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
+        What::ItemAnswered {
+            item: check,
+            answer: Answered::Check(CheckAnswer::TryAgain),
+        },
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check {
+                run: checked,
+                answer: CheckAnswer::TryAgain,
+            },
+        },
+    ] {
+        stored_unacknowledged(&w, 0, what);
+    }
+    let before = w.ports.events.borrow().len();
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    assert_eq!(
+        w.ports.events.borrow().len(),
+        before,
+        "nothing stored again"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert_eq!(lapses(&w, 0).len(), 1);
 }
 
 #[test]
@@ -615,23 +778,15 @@ fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
 fn one_body_lapses_the_ready_item_before_it_raises_the_check() {
     let mut w = world(&[PERSON]);
     let ready = ready_beside_an_unread_check(&mut w, 0);
-    let before = w.ports.tried.borrow().len();
+    let from = w.ports.tried.borrow().len();
     w.act(Act::Tick);
-    let bodies: Vec<Vec<halvo_coord::types::Event>> = w.ports.tried.borrow()[before..]
-        .iter()
-        .filter_map(|t| match (&t.call, &t.refused) {
-            (Call::Log(events), None) if events.iter().any(|e| e.agent == agent(0)) => {
-                Some(events.clone())
-            }
-            _ => None,
-        })
-        .collect();
+    let logged = bodies(&w, 0, from);
     assert_eq!(
-        bodies.len(),
+        logged.len(),
         1,
-        "one log of the agent in the tick: {bodies:?}"
+        "one log of the agent in the tick: {logged:?}"
     );
-    let body = &bodies[0];
+    let body = &logged[0];
     assert_eq!(body.len(), 2, "{body:?}");
     assert!(
         matches!(&body[0].what, What::ItemLapsed { item, lapsed: Lapsed::Ready(OtherLapse::Check) } if *item == ready),
