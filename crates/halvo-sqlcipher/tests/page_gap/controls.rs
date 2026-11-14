@@ -431,3 +431,22 @@ fn a_draw_that_frees_a_second_trunk_leaves_no_text_and_its_plants_are_named() {
     );
     assert!(misses.is_empty(), "{}", misses.join("\n"));
 }
+
+#[test]
+fn plants_refuses_a_log_of_the_connections_file_that_holds_frames() {
+    crate::initialize().unwrap();
+    let scratch = small_store(Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let db = std::fs::read(scratch.db()).unwrap();
+    assert_eq!(rules::plants(&conn, &db), Vec::<String>::new());
+    conn.execute(
+        "INSERT INTO t(id, body) VALUES (999999, 'a row in the log')",
+        [],
+    )
+    .unwrap();
+    let answer = rules::plants(&conn, &std::fs::read(scratch.db()).unwrap());
+    assert!(
+        answer.len() == 1 && answer[0].starts_with("the log of the connection's file holds "),
+        "plants() on a connection whose log holds frames does not answer with the log's line alone: {answer:?}"
+    );
+}

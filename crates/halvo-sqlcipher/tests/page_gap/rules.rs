@@ -25,7 +25,7 @@
 //! A caller's duties: `conn` is open on the same file as the bytes, with the
 //! log checkpointed by TRUNCATE before the read (dbstat reads through the log
 //! and the check reads the main file; [`check`] names a log that holds
-//! frames); the caller's images hold the pages that [`plants`] needs, or
+//! frames, and [`plants`] answers with that line alone); the caller's images hold the pages that [`plants`] needs, or
 //! plants() names each that is missing; a pointer-map page and the lock-byte
 //! page read as pages in no tree and not on the freelist, so a file with
 //! auto-vacuum or of more than 1 GiB fails; the reserved tail of a page is not
@@ -327,17 +327,26 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
 /// through the database's page table (dbstat), by the rules of this file.
 pub fn check(conn: &Connection, db: &[u8]) -> Checked {
     let mut checked = read_pages(conn, db).0;
+    checked.problems.extend(log_problems(conn));
+    checked
+}
+
+/// The line of a log of the connection's file that holds frames: the check
+/// reads the main file alone, and a log with frames holds whole earlier pages.
+fn log_problems(conn: &Connection) -> Vec<String> {
+    let mut problems = Vec::new();
     if let Some(path) = conn.path().filter(|path| !path.is_empty()) {
-        let log = format!("{path}-wal");
-        let length = std::fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
+        let length = std::fs::metadata(format!("{path}-wal"))
+            .map(|m| m.len())
+            .unwrap_or(0);
         if length > 0 {
-            checked.problems.push(format!(
+            problems.push(format!(
                 "the log of the connection's file holds {length} bytes: the check reads the main \
                  file alone, so checkpoint the log with TRUNCATE first"
             ));
         }
     }
-    checked
+    problems
 }
 
 fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -> Option<String> {
@@ -367,9 +376,14 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
 /// and, under 32 reserved bytes, an offset inside the page past the usable
 /// size; and a page size of 8,192. Returns one line for each plant that no
 /// line names, and for each such page that the image lacks; an empty answer
-/// is the pass. It shows that the check sees these plants on the caller's
+/// is the pass. On a connection whose log holds frames it answers with the
+/// log's line alone and plants nothing. It shows that the check sees these plants on the caller's
 /// image, not that the caller's draw would leave anything.
 pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
+    let log = log_problems(conn);
+    if !log.is_empty() {
+        return log;
+    }
     let (clean, tails) = read_pages(conn, db);
     if !clean.problems.is_empty() {
         return clean.problems;

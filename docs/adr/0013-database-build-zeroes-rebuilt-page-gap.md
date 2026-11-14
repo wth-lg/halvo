@@ -203,7 +203,9 @@ in the draws of the tests", with the limits below.
   the page count and the count plus 1 in a trunk and in a tail, a cell that
   takes the overflow chain of another (a page of 2 chains and one of 0), a
   leaf whose type byte is 0 on disk (dbstat reads it corrupted), a log with
-  frames, and a draw that frees a second freelist trunk, with plants in its
+  frames (check() names it, and plants() answers with that line alone, so a
+  wrong use is refused and not described), and a draw that frees a second
+  freelist trunk, with plants in its
   last leaf, past its count and in its first entry; `plants` holds a page
   appended to the file (with the line of a page in no tree, the sum's line
   for a page that the check read as no kind), a b-tree page that a trunk
