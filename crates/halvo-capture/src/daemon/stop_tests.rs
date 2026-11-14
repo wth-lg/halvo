@@ -16,10 +16,10 @@ use super::port::{
 };
 use super::scripted::{ScriptedRun, ScriptedSource};
 use super::{
-    run_timed, DaemonError, FailedSource, LossCause, RunOutcome, RunSources, SecureInput,
-    SourceName, SwitchFlags, TimedRun,
+    run_timed, stop_bound, DaemonError, FailedSource, LossCause, RunOutcome, RunSources,
+    SecureInput, SourceName, SwitchFlags, TimedRun, SETTLE_BOUND,
 };
-use crate::source::{SourceContext, SourceCounters};
+use crate::source::{CaptureError, SourceContext, SourceCounters};
 
 pub(super) fn run_of(seconds: u64) -> TimedRun {
     TimedRun {
@@ -308,4 +308,128 @@ fn a_drop_at_the_last_settle_after_a_healed_fault_prints_no_kind() {
     .unwrap();
     let line = outcome.loss.map(|loss| loss.line).unwrap_or_default();
     assert!(line.ends_with(" error=-"), "{line}");
+}
+
+/// Ruling DM-12 A3 (reading A of contracts.md C4 item 6): a signal that comes
+/// after the window's end and before the run returns gives status 2.
+#[test]
+fn a_signal_after_the_window_and_before_the_return_gives_status_2() {
+    let stop = AtomicBool::new(false);
+    let mut sources = StopHook {
+        inner: four_events(),
+        at_stop: || stop.store(true, Ordering::SeqCst),
+    };
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        ModelStore::new(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_millis(300),
+    )
+    .unwrap();
+    assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
+    assert_eq!(outcome.status, exit::TIMED_RUN_INTERRUPTED, "{outcome:?}");
+}
+
+/// Ruling DM-12 A3 (G4), adversary 1's adv1_w_f: a signal wins over a source
+/// that did not stop, whose line the report keeps.
+#[test]
+fn a_signal_wins_over_a_source_that_did_not_stop() {
+    let mut scripted = keys(4);
+    scripted.signal = true;
+    scripted.sources[0].1.stop = Err(CaptureError::Timeout {
+        stage: "input_join",
+        ms: 500,
+    });
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(600),
+        &mut scripted,
+        ModelStore::new(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(outcome.status, exit::TIMED_RUN_INTERRUPTED, "{outcome:?}");
+    assert_eq!(outcome.report.failed_sources.len(), 1, "{outcome:?}");
+}
+
+/// A model store whose first write sleeps `first` and then answers.
+struct FirstWriteSleeps {
+    inner: ModelStore,
+    first: Duration,
+    writes: u64,
+}
+
+impl MaintainStore for FirstWriteSleeps {
+    fn expire_due(&mut self, now: SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for FirstWriteSleeps {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.writes += 1;
+        if self.writes == 1 {
+            std::thread::sleep(self.first);
+        }
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+/// Ruling DM-12 A3, K4 as a pin: no wait of the stop path is cut. A signalled
+/// run behind a write of 3 s waits for that write, stores what was captured
+/// and returns status 2 inside the sum of the stop path's named bounds.
+#[test]
+fn a_signalled_run_behind_a_slow_write_waits_for_it_inside_the_stop_bound() {
+    assert_eq!(
+        stop_bound(SETTLE_BOUND),
+        Duration::from_secs(2) + 3 * Duration::from_secs(5)
+    );
+    let model = ModelStore::new();
+    let mut scripted = keys(600);
+    scripted.signal = true;
+    let stop = AtomicBool::new(false);
+    let started = Instant::now();
+    let outcome = run_timed(
+        &run_of(600),
+        &mut scripted,
+        FirstWriteSleeps {
+            inner: model.clone(),
+            first: Duration::from_secs(3),
+            writes: 0,
+        },
+        ManualClocks::at(noon()),
+        &stop,
+        SETTLE_BOUND,
+    )
+    .unwrap();
+    let took = started.elapsed();
+    assert_eq!(outcome.status, exit::TIMED_RUN_INTERRUPTED, "{outcome:?}");
+    assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
+    assert_eq!(
+        model.records().len() as u64 + outcome.report.events_discarded,
+        600,
+        "every captured event is stored or discarded at the run's own pause"
+    );
+    assert!(took >= Duration::from_secs(3), "a wait was cut: {took:?}");
+    assert!(
+        took <= stop_bound(SETTLE_BOUND),
+        "the stop took {took:?}, more than its named bounds {:?}",
+        stop_bound(SETTLE_BOUND)
+    );
 }

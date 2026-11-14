@@ -49,6 +49,14 @@ pub const SETTLE_BOUND: Duration = Duration::from_secs(5);
 /// for the owner to receive the events that the sink took inside the window.
 pub const DRAIN_BOUND: Duration = Duration::from_secs(2);
 
+/// The sum of the named bounds of a timed run's stop path: the drain wait and
+/// one `settle_bound` each for the pause, the settle and the Shutdown. The
+/// owner's open, the sources' stop and the join of the owner's thread have
+/// no bound of their own.
+pub fn stop_bound(settle_bound: Duration) -> Duration {
+    DRAIN_BOUND + 3 * settle_bound
+}
+
 /// The text that a refused command line prints after its reason.
 pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...
@@ -474,6 +482,7 @@ where
         cause,
         line: loss_line(&settled, count, last.is_ok(), &reports),
     });
+    let signalled = signalled || stop.load(std::sync::atomic::Ordering::SeqCst);
     let status = if loss.is_some() {
         exit::ERROR
     } else if signalled {
