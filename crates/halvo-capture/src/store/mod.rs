@@ -2,17 +2,17 @@
 
 pub mod db;
 pub(crate) mod durable;
-pub mod expiry;
+pub(in crate::store) mod expiry;
 #[cfg(test)]
-pub(crate) mod failpoint;
+pub(in crate::store) mod failpoint;
 #[cfg(not(test))]
-pub(crate) mod failpoint {
+pub(in crate::store) mod failpoint {
     pub(crate) fn hit(_name: &'static str) -> super::StoreResult<()> {
         Ok(())
     }
 }
-pub mod segment;
-pub mod verify;
+pub(in crate::store) mod segment;
+pub(in crate::store) mod verify;
 
 #[cfg(test)]
 mod formal_tests;
@@ -20,7 +20,7 @@ mod formal_tests;
 mod hardening_tests;
 #[cfg(test)]
 #[path = "test_support/pages.rs"]
-pub(crate) mod pages;
+pub(in crate::store) mod pages;
 #[cfg(test)]
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
@@ -34,7 +34,7 @@ use uuid::Uuid;
 use crate::custody::CustodyError;
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+pub(in crate::store) const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The store the capture daemon appends to.
 pub trait SegmentStore {

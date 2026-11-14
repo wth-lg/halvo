@@ -179,6 +179,12 @@ impl Batch {
         self.payload.len()
     }
 
+    /// The first and the last capture instant of the records, in signed unix
+    /// nanoseconds; both 0 for an empty batch.
+    pub fn captures(&self) -> (i64, i64) {
+        (self.first_capture, self.last_capture)
+    }
+
     pub fn admits(&self, day: UtcDay, record_len: usize) -> Admit {
         if record_len + 1 > self.payload.capacity() {
             return Admit::TooLarge;
@@ -678,7 +684,7 @@ mod tests {
         assert!(batches
             .iter()
             .flat_map(|batch| &batch.entries)
-            .any(|entry| entry.kind == EntryKind::Kind(Modality::Keystroke)));
+            .any(|entry| entry.kind == EntryKind::of(Modality::Keystroke)));
     }
 
     #[test]
@@ -762,7 +768,7 @@ mod tests {
         assert_eq!(batch.admits(day, 64), Admit::TooLarge);
         assert_eq!(batch.admits(day, 63), Admit::Fits);
         batch.push(
-            EntryKind::Kind(Modality::Keystroke),
+            EntryKind::of(Modality::Keystroke),
             5,
             b"0123456789",
             Duration::from_secs(1),

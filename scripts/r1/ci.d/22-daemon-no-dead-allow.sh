@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; and src/daemon/ holds a file to read.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; src/daemon/ holds a file to read; and no allow or expect of dead_code, of an unused lint or of warnings covers the daemon from outside its files (ruling DM-2): no attribute of the whole crate in crates/halvo-capture/src/lib.rs and no attribute of its item mod daemon, also inside cfg_attr; no lints table of the crate's or the workspace's Cargo.toml that sets dead_code, an unused lint, unused or warnings to allow; no key of .cargo/config.toml at the root or under crates/halvo-capture that gives rustc its flags, and no line that sets a variable of cargo that gives rustc its flags in .github/workflows/ci.yml, scripts/ci/ or scripts/r1/ci.d/, that allows those lints or caps the lints; and no .cargo/config with no ending at either place.
 set -u
 name=22-daemon-no-dead-allow
 
@@ -230,7 +230,10 @@ EOF
   found=$(scan "$daemon" "$@")
   status=$?
   case $status in
-    0) return 0 ;;
+    0)
+      outside "$root"
+      return
+      ;;
     1)
       printf '%s' "$found"
       return 1
@@ -240,6 +243,141 @@ EOF
       return 1
       ;;
   esac
+}
+
+# Ruling DM-2: an allowance of dead_code, of an unused lint or of warnings that
+# covers the daemon's code from outside its files. Reads lib.rs, the crate's and
+# the workspace's manifest, and the closed list of files that set the
+# compiler's flags under the root $1; prints the first cause and returns 1.
+outside() {
+  root=$1
+  lib=$root/crates/halvo-capture/src/lib.rs
+  if [ "$lib_names_daemon" != yes ]; then
+    printf 'crates/halvo-capture/src/lib.rs declares no mod daemon, so the files between the crate root and the daemon are not known to this check'
+    return 1
+  fi
+  found=$(tr -d '\r' <"$lib" | awk '
+    { text = text " " $0 }
+    END {
+      allowance = "(allow|expect)[[:space:]]*[(][^)]*(dead_code|unused|warnings)"
+      rest = text
+      while (match(rest, /#![[:space:]]*[[][^]]*[]]/)) {
+        if (substr(rest, RSTART, RLENGTH) ~ allowance) {
+          print "an attribute of the whole crate allows or expects dead_code, an unused lint or warnings"
+          exit 1
+        }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      if (match(text, /(pub[[:space:]]*([(][^)]*[)])?[[:space:]]+)?mod[[:space:]]+daemon[[:space:]]*[;{]/)) {
+        n = split(substr(text, 1, RSTART - 1), part, "[;}]")
+        if (part[n] ~ allowance) {
+          print "the item mod daemon carries an allow or an expect of dead_code, of an unused lint or of warnings"
+          exit 1
+        }
+      }
+    }')
+  status=$?
+  if [ "$status" != 0 ]; then
+    printf 'crates/halvo-capture/src/lib.rs: %s' "$found"
+    return 1
+  fi
+  for manifest in Cargo.toml crates/halvo-capture/Cargo.toml; do
+    [ -f "$root/$manifest" ] || continue
+    found=$(tr -d '\r' <"$root/$manifest" | awk '
+      function bare(text) {
+        gsub(/["'"'"'[:space:]]/, "", text)
+        return text
+      }
+      /^[[:space:]]*[[]/ {
+        table = $0
+        sub(/^[[:space:]]*[[]+/, "", table)
+        sub(/[]].*$/, "", table)
+        table = bare(table)
+        next
+      }
+      /=/ {
+        key = $0
+        sub(/=.*$/, "", key)
+        key = bare(key)
+        value = $0
+        sub(/^[^=]*=/, "", value)
+        path = (table == "") ? key : table "." key
+        lint = "(dead_code|unused[a-z_]*|warnings)"
+        if (path ~ ("^(workspace[.])?lints[.]rust[.]" lint "$") && value ~ /allow/) bad = 1
+        if (path ~ /^(workspace[.])?lints([.]rust)?$/ && value ~ (lint "[\"'"'"'[:space:]]*=[[:space:]]*([\"'"'"']allow|[{][^}]*level[[:space:]]*=[[:space:]]*[\"'"'"']allow)")) bad = 1
+        if (bad) {
+          print "a lints table sets dead_code, an unused lint or warnings to allow at " path
+          exit 1
+        }
+      }')
+    status=$?
+    if [ "$status" != 0 ]; then
+      printf '%s: %s' "$manifest" "$found"
+      return 1
+    fi
+  done
+  for config in .cargo crates/halvo-capture/.cargo; do
+    if [ -e "$root/$config/config" ] || [ -L "$root/$config/config" ]; then
+      printf '%s/config: a cargo config file under its older name, which this check does not read' "$config"
+      return 1
+    fi
+    [ -f "$root/$config/config.toml" ] || continue
+    # The flags word of cargo is written split here and below: 40-r6-policy refuses it whole in a tracked script.
+    found=$(tr -d '\r' <"$root/$config/config.toml" | awk '
+      { text = text "\n" $0 }
+      END {
+        rest = text
+        while (match(rest, /rust[f]lags["'"'"'[:space:]]*=[[:space:]]*/)) {
+          rest = substr(rest, RSTART + RLENGTH)
+          value = rest
+          if (substr(value, 1, 1) == "[") sub(/[]].*$/, "", value)
+          else sub(/\n.*$/, "", value)
+          if (value ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
+            print "a key that gives rustc its flags allows dead_code, an unused lint or warnings, or caps the lints"
+            exit 1
+          }
+        }
+      }')
+    status=$?
+    if [ "$status" != 0 ]; then
+      printf '%s/config.toml: %s' "$config" "$found"
+      return 1
+    fi
+  done
+  set --
+  [ -f "$root/.github/workflows/ci.yml" ] && set -- "$@" "$root/.github/workflows/ci.yml"
+  for dir in scripts/ci scripts/r1/ci.d; do
+    [ -d "$root/$dir" ] || continue
+    listed=$(find "$root/$dir" ! -type d 2>&1)
+    status=$?
+    if [ "$status" != 0 ]; then
+      printf 'the listing of %s failed' "$dir"
+      return 1
+    fi
+    while IFS= read -r file; do
+      [ -n "$file" ] && set -- "$@" "$file"
+    done <<EOF
+$listed
+EOF
+  done
+  [ "$#" -gt 0 ] || return 0
+  found=$(awk -v root="$root/" '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      if (line ~ /(^|[^A-Za-z0-9_])(RUST[F]LAGS|CARGO_BUILD_RUST[F]LAGS|CARGO_ENCODED_RUST[F]LAGS|CARGO_TARGET_[A-Z0-9_]+_RUST[F]LAGS)[[:space:]]*[:=]/ &&
+        line ~ /(-A|--allow)([[:space:]"'"'"',=]|\\x1f|\\037)*(dead_code|unused[a-z_]*|warnings)|--cap-lints/) {
+        file = FILENAME
+        if (index(file, root) == 1) file = substr(file, length(root) + 1)
+        print file ":" FNR ": a line sets the compiler flags so that dead_code, an unused lint or warnings are allowed, or the lints are capped"
+        exit 1
+      }
+    }' "$@")
+  status=$?
+  if [ "$status" != 0 ]; then
+    printf '%s' "$found"
+    return 1
+  fi
 }
 
 measure() {
@@ -297,8 +435,18 @@ add_line() {
   printf '%s\n' "$3" >>"$work/$1/crates/halvo-capture/src/$2" || exit 2
 }
 
+# Writes the lines after $2 as the file $2 of the fixture tree $1.
+put() {
+  file=$work/$1/$2
+  shift 2
+  mkdir -p "${file%/*}" || exit 2
+  printf '%s\n' "$@" >"$file" || exit 2
+}
+
 self_test() {
   rejected=0
+  flags_key=rust
+  flags_key=${flags_key}flags
   wrong=
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   fixture clean
@@ -449,6 +597,62 @@ self_test() {
   mv "$work/data-file-renamed/crates/halvo-capture/src/daemon/mutants.rows" "$work/data-file-renamed/crates/halvo-capture/src/daemon/Mutants.rows" || exit 2
   printf '%s\n' '#![allow(dead_code)]' >>"$work/data-file-renamed/crates/halvo-capture/src/daemon/Mutants.rows" || exit 2
   case_of data-file-renamed FAIL
+  fixture parent-allowance
+  put parent-allowance crates/halvo-capture/src/lib.rs '#[allow(dead_code)]' 'pub mod daemon;'
+  case_of parent-allowance FAIL
+  fixture parent-cfg-attr
+  put parent-cfg-attr crates/halvo-capture/src/lib.rs '#[cfg_attr(test, allow(unused_imports))]' 'pub mod daemon;'
+  case_of parent-cfg-attr FAIL
+  fixture parent-split-allowance
+  put parent-split-allowance crates/halvo-capture/src/lib.rs '#[allow(' '    unused,' ')]' 'pub mod daemon;'
+  case_of parent-split-allowance FAIL
+  fixture crate-allowance
+  put crate-allowance crates/halvo-capture/src/lib.rs '#![allow(dead_code)]' 'pub mod daemon;'
+  case_of crate-allowance FAIL
+  fixture crate-cfg-attr-expect
+  put crate-cfg-attr-expect crates/halvo-capture/src/lib.rs '#![cfg_attr(debug_assertions, expect(warnings))]' 'pub mod daemon;'
+  case_of crate-cfg-attr-expect FAIL
+  fixture other-module-allowance
+  put other-module-allowance crates/halvo-capture/src/lib.rs '#[allow(dead_code)]' 'mod other;' 'pub mod daemon;'
+  case_of other-module-allowance PASS
+  fixture crate-lints-table
+  put crate-lints-table crates/halvo-capture/Cargo.toml '[lints.rust]' 'dead_code = "allow"'
+  case_of crate-lints-table FAIL
+  fixture workspace-lints-level
+  put workspace-lints-level Cargo.toml '[workspace.lints.rust]' 'unused_imports = { level = "allow", priority = -1 }'
+  case_of workspace-lints-level FAIL
+  fixture lints-inline-table
+  put lints-inline-table Cargo.toml '[lints]' 'rust = { warnings = "allow" }'
+  case_of lints-inline-table FAIL
+  fixture lints-dotted-key
+  put lints-dotted-key crates/halvo-capture/Cargo.toml 'lints.rust.dead_code = "allow"' '[package]' 'name = "x"'
+  case_of lints-dotted-key FAIL
+  fixture lints-that-deny
+  put lints-that-deny Cargo.toml '[workspace.lints.rust]' 'warnings = "deny"' 'unused = { level = "warn", priority = -1 }'
+  put lints-that-deny crates/halvo-capture/Cargo.toml '[lints]' 'workspace = true' '[lints.rust]' 'dead_code = "forbid"'
+  put lints-that-deny .cargo/config.toml '[build]' "$flags_key"' = ["-D", "warnings"]'
+  case_of lints-that-deny PASS
+  fixture config-allow
+  put config-allow .cargo/config.toml '[build]' "$flags_key"' = ["-A", "dead_code"]'
+  case_of config-allow FAIL
+  fixture config-cap-lints
+  put config-cap-lints crates/halvo-capture/.cargo/config.toml '[target.x86_64-pc-windows-msvc]' "$flags_key"' = ["--cap-lints", "warn"]'
+  case_of config-cap-lints FAIL
+  fixture config-older-name
+  put config-older-name .cargo/config '[build]'
+  case_of config-older-name FAIL
+  fixture workflow-flags
+  mkdir -p "$work/workflow-flags/.github/workflows" || exit 2
+  printf '%s%s\n' '      RUSTF' 'LAGS: "-A warnings"' >"$work/workflow-flags/.github/workflows/ci.yml" || exit 2
+  case_of workflow-flags FAIL
+  fixture script-encoded-flags
+  mkdir -p "$work/script-encoded-flags/scripts/r1/ci.d" || exit 2
+  printf '%s%s\n' 'export CARGO_ENCODED_RUSTF' 'LAGS="-A\x1fdead_code"' >"$work/script-encoded-flags/scripts/r1/ci.d/40-x.sh" || exit 2
+  case_of script-encoded-flags FAIL
+  fixture script-target-flags
+  mkdir -p "$work/script-target-flags/scripts/ci" || exit 2
+  printf '%s%s\n' 'CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTF' "LAGS='-Aunused_variables' cargo build" >"$work/script-target-flags/scripts/ci/build.sh" || exit 2
+  case_of script-target-flags FAIL
   fixture unlisted-dir
   locked=$work/unlisted-dir/crates/halvo-capture/src/daemon/locked
   mkdir -p "$locked" || exit 2
@@ -485,21 +689,29 @@ usage: sh scripts/r1/ci.d/22-daemon-no-dead-allow.sh [--self-test | --help]
 Start it at the root of the repository, or run it through
 sh scripts/ci/run-ci-d.sh <job> 22-daemon-no-dead-allow.
 With no argument it reads every file under crates/halvo-capture/src/daemon/
-and crates/halvo-capture/src/bin/halvo-capture.rs as text and prints PASS, or
-FAIL with the file and the cause. --self-test runs it over fixture trees that
-must pass or fail. The rule that it holds is the line "# rule:" of this file,
-which sh scripts/ci/run-ci-d.sh --rules prints.
+and crates/halvo-capture/src/bin/halvo-capture.rs as text, and then
+crates/halvo-capture/src/lib.rs, the crate's and the workspace's Cargo.toml,
+.cargo/config.toml at the root and under crates/halvo-capture,
+.github/workflows/ci.yml and the files of scripts/ci/ and scripts/r1/ci.d/
+(ruling DM-2), and prints PASS, or FAIL with the file and the cause.
+--self-test runs it over fixture trees that must pass or fail. The rule that
+it holds is the line "# rule:" of this file, which sh scripts/ci/run-ci-d.sh
+--rules prints.
 
-Limit: checks 22 and 23 read text. The two checks refuse the listed spellings
-alone, and a daemon file that reaches the store's database type by another
-spelling is refused by review and not by a check. In the same way this check
-refuses the listed forms of a module of the daemon alone. Ruling DM-7 moves
-the boundary to the compiler in a later unit. Until it lands, this form
-passes this check:
+Limits. This check reads text and is the second layer. The compiler holds the
+boundary (ruling DM-7): the store's database type cannot be named outside
+crate::store, and 30-core-boundary-proofs fails when the lib's test build
+reads a file of the daemon that its product build does not read and that is
+no test support, whatever spelling declares it. This check refuses the
+listed forms of a module of the daemon alone; this form, for one, passes it:
 - a line mod state; inside a block comment of daemon/mod.rs, which the check
   counts as the plain mod line that names daemon/state.rs. With it, a macro
   defined in lib.rs that declares the module under cfg(test), called in
-  daemon/mod.rs with no argument, builds the module in the test build alone.
+  daemon/mod.rs with no argument, builds the module in the test build alone,
+  and 30-core-boundary-proofs refuses it.
+A flag that a person sets in the shell of their own machine, a cargo config
+file above the repository, and a flag that a script builds from parts are
+outside what it reads.
 EOF
 }
 

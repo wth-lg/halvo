@@ -16,7 +16,7 @@ use super::model_store::{
     foreground_now, frame, key, open_floor, title_of, Harness, ManualClocks, ModelStore,
     WriteScript,
 };
-use super::owner::{spawn, Answer, Command, OwnerParts, Report};
+use super::owner::{spawn, Answer, Command, OwnerParts, Report, QUEUE_SLOTS};
 use super::port::WriteFault;
 use crate::event::FloorEvent;
 use crate::sink;
@@ -328,15 +328,15 @@ fn a_keystroke_blocked_in_its_emit_through_a_resume_is_discarded() {
     );
 }
 
-/// The same at the product's sink capacity of 2,048 with five blocked
+/// The same at the product's sink capacity of 1,024 with five blocked
 /// emitters, as five sources would be.
 #[test]
-fn the_same_at_capacity_2048_with_five_blocked_sources() {
+fn the_same_at_capacity_1024_with_five_blocked_sources() {
     let trials = 40;
     let mut kept = 0;
     let mut example = String::new();
     for _ in 0..trials {
-        let (k, text) = blocked_keystroke_trial(2048, 2048, 5);
+        let (k, text) = blocked_keystroke_trial(QUEUE_SLOTS, QUEUE_SLOTS, 5);
         if k {
             kept += 1;
             if example.is_empty() {
@@ -344,7 +344,9 @@ fn the_same_at_capacity_2048_with_five_blocked_sources() {
             }
         }
     }
-    println!("BLOCKED capacity=2048 blocked=5 trials={trials} kept={kept} example: {example}");
+    println!(
+        "BLOCKED capacity={QUEUE_SLOTS} blocked=5 trials={trials} kept={kept} example: {example}"
+    );
     assert_eq!(
         kept, 0,
         "a keystroke emitted inside the pause was stored in {kept} of {trials} trials"

@@ -1386,7 +1386,7 @@ mod tests {
 
     #[test]
     fn a_keystroke_after_a_flood_of_fold_emits_is_queued_after_one_receive() {
-        const SLOTS: usize = 2_048;
+        const SLOTS: usize = 1_024;
         let (handle, writer) = bounded(NonZeroUsize::new(SLOTS).unwrap());
         let (flooded_tx, flooded) = mpsc::channel();
         let flood = {
@@ -1406,9 +1406,14 @@ mod tests {
         };
         let coalesced = flooded
             .recv_timeout(Duration::from_secs(10))
-            .expect("4,096 fold emits on a queue of 2,048 returned inside 10 s");
+            .unwrap_or_else(|_| {
+                panic!(
+                    "{} fold emits on a queue of {SLOTS} did not return inside 10 s",
+                    SLOTS * 2
+                )
+            });
         flood.join().unwrap();
-        assert_eq!(coalesced, 2_048);
+        assert_eq!(coalesced, SLOTS as u64);
         let waiting = emit_on_a_thread(&handle, unnumbered(Modality::Keystroke, 0, 0));
         waiting
             .started
@@ -1426,16 +1431,19 @@ mod tests {
         while let Ok(received) = writer.try_recv() {
             last = Some((received.number().get(), received.event().modality));
         }
-        assert_eq!(last, Some((2_048, Modality::Keystroke)));
+        assert_eq!(last, Some((SLOTS as u64, Modality::Keystroke)));
         let pointer = handle.counts().of(Modality::Pointer);
-        assert_eq!((pointer.accepted, pointer.coalesced), (2_048, 2_048));
+        assert_eq!(
+            (pointer.accepted, pointer.coalesced),
+            (SLOTS as u64, SLOTS as u64)
+        );
     }
 
     #[test]
     fn a_full_queue_of_the_largest_events_stays_under_the_byte_bound() {
-        const QUEUED: usize = 2_048;
+        const QUEUED: usize = 1_024;
         const BATCHED: usize = 512;
-        const BOUND: usize = 6_291_456;
+        const BOUND: usize = 4_194_304;
         const SITE_MAX_BYTES: usize = crate::floor::site::SITE_MAX_BYTES;
         let label = "a".repeat(63);
         let address = format!("https://www.{label}.co.uk/{}", "p".repeat(900));

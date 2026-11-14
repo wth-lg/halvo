@@ -186,7 +186,7 @@ pub(crate) fn write_one<S: CaptureStore>(
 ) -> Result<Written, WriteFault> {
     let id = SegmentId::mint().unwrap();
     let entries = [KindEntry {
-        kind: super::port::EntryKind::Kind(crate::event::Modality::ForegroundApp),
+        kind: super::port::EntryKind::of(crate::event::Modality::ForegroundApp),
         events: 1,
         bytes: payload.len() as u64,
     }];
