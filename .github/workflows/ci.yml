@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,69 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
+      - name: win-3 W3-7 round B, x3 K9 K12 O3 with their one-rule changes (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 100
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/b2.log"
+          pick='TF (x3|first-read|fixture-native|x8) |child: TF child|panicked|^test result|^test .* (ok|FAILED)$'
+          lib() {
+            timeout 600 cargo test --locked -p halvo-capture --lib -- "$1" --test-threads=1 >"$log" 2>&1
+            echo "LIB $2 name=$1 exit=$?"
+            tr -d '\r' <"$log" | grep -E "$pick" | head -n 40
+          }
+          fun() {
+            timeout 600 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$1" --nocapture --test-threads=1 >"$log" 2>&1
+            echo "FUN $2 name=$1 exit=$?"
+            tr -d '\r' <"$log" | grep -E "$pick" | head -n 120
+          }
+          mutate() {
+            python - "$1" "$2" <<'PY'
+          import sys
+          name, path = sys.argv[1], sys.argv[2]
+          rows = {
+            "R1": ("return super::unreadable_state();", "return FieldState::Clear;"),
+            "R2": ("                shared.desktop_switched(time);", "                let _ = (shared, time);"),
+            "R3": ("        own_read(shared, &reader);\n        let _ = ready.send(Ok(()));", "        shared.read_seen(tick(), tick(), FieldState::Clear, None, None);\n        let _ = ready.send(Ok(()));"),
+            "K12a": ("        Some(_) if same => (FieldState::Password, Kept::Leave),\n", ""),
+            "K12b": ("        Some(_) if same => (FieldState::Password, Kept::Leave),\n", "        Some(at) if own && moves > at => (read, Kept::Drop),\n        Some(_) if same => (FieldState::Password, Kept::Leave),\n"),
+          }
+          old, new = rows[name]
+          text = open(path, encoding="utf-8").read().replace("\r\n", "\n")
+          print("MUTANT", name, "matches", text.count(old))
+          assert text.count(old) == 1
+          open(path, "w", encoding="utf-8", newline="\n").write(text.replace(old, new))
+          PY
+          }
+          src=crates/halvo-capture/src/windows/secure_input.rs
+          cargo test --locked -p halvo-capture --test windows_functional --no-run >"$log" 2>&1
+          echo "BUILD exit=$?"
+          lib a_reading_with_no_element_reads_unknown_through_the_detectors_reader head
+          lib the_desktop_hook_callback_reads_unknown_and_closes_the_gate head
+          lib secure_input head-all
+          for run in 1 2 3; do fun x3_attribution_before_the_first_foreground_change head-$run; done
+          fun the_first_own_read_after_a_start_reads_the_focused_password_field head
+          fun password_field_fixture_native_dialog_phases_a_to_f head
+          fun x8_raw_input_across_the_integrity_boundary head
+          for row in R1 R2 R3 K12a K12b; do
+            git checkout -- "$src"
+            mutate "$row" "$src"
+            case $row in
+              R1) lib a_reading_with_no_element_reads_unknown_through_the_detectors_reader "$row" ;;
+              R2) lib the_desktop_hook_callback_reads_unknown_and_closes_the_gate "$row" ;;
+              R3) fun the_first_own_read_after_a_start_reads_the_focused_password_field "$row" ;;
+              *) fun password_field_fixture_native_dialog_phases_a_to_f "$row" ;;
+            esac
+          done
+          git checkout -- "$src"
+          git status --short
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
