@@ -1,5 +1,3 @@
-//! The report of a bounded timed run, in the lines of contracts.md C5.1.
-
 use crate::event::Modality;
 use crate::sink::KindCounts;
 use crate::source::{HeldSamples, SuppressedKeys};
@@ -24,8 +22,7 @@ pub struct HoldLines {
     pub keys_typed: bool,
 }
 
-/// The result of a bounded timed run. It has no `Default`: every figure is
-/// one that the run read.
+/// The result of a bounded timed run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimedRunReport {
     pub screen_frame: u64,

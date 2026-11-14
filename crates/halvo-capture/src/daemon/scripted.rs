@@ -1,7 +1,3 @@
-//! Scripted sources for the daemon's tests, over core-1's source contract: a
-//! source that emits its script when it begins or fails to begin, and a source
-//! set for a timed run whose wait returns at once.
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -10,8 +6,6 @@ use crate::event::FloorEvent;
 use crate::sink::{Emitted, SinkHandle};
 use crate::source::{CaptureError, CaptureSource, SourceContext, SourceCounters, Started};
 
-/// A source that emits `script` into the sink when it begins, or answers
-/// `refuse` instead, and answers `stop` to its shutdown.
 pub(crate) struct ScriptedSource {
     pub(crate) script: Vec<FloorEvent>,
     pub(crate) refuse: Option<CaptureError>,
@@ -60,9 +54,6 @@ impl CaptureSource for ScriptedSource {
     }
 }
 
-/// The sources of a scripted timed run, by name. The wait records the window,
-/// emits `in_window` and, with `signal` set, sets the stop flag and
-/// answers that it ended the wait.
 pub(crate) struct ScriptedRun {
     pub(crate) sources: Vec<(SourceName, ScriptedSource)>,
     pub(crate) in_window: Vec<FloorEvent>,

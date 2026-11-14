@@ -40,8 +40,6 @@ mod timed {
     use crate::daemon::{DaemonError, FailedSource, RunOutcome, RunSources, SourceName, TimedRun};
     use crate::source::{CaptureSource, SourceContext, SourceCounters};
 
-    /// Runs the gate's timed run on the process main thread, into the port that
-    /// keeps nothing for the store directory of `run`.
     pub(crate) fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
         let mut sources = MacSources::claim()?;
         crate::daemon::run_timed(
@@ -54,8 +52,6 @@ mod timed {
         )
     }
 
-    /// The sources of a timed run on macOS, on the main run loop that the run
-    /// waits in.
     struct MacSources {
         main_loop: run_loop::MainRunLoop,
         foreground_state: Option<(foreground::ForegroundWriter, foreground::ForegroundReader)>,

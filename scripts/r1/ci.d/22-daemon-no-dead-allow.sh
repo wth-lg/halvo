@@ -245,10 +245,6 @@ EOF
   esac
 }
 
-# Ruling DM-2: an allowance of dead_code, of an unused lint or of warnings that
-# covers the daemon's code from outside its files. Reads lib.rs, the crate's and
-# the workspace's manifest, and the closed list of files that set the
-# compiler's flags under the root $1; prints the first cause and returns 1.
 outside() {
   root=$1
   lib=$root/crates/halvo-capture/src/lib.rs
@@ -322,7 +318,6 @@ outside() {
       return 1
     fi
     [ -f "$root/$config/config.toml" ] || continue
-    # The flags word of cargo is written split here and below: 40-r6-policy refuses it whole in a tracked script.
     found=$(tr -d '\r' <"$root/$config/config.toml" | awk '
       { text = text "\n" $0 }
       END {
@@ -435,7 +430,6 @@ add_line() {
   printf '%s\n' "$3" >>"$work/$1/crates/halvo-capture/src/$2" || exit 2
 }
 
-# Writes the lines after $2 as the file $2 of the fixture tree $1.
 put() {
   file=$work/$1/$2
   shift 2

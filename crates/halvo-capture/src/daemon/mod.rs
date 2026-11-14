@@ -371,11 +371,8 @@ pub trait RunSources {
 /// Runs one timed run on the owner: the owner over `store` resumes, the
 /// sources start and run for the window, the owner receives what the sink took
 /// in the window (at most [`DRAIN_BOUND`]), the owner pauses, the sources stop
-/// and the owner settles. The status is 1 with a loss line when the last
-/// settle finds the drain failing, events lost since the last acknowledged
-/// write or more events lost than before the first settle, or gives no answer
-/// inside `settle_bound`; else 2 when `stop` ended the window, 3 when a source
-/// failed, and 0. The pause and the shutdown each wait at most `settle_bound`
+/// and the owner settles.
+/// The pause and the shutdown each wait at most `settle_bound`
 /// for the owner's answer, and an owner that gives none is not joined.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(

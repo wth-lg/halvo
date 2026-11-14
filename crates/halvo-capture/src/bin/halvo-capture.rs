@@ -1,8 +1,3 @@
-//! The halvo-capture command. `--version` works in every build; the gate's
-//! modes `--timed-run`, `--verify-store` and `--verify-deletion` exist only in
-//! builds with debug assertions, and a release build prints usage and exits 64
-//! for each of them.
-
 use std::io::Write;
 use std::process::ExitCode;
 
@@ -45,8 +40,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// Writes `text` to standard output and flushes it; a write that fails, as
-/// into a pipe whose reader is gone, is exit 1 with no panic.
 fn print_checked(text: &str) -> ExitCode {
     let mut out = std::io::stdout().lock();
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {

@@ -1,7 +1,3 @@
-//! The calls that the binary makes for its process before any mode runs: the
-//! flag that SIGINT and SIGTERM set, the file-mode mask, and the process's own
-//! peak of resident memory.
-
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::io;
@@ -9,14 +5,10 @@ use std::sync::atomic::AtomicBool;
 
 static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
-/// The flag that SIGINT and SIGTERM set once [`prepare`] has run.
 pub fn flag() -> &'static AtomicBool {
     &SIGNALLED
 }
 
-/// Sets the file-mode mask to 0o077 and installs the handlers of SIGINT and
-/// SIGTERM, which set [`flag`] and do nothing else. On Windows it does nothing
-/// yet: the timed run there is win-5's, and a console Ctrl-C ends the process.
 pub fn prepare() -> io::Result<()> {
     #[cfg(target_os = "macos")]
     {

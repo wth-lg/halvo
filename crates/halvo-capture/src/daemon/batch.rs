@@ -180,7 +180,7 @@ impl Batch {
     }
 
     /// The first and the last capture instant of the records, in signed unix
-    /// nanoseconds; both 0 for an empty batch.
+    /// nanoseconds.
     pub fn captures(&self) -> (i64, i64) {
         (self.first_capture, self.last_capture)
     }

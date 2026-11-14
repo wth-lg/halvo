@@ -53,7 +53,6 @@ store_database_re_exported_under_a_new_name E0603 debug
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
 proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
-# The files under src/daemon/ that the lib's test build alone may read.
 test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/scripted.rs"
 
 fail() {
@@ -245,8 +244,6 @@ build() {
   cargo rustc --locked -p halvo-capture --lib --profile check --message-format short -- "$@" >"$build_log" 2>&1
 }
 
-# The dep-info file that cargo wrote for the lib target of halvo-capture, from
-# the JSON messages of a build on stdin; nothing when the messages name none.
 depinfo_of() {
   tr -d '\r' | grep -F '"reason":"compiler-artifact"' | grep -F '"name":"halvo_capture"' |
     grep -F '"kind":["lib"]' | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
@@ -259,16 +256,11 @@ depinfo_of() {
     }'
 }
 
-# The files under src/daemon/ that the dep-info file $1 lists, one a line.
 daemon_reads() {
   tr -d '\r' <"$1" | sed -n '1p' | tr ' ' '\n' |
     sed -n "s|^.*$src/daemon/|$src/daemon/|p" | sort -u
 }
 
-# The verdict on the daemon's files that the compiler read: the dep-info of the
-# product build is named by the JSON messages in $1, that of the lib's test
-# build by $2, and the lists go to $3. Prints the counts, and each file that the
-# test build alone reads outside $test_support, and fails on one.
 module_verdict() {
   product_d=$(depinfo_of <"$1")
   test_d=$(depinfo_of <"$2")
@@ -294,8 +286,6 @@ module_verdict() {
   ' "$3/product-daemon-files.txt" "$3/test-daemon-files.txt"
 }
 
-# The two builds of the lib whose dep-info module_verdict reads; their JSON
-# messages go to $1/product-build.json and $1/test-build.json.
 module_builds() {
   cargo build --locked -p halvo-capture --lib --message-format json >"$1/product-build.json" 2>"$1/product-build.err" ||
     return 1
@@ -482,9 +472,6 @@ source_output() {
   } >"$1"
 }
 
-# A fixture of module_verdict in $work/$1: the product build reads the files
-# $2 and the test build the files $3; with $4 set the product build's messages
-# name no artifact of the lib.
 module_case() {
   dir=$work/$1
   mkdir -p "$dir" || exit 2

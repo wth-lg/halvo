@@ -21,10 +21,7 @@ use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
 
-/// The slots of the sink's queue that the owner drains: the largest depth at
-/// which 2,000,000 window-title records grow the owner by at most 8,388,608
-/// bytes on a hosted Mac, measured with room for the noise of that reading
-/// (ruling DM-9).
+/// The slots of the sink's queue that the owner drains.
 pub const QUEUE_SLOTS: usize = 1_024;
 
 /// The most events that the owner holds while its drain fails. It is a count
@@ -311,11 +308,6 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         self.counters.tallies().clone()
     }
 
-    /// Appends a run-mark record to the batch that the owner fills, numbered
-    /// by the receiver at the append and placed by its `at` (contracts.md C18
-    /// item 8). False, with no number taken and no counter changed, while the
-    /// owner discards, and while the drain fails when the mark at the largest
-    /// record's length would pass either bound of what the owner holds.
     #[cfg(feature = "r2")]
     pub(crate) fn append_run_mark(&mut self, mark: crate::floor::record::RunMark) -> bool {
         if self.gate.is_discarding() {
