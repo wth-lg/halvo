@@ -306,3 +306,15 @@ fn moment_a_show_whose_pair_never_reads_both_answers_no_press_and_reports_nothin
     }
     assert_eq!(show.reports, 0);
 }
+
+#[test]
+fn moment_a_resign_forces_not_true_whatever_pair_comes_with_it() {
+    let mut show = Show::reported();
+    assert_eq!(
+        show.event(Event::Resign, Some(TRUE), 200),
+        Decision::Nothing
+    );
+    assert_eq!(show.reading(TRUE, 300), Decision::Moment { first: false });
+    assert!(!show.answers(799));
+    assert!(show.answers(800));
+}
