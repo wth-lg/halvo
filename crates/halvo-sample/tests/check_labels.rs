@@ -614,3 +614,57 @@ fn a_script_manifest_line_without_its_seed_mark_is_refused() {
     fs::write(&p, text.replacen(",\"seed_category\":true}", "}", 1)).expect("write");
     refused(&run(&["check-labels", &s(&dir)]), "script-manifest");
 }
+
+#[test]
+fn the_fail_lines_of_one_range_stand_in_the_order_range_seed_unmarked_keys() {
+    let dir = copy_golden("one-range-order");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with("{\"step\":\"g-agenda-clear\","))
+        .expect("the step line");
+    let changed = line
+        .replace("\"password_input\":false", "\"password_input\":true")
+        .replace(",\"seed_category\":true}", ",\"seed_category\":false}");
+    assert_ne!(changed, line);
+    fs::write(&p, text.replacen(line, &changed, 1)).expect("write");
+    let start = "1771509632000000000";
+    let mut gone = 0;
+    for e in fs::read_dir(dir.join("streams/golden")).expect("stream") {
+        let path = e.expect("entry").path();
+        if !path.to_string_lossy().contains("day-") {
+            continue;
+        }
+        let day = fs::read_to_string(&path).expect("day file");
+        let kept: String = day
+            .lines()
+            .filter(|l| {
+                let title_here = l.contains("\"kind\":\"window_title\"")
+                    && l.contains(&format!("\"at\":{start},"));
+                let mark = l.contains("\"kind\":\"run_mark\"");
+                if title_here || mark {
+                    gone += 1;
+                }
+                !(title_here || mark)
+            })
+            .map(|l| format!("{l}\n"))
+            .collect();
+        fs::write(&path, kept).expect("write");
+    }
+    assert!(gone >= 3, "{gone}");
+    let o = run(&["check-labels", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let kinds: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.contains(&format!(" golden golden-e11 g-agenda-clear {start} ")))
+        .map(|l| l.split(' ').nth(1).expect("kind"))
+        .collect();
+    assert_eq!(
+        kinds,
+        vec!["range", "seed", "unmarked", "keys"],
+        "{}",
+        o.stdout
+    );
+}
