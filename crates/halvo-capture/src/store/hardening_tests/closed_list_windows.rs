@@ -223,7 +223,45 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
             !(answer.is_ok() && inside_stays),
             "{case}: the tail answered Ok while store. holds a file"
         );
+        assert!(inside_stays, "{case}: the tail removed a file in store.");
+        if case == "nothing at the trimmed name" {
+            assert!(
+                !sibling.exists(),
+                "{case}: an entry came at the trimmed name"
+            );
+        }
+        let report = delete_report(&answer);
+        assert!(
+            matches!(answer, Err(StoreError::DeleteIncomplete(_))) && report.not_followed == 1,
+            "{case}: the tail did not answer DeleteIncomplete with not_followed 1"
+        );
     }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+    let wrapped = wrapped_of(&made_at);
+    let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
+    std::fs::rename(&made_at, &verbatim).unwrap();
+    let answer = EncryptedStore::delete_store_dir(&verbatim, &roots_dir);
+    println!(
+        "WIN-TRAILING-DOT case=a store under such a name {} store_dot_holds_its_key_file={} trimmed_name_exists={}",
+        report_line(&answer),
+        verbatim.join("store.key").exists(),
+        base.join("store").exists()
+    );
+    let report = delete_report(&answer);
+    assert!(
+        report.root_destroyed() && !unwraps(&roots_dir, root_id, &wrapped),
+        "the tail at a name that ends in a dot did not run the root step"
+    );
+    assert!(
+        verbatim.join("store.key").exists() && !base.join("store").exists(),
+        "the tail removed a file at or beside the name that ends in a dot"
+    );
+    assert!(
+        matches!(answer, Err(StoreError::DeleteIncomplete(_))) && report.not_followed == 1,
+        "the tail at a store under such a name did not answer DeleteIncomplete with not_followed 1"
+    );
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_path_buf();
     let (store_dir, _, _, _) = file_root_store(&base);
@@ -240,6 +278,10 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     assert!(
         roots_dot.join("held-file").exists(),
         "the tail removed a file under the roots path that ends in a dot"
+    );
+    assert!(
+        matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if !r.root_destroyed()),
+        "the tail read the root as destroyed under a roots path that ends in a dot"
     );
 }
 
