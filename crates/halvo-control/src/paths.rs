@@ -32,7 +32,7 @@ pub enum PathError {
 }
 
 /// What stands at a data directory's own name when it is no directory that a link at that name
-/// leads to or that stands there itself (ruling ST-36 (e)). It is never a missing directory.
+/// leads to or that stands there itself (ruling ST-36 (e)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EntryAtDataDir {
     #[error("the data directory's name is a link whose target is away")]
@@ -41,10 +41,6 @@ pub enum EntryAtDataDir {
     NotADirectory,
 }
 
-/// The cause of ruling ST-36 (e) at `dir`, read by the name; `None` when a directory stands
-/// there, through a link or not, or when nothing stands there and the nearest parent that stands
-/// is a directory. A missing name below a parent link whose target is away answers that parent's
-/// cause.
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
     let Ok(named) = std::fs::symlink_metadata(dir) else {
         return dir.parent().and_then(entry_fault);
@@ -67,8 +63,6 @@ pub fn entry_cause(error: &std::io::Error) -> Option<EntryAtDataDir> {
 }
 
 #[cfg(target_os = "macos")]
-/// The error of an open of `dir` that failed with `error`: the cause of ruling ST-36 (e) when one
-/// stands at the name, and `error` otherwise.
 pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Error {
     match entry_fault(dir) {
         Some(cause @ EntryAtDataDir::NotADirectory) => {
@@ -83,7 +77,7 @@ pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Er
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataDirCheck {
-    /// Nothing stands at the name; the daemon makes the directory.
+    /// Nothing stands at the name.
     Missing,
     /// The directory stands at its own name; `tightened` when its mode gave group or others
     /// access and was set to 0700 on the descriptor.
@@ -107,8 +101,7 @@ impl DataDirCheck {
     }
 }
 
-/// Why a data directory failed its check. A failed check is a slot of the daemon and never an
-/// end of the process, and it never gates a delete (ruling ST-36 (c)).
+/// Why a data directory failed its check.
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DataDirFault {
@@ -192,7 +185,6 @@ pub(crate) fn check_opened(
     })
 }
 
-/// The path that the system gives for an open descriptor.
 #[cfg(target_os = "macos")]
 fn path_of(directory: &std::fs::File) -> std::io::Result<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
@@ -1392,9 +1384,7 @@ mod tests {
             let name = root.path().join("d");
             std::os::unix::fs::symlink(&target, &name).unwrap();
             let data = DataDir::from_flag(&name).unwrap();
-            // The lock's descriptor is opened through the link.
             let lock = InstanceLock::take(data.path()).unwrap().unwrap();
-            // Swap: the link goes and the folder it led to now stands at the name itself.
             std::fs::remove_file(&name).unwrap();
             std::fs::rename(&target, &name).unwrap();
             let result = check_data_dir(&data, Some(&lock));
@@ -1415,7 +1405,6 @@ mod tests {
             std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();
             let data = DataDir::from_flag(&name).unwrap();
             let lock = InstanceLock::take(data.path()).unwrap().unwrap();
-            // No link is made: the locked directory moves and a new real directory takes the name.
             std::fs::rename(&name, root.path().join("old")).unwrap();
             std::fs::create_dir(&name).unwrap();
             std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();

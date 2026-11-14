@@ -28,8 +28,6 @@ pub struct InstanceLock {
     through_a_link: bool,
 }
 
-/// A descriptor of a data directory, and whether its open went through a link at the
-/// directory's last name.
 #[derive(Debug)]
 pub(crate) struct Opened {
     pub(crate) directory: std::fs::File,
@@ -60,12 +58,8 @@ fn open_with(dir: &Path, flags: libc::c_int) -> std::io::Result<std::fs::File> {
 
 /// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
 /// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
-/// open never waits; std adds close-on-exec. The first open does not follow a link at the last
-/// name; when it fails as a link or as no directory (macOS answers ENOTDIR for a link opened with
-/// `O_DIRECTORY` and `O_NOFOLLOW`), a second open follows the name, and a descriptor that it gives
-/// records that it was reached through a link, so that no later read of the name decides it. A link
-/// whose target is away and an entry that is no directory carry their cause of ruling ST-36 (e),
-/// which [`crate::paths::entry_cause`] reads.
+/// open never waits; std adds close-on-exec. macOS answers ENOTDIR for a link opened with
+/// `O_DIRECTORY` and `O_NOFOLLOW`.
 pub(crate) fn open(dir: &Path) -> std::io::Result<Opened> {
     let opened = match open_with(dir, libc::O_NOFOLLOW) {
         Ok(directory) => Ok(Opened {
@@ -114,12 +108,10 @@ impl InstanceLock {
 }
 
 impl InstanceLock {
-    /// The directory's own descriptor, which the check of the data directory reads.
     pub(crate) fn directory(&self) -> &std::fs::File {
         &self.directory
     }
 
-    /// Whether the take opened the directory through a link at its last name.
     pub(crate) fn through_a_link(&self) -> bool {
         self.through_a_link
     }

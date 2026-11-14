@@ -268,8 +268,7 @@ fn end_the_person_s_stops(f: &mut StatusFields) {
 
 /// Sets capture and its reason from desired, `hold`, the lease and the states of the sources
 /// that are not off: paused when desired is paused; else awaiting_resume under `hold`; else
-/// no_indicator when the lease is not fresh; else faulted with no_source when no source is
-/// required; else running when each of those sources is running or impaired, partial when some
+/// no_indicator when the lease is not fresh; else running when each of those sources is running or impaired, partial when some
 /// are, and otherwise faulted with the reason that stood, or no_source when none stood.
 fn settle(f: &mut StatusFields, hold: bool) {
     settle_sources(f, hold);
@@ -367,8 +366,6 @@ pub struct ScriptedDaemon {
     /// claim and a pause, and cleared by a Resume.
     hold: bool,
     stop_answers: Vec<(SourceName, StopAnswer)>,
-    /// The flag of the scripted daemon's own for the fact of ruling PL-17 (a); the script sets it
-    /// with the status, and nothing reads it out of the capture value.
     life: Life,
 }
 
@@ -1266,8 +1263,6 @@ mod tests {
         }
     }
 
-    /// A status of the ending life of ruling PL-3: capture pausing beside the first enabled source,
-    /// which failed with a timeout and carries the mark; the other required sources stopped.
     fn ending_status(platform: Platform, desired: CaptureState) -> DaemonStatus {
         let sample = sample_status(platform);
         let first = sample.fields().enabled_sources[0];

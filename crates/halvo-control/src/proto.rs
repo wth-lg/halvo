@@ -1838,9 +1838,7 @@ pub fn reaches_the_end(change: CaptureChange, status: &DaemonStatus) -> bool {
     }
 }
 
-/// The daemon's own fact of ruling PL-17 (a). A life is ending from the first answer that is
-/// not a stop in a stop for capture off, or from the start of the shutdown entry, whatever began
-/// it, until the process is gone. No rule reads it out of the capture value.
+/// The daemon's own fact of ruling PL-17 (a). No rule reads it out of the capture value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Life {
     Going,
@@ -1855,23 +1853,20 @@ pub enum Admission {
     OtherForm,
     /// Answer `busy`: another mutation is in flight.
     InFlight,
-    /// Answer [`ErrorReply::busy_of_an_ending_life`] and write nothing.
+    /// Answer [`ErrorReply::busy_of_an_ending_life`].
     Ending,
-    /// Answer the status as it stands, after one durable write of desired=paused through the
-    /// state file's one writer when desired is not paused yet; start nothing.
+    /// Answer the status as it stands.
     PauseKeepingTheWord,
-    /// Answer `capture_changed` with the status as it stands; write nothing, clear no hold and
-    /// start nothing.
+    /// Answer `capture_changed` with the status as it stands.
     StatusAsItStands,
-    /// Serve the claim and start no source.
+    /// Serve the claim.
     ClaimStartingNothing,
     Serve,
 }
 
 /// The rule of ruling PL-17 for every request, in its order: the permission request of the
 /// other form answers `unsupported_op`; while a mutation is in flight every other mutation
-/// answers `busy`; in a life that is ending the two reads are served, the claim is served and
-/// starts no source, a Pause keeps the person's word, a Resume answers the status as it stands,
+/// answers `busy`; in a life that is ending the two reads are served, the claim is served, a Pause keeps the person's word, a Resume answers the status as it stands,
 /// and every other mutation answers the busy of an ending life.
 pub fn admission(
     request: &Request,

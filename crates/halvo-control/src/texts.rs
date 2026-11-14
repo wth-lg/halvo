@@ -684,10 +684,6 @@ mod tests {
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
     const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
 
-    /// One value of a source line with the cells of the three tables of ruling CT-9 beside it:
-    /// the sentence beside the Windows keyboard line, the sentence beside the screen line while
-    /// screen_activity is off, the class of the typing line, and the why of the screen row while
-    /// screen_activity is off.
     struct LineRow {
         value: &'static str,
         state: crate::proto::SourceState,
