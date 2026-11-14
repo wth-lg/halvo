@@ -440,18 +440,18 @@ where
         }
         _ => Err(LossCause::PauseUnanswered),
     };
-    let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
     let figures = sources.figures();
     if let Some(refusal) = sources.hold_refusal() {
         return Err(refusal);
     }
     let last = match last {
-        Ok(snapshot) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
-            Some(Answer::ShutDown(_)) => Ok(snapshot),
+        Ok(_) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
+            Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
             _ => Err(LossCause::ShutdownUnanswered),
         },
         Err(cause) => Err(cause),
     };
+    let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
     let settled = match last {
         Ok(snapshot) => snapshot,
         Err(_) => owner.snapshot(),
@@ -553,9 +553,11 @@ fn loss_line(
         .iter()
         .rev()
         .find_map(|report| match report {
-            owner::Report::DrainFailing { cause, .. } => Some(cause.as_str()),
+            owner::Report::DrainFailing { cause, .. } => Some(Some(cause.as_str())),
+            owner::Report::DrainHealthy => Some(None),
             _ => None,
         })
+        .flatten()
         .filter(|_| final_failed)
         .unwrap_or("-");
     format!(
