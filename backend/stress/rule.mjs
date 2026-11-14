@@ -298,7 +298,8 @@ export function judge({
     const lastReserveAnsweredAt = reserveAnsweredAt.length === 0 ? null : Math.max(...reserveAnsweredAt);
     held = lastReserveAnsweredAt !== null && [...rows.values()].every((row) => row.ended_at === null || row.ended_at >= lastReserveAnsweredAt);
     const endedEarly = lastReserveAnsweredAt === null ? [] : [...rows.values()].filter((row) => row.ended_at !== null && row.ended_at < lastReserveAnsweredAt);
-    const firstEnd = endedEarly.reduce((first, row) => (first === null || row.ended_at < first.ended_at ? row : first), null);
+    const endsBefore = (row, other) => row.ended_at < other.ended_at || (row.ended_at === other.ended_at && row.ended_seq < other.ended_seq);
+    const firstEnd = endedEarly.reduce((first, row) => (first === null || endsBefore(row, first) ? row : first), null);
     firstEndBeforeTheLastAnswer = firstEnd === null ? null : { state: firstEnd.state, ms: lastReserveAnsweredAt - firstEnd.ended_at };
     const unsent = [...rows.keys()].filter((id) => !sent.has(id)).length;
     if (held && !slow && (rows.size !== cell.k || unsent > 0)) {
