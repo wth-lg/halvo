@@ -42,6 +42,32 @@ fn starts_folded(bytes: &[u8], word: &[u8]) -> bool {
         .is_some_and(|head| head.eq_ignore_ascii_case(word))
 }
 
+/// The tasks that a `limits` line names (AS-A13.6).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Limits {
+    /// The line holds `task=bill` or `task=order`, the tasks of the verdict's driver.
+    pub drive: bool,
+    /// The line holds `task=reply`, the task of the verdict's writer.
+    pub reply: bool,
+}
+
+/// A line whose first bytes, after any spaces and tabs and compared without ASCII letter case, are
+/// `limits`, with the tasks that it names anywhere in the line, compared without letter case. In
+/// the driver file a `limits` line that names `bill` or `order` while the verdict's driver is
+/// `none`, or `reply` while its writer is `none`, is the refusal `source` with its line number
+/// (T5.4).
+pub fn limits(line: &[u8]) -> Option<Limits> {
+    if !starts_folded(after_blanks(line), b"limits") {
+        return None;
+    }
+    let folded = line.to_ascii_lowercase();
+    let holds = |key: &[u8]| folded.windows(key.len()).any(|window| window == key);
+    Some(Limits {
+        drive: holds(b"task=bill") || holds(b"task=order"),
+        reply: holds(b"task=reply"),
+    })
+}
+
 /// The models of the routing run's group (T12.1); every other model is of the group `agents`.
 pub const ROUTING: [&str; 4] = [
     "s5_nano_4b",

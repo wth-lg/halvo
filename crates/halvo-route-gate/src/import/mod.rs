@@ -15,6 +15,8 @@
 //! outside the block is read. Within one model, machine, task and seed, `compile`, `recover` and
 //! `write` have `i=1` and `replay` has `i` from 1 to 3 with no gap; the verdict's driver and
 //! writer have exactly the attempt lines of AS-A13.6, else `driver:verdict`.
+//! A `limits` line of the driver block that names `bill` or `order` while the verdict names no
+//! driver, or `reply` while it names no writer, is refused with its line.
 //! The last line of each block starts with `verdict`, and the cells block holds a `bound` line. A
 //! file from which an attempt line of a model that is neither the verdict's driver nor its writer
 //! is missing whole, with every other line of its form, imports with one row fewer and no refusal:
@@ -184,6 +186,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             return Err(fault);
         } else if line.bytes.starts_with(lines::DRIVE)
             || line.bytes.starts_with(lines::REPLY)
+            || lines::limits(line.bytes).is_some()
         {
             said.push((line.number, line.bytes));
         }

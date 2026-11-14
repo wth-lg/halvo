@@ -605,6 +605,151 @@ fn the_golden_no_writer_driver_file_as_u02_wrote_it_is_refused_at_driver_48() {
     assert_eq!(got.refused(), "REFUSED source: driver:48");
 }
 
+const LIMITS_BILL: &str = "limits task=bill steps=9 wall_s=400 model_tokens=9000";
+const LIMITS_ORDER: &str = "limits task=order steps=9 wall_s=400 model_tokens=9000";
+const LIMITS_REPLY: &str = "limits task=reply wall_s=120 model_tokens=700";
+
+#[test]
+fn a_limits_line_of_bill_or_order_beside_a_verdict_with_no_driver_is_refused_at_its_line() {
+    let mut wrong = Vec::new();
+    for line in [
+        LIMITS_BILL.to_owned(),
+        LIMITS_ORDER.to_owned(),
+        "limits task=bill".to_owned(),
+        format!(" {LIMITS_BILL}"),
+        format!("\t{LIMITS_ORDER}"),
+        LIMITS_BILL.to_uppercase(),
+        LIMITS_ORDER.replacen(' ', "\t", 1),
+        LIMITS_BILL.replacen(' ', "  ", 1),
+        "limits steps=9 task=order wall_s=400".to_owned(),
+    ] {
+        let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
+        refused_at(&got, "driver:4", &line, &mut wrong);
+    }
+    let writer_only = with(
+        [writer_lines("m_w"), vec![LIMITS_REPLY.to_owned()]].concat(),
+        "verdict driver=none path=B writer=m_w",
+    );
+    run(&refs(&writer_only), &[BOUND]).passed();
+    let mut beside_writer = writer_only.clone();
+    beside_writer.insert(3, LIMITS_ORDER.to_owned());
+    let got = run(&refs(&beside_writer), &[BOUND]);
+    refused_at(
+        &got,
+        "driver:6",
+        "a limits line of order beside a writer and no driver",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_limits_line_of_reply_beside_a_verdict_with_no_writer_is_refused_at_its_line() {
+    let mut wrong = Vec::new();
+    let got = run(&[ATTEMPT, LIMITS_REPLY, VERDICT], &[BOUND]);
+    refused_at(
+        &got,
+        "driver:4",
+        "beside driver=none writer=none",
+        &mut wrong,
+    );
+    let driver_only = [
+        driver_lines("m_d"),
+        vec![LIMITS_BILL.to_owned(), LIMITS_ORDER.to_owned()],
+    ]
+    .concat();
+    let verdict = "verdict driver=m_d path=A writer=none";
+    run(&refs(&with(driver_only.clone(), verdict)), &[BOUND]).passed();
+    for line in [
+        LIMITS_REPLY.to_owned(),
+        format!(" {LIMITS_REPLY}"),
+        LIMITS_REPLY.replacen("limits", "Limits", 1),
+        "LIMITS TASK=REPLY".to_owned(),
+    ] {
+        let mut lines = driver_only.clone();
+        lines.insert(10, line.clone());
+        let got = run(&refs(&with(lines, verdict)), &[BOUND]);
+        refused_at(&got, "driver:13", &line, &mut wrong);
+    }
+    let golden = no_writer_driver_with(&[(183, NO_WRITER_LIMITS)]);
+    let got = run_files(golden, no_writer_golden("model-cells.md"));
+    refused_at(
+        &got,
+        "driver:183",
+        "the golden no_writer file with its limits line of reply",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_limits_line_beside_a_named_driver_or_writer_or_of_another_task_stands() {
+    let both = with(
+        [
+            driver_lines("m_d"),
+            writer_lines("m_d"),
+            vec![
+                LIMITS_BILL.to_owned(),
+                LIMITS_ORDER.to_owned(),
+                LIMITS_REPLY.to_owned(),
+            ],
+        ]
+        .concat(),
+        "verdict driver=m_d path=A writer=m_d",
+    );
+    run(&refs(&both), &[BOUND]).passed();
+    for line in [
+        "limits task=cleanup steps=9 wall_s=400 model_tokens=9000",
+        "limits task=fill steps=9 wall_s=400 model_tokens=9000",
+        "limits steps=9 wall_s=400 model_tokens=9000",
+        "limit task=bill steps=9",
+        "the limits task=bill steps=9",
+    ] {
+        run(&[ATTEMPT, line, VERDICT], &[BOUND]).passed();
+    }
+    run(&[ATTEMPT, VERDICT], &[BOUND, LIMITS_BILL, LIMITS_REPLY]).passed();
+}
+
+#[test]
+fn a_limits_line_is_checked_with_the_verdicts_lines_in_file_order() {
+    let verdict = "verdict driver=none path=B writer=m_w";
+    let lines = writer_lines("m_w");
+    assert!(lines[1].starts_with("reply model=m_w machine=mac seed=1 "));
+    let broken_reply = changed(&lines, 1, "bodies=2", "bodies=1");
+    let mut wrong = Vec::new();
+    let mut limits_first = broken_reply.clone();
+    limits_first.insert(0, LIMITS_BILL.to_owned());
+    let mut reply_first = broken_reply.clone();
+    reply_first.push(LIMITS_BILL.to_owned());
+    let mut no_write = lines.clone();
+    no_write.remove(0);
+    no_write.push(LIMITS_BILL.to_owned());
+    for (what, driver, want) in [
+        (
+            "a limits line before a broken reply line",
+            limits_first,
+            "driver:3",
+        ),
+        (
+            "a broken reply line before a limits line",
+            reply_first,
+            "driver:4",
+        ),
+        ("the set before a limits line", no_write, "driver:verdict"),
+    ] {
+        let got = run(&refs(&with(driver, verdict)), &[BOUND]);
+        refused_at(&got, want, what, &mut wrong);
+    }
+    let got = run(&[ATTEMPT, LIMITS_BILL, "", VERDICT, ""], &[BOUND]);
+    refused_at(
+        &got,
+        "driver:7",
+        "the last line before a limits line",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
 #[test]
 fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
