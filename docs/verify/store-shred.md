@@ -1122,6 +1122,20 @@ What the code does since store-3, each sentence with the test that shows it.
   names and no key file names, and the delete on a handle removes
   `create.pending` and its temporary file. Test:
   `a_create_killed_between_its_root_and_its_key_file_leaves_a_root_that_the_next_create_destroys`.
+- A create whose link meets an entry at `store.key` that it did not make
+  (another writer put it there after the create's look) leaves that entry
+  as it found it, zero-fills and removes only its own temporary file
+  through the handle that it kept, and destroys its own root unless the
+  entry at `store.key` names that root id; it removes `store.key` only when
+  its own link answered Ok and the name still leads to its own file. An
+  entry at `store.key.tmp` that the create did not make and that has more
+  than one name is removed without a zero-fill. The state that can stay is
+  another party's key file beside no database: an open there answers
+  `DatabaseMissing` (ruling ST-44 F4). Tests:
+  `a_create_whose_publish_meets_an_entry_at_store_key_leaves_that_entry`,
+  `a_create_whose_key_name_is_taken_after_its_root_leaves_what_stands_there`,
+  `a_create_whose_key_name_is_taken_by_a_plain_file_after_its_root_removes_that_file`,
+  `a_create_removes_a_hard_link_at_store_key_tmp_without_writing_through_it`.
 - An open that is refused destroys no root file, writes nothing under the
   roots directory and leaves `create.pending` as it found it (ruling
   ST-43). Tests, each with a `create.pending` of a killed create that names

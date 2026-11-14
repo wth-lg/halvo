@@ -246,35 +246,105 @@ impl KeyFilePlace {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn publish(&self, key_file: &KeyFile) -> StoreResult<()> {
-        let json = serde_json::to_vec_pretty(key_file)
-            .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
-        zero_and_remove(&self.dir, &self.temp).map_err(io_error)?;
-        let published = self.write_and_link(&json);
-        let discarded = match published {
+        self.publish_keeping(key_file).0
+    }
+
+    fn publish_keeping(&self, key_file: &KeyFile) -> (StoreResult<()>, Published) {
+        let mut published = Published {
+            linked: false,
+            temp: None,
+        };
+        let json = match serde_json::to_vec_pretty(key_file) {
+            Ok(json) => json,
+            Err(_) => return (Err(StoreError::Io(ErrorKind::InvalidData)), published),
+        };
+        if let Err(e) = self.clear_a_temp_of_another_party() {
+            return (Err(io_error(e)), published);
+        }
+        let linked = self.write_and_link(&json, &mut published);
+        let discarded = match linked {
             Ok(()) => match self.dir.remove_file(&self.temp) {
                 Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
                 other => other,
             },
-            Err(_) => zero_and_remove(&self.dir, &self.temp),
+            Err(_) => self.remove_own_temp(&published),
         };
-        published?;
-        discarded.map_err(io_error)?;
-        self.dir.sync().map_err(io_error)
+        let result = linked
+            .and_then(|()| discarded.map_err(io_error))
+            .and_then(|()| self.dir.sync().map_err(io_error));
+        (result, published)
     }
 
-    fn write_and_link(&self, json: &[u8]) -> StoreResult<()> {
+    fn clear_a_temp_of_another_party(&self) -> std::io::Result<()> {
+        let more_than_one_name = match self.dir.entry(&self.temp) {
+            Ok(entry) if entry.kind == EntryKind::File => self
+                .dir
+                .open_file(&self.temp)
+                .and_then(|file| durable::file_link_count(&file))
+                .map_or(true, |links| links > 1),
+            _ => false,
+        };
+        if !more_than_one_name {
+            return zero_and_remove(&self.dir, &self.temp);
+        }
+        match self.dir.remove_entry(&self.temp) {
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            other => other,
+        }
+    }
+
+    fn write_and_link(&self, json: &[u8], published: &mut Published) -> StoreResult<()> {
         let mut file = self.dir.create_new(&self.temp).map_err(io_error)?;
         file.write_all(json).map_err(io_error)?;
         file.sync_all().map_err(io_error)?;
-        drop(file);
+        published.temp = Some(file);
         failpoint::hit("key_file_before_publish")?;
         self.dir
             .link(&self.temp, &self.name)
             .map_err(|e| match e.kind() {
                 ErrorKind::AlreadyExists => StoreError::AlreadyExists,
                 _ => io_error(e),
-            })
+            })?;
+        published.linked = true;
+        Ok(())
+    }
+
+    fn remove_own_temp(&self, published: &Published) -> std::io::Result<()> {
+        let Some(file) = &published.temp else {
+            return Ok(());
+        };
+        if !self.dir.names_file(&self.temp, file)? {
+            return Ok(());
+        }
+        zero_through(file)?;
+        match self.dir.remove_file(&self.temp) {
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            other => other,
+        }
+    }
+
+    fn abandon(&self, published: &Published) -> std::io::Result<bool> {
+        let Some(file) = &published.temp else {
+            return Ok(false);
+        };
+        let zeroed = zero_through(file);
+        let own_name = published.linked && self.dir.names_file(&self.name, file)?;
+        if own_name {
+            match self.dir.remove_file(&self.name) {
+                Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+        if self.dir.names_file(&self.temp, file)? {
+            match self.dir.remove_file(&self.temp) {
+                Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+        self.dir.sync()?;
+        zeroed.map(|()| own_name)
     }
 
     pub(crate) fn destroy(&self) -> Removal {
@@ -298,6 +368,23 @@ impl KeyFilePlace {
 
 fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
+}
+
+/// What the publish of a key file did, kept for a create that is abandoned:
+/// whether its own link answered Ok, and the handle of the temporary file
+/// that this create made.
+pub(crate) struct Published {
+    linked: bool,
+    temp: Option<std::fs::File>,
+}
+
+fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
+    use std::io::{Seek, SeekFrom};
+    let len = file.metadata()?.len() as usize;
+    let mut writer = file;
+    writer.seek(SeekFrom::Start(0))?;
+    writer.write_all(&vec![0u8; len])?;
+    file.sync_all()
 }
 
 fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
@@ -1719,7 +1806,8 @@ impl EncryptedStore {
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_ROOT);
-        match Self::write_key_file(&key_file, custody.as_ref(), &store_key)
+        let (written, published) = Self::write_key_file(&key_file, custody.as_ref(), &store_key);
+        match written
             .and_then(|()| failpoint::hit("create_after_the_key_file"))
             .and_then(|()| remove_pending(dir))
         {
@@ -1735,7 +1823,13 @@ impl EncryptedStore {
             }),
             Err(e) => {
                 drop(db);
-                Err(Self::abandon_create(dir, &key_file, custody.as_ref(), e))
+                Err(Self::abandon_create(
+                    dir,
+                    &key_file,
+                    published.as_ref(),
+                    custody.as_ref(),
+                    e,
+                ))
             }
         }
     }
@@ -1754,9 +1848,15 @@ impl EncryptedStore {
         key_file: &KeyFilePlace,
         custody: &dyn KeyCustody,
         store_key: &StoreKey,
-    ) -> StoreResult<()> {
-        let wrapped = custody.wrap_store_key(store_key, KeyLabel::STORE)?;
-        key_file.publish(&KeyFile::new(custody, KeyLabel::STORE, &wrapped))
+    ) -> (StoreResult<()>, Option<Published>) {
+        match custody.wrap_store_key(store_key, KeyLabel::STORE) {
+            Ok(wrapped) => {
+                let (written, published) =
+                    key_file.publish_keeping(&KeyFile::new(custody, KeyLabel::STORE, &wrapped));
+                (written, Some(published))
+            }
+            Err(e) => (Err(StoreError::Custody(e)), None),
+        }
     }
 
     fn without_database(dir: &Dir, cause: StoreError) -> StoreError {
@@ -1771,14 +1871,22 @@ impl EncryptedStore {
     fn abandon_create(
         dir: &Dir,
         key_file: &KeyFilePlace,
+        published: Option<&Published>,
         custody: &dyn KeyCustody,
         cause: StoreError,
     ) -> StoreError {
-        let root = custody.destroy_root().map_err(StoreError::Custody);
-        let key_file = match key_file.destroy() {
-            Removal { gone: true, .. } => Ok(()),
-            Removal { gone: false, .. } => Err(StoreError::Io(ErrorKind::Other)),
+        let own_name = match published {
+            Some(published) => key_file.abandon(published),
+            None => Ok(false),
         };
+        let kept_for_the_entry_there =
+            !matches!(own_name, Ok(true)) && key_file.named_root() == Some(custody.root_id());
+        let root = if kept_for_the_entry_there {
+            Ok(())
+        } else {
+            custody.destroy_root().map_err(StoreError::Custody)
+        };
+        let key_file = own_name.map(drop).map_err(io_error);
         let database = Db::destroy_in(dir);
         let pending = match root {
             Ok(()) => remove_pending(dir),

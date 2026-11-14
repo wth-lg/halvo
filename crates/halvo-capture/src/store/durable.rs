@@ -618,6 +618,22 @@ mod windows_dir {
         ) -> i32;
     }
 
+    pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {
+        use std::os::windows::io::AsRawHandle;
+        let mut information = std::mem::MaybeUninit::<FileInformation>::zeroed();
+        // SAFETY: the handle is open for as long as `file` is borrowed, and the
+        // pointer is to a zeroed structure of the layout that the call writes.
+        let done =
+            unsafe { GetFileInformationByHandle(file.as_raw_handle(), information.as_mut_ptr()) };
+        if done == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: the call answered success, so it wrote every field, and the
+        // zeroed start was already a valid value of the structure.
+        let information = unsafe { information.assume_init() };
+        Ok(u64::from(information.links))
+    }
+
     fn file_id(file: &File) -> io::Result<(u32, u64)> {
         use std::os::windows::io::AsRawHandle;
         let mut information = std::mem::MaybeUninit::<FileInformation>::zeroed();
@@ -885,6 +901,15 @@ fn fill_and_publish<T, E>(
 
 #[cfg(windows)]
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+
+#[cfg(windows)]
+pub(crate) use windows_dir::file_link_count;
+
+#[cfg(unix)]
+pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(file.metadata()?.nlink())
+}
 
 pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     let mut builder = std::fs::DirBuilder::new();
