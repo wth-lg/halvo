@@ -1,10 +1,13 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::io;
+#[cfg(target_os = "macos")]
 use std::sync::atomic::AtomicBool;
 
+#[cfg(target_os = "macos")]
 static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(target_os = "macos")]
 pub fn flag() -> &'static AtomicBool {
     &SIGNALLED
 }
@@ -126,6 +129,80 @@ pub fn phys_footprint_bytes() -> io::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_term_and_an_int_set_the_flag_and_the_process_goes_on_to_its_end() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::sync::atomic::Ordering;
+        use std::time::{Duration, Instant};
+
+        const NAME: &str = "daemon::signal::tests::a_term_and_an_int_set_the_flag_and_the_process_goes_on_to_its_end";
+        const CHILD: &str = "HALVO_DAEMON_SIGNAL_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let say = |line: &str| {
+                let mut out = std::io::stdout().lock();
+                writeln!(out, "signal-child: {line}").unwrap();
+                out.flush().unwrap();
+            };
+            let wait_for_flag = || {
+                let until = Instant::now() + Duration::from_secs(10);
+                while !super::flag().load(Ordering::SeqCst) && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                super::flag().swap(false, Ordering::SeqCst)
+            };
+            super::prepare().unwrap();
+            say("ready for TERM");
+            say(&format!("flag after TERM: {}", wait_for_flag()));
+            say("ready for INT");
+            say(&format!("flag after INT: {}", wait_for_flag()));
+            say("reached its end");
+            return;
+        }
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pid = libc::pid_t::try_from(child.id()).unwrap();
+        let (lines_tx, lines) = std::sync::mpsc::channel();
+        let stdout = child.stdout.take().unwrap();
+        let reader = std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                if let Some(at) = line.find("signal-child: ") {
+                    let _ = lines_tx.send(line[at + "signal-child: ".len()..].to_owned());
+                }
+            }
+        });
+        let mut seen = Vec::new();
+        let mut next = |seen: &mut Vec<String>| {
+            let line = lines.recv_timeout(Duration::from_secs(15));
+            if line.is_err() {
+                let _ = child.kill();
+            }
+            let line = line.unwrap_or_else(|_| panic!("the child stopped after {seen:?}"));
+            seen.push(line.clone());
+            line
+        };
+        assert_eq!(next(&mut seen), "ready for TERM");
+        // SAFETY: kill sends a signal to `pid`, the process that this test
+        // spawned and has not reaped; no memory is passed.
+        assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+        assert_eq!(next(&mut seen), "flag after TERM: true");
+        assert_eq!(next(&mut seen), "ready for INT");
+        // SAFETY: as above, `pid` is this test's own unreaped child.
+        assert_eq!(unsafe { libc::kill(pid, libc::SIGINT) }, 0);
+        assert_eq!(next(&mut seen), "flag after INT: true");
+        assert_eq!(next(&mut seen), "reached its end");
+        let status = child.wait().unwrap();
+        reader.join().unwrap();
+        assert!(
+            status.success(),
+            "the child ended with {status} after {seen:?}"
+        );
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn the_heap_and_footprint_readings_answer_with_a_size() {
