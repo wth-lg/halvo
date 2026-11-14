@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 12-test 50-windows-functional
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -195,3 +85,203 @@ jobs:
         with:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
+  loop-1:
+    runs-on: windows-2025
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Rust components
+        shell: bash
+        run: rustup component add clippy rustfmt
+      - name: win-3 W3-7 round B, loop share 1 (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/loop.log"
+          cargo test --locked -p halvo-capture --test windows_functional --no-run --message-format json >"$RUNNER_TEMP/fun.json" 2>"$log"
+          echo "LOOP share=1 build fun exit=$?"
+          cargo test --locked -p halvo-capture --lib --no-run --message-format json >"$RUNNER_TEMP/lib.json" 2>"$log"
+          echo "LOOP share=1 build lib exit=$?"
+          fun=$(tr -d '\r' <"$RUNNER_TEMP/fun.json" | sed -n 's/.*"name":"windows_functional".*"executable":"\([^"]*\)".*/\1/p' | head -n 1)
+          lib=$(tr -d '\r' <"$RUNNER_TEMP/lib.json" | grep '"kind":\["lib"\]' | sed -n 's/.*"executable":"\([^"]*\)".*/\1/p' | head -n 1)
+          [ -n "$fun" ] && [ -n "$lib" ] || echo "LOOP share=1 no executable"
+          while read -r kind t runs; do
+            [ -n "$kind" ] || continue
+            passed=0
+            defect=0
+            for run in $(seq 1 "$runs"); do
+              if [ "$kind" = fun ]; then
+                timeout 600 "$fun" --ignored --exact "$t" --nocapture --test-threads=1 >"$log" 2>&1 </dev/null
+              else
+                timeout 600 "$lib" --exact "$t" --test-threads=1 >"$log" 2>&1 </dev/null
+              fi
+              code=$?
+              if [ "$code" -eq 0 ] && tr -d '\r' <"$log" | grep -q '^test result: ok. 1 passed; 0 failed'; then
+                passed=$((passed + 1))
+              elif tr -d '\r' <"$log" | grep -q 'KNOWN-DEFECT' && tr -d '\r' <"$log" | grep -q '^test result: FAILED. 0 passed; 1 failed'; then
+                defect=$((defect + 1))
+              fi
+              if [ "$code" -ne 0 ] || [ "$kind" = fun ]; then
+                echo "LOOP test=$t run=$run exit=$code"
+                tr -d '\r' <"$log" | grep -E 'TF [a-z0-9-]+ (phase=[a-zA-Z-]+ (rounds|counted)|.*recorded=[0-9]+$|first_read_password|keystrokes_before|listener_values|keyboard_start=)|KNOWN-DEFECT|panicked at|^  left|^ right|INCONCLUSIVE' | head -n 8
+              fi
+            done
+            echo "LOOP test=$t runs=$runs passed=$passed known_defect=$defect"
+          done <<'ROWS'
+          lib windows::input::tests::a_second_pointer_start_is_refused_until_the_route_has_changed 20
+          lib secure_input::windows::detector::tests::a_focus_events_clear_from_the_callback_clears_no_key 20
+          ROWS
+          echo "LOOP share=1 end"
+          exit 0
+  loop-2:
+    runs-on: windows-2025
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Rust components
+        shell: bash
+        run: rustup component add clippy rustfmt
+      - name: win-3 W3-7 round B, loop share 2 (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/loop.log"
+          cargo test --locked -p halvo-capture --test windows_functional --no-run --message-format json >"$RUNNER_TEMP/fun.json" 2>"$log"
+          echo "LOOP share=2 build fun exit=$?"
+          cargo test --locked -p halvo-capture --lib --no-run --message-format json >"$RUNNER_TEMP/lib.json" 2>"$log"
+          echo "LOOP share=2 build lib exit=$?"
+          fun=$(tr -d '\r' <"$RUNNER_TEMP/fun.json" | sed -n 's/.*"name":"windows_functional".*"executable":"\([^"]*\)".*/\1/p' | head -n 1)
+          lib=$(tr -d '\r' <"$RUNNER_TEMP/lib.json" | grep '"kind":\["lib"\]' | sed -n 's/.*"executable":"\([^"]*\)".*/\1/p' | head -n 1)
+          [ -n "$fun" ] && [ -n "$lib" ] || echo "LOOP share=2 no executable"
+          while read -r kind t runs; do
+            [ -n "$kind" ] || continue
+            passed=0
+            defect=0
+            for run in $(seq 1 "$runs"); do
+              if [ "$kind" = fun ]; then
+                timeout 600 "$fun" --ignored --exact "$t" --nocapture --test-threads=1 >"$log" 2>&1 </dev/null
+              else
+                timeout 600 "$lib" --exact "$t" --test-threads=1 >"$log" 2>&1 </dev/null
+              fi
+              code=$?
+              if [ "$code" -eq 0 ] && tr -d '\r' <"$log" | grep -q '^test result: ok. 1 passed; 0 failed'; then
+                passed=$((passed + 1))
+              elif tr -d '\r' <"$log" | grep -q 'KNOWN-DEFECT' && tr -d '\r' <"$log" | grep -q '^test result: FAILED. 0 passed; 1 failed'; then
+                defect=$((defect + 1))
+              fi
+              if [ "$code" -ne 0 ] || [ "$kind" = fun ]; then
+                echo "LOOP test=$t run=$run exit=$code"
+                tr -d '\r' <"$log" | grep -E 'TF [a-z0-9-]+ (phase=[a-zA-Z-]+ (rounds|counted)|.*recorded=[0-9]+$|first_read_password|keystrokes_before|listener_values|keyboard_start=)|KNOWN-DEFECT|panicked at|^  left|^ right|INCONCLUSIVE' | head -n 8
+              fi
+            done
+            echo "LOOP test=$t runs=$runs passed=$passed known_defect=$defect"
+          done <<'ROWS'
+          fun stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing 20
+          ROWS
+          echo "LOOP share=2 end"
+          exit 0
+  undo:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Rust components
+        shell: bash
+        run: rustup component add clippy rustfmt
+      - name: ci.d self-test
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
+      - name: win-3 W3-7 round B, W3-9, the undo rows of O6's third order and of O1 (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 80
+        shell: bash
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/b3.log"
+          pick='panicked|^test result|^test .* (ok|FAILED)$|assertion|left:|right:|^  '
+          lib() {
+            timeout 900 cargo test --locked -p halvo-capture --lib -- "$1" --test-threads=1 >"$log" 2>&1
+            echo "LIB $2 name=$1 exit=$?"
+            tr -d '\r' <"$log" | grep -E "$pick" | grep -v '^   *Compiling' | head -n 60
+          }
+          mutate() {
+            python - "$1" <<'PY'
+          import sys
+          name = sys.argv[1]
+          i = "crates/halvo-capture/src/windows/input.rs"
+          g = "crates/halvo-capture/src/windows/secure_input.rs"
+          rows = {
+            "O6u3": (i, "        let claim = device_guard.claim.take();\n        let route = clicks();\n", "        drop(device_guard.claim.take());\n        let claim: Option<DeviceClaim> = None;\n        let route = clicks();\n"),
+            "O1u": (g, "                && matches!(entry.mark, Mark::Read { .. })\n                && not_after(floor_tick, entry.began)", "                && matches!(entry.mark, Mark::Read { .. } | Mark::Field(_))\n                && not_after(floor_tick, entry.began)"),
+          }
+          path, old, new = rows[name]
+          text = open(path, encoding="utf-8").read().replace("\r\n", "\n")
+          print("MUTANT", name, "matches", text.count(old))
+          assert text.count(old) == 1
+          open(path, "w", encoding="utf-8", newline="\n").write(text.replace(old, new))
+          PY
+          }
+          O6C=a_second_pointer_start_is_refused_until_the_route_has_changed
+          O1C=a_focus_events_clear_from_the_callback_clears_no_key
+          for t in $O6C $O1C; do lib "$t" head; done
+          git checkout -- crates/halvo-capture/src
+          mutate O6u3
+          lib "$O6C" O6u3
+          git checkout -- crates/halvo-capture/src
+          mutate O1u
+          lib "$O1C" O1u
+          git checkout -- crates/halvo-capture/src
+          git status --short
+          exit 0
