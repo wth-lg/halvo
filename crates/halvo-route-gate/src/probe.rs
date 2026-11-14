@@ -168,6 +168,7 @@ fn printable(word: &str) -> &str {
 #[cfg(test)]
 #[forbid(unsafe_code)]
 mod tests {
+    use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::atomic::Ordering;
 
@@ -181,8 +182,6 @@ mod tests {
     const CHECK_ROUNDS: u64 = 100_000;
 
     const SCRIPT: &str = include_str!("../../../scripts/r6/ci.d/70-r6-memory.sh");
-    const PROBE: &str = include_str!("probe.rs");
-    const MAIN: &str = include_str!("main.rs");
 
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
@@ -443,24 +442,360 @@ mod tests {
         assert_eq!(lines, vec![format!("rounds={CHECK_ROUNDS}")]);
     }
 
-    fn code_of(text: &str) -> String {
-        text.lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n")
+    const STARTS: [&str; 10] = [
+        "process",
+        "Process",
+        "Command",
+        "spawn",
+        "fork",
+        "exec",
+        "extern",
+        "asm!",
+        "include!(",
+        "#[path",
+    ];
+
+    const ALLOWED: [&str; 2] = ["std::process::ExitCode", "std::process::id()"];
+
+    const TEST_TARGETS: [&str; 3] = ["tests/", "benches/", "examples/"];
+
+    fn tool(program: &str, dir: &Path, args: &[&str]) -> String {
+        let output = Command::new(program)
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .expect(program);
+        assert!(
+            output.status.success(),
+            "{program} {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("UTF-8 output")
+    }
+
+    fn crate_dirs(tree: &str) -> Vec<PathBuf> {
+        let mut dirs: Vec<PathBuf> = tree
+            .lines()
+            .filter_map(|line| {
+                let line = line.strip_suffix(" (*)").unwrap_or(line);
+                let open = line.find(" (")?;
+                line[open + 2..].strip_suffix(')').map(PathBuf::from)
+            })
+            .filter(|dir| dir.is_dir())
+            .collect();
+        dirs.sort();
+        dirs.dedup();
+        dirs
+    }
+
+    fn code_outside_tests(text: &str) -> Result<(String, Vec<String>), String> {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut code = Vec::new();
+        let mut modules = Vec::new();
+        let mut i = 0;
+        while i < lines.len() {
+            let line = lines[i];
+            let trimmed = line.trim_start();
+            i += 1;
+            if trimmed.starts_with("//") {
+                continue;
+            }
+            if trimmed != "#[cfg(test)]" {
+                code.push(line);
+                continue;
+            }
+            let indent = &line[..line.len() - trimmed.len()];
+            let at_indent = |other: &str| {
+                other.starts_with(indent)
+                    && !other[indent.len()..].starts_with(char::is_whitespace)
+                    && other.len() > indent.len()
+            };
+            while i < lines.len() && at_indent(lines[i]) && lines[i].trim_start().starts_with("#[")
+            {
+                i += 1;
+            }
+            let Some(item) = lines.get(i).filter(|item| at_indent(item)) else {
+                return Err(format!("line {i}: no item after #[cfg(test)]"));
+            };
+            i += 1;
+            let item = item.trim_start();
+            if item.ends_with(';') || item.ends_with(',') {
+                let words: Vec<&str> = item.trim_end_matches(';').split_whitespace().collect();
+                if let [.., "mod", name] = words.as_slice() {
+                    modules.push((*name).to_owned());
+                }
+                continue;
+            }
+            loop {
+                let Some(next) = lines.get(i) else {
+                    return Err(format!("line {i}: an item under #[cfg(test)] has no end"));
+                };
+                i += 1;
+                if !at_indent(next) {
+                    continue;
+                }
+                let next = next.trim_start();
+                if next.starts_with(['}', ']', ')']) && next.ends_with(['}', ';', ',', ')']) {
+                    break;
+                }
+                if !next.starts_with(')') {
+                    return Err(format!(
+                        "line {i}: an item under #[cfg(test)] ends where it cannot"
+                    ));
+                }
+            }
+        }
+        Ok((code.join("\n"), modules))
+    }
+
+    fn module_paths(path: &str, name: &str) -> [String; 2] {
+        let (dir, file) = path.rsplit_once('/').unwrap_or(("", path));
+        let root = matches!(file, "mod.rs" | "lib.rs" | "main.rs")
+            || path == "build.rs"
+            || dir == "src/bin";
+        let mut base = if root {
+            dir.to_owned()
+        } else {
+            format!("{dir}/{}", file.trim_end_matches(".rs"))
+        };
+        if base.starts_with('/') {
+            base.remove(0);
+        }
+        let base = if base.is_empty() {
+            String::new()
+        } else {
+            format!("{base}/")
+        };
+        [format!("{base}{name}.rs"), format!("{base}{name}/")]
+    }
+
+    fn process_words(code: &str) -> Vec<&'static str> {
+        let mut code = code.to_owned();
+        for allowed in ALLOWED {
+            code = code.replace(allowed, "");
+        }
+        STARTS
+            .into_iter()
+            .filter(|word| code.contains(word))
+            .collect()
+    }
+
+    fn read_crate(files: &[(String, Option<String>)]) -> (usize, Vec<String>) {
+        let mut misses = Vec::new();
+        let mut read = Vec::new();
+        let mut tests = Vec::new();
+        for (path, text) in files {
+            if !path.ends_with(".rs") || TEST_TARGETS.iter().any(|top| path.starts_with(top)) {
+                continue;
+            }
+            let Some(text) = text else {
+                misses.push(format!("{path}: not covered"));
+                continue;
+            };
+            match code_outside_tests(text) {
+                Ok((code, modules)) => {
+                    for name in modules {
+                        tests.extend(module_paths(path, &name));
+                    }
+                    read.push((path, code));
+                }
+                Err(detail) => misses.push(format!("{path}: not covered, {detail}")),
+            }
+        }
+        let mut count = 0;
+        for (path, code) in read {
+            let test_file = tests.iter().any(|test| {
+                path == test || (test.ends_with('/') && path.starts_with(test.as_str()))
+            });
+            if test_file {
+                continue;
+            }
+            count += 1;
+            for word in process_words(&code) {
+                misses.push(format!("{path}: names {word}"));
+            }
+        }
+        (count, misses)
+    }
+
+    fn rust_files_below(dir: &Path, top: &Path, found: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir).expect("a directory of the crate") {
+            let path = entry.expect("an entry of the crate").path();
+            if path.is_dir() {
+                rust_files_below(&path, top, found);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                let relative = path.strip_prefix(top).expect("below the crate");
+                let words: Vec<String> = relative
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                found.push(words.join("/"));
+            }
+        }
     }
 
     #[test]
     fn the_probe_names_no_process() {
-        let outside = &PROBE[..PROBE.find("#[cfg(test)]").expect("the test module")];
-        let from = MAIN.find("Some(\"probe\")").expect("the arm of probe");
-        let to = from + MAIN[from..].find("Some(_)").expect("the arm after it");
-        for (part, text) in [("probe.rs", outside), ("the arm of probe", &MAIN[from..to])] {
-            let code = code_of(text);
-            for word in ["process", "Command"] {
-                assert!(!code.contains(word), "{part} names {word}");
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let tree = tool(
+            env!("CARGO"),
+            manifest,
+            &[
+                "tree",
+                "--locked",
+                "-e",
+                "normal,no-proc-macro",
+                "--target",
+                "all",
+                "-p",
+                env!("CARGO_PKG_NAME"),
+                "--prefix",
+                "none",
+                "--format",
+                "{p}",
+            ],
+        );
+        let dirs = crate_dirs(&tree);
+        let this = manifest.canonicalize().expect("the crate's directory");
+        assert!(
+            dirs.iter()
+                .any(|dir| dir.canonicalize().ok().as_deref() == Some(this.as_path())),
+            "cargo tree does not name this crate: {tree}"
+        );
+        let mut misses = Vec::new();
+        for dir in &dirs {
+            let listed = tool(
+                "git",
+                dir,
+                &["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", "."],
+            );
+            let names: Vec<&str> = listed.split('\0').filter(|name| !name.is_empty()).collect();
+            let files: Vec<(String, Option<String>)> = names
+                .iter()
+                .map(|name| {
+                    (
+                        (*name).to_owned(),
+                        std::fs::read_to_string(dir.join(name)).ok(),
+                    )
+                })
+                .collect();
+            let (count, crate_misses) = read_crate(&files);
+            assert!(count > 0, "no file of {} was read", dir.display());
+            misses.extend(
+                crate_misses
+                    .into_iter()
+                    .map(|miss| format!("{}: {miss}", dir.display())),
+            );
+            let mut present = Vec::new();
+            rust_files_below(dir, dir, &mut present);
+            for path in present {
+                if !names.contains(&path.as_str()) {
+                    misses.push(format!(
+                        "{}: {path}: not covered, not in the commit",
+                        dir.display()
+                    ));
+                }
             }
         }
+        assert!(misses.is_empty(), "{misses:#?}");
+    }
+
+    fn one_file(path: &str, text: &str) -> Vec<(String, Option<String>)> {
+        vec![(path.to_owned(), Some(text.to_owned()))]
+    }
+
+    #[test]
+    fn the_read_finds_a_process_start_in_a_new_file() {
+        let files = one_file(
+            "src/start.rs",
+            "pub fn go() {\n    let _ = std::process::Command::new(\"x\");\n}\n",
+        );
+        let (count, misses) = read_crate(&files);
+        assert_eq!(count, 1);
+        assert!(
+            misses.contains(&"src/start.rs: names process".to_owned()),
+            "{misses:?}"
+        );
+        assert!(
+            misses.contains(&"src/start.rs: names Command".to_owned()),
+            "{misses:?}"
+        );
+    }
+
+    #[test]
+    fn the_read_allows_the_exit_code_and_the_process_id() {
+        let text = "use std::process::ExitCode;\nfn n() -> u32 {\n    std::process::id()\n}\n";
+        assert_eq!(read_crate(&one_file("src/main.rs", text)), (1, Vec::new()));
+        let other = "fn n() {\n    std::process::exit(1)\n}\n";
+        assert_eq!(
+            read_crate(&one_file("src/main.rs", other)).1,
+            vec!["src/main.rs: names process"]
+        );
+    }
+
+    #[test]
+    fn the_read_leaves_out_test_code_and_comments_alone() {
+        let text = "// Command\n#[cfg(test)]\nmod tests {\n    fn f() {\n        Command::new(\"x\");\n    }\n}\n#[cfg(test)]\nmod more;\n";
+        let mut files = one_file("src/lib.rs", text);
+        files.push(("src/more.rs".to_owned(), Some("fn spawn() {}\n".to_owned())));
+        files.push((
+            "tests/cli.rs".to_owned(),
+            Some("fn spawn() {}\n".to_owned()),
+        ));
+        assert_eq!(read_crate(&files), (1, Vec::new()));
+        let after = "#[cfg(test)]\nmod tests {\n}\nfn go() {\n    fork();\n}\n";
+        assert_eq!(
+            read_crate(&one_file("src/lib.rs", after)).1,
+            vec!["src/lib.rs: names fork"]
+        );
+    }
+
+    #[test]
+    fn a_test_module_file_is_found_beside_its_parent() {
+        assert_eq!(
+            module_paths("src/lib.rs", "tests"),
+            ["src/tests.rs".to_owned(), "src/tests/".to_owned()]
+        );
+        assert_eq!(
+            module_paths("src/spendsim/mod.rs", "tests"),
+            [
+                "src/spendsim/tests.rs".to_owned(),
+                "src/spendsim/tests/".to_owned()
+            ]
+        );
+        assert_eq!(
+            module_paths("src/probe.rs", "deep"),
+            ["src/probe/deep.rs".to_owned(), "src/probe/deep/".to_owned()]
+        );
+        assert_eq!(
+            module_paths("build.rs", "tests"),
+            ["tests.rs".to_owned(), "tests/".to_owned()]
+        );
+        assert_eq!(
+            module_paths("src/bin/tool.rs", "tests"),
+            ["src/bin/tests.rs".to_owned(), "src/bin/tests/".to_owned()]
+        );
+    }
+
+    #[test]
+    fn a_file_that_the_read_cannot_place_is_not_covered() {
+        let files = vec![("src/odd.rs".to_owned(), None)];
+        assert_eq!(read_crate(&files).1, vec!["src/odd.rs: not covered"]);
+        let open = "#[cfg(test)]\nmod tests {\n    fn f() {}\n";
+        assert!(
+            read_crate(&one_file("src/lib.rs", open)).1[0].starts_with("src/lib.rs: not covered")
+        );
+        let early = "#[cfg(test)]\nconst A: [u8; 1] = [\nfn go() {}\n";
+        assert!(
+            read_crate(&one_file("src/lib.rs", early)).1[0].starts_with("src/lib.rs: not covered")
+        );
+    }
+
+    #[test]
+    fn the_crate_set_is_the_packages_with_a_path() {
+        let here = env!("CARGO_MANIFEST_DIR");
+        let tree = format!("halvo-route-gate v0.0.0 ({here})\nserde v1.0.229\nhalvo-route-gate v0.0.0 ({here}) (*)\nother v1.0.0 (/no/such/dir)\n");
+        assert_eq!(crate_dirs(&tree), vec![PathBuf::from(here)]);
     }
 
     #[test]
