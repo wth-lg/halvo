@@ -103,13 +103,24 @@ function readMock(events) {
 const GATEWAY_STACK = /\.ts:\d+|Durable Object/;
 const gatewayFailed = (attempt) => attempt.why === "500" && GATEWAY_STACK.test(attempt.body);
 const PROXY_ERROR_LINE = "Error: Network connection lost.";
-const PROXY_FILE = String.raw`file:\/\/\/\S*\/node_modules\/miniflare\/\S+:\d+:\d+`;
+const PROXY_TEXT_MAX_CHARS = 4096;
+const PROXY_FILE = String.raw`(file:\/\/\/\S*\/node_modules\/miniflare\/[^\s()]+:\d+:\d+)`;
 const PROXY_FRAME = new RegExp(String.raw`^ {4}at (?:[^()]+ \(${PROXY_FILE}\)|${PROXY_FILE})$`);
+const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;
+const holdsADotSegment = (file) => file.split("/").some((segment) => DOT_SEGMENT.test(segment.replace(/:\d+:\d+$/, "")));
+function proxyFileOf(frame) {
+  const match = PROXY_FRAME.exec(frame);
+  return match === null ? null : (match[1] ?? match[2]);
+}
 function isProxyText(body) {
   const [first, ...frames] = body.split("\n");
-  return first === PROXY_ERROR_LINE && frames.length > 0 && frames.every((frame) => PROXY_FRAME.test(frame));
+  return first === PROXY_ERROR_LINE && frames.length > 0 && frames.every((frame) => {
+    const file = proxyFileOf(frame);
+    return file !== null && !holdsADotSegment(file);
+  });
 }
-const lostInTransport = (request) => request.status === 500 && typeof request.body === "string" && isProxyText(request.body);
+const lostInTransport = (request) =>
+  request.status === 500 && typeof request.body === "string" && request.body.length <= PROXY_TEXT_MAX_CHARS && !GATEWAY_STACK.test(request.body) && isProxyText(request.body);
 const EXPIRY_OF_DUE_HOLDS = 0;
 const OWN_WORK_OF_THE_STEP = 1;
 

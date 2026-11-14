@@ -327,8 +327,8 @@ export const sendsAgain = (record, paused) => !paused && record.lost.length < MA
 export const lostAttemptOf = (record) =>
   resetBeforeTheServerAccepted(record) ? { why: "reset", body: "", sentAt: record.sentAt } : { why: "500", body: record.body, sentAt: record.sentAt };
 
-const BODY_KEPT_CHARS = 4096;
-/** The body that the driver keeps of an answer that is not a stream, after one more chunk of its text: its first 4,096 characters, so that the dev proxy's whole text is read. */
+const BODY_KEPT_CHARS = 4097;
+/** The body that the driver keeps of an answer that is not a stream, after one more chunk of its text: its first 4,097 characters. That is one more than the longest body that stress/rule.mjs reads as the dev proxy's text, so a body that this cut shortened is longer than any proxy text and is never read as one. */
 export const keptBodyOf = (kept, text) => (kept + text).slice(0, BODY_KEPT_CHARS);
 
 class Traffic {

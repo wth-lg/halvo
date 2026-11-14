@@ -60,12 +60,16 @@ function readLostAttempt(record) {
 
 function readKeptBody(record) {
   if (typeof driver.keptBodyOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no keptBodyOf"] };
-  const problems = [];
-  record.chunks.forEach((chunks, at) => {
-    const got = chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), "");
-    if (got !== record.expect.body) problems.push(`chunks ${at + 1} keep ${got.length} characters ${JSON.stringify(got.slice(-40))}, expected ${record.expect.body.length} ending ${JSON.stringify(record.expect.body.slice(-40))}`);
-  });
-  return { good: true, problems };
+  const kept = record.chunks.map((chunks) => chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), ""));
+  const same = kept.map((got) => got === record.expect.body);
+  if (same.some((each) => each !== same[0])) return { good: null, problems: [`the chunk lists keep different bodies, of ${kept.map((got) => got.length).join(", ")} characters`] };
+  return { good: same[0], problems: [] };
+}
+
+function readKeptJudge(record) {
+  if (typeof driver.keptBodyOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no keptBodyOf"] };
+  const results = record.chunks.map((chunks) => readJudge({ ...record, request: { ...record.request, body: chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), "") } }));
+  return { good: results[0].good, problems: results.flatMap((result, at) => result.problems.map((problem) => `chunks ${at + 1}: ${problem}`)) };
 }
 
 function readReceipt(record) {
@@ -209,7 +213,7 @@ const READINGS = {
   "main-guard": readMainGuard,
   "server-options": readServerOptions,
   "script-run": readScriptRun,
-  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt, "kept-body": readKeptBody };
+  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt, "kept-body": readKeptBody, "kept-judge": readKeptJudge };
 
 const EXPECT_KEYS = {
   judge: ["counted", "violations", "facts"],
@@ -222,6 +226,7 @@ const EXPECT_KEYS = {
   "attempt-line": ["line"],
   gateway: ["holdLifeMs", "deadlineMs", "marginMs"],
   "kept-body": ["body"],
+  "kept-judge": ["counted", "violations", "facts"],
   "server-options": ["holdLifeMs"],
   "script-run": ["status", "text"],
   "main-guard": [],

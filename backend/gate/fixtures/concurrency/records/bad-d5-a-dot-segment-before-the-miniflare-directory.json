@@ -1,0 +1,32 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K2, on D5 of P7-83 (7) (c) and B-36",
+  "about": "a . segment before /node_modules/miniflare/ in an otherwise whole frame of the proxy: a file URL with a . or .. segment anywhere is no file of the proxy: a violation",
+  "source": "by hand, after P7-107 K2 (a)",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/./node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}
