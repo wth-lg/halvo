@@ -396,9 +396,14 @@ impl ScriptedDaemon {
         }
     }
 
-    /// Sets the daemon's fact that its life is ending, or that it is not (ruling PL-17 (a)). In a
-    /// life that is ending capture reads pausing (contracts.md C2.3), so the status the daemon
-    /// holds then reads pausing.
+    /// Sets the daemon's fact that its life is ending, or that it is not (ruling PL-17 (a)); the
+    /// daemon never sets it by itself. A script that gives a stop answer that is not a stop, or
+    /// that sends Stop, and then sends any further request calls `set_life(Life::Ending)` first.
+    /// Without it the daemon answers as a going life: a set-cap and the permission mutations of
+    /// its form are served and write, a Stop answers stopped, a delete after the timed-out Pause
+    /// answers the plain busy, and after a Stop a delete with the shown id is accepted (ruling
+    /// CT-13). In a life that is ending capture reads pausing (contracts.md C2.3), so the status
+    /// the daemon holds then reads pausing.
     pub fn set_life(&mut self, life: Life) {
         self.life = life;
         if life == Life::Ending && self.status.fields().capture != Capture::Pausing {
