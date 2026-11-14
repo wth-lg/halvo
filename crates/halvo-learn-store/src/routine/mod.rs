@@ -1,20 +1,23 @@
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::num::NonZeroU32;
 
 use halvo_learn::{routine_step, Mark as RuleMark, RoutineState};
 use halvo_schema::learning::names::Mark;
-use halvo_schema::learning::record::{Day, LearnRoutine};
-use halvo_schema::{RowRead, Summary, SummaryRead, TypedRecord, WriterStep};
+use halvo_schema::learning::record::{Day, LearnRoutine, LearnRun};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, TypedRecord, WorkflowId, WriterStep};
 
 use crate::host::Clock;
-use crate::rows;
+use crate::rows::{self, LEARN_ROUTINE, LEARN_RUN};
 
 mod days;
+mod read;
 
 #[cfg(test)]
 mod tests;
 
 const REWRITE_DAYS: u32 = 30;
+
+const AHEAD_DAYS_KEPT: u32 = 2;
 
 /// The routine step of the learning run (contracts.md L4.5, L6), a `WriterStep` that a host puts after the
 /// recurrence step. After each committed batch it reads the bounded summaries and the rows of the kinds
@@ -23,8 +26,12 @@ const REWRITE_DAYS: u32 = 30;
 /// the occurrence days of L6.1 and the day of the host's clock, and returns the new row, with `rev` + 1 and `day`
 /// today, where its mark, `period` or `last` differs from the newest row's or the newest row is 30 or more days
 /// old. A summary is an occurrence when its category and its whole site value, the source included, equal the
-/// row's, or, where both have no site, its category and its app equal the row's. It returns `learn_routine` rows
-/// alone, and nothing when a `learn_routine` or `learn_run` row cannot be read or the clock gives day 0.
+/// row's, or, where both have no site, its category and its app equal the row's. While the day of a pair's newest
+/// row lies one or two days after the clock's day, it returns no row for that pair. A `learn_routine` or
+/// `learn_run` row that its typed parser refuses stops the step for the workflow that the row's top-level
+/// `workflow` key names, read with the registry's entry of the kind, and for every workflow where that key cannot
+/// be read; the rows of the other workflows are returned. It returns `learn_routine` rows alone, and nothing when
+/// the clock gives day 0.
 pub struct LearnStep<C> {
     clock: C,
 }
@@ -48,25 +55,24 @@ fn written(
     rows: &dyn RowRead,
 ) -> Option<Vec<TypedRecord>> {
     let day = Day::new(today)?;
-    let routines = rows::routines(rows).ok()?;
-    let runs = rows::runs(rows).ok()?;
-    let mut newest: BTreeMap<(&str, &str), &LearnRoutine> = BTreeMap::new();
-    for row in &routines {
-        let slot = newest
-            .entry((row.workflow.as_str(), row.agent.as_str()))
-            .or_insert(row);
-        if row.rev > slot.rev {
-            *slot = row;
-        }
-    }
+    let mut stopped = BTreeSet::new();
+    let routines = read::read(rows, LEARN_ROUTINE, LearnRoutine::parse, &mut stopped)?;
+    let runs = read::read(rows, LEARN_RUN, LearnRun::parse, &mut stopped)?;
+    let pairs: BTreeSet<(&WorkflowId, &AgentId)> =
+        routines.iter().map(|r| (&r.workflow, &r.agent)).collect();
+    let newest: Vec<&LearnRoutine> = pairs
+        .into_iter()
+        .filter_map(|(workflow, agent)| rows::newest_routine(&routines, workflow, agent))
+        .filter(|row| !stopped.contains(&row.workflow) && !rests(row, today))
+        .collect();
     let mut theirs: Vec<Summary> = Vec::new();
     summaries.for_each(&mut |s| {
-        if newest.values().any(|row| days::users_doing(row, s)) {
+        if newest.iter().any(|row| days::users_doing(row, s)) {
             theirs.push(s.clone());
         }
     });
     let mut out = Vec::new();
-    for row in newest.values() {
+    for row in newest {
         let prev = figures(row);
         let next = routine_step(Some(&prev), &days::occurrences(row, &theirs, &runs), today);
         let due = next.mark != prev.mark
@@ -82,6 +88,10 @@ fn written(
         }
     }
     Some(out)
+}
+
+fn rests(newest: &LearnRoutine, today: u32) -> bool {
+    (1..=AHEAD_DAYS_KEPT).contains(&newest.day.get().saturating_sub(today))
 }
 
 fn figures(row: &LearnRoutine) -> RoutineState {

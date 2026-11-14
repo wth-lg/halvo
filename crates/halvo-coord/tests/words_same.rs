@@ -233,6 +233,14 @@ fn expected_keys() -> BTreeSet<String> {
     for n in ["file", "range"] {
         k.insert(format!("field.local_edit.{n}"));
     }
+    for key in [
+        "say.item.new",
+        "say.item.gone",
+        "param_typed.full",
+        "param_typed.too_long",
+    ] {
+        k.insert(key.to_owned());
+    }
     k
 }
 
@@ -251,7 +259,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 210);
+    assert_eq!(seen.len(), 214);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -285,6 +293,8 @@ fn placeholders_are_the_ones_that_the_contract_names() {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
+    want.insert("say.item.new".into(), vec!["name"]);
+    want.insert("say.item.gone".into(), vec!["name"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want

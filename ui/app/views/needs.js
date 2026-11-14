@@ -19,9 +19,12 @@
     '.hn-button:focus,.hn-radio:focus,.hn-typed:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
     '.hn-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a}',
     '.hn-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}'
+    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}',
+    '.hn-say{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border-width:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}'
   ];
 
+  let root = null;
+  let region = null;
   let list = null;
   let shown = false;
   let turn = 0;
@@ -36,6 +39,12 @@
   let pointedAt = null;
   let raising = false;
   const keys = new Map();
+  let holdBase = null;
+  const heldGone = new Map();
+  const answeredGone = new Set();
+  const opened = new Set();
+  let pointerRead = [];
+  let closing = false;
 
   function fresh() {
     serial += 1;
@@ -49,8 +58,6 @@
     return node;
   }
 
-  const letters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
   function bytes(text) {
     let size = 0;
     for (const ch of text) {
@@ -60,15 +67,86 @@
     return size;
   }
 
-  function bounded(text) {
-    let size = 0;
-    let out = '';
-    for (const part of letters.segment(text)) {
-      size += bytes(part.segment);
-      if (size > 1024) break;
-      out += part.segment;
+  function changed(before, after) {
+    let start = 0;
+    while (start < before.length && start < after.length && before[start] === after[start]) start += 1;
+    let end = 0;
+    while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end += 1;
+    return { start: start, gone: before.length - start - end, added: after.length - start - end };
+  }
+
+  function limit(typed, full, tooLong) {
+    const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
+    let mark = false;
+    let shown = null;
+    let note = null;
+    let before = null;
+    let start = null;
+    function show(which) {
+      if (shown === which) return;
+      shown = which;
+      if (note) {
+        note.remove();
+        note = null;
+        typed.removeAttribute('aria-describedby');
+      }
+      const text = which === 'full' ? full : which === 'too_long' ? tooLong : '';
+      if (!text) return;
+      note = el('p', 'hn-full', text);
+      note.id = fresh();
+      typed.parentNode.insertBefore(note, typed.nextSibling);
+      typed.setAttribute('aria-describedby', note.id);
+      tell(text, line);
     }
-    return out;
+    function atBound() {
+      return mark || bytes(line.kept) >= 1024;
+    }
+    function judge(now, was) {
+      const change = changed(line.kept, now);
+      if (change.gone === 0 && change.added === 0) return true;
+      if (bytes(now) > 1024 || (atBound() && change.added > 0)) {
+        typed.value = line.kept;
+        if (was) typed.setSelectionRange(was[0], was[1]);
+        else typed.setSelectionRange(change.start, change.start + change.gone);
+        if (bytes(line.kept) > 1020) mark = true;
+        show(atBound() ? 'full' : 'too_long');
+        return false;
+      }
+      line.kept = now;
+      if (change.added === 0) {
+        mark = false;
+        show(null);
+      }
+      return true;
+    }
+    line.sent = function () {
+      if (shown === 'too_long') show(null);
+    };
+    line.text = function () {
+      return shown === 'full' ? full : shown === 'too_long' ? tooLong : '';
+    };
+    typed.addEventListener('beforeinput', function () {
+      before = [typed.selectionStart, typed.selectionEnd];
+    });
+    typed.addEventListener('compositionstart', function () {
+      line.composing = true;
+      start = [typed.selectionStart, typed.selectionEnd];
+    });
+    typed.addEventListener('compositionend', function () {
+      line.composing = false;
+      const was = start;
+      start = null;
+      before = null;
+      line.ended = true;
+      judge(typed.value, was);
+    });
+    typed.addEventListener('input', function () {
+      if (line.composing) return;
+      const was = before;
+      before = null;
+      judge(typed.value, was);
+    });
+    return line;
   }
 
   function pieces(tag, cls, value) {
@@ -132,6 +210,7 @@
         radios.push({ input: input, n: c.n });
       });
       let typed = null;
+      let line = null;
       if (p.typed === 'yes') {
         typed = document.createElement('input');
         typed.type = 'text';
@@ -139,14 +218,11 @@
         typed.setAttribute('data-act', 'typed');
         typed.setAttribute('data-param', p.name);
         typed.setAttribute('aria-labelledby', legend.id);
-        typed.addEventListener('input', function () {
-          const kept = bounded(typed.value);
-          if (kept !== typed.value) typed.value = kept;
-        });
         set.appendChild(typed);
+        line = limit(typed, p.full, p.too_long);
       }
       box.appendChild(set);
-      answers.push({ param: p.name, radios: radios, typed: typed });
+      answers.push({ param: p.name, radios: radios, typed: typed, line: line });
     });
   }
 
@@ -158,8 +234,8 @@
       })[0];
       if (picked) {
         calls.push(['agents_answer', { item: item.item, choice: 'choose', param: a.param, n: picked.n }]);
-      } else if (a.typed && a.typed.value.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: bounded(a.typed.value) }]);
+      } else if (a.line && a.line.kept.trim() !== '') {
+        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.line.kept }]);
       }
     });
     return calls;
@@ -173,8 +249,48 @@
     });
   }
 
-  function answer(item, choice, card) {
-    if (card.busy) return;
+  function linesOf(card) {
+    return card.answers
+      .map(function (a) {
+        return a.line;
+      })
+      .filter(function (l) {
+        return l !== null;
+      });
+  }
+
+  function allLines() {
+    let out = [];
+    cards.forEach(function (card) {
+      out = out.concat(linesOf(card));
+    });
+    return out;
+  }
+
+  function unsettled(l) {
+    return l.composing || l.ended;
+  }
+
+  function stopped(card, event) {
+    const read = event.detail > 0 ? pointerRead : [];
+    const lines = linesOf(card).filter(function (l) {
+      return read.indexOf(l) >= 0 || unsettled(l);
+    });
+    if (lines.length === 0) return false;
+    linesOf(card).forEach(function (l) {
+      l.ended = false;
+    });
+    const typed = lines[0].field;
+    if (document.activeElement !== typed) {
+      const sel = [typed.selectionStart, typed.selectionEnd];
+      typed.focus();
+      if (!lines[0].composing && (typed.selectionStart !== sel[0] || typed.selectionEnd !== sel[1])) typed.setSelectionRange(sel[0], sel[1]);
+    }
+    return true;
+  }
+
+  function answer(item, choice, card, event) {
+    if (card.busy || stopped(card, event)) return;
     if (choice.choice === 'present') {
       held(card, call('agents_present', { item: item.item }));
       return;
@@ -187,6 +303,9 @@
           return reply === null ? null : call(c[0], c[1]);
         });
       }, Promise.resolve({})));
+      card.answers.forEach(function (a) {
+        if (a.line) a.line.sent();
+      });
       return;
     }
     if (isPage(item)) {
@@ -202,6 +321,14 @@
   function input(event) {
     tick += 1;
     const type = event.type;
+    if (type === 'pointerdown') {
+      pointerRead = allLines().filter(unsettled);
+    }
+    if (type !== 'keydown' || !event.repeat) {
+      allLines().forEach(function (l) {
+        l.ended = false;
+      });
+    }
     if (type === 'keydown') {
       if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
       if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
@@ -245,7 +372,7 @@
   }
 
   function build(item, key) {
-    const card = { key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
+    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -272,7 +399,7 @@
         }
         if (event.detail > 1) return;
         if (!card.dialog && event.detail > 0 && !pointedOn(b)) return;
-        answer(item, c, card);
+        answer(item, c, card, event);
       });
       controls.appendChild(b);
     });
@@ -289,6 +416,7 @@
       });
       box.addEventListener('close', function () {
         if (!card.gone && box.isConnected) modal(card);
+        else release();
       });
       card.dialog = box;
       card.li.appendChild(box);
@@ -298,6 +426,8 @@
 
   function modal(card) {
     card.opened = tick;
+    opened.add(card.id);
+    empty();
     card.dialog.showModal();
     card.dialog.scrollTop = 0;
     card.dialog.focus();
@@ -307,7 +437,10 @@
     const card = cards.get(key);
     if (!card) return;
     card.gone = true;
-    if (card.dialog && card.dialog.open) card.dialog.close();
+    if (card.dialog && card.dialog.open) {
+      closing = true;
+      card.dialog.close();
+    }
     card.li.remove();
     cards.delete(key);
   }
@@ -362,11 +495,131 @@
     openNext();
   }
 
+  function cardsOf(id) {
+    return Array.from(cards.entries())
+      .filter(function (entry) {
+        return entry[0].slice(0, entry[0].lastIndexOf('#')) === id;
+      })
+      .map(function (entry) {
+        return entry[1];
+      });
+  }
+
+  function holdsFocus(id) {
+    return cardsOf(id).some(function (card) {
+      return card.li.contains(document.activeElement);
+    });
+  }
+
+  function empty() {
+    if (!region) return;
+    while (region.firstChild) region.removeChild(region.firstChild);
+  }
+
+  function addition(sentences) {
+    empty();
+    sentences.forEach(function (text) {
+      if (text) region.appendChild(el('p', null, text));
+    });
+  }
+
+  function pageWaiting() {
+    return Array.from(cards.values()).some(function (card) {
+      return card.dialog !== null;
+    });
+  }
+
+  function holding() {
+    return holdBase !== null || closing || pageWaiting();
+  }
+
+  function tell(text, line) {
+    if (!region) return;
+    if (holding()) line.held = true;
+    else addition([text]);
+  }
+
+  function heldLines() {
+    const out = [];
+    allLines().forEach(function (l) {
+      const text = l.held ? l.text() : '';
+      if (text && out.indexOf(text) < 0) out.push(text);
+    });
+    return out;
+  }
+
+  function firsts(items) {
+    const byId = new Map();
+    items.forEach(function (item) {
+      if (!byId.has(item.item)) byId.set(item.item, item);
+    });
+    return byId;
+  }
+
+  function release() {
+    if (pageWaiting()) return;
+    closing = false;
+    const out = heldLines();
+    allLines().forEach(function (l) {
+      l.held = false;
+    });
+    if (!holdBase) {
+      if (out.length > 0) addition(out);
+      return;
+    }
+    const base = holdBase;
+    holdBase = null;
+    const now = last ? firsts(last.items) : new Map();
+    base.forEach(function (item, id) {
+      if (!now.has(id) && !(isPage(item) && answeredGone.has(id))) out.push(item.say_gone);
+    });
+    heldGone.forEach(function (text) {
+      out.push(text);
+    });
+    now.forEach(function (item, id) {
+      if (!base.has(id) && !isPage(item) && !holdsFocus(id)) out.push(item.say_new);
+    });
+    heldGone.clear();
+    answeredGone.clear();
+    addition(out);
+  }
+
   function take(reply) {
     if (!reply || !Array.isArray(reply.items)) return;
+    const before = last ? firsts(last.items) : null;
+    const after = firsts(reply.items);
+    const answeredNow = new Set(answered);
     seq = reply.seq;
     last = reply;
     apply(reply, true);
+    const gone = before ? Array.from(before.entries()).filter(function (e) {
+      return !after.has(e[0]);
+    }) : [];
+    const came = before ? Array.from(after.entries()).filter(function (e) {
+      return !before.has(e[0]);
+    }) : [];
+    if (holding()) {
+      if (!holdBase) holdBase = before || after;
+      gone.forEach(function (e) {
+        if (!isPage(e[1])) return;
+        if (answeredNow.has(e[0])) answeredGone.add(e[0]);
+        else if (!holdBase.has(e[0]) && opened.has(e[0])) heldGone.set(e[0], e[1].say_gone);
+      });
+      if (gone.length + came.length > 0) empty();
+      return;
+    }
+    if (gone.length + came.length === 0) return;
+    if (came.length === 0 && gone.every(function (e) {
+      return isPage(e[1]) && answeredNow.has(e[0]);
+    })) return;
+    const out = [];
+    gone.forEach(function (e) {
+      if (!(isPage(e[1]) && answeredNow.has(e[0]))) out.push(e[1].say_gone);
+    });
+    came.forEach(function (e) {
+      if (!isPage(e[1]) && !holdsFocus(e[0])) out.push(e[1].say_new);
+    });
+    addition(out);
   }
 
   function wait(mine) {
@@ -382,6 +635,7 @@
     order: 10,
     heading: "What needs you",
     mount: function (element) {
+      root = element;
       const style = document.createElement('style');
       style.appendChild(document.createTextNode(CSS.join('')));
       element.appendChild(style);
@@ -395,6 +649,13 @@
     show: function () {
       if (shown) return;
       shown = true;
+      if (!region) {
+        region = el('div', 'hn-say', '');
+        region.setAttribute('role', 'status');
+        region.setAttribute('aria-live', 'polite');
+        region.setAttribute('aria-atomic', 'true');
+        root.insertBefore(region, list);
+      }
       turn += 1;
       const mine = turn;
       call('agents_snapshot', {}).then(function (reply) {
@@ -406,6 +667,7 @@
     hide: function () {
       shown = false;
       turn += 1;
+      empty();
     }
   });
 })();

@@ -91,3 +91,154 @@ browser machine=hosted-win bound_bytes=469762048
 browser machine=mac bound_bytes=1216348160
 verdict profile=ephemeral egress=open browser_bound_bytes=1216348160
 ```
+
+## Second round (U0.3's second pull request)
+
+Items 1, 2 and 4 ran again under the start that the product carries after U0.7c, and item 3 ran.
+Each browser of items 1 and 2 and of item 4's task shape starts on its debugging pipe with the
+agent's profile settings and the same-site setting written first, the first flag set of A13.2,
+U0.7b's flags and the relay's, the relay its only route; the steps shape runs the web trial's start
+of U0.7c, without the same-site setting. The `flag` and `pref` lines are that set for the gate's
+port 18090; item 3 added no flag. The trial's flags that the product lacks: the mock keychain on
+macOS (A8.3), the web trial's port-form flags and A13.7's `--isolate-origins` (CP-93 (5)).
+
+What ran. Items 1 and 2 ran on `mac` at d66953a4, the hosted cells of items 1, 2 and 4 in run
+43552018301 at eb189792, and item 3 at c9eafc41 on `mac` and in run 43566221064. No later commit
+changes a value that a cell computes: they change tests, checks, help texts, SAFETY notes, lint
+entries, texts, item 3's lines (8b0f1a1e, before item 3 ran) and the place of the web trial's kill
+line printer (cadf0314, a function of the context now); the profile README lists each commit.
+
+Item 3 ran the program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture and
+one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, without the relay.
+No `--no-sandbox` is given; on both Macs `browser_started=no` covers a start that failed after the
+browser's first reply (`cause=start`); there the browser's kept standard error holds `sandbox
+initialization failed`, and the check's own output does not say why. With `--sandbox-off`, a control
+and no cell, it starts, and its count of denials differs from run to run; on `hosted-win` the first
+set showed at least one denial in every run and the final set none (README).
+
+Beside `denied=0` (W-C26.8 item 5): on hosted-win, denied=0 proves that no process of the wrapped
+tree opened a connection, sent a datagram of any IP protocol or resolved a name outside the list
+while the command ran on windows-2025; not verified: ipv6, wmi, task, bits, and what a process did
+after the command ended. A connection that the mode stops is stopped whether or not its report
+arrives; denied=0 says that no report of a denial arrived, and 1 report in 494 runs of one denied
+probe was lost (reports/verifier-13.md, claim 3), the workflow run's report, measured on this Mac.
+On macos-15 and this-mac the browser did not start, so `denied=0` there proves nothing about it.
+
+The token is `windows-only`; the miss on `hosted-mac` is request 7 of plan.md. Each cell of items 1
+to 3 is one run; the first round's limits of the search stand. The `hosted` lines of run 43552018301
+hold items 1, 2 and 4 alone, those of run 43566221064 item 3. `browser machine=mac bound_bytes=open`
+stands outside A13.3's form of one bound per machine: this Mac's memory pressure read level 2 at
+every try, and such a cell is taken only at level 1. A reader takes the last verdict line;
+docs/r3/trials/model-cells.md and tools/r3-trials/model/fits.py stand on the first block's
+1,216,348,160 (`mac`, first flag set) until U0.5 computes them again (A13.5).
+
+```text
+licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
+licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
+hosted machine=hosted-mac run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
+hosted machine=hosted-win run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
+hosted machine=hosted-mac run=43566221064 sha=cf5bb96a34a831e52604afdd91d26ebf5c7eb932
+hosted machine=hosted-win run=43566221064 sha=cf5bb96a34a831e52604afdd91d26ebf5c7eb932
+session machine=mac browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-mac browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-mac browser=edge import=ok second_factor_asked_again=no
+session machine=hosted-win browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-win browser=edge import=ok second_factor_asked_again=no
+keychain machine=mac browser=chrome prompt=no
+keychain machine=hosted-mac browser=chrome prompt=no
+keychain machine=hosted-mac browser=edge prompt=no
+keychain machine=hosted-win browser=chrome prompt=no
+keychain machine=hosted-win browser=edge prompt=no
+disk machine=mac browser=chrome marker_hits=0
+disk machine=hosted-mac browser=chrome marker_hits=0
+disk machine=hosted-mac browser=edge marker_hits=0
+disk machine=hosted-win browser=chrome marker_hits=0
+disk machine=hosted-win browser=edge marker_hits=0
+egress machine=mac mode=sandbox browser_started=no denied=0
+egress machine=hosted-mac mode=sandbox browser_started=no denied=0
+egress machine=hosted-win mode=wfp browser_started=yes denied=0
+browser machine=hosted-win browser=chrome shape=steps run=1 peak_bytes=220573696
+browser machine=hosted-win browser=chrome shape=steps run=2 peak_bytes=222404608
+browser machine=hosted-win browser=chrome shape=steps run=3 peak_bytes=220135424
+browser machine=hosted-win browser=chrome shape=steps run=4 peak_bytes=216879104
+browser machine=hosted-win browser=chrome shape=steps run=5 peak_bytes=221470720
+browser machine=hosted-win browser=chrome shape=task run=1 peak_bytes=237326336
+browser machine=hosted-win browser=chrome shape=task run=2 peak_bytes=234344448
+browser machine=hosted-win browser=chrome shape=task run=3 peak_bytes=235069440
+browser machine=hosted-win browser=chrome shape=task run=4 peak_bytes=233914368
+browser machine=hosted-win browser=chrome shape=task run=5 peak_bytes=235999232
+browser machine=hosted-win browser=edge shape=steps run=1 peak_bytes=186388480
+browser machine=hosted-win browser=edge shape=steps run=2 peak_bytes=189034496
+browser machine=hosted-win browser=edge shape=steps run=3 peak_bytes=193511424
+browser machine=hosted-win browser=edge shape=steps run=4 peak_bytes=188502016
+browser machine=hosted-win browser=edge shape=steps run=5 peak_bytes=192532480
+browser machine=hosted-win browser=edge shape=task run=1 peak_bytes=214368256
+browser machine=hosted-win browser=edge shape=task run=2 peak_bytes=213872640
+browser machine=hosted-win browser=edge shape=task run=3 peak_bytes=215699456
+browser machine=hosted-win browser=edge shape=task run=4 peak_bytes=212213760
+browser machine=hosted-win browser=edge shape=task run=5 peak_bytes=217567232
+browser machine=mac bound_bytes=open
+browser machine=hosted-win bound_bytes=301989888
+flag --disable-background-networking
+flag --disable-component-update
+flag --disable-sync
+flag --disable-field-trial-config
+flag --disable-client-side-phishing-detection
+flag --disable-default-apps
+flag --disable-breakpad
+flag --disable-domain-reliability
+flag --metrics-recording-only
+flag --no-first-run
+flag --no-default-browser-check
+flag --disable-updater-scheduler
+flag --dns-prefetch-disable
+flag --no-pings
+flag --disable-extensions
+flag --disable-component-extensions-with-background-pages
+flag --disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns
+flag --disable-quic
+flag --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+pref browser.enabled_labs_experiments=["isolate-origins"]
+pref browser.enabled_labs_experiments_origin_lists.isolate-origins=http://pay.agent.test:18090
+pref dns_over_https.mode=off
+pref dns_over_https.templates=
+pref autofill.credit_card_enabled=false
+pref autofill.profile_enabled=false
+pref browser.enable_spellchecking=false
+pref credentials_enable_service=false
+pref dns_prefetching.enabled=false
+pref net.network_prediction_options=2
+pref payments.can_make_payment_enabled=false
+pref profile.default_content_setting_values.ar=2
+pref profile.default_content_setting_values.automatic_downloads=2
+pref profile.default_content_setting_values.bluetooth_guard=2
+pref profile.default_content_setting_values.bluetooth_scanning=2
+pref profile.default_content_setting_values.clipboard=2
+pref profile.default_content_setting_values.file_system_read_guard=2
+pref profile.default_content_setting_values.file_system_write_guard=2
+pref profile.default_content_setting_values.geolocation=2
+pref profile.default_content_setting_values.hid_guard=2
+pref profile.default_content_setting_values.idle_detection=2
+pref profile.default_content_setting_values.local_fonts=2
+pref profile.default_content_setting_values.media_stream_camera=2
+pref profile.default_content_setting_values.media_stream_mic=2
+pref profile.default_content_setting_values.midi_sysex=2
+pref profile.default_content_setting_values.nfc=2
+pref profile.default_content_setting_values.notifications=2
+pref profile.default_content_setting_values.payment_handler=2
+pref profile.default_content_setting_values.protocol_handlers=2
+pref profile.default_content_setting_values.sensors=2
+pref profile.default_content_setting_values.serial_guard=2
+pref profile.default_content_setting_values.storage_access=2
+pref profile.default_content_setting_values.usb_guard=2
+pref profile.default_content_setting_values.vr=2
+pref profile.default_content_setting_values.window_placement=2
+pref profile.password_manager_enabled=false
+pref safebrowsing.enabled=false
+pref search.suggest_enabled=false
+pref web_package.signed_exchange.enabled=false
+pref webrtc.ip_handling_policy=disable_non_proxied_udp
+pref webrtc.multiple_routes_enabled=false
+pref webrtc.nonproxied_udp_enabled=false
+verdict profile=ephemeral egress=windows-only browser_bound_bytes=open
+```

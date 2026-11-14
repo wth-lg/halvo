@@ -9,7 +9,7 @@ use std::path::Path;
 use halvo_schema::Category;
 use halvo_seam::record::Edge;
 
-use crate::body::{read_stream, stream_dirs, StreamRecords};
+use crate::body::{is_link, read_stream, stream_dirs, StreamRecords};
 use crate::form::{text_lines, Refusal};
 use crate::labels::{parse_row, Row};
 use crate::manifest::{parse_script_manifest, StepLine, TierManifest};
@@ -154,16 +154,13 @@ fn check_rows(
     }
     close(&current, &mut mark);
     ranges.sort();
-    let mut reach: Option<(i64, usize)> = None;
+    let mut open: Vec<(i64, usize)> = Vec::new();
     for (start, end, line) in &ranges {
-        if let Some((far, far_line)) = reach {
-            if *start < far {
-                mark((*line).max(far_line), 3);
-            }
+        open.retain(|(e, _)| *e > *start);
+        for (_, earlier) in &open {
+            mark((*line).max(*earlier), 3);
         }
-        if reach.is_none_or(|(far, _)| *end > far) {
-            reach = Some((*end, *line));
-        }
+        open.push((*end, *line));
     }
     let token = |rule: u8| match rule {
         1 => "order",
@@ -195,6 +192,12 @@ fn read_rows(path: &Path) -> Result<Vec<(usize, Row)>, Refusal> {
 /// Runs `check-labels` on `dir`.
 pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> {
     let manifest_path = dir.join("manifest.toml");
+    if is_link(&manifest_path) {
+        return Err(Refusal::new(
+            "tier-manifest",
+            manifest_path.display().to_string(),
+        ));
+    }
     let source = match fs::read(&manifest_path) {
         Ok(bytes) => {
             let m = TierManifest::parse(&bytes).ok_or_else(|| {
@@ -213,13 +216,31 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
     let rule = rule.or(source).unwrap_or(Rule::Generated);
     let sm_path = dir.join("script-manifest.jsonl");
     let sm_fault = || Refusal::new("script-manifest", sm_path.display().to_string());
+    if is_link(&sm_path) {
+        return Err(sm_fault());
+    }
     let sm_bytes = fs::read(&sm_path).map_err(|_| sm_fault())?;
     let steps: Vec<StepLine> = parse_script_manifest(&sm_bytes).ok_or_else(sm_fault)?;
-    let dirs = stream_dirs(dir)
-        .filter(|d| !d.is_empty())
+    let listing = stream_dirs(dir)
+        .filter(|l| !l.dirs.is_empty() || !l.links.is_empty())
         .ok_or_else(|| Refusal::new("batches", dir.join("streams").display().to_string()))?;
     let mut streams = Vec::new();
-    for d in &dirs {
+    for d in &listing.dirs {
+        if let Some(name) = d.links.first() {
+            let cause = if name == "labels.jsonl" {
+                "labels"
+            } else {
+                "batches"
+            };
+            return Err(Refusal::new(
+                cause,
+                dir.join("streams")
+                    .join(&d.id)
+                    .join(name)
+                    .display()
+                    .to_string(),
+            ));
+        }
         if !d.labels.is_file() {
             return Err(Refusal::new("labels", d.labels.display().to_string()));
         }
@@ -232,10 +253,10 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
             records,
         });
     }
-    Ok(check_streams(rule, &steps, &streams))
+    Ok(check_streams(rule, &steps, &listing.links, &streams))
 }
 
-fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked {
+fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[Stream]) -> Checked {
     let by_id: BTreeMap<&str, &StepLine> = steps.iter().map(|s| (s.step.as_str(), s)).collect();
     let step_ids: BTreeSet<&str> = by_id.keys().copied().collect();
     let mut episode_category: BTreeMap<&str, (Category, TaskKind)> = BTreeMap::new();
@@ -254,25 +275,10 @@ fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked 
             }
         }
     }
-    let mut seed_steps: BTreeSet<&str> = BTreeSet::new();
-    for s in streams {
-        for (_, r) in &s.rows {
-            if let Row::Range { episode, step, .. } = r {
-                let seed = episode_category
-                    .get(episode.as_str())
-                    .is_some_and(|(c, _)| *c != Category::Other);
-                if seed {
-                    seed_steps.insert(step.as_str());
-                }
-            }
-        }
-    }
-    let seed_in_order: Vec<&StepLine> = steps
-        .iter()
-        .filter(|s| seed_steps.contains(s.step.as_str()))
-        .collect();
+    let seed_in_order: Vec<&StepLine> = steps.iter().filter(|s| s.seed_category).collect();
     let mut lines = vec![format!("rule {}", rule.as_str())];
-    let mut fails = 0usize;
+    lines.extend(links.iter().map(|id| format!("FAIL link {id}")));
+    let mut fails = links.len();
     let (mut marked_ranges, mut unmarked) = (0u64, 0u64);
     let (mut password_ranges, mut password_keys) = (0u64, 0u64);
     let (mut card_masked, mut card_scripted) = (0u64, 0u64);
@@ -346,7 +352,17 @@ fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked 
                     ),
                 ));
             }
-            let kind = episode_category.get(episode.as_str()).map(|(_, k)| *k);
+            let facts = episode_category.get(episode.as_str());
+            let seed_episode = facts.is_some_and(|(c, _)| *c != Category::Other);
+            if seed_episode && step_line.is_some_and(|sl| !sl.seed_category) {
+                other.push((
+                    *start,
+                    1,
+                    *line,
+                    format!("FAIL seed {} {episode} {step} {start} {end}", s.id),
+                ));
+            }
+            let kind = facts.map(|(_, k)| *k);
             if kind == Some(TaskKind::Marked) {
                 marked_ranges += 1;
                 let opened = marks
@@ -362,7 +378,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked 
                     unmarked += 1;
                     other.push((
                         *start,
-                        1,
+                        2,
                         *line,
                         format!("FAIL unmarked {} {episode} {step} {start} {end}", s.id),
                     ));
@@ -380,7 +396,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], streams: &[Stream]) -> Checked 
                 if keys > 0 {
                     other.push((
                         *start,
-                        2,
+                        3,
                         *line,
                         format!(
                             "FAIL keys {} {episode} {step} {start} {end} key_events={keys}",

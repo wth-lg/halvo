@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 pub mod footprint;
+pub mod product;
 pub mod screen;
 
 pub const MIB: u64 = 1_048_576;

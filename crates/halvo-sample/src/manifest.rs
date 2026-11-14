@@ -19,11 +19,14 @@ pub struct StepLine {
     pub paths: Vec<String>,
     pub password_input: bool,
     pub card_title: bool,
+    pub seed_category: bool,
 }
 
 impl StepLine {
-    /// The manifest line of a script step: `masked_titles[i]` is `halvo_redact::mask(titles[i])` (C7.11).
-    pub fn of(step: &Step) -> StepLine {
+    /// The manifest line of a script step: `masked_titles[i]` is `halvo_redact::mask(titles[i])` (C7.11), and
+    /// `seed_category` is true when the script names the step in a range of an episode whose category is not
+    /// `other` (C10.9).
+    pub fn of(step: &Step, seed_category: bool) -> StepLine {
         StepLine {
             step: step.step.clone(),
             app: step.app.clone(),
@@ -33,13 +36,14 @@ impl StepLine {
             paths: step.paths.clone(),
             password_input: step.password_input,
             card_title: step.card_title,
+            seed_category,
         }
     }
 
     /// The line without its LF, compact with the keys in the order of C10.9.
     pub fn write(&self) -> String {
         format!(
-            "{{\"step\":{},\"app\":{},\"site\":{},\"titles\":{},\"masked_titles\":{},\"paths\":{},\"password_input\":{},\"card_title\":{}}}",
+            "{{\"step\":{},\"app\":{},\"site\":{},\"titles\":{},\"masked_titles\":{},\"paths\":{},\"password_input\":{},\"card_title\":{},\"seed_category\":{}}}",
             json_str(&self.step),
             json_str(&self.app),
             json_opt(self.site.as_deref()),
@@ -47,7 +51,8 @@ impl StepLine {
             json_strs(&self.masked_titles),
             json_strs(&self.paths),
             self.password_input,
-            self.card_title
+            self.card_title,
+            self.seed_category
         )
     }
 
@@ -85,6 +90,7 @@ struct RawStepLine {
     paths: Vec<String>,
     password_input: bool,
     card_title: bool,
+    seed_category: bool,
 }
 
 /// Reads a script manifest: one line per step of C10.9, sorted by `step` in byte order with no step twice.
@@ -102,6 +108,7 @@ pub fn parse_script_manifest(bytes: &[u8]) -> Option<Vec<StepLine>> {
             paths: r.paths,
             password_input: r.password_input,
             card_title: r.card_title,
+            seed_category: r.seed_category,
         };
         if line.write() != l || !step_line_ok(&line) {
             return None;
