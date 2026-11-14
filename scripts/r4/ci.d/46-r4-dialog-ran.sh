@@ -1,11 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 5 of 5 on macOS and 7 of 7 on Windows) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 6 of 6 on macOS and 8 of 8 on Windows) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 set -u
 name=46-r4-dialog-ran
 off='hosted alone: not run on this machine'
 targets='dialog_hosted 4 5
-guard_hosted 5 7'
+guard_hosted 6 8'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -30,7 +30,7 @@ decide() {
   log=$1
   code=$2
   want=$3
-  [ "$code" = 0 ] || broke "cargo test -p halvo-coord-app --locked --test dialog_hosted --test guard_hosted exited $code"
+  [ "$code" = 0 ] || broke "cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted exited $code"
   offs=$(grep -c -x -F "$off" "$log")
   [ "$offs" = 0 ] || broke "a target printed the line that it was not run, $offs times"
   while read -r target count; do
@@ -74,7 +74,7 @@ measure() {
   [ -d "$CI_D_ARTIFACTS" ] || mkdir -p "$CI_D_ARTIFACTS" || fail "the artifacts directory cannot be made"
   tracked before
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
-  cargo test -p halvo-coord-app --locked --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
+  cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
   code=$?
   tracked after
   tr -d '\r' <"$work/out" >"$CI_D_ARTIFACTS/dialog-targets.txt" || fail "the output of the run cannot be written to the artifacts directory"
@@ -140,7 +140,7 @@ self_test() {
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_CALLS"
-[ "$*" = 'test -p halvo-coord-app --locked --test dialog_hosted --test guard_hosted' ] || exit 97
+[ "$*" = 'test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted' ] || exit 97
 [ "$STUB_WRITES" = no ] || printf 'written by a test\n' >>tracked.txt
 cat "$STUB_OUT"
 exit "$STUB_EXIT"
@@ -161,12 +161,12 @@ EOF
   wrong=
   running='     Running tests/dialog_hosted.rs (target/debug/deps/dialog_hosted-0123456789abcdef)'
   mac_dialog='dialog_hosted end: cases ran 4 of 4, failed 0'
-  mac_guard='guard_hosted end: cases ran 5 of 5, failed 0'
+  mac_guard='guard_hosted end: cases ran 6 of 6, failed 0'
   win_dialog='dialog_hosted end: cases ran 5 of 5, failed 0'
-  win_guard='guard_hosted end: cases ran 7 of 7, failed 0'
+  win_guard='guard_hosted end: cases ran 8 of 8, failed 0'
 
   output macos "$running" 'dialog_hosted case macos press_allow PASS' "$mac_dialog" "$mac_guard"
-  check macos-own-lines PASS 'guard_hosted: end lines 1, of them the line of 5 of 5 with none failed 1' macos
+  check macos-own-lines PASS 'guard_hosted: end lines 1, of them the line of 6 of 6 with none failed 1' macos
   output windows "$running" "$win_dialog" "$win_guard"
   check windows-own-lines PASS 'dialog_hosted: end lines 1, of them the line of 5 of 5 with none failed 1' windows
   output off "$off" "$mac_guard"
@@ -179,8 +179,8 @@ EOF
   check macos-short-count FAIL 'dialog_hosted printed "dialog_hosted end: cases ran 3 of 4, failed 0", not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output short-flag 'dialog_hosted end: cases ran 3 of 4, failed 0, FAIL: not every case ran' "$mac_guard"
   check macos-short-count-with-its-mark FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
-  output win-short "$win_dialog" 'guard_hosted end: cases ran 6 of 7, failed 0'
-  check windows-short-count FAIL 'not "guard_hosted end: cases ran 7 of 7, failed 0"' windows
+  output win-short "$win_dialog" 'guard_hosted end: cases ran 7 of 8, failed 0'
+  check windows-short-count FAIL 'not "guard_hosted end: cases ran 8 of 8, failed 0"' windows
   output win-count "$win_dialog" "$win_guard"
   check macos-job-with-the-windows-count FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output mac-count "$mac_dialog" "$mac_guard"
