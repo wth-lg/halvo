@@ -10,6 +10,19 @@ const GONE: Duration = Duration::from_millis(5000);
 const VAR: &str = "R3_FIXTURE_GUARD_CHILD";
 const CHILD: &str = "a_trial_process_that_holds_a_server";
 
+#[test]
+fn the_bound_is_the_fixtures_own_gone_ms() {
+    let selftest =
+        std::fs::read_to_string(repo().join("tools/fixture-server/variants/selftest.mjs"))
+            .expect("the fixture's self-test");
+    let gone_ms: Vec<u128> = selftest
+        .lines()
+        .filter_map(|l| l.strip_prefix("const GONE_MS = "))
+        .filter_map(|v| v.trim_end_matches(';').parse().ok())
+        .collect();
+    assert_eq!(gone_ms, [GONE.as_millis()]);
+}
+
 fn repo() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
 }
