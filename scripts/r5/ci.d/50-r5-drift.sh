@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
+# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, printing one line set=dev or set=heldout before the lines of that set, so that every line up to the next set= line belongs to that set, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -255,6 +255,7 @@ measure() {
   trial_script=tools/r5-trials/drift/run.sh
   status=pass
   for set_name in $sets; do
+    printf 'set=%s\n' "$set_name"
     play_set "$set_name" "fixtures/r5/cases/$set_name"
     tree_same "gate-$set_name"
     for play_status in "$first" "$second"; do
@@ -508,6 +509,40 @@ calls_are() {
   fi
 }
 
+# sets_hold FILE SET...: the set= lines of FILE are one for each SET, in that order, and each line of a set's own
+# keys stands below a set= line, a spread= line below set=heldout.
+sets_hold() {
+  file=$1
+  shift
+  awk -v want="$*" '
+    /^set=/ { set = substr($0, 5); got = got (got == "" ? "" : " ") set; next }
+    /^(improve|rollback|drift result|restart=|readers |store=|spread=)/ {
+      if (set == "" || ($0 ~ /^spread=/ && set != "heldout")) bad = 1
+    }
+    END { if (bad || got != want) exit 1 }
+  ' "$file"
+}
+
+# set_rejected LABEL: the output $work/LABEL.out does not hold the sets dev and heldout as sets_hold reads them.
+set_rejected() {
+  if sets_hold "$work/$1.out" dev heldout; then
+    wrong="$wrong $1"
+  else
+    rejected=$((rejected + 1))
+  fi
+}
+
+# two_sets_wanted: the lines that the check prints for the fixture two-sets.
+two_sets_wanted() {
+  for one_set in dev heldout; do
+    printf 'set=%s\n' "$one_set"
+    printf 'improve cases=1 admit=1 none=3 bound=1 worse=0\n'
+    printf 'rollback cases=0 wins=0 losses=0 critical=0 cost=0 budget=1\n'
+    printf 'drift result=ok\nrestart=same\nreaders same=2 of=2\nstore=memory\n'
+  done
+  printf 'spread=same\nPASS %s\n' "$name"
+}
+
 broken() {
   printf 'FAIL self-test:%s (scratch)\n' "$name"
   exit 1
@@ -548,6 +583,19 @@ self_test() {
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all" \
     "gate $held --store derived" "gate $held --store memory" \
     "gate $held --store derived --restart-all" "gate $held --store memory --restart-all"
+  printf '%s\n' "$out" >"$work/two-sets.out" || broken
+  two_sets_wanted >"$work/two-sets.wanted" || broken
+  cmp -s "$work/two-sets.out" "$work/two-sets.wanted" || wrong="$wrong two-sets:lines"
+  sets_hold "$work/two-sets.out" dev heldout || wrong="$wrong two-sets:sets"
+  grep -v '^set=heldout$' "$work/two-sets.out" >"$work/set-line-missing.out" || broken
+  set_rejected set-line-missing
+  awk '/^set=heldout$/ { h = 1 } /^PASS / { p = 1 } { if (p) tail = tail $0 "\n"; else if (h) held = held $0 "\n"; else dev = dev $0 "\n" } END { printf "%s%s%s", held, dev, tail }' "$work/two-sets.out" >"$work/sets-in-the-other-order.out" || broken
+  set_rejected sets-in-the-other-order
+
+  fixture one-set
+  check PASS 'readers same=2 of=2'
+  printf '%s\n' "$out" >"$work/one-set.out" || broken
+  sets_hold "$work/one-set.out" dev || wrong="$wrong one-set:sets"
 
   fixture two-sets-derived-taken heldout
   : >"$FX/derived"
