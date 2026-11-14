@@ -30,6 +30,12 @@ from running by accident, and no check and no test of the repository calls the h
                swiftc on the PATH that record any call, must exit 2 with the one refused line and
                no call recorded; the guard with the three facts passes. Prints one line per case
                and "self-test cases=<n> failed=<n>"; exit 0 when none failed.
+Optional variables of the run:
+  LIMIT       seconds that one call of run.sh may take before the harness ends it (default 420)
+  RUN_SH      on macOS, the trial's run.sh (default tools/r3-trials/web/run.sh)
+  PAGE_WAIT   on macOS, seconds to wait for a policy page's PDF (default 45)
+  RUNS        on Windows, runs per cell (default 10; macOS runs 10)
+  KEEP_PAGES  on Windows, when set: keep each page's PDF and text under target/ci-artifacts/pages
 Exit 0 when every cell ran, 1 when a cell or a step failed, 2 for a refusal.
 EOF
 }
@@ -108,6 +114,16 @@ STUB
   ok=no
   [ "$e" -eq 0 ] && [ "$passed" = "guard passed" ] && ok=yes
   echo "case three_facts_pass_the_guard exit=$e ok=$ok"
+  cases=$((cases + 1))
+  [ "$ok" = yes ] || failed=$((failed + 1))
+  sh "$here/harness.sh" --help >"$work/help" 2>&1
+  missing=
+  for v in "LIMIT .*420" "RUN_SH .*tools/r3-trials/web/run.sh" "PAGE_WAIT .*45" "RUNS .*10" "KEEP_PAGES "; do
+    grep -q "^  $v" "$work/help" || missing="$missing ${v%% *}"
+  done
+  ok=no
+  [ -z "$missing" ] && ok=yes
+  echo "case help_names_each_optional_variable missing=${missing:- -} ok=$ok"
   cases=$((cases + 1))
   [ "$ok" = yes ] || failed=$((failed + 1))
   echo "self-test cases=$cases failed=$failed"
