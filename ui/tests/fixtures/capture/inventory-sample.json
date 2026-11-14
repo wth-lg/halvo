@@ -1,0 +1,50 @@
+{
+  "as_of": "2026-11-12T09:00:05Z",
+  "available": true,
+  "day_is": "utc",
+  "ext": [],
+  "rows": [
+    {
+      "bytes": 160,
+      "day": "2026-11-11",
+      "events": 5,
+      "modality": "keystroke"
+    },
+    {
+      "bytes": 266,
+      "day": "2026-11-11",
+      "events": 7,
+      "modality": "pointer"
+    },
+    {
+      "bytes": 144,
+      "day": "2026-11-11",
+      "events": 3,
+      "modality": "foreground_app"
+    },
+    {
+      "bytes": 230,
+      "day": "2026-11-11",
+      "events": 2,
+      "modality": "window_title"
+    },
+    {
+      "bytes": 128,
+      "day": "2026-11-12",
+      "events": 4,
+      "modality": "keystroke"
+    },
+    {
+      "bytes": 48,
+      "day": "2026-11-12",
+      "events": 1,
+      "modality": "foreground_app"
+    }
+  ],
+  "store_id": "0123456789abcdef0123456789abcdef",
+  "totals": {
+    "bytes": 976,
+    "disk_bytes": 1048576,
+    "events": 22
+  }
+}

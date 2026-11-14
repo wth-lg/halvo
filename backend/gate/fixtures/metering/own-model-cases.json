@@ -1,8 +1,0 @@
-{
-  "args": [
-    "--model-cases"
-  ],
-  "line": [
-    "PASS metering-model-cases: 3 of 3"
-  ]
-}

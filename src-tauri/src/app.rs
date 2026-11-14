@@ -1,17 +1,20 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
+use std::sync::Arc;
+use std::time::Duration;
 
-use halvo_capture::consent::onboarding::{Permission, PermissionProbe};
-use halvo_capture::consent::status::{
-    ConsentController, DataStore, SettingsFile, SETTINGS_FILE_NAME,
-};
 use tauri::webview::PageLoadEvent;
 use tauri::{
-    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder,
+    WindowEvent,
 };
 
 use crate::commands::{self, capture::AppState};
+use crate::engine::{EngineSite, GuardAnswer, GuardInstall, GuardInstalled, NotInstalled};
+use crate::launch::Exit;
+use crate::poller;
+use crate::tray::{self, TrayInstalled};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -28,16 +31,45 @@ pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.wind
 /// that the engine runs it.
 pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
 
+pub type TrayInstall<R> = fn(&AppHandle<R>) -> tauri::Result<TrayInstalled>;
+
 pub struct Parts<R: Runtime> {
-    pub config_dir: Option<PathBuf>,
-    pub store: Box<dyn DataStore + Send>,
-    pub store_backend: &'static str,
-    pub probe: Box<dyn PermissionProbe + Send + Sync>,
-    pub open_pane: fn(Permission) -> Result<(), String>,
-    pub tray: fn(&AppHandle<R>) -> tauri::Result<()>,
+    pub state: AppState,
+    pub tray: Option<TrayInstall<R>>,
+    pub guard: GuardInstall<R>,
+    pub poll: bool,
     pub window_visible: bool,
+    pub engine_rules_dir: Option<PathBuf>,
     #[cfg(windows)]
     pub webview_data_dir: Option<PathBuf>,
+}
+
+pub const GUARD_WAIT: Duration = Duration::from_secs(20);
+
+pub const ENGINE_RULES_DIR: &str = "engine-rules";
+
+pub enum Opening {
+    Load(GuardInstalled),
+    RunWithoutWindow(NotInstalled),
+    End(NotInstalled),
+}
+
+pub fn decide(answer: GuardAnswer, tray: bool) -> Opening {
+    match (answer, tray) {
+        (Ok(installed), _) => Opening::Load(installed),
+        (Err(reason), true) => Opening::RunWithoutWindow(reason),
+        (Err(reason), false) => Opening::End(reason),
+    }
+}
+
+pub fn not_opened_line(reason: &str) -> String {
+    format!(
+        "halvo: the window main is not opened, because its engine guard is not installed: {reason}"
+    )
+}
+
+pub struct WindowMissing {
+    pub restart_cures: bool,
 }
 
 #[derive(Default)]
@@ -57,32 +89,62 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
     builder
         .invoke_handler(commands::handler())
         .setup(move |app| {
-            let config_dir = match parts.config_dir {
-                Some(dir) => dir,
-                None => app.path().app_config_dir()?,
-            };
-            let settings = SettingsFile::new(config_dir.join(SETTINGS_FILE_NAME));
-            let controller =
-                ConsentController::open(parts.store, settings.clone()).map_err(|e| {
-                    format!(
-                        "could not open the consent settings at {}: {e}",
-                        settings.path().display()
-                    )
-                })?;
-            app.manage(AppState {
-                controller: Mutex::new(controller),
-                probe: parts.probe,
-                store_backend: parts.store_backend,
-                open_pane: parts.open_pane,
-            });
+            let control = Arc::clone(&parts.state.control);
+            let views = Arc::clone(&parts.state.views);
+            app.manage(parts.state);
             app.manage(PageLoads::default());
-            main_window(
+            let (sender, answer) = mpsc::channel();
+            match main_window(
                 app.handle(),
-                parts.window_visible,
                 #[cfg(windows)]
                 parts.webview_data_dir,
-            )?;
-            (parts.tray)(app.handle())?;
+            ) {
+                Ok(window) => match engine_site(app.handle(), parts.engine_rules_dir) {
+                    Ok(site) => (parts.guard)(&window, site, sender),
+                    Err(e) => {
+                        let _ = sender.send(Err(NotInstalled::from(e)));
+                    }
+                },
+                Err(e) => {
+                    let _ = sender.send(Err(NotInstalled::from(format!(
+                        "the window main cannot be built: {e}"
+                    ))));
+                }
+            }
+            let tray = match parts.tray.map(|install| install(app.handle())) {
+                Some(Ok(installed)) => Some(installed),
+                Some(Err(e)) => {
+                    eprintln!("halvo: the app runs without a tray item: {e}");
+                    None
+                }
+                None => None,
+            };
+            let with_tray = tray.is_some();
+            app.state::<AppState>()
+                .tray_installed
+                .store(with_tray, Ordering::SeqCst);
+            if parts.poll {
+                let handle = app.handle().clone();
+                let modules = commands::table::<R>()
+                    .iter()
+                    .map(|module| module.registration)
+                    .collect();
+                poller::start(control, views, tray, modules, move |view| {
+                    tray::refresh(&handle, view)
+                });
+            }
+            let visible = parts.window_visible;
+            match answer.try_recv() {
+                Ok(answer) => open(app.handle(), decide(answer, with_tray), visible),
+                Err(TryRecvError::Disconnected) => open(
+                    app.handle(),
+                    decide(Err(NotInstalled::from(closure_not_run())), with_tray),
+                    visible,
+                ),
+                Err(TryRecvError::Empty) => {
+                    wait_for_the_guard(app.handle().clone(), answer, with_tray, visible)
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -95,7 +157,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             }
         })
         .on_page_load(|webview, payload| {
-            if payload.event() == PageLoadEvent::Finished && webview.label() == "main" {
+            if payload.event() == PageLoadEvent::Finished
+                && webview.label() == "main"
+                && is_app_url(payload.url())
+            {
                 let _ = webview.window().set_title(&format!("Halvo {VERSION}"));
                 if let Some(loads) = webview.try_state::<PageLoads>() {
                     loads.0.fetch_add(1, Ordering::SeqCst);
@@ -111,8 +176,17 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
 /// gives the rule that address's string. The rule refuses every address outside
 /// the app's own origin that the runtime puts to it. An address that the
 /// runtime's own reader refuses is allowed by the runtime without the rule
-/// (tauri-runtime-wry 2.12.3); it is reached only by script in the page, and it
-/// stays open until a unit closes it at the engine.
+/// (tauri-runtime-wry 2.12.3); it is reached only by script in the page, and
+/// the means of `engine::guard` decide it at the engine. On windows-2025-vs2026
+/// 20261103.298.1 a navigation to https://xn--zz.com/p?q#f, a form that the reader
+/// refuses, opened 8 connections with no layer and 0 with every engine means in,
+/// and the same form over http with a port of the job opened 2 connections with 2
+/// requests and then 0 (hosted run 43603818315, job 132474034388, log lines 5471,
+/// 5470, 5481 and 5480). The plain http form at port 80 on Windows: not measured.
+/// Row A2-1b on macOS: not measured: with no layer 0 of the 70 refused forms left
+/// the app on macos-15-arm64 20261104.0514.1 (WebKit 20621.3.11.11.3) beside both
+/// controls above 0 (hosted run 43585044597, job 132417605652, log lines 6766 to
+/// 6769); what refuses them was not read, and Halvo's means had nothing to refuse.
 pub fn may_navigate(address: &str) -> bool {
     Url::parse(address).is_ok_and(|url| is_app_url(&url))
 }
@@ -150,10 +224,9 @@ pub fn is_origin(url: &Url, (scheme, host): (&str, &str)) -> bool {
 /// navigation to the hook.
 fn main_window<R: Runtime>(
     app: &AppHandle<R>,
-    visible: bool,
     #[cfg(windows)] data_dir: Option<PathBuf>,
-) -> tauri::Result<()> {
-    let config = app
+) -> tauri::Result<tauri::WebviewWindow<R>> {
+    let mut config = app
         .config()
         .app
         .windows
@@ -161,14 +234,132 @@ fn main_window<R: Runtime>(
         .find(|window| window.label == "main")
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
+    take_engine_arguments_out_of_the_environment();
+    config.url = WebviewUrl::External(blank());
     let builder = WebviewWindowBuilder::from_config(app, &config)?
         .on_navigation(|url| may_navigate(url.as_str()))
-        .visible(visible);
+        .on_download(|_, _| false)
+        .initialization_script_for_all_frames(NO_PEER_SCRIPT)
+        .visible(false);
+    #[cfg(target_os = "macos")]
+    let builder = match crate::engine::configuration_at_creation() {
+        Some(configuration) => builder.with_webview_configuration(configuration),
+        None => builder,
+    };
+    #[cfg(windows)]
+    let builder = builder.additional_browser_args(ENGINE_ARGS);
     #[cfg(windows)]
     let builder = match data_dir {
         Some(dir) => builder.data_directory(dir),
         None => builder,
     };
-    builder.build()?;
+    builder.build()
+}
+
+#[cfg(windows)]
+pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --proxy-bypass-list=<-loopback> --webrtc-ip-handling-policy=disable_non_proxied_udp";
+
+pub const NO_PEER_SCRIPT: &str = "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
+
+pub const ENGINE_ARGUMENTS_VARIABLE: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+
+pub fn take_engine_arguments_out_of_the_environment() {
+    std::env::remove_var(ENGINE_ARGUMENTS_VARIABLE);
+}
+
+pub fn blank() -> Url {
+    Url::parse("about:blank").expect("about:blank is an address")
+}
+
+pub fn app_url() -> Url {
+    let (scheme, host) = APP_ORIGIN;
+    Url::parse(&format!("{scheme}://{host}/index.html")).expect("the app's address is an address")
+}
+
+fn engine_site<R: Runtime>(
+    app: &AppHandle<R>,
+    given: Option<PathBuf>,
+) -> Result<EngineSite, String> {
+    let rules_dir = match given {
+        Some(dir) => dir,
+        None => app
+            .path()
+            .app_cache_dir()
+            .map_err(|e| format!("the app has no cache directory for its rule list: {e}"))?
+            .join(ENGINE_RULES_DIR),
+    };
+    Ok(EngineSite { rules_dir })
+}
+
+fn closure_not_run() -> String {
+    "the install's closure did not run".to_string()
+}
+
+fn wait_for_the_guard<R: Runtime>(
+    app: AppHandle<R>,
+    answer: Receiver<GuardAnswer>,
+    with_tray: bool,
+    visible: bool,
+) {
+    std::thread::spawn(move || {
+        let answer = match answer.recv_timeout(GUARD_WAIT) {
+            Ok(answer) => answer,
+            Err(RecvTimeoutError::Disconnected) => Err(NotInstalled::from(closure_not_run())),
+            Err(RecvTimeoutError::Timeout) => Err(NotInstalled::from(format!(
+                "no answer within {} s",
+                GUARD_WAIT.as_secs()
+            ))),
+        };
+        let opening = decide(answer, with_tray);
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || open(&handle, opening, visible));
+    });
+}
+
+fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
+    let opening = match opening {
+        Opening::Load(installed) => match load(app, visible) {
+            Ok(()) => {
+                app.manage(installed);
+                return;
+            }
+            Err(e) => decide(
+                Err(NotInstalled::from(format!(
+                    "the app's page did not load: {e}"
+                ))),
+                app.state::<AppState>()
+                    .tray_installed
+                    .load(Ordering::SeqCst),
+            ),
+        },
+        not_loaded => not_loaded,
+    };
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.destroy();
+    }
+    match opening {
+        Opening::Load(_) => {}
+        Opening::RunWithoutWindow(refusal) => {
+            eprintln!("{}", not_opened_line(&refusal.reason));
+            app.manage(WindowMissing {
+                restart_cures: refusal.restart_cures,
+            });
+            tray::refresh(app, &app.state::<AppState>().views.view());
+        }
+        Opening::End(refusal) => {
+            eprintln!("{}", not_opened_line(&refusal.reason));
+            app.exit(Exit::GuardNotInstalled.code());
+        }
+    }
+}
+
+fn load<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or(tauri::Error::WindowNotFound)?;
+    window.navigate(app_url())?;
+    if visible {
+        window.show()?;
+    }
     Ok(())
 }

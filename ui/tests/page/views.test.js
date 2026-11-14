@@ -24,12 +24,12 @@ test("index.html holds markup only: no inline script, no style block and no styl
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
 });
 
-test("views/ holds the six views of SIX and the two of NOT_LOADED, and the page loads ipc.js, the frame and each of the six once, and nothing else", async () => {
+test("views/ holds the six views of SIX and the two of NOT_LOADED, and the page loads ipc.js, the words, the frame and each of the six once, and nothing else", async () => {
   const page = await openPage();
   const views = fs.readdirSync(VIEWS).filter((f) => f.endsWith(".js")).sort();
   assert.deepEqual(views, [...SIX, ...NOT_LOADED].sort());
-  assert.deepEqual(page.loaded.slice(0, 2), ["ipc.js", "frame.js"]);
-  assert.deepEqual([...page.loaded.slice(2)].sort(), SIX.map((f) => `views/${f}`).sort());
+  assert.deepEqual(page.loaded.slice(0, 3), ["ipc.js", "words.js", "frame.js"]);
+  assert.deepEqual([...page.loaded.slice(3)].sort(), SIX.map((f) => `views/${f}`).sort());
 });
 
 test("the frame renders one section per view in ascending order, each under a level-2 heading", async () => {
@@ -90,7 +90,7 @@ test("the page runs with the global API off and shows the version from the core 
   assert.equal(page.window.__TAURI__, undefined);
   assert.equal(page.calls("plugin:app|version").length, 1);
   assert.equal(page.text("version"), "9.8.7");
-  assert.equal(page.text("state"), "capturing");
+  assert.equal(page.text("state"), "Halvo is capturing");
 });
 
 test("Halvo.ipc.replied() names each command that has answered, and no command that failed", async () => {

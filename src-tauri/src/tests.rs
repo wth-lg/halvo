@@ -1,20 +1,27 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use halvo_capture::consent::onboarding::{GrantState, Permission, PermissionProbe, RequestOutcome};
-use halvo_capture::consent::status::{Inventory, InventoryRow, StoreInventory, UtcDay};
-use halvo_capture::event::Modality;
-use halvo_capture::store::{SegmentExpiry, ShredReport, StoreResult};
+use halvo_control::onboarding::Permission;
+use halvo_control::proto::{Platform, Request};
+use halvo_control::testing::{sample_inventory, sample_status, ScriptedConnector, ScriptedDaemon};
 use serde::Deserialize;
 use serde_json::Value;
 use tauri::ipc::{CallbackFn, Invoke, InvokeBody};
 use tauri::test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
-use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{App, AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::app;
+use crate::commands::capture::AppState;
+use crate::commands::control::Gated;
 use crate::commands::{self, names};
+use crate::engine::{self, EngineSite, GuardAnswer, GuardInstalled};
+use crate::launch::Exit;
+use crate::poller;
+use crate::tray::{self, TrayInstalled};
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -48,165 +55,83 @@ pub fn scratch_dir(name: &str) -> PathBuf {
     dir
 }
 
-#[derive(Clone, Default)]
-pub struct FakeStore {
-    rows: Arc<Mutex<Vec<InventoryRow>>>,
-}
-
-impl FakeStore {
-    pub fn two_rows_on_one_day() -> Self {
-        let day = UtcDay::from_days_since_epoch(20_765).expect("2026-11-08 is a day");
-        let row = |modality, events, bytes| InventoryRow {
-            day,
-            modality,
-            events,
-            bytes,
-        };
-        Self {
-            rows: Arc::new(Mutex::new(vec![
-                row(Modality::Keystroke, 7, 70),
-                row(Modality::ScreenFrame, 3, 300),
-            ])),
-        }
-    }
-
-    pub fn one_row_of_every_kind() -> Self {
-        let day = UtcDay::from_days_since_epoch(20_765).expect("2026-11-08 is a day");
-        let rows = Modality::ALL
-            .iter()
-            .zip(1u64..)
-            .map(|(&modality, n)| InventoryRow {
-                day,
-                modality,
-                events: n,
-                bytes: 10 * n,
-            })
-            .collect();
-        Self {
-            rows: Arc::new(Mutex::new(rows)),
-        }
-    }
-}
-
-impl SegmentExpiry for FakeStore {
-    fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
-        Ok(ShredReport {
-            segments_shredded: 0,
-            keys_destroyed: 0,
-        })
-    }
-
-    fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
-        let mut rows = self.rows.lock().unwrap();
-        let n = rows.len() as u64;
-        rows.clear();
-        Ok(ShredReport {
-            segments_shredded: n,
-            keys_destroyed: n,
-        })
-    }
-}
-
-impl StoreInventory for FakeStore {
-    fn inventory(&self) -> StoreResult<Inventory> {
-        Ok(Inventory::from_rows(self.rows.lock().unwrap().clone()).expect("distinct rows"))
-    }
-
-    fn crypto_shred_before(&mut self, day: UtcDay) -> StoreResult<ShredReport> {
-        let mut rows = self.rows.lock().unwrap();
-        let before = rows.len();
-        rows.retain(|row| row.day >= day);
-        let n = (before - rows.len()) as u64;
-        Ok(ShredReport {
-            segments_shredded: n,
-            keys_destroyed: n,
-        })
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct FakeProbe {
-    grants: Arc<Mutex<BTreeMap<String, GrantState>>>,
-}
-
-impl FakeProbe {
-    fn set(&self, grants: &BTreeMap<String, GrantState>) {
-        *self.grants.lock().unwrap() = grants.clone();
-    }
-}
-
-fn wire_name(permission: Permission) -> String {
-    serde_json::to_value(permission)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_string))
-        .expect("a permission has a wire name")
-}
-
-impl PermissionProbe for FakeProbe {
-    fn check(&self, permission: Permission) -> GrantState {
-        self.grants
-            .lock()
-            .unwrap()
-            .get(&wire_name(permission))
-            .copied()
-            .unwrap_or(GrantState::Granted)
-    }
-
-    fn request(&self, permission: Permission) -> RequestOutcome {
-        match self.check(permission) {
-            GrantState::Granted => RequestOutcome::AlreadyGranted,
-            _ => RequestOutcome::Requested,
-        }
-    }
-
-    fn macos_major_version(&self) -> Option<u32> {
-        Some(26)
-    }
-}
-
 fn no_pane(_permission: Permission) -> Result<(), String> {
     Ok(())
 }
 
-fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
-    Ok(())
+pub fn macos_fixture_daemon() -> ScriptedDaemon {
+    let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+    daemon.set_inventory(sample_inventory(Vec::new()));
+    daemon
 }
 
-pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRuntime> {
+pub fn state_of(connector: &ScriptedConnector) -> AppState {
+    AppState::with_control(Arc::new(Gated::new(connector.clone())), None, no_pane)
+}
+
+pub fn test_parts(dir: PathBuf, state: AppState) -> app::Parts<MockRuntime> {
+    #[cfg(not(windows))]
+    let _ = dir;
     app::Parts {
         #[cfg(windows)]
-        webview_data_dir: Some(config_dir.join("webview")),
-        config_dir: Some(config_dir),
-        store: Box::new(FakeStore::two_rows_on_one_day()),
-        store_backend: crate::unwired_store::DESCRIPTION,
-        probe: Box::new(probe.clone()),
-        open_pane: no_pane,
-        tray: no_tray,
+        webview_data_dir: Some(dir.join("webview")),
+        state,
+        tray: None,
+        guard: guard_installed,
+        poll: false,
         window_visible: false,
+        engine_rules_dir: None,
     }
+}
+
+pub fn guard_installed(
+    _window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    let _ = answer.send(Ok(engine::installed_for_tests()));
 }
 
 pub struct TestApp {
     pub app: App<MockRuntime>,
-    pub probe: FakeProbe,
+    pub daemon: ScriptedConnector,
 }
 
-pub fn test_app(config_dir: PathBuf) -> TestApp {
-    let probe = FakeProbe::default();
-    let parts = test_parts(config_dir, &probe);
-    test_app_from(parts, app::context(), probe)
+impl TestApp {
+    pub fn poll(&self) -> crate::view_state::StatusView {
+        let state = self.app.state::<AppState>();
+        poller::pass(state.control.as_ref(), &state.views, None)
+    }
+
+    pub fn deleting_requests(&self) -> usize {
+        self.daemon
+            .requests()
+            .iter()
+            .filter(|r| matches!(r, Request::DeleteAll { .. }))
+            .count()
+    }
+}
+
+pub fn test_app(dir: PathBuf) -> TestApp {
+    test_app_with(dir, macos_fixture_daemon())
+}
+
+pub fn test_app_with(dir: PathBuf, daemon: ScriptedDaemon) -> TestApp {
+    let connector = ScriptedConnector::new(daemon);
+    let parts = test_parts(dir, state_of(&connector));
+    test_app_from(parts, app::context(), connector)
 }
 
 pub fn test_app_from(
     parts: app::Parts<MockRuntime>,
     context: tauri::Context<MockRuntime>,
-    probe: FakeProbe,
+    daemon: ScriptedConnector,
 ) -> TestApp {
     let mut app = app::build(mock_builder(), parts)
         .build(context)
         .expect("the app builds on the mock runtime");
     first_iteration_runs_the_set_up(&mut app);
-    TestApp { app, probe }
+    TestApp { app, daemon }
 }
 
 fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
@@ -259,45 +184,60 @@ pub fn invoke_with_headers(
 struct Call {
     command: String,
     args: Value,
-    #[serde(default)]
-    probe: BTreeMap<String, GrantState>,
     reply: Option<String>,
     error: Option<String>,
-    #[serde(default)]
-    reply_off_macos: Option<String>,
+}
+
+fn calls() -> Vec<Call> {
+    serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
+        .expect("calls.json lists calls")
+}
+
+fn replies_of_calls() -> Vec<(String, Result<Value, Value>)> {
+    let test = test_app(scratch_dir("fixtures"));
+    let window = main_window(&test.app);
+    calls()
+        .iter()
+        .enumerate()
+        .map(|(n, call)| {
+            test.poll();
+            let got = invoke(&window, APP_URL, &call.command, call.args.clone());
+            let name = match (&call.reply, &call.error) {
+                (Some(name), None) | (None, Some(name)) => name.clone(),
+                _ => panic!("call {n} of calls.json names neither one reply nor one error"),
+            };
+            (name, got)
+        })
+        .collect()
 }
 
 #[test]
 fn every_command_answers_the_page_arguments_with_its_fixture() {
-    let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
-        .expect("calls.json lists calls");
+    let calls = calls();
     assert!(!calls.is_empty());
-    let test = test_app(scratch_dir("fixtures"));
-    let window = main_window(&test.app);
-    for (n, call) in calls.iter().enumerate() {
-        test.probe.set(&call.probe);
-        let got = invoke(&window, APP_URL, &call.command, call.args.clone());
-        let (name, expected) = match (&call.reply, &call.error) {
-            (Some(reply), None) => {
-                let name = match (&call.reply_off_macos, cfg!(target_os = "macos")) {
-                    (Some(other), false) => other,
-                    _ => reply,
-                };
-                (
-                    name,
-                    Ok(read_json(&fixtures_dir().join(format!("{name}.json")))),
-                )
-            }
-            (None, Some(error)) => (
-                error,
-                Err(read_json(&fixtures_dir().join(format!("{error}.json")))),
-            ),
-            _ => panic!("call {n} of calls.json names neither one reply nor one error"),
+    for ((name, got), call) in replies_of_calls().into_iter().zip(&calls) {
+        let expected = read_json(&fixtures_dir().join(format!("{name}.json")));
+        let expected = if call.error.is_some() {
+            Err(expected)
+        } else {
+            Ok(expected)
         };
         assert_eq!(
             got, expected,
-            "call {n}, {} with {}: the reply differs from the fixture {name}.json",
+            "{} with {}: the reply differs from the fixture {name}.json",
             call.command, call.args
+        );
+    }
+}
+
+#[test]
+#[ignore = "prints the replies of calls.json for a review of the fixtures"]
+fn print_the_replies_of_calls_json() {
+    for (name, got) in replies_of_calls() {
+        let value = got.unwrap_or_else(|e| e);
+        println!(
+            "== {name}.json\n{}",
+            serde_json::to_string_pretty(&value).expect("JSON")
         );
     }
 }
@@ -307,8 +247,7 @@ fn is_unknown_command(reply: &Result<Value, Value>) -> bool {
 }
 
 fn candidate_names() -> BTreeSet<String> {
-    let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
-        .expect("calls.json lists calls");
+    let calls = calls();
     names::MODULES
         .iter()
         .flat_map(|m| m.commands.iter().map(|c| c.to_string()))
@@ -318,11 +257,14 @@ fn candidate_names() -> BTreeSet<String> {
 }
 
 fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet<String> {
-    let probe = FakeProbe::default();
-    let mut app = app::build(mock_builder(), test_parts(scratch_dir(name), &probe))
-        .invoke_handler(handler)
-        .build(app::context())
-        .expect("the app builds on the mock runtime");
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let mut app = app::build(
+        mock_builder(),
+        test_parts(scratch_dir(name), state_of(&connector)),
+    )
+    .invoke_handler(handler)
+    .build(app::context())
+    .expect("the app builds on the mock runtime");
     first_iteration_runs_the_set_up(&mut app);
     let window = main_window(&app);
     candidate_names()
@@ -337,17 +279,22 @@ fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet
 fn the_module_table_routes_exactly_the_names_that_each_handler_answers() {
     let table = commands::table::<MockRuntime>();
     assert_eq!(
-        table.iter().map(|m| m.names.module).collect::<Vec<_>>(),
+        table.iter().map(|m| m.names().module).collect::<Vec<_>>(),
         names::MODULES.iter().map(|n| n.module).collect::<Vec<_>>(),
         "the module table has one line for each module of names::MODULES, in its order"
     );
     for line in &table {
-        let listed: BTreeSet<String> = line.names.commands.iter().map(|c| c.to_string()).collect();
+        let listed: BTreeSet<String> = line
+            .names()
+            .commands
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
         assert_eq!(
-            answered_by(line.handler, line.names.module),
+            answered_by(line.handler, line.names().module),
             listed,
             "the handler of the module {} answers other names than its list",
-            line.names.module
+            line.names().module
         );
     }
     let test = test_app(scratch_dir("table"));
@@ -368,7 +315,7 @@ fn the_module_table_routes_exactly_the_names_that_each_handler_answers() {
     );
 }
 
-pub const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+pub const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; webrtc 'block'";
 
 fn src_tauri() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -413,7 +360,10 @@ fn the_policy_names_no_remote_origin_and_the_global_api_is_off() {
         .iter()
         .find(|w| w.label == "main")
         .expect("tauri.conf.json has the window main");
-    assert!(main.incognito, "the window main keeps web storage on disk");
+    assert!(
+        main.incognito,
+        "the window main keeps web storage on disk; on Windows the private mode is also the shipped state of the cells s06 (a preconnect hint) and s07 (a dns-prefetch hint), whose measured 0 was read with the private mode off (ruling AP-12 point 2): measure them again before this changes"
+    );
     assert!(
         !main.create,
         "Tauri creates the window main without the navigation rule"
@@ -508,11 +458,11 @@ fn the_handler_names_the_manifest_and_the_capabilities_are_one_set() {
     for line in commands::table::<MockRuntime>() {
         let file = src_tauri()
             .join("capabilities")
-            .join(format!("{}.json", line.names.module));
+            .join(format!("{}.json", line.names().module));
         assert!(
             file.exists(),
             "the module {} has no capability file",
-            line.names.module
+            line.names().module
         );
     }
 }
@@ -812,8 +762,8 @@ fn widening(labels: &[&str], identifier: &str) -> String {
 
 /// The app with every command of the unit granted to `labels` by `route`.
 fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
-    let probe = FakeProbe::default();
-    let parts = test_parts(scratch_dir(name), &probe);
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let parts = test_parts(scratch_dir(name), state_of(&connector));
     let mut context = app::context::<MockRuntime>();
     if let Route::Context = route {
         context
@@ -821,7 +771,7 @@ fn widened_app(name: &str, labels: &[&str], route: Route) -> TestApp {
             .add_capability(widening(labels, "widened-in-the-context"))
             .expect("the context takes a capability");
     }
-    let test = test_app_from(parts, context, probe);
+    let test = test_app_from(parts, context, connector);
     if let Route::RunTime = route {
         test.app
             .add_capability(widening(labels, "widened-at-run-time"))
@@ -1132,33 +1082,464 @@ fn the_configuration_holds_no_dev_policy_and_no_dev_address() {
     );
 }
 
+mod layer;
+mod states;
+
+#[derive(Default)]
+pub struct GuardCalls {
+    urls: Mutex<Vec<String>>,
+    held: Mutex<Option<Sender<GuardAnswer>>>,
+}
+
+fn called_at(window: &WebviewWindow<MockRuntime>) {
+    let url = window.url().map(|url| url.to_string()).unwrap_or_default();
+    window
+        .state::<GuardCalls>()
+        .urls
+        .lock()
+        .expect("the calls")
+        .push(url);
+}
+
+fn guard_held(window: &WebviewWindow<MockRuntime>, _site: EngineSite, answer: Sender<GuardAnswer>) {
+    called_at(window);
+    *window.state::<GuardCalls>().held.lock().expect("the slot") = Some(answer);
+}
+
+fn guard_refused(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::NotInstalled::from("refused by the stand-in")));
+}
+
+fn guard_dropped(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    drop(answer);
+}
+
+fn tray_stand_in(_app: &AppHandle<MockRuntime>) -> tauri::Result<TrayInstalled> {
+    Ok(tray::installed_for_tests())
+}
+
+fn app_with_guard(
+    name: &str,
+    guard: engine::GuardInstall<MockRuntime>,
+    tray: Option<app::TrayInstall<MockRuntime>>,
+) -> App<MockRuntime> {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let mut parts = test_parts(scratch_dir(name), state_of(&connector));
+    parts.guard = guard;
+    parts.tray = tray;
+    let mut app = app::build(mock_builder().manage(GuardCalls::default()), parts)
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    first_iteration_runs_the_set_up(&mut app);
+    app
+}
+
+fn guard_urls(app: &App<MockRuntime>) -> Vec<String> {
+    app.state::<GuardCalls>()
+        .urls
+        .lock()
+        .expect("the calls")
+        .clone()
+}
+
+fn url_of_main(app: &App<MockRuntime>) -> Option<String> {
+    app.get_webview_window("main")
+        .and_then(|window| window.url().ok())
+        .map(|url| url.to_string())
+}
+
 #[test]
-fn the_reply_of_no_required_permission_reads_back_to_the_same_value() {
-    let fixture = read_json(&fixtures_dir().join("onboarding_state-none.json"));
-    let state: halvo_capture::consent::onboarding::OnboardingState =
-        serde_json::from_value(fixture.clone()).expect("the fixture reads into the reply's type");
+fn the_guard_is_asked_while_the_window_main_is_blank_and_the_app_page_loads_after_its_answer() {
+    let app = app_with_guard("guard-held", guard_held, None);
+    assert_eq!(guard_urls(&app), ["about:blank"]);
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    assert!(app.try_state::<GuardInstalled>().is_none());
+
+    let sender = app
+        .state::<GuardCalls>()
+        .held
+        .lock()
+        .expect("the slot")
+        .take()
+        .expect("the stand-in holds the sender");
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    sender
+        .send(Ok(engine::installed_for_tests()))
+        .expect("the set-up waits for the answer");
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.try_state::<GuardInstalled>().is_none() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(app.try_state::<GuardInstalled>().is_some());
+    assert_eq!(url_of_main(&app), Some(app::app_url().to_string()));
+    assert_eq!(guard_urls(&app), ["about:blank"]);
+}
+
+#[test]
+fn an_answer_at_once_loads_the_app_page_within_the_set_up() {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let parts = test_parts(scratch_dir("guard-at-once"), state_of(&connector));
+    let test = test_app_from(parts, app::context(), connector);
+    assert!(test.app.try_state::<GuardInstalled>().is_some());
+    assert_eq!(url_of_main(&test.app), Some(app::app_url().to_string()));
+    assert!(test.app.try_state::<app::WindowMissing>().is_none());
+}
+
+#[test]
+fn with_the_guard_not_installed_and_a_tray_the_app_runs_on_without_the_window_main() {
+    for (name, guard) in [
+        (
+            "guard-refused",
+            guard_refused as engine::GuardInstall<MockRuntime>,
+        ),
+        ("guard-dropped", guard_dropped),
+    ] {
+        let app = app_with_guard(name, guard, Some(tray_stand_in));
+        assert_eq!(guard_urls(&app), ["about:blank"], "{name}");
+        assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"), "{name}");
+        assert!(app.try_state::<GuardInstalled>().is_none(), "{name}");
+        assert!(app.try_state::<app::WindowMissing>().is_some(), "{name}");
+        let state = app.state::<AppState>();
+        assert!(state
+            .tray_installed
+            .load(std::sync::atomic::Ordering::SeqCst));
+        let view = state.views.view();
+        let shown = tray::shown(app.handle(), &view);
+        let usual = tray::labels(&view);
+        assert_eq!(
+            shown.status_text,
+            "Halvo's window is not available. Quit Halvo and start it again."
+        );
+        assert!(!shown.open_enabled, "{name}");
+        assert!(usual.open_enabled, "{name}");
+        assert_eq!(
+            (
+                shown.title,
+                shown.tooltip,
+                shown.toggle_text,
+                shown.toggle_enabled
+            ),
+            (
+                usual.title,
+                usual.tooltip,
+                usual.toggle_text,
+                usual.toggle_enabled
+            ),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn the_engine_guard_on_the_mock_runtime_never_runs_its_closure_and_reads_as_not_installed() {
+    let app = app_with_guard("guard-engine-on-mock", engine::guard, Some(tray_stand_in));
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    assert!(app.try_state::<GuardInstalled>().is_none());
+    assert!(app.try_state::<app::WindowMissing>().is_some());
+}
+
+#[test]
+fn the_deciding_function_loads_on_installed_runs_on_with_a_tray_and_ends_without_one() {
+    assert!(matches!(
+        app::decide(Ok(engine::installed_for_tests()), false),
+        app::Opening::Load(_)
+    ));
+    assert!(matches!(
+        app::decide(Ok(engine::installed_for_tests()), true),
+        app::Opening::Load(_)
+    ));
+    assert!(matches!(
+        app::decide(Err(engine::NotInstalled::from("x")), true),
+        app::Opening::RunWithoutWindow(refusal) if refusal.reason == "x" && refusal.restart_cures
+    ));
+    let app::Opening::End(reason) = app::decide(
+        Err(engine::NotInstalled::from(
+            "the install's closure did not run",
+        )),
+        false,
+    ) else {
+        panic!("without a tray the app ends");
+    };
     assert_eq!(
-        serde_json::to_value(&state).expect("the reply writes"),
-        fixture
+        app::not_opened_line(&reason.reason),
+        "halvo: the window main is not opened, because its engine guard is not installed: the install's closure did not run"
+    );
+    let code = Exit::GuardNotInstalled.code();
+    assert!(![0, 1, 64].contains(&code), "{code}");
+}
+
+#[test]
+fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_loads_of_the_app() {
+    let app = std::fs::read_to_string(src_tauri().join("src/app.rs"))
+        .expect("app.rs reads")
+        .replace("\r\n", "\n");
+    for (text, count) in [
+        ("main_window(", 1),
+        ("fn main_window<", 1),
+        ("window.destroy()", 1),
+        ("config.url = WebviewUrl::External(blank());\n", 1),
+        (".visible(false);\n", 1),
+        (".visible(", 1),
+        (".navigate(", 1),
+        (
+            "window.navigate(app_url())?;\n    if visible {\n        window.show()?;\n    }\n",
+            1,
+        ),
+        ("&& is_app_url(payload.url())\n", 1),
+        (
+            "        .on_download(|_, _| false)\n        .initialization_script_for_all_frames(NO_PEER_SCRIPT)\n        .visible(false);\n",
+            1,
+        ),
+        ("initialization_script", 1),
+        (
+            "    #[cfg(target_os = \"macos\")]\n    let builder = match crate::engine::configuration_at_creation() {\n        Some(configuration) => builder.with_webview_configuration(configuration),\n        None => builder,\n    };\n",
+            1,
+        ),
+        ("with_webview_configuration", 1),
+        ("app.manage(installed);", 1),
+    ] {
+        assert_eq!(app.matches(text).count(), count, "{text}");
+    }
+    let guard = app
+        .find("(parts.guard)(&window, site, sender)")
+        .expect("the guard's call");
+    let tray = app
+        .find("let tray = match parts.tray")
+        .expect("the tray's install");
+    let decided = app.find("match answer.try_recv()").expect("the decision");
+    assert!(guard < tray && tray < decided);
+}
+
+#[cfg(windows)]
+#[test]
+fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_other_host_to_no_address() {
+    assert_eq!(
+        app::ENGINE_ARGS,
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --proxy-bypass-list=<-loopback> --webrtc-ip-handling-policy=disable_non_proxied_udp"
+    );
+    let app = std::fs::read_to_string(src_tauri().join("src/app.rs")).expect("app.rs reads");
+    assert_eq!(
+        app.matches(".additional_browser_args(ENGINE_ARGS)").count(),
+        1
+    );
+    assert_eq!(app.matches("proxy_url").count(), 0);
+}
+
+#[test]
+fn the_script_of_every_frame_takes_the_peer_connection_constructors_away() {
+    assert_eq!(
+        app::NO_PEER_SCRIPT,
+        "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();"
+    );
+}
+
+/// wry 0.57.1 refuses every request for a new window when the app sets no handler
+/// (src/webview2/mod.rs lines 861 to 863, src/wkwebview/class/wry_web_view_ui_delegate.rs
+/// lines 288 to 290; tauri-runtime-wry 2.12.3 src/lib.rs line 4829), so no handler stands.
+#[test]
+fn no_handler_for_a_new_window_stands_so_the_runtime_refuses_every_new_window() {
+    let sources = sources_of_the_app();
+    let handlers: usize = sources
+        .iter()
+        .map(|(_, text)| text.matches(".on_new_window(").count())
+        .sum();
+    assert_eq!(handlers, 0, "new-window handlers under src-tauri/src");
+}
+
+#[test]
+fn the_pins_of_the_new_window_cells_stand_in_the_lockfile() {
+    let lock = std::fs::read_to_string(src_tauri().join("../Cargo.lock"))
+        .expect("Cargo.lock reads")
+        .replace("\r\n", "\n");
+    for (crate_name, version) in [("wry", "0.57.1"), ("tauri-runtime-wry", "2.12.3")] {
+        let name_line = format!("name = \"{crate_name}\"\n");
+        assert_eq!(
+            (
+                lock.matches(&name_line).count(),
+                lock.matches(&format!("{name_line}version = \"{version}\"\n"))
+                    .count()
+            ),
+            (1, 1),
+            "Cargo.lock holds {crate_name} {version} once: the cells s04 and s05 (a link with a target and window.open, no route found) rest on wry 0.57.1 src/webview2/mod.rs lines 861 to 863, src/wkwebview/class/wry_web_view_ui_delegate.rs lines 288 to 290 and tauri-runtime-wry 2.12.3 src/lib.rs line 4829; read those lines again in the new versions and measure s04 and s05 before the pin moves"
+        );
+    }
+}
+
+#[test]
+fn no_source_of_the_app_names_dns_prefetching() {
+    let word = ["dns", "prefetching"].concat();
+    let named: Vec<String> = sources_of_the_app()
+        .iter()
+        .filter(|(_, text)| text.to_lowercase().contains(&word))
+        .map(|(file, _)| file.display().to_string())
+        .collect();
+    assert_eq!(
+        named,
+        Vec::<String>::new(),
+        "a source under src-tauri/src names DNS prefetching (DNSPrefetchingEnabled or _setDNSPrefetchingEnabled), a setting that Halvo does not set: the cell s07 on macOS was closed only with DNS prefetching on (ruling AP-12 point 2)"
     );
 }
 
 #[test]
-fn an_inventory_of_every_kind_answers_its_fixture() {
-    let probe = FakeProbe::default();
-    let mut parts = test_parts(scratch_dir("every-kind"), &probe);
-    parts.store = Box::new(FakeStore::one_row_of_every_kind());
-    let test = test_app_from(parts, app::context(), probe);
-    let reply = invoke(
-        &main_window(&test.app),
-        APP_URL,
-        "inventory",
-        serde_json::json!({}),
-    );
+fn no_file_of_the_page_holds_a_preconnect_or_dns_prefetch_link() {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("a directory of ui/app") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else {
+                out.push(path);
+            }
+        }
+    }
+    let mut files = Vec::new();
+    walk(&src_tauri().join("../ui/app"), &mut files);
+    assert!(files.len() > 1, "the files of ui/app are listed");
+    let words = [["pre", "connect"].concat(), ["dns-", "prefetch"].concat()];
+    let held: Vec<String> = files
+        .iter()
+        .filter(|file| {
+            let text = std::fs::read_to_string(file)
+                .expect("a file of ui/app reads")
+                .to_lowercase();
+            words.iter().any(|word| text.contains(word.as_str()))
+        })
+        .map(|file| file.display().to_string())
+        .collect();
     assert_eq!(
-        reply,
-        Ok(read_json(
-            &fixtures_dir().join("inventory-one-row-of-every-kind.json")
-        ))
+        held,
+        Vec::<String>::new(),
+        "a file of ui/app holds a preconnect or dns-prefetch link, the hints of the cells s06 and s07 (ruling AP-12 point 2)"
+    );
+}
+
+#[test]
+fn the_engine_arguments_of_the_environment_are_taken_out_before_the_window_is_built() {
+    assert_eq!(
+        app::ENGINE_ARGUMENTS_VARIABLE,
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+    );
+    std::env::set_var(app::ENGINE_ARGUMENTS_VARIABLE, "--proxy-server=direct://");
+    app::take_engine_arguments_out_of_the_environment();
+    assert!(std::env::var_os(app::ENGINE_ARGUMENTS_VARIABLE).is_none());
+    let text = std::fs::read_to_string(src_tauri().join("src/app.rs"))
+        .expect("app.rs reads")
+        .replace("\r\n", "\n");
+    let taken = text
+        .find("    take_engine_arguments_out_of_the_environment();\n")
+        .expect("the call in main_window");
+    let built = text.find("    builder.build()\n").expect("the build");
+    assert!(taken < built);
+    assert_eq!(
+        text.matches("take_engine_arguments_out_of_the_environment();")
+            .count(),
+        1
+    );
+}
+
+fn guard_refused_on_this_system(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::NotInstalled::on_this_system(
+        "the preferences of this system have no peer-connection setting",
+    )));
+}
+
+fn guard_store_keeps_data(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::store_keeps_data()));
+}
+
+fn guard_every_network_host_allowed(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::every_network_host_allowed()));
+}
+
+fn guard_network_hosts_allowed(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err(engine::network_hosts_allowed(2)));
+}
+
+#[test]
+fn a_cause_that_no_restart_cures_gives_the_tray_its_second_line() {
+    for (name, guard) in [
+        (
+            "guard-store-keeps-data",
+            guard_store_keeps_data as engine::GuardInstall<MockRuntime>,
+        ),
+        ("guard-every-network-host", guard_every_network_host_allowed),
+        ("guard-network-hosts", guard_network_hosts_allowed),
+    ] {
+        let app = app_with_guard(name, guard, Some(tray_stand_in));
+        assert!(!app.state::<app::WindowMissing>().restart_cures, "{name}");
+        let view = app.state::<AppState>().views.view();
+        assert_eq!(
+            tray::shown(app.handle(), &view).status_text,
+            "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored.",
+            "{name}"
+        );
+    }
+    let app = app_with_guard(
+        "guard-this-system",
+        guard_refused_on_this_system,
+        Some(tray_stand_in),
+    );
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    let missing = app.state::<app::WindowMissing>();
+    assert!(!missing.restart_cures);
+    let view = app.state::<AppState>().views.view();
+    let shown = tray::shown(app.handle(), &view);
+    assert_eq!(
+        shown.status_text,
+        "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored."
+    );
+    assert!(!shown.open_enabled);
+    let usual = tray::labels(&view);
+    assert_eq!(
+        (
+            shown.title,
+            shown.tooltip,
+            shown.toggle_text,
+            shown.toggle_enabled
+        ),
+        (
+            usual.title,
+            usual.tooltip,
+            usual.toggle_text,
+            usual.toggle_enabled
+        )
+    );
+    let refused = app_with_guard("guard-retry", guard_refused, Some(tray_stand_in));
+    let view = refused.state::<AppState>().views.view();
+    assert_eq!(
+        tray::shown(refused.handle(), &view).status_text,
+        "Halvo's window is not available. Quit Halvo and start it again."
     );
 }

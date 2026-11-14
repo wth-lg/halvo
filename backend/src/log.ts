@@ -10,9 +10,7 @@ export type LogEvent =
   | "pending-dropped"
   | "pending-unanswered"
   | "completed-no-record"
-  | "usage-not-billable"
-  | "cancel-overrides-order"
-  | "usage-total-unexplained";
+  | "usage-not-billable";
 
 export interface LogFields {
   event: LogEvent;
