@@ -964,16 +964,9 @@ fn conformance_filters_step_back() {
     let mut missed = Vec::new();
     for (fault, reason) in servers {
         let mut subject = Fixture::wrong("conformance_filters_step_back", fault);
-        let results = conformance::run(&mut subject);
-        for (case, got) in &results {
-            let caught = match (*case, got) {
-                ("filters", Err(e)) => e.ends_with(reason),
-                (_, Ok(())) => *case != "filters",
-                _ => false,
-            };
-            if !caught {
-                missed.push(format!("{fault:?}, case {case}: got {got:?}"));
-            }
+        let got = conformance::filters(&mut subject);
+        if !got.as_ref().is_err_and(|e| e.ends_with(reason)) {
+            missed.push(format!("{fault:?}: got {got:?}"));
         }
     }
     assert!(missed.is_empty(), "{}", missed.join("\n"));
