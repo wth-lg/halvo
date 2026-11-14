@@ -142,6 +142,24 @@ fn a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
 }
 
 #[test]
+fn a_path_argument_through_a_link_and_dot_dot_is_refused_where_it_names_a_link() {
+    let dir = scratch("link-dot-dot");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "We used Goldfinch-Cart once.\n");
+    fs::create_dir_all(dir.join("phys/a/b")).expect("the physical target");
+    link_dir(&dir.join("real"), &dir.join("phys/a/x"));
+    fs::create_dir_all(dir.join("work")).expect("the working directory");
+    link_dir(&dir.join("phys/a/b"), &dir.join("work/lnk"));
+    assert!(!dir.join("work/x").exists());
+    let sep = std::path::MAIN_SEPARATOR;
+    let o = common::run_in(
+        &dir.join("work"),
+        &["leak", &s(&t), &format!("lnk{sep}..{sep}x")],
+    );
+    refused(&o, "path");
+}
+
+#[test]
 fn a_link_inside_a_walk_is_not_followed() {
     let dir = scratch("link-inside");
     let t = tier(&dir);
