@@ -60,6 +60,40 @@ fn two_replies_that_carried_different_edits_for_a_step_give_it_no_clean_use() {
 }
 
 #[test]
+fn two_replies_that_carried_two_different_edits_for_a_step_give_it_no_clean_use() {
+    let mut w = active_world();
+    learn_on_step_2(&mut w, 2);
+    let first = w.replay(3);
+    assert_eq!(names(&first[1]), ["A", "Pay"]);
+    w.failed_use(4, 2, "step_failed");
+    w.learn(
+        5,
+        2,
+        "button Pay now",
+        vec![loc("B"), locator("role", "button", Some("Pay"))],
+    );
+    let second = w.load_steps(3, 1, 1);
+    assert_eq!(names(&second[1]), ["B", "Pay"]);
+    assert_eq!(marked(&w, 3), [2]);
+    w.log(3, &[(1, "step_ok", 2, None)]);
+    assert!(w.finish(3, "replay", "completed").is_ok());
+    let second_edit: Vec<LearnEdit> = rows(&w)
+        .into_iter()
+        .filter(|e| {
+            e.target.locators[0]
+                .name
+                .as_ref()
+                .is_some_and(|n| n.as_str() == "B")
+        })
+        .collect();
+    assert_eq!(second_edit.len(), 1);
+    assert_eq!(
+        (second_edit[0].state, second_edit[0].clean),
+        (EditState::Provisional, 0)
+    );
+}
+
+#[test]
 fn two_replies_that_carried_different_edits_lay_a_counted_failure_on_the_edit_of_the_last_reply() {
     let mut w = active_world();
     w.replay(2);

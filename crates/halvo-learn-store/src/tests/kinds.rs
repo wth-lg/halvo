@@ -185,6 +185,7 @@ fn a_refused_learn_edit_row_stops_the_edit_side_of_its_workflow_and_nothing_else
     assert!(w.finish(11, "compile", "completed").is_ok());
     assert_eq!(list(&mut w, 1), Err(Refused::Error(ErrorName::Store)));
     assert_eq!(rows_of(&w, "learn_edit", 1), edits_of_a);
+    assert!(w.handlers.faults.is_empty(), "a stopped read is no fault");
 
     w.pair = 2;
     let served = w.replay(12);
@@ -251,6 +252,7 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
     assert_eq!(withdrawn, 1);
     assert_eq!(rows_of(&w, "learn_run", 1), before[1]);
     assert_eq!(rows_of(&w, "learn_routine", 1), before[2]);
+    assert!(w.handlers.faults.is_empty(), "a stopped read is no fault");
     assert!(matches!(
         list(&mut w, 1),
         Ok(CoordinatorAnswer::Refinements(_))
@@ -290,6 +292,32 @@ fn a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run() {
     w.log(11, &[(1, "step_ok", 2, None)]);
     assert_eq!(w.finish(11, "replay", "completed"), Ok(stored(1)));
     assert_eq!(rows_of(&w, "learn_run", 1), runs);
+}
+
+#[test]
+fn a_run_started_while_its_run_rows_were_stopped_stays_lost_after_the_refused_row_leaves_by_its_bound(
+) {
+    let mut w = active_world();
+    w.host.put_raw("learn_run", &refused_run(1));
+    w.host.day = DAY + 92;
+    w.start(10, "replay");
+    assert!(of_run(&w, 10).is_empty());
+    w.host.day = DAY + 93;
+    w.load(10);
+    let id = RunId::parse(&run(10)).expect("a run id");
+    assert!(!w.handlers.facts.contains_key(&id));
+    assert_eq!(
+        w.put(
+            10,
+            1,
+            vec![with_locators(
+                compiled()[1].clone(),
+                "button Pay now",
+                vec![loc("C")]
+            )]
+        ),
+        Ok(stored(0))
+    );
 }
 
 #[test]
