@@ -42,6 +42,92 @@ process.exit(problems.length === 0 ? 0 : 1);
 EOF
 }
 
+records_check() {
+  node - "$@" <<'EOF'
+const fs = require("fs");
+const [mode, ...args] = process.argv.slice(2);
+const quote = (text) => JSON.stringify(text.length > 200 ? `${text.slice(0, 200)}...` : text);
+const show = (bytes) => Array.from(bytes, (b) => (b > 0x20 && b < 0x7f && b !== 0x5c ? String.fromCharCode(b) : `\\x${b.toString(16).padStart(2, "0")}`)).join("");
+const fail = (causeFile, cause) => {
+  fs.writeFileSync(causeFile, `${cause}\n`);
+  process.exit(1);
+};
+const names = (listFile, dir, wantedFile, causeFile) => {
+  const raw = fs.readFileSync(listFile);
+  const paths = [];
+  let start = 0;
+  for (let at = 0; at < raw.length; at++) {
+    if (raw[at] === 0) {
+      paths.push(raw.subarray(start, at));
+      start = at + 1;
+    }
+  }
+  if (start < raw.length) paths.push(raw.subarray(start));
+  paths.sort(Buffer.compare);
+  const prefix = Buffer.from(`${dir}/`);
+  const json = Buffer.from(".json");
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const wanted = [];
+  for (const path of paths) {
+    if (path.length < json.length || !path.subarray(path.length - json.length).equals(json)) continue;
+    if (path.length <= prefix.length || !path.subarray(0, prefix.length).equals(prefix)) fail(causeFile, `git listed a path outside ${dir}/: ${show(path)}`);
+    const rest = path.subarray(prefix.length);
+    if (rest.includes(0x2f)) fail(causeFile, `a record in a sub-directory of ${dir}/ at the commit, which records.mjs does not read: ${show(path)}`);
+    if (rest.includes(0x0a) || rest.includes(0x0d)) fail(causeFile, `the name of a record at the commit holds a line break: ${show(path)}`);
+    let name;
+    try {
+      name = decoder.decode(rest);
+    } catch {
+      fail(causeFile, `the name of a record at the commit is no UTF-8: ${show(path)}`);
+    }
+    const match = /^(good|bad)-(.+)\.json$/.exec(name);
+    if (!match) fail(causeFile, `a .json path at the commit that is neither good-<name>.json nor bad-<name>.json: ${show(path)}`);
+    wanted.push(JSON.stringify([`self-test concurrency: ${match[1]} record-${match[2]}: ${match[1] === "good" ? "PASS" : "FAIL"} as expected`, `${dir}/${name}`]));
+  }
+  fs.writeFileSync(wantedFile, wanted.map((line) => `${line}\n`).join(""));
+  console.log(wanted.length);
+};
+const lines = (wantedFile, outputFile, code, script, causeFile) => {
+  const wanted = fs.readFileSync(wantedFile, "utf8").split("\n").filter((line) => line !== "").map((line) => JSON.parse(line));
+  const paths = new Map(wanted);
+  const count = wanted.length;
+  const output = fs.readFileSync(outputFile, "utf8").split("\n");
+  if (output.length > 0 && output[output.length - 1] === "") output.pop();
+  const summary = `concurrency: records: ${count} of ${count} as expected`;
+  const problems = output.filter((line) => line.startsWith("self-test concurrency: record "));
+  const lastOk = output.length > 0 && output[output.length - 1] === summary && output.filter((line) => line === summary).length === 1;
+  const seen = new Set();
+  let other = "";
+  for (const line of lastOk ? output.slice(0, -1) : output) {
+    if (paths.has(line)) {
+      if (seen.has(line)) other ||= `the records' output line ${quote(line)} stands a second time`;
+      seen.add(line);
+    } else if (/^self-test concurrency: (good|bad) record-.*: (PASS|FAIL) as expected$/.test(line)) {
+      other ||= `the records' output line ${quote(line)} names no record of the commit`;
+    } else if (!line.startsWith("self-test concurrency: record ") && line !== summary) {
+      other ||= `the records' output line ${quote(line)} has another form`;
+    }
+  }
+  const missing = wanted.find(([line]) => !seen.has(line));
+  console.log(`exit=${code} at-commit=${count} as-expected=${seen.size} problems=${problems.length} last-line=${lastOk ? "ok" : "other"}`);
+  if (problems.length > 0 && code !== "0") fail(causeFile, `check 50's records exited ${code}; the first problem line: ${quote(problems[0])}`);
+  if (problems.length > 0) fail(causeFile, `check 50's records printed a problem line with exit 0: ${quote(problems[0])}`);
+  if (code !== "0") fail(causeFile, `check 50's records exited ${code}; the lines are records.txt among the artifacts`);
+  if (!lastOk) fail(causeFile, `the last line of ${script} is not ${quote(summary)}, once, for the ${count} records of the commit; the lines are records.txt among the artifacts`);
+  if (missing) fail(causeFile, `record ${missing[1]} of the commit has no line ${quote(missing[0])} in the records' output`);
+  if (other) fail(causeFile, other);
+};
+try {
+  if (mode === "names") names(...args);
+  else if (mode === "lines") lines(...args);
+  else process.exit(3);
+} catch (error) {
+  console.error(error);
+  process.exit(3);
+}
+EOF
+}
+
 test_in() {
   repo=$1
   out=$2
@@ -96,27 +182,32 @@ records_in() {
     records_cause="$records_script or backend/scripts/with-env.sh is missing"
     return 1
   fi
-  if ! git -C "$r_repo" ls-tree -r -z --name-only HEAD -- "$records_dir/" >"$r_out/records-at-head.z"; then
+  if ! git -C "$r_repo" ls-tree -r -z --name-only HEAD -- "$records_dir/" >"$r_out/records-at-commit.z"; then
     records_cause="git could not list $records_dir/ at HEAD"
     return 1
   fi
-  LC_ALL=C tr '\n\000' '?\n' <"$r_out/records-at-head.z" >"$r_out/records-at-head.txt" || return 2
-  r_want=$(grep -c '\.json$' "$r_out/records-at-head.txt")
+  : >"$r_out/records-cause.txt" || return 2
+  if ! r_count=$(records_check names "$r_out/records-at-commit.z" "$records_dir" "$r_out/records-wanted.txt" "$r_out/records-cause.txt"); then
+    records_cause=$(cat "$r_out/records-cause.txt")
+    [ -n "$records_cause" ] || records_cause="the check of the records' names stopped"
+    return 1
+  fi
+  if [ "$r_count" = 0 ]; then
+    records_cause="the commit holds no record under $records_dir/"
+    return 1
+  fi
   mkdir -p "$r_out/records-state" || return 2
   (cd "$r_repo/backend" && GATE_STATE=$r_out/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_out/records.txt" 2>"$r_out/records.err.txt"
   r_code=$?
-  r_last=$(tail -n 1 "$r_out/records.txt")
-  r_failed=$(grep -c '^self-test concurrency: record ' "$r_out/records.txt")
-  r_read=$(grep -c -E '^self-test concurrency: (good record-.*: PASS|bad record-.*: FAIL) as expected$' "$r_out/records.txt")
-  r_line=other
-  [ "$r_last" != "concurrency: records: $r_want of $r_want as expected" ] || r_line=all-of-head
+  r_seen=$(records_check lines "$r_out/records-wanted.txt" "$r_out/records.txt" "$r_code" "$records_script" "$r_out/records-cause.txt")
+  r_matched=$?
   git -C "$r_repo" diff --quiet HEAD --
   r_tree=$?
-  records_counts="records exit=$r_code at-head=$r_want as-expected=$r_read failed=$r_failed last-line=$r_line tree-diff=$r_tree"
-  [ "$r_want" -gt 0 ] || records_cause="HEAD holds no record under $records_dir/"
-  [ -n "$records_cause" ] || [ "$r_code" = 0 ] || records_cause="check 50's records exited $r_code; the lines are records.txt among the artifacts"
-  [ -n "$records_cause" ] || [ "$r_line" = all-of-head ] || records_cause="the last line of $records_script is not \"concurrency: records: $r_want of $r_want as expected\" for the $r_want records at HEAD; the lines are records.txt among the artifacts"
-  [ -n "$records_cause" ] || [ "$r_read" = "$r_want" ] || records_cause="$records_script printed $r_read lines of a record as expected for the $r_want records at HEAD; the lines are records.txt among the artifacts"
+  records_counts="records ${r_seen:-exit=$r_code lines=unread} tree-diff=$r_tree"
+  if [ "$r_matched" != 0 ]; then
+    records_cause=$(cat "$r_out/records-cause.txt")
+    [ -n "$records_cause" ] || records_cause="the check of the records' lines stopped with status $r_matched"
+  fi
   case $r_tree in
     0) ;;
     1) records_cause="${records_cause:+$records_cause; }a tracked file differs from HEAD after the node tests and the records" ;;
@@ -287,6 +378,46 @@ const after = `${JSON.stringify(record, null, 1)}\n`;
 if (JSON.stringify(JSON.parse(after)) === JSON.stringify(JSON.parse(before))) process.exit(4);
 fs.writeFileSync(path.join(dir, file), after);
 EOF
+}
+
+git_commit() {
+  c_dir=$1
+  c_message=$2
+  shift 2
+  for c_path in "$@"; do
+    [ ! -e "$c_dir/$c_path" ] || git -C "$c_dir" add -- "$c_path" || exit 2
+  done
+  git -C "$c_dir" -c maintenance.auto=false commit -q -m "$c_message" >/dev/null || exit 2
+}
+
+stub_records() {
+  case_name=$1
+  records_exit=$2
+  shift 2
+  dir=$scratch/$case_name
+  mkdir -p "$dir/backend/scripts" "$dir/backend/node_modules" "$dir/$records_dir" "$dir/out" || exit 2
+  cat >"$dir/backend/scripts/with-env.sh" <<'EOF'
+#!/bin/sh
+exec "$@"
+EOF
+  printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
+  printf '{}\n' >"$dir/$records_dir/bad-b.json" || exit 2
+  {
+    for line in "$@"; do printf 'console.log("%s");\n' "$line"; done
+    printf 'process.exit(%s);\n' "$records_exit"
+  } >"$dir/$records_script"
+  git -C "$dir" init -q >/dev/null 2>&1 || exit 2
+}
+
+commit_stub_records() {
+  git_commit "$scratch/$1" "$1" backend/scripts/with-env.sh backend/gate
+}
+
+commit_record_name() {
+  n_dir=$scratch/$1
+  n_blob=$(git -C "$n_dir" hash-object -w "$n_dir/$records_dir/good-a.json") || exit 2
+  printf '100644 %s\t%s/%s\000' "$n_blob" "$records_dir" "$2" | git -C "$n_dir" update-index -z --add --index-info || exit 2
+  git -C "$n_dir" -c maintenance.auto=false commit -q -m "$1" >/dev/null || exit 2
 }
 
 expect_records() {
@@ -463,14 +594,14 @@ self_test() {
   mkdir -p "$scratch/a-record-in-a-sub-directory/$records_dir/kept" || exit 2
   git -C "$scratch/a-record-in-a-sub-directory" mv "$first_good" "$records_dir/kept/" || exit 2
   commit_fixture a-record-in-a-sub-directory
-  expect_records FAIL a-record-in-a-sub-directory 'the last line of'
+  expect_records FAIL a-record-in-a-sub-directory 'a record in a sub-directory'
 
   records_fixture records-mjs-prints-only-the-last-line
   edit_file "$scratch/records-mjs-prints-only-the-last-line/$records_script" 'let failed = 0;' 'console.log("concurrency: records: " + files.length + " of " + files.length + " as expected");
 process.exit(0);
 let failed = 0;'
   commit_fixture records-mjs-prints-only-the-last-line
-  expect_records FAIL records-mjs-prints-only-the-last-line 'lines of a record as expected'
+  expect_records FAIL records-mjs-prints-only-the-last-line 'of the commit has no line'
 
   records_fixture a-good-record-expects-another-count
   break_record a-good-record-expects-another-count judge good- 'record.expect.counted = !record.expect.counted'
@@ -506,7 +637,7 @@ let failed = 0;'
   edit_file "$scratch/records-mjs-exits-0-on-a-broken-record/$records_script" 'process.exit(failed === 0 ? 0 : 1);' 'process.exit(0);'
   break_record records-mjs-exits-0-on-a-broken-record judge good- 'record.expect.counted = !record.expect.counted'
   commit_fixture records-mjs-exits-0-on-a-broken-record
-  expect_records FAIL records-mjs-exits-0-on-a-broken-record 'the last line of'
+  expect_records FAIL records-mjs-exits-0-on-a-broken-record 'a problem line with exit 0'
 
   records_fixture a-record-that-head-does-not-hold
   cp "$scratch/a-record-that-head-does-not-hold/$first_good" "$scratch/a-record-that-head-does-not-hold/$records_dir/good-a-copy-that-head-does-not-hold.json" || exit 2
@@ -532,7 +663,7 @@ process.exit(failed === 0 ? 0 : 1);'
   mv "$scratch/no-record-at-head/$records_dir" "$scratch/no-record-at-head/records.moved" || exit 2
   commit_fixture no-record-at-head
   mkdir -p "$scratch/no-record-at-head/$records_dir" || exit 2
-  expect_records FAIL no-record-at-head 'HEAD holds no record'
+  expect_records FAIL no-record-at-head 'holds no record under'
 
   records_fixture packages-missing without-packages
   expect_records FAIL packages-missing 'backend/node_modules is missing'
@@ -541,24 +672,88 @@ process.exit(failed === 0 ? 0 : 1);'
   git -C "$scratch/head-without-a-commit" update-ref -d HEAD || exit 2
   expect_records FAIL head-without-a-commit "git could not list $records_dir/ at HEAD"
 
+  good_line='self-test concurrency: good record-a: PASS as expected'
+  bad_line='self-test concurrency: bad record-b: FAIL as expected'
+  summary_line='concurrency: records: 2 of 2 as expected'
+
+  stub_records stub-records-as-expected 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records stub-records-as-expected
+  expect_records PASS stub-records-as-expected ''
+
+  stub_records a-record-line-twice-and-another-never 0 "$good_line" "$good_line" "$summary_line"
+  commit_stub_records a-record-line-twice-and-another-never
+  expect_records FAIL a-record-line-twice-and-another-never "record $records_dir/bad-b.json of the commit has no line"
+
+  stub_records a-line-for-a-name-that-the-commit-lacks 0 "$good_line" 'self-test concurrency: bad record-z: FAIL as expected' "$summary_line"
+  commit_stub_records a-line-for-a-name-that-the-commit-lacks
+  expect_records FAIL a-line-for-a-name-that-the-commit-lacks "record $records_dir/bad-b.json of the commit has no line"
+
+  stub_records an-extra-line-for-a-name-that-the-commit-lacks 0 "$good_line" "$bad_line" 'self-test concurrency: bad record-z: FAIL as expected' "$summary_line"
+  commit_stub_records an-extra-line-for-a-name-that-the-commit-lacks
+  expect_records FAIL an-extra-line-for-a-name-that-the-commit-lacks 'names no record of the commit'
+
+  stub_records a-good-record-printed-as-failed 0 'self-test concurrency: good record-a: FAIL as expected' "$bad_line" "$summary_line"
+  commit_stub_records a-good-record-printed-as-failed
+  expect_records FAIL a-good-record-printed-as-failed "record $records_dir/good-a.json of the commit has no line"
+
+  stub_records a-record-line-twice-beside-every-record 0 "$good_line" "$bad_line" "$good_line" "$summary_line"
+  commit_stub_records a-record-line-twice-beside-every-record
+  expect_records FAIL a-record-line-twice-beside-every-record 'stands a second time'
+
+  stub_records a-line-of-another-form 0 "$good_line" "$bad_line" 'a line of another form' "$summary_line"
+  commit_stub_records a-line-of-another-form
+  expect_records FAIL a-line-of-another-form 'has another form'
+
+  stub_records a-json-name-of-another-form 0 "$good_line" "$bad_line" "$summary_line"
+  printf '{}\n' >"$scratch/a-json-name-of-another-form/$records_dir/other-c.json" || exit 2
+  commit_stub_records a-json-name-of-another-form
+  expect_records FAIL a-json-name-of-another-form "$records_dir/other-c.json"
+
+  stub_records a-record-name-with-a-newline 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-record-name-with-a-newline
+  commit_record_name a-record-name-with-a-newline "$(printf 'good-c\nd.json')"
+  expect_records FAIL a-record-name-with-a-newline 'holds a line break'
+
+  stub_records a-record-name-with-a-carriage-return 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-record-name-with-a-carriage-return
+  commit_record_name a-record-name-with-a-carriage-return "$(printf 'good-c\rd.json')"
+  expect_records FAIL a-record-name-with-a-carriage-return 'holds a line break'
+
+  stub_records a-record-name-that-is-no-utf-8 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-record-name-that-is-no-utf-8
+  commit_record_name a-record-name-that-is-no-utf-8 "$(printf 'good-c\377.json')"
+  expect_records FAIL a-record-name-that-is-no-utf-8 'is no UTF-8'
+
+  stub_records a-problem-line-with-exit-0 0 "$good_line" "$bad_line" 'self-test concurrency: record good-a: counted is false, expected true' "$summary_line"
+  commit_stub_records a-problem-line-with-exit-0
+  expect_records FAIL a-problem-line-with-exit-0 'a problem line with exit 0: "self-test concurrency: record good-a: counted is false, expected true"'
+
+  stub_records a-line-after-a-right-summary 0 "$good_line" "$bad_line" "$summary_line" 'a line after the summary'
+  commit_stub_records a-line-after-a-right-summary
+  expect_records FAIL a-line-after-a-right-summary 'the last line of'
+
+  stub_records the-summary-twice 0 "$good_line" "$bad_line" "$summary_line" "$summary_line"
+  commit_stub_records the-summary-twice
+  expect_records FAIL the-summary-twice 'the last line of'
+
   passed_records='concurrency: records: 1 of 1 as expected'
   measure_fixture measure-runs-the-tests-and-the-records 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
-  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "PASS $name"
+  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "PASS $name"
 
   measure_fixture measure-fails-on-the-records-alone 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
-  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-head=1 as-expected=0 failed=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the lines are records.txt among the artifacts)"
+  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
 
   measure_fixture measure-fails-on-the-tests-alone 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   printf '1\n' >"$scratch/measure-fails-on-the-tests-alone/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test script exited 1)"
+  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "FAIL $name (the test script exited 1)"
 
   measure_fixture measure-fails-on-both 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
   printf '1\n' >"$scratch/measure-fails-on-both/state/vitest.exit"
-  expect_measure FAIL measure-fails-on-both 'records exit=1 at-head=1 as-expected=0 failed=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the lines are records.txt among the artifacts)"
+  expect_measure FAIL measure-fails-on-both 'records exit=1 at-commit=1 as-expected=0 problems=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the first problem line: \"self-test concurrency: record good-a: broken\")"
 
   measure_fixture a-test-run-that-stops-with-status-2 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   mkdir -p "$scratch/a-test-run-that-stops-with-status-2/out/vitest.json" || exit 2
-  expect_measure FAIL a-test-run-that-stops-with-status-2 'records exit=0 at-head=1 as-expected=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test run stopped with status 2)"
+  expect_measure FAIL a-test-run-that-stops-with-status-2 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok tree-diff=0' "FAIL $name (the test run stopped with status 2)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
