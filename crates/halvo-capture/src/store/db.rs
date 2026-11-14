@@ -62,6 +62,8 @@ pub(crate) const SEAM_BEFORE_THE_FIRST_READ: &str = "a database open, before its
 pub(crate) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
 #[cfg(test)]
 pub(crate) const SEAM_AT_THE_LOG_CHECK: &str = "an open, at the first instant of the log's check";
+#[cfg(test)]
+pub(crate) const SEAM_BEFORE_THE_PAGE_LOOK: &str = "a create, before its page look";
 
 fn obstructed(name: StoreName, met: Met) -> StoreError {
     StoreError::Obstructed { name, met }
@@ -1126,6 +1128,8 @@ impl Db {
         self.log_look()?;
         if database == Database::New {
             self.checkpoint_truncate()?;
+            #[cfg(test)]
+            failpoint::seam(SEAM_BEFORE_THE_PAGE_LOOK);
             self.page_look()?;
         }
         held_look(&self.conn, &self.store_dir, self.named.0)?;
@@ -2227,6 +2231,44 @@ pub(crate) mod test_support {
 mod tests {
     use super::test_support::make_store;
     use super::*;
+
+    #[test]
+    fn the_code_table_reads_each_primary_code_and_no_code() {
+        let rows: [(Option<i32>, &str); 10] = [
+            (Some(5), "Locked"),
+            (Some(5 | (1 << 8)), "Locked"),
+            (Some(6), "Locked"),
+            (Some(11), "DatabaseUnreadable"),
+            (Some(26), "DatabaseUnreadable"),
+            (Some(13), "Io(StorageFull)"),
+            (Some(10 | (7 << 8)), "Io(Other)"),
+            (Some(14), "Io(Other)"),
+            (Some(1), "Io(Other)"),
+            (None, "Io(Other)"),
+        ];
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|&(code, expected)| {
+                let read = format!("{:?}", code_answer(code));
+                (read != expected).then(|| format!("{code:?} read {read}, not {expected}"))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    #[test]
+    fn the_text_of_a_database_error_holds_no_text_of_the_sqlite_message() {
+        let message = "unable to open database file at /var/folders/secret-name/store.db";
+        let e = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(14),
+            Some(message.to_string()),
+        );
+        let answer = db_error(e);
+        let shown = format!("{answer} {answer:?}");
+        assert!(!shown.contains("secret-name"), "{shown}");
+        assert!(!shown.contains("/var/folders"), "{shown}");
+        assert!(!shown.contains("unable to open"), "{shown}");
+    }
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
     use crate::store::roots::RootGuard;
     use crate::store::{SegmentStore, DEFAULT_RETENTION};

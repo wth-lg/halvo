@@ -9531,3 +9531,303 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         );
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn a_key_file_place_refuses_a_link_at_its_parents_name_and_reads_nothing_behind_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = dir.path().join("real");
+    std::fs::create_dir(&real).unwrap();
+    std::fs::write(real.join("store.key"), b"{\"version\":2}").unwrap();
+    std::os::unix::fs::symlink(&real, dir.path().join("link")).unwrap();
+    let place = KeyFile::at(&dir.path().join("link").join("store.key"));
+    let answer = place.map(drop).map_err(|e| format!("{e:?}"));
+    println!("KEY-FILE-AT link answer={answer:?}");
+    assert_eq!(
+        answer,
+        Err("Obstructed { name: StoreDirectory, met: Link }".to_string())
+    );
+    assert_eq!(
+        std::fs::read(real.join("store.key")).unwrap(),
+        b"{\"version\":2}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_all_unlinks_a_link_at_one_database_side_file_and_still_removes_the_others() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .write_segment(&mut Cursor::new(b"before the link"))
+        .unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::write(&outside, b"outside").unwrap();
+    std::os::unix::fs::symlink(&outside, store_dir.join("store.db-journal")).unwrap();
+    let report = match store.delete_all() {
+        Ok(report) => report,
+        Err(StoreError::DeleteIncomplete(report)) => *report,
+        Err(e) => panic!("delete_all answered {e:?}"),
+    };
+    println!("SIDE-FILE-LINK report={report:?}");
+    assert_eq!(std::fs::read(&outside).unwrap(), b"outside");
+    for name in ["store.db", "store.db-wal", "store.db-journal"] {
+        assert!(
+            std::fs::symlink_metadata(store_dir.join(name)).is_err(),
+            "{name} stands after delete_all"
+        );
+    }
+    assert!(!report.database_left);
+    assert_eq!(report.not_followed, 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_the_second_instant() {
+    use super::db::SEAM_AT_THE_LOG_CHECK;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let store_dir = store_dir.clone();
+        move || {
+            let log = store_dir.join("store.db-wal");
+            if log.exists() {
+                std::fs::remove_file(&log).unwrap();
+            }
+        }
+    };
+    let seam = super::failpoint::at(SEAM_AT_THE_LOG_CHECK, nth_call(1, act));
+    let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    drop(seam);
+    println!("LOG-UNLINKED answer={opened}");
+    assert_eq!(
+        opened,
+        "Obstructed { name: Log, met: DatabaseOutsideTheDirectory }"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_create_whose_database_is_cut_to_nothing_before_the_page_look_answers_obstructed() {
+    use super::db::SEAM_BEFORE_THE_PAGE_LOOK;
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    let act = {
+        let store_db = store_dir.join("store.db");
+        move || {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&store_db)
+                .unwrap()
+                .set_len(0)
+                .unwrap();
+        }
+    };
+    let seam = super::failpoint::at(SEAM_BEFORE_THE_PAGE_LOOK, nth_call(1, act));
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        RootId::fresh().unwrap(),
+    );
+    let created = answer_text(&EncryptedStore::create(
+        &store_dir,
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    ));
+    drop(seam);
+    println!("PAGE-LOOK answer={created}");
+    assert_eq!(
+        created,
+        "Obstructed { name: Database, met: DatabaseOutsideTheDirectory }"
+    );
+    assert_eq!(
+        root_files_in(&dir.path().join("roots")),
+        Vec::<String>::new()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_answer_of_a_handle_takes_a_gone_directory_code_as_obstructed_only_when_the_name_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let inputs = || {
+        [
+            StoreError::Db(halvo_sqlcipher::rusqlite::ffi::SQLITE_IOERR_FSTAT),
+            StoreError::Db(halvo_sqlcipher::rusqlite::ffi::SQLITE_CANTOPEN),
+            StoreError::SegmentMissing,
+            StoreError::Db(11),
+        ]
+    };
+    let named: Vec<String> = inputs()
+        .into_iter()
+        .map(|e| format!("{:?}", store.answer(e)))
+        .collect();
+    std::fs::rename(&store_dir, dir.path().join("moved")).unwrap();
+    let gone: Vec<String> = inputs()
+        .into_iter()
+        .map(|e| format!("{:?}", store.answer(e)))
+        .collect();
+    println!("ANSWER named={named:?} gone={gone:?}");
+    assert_eq!(named, ["Db(1802)", "Db(14)", "SegmentMissing", "Db(11)"]);
+    let moved = "Obstructed { name: StoreDirectory, met: DirectoryNotAtItsName }";
+    assert_eq!(gone, [moved, moved, moved, "Db(11)"]);
+}
+
+#[cfg(unix)]
+struct RootsWithAFailingDestroy {
+    inner: FileRootCustody<TestProtector>,
+    roots: PathBuf,
+}
+
+#[cfg(unix)]
+impl KeyCustody for RootsWithAFailingDestroy {
+    fn kind(&self) -> CustodyKind {
+        self.inner.kind()
+    }
+    fn root_id(&self) -> RootId {
+        self.inner.root_id()
+    }
+    fn roots(&self) -> Option<&std::path::Path> {
+        Some(&self.roots)
+    }
+    fn wrap_store_key(
+        &self,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<WrappedKey, CustodyError> {
+        self.inner.wrap_store_key(key, label)
+    }
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.inner.create_root()
+    }
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<StoreKey, CustodyError> {
+        self.inner.unwrap_store_key(wrapped, label)
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        Err(CustodyError::RootDenied)
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_root_step_whose_custody_destroy_fails_still_destroys_every_root_file_under_its_roots() {
+    let dir = tempfile::tempdir().unwrap();
+    let roots_dir = dir.path().join("roots");
+    let custody = RootsWithAFailingDestroy {
+        inner: file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh().unwrap(),
+        ),
+        roots: roots_dir.clone(),
+    };
+    let mut store = EncryptedStore::create(
+        &dir.path().join("store"),
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let other = RootId::fresh().unwrap();
+    std::fs::write(roots_dir.join(format!("{other}.root")), [9u8; 40]).unwrap();
+    let answer = answer_text(&store.delete_all());
+    println!(
+        "ROOT-STEP answer={answer} left={:?}",
+        root_files_in(&roots_dir)
+    );
+    assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn the_size_of_a_store_counts_nothing_behind_a_link_to_a_large_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let before = store.size_bytes().unwrap();
+    let big = dir.path().join("big");
+    std::fs::write(&big, vec![1u8; 1 << 20]).unwrap();
+    std::os::unix::fs::symlink(&big, store_dir.join("a-link-to-a-large-file")).unwrap();
+    let after = store.size_bytes().unwrap();
+    println!("SIZE before={before} after={after}");
+    assert_eq!(after, before);
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_all_unlinks_a_link_to_a_directory_in_segments_and_counts_it_as_not_followed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(outside.join("kept"), b"kept").unwrap();
+    std::os::unix::fs::symlink(&outside, store_dir.join("segments").join("zz")).unwrap();
+    let report = match store.delete_all() {
+        Ok(report) => report,
+        Err(StoreError::DeleteIncomplete(report)) => *report,
+        Err(e) => panic!("delete_all answered {e:?}"),
+    };
+    println!("SEGMENTS-LINK report={report:?}");
+    assert_eq!(std::fs::read(outside.join("kept")).unwrap(), b"kept");
+    assert!(std::fs::symlink_metadata(store_dir.join("segments")).is_err());
+    assert_eq!(report.not_followed, 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_sweep_whose_first_removal_fails_still_removes_the_other_keyless_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let paths: Vec<PathBuf> = (0..2)
+        .map(|_| {
+            let (segment, _) = store
+                .write_segment_with_expiry(&mut Cursor::new(b"expired"), 1, 2)
+                .unwrap();
+            segment_path(&store_dir, segment.segment_id)
+        })
+        .collect();
+    super::failpoint::arm("segment_file_remove");
+    let shred = answer_text(&store.crypto_shred_expired());
+    let left = paths.iter().filter(|path| path.exists()).count();
+    println!("SWEEP shred={shred} left={left}");
+    assert_eq!(left, 1, "the sweep left {left} of the two keyless files");
+}
+
+#[cfg(unix)]
+#[test]
+fn removing_a_written_segment_through_a_shard_that_is_a_link_removes_nothing_and_answers_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    let segment_id = Uuid::from_bytes([0xab; 16]);
+    let file = segment_path(&store_dir, segment_id);
+    let shard = file.parent().unwrap().to_path_buf();
+    std::fs::create_dir_all(shard.parent().unwrap()).unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let behind = outside.join(file.file_name().unwrap());
+    std::fs::write(&behind, b"behind the link").unwrap();
+    std::os::unix::fs::symlink(&outside, &shard).unwrap();
+    let handle = super::durable::Dir::open(&store_dir).unwrap();
+    let removed =
+        segment::remove_written_segment(&handle, segment_id).map_err(|e| format!("{e:?}"));
+    println!("WRITTEN-SEGMENT answer={removed:?}");
+    assert_eq!(removed, Ok(()));
+    assert_eq!(std::fs::read(&behind).unwrap(), b"behind the link");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_custody_made_before_its_root_guard_shares_the_guards_roots_directory() {
+    let root_id = RootId::fresh().unwrap();
+    let custody = crate::store::roots::custody(root_id);
+    let guard = RootGuard::new(root_id);
+    assert_eq!(custody.roots(), Some(guard.roots().as_path()));
+}

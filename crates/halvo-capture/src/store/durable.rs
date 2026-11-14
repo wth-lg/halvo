@@ -1042,6 +1042,57 @@ mod tests {
         OsStr::new(text)
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn remove_entry_refuses_a_directory_with_entries_and_unlinks_a_link_to_a_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("full")).unwrap();
+        std::fs::write(dir.path().join("full").join("kept"), b"kept").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("kept"), b"kept").unwrap();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
+        let handle = held(&dir);
+        assert!(handle.remove_entry(name("full")).is_err());
+        assert_eq!(
+            std::fs::read(dir.path().join("full").join("kept")).unwrap(),
+            b"kept"
+        );
+        assert!(handle.remove_entry(name("link")).is_ok());
+        assert!(std::fs::symlink_metadata(dir.path().join("link")).is_err());
+        assert_eq!(std::fs::read(outside.path().join("kept")).unwrap(), b"kept");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_tree_unlinks_a_link_inside_the_tree_and_keeps_its_target() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("tree").join("below")).unwrap();
+        std::fs::write(dir.path().join("tree").join("below").join("file"), b"x").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("kept"), b"kept").unwrap();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("tree").join("link")).unwrap();
+        held(&dir).remove_tree(name("tree")).unwrap();
+        assert!(std::fs::symlink_metadata(dir.path().join("tree")).is_err());
+        assert_eq!(std::fs::read(outside.path().join("kept")).unwrap(), b"kept");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_held_store_directory_cannot_be_renamed_and_stays_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("store");
+        std::fs::create_dir(&store).unwrap();
+        let handle = Dir::open(&store).unwrap();
+        let renamed = std::fs::rename(&store, dir.path().join("moved"));
+        println!(
+            "WINDOWS-RENAME renamed={} code={:?}",
+            renamed.is_ok(),
+            renamed.as_ref().err().and_then(|e| e.raw_os_error())
+        );
+        assert!(renamed.is_err(), "a held store directory was renamed");
+        assert!(handle.still_named().unwrap());
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn the_identity_of_an_entry_that_is_a_link_reads_link_and_names_the_link_itself() {
