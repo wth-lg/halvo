@@ -733,10 +733,14 @@ st_print() {
 }
 
 st_clear() {
-  [ -e "$1" ] || [ -L "$1" ] || return 0
-  chmod -R u+rwx "$1" 2>/dev/null
-  rm -rf "$1" 2>/dev/null
-  [ ! -e "$1" ] && [ ! -L "$1" ]
+  st_tries=0
+  while [ -e "$1" ] || [ -L "$1" ]; do
+    [ "$st_tries" -lt 3 ] || return 1
+    [ "$st_tries" -eq 0 ] || sleep 1
+    chmod -R u+rwx "$1" 2>/dev/null
+    rm -rf "$1" 2>/dev/null
+    st_tries=$((st_tries + 1))
+  done
 }
 
 st_flush() {
@@ -1302,6 +1306,16 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "me=20-b; $leaves; chmod 0 \"\$TMPDIR/left\"; printf 'FAIL 20-b (planned)\\n'; exit 1"
   case_gone=2
   own_case tmpdir-of-each-script-removed-whatever-its-status 1 'FAIL 20-b (planned)' macos
+  real_rm=$(command -v rm) || real_rm=rm
+  mkdir -p "$tmp/rm-fails-once" &&
+    printf '#!/bin/sh\nfor a in "$@"; do last=$a; done\ncase ${last##*/} in *.10-a) if [ ! -e rm-failed-once ]; then : >rm-failed-once; exit 1; fi ;; esac\nexec %s "$@"\n' "$real_rm" >"$tmp/rm-fails-once/rm" &&
+    chmod +x "$tmp/rm-fails-once/rm"
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'"
+  case_path=$tmp/rm-fails-once
+  case_gone=1
+  case_made=rm-failed-once
+  case_witness=yes
+  own_case tmpdir-whose-first-removal-fails-is-removed-on-a-later-try 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_empty=yes
