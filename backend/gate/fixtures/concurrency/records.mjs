@@ -58,6 +58,16 @@ function readLostAttempt(record) {
   return { good: true, problems: isDeepStrictEqual(got, record.expect.entry) ? [] : [`the entry is ${JSON.stringify(got)}, expected ${JSON.stringify(record.expect.entry)}`] };
 }
 
+function readKeptBody(record) {
+  if (typeof driver.keptBodyOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no keptBodyOf"] };
+  const problems = [];
+  record.chunks.forEach((chunks, at) => {
+    const got = chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), "");
+    if (got !== record.expect.body) problems.push(`chunks ${at + 1} keep ${got.length} characters ${JSON.stringify(got.slice(-40))}, expected ${record.expect.body.length} ending ${JSON.stringify(record.expect.body.slice(-40))}`);
+  });
+  return { good: true, problems };
+}
+
 function readReceipt(record) {
   const good = record.expect.now !== null;
   if (driver.Receipt === undefined) return { good, problems: ["stress/driver.mjs exports no Receipt"] };
@@ -198,7 +208,7 @@ const READINGS = {
   "main-guard": readMainGuard,
   "server-options": readServerOptions,
   "script-run": readScriptRun,
-  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt };
+  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt, "kept-body": readKeptBody };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))

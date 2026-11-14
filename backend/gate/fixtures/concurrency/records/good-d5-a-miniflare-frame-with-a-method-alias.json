@@ -1,0 +1,27 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) D5, on B-36; review of unit 4.10, lens D5",
+  "about": "the proxy's error line and one frame in V8's form for a method called under another property name, 'at Type.method [as name] (file)', whose file is a file of the miniflare package: every frame names a file of the miniflare package, so this is the proxy's text, lost in transport and excused. The head's PROXY_FRAME (stress/rule.mjs line 107) allows only a name with no space before ' (', so it reads the frame as no frame and reports integrity",
+  "source": "the review of unit 4.10 (evidence/builder-56/90-review-verdicts.txt), finder f1: by hand, the frame of good-b36-proxy-500-after-the-last-resend.json written in V8's alias form",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async ProxyServer.fetch [as fetch] (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

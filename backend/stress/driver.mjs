@@ -327,6 +327,10 @@ export const sendsAgain = (record, paused) => !paused && record.lost.length < MA
 export const lostAttemptOf = (record) =>
   resetBeforeTheServerAccepted(record) ? { why: "reset", body: "", sentAt: record.sentAt } : { why: "500", body: record.body, sentAt: record.sentAt };
 
+const BODY_KEPT_CHARS = 4096;
+/** The body that the driver keeps of an answer that is not a stream, after one more chunk of its text: its first 4,096 characters, so that the dev proxy's whole text is read. */
+export const keptBodyOf = (kept, text) => (kept + text).slice(0, BODY_KEPT_CHARS);
+
 class Traffic {
   constructor(plan, level, port, chat) {
     this.plan = plan;
@@ -484,7 +488,7 @@ class Traffic {
         response.setEncoding("utf8");
         response.on("data", (text) => {
           if (record.status !== 200) {
-            if (record.body.length < 400) record.body += text.slice(0, 400);
+            record.body = keptBodyOf(record.body, text);
             return;
           }
           pending += text;

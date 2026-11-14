@@ -103,8 +103,8 @@ function readMock(events) {
 const GATEWAY_STACK = /\.ts:\d+|Durable Object/;
 const gatewayFailed = (attempt) => attempt.why === "500" && GATEWAY_STACK.test(attempt.body);
 const PROXY_ERROR_LINE = "Error: Network connection lost.";
-const PROXY_FILE = String.raw`file:\/\/\/[^\s()]*\/node_modules\/miniflare\/[^\s()]+:\d+:\d+`;
-const PROXY_FRAME = new RegExp(String.raw`^ {4}at (?:async )?(?:(?:new )?[^\s()]+ \(${PROXY_FILE}\)|${PROXY_FILE})$`);
+const PROXY_FILE = String.raw`file:\/\/\/\S*\/node_modules\/miniflare\/\S+:\d+:\d+`;
+const PROXY_FRAME = new RegExp(String.raw`^ {4}at (?:async )?(?:[^()]+ \(${PROXY_FILE}\)|${PROXY_FILE})$`);
 function isProxyText(body) {
   const [first, ...frames] = body.split("\n");
   return first === PROXY_ERROR_LINE && frames.length > 0 && frames.every((frame) => PROXY_FRAME.test(frame));
