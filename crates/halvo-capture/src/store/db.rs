@@ -2414,7 +2414,7 @@ fn tail_root_step(
             RootsLeft {
                 left: Vec::new(),
                 names: Vec::new(),
-                listed: true,
+                listed: false,
             },
         ),
         None => file_root::destroy_roots_in(roots, named, form),
