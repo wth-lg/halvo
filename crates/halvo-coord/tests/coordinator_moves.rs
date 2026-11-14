@@ -6278,3 +6278,84 @@ fn rd52d_a_switch_off_drops_a_queued_start_and_a_switch_on_brings_none_back() {
         assert_eq!(started(&c).len(), 1, "{by}: no start at that end");
     }
 }
+
+/// RD-52 (d) with the one-rule change R21: the agent whose queued start a switch-off dropped is
+/// idle on the board, so that after a switch-on the person's start of it is taken again, and
+/// queued behind the live run, not refused with `state` as a start of a queued agent.
+#[test]
+fn rd52d_after_the_drop_and_a_switch_on_the_persons_start_is_taken_again() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], one);
+    let first = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(c.queued(), vec![]);
+    assert_eq!(c.control(&agent(1), Action::SwitchOn), Ok(()));
+    assert_eq!(
+        c.control(&agent(1), Action::RunNow),
+        Ok(()),
+        "taken again, not state"
+    );
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert_eq!(started(&c).len(), 2, "the queued start goes at that end");
+}
+
+/// RD-52 (d) at a read, with the one-rule change R20: a queued agent keeps its `ready` item, whose
+/// answer `start` the owner did not acknowledge, and the owner holds a `hold_set` of that agent
+/// that another writer stored. The person's skip of the item meets `seq`; its read first shows the
+/// hold beside the queued start, and the move takes the start out of the queue, as a switch-off
+/// in this life does (ruling RD-52 (b) rule 3 with (d)).
+#[test]
+fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, slotted], one);
+    start(&c, 0);
+    c.tick();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.answer(&item, Choice::Start, None, 0);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.queued(), vec![(agent(1), false)], "queued with its item");
+    let last = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(1))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    c.ports()
+        .ports
+        .events
+        .borrow_mut()
+        .push(halvo_coord::types::Event {
+            workflow: support::flow(1),
+            agent: agent(1),
+            seq: std::num::NonZeroU32::new(last + 1).unwrap(),
+            day: DAY,
+            at: 0,
+            what: What::HoldSet {
+                cause: HoldSetCause::Person,
+            },
+        });
+    let _ = c.answer(&item, Choice::Skip, None, shown(&c, &item));
+    assert_eq!(c.queued(), vec![], "the start left the queue");
+    assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
+}
