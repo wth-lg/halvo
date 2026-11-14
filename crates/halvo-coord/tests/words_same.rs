@@ -9,6 +9,10 @@ const FIXTURE: &str = concat!(
 );
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the test starts the crate's own binary coord-words to read what it prints"
+)]
 fn words_same() {
     let out = Command::new(env!("CARGO_BIN_EXE_coord-words"))
         .arg("export")
@@ -41,6 +45,10 @@ fn export_is_one_line_of_the_keys_in_byte_order() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the test starts the crate's own binary coord-words to read what it prints"
+)]
 fn usage_is_refused_with_one_line_on_standard_error() {
     for args in [vec![], vec!["nope"], vec!["export", "more"]] {
         let out = Command::new(env!("CARGO_BIN_EXE_coord-words"))
