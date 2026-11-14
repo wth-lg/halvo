@@ -12,11 +12,14 @@ fn main() -> ExitCode {
         return fail(format_args!("the signal flag was not installed: {error}"));
     }
     match daemon::parse(std::env::args_os().skip(1), &SystemAccount) {
-        Ok(Mode::Version) => print_checked(&format!("{VERSION}\n")),
+        Ok(Mode::Version) => {
+            print_or_exit_error(&mut std::io::stdout().lock(), &format!("{VERSION}\n"))
+        }
         #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
             Ok(outcome) => {
-                let printed = print_checked(&outcome.report.render());
+                let printed =
+                    print_or_exit_error(&mut std::io::stdout().lock(), &outcome.report.render());
                 if let Some(loss) = &outcome.loss {
                     let _ = writeln!(std::io::stderr(), "{loss}");
                 }
@@ -40,8 +43,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn print_checked(text: &str) -> ExitCode {
-    let mut out = std::io::stdout().lock();
+fn print_or_exit_error(out: &mut dyn Write, text: &str) -> ExitCode {
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => fail(format_args!("the report was not written: {error}")),
@@ -66,7 +68,7 @@ fn run_verify(mode: Mode, store: MeasureStore, deletion: MeasureDeletion) -> Exi
 #[cfg(debug_assertions)]
 fn print_or_fail<E: std::fmt::Display>(result: Result<String, E>) -> ExitCode {
     match result {
-        Ok(text) => print_checked(&text),
+        Ok(text) => print_or_exit_error(&mut std::io::stdout().lock(), &text),
         Err(error) => fail(format_args!("{error}")),
     }
 }
@@ -107,6 +109,16 @@ mod tests {
                 .push(format!("deletion {}", dir.display()))
         });
         Ok(String::new())
+    }
+
+    #[test]
+    fn a_write_into_a_pipe_whose_reader_is_gone_ends_in_exit_1() {
+        let (reader, mut writer) = std::io::pipe().unwrap();
+        drop(reader);
+        assert_eq!(
+            print_or_exit_error(&mut writer, "a report\n"),
+            ExitCode::from(1)
+        );
     }
 
     fn calls() -> Vec<String> {
