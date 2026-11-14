@@ -40,7 +40,42 @@ that order it draws two words, w1 and w2, for the record's id. The id is a UUID 
 - then the variant bits `10`;
 - then the top 62 bits of w2.
 
-`seq` counts the stream's records from 0, across its day files.
+`seq` counts the stream's records from 0, across its day files. It counts only the records
+that `build` writes: a record that cannot be made takes no number.
+
+`build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
+any other SCRIPT argument with `script`, a directory among them, so a caller that passes every
+entry of a scripts directory skips no file.
+
+## The script manifest and `check-labels`
+
+Each line of the script manifest ends with the key `seed_category`. `build` writes it true when
+an episode whose category is not `other` names the step in one of its ranges, and false
+otherwise. `check-labels` knows a seed-category step by this key alone, not by the label rows.
+So a body that lost every row of a seed task fails with `FAIL outside` lines under the
+generated rule. A range of such an episode whose step is marked false fails with `FAIL seed`
+under both rules.
+
+`check-labels` follows no symbolic link. Each entry of `streams/` that is a link gives
+`FAIL link <stream id>`, and these lines come first. A `streams` directory that is itself a
+link is refused with `batches`. Each range is held against every earlier range whose end lies
+after its start, and the later row of each overlapping pair gets its `FAIL row` line.
+
+## `leak`
+
+`leak` refuses a PATH argument that is a symbolic link with `path`, also when separators or
+`.` follow its name. Inside a walk it follows no link. A stream directory that is a link in
+the tier or in a development body is refused with `tier-files` or `body`. A `HIT` line names a
+file as the PATH argument followed by `#<n>`: n is the number of the file among the files that
+the walk of that argument searches, in byte order of name, from 1. No name below the argument
+is printed, because a file's name may be a service's name.
+
+## What later units must know
+
+- `compose --ranges` reads no file. Its fifteen lines are constants of the command.
+- `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
+- The records of an input copy, its run marks among them, are those that the seam's fixture
+  transport keeps for the input set. `input-copy` adds and moves no record.
 
 ## The draws of `compose`
 
