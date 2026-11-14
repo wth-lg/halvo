@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,43 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 60-r5-privacy
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 60-r5-privacy
+      - name: U3.1 loop of the added tests
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          names="privacy::tests::privacy_prints_the_six_lines_of_l11_4_with_learn_deleted_and_learn_outside_ok privacy::tests::privacy_reads_ok_on_its_own_directories_with_the_store_s_cascade privacy::tests::learn_deleted_misses_a_cascade_that_keeps_a_learn_row_of_the_first_workflow privacy::tests::learn_deleted_misses_a_kept_row_of_the_first_workflow_that_cannot_be_read privacy::tests::learn_deleted_misses_a_cascade_that_takes_a_row_of_the_second_workflow privacy::tests::learn_deleted_misses_a_cascade_that_rewrites_a_row_of_the_second_workflow privacy::tests::learn_deleted_misses_a_cascade_that_takes_nothing_answers_not_stored_or_takes_another_id privacy::tests::learn_outside_misses_a_marker_in_a_file_or_a_name_under_the_data_directory privacy::tests::learn_outside_misses_a_marker_that_the_command_writes_into_its_temporary_directory privacy::tests::learn_outside_reads_ok_beside_files_without_a_marker_and_a_marked_entry_made_before_the_command privacy::tests::learn_outside_misses_when_a_directory_cannot_be_read privacy::tests::an_entry_that_is_gone_holds_no_marker_and_a_marked_name_holds_one privacy::tests::learn_outside_needs_each_marker_in_a_row_of_its_own_workflow privacy::tests::the_report_is_ok_with_not_run_lines_and_not_ok_with_a_miss privacy::tests::privacy_refuses_a_call_without_an_existing_data_directory_with_usage_and_writes_nothing privacy::tests::learn_deleted_needs_rows_before_a_stored_answer_none_left_and_the_same_other_rows privacy::tests::learn_outside_misses_when_the_seeded_rows_hold_no_marker privacy::tests::privacy_usage_refusals_name_privacy_among_the_commands"
+          if [ "$RUNNER_OS" != Windows ]; then names="$names privacy::tests::learn_outside_misses_a_link_to_a_marker_a_file_that_cannot_be_read_and_a_directory_that_cannot_be_listed privacy::tests::learn_outside_reads_a_pipe_by_its_name_alone"; fi
+          cargo test --locked -p halvo-learn-gate --bin learn-gate --no-run 2>"$RUNNER_TEMP/u31-build.txt"
+          code=$?
+          exe=$(sed -n 's/^ *Executable unittests src[\\/]main\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u31-build.txt" | tail -n 1)
+          exe=${exe//\\//}
+          if [ -n "$exe" ]; then found=yes; else found=no; fi
+          echo "loop build=$code binary_found=$found"
+          if [ "$code" -ne 0 ] || [ "$found" = no ]; then exit 1; fi
+          export exe
+          one() {
+            ok=0
+            for i in $(seq 1 200); do
+              out=$("$exe" --exact "$1" 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+              esac
+            done
+            echo "loop test=$1 passed=$ok of=200"
+          }
+          export -f one
+          start=$(date +%s)
+          printf '%s\n' $names | xargs -P 3 -I{} bash -c 'one "$1"' _ {} >"$RUNNER_TEMP/u31-loop.txt"
+          cat "$RUNNER_TEMP/u31-loop.txt"
+          expected=$(printf '%s\n' $names | grep -c .)
+          count=$(grep -c '^loop test=' "$RUNNER_TEMP/u31-loop.txt")
+          all=$(grep -c ' passed=200 of=200$' "$RUNNER_TEMP/u31-loop.txt")
+          echo "loop tests=$count expected=$expected all_200=$all seconds=$(( $(date +%s) - start ))"
+          if [ "$count" -ne "$expected" ] || [ "$all" -ne "$expected" ]; then exit 1; fi
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +155,43 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 60-r5-privacy
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 60-r5-privacy
+      - name: U3.1 loop of the added tests
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          names="privacy::tests::privacy_prints_the_six_lines_of_l11_4_with_learn_deleted_and_learn_outside_ok privacy::tests::privacy_reads_ok_on_its_own_directories_with_the_store_s_cascade privacy::tests::learn_deleted_misses_a_cascade_that_keeps_a_learn_row_of_the_first_workflow privacy::tests::learn_deleted_misses_a_kept_row_of_the_first_workflow_that_cannot_be_read privacy::tests::learn_deleted_misses_a_cascade_that_takes_a_row_of_the_second_workflow privacy::tests::learn_deleted_misses_a_cascade_that_rewrites_a_row_of_the_second_workflow privacy::tests::learn_deleted_misses_a_cascade_that_takes_nothing_answers_not_stored_or_takes_another_id privacy::tests::learn_outside_misses_a_marker_in_a_file_or_a_name_under_the_data_directory privacy::tests::learn_outside_misses_a_marker_that_the_command_writes_into_its_temporary_directory privacy::tests::learn_outside_reads_ok_beside_files_without_a_marker_and_a_marked_entry_made_before_the_command privacy::tests::learn_outside_misses_when_a_directory_cannot_be_read privacy::tests::an_entry_that_is_gone_holds_no_marker_and_a_marked_name_holds_one privacy::tests::learn_outside_needs_each_marker_in_a_row_of_its_own_workflow privacy::tests::the_report_is_ok_with_not_run_lines_and_not_ok_with_a_miss privacy::tests::privacy_refuses_a_call_without_an_existing_data_directory_with_usage_and_writes_nothing privacy::tests::learn_deleted_needs_rows_before_a_stored_answer_none_left_and_the_same_other_rows privacy::tests::learn_outside_misses_when_the_seeded_rows_hold_no_marker privacy::tests::privacy_usage_refusals_name_privacy_among_the_commands"
+          if [ "$RUNNER_OS" != Windows ]; then names="$names privacy::tests::learn_outside_misses_a_link_to_a_marker_a_file_that_cannot_be_read_and_a_directory_that_cannot_be_listed privacy::tests::learn_outside_reads_a_pipe_by_its_name_alone"; fi
+          cargo test --locked -p halvo-learn-gate --bin learn-gate --no-run 2>"$RUNNER_TEMP/u31-build.txt"
+          code=$?
+          exe=$(sed -n 's/^ *Executable unittests src[\\/]main\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u31-build.txt" | tail -n 1)
+          exe=${exe//\\//}
+          if [ -n "$exe" ]; then found=yes; else found=no; fi
+          echo "loop build=$code binary_found=$found"
+          if [ "$code" -ne 0 ] || [ "$found" = no ]; then exit 1; fi
+          export exe
+          one() {
+            ok=0
+            for i in $(seq 1 200); do
+              out=$("$exe" --exact "$1" 2>&1)
+              case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+              esac
+            done
+            echo "loop test=$1 passed=$ok of=200"
+          }
+          export -f one
+          start=$(date +%s)
+          printf '%s\n' $names | xargs -P 3 -I{} bash -c 'one "$1"' _ {} >"$RUNNER_TEMP/u31-loop.txt"
+          cat "$RUNNER_TEMP/u31-loop.txt"
+          expected=$(printf '%s\n' $names | grep -c .)
+          count=$(grep -c '^loop test=' "$RUNNER_TEMP/u31-loop.txt")
+          all=$(grep -c ' passed=200 of=200$' "$RUNNER_TEMP/u31-loop.txt")
+          echo "loop tests=$count expected=$expected all_200=$all seconds=$(( $(date +%s) - start ))"
+          if [ "$count" -ne "$expected" ] || [ "$all" -ne "$expected" ]; then exit 1; fi
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
