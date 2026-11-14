@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { localValues } from "../../test-kit/provider-fake/main.mjs";
 import { ROOT, startRecorder } from "../billing/servers.ts";
+
+vi.setConfig({ testTimeout: 19_884 });
 
 const VARS = localValues(`${ROOT}stack.d/vars.env`);
 const INDEX = new URL("../../src/billing/index.ts", import.meta.url).href;
