@@ -6,7 +6,7 @@ use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, Act};
-use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owing};
+use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, Owing};
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
     ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply, RunId,
@@ -1340,18 +1340,31 @@ fn closes(w: &World, item: &ItemId) -> Vec<What> {
 
 fn never_ready_beside_check(w: &World) {
     let events = w.ports.events.borrow().clone();
-    let stored: Vec<Vec<Event>> = w
-        .ports
-        .tried
-        .borrow()
-        .iter()
-        .filter_map(|t| match (&t.call, &t.refused) {
-            (Call::Log(body), None) => Some(body.clone()),
-            _ => None,
+    let mut life = 0;
+    let mut logs: Vec<(usize, Vec<Event>, bool)> = Vec::new();
+    for t in w.ports.tried.borrow().iter() {
+        match (&t.call, &t.refused) {
+            (Call::Reap, _) => life += 1,
+            (Call::Log(body), refused) => logs.push((life, body.clone(), refused.is_none())),
+            _ => {}
+        }
+    }
+    let raised_in = |item: &ItemId| {
+        logs.iter().find_map(|(l, body, _)| {
+            body.iter()
+                .any(|e| matches!(&e.what, What::ItemRaised { item: i, .. } if i == item))
+                .then_some(*l)
         })
-        .collect();
-    for body in stored {
-        for e in &body {
+    };
+    let owed = |item: &ItemId| {
+        w.board
+            .owed
+            .iter()
+            .any(|o| matches!(&o.what, Owing::ItemLapsed { item: i, .. } if i == item))
+    };
+    for (life, body, _) in logs.iter().filter(|(_, _, stored)| *stored) {
+        let counts = |item: &ItemId| raised_in(item).is_none_or(|l| l == *life) && !owed(item);
+        for e in body {
             let upto: Vec<&Event> = events
                 .iter()
                 .filter(|x| x.agent == e.agent && x.seq <= e.seq)
@@ -1367,7 +1380,9 @@ fn never_ready_beside_check(w: &World) {
                 })
             };
             let ready = open(|r| matches!(r, Raised::Ready));
-            let check = open(|r| matches!(r, Raised::Check(None)));
+            let check = upto.iter().any(|x| {
+                matches!(&x.what, What::ItemRaised { item, raised: Raised::Check(None) } if !closed(item) && counts(item))
+            });
             let cleared = matches!(
                 &e.what,
                 What::HoldCleared {
@@ -1653,4 +1668,532 @@ fn the_raise_writes_no_owed_lapse_of_a_check_item() {
         &o.what,
         Owing::ItemLapsed { item, lapsed: Lapsed::Check(_), .. } if *item == earlier
     )));
+}
+
+fn with_a_lost_acknowledgement(w: &mut World, act: Act) -> (halvo_coord::run::Done, Vec<Event>) {
+    let from = w.ports.tried.borrow().len();
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let done = w.act(act);
+    w.ports.clear_refusals();
+    let refused: Vec<Vec<Event>> = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(refused.len(), 1, "one body: {refused:?}");
+    w.ports.events.borrow_mut().extend(refused[0].clone());
+    (done, refused[0].clone())
+}
+
+fn ready_raised_with_a_lost_acknowledgement(w: &mut World) -> ItemId {
+    let (_, body) = with_a_lost_acknowledgement(w, Act::Tick);
+    let item = match &body[..] {
+        [Event {
+            what:
+                What::ItemRaised {
+                    item,
+                    raised: Raised::Ready,
+                },
+            ..
+        }] => item.clone(),
+        other => panic!("the tick's body: {other:?}"),
+    };
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    item
+}
+
+fn whats(bodies: &[Vec<Event>]) -> Vec<Vec<What>> {
+    bodies
+        .iter()
+        .map(|b| b.iter().map(|e| e.what.clone()).collect())
+        .collect()
+}
+
+fn answered_start(item: &ItemId) -> What {
+    What::ItemAnswered {
+        item: item.clone(),
+        answer: Answered::Ready(ReadyAnswer::Start),
+    }
+}
+
+fn open_ready(w: &World, n: usize) -> Vec<ItemId> {
+    let events = w.ports.events.borrow();
+    events
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Ready,
+            } if !events.iter().any(|x| {
+                matches!(&x.what, What::ItemLapsed { item: i, .. } | What::ItemAnswered { item: i, .. } if i == item)
+            }) =>
+            {
+                Some(item.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn answers_then_starts(bodies: &[Vec<Event>], item: &ItemId, run: &RunId) -> bool {
+    matches!(
+        &whats(bodies)[..],
+        [body] if matches!(
+            &body[..],
+            [answer, What::RunStarted { run: r, .. }] if *answer == answered_start(item) && r == run
+        )
+    )
+}
+
+#[test]
+fn a_start_whose_read_brings_an_open_ready_item_answers_it_first_in_its_body() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+    let from = w.ports.tried.borrow().len();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Ok(Answer::Ok));
+    let run = start.report.run.clone().unwrap();
+    let bodies = acknowledged_bodies_from(&w, 0, from);
+    assert!(
+        answers_then_starts(&bodies, &ready, &run),
+        "{:?}",
+        whats(&bodies)
+    );
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: None,
+    });
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Check(None), .. }])
+        ),
+        "{raised:?}"
+    );
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+    never_ready_beside_check(&w);
+}
+
+#[test]
+fn after_a_start_that_answered_the_ready_item_its_read_brought_the_next_slot_raises_one_ready_item()
+{
+    let mut w = world(&[PERSON]);
+    let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Ok(Answer::Ok));
+    let run = start.report.run.clone().unwrap();
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: Some(Outcome::Completed),
+    });
+    w.store_end(0, &run, Outcome::Completed, 0);
+    w.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty());
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    let new = match &raised[..] {
+        [body] => match &body[..] {
+            [What::ItemRaised {
+                item,
+                raised: Raised::Ready,
+            }] => item.clone(),
+            other => panic!("{other:?}"),
+        },
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+    assert_eq!(open_ready(&w, 0), vec![new], "one ready item is open");
+}
+
+#[test]
+fn a_start_that_leaves_the_queue_answers_the_ready_item_that_its_read_brings() {
+    let limits = halvo_coord::types::Limits {
+        max_live_runs: 1,
+        ..halvo_coord::types::Limits::PRODUCT
+    };
+    let mut w = support::world_with(&[PERSON, MANUAL], limits);
+    let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+    let other = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(other.report.answer, Ok(Answer::Ok));
+    let queued = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    assert_eq!(w.facts(0).doing, Doing::Queued(None));
+    let from = w.ports.tried.borrow().len();
+    w.act(Act::End {
+        run: other.report.run.clone().unwrap(),
+        outcome: Some(Outcome::Completed),
+    });
+    let run = w
+        .board
+        .runs
+        .iter()
+        .find(|r| r.agent == agent(0))
+        .map(|r| r.run.clone())
+        .expect("the queue's start is live");
+    let bodies = acknowledged_bodies_from(&w, 0, from);
+    assert!(
+        answers_then_starts(&bodies, &ready, &run),
+        "{:?}",
+        whats(&bodies)
+    );
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+}
+
+#[test]
+fn a_start_whose_read_brings_the_ready_item_closes_it_though_step_7_or_8_fails() {
+    for step in [Method::StartRun, Method::Start] {
+        let mut w = world(&[PERSON]);
+        let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+        w.ports.refuse(step, PortError::NoService);
+        let start = w.act(Act::Start { agent: agent(0) });
+        w.ports.clear_refusals();
+        assert_eq!(start.report.answer, Err(Cause::NoService), "{step:?}");
+        assert_eq!(
+            closes(&w, &ready),
+            vec![answered_start(&ready)],
+            "{step:?}: the item is closed in the ledger"
+        );
+        assert_eq!(w.facts(0).doing, Doing::Idle(None), "{step:?}");
+    }
+}
+
+#[test]
+fn a_switch_off_whose_read_brings_an_open_ready_item_stores_hold_set_alone_and_leaves_it_open() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+    let from = w.ports.tried.borrow().len();
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        whats(&acknowledged_bodies_from(&w, 0, from)),
+        vec![vec![What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Person,
+        }]]
+    );
+    assert!(closes(&w, &ready).is_empty(), "the ready item stays open");
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(OwnItem {
+            item: ready,
+            kind: OwnItemKind::Ready,
+        })),
+        "the board holds the item that the read brought"
+    );
+}
+
+#[test]
+fn a_start_whose_log_meets_seq_for_another_writers_event_answers_its_ready_item_once() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    stored_unacknowledged(
+        &w,
+        0,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Failures,
+        },
+    );
+    let from = w.ports.tried.borrow().len();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Ok(Answer::Ok));
+    let run = start.report.run.clone().unwrap();
+    let refused = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!((&t.call, &t.refused), (Call::Log(_), Some(PortError::Refused(name))) if name.as_str() == "seq"))
+        .count();
+    assert_eq!(refused, 1, "the start's log meets seq");
+    let bodies = acknowledged_bodies_from(&w, 0, from);
+    assert!(
+        answers_then_starts(&bodies, &ready, &run),
+        "{:?}",
+        whats(&bodies)
+    );
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+}
+
+fn act_late(w: &mut World, turns: Vec<Turn>, act: Act) -> halvo_coord::run::Done {
+    let late = Late {
+        ports: &w.ports,
+        turns: std::cell::RefCell::new(turns.into()),
+    };
+    halvo_coord::run::drive(&late, &mut w.board, &mut w.table, &w.limits, act)
+}
+
+#[test]
+fn a_tick_may_raise_ready_beside_the_check_item_of_an_earlier_life_whose_lapse_is_owed() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    let earlier = match &w.facts(0).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Check => o.item.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(closes(&w, &ready).len(), 1);
+    let checked =
+        new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
+    assert_eq!(checked, vec![agent(0)]);
+    assert!(w.board.owed.iter().any(|o| matches!(
+        &o.what,
+        Owing::ItemLapsed { item, lapsed: Lapsed::Check(OtherLapse::AppEnded), .. } if *item == earlier
+    )));
+    assert_eq!(check_items(&w, 0), 2);
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    w.set_clock(T0 + 20_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    act_late(&mut w, vec![Turn::Refuse(PortError::NoService)], Act::Tick);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Ready, .. }])
+        ),
+        "the tick raises ready: {raised:?}"
+    );
+    assert!(
+        closes(&w, &earlier).is_empty(),
+        "the earlier check item is open"
+    );
+    assert!(
+        !holds(w.facts(0)).contains(&Hold::Check),
+        "the hold does not stand"
+    );
+    w.set_clock(T0 + 30_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        closes(&w, &earlier),
+        vec![What::ItemLapsed {
+            item: earlier.clone(),
+            lapsed: Lapsed::Check(OtherLapse::AppEnded),
+        }],
+        "after the payment the earlier item has one closing row"
+    );
+    never_ready_beside_check(&w);
+}
+
+#[test]
+fn a_switch_off_that_first_reads_the_record_raises_no_check_and_the_next_tick_lapses_and_raises() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        whats(&acknowledged_bodies_from(&w, 0, from)),
+        vec![vec![What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Person,
+        }]]
+    );
+    assert!(closes(&w, &ready).is_empty(), "the ready item stays open");
+    assert_eq!(check_items(&w, 0), 0);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let logged = acknowledged_bodies_from(&w, 0, from);
+    assert_eq!(logged.len(), 1, "{logged:?}");
+    assert!(
+        body_is_lapse_then_raise_only(&logged[0], &ready),
+        "{logged:?}"
+    );
+    never_ready_beside_check(&w);
+}
+
+#[test]
+fn a_skip_that_first_reads_the_record_gives_the_slot_away_and_the_next_tick_raises_the_check_alone()
+{
+    let mut w = world(&[PERSON]);
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    let from = w.ports.tried.borrow().len();
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(skip.answer, Ok(Answer::Ok));
+    let bodies = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &bodies[..],
+            [body] if matches!(
+                &body[..],
+                [What::ItemAnswered { item, answer: Answered::Ready(ReadyAnswer::Skip) }, What::SlotSkipped { .. }] if *item == ready
+            )
+        ),
+        "{bodies:?}"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Check(None), .. }])
+        ),
+        "{raised:?}"
+    );
+    assert_eq!(skips(&w, 0), 1, "the skip's slot_skipped stands");
+    never_ready_beside_check(&w);
+}
+
+#[test]
+fn review28_a_skip_beside_an_earlier_skip_of_another_item_whose_read_shows_the_ready_item_lapsed_is_stale(
+) {
+    let mut w = world(&[PERSON]);
+    let earlier = ItemId::parse(&format!("{:032x}", 0x28e1)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: earlier.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemAnswered {
+            item: earlier.clone(),
+            answer: Answered::Ready(ReadyAnswer::Skip),
+        },
+    );
+    let ready = ready_beside_an_unread_check(&mut w, 0);
+    assert_ne!(ready, earlier);
+    let check = ItemId::parse(&format!("{:032x}", 0x28e2)).unwrap();
+    lost_check_body(&w, 0, &ready, &check);
+    let before = skips(&w, 0);
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(
+        skip.answer,
+        Err(Cause::Stale),
+        "a press on the lapsed card is stale"
+    );
+    assert_eq!(skips(&w, 0), before, "no slot_skipped after the lapse");
+}
+
+#[test]
+fn a_skip_after_a_queued_start_whose_answer_the_owner_stored_with_a_lost_acknowledgement_is_stale()
+{
+    let limits = halvo_coord::types::Limits {
+        max_live_runs: 1,
+        ..halvo_coord::types::Limits::PRODUCT
+    };
+    let mut w = support::world_with(&[PERSON, MANUAL], limits);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    let other = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(other.report.answer, Ok(Answer::Ok));
+    let (queued, body) = with_a_lost_acknowledgement(&mut w, Act::Start { agent: agent(0) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    assert_eq!(whats(&[body]), vec![vec![answered_start(&ready)]]);
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Queued(Some(OwnItem {
+            item: ready.clone(),
+            kind: OwnItemKind::Ready,
+        })),
+        "the board keeps the item whose answer it did not see acknowledged"
+    );
+    let from = w.ports.tried.borrow().len();
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(skip.answer, Err(Cause::Stale), "the skip is stale");
+    assert!(
+        acknowledged_bodies_from(&w, 0, from).is_empty() && skips(&w, 0) == 0,
+        "the skip stores nothing"
+    );
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Queued(None),
+        "the board holds the queued agent with no item"
+    );
+    assert!(
+        w.board.queue.holds(&agent(0)),
+        "the queue still holds the start"
+    );
+    assert_eq!(
+        closes(&w, &ready),
+        vec![answered_start(&ready)],
+        "the item has one closing row"
+    );
+}
+
+#[test]
+fn no_check_is_raised_while_the_board_holds_the_run_live_though_the_store_recorded_it() {
+    let mut w = world(&[MANUAL]);
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Ok(Answer::Ok));
+    let run = start.report.run.clone().unwrap();
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    w.set_clock(T0 + 10_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "nothing is raised while the run is live"
+    );
+    assert!(acknowledged_bodies_from(&w, 0, from).is_empty());
+    assert!(
+        w.board.runs.iter().any(|r| r.run == run),
+        "the board holds the run live"
+    );
+    let end = w.act(Act::End {
+        run,
+        outcome: Some(Outcome::Completed),
+    });
+    assert_eq!(end.checked, vec![agent(0)], "the end raises the check");
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(check_items(&w, 0), 1);
+}
+
+#[test]
+fn a_runs_check_item_that_a_read_brings_is_not_taken_up_as_the_agents_item() {
+    let mut w = world(&[MANUAL]);
+    let item = ItemId::parse(&format!("{:032x}", 0x7d33)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item,
+            raised: Raised::Check(Some(run)),
+        },
+    );
+    let from = w.ports.tried.borrow().len();
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    let seq = w.ports.tried.borrow()[from..]
+        .iter()
+        .any(|t| matches!((&t.call, &t.refused), (Call::Log(_), Some(PortError::Refused(name))) if name.as_str() == "seq"));
+    assert!(seq, "the switch-off's log meets seq");
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(None),
+        "the board takes no item"
+    );
 }

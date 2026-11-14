@@ -272,7 +272,9 @@ type Decide<'a, C> = &'a dyn Fn(&Facts<C>) -> Option<Cause>;
 /// Logs the events; after a refusal `seq` it reads the owner's events once, keeps the events
 /// that the read does not cover, closes the lost starts that it brought, and, for a start that
 /// gives `decide`, decides that start's steps 0 to 4 again from the facts as read before it logs
-/// the rest once more (I7.2, rulings XB-31, RD-34 (b) and RD-52 (a)).
+/// the rest once more; a rest that holds a `run_started` gets first the answer `start` of the
+/// open `ready` item that the read left the agent, unless it holds that answer already (I5.3,
+/// I7.2, rulings XB-31, RD-34 (b), RD-52 (a) and RD-98).
 fn store_read<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -291,7 +293,7 @@ fn store_read<P: Owner, C: ConfigView>(
     if resync(cx.ports, &facts.agent, &mut facts.events).is_err() {
         return Err(refusal);
     }
-    let rest: Vec<What> = whats
+    let mut rest: Vec<What> = whats
         .into_iter()
         .filter(|w| !covered(&facts.events, before, w))
         .collect();
@@ -302,6 +304,15 @@ fn store_read<P: Owner, C: ConfigView>(
     }
     if let Some(cause) = decide.and_then(|d| d(&board.members[i].facts)) {
         return Ok(Stored::Decided(cause));
+    }
+    if let Some(item) = own(&board.members[i].facts.doing, OwnItemKind::Ready).filter(|_| starts) {
+        let answer = What::ItemAnswered {
+            item,
+            answer: Answered::Ready(ReadyAnswer::Start),
+        };
+        if !rest.contains(&answer) {
+            rest.insert(0, answer);
+        }
     }
     if rest.is_empty() {
         return Ok(Stored::Logged);
@@ -422,6 +433,10 @@ fn covered(events: &[Event], before: usize, what: &What) -> bool {
 }
 
 /// After a read of the owner's events: the agent's own item leaves its facts when those events
+/// close it, and an agent that then holds no item takes the newest own item that the read brought
+/// and that is still open, so that the board holds what the owner's ledger holds: a check that a
+/// lost acknowledgement hid, with the lapse of the `ready` item before it, replaces that item
+/// (ruling RD-5).
 fn settle<C>(facts: &mut Facts<C>, before: usize) {
     let open = match &facts.doing {
         Doing::Idle(Some(o)) | Doing::Queued(Some(o)) => Some(o.item.clone()),
@@ -566,7 +581,8 @@ where
 }
 
 /// Steps 5 to 8 of a start that passed steps 0 to 4 (I5.5): the request to defer, the store of
-/// the open `ready` item's answer `start` and of `run_started`, the body `start_run` and
+/// the open `ready` item's answer `start` and of `run_started`, also of an item that the read
+/// after a refusal `seq` left open (`store_read`, ruling RD-98), the body `start_run` and
 /// `Runs::start`. Where the log meets `seq`, the start decides its steps 0 to 4 again from the
 /// facts as read (`decide`, ruling RD-52 (a)); where one fails it answers that step's cause and
 /// writes nothing of the body, so that no slot and no start of the day is counted and no runner
