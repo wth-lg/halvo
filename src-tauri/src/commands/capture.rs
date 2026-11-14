@@ -105,7 +105,7 @@ pub async fn set_capture_state<R: Runtime>(
         CaptureState::Paused => CaptureChange::Pause,
         CaptureState::Running => CaptureChange::Resume,
     };
-    let (answer, mark) = off_the_main_thread(move || {
+    let (answer, next_number_at_answer) = off_the_main_thread(move || {
         let answer = match change {
             CaptureChange::Pause => control.pause(made),
             CaptureChange::Resume => control.resume(made),
@@ -115,7 +115,7 @@ pub async fn set_capture_state<R: Runtime>(
     .await?;
     let reached = answer.as_ref().is_ok_and(|status| holds(change, status));
     if let Ok(status) = &answer {
-        state.views.take_mutation(mark, status);
+        state.views.take_mutation(next_number_at_answer, status);
     }
     let view = command_view(answer)?;
     tray::refresh(&app, &state.views.view());
@@ -153,14 +153,16 @@ pub async fn set_storage_cap(
     let cap = StorageCap::from_bytes(cap_bytes).map_err(|_| ActionError::cap_out_of_range())?;
     let made = state.control.places().make();
     let control = Arc::clone(&state.control);
-    let (answer, mark) = off_the_main_thread(move || {
+    let (answer, next_number_at_answer) = off_the_main_thread(move || {
         let answer = control.set_storage_cap(made, cap);
         (answer, control.places().next_number())
     })
     .await?;
     match answer {
         Ok(set) => {
-            state.views.take_mutation(mark, &set.status);
+            state
+                .views
+                .take_mutation(next_number_at_answer, &set.status);
             Ok(CapSetView {
                 view: StatusView::of(&set.status),
                 evicting: Some(set.evicting),

@@ -19,6 +19,12 @@ struct Latest {
     poll_number: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollAnswer {
+    Stands,
+    DroppedAsOlderThanTheLastMutation,
+}
+
 #[derive(Debug)]
 pub struct Views {
     latest: Mutex<Latest>,
@@ -50,21 +56,24 @@ impl Views {
         self.latest().status.clone()
     }
 
-    pub fn take_poll(&self, number: u64, answer: &Result<DaemonStatus, ClientError>) -> bool {
+    pub fn take_poll(&self, number: u64, answer: &Result<DaemonStatus, ClientError>) -> PollAnswer {
         let mut latest = self.latest();
         if number < latest.mutation_mark {
-            return false;
+            return PollAnswer::DroppedAsOlderThanTheLastMutation;
         }
         latest.view = view_of(answer);
         latest.status = answer.as_ref().ok().cloned();
         latest.poll_number = Some(latest.poll_number.map_or(number, |n| n.max(number)));
-        true
+        PollAnswer::Stands
     }
 
-    pub fn take_mutation(&self, mark: u64, status: &DaemonStatus) {
+    pub fn take_mutation(&self, next_number_at_answer: u64, status: &DaemonStatus) {
         let mut latest = self.latest();
-        latest.mutation_mark = latest.mutation_mark.max(mark);
-        if latest.poll_number.is_some_and(|n| n >= mark) {
+        latest.mutation_mark = latest.mutation_mark.max(next_number_at_answer);
+        if latest
+            .poll_number
+            .is_some_and(|n| n >= next_number_at_answer)
+        {
             return;
         }
         latest.view = StatusView::of(status);
@@ -80,13 +89,15 @@ pub fn pass(control: &dyn Control, views: &Views, tray: Option<&TrayInstalled>) 
     views.view()
 }
 
-pub fn pass_and_tell(
+pub fn round(
     control: &dyn Control,
     views: &Views,
     tray: Option<&TrayInstalled>,
     modules: &[&dyn Registration],
+    refresh: &dyn Fn(&StatusView),
 ) -> StatusView {
     let view = pass(control, views, tray);
+    refresh(&view);
     for module in modules {
         module.on_status(&view);
     }
@@ -101,8 +112,7 @@ pub fn start(
     after: impl Fn(&StatusView) + Send + 'static,
 ) {
     std::thread::spawn(move || loop {
-        let view = pass_and_tell(control.as_ref(), &views, tray.as_ref(), &modules);
-        after(&view);
+        round(control.as_ref(), &views, tray.as_ref(), &modules, &after);
         std::thread::sleep(POLL);
     });
 }

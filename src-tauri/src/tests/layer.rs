@@ -27,7 +27,7 @@ use crate::commands::capture::AppState;
 use crate::commands::control::{Control, Gated, Made, Places};
 use crate::commands::names::{Names, CAPTURE};
 use crate::commands::Registration;
-use crate::poller::{self, Views};
+use crate::poller::{self, PollAnswer, Views};
 use crate::tray;
 use crate::view_state::{Service, Status, StatusView};
 
@@ -464,15 +464,17 @@ fn a_status_made_before_a_mutation_was_answered_does_not_replace_its_view() {
         stopped(f);
     });
     let running = Ok(sample_status(Platform::Macos));
-    assert!(views.take_poll(3, &running));
+    assert_eq!(views.take_poll(3, &running), PollAnswer::Stands);
     views.take_mutation(5, &paused);
-    assert!(
-        !views.take_poll(4, &running),
+    assert_eq!(
+        views.take_poll(4, &running),
+        PollAnswer::DroppedAsOlderThanTheLastMutation,
         "a poll made before the answer is dropped"
     );
     assert_eq!(views.view().capture, Some(Capture::Paused));
-    assert!(
+    assert_eq!(
         views.take_poll(5, &running),
+        PollAnswer::Stands,
         "a poll made after the answer stands"
     );
     assert_eq!(views.view().capture, Some(Capture::Running));
@@ -487,7 +489,10 @@ fn a_poll_of_the_app_made_before_a_pause_was_answered_keeps_the_pause() {
     let answer = state.control.status(early, false);
     let reply = call(&test, "set_capture_state", json!({ "capture": "paused" })).expect("a reply");
     assert_eq!(reply["capture"], json!("paused"));
-    assert!(!state.views.take_poll(number, &answer));
+    assert_eq!(
+        state.views.take_poll(number, &answer),
+        PollAnswer::DroppedAsOlderThanTheLastMutation
+    );
     assert_eq!(
         call(&test, "capture_status", json!({})).map(|v| v["capture"].clone()),
         Ok(json!("paused"))
@@ -530,7 +535,7 @@ fn on_status_is_made_once_per_pass_for_every_module_and_a_second_module_compiles
     ]);
     let views = Views::default();
     let services: Vec<Service> = (0..3)
-        .map(|_| poller::pass_and_tell(&fake, &views, None, &modules).service)
+        .map(|_| poller::round(&fake, &views, None, &modules, &|_| {}).service)
         .collect();
     assert_eq!(
         services,
@@ -588,7 +593,7 @@ fn a_poll_made_after_a_mutation_was_answered_and_taken_first_is_not_replaced_by_
         f.capture = Capture::Paused;
         stopped(f);
     });
-    assert!(views.take_poll(7, &Ok(paused)));
+    assert_eq!(views.take_poll(7, &Ok(paused)), PollAnswer::Stands);
     let running = sample_status(Platform::Macos);
     views.take_mutation(5, &running);
     assert_eq!(
@@ -596,7 +601,10 @@ fn a_poll_made_after_a_mutation_was_answered_and_taken_first_is_not_replaced_by_
         Some(Capture::Paused),
         "the poll of call 7 was made after the mutation's answer at mark 5"
     );
-    assert!(!views.take_poll(4, &Ok(sample_status(Platform::Macos))));
+    assert_eq!(
+        views.take_poll(4, &Ok(sample_status(Platform::Macos))),
+        PollAnswer::DroppedAsOlderThanTheLastMutation
+    );
 }
 
 #[test]
@@ -670,4 +678,30 @@ fn a_delete_with_no_id_while_the_store_opens_is_busy_and_deletes_nothing() {
         Err(json!({ "error": "busy" }))
     );
     assert_eq!(test.daemon.status().fields().store, StoreState::Opening);
+}
+
+struct Recording(Arc<Mutex<Vec<&'static str>>>);
+
+impl Registration for Recording {
+    fn names(&self) -> &'static Names {
+        &CAPTURE
+    }
+
+    fn on_status(&self, _status: &Status) {
+        self.0.lock().expect("the order").push("module");
+    }
+}
+
+#[test]
+fn a_round_refreshes_the_tray_before_it_tells_the_modules() {
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let module = Recording(Arc::clone(&order));
+    let modules: [&dyn Registration; 1] = [&module];
+    let fake = Fake::with(vec![Ok(sample_status(Platform::Macos))]);
+    let views = Views::default();
+    let refreshed = Arc::clone(&order);
+    poller::round(&fake, &views, None, &modules, &|_| {
+        refreshed.lock().expect("the order").push("refresh");
+    });
+    assert_eq!(*order.lock().expect("the order"), ["refresh", "module"]);
 }
