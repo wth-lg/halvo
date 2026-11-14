@@ -36,6 +36,15 @@ held_key_printed E0277
 EOF
 }
 
+seam_manifests() {
+  git grep -l -F -e stall-seam -- 'Cargo.toml' '*/Cargo.toml' >"$work/seam" 2>/dev/null
+  case $? in 0 | 1) ;; *) fail "git grep could not read the manifests" ;; esac
+  named=$(tr '\n' ' ' <"$work/seam")
+  [ "$named" = "crates/halvo-capture/Cargo.toml " ] ||
+    fail "the feature stall-seam must stand in crates/halvo-capture/Cargo.toml alone; manifests that name it: ${named:-none}"
+  printf 'seam: the feature stall-seam stands in crates/halvo-capture/Cargo.toml alone\n'
+}
+
 tracked_changes() {
   git status --porcelain --untracked-files=no
 }
@@ -127,6 +136,8 @@ measure() {
   before=$(tracked_changes) || fail "git status failed before the run"
 
   twelve_test
+  seam_manifests
+  printf 'session reader of the phases: %s\n' "${HALVO_STALL_SESSION:-real}"
 
   proofs=$(cut -d ' ' -f 1 "$work/proofs" | tr '\n' ' ')
   twins=$(cut -d ' ' -f 1 "$work/proofs" | sed 's/$/_twin/' | tr '\n' ' ')
@@ -329,7 +340,10 @@ self_test() {
   printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\n' >"$work/expected-small"
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
-  git -C "$work/repo" add tracked.txt || exit 2
+  mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
+  printf '[features]\nstall-seam = []\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  printf '[dependencies]\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
+  git -C "$work/repo" add tracked.txt crates || exit 2
   twelve=$work/repo/target/ci-artifacts/12-test/tests.txt
   ignored='     Running tests/macos_stall_fixture.rs (target/debug/deps/macos_stall_fixture-0)
 test a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ignored, posts keys and shows a window: the hosted step alone runs it
@@ -364,6 +378,13 @@ test a_rule ... ok'
   check twelve-test-listed-none FAIL '12-test listed no test of tests/macos_stall_fixture.rs as ignored' ''
   mv "$twelve" "$work/twelve-moved" || exit 2
   check twelve-test-absent PASS '12-test: no list of tests in this job' ''
+  printf '[dependencies]\nhalvo-capture = { path = "../halvo-capture", features = ["stall-seam"] }\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates/other/Cargo.toml || exit 2
+  check seam-named-by-another-manifest FAIL 'manifests that name it: crates/halvo-capture/Cargo.toml crates/other/Cargo.toml' ''
+  printf '[dependencies]\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
+  printf '[features]\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check seam-in-no-manifest FAIL 'manifests that name it: none' ''
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (cases that gave another verdict:%s)\n' "$name" "$wrong"
     exit 1
