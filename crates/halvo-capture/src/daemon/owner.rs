@@ -765,14 +765,13 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 }
 
-/// SQLite's primary codes that are of the class of Io at a write: I/O (10),
-/// busy (5) and locked (6) (contracts.md C11.3; ruling PR-30 PR4).
-const DB_CODES_OF_THE_IO_CLASS: [i32; 3] = [10, 5, 6];
-
 /// The counted class at a write: the primary codes of the open's sealed row
 /// of contracts.md C11.3, corrupt (11) and not a database (26), and 0, the
-/// code of a failed mint of the segment id. Any other code is held and not
-/// counted. Nothing holds this list in step with the store's own table.
+/// code of a failed mint of the segment id. Every other primary code but 13
+/// (no space), I/O (10), busy (5) and locked (6) among them and one that this
+/// build does not know, is of the class of Io: held, never counted, kind io
+/// (ruling PR-30 PR4; ruling PR-31 item 3). Nothing holds this list in step
+/// with the store's own table.
 const DB_CODES_COUNTED: [i32; 3] = [11, 26, 0];
 
 /// Whether a write's fault counts toward the three tries of
@@ -791,7 +790,7 @@ fn cause_of(fault: WriteFault) -> DrainCause {
     }
     match fault {
         WriteFault::Io(_) => DrainCause::Io,
-        WriteFault::Db(code) if DB_CODES_OF_THE_IO_CLASS.contains(&(code & 0xff)) => DrainCause::Io,
+        WriteFault::Db(code) if !DB_CODES_COUNTED.contains(&(code & 0xff)) => DrainCause::Io,
         WriteFault::AlreadyWritten { .. }
         | WriteFault::Refused
         | WriteFault::Db(_)
@@ -1175,7 +1174,6 @@ mod tests {
             (WriteFault::Db(267), true, DrainCause::Db),
             (WriteFault::Db(26), true, DrainCause::Db),
             (WriteFault::Db(0), true, DrainCause::Db),
-            (WriteFault::Db(1), false, DrainCause::Db),
             (WriteFault::Db(13), false, DrainCause::NoSpace),
             (WriteFault::Io(io::ErrorKind::Other), false, DrainCause::Io),
             (WriteFault::Refused, true, DrainCause::Db),
@@ -1185,6 +1183,24 @@ mod tests {
             assert_eq!(
                 (counts_toward_tries(fault), cause_of(fault)),
                 (counted, cause),
+                "{fault:?}"
+            );
+        }
+        let of_the_io_class = [3, 4, 7, 8, 9, 14, 15, 16, 17, 22, 23, 24, 27, 28, 99];
+        for code in of_the_io_class {
+            let fault = WriteFault::Db(code);
+            assert_eq!(
+                (counts_toward_tries(fault), cause_of(fault)),
+                (false, DrainCause::Io),
+                "{fault:?}"
+            );
+        }
+        let bound_to_the_batch_read_again_by_ruling_pr_31 = [1, 2, 12, 18, 19, 20, 21, 25];
+        for code in bound_to_the_batch_read_again_by_ruling_pr_31 {
+            let fault = WriteFault::Db(code);
+            assert_eq!(
+                (counts_toward_tries(fault), cause_of(fault)),
+                (false, DrainCause::Io),
                 "{fault:?}"
             );
         }
