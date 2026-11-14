@@ -95,41 +95,41 @@ verdict profile=ephemeral egress=open browser_bound_bytes=1216348160
 ## Second round (U0.3's second pull request)
 
 Items 1, 2 and 4 ran again under the start that the product carries after U0.7c, and item 3 ran.
-Each browser of items 1, 2 and 4 starts on its debugging pipe, with the agent's profile settings and
-the same-site setting written before the start, the first flag set of A13.2, U0.7b's flags for the
-ways out and the relay's flags, the relay its only route (README, The second round). The `flag` and
-`pref` lines are that set; item 3 added no flag. Flags of the trial that the product does not carry:
-`--use-mock-keychain` on `mac` (the product's browser uses the system's key store, A8.3), the
-debugging port flags of the web trial's port-form controls, and `--isolate-origins` of A13.7's rows,
-where the product writes the same-site setting into the profile instead (CP-93 (5)).
+Each browser of items 1 and 2 and of item 4's task shape starts on its debugging pipe, with the
+agent's profile settings and the same-site setting written before the start, the first flag set of
+A13.2, U0.7b's flags for the ways out and the relay's flags, the relay its only route; the steps
+shape runs the web trial's start of U0.7c, which writes no same-site setting (README). The `flag`
+and `pref` lines are that set, the same-site origin given for the gate's port 18090 (each cell wrote
+its own); item 3 added no flag. Flags of the trial that the product does not carry: the mock
+keychain on every macOS start (the product's browser uses the system's key store, A8.3), the port
+flags of the web trial's port-form controls, and `--isolate-origins` of A13.7's rows (CP-93 (5)).
 
-What ran. The trial's code is that of 33393f00; 3fc451d8 changes a lint line of the hosted harness,
-and later commits this file, the README and CHANGELOG.md. On `mac` items 1 and 2 (d66953a4, whose
-code for them is 33393f00's) and item 3 ran with Chrome on the helper's lane on 2026-11-14 between
-01:18Z and 02:37Z. Every hosted cell ran in run 43547292129, whose scratch head is 33393f00 plus the
-workflow. The `mac` cell of item 4 is owed: the memory pressure level read 2 at each try, and the
-brief takes a peak only at 1, so the bound stays `open` and no `browser machine=mac` line stands.
+What ran. The trial's code is 33393f00's; 3fc451d8 changes a lint line of the hosted harness, and
+e54e2bf2 and later this file, the README, CHANGELOG.md and a test. On `mac` items 1 and 2
+(d66953a4, the same code for them) and item 3 (33393f00 with CHANGELOG.md and the README changed;
+d66953a4's clean call printed the same line) ran with Chrome on the helper's lane on 2026-11-14,
+01:18Z to 02:37Z. Every hosted cell ran in run 43547292129 (scratch head 33393f00 plus the
+workflow). The `mac` cell of item 4 is owed: memory pressure read 2 at each try and the brief takes a
+peak only at 1, so the bound stays `open` and no `browser machine=mac` line stands.
 
 Item 3 ran the trial program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture
-and one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s. The browser goes
-direct, without the relay, which is the executor's and outside the check's tree; the relay's flags
-that close a way out stay. No `--no-sandbox` is given, and under the `sandbox` mode Chrome does not
-start on `mac` or `hosted-mac`. With `--sandbox-off`, a control and no cell, it starts there and the
-check logs 3 denials on each Mac (on `mac`, UDP to port 443 with no address). On `hosted-win` the first flag set
-gave `denied=4` and the final set `denied=0`. The checkout there writes the list with CRLF, so the
-check gets an LF copy of it (README).
+and one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, direct and
+without the relay, which is the executor's and outside the check's tree; the relay's flags that
+close a way out stay. No `--no-sandbox` is given: under the `sandbox` mode Chrome does not start on
+`mac` or `hosted-mac`. With `--sandbox-off`, a control and no cell, it starts and the check logs 3
+denials on each Mac (on `mac` UDP to port 443 with no address). On `hosted-win` the first flag set
+gave `denied=4` and the final set `denied=0`; the check there gets an LF copy of the list (README).
 
 Beside `denied=0` (W-C26.8 item 5): on hosted-win, denied=0 proves that no process of the wrapped
 tree opened a connection, sent a datagram of any IP protocol or resolved a name outside the list
 while the command ran on windows-2025; not verified: ipv6, wmi, task, bits, and what a process did
 after the command ended. A connection that the mode stops is stopped whether or not its report
 arrives; denied=0 says that no report of a denial arrived, and 1 report in 494 runs of one denied
-probe was lost (reports/verifier-13.md, claim 3). On macos-15 and this-mac the browser did not
-start, so their `denied=0` proves nothing about the browser (not verified there: xpc-service, and on
-this-mac also launch-service-open).
+probe was lost (reports/verifier-13.md, claim 3), the workflow run's report, measured on this Mac.
+On macos-15 and this-mac the browser did not start, so `denied=0` there proves nothing about it.
 
-The token is `windows-only`, and the miss on `hosted-mac` is request 7 of plan.md. Each cell of
-items 1 to 3 is one run, and the first round's limits of the search stand.
+The token is `windows-only`; the miss on `hosted-mac` is request 7 of plan.md. Each cell of items 1
+to 3 is one run, and the first round's limits of the search stand.
 
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
