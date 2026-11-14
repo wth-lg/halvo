@@ -1,0 +1,2 @@
+{"v":1,"n":1,"kind":"api","verb":"call","target":{"adapter":"graph_calendar","op":"calendar_list"},"args":[],"pre":[],"post":[],"effect":"none","class":"read"}
+{"v":1,"n":2,"kind":"api","verb":"call","target":{"adapter":"graph_calendar","op":"calendar_delete"},"args":[{"name":"items","from":"extract","value":null,"key":"events"}],"pre":[],"post":[],"effect":"none","class":"delete"}

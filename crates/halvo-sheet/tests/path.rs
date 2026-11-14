@@ -13,7 +13,7 @@ fn refused(why: PathRefusal) -> Result<Vec<Vec<halvo_sheet::Value>>, Error> {
 fn a_path_in_the_folder_reads_as_relative_and_as_absolute() {
     let scratch = Scratch::new("path-ok");
     scratch.write("folder/sub/a.csv", b"1\n");
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     let rows = Ok(vec![vec![halvo_sheet::Value::Number(1.0)]]);
     assert_eq!(folder.read_source(Path::new("sub/a.csv")), rows);
     assert_eq!(folder.read_source(Path::new("./sub/a.csv")), rows);
@@ -25,7 +25,8 @@ fn a_folder_given_through_a_link_takes_both_spellings() {
     let scratch = Scratch::new("path-folder-link");
     scratch.write("real/a.csv", b"1\n");
     link_dir(&scratch.path("real"), &scratch.path("alias"));
-    let folder = Folder::new(&scratch.path("alias")).expect("the folder opens through a link");
+    let folder = Folder::new(&scratch.path("alias"), common::locks())
+        .expect("the folder opens through a link");
     let rows = Ok(vec![vec![halvo_sheet::Value::Number(1.0)]]);
     let canonical = scratch.path("real").canonicalize().expect("canonical");
     assert_eq!(folder.read_source(&scratch.path("alias/a.csv")), rows);
@@ -39,7 +40,8 @@ fn a_spelling_of_the_folder_that_is_neither_the_given_nor_the_canonical_one_is_r
     scratch.write("real/a.csv", b"1\n");
     link_dir(&scratch.path("real"), &scratch.path("alias"));
     link_dir(&scratch.path("real"), &scratch.path("other"));
-    let folder = Folder::new(&scratch.path("alias")).expect("the folder opens through a link");
+    let folder = Folder::new(&scratch.path("alias"), common::locks())
+        .expect("the folder opens through a link");
     assert_eq!(
         folder.read_source(&scratch.path("other/a.csv")),
         refused(PathRefusal::Outside)
@@ -51,7 +53,7 @@ fn a_path_out_of_the_folder_is_refused() {
     let scratch = Scratch::new("path-outside");
     scratch.write("folder/sub/a.csv", b"1\n");
     scratch.write("other.csv", b"1\n");
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     assert_eq!(
         folder.read_source(&scratch.path("other.csv")),
         refused(PathRefusal::Outside)
@@ -86,7 +88,7 @@ fn a_link_anywhere_on_the_path_is_refused() {
     );
     link_dir(&scratch.path("outside"), &scratch.path("folder/out"));
     link_dir(&scratch.path("folder/sub"), &scratch.path("folder/same"));
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     for rel in ["to-inside.csv", "to-outside.csv", "out/a.csv", "same/a.csv"] {
         let got = folder.read_source(Path::new(rel));
         assert_eq!(got, refused(PathRefusal::Link), "{rel}");
@@ -98,7 +100,7 @@ fn a_link_anywhere_on_the_path_is_refused() {
 fn a_directory_and_the_folder_itself_are_refused() {
     let scratch = Scratch::new("path-dir");
     scratch.write("folder/sub/a.csv", b"1\n");
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     assert_eq!(
         folder.read_source(Path::new("sub")),
         refused(PathRefusal::Directory)
@@ -124,7 +126,7 @@ fn a_directory_and_the_folder_itself_are_refused() {
 #[cfg(unix)]
 #[test]
 fn a_device_is_not_a_regular_file() {
-    let folder = Folder::new(Path::new("/dev")).expect("the folder opens");
+    let folder = Folder::new(Path::new("/dev"), common::locks()).expect("the folder opens");
     assert_eq!(
         folder.read_source(Path::new("null")),
         refused(PathRefusal::NotFile)
@@ -136,7 +138,7 @@ fn a_device_is_not_a_regular_file() {
 fn a_stream_name_is_refused_on_windows() {
     let scratch = Scratch::new("path-stream");
     scratch.write("folder/a.csv", b"1\n");
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     assert_eq!(
         folder.read_source(Path::new("a.csv:hidden")),
         refused(PathRefusal::Name)
@@ -147,9 +149,12 @@ fn a_stream_name_is_refused_on_windows() {
 fn a_folder_that_is_no_directory_is_refused() {
     let scratch = Scratch::new("path-folder");
     let file = scratch.write("file.csv", b"1\n");
-    assert_eq!(Folder::new(&file).unwrap_err(), Error::Folder);
     assert_eq!(
-        Folder::new(&scratch.path("missing")).unwrap_err(),
+        Folder::new(&file, common::locks()).unwrap_err(),
+        Error::Folder
+    );
+    assert_eq!(
+        Folder::new(&scratch.path("missing"), common::locks()).unwrap_err(),
         Error::Folder
     );
 }
@@ -158,7 +163,7 @@ fn a_folder_that_is_no_directory_is_refused() {
 fn a_missing_file_is_an_io_error() {
     let scratch = Scratch::new("path-missing");
     std::fs::create_dir_all(scratch.path("folder")).expect("make the folder");
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     assert_eq!(
         folder.read_source(Path::new("missing.csv")),
         Err(Error::Io(std::io::ErrorKind::NotFound))

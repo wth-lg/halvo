@@ -1,0 +1,33 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "the resent attempt of an id whose hold was open got a receipt whose life is 2,510 ms (expiresAt less the receipt's now): its bound is 610 ms and the answer came 710 ms after this attempt's send",
+  "source": "by hand",
+  "request": {
+    "status": 503,
+    "body": "{\"result\":\"voided\"}",
+    "headersAt": 2200,
+    "endedAt": 2205,
+    "sentAt": 1490,
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ],
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1500,
+      "expiresAt": 4010
+    }
+  },
+  "row": {
+    "ended_at": 2190,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

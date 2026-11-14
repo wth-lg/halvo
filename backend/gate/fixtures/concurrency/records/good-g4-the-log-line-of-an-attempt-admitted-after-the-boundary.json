@@ -1,0 +1,24 @@
+{
+  "kind": "attempt-line",
+  "ruling": "P7-72, worded by P7-76 G4",
+  "about": "the log line of an attempt whose first admission came 152 ms after the boundary",
+  "source": "by hand",
+  "result": {
+    "key": "ledger-rollover-at-20-plain-1-try1",
+    "kind": "rollover",
+    "counted": false,
+    "error": null,
+    "violations": [],
+    "ms": 5,
+    "facts": {
+      "slow": false,
+      "crossed": false,
+      "crossingBuilt": false,
+      "firstAdmissionMs": 152
+    }
+  },
+  "discarded": 0,
+  "expect": {
+    "line": "concurrency: ledger-rollover-at-20-plain-1-try1: did not count, 0 violation(s), 5 ms, no request admitted before the period boundary (first admission 152 ms after it)"
+  }
+}

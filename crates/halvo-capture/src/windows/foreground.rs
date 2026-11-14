@@ -3,10 +3,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+};
 
-use super::{build_event, EventPlacement, PumpHandle, PumpReady};
+use super::{Lifecycle, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
@@ -15,45 +16,50 @@ use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
+use windows::Win32::UI::Accessibility::{
+    SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK, WINEVENTPROC,
+};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowThreadProcessId, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
     WINEVENT_SKIPOWNPROCESS,
 };
 
-/// The flags shared by both WinEvent hook installers: deliver out of context
-/// (through the thread's message queue) and skip Halvo's own process.
 #[cfg(target_os = "windows")]
 pub(crate) const HOOK_FLAGS: u32 = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
 
-/// Build the foreground-app event for `exe_path`.
-pub fn map_foreground(
-    sink: &SinkHandle,
-    exe_path: String,
-    placement: EventPlacement,
-) -> crate::event::CaptureStreamEvent {
-    build_event(sink, Modality::ForegroundApp, exe_path, placement)
+pub(crate) type HookInstaller = fn(u32, WINEVENTPROC) -> HWINEVENTHOOK;
+
+pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVENTHOOK {
+    // SAFETY: SetWinEventHook takes the event range, no module and a callback
+    // with the WINEVENTPROC signature; out-of-context hooks need no module.
+    unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
 }
 
-/// The executable path of the current foreground window's process, or `None` when
-/// there is no foreground window or the process cannot be opened (for example a
-/// higher-integrity process across the UIPI boundary).
-#[cfg(target_os = "windows")]
-pub fn current_foreground_app() -> Option<String> {
-    unsafe {
-        let hwnd = GetForegroundWindow();
-        foreground_app_for(hwnd)
+pub(crate) fn foreground_packet(exe_path: String, tick: u32) -> Packet {
+    Packet {
+        kind: Modality::ForegroundApp,
+        app: exe_path,
+        byte_len: 0,
+        tick,
     }
 }
 
-/// The executable path of `hwnd`'s process, or `None` for a null window, a window
-/// whose process id is 0, a process that cannot be opened, or a failed query.
-/// `None` distinguishes "no app observed" from an app whose path is the empty
-/// string, which cannot happen.
+/// The executable path of the current foreground window's process, or `None` when
+/// there is no foreground window or the process cannot be opened.
+#[cfg(target_os = "windows")]
+pub fn current_foreground_app() -> Option<String> {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let hwnd = unsafe { GetForegroundWindow() };
+    foreground_app_for(hwnd)
+}
+
 #[cfg(target_os = "windows")]
 pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     use windows::core::PWSTR;
+    // SAFETY: `pid`, `buf` and `len` are live locals that the calls write,
+    // `len` is the length of `buf`, and the process handle that OpenProcess
+    // returns is closed once, after the query.
     unsafe {
         if hwnd.0.is_null() {
             return None;
@@ -81,32 +87,44 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     }
 }
 
-/// Shared state a running foreground hook exposes to its callback and to the
-/// input sources: the sink to emit through and the last foreground app the hook
-/// observed (`None` until the first observation).
-pub struct ForegroundState {
-    pub(crate) sink: SinkHandle,
-    pub(crate) last_app: Arc<Mutex<Option<String>>>,
+struct ForegroundState {
+    producer: Producer,
+    last_app: Arc<Mutex<Option<String>>>,
 }
 
-/// Foreground-app capture source. `start` installs the WinEvent hook on its own
-/// pump thread; `stop` quits that thread and unhooks.
+/// Foreground-app capture source. `begin` installs the WinEvent hook on its
+/// own pump thread.
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
-    pump: Option<PumpHandle>,
+    life: Lifecycle,
+    installer: HookInstaller,
 }
 
 impl ForegroundAppSource {
     pub fn new() -> Self {
         Self {
             last_app: Arc::new(Mutex::new(None)),
-            pump: None,
+            life: Lifecycle::default(),
+            installer: set_win_event_hook,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_installer(installer: HookInstaller) -> Self {
+        Self {
+            installer,
+            ..Self::new()
         }
     }
 
     /// The shared last-foreground-app cell.
     pub fn last_app(&self) -> Arc<Mutex<Option<String>>> {
         Arc::clone(&self.last_app)
+    }
+
+    /// The counts of this source's hand-off queues since it was made.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.life.handoff_counts()
     }
 }
 
@@ -130,7 +148,7 @@ unsafe extern "system" fn foreground_proc(
     _id_object: i32,
     _id_child: i32,
     _thread: u32,
-    _time: u32,
+    time: u32,
 ) {
     let Some(app) = foreground_app_for(hwnd) else {
         return;
@@ -140,57 +158,54 @@ unsafe extern "system" fn foreground_proc(
             if let Ok(mut last) = state.last_app.lock() {
                 *last = Some(app.clone());
             }
-            let event = map_foreground(&state.sink, app, EventPlacement::unpersisted(0));
-            let _ = state.sink.emit(event);
+            state.producer.push(foreground_packet(app, time));
         }
     });
 }
 
 impl CaptureSource for ForegroundAppSource {
-    fn modality(&self) -> Modality {
-        Modality::ForegroundApp
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        let last_app = Arc::clone(&self.last_app);
+        let installer = self.installer;
+        self.life
+            .begin(&ctx, "halvo-foreground-forward", move |producer| {
+                let state = ForegroundState { producer, last_app };
+                super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
+                    run_foreground_hook(state, installer, ready, &signal)
+                })
+            })
     }
 
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let state = ForegroundState {
-            sink,
-            last_app: Arc::clone(&self.last_app),
-        };
-        let pump = super::spawn_pump("halvo-foreground".to_string(), move |ready| {
-            run_foreground_hook(state, ready)
-        })?;
-        self.pump = Some(pump);
-        Ok(())
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.life.shutdown()
     }
 
-    fn stop(&mut self) {
-        if let Some(pump) = self.pump.take() {
-            pump.stop();
-        }
+    fn health(&self) -> SourceHealth {
+        self.life.health(SourceCounters::default())
     }
 }
 
 #[cfg(target_os = "windows")]
-fn run_foreground_hook(state: ForegroundState, ready: PumpReady) {
+fn run_foreground_hook(
+    state: ForegroundState,
+    installer: HookInstaller,
+    ready: PumpReady,
+    signal: &super::StopSignal,
+) {
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));
-    let hook = unsafe {
-        SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            None,
-            Some(foreground_proc),
-            0,
-            0,
-            HOOK_FLAGS,
-        )
-    };
+    let hook = installer(EVENT_SYSTEM_FOREGROUND, Some(foreground_proc));
+    if hook.is_invalid() {
+        let error = super::last_os_error("SetWinEventHook");
+        FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
+        ready.report(Err(error));
+        return;
+    }
     super::ensure_message_queue();
-    ready.report();
-    super::pump_messages();
-    if !hook.is_invalid() {
-        unsafe {
-            let _ = UnhookWinEvent(hook);
-        }
+    ready.report(Ok(()));
+    super::pump_messages(signal);
+    // SAFETY: `hook` is the valid handle that this thread installed above.
+    unsafe {
+        let _ = UnhookWinEvent(hook);
     }
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
 }
@@ -198,18 +213,70 @@ fn run_foreground_hook(state: ForegroundState, ready: PumpReady) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn map_foreground_builds_a_foreground_app_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_foreground(
-            &sink,
-            "C:\\Windows\\explorer.exe".to_string(),
-            test_placement(),
+    fn a_foreground_change_maps_to_a_foreground_app_packet() {
+        let packet = foreground_packet("C:\\Windows\\explorer.exe".to_string(), 5);
+        assert_eq!(packet.kind, Modality::ForegroundApp);
+        assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
+        assert_eq!(packet.tick, 5);
+    }
+
+    #[test]
+    fn a_second_begin_is_refused_and_health_follows_the_lifecycle() {
+        use crate::source::{SourceContext, SourceState, Started, StopCause};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut source = ForegroundAppSource::new();
+        let before = source.health().state;
+        let first = source.begin(SourceContext::new(sink.clone()));
+        let second = source.begin(SourceContext::new(sink.clone()));
+        let running = source.health().state;
+        let stopped = source.shutdown();
+        let after = source.health().state;
+        let again = source.begin(SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert_eq!(before, SourceState::NotReported);
+        assert!(matches!(first, Ok(Started::Running)), "{first:?}");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(running, SourceState::Running);
+        assert_eq!(stopped, Ok(()));
+        assert_eq!(after, SourceState::Stopped(StopCause::Request));
+        assert!(matches!(again, Ok(Started::Running)), "{again:?}");
+    }
+
+    fn no_hook(_event: u32, _callback: WINEVENTPROC) -> HWINEVENTHOOK {
+        HWINEVENTHOOK::default()
+    }
+
+    #[test]
+    fn a_foreground_hook_that_does_not_install_fails_the_start_with_its_step() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = ForegroundAppSource::with_installer(no_hook);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert!(
+            matches!(
+                started,
+                Err(CaptureError::Os {
+                    stage: "SetWinEventHook",
+                    domain: "HRESULT",
+                    ..
+                })
+            ),
+            "{started:?}"
         );
-        assert_eq!(event.modality, Modality::ForegroundApp);
-        assert_eq!(event.foreground_app, "C:\\Windows\\explorer.exe");
-        assert!(!event.is_derived);
+    }
+
+    #[test]
+    fn a_foreground_hook_that_the_system_refuses_reports_the_os_code() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source =
+            ForegroundAppSource::with_installer(crate::windows::tests::hook_without_callback);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert_eq!(started, Err(crate::windows::tests::refused_hook_error()));
     }
 }

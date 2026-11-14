@@ -247,7 +247,7 @@ impl Supervisor {
         }
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::null());
         cmd
     }
 
@@ -456,20 +456,15 @@ impl Running<'_> {
         }
     }
 
-    /// Writes the answer of `Secrets::read` as the answer of the same name, but an empty secret and one that no
-    /// frame can carry as `unreadable` with `fault`.
+    /// Writes the answer of `Secrets::read` as the answer of the same name, but one that no frame can carry as
+    /// `unreadable` with `fault`.
     fn secret(&mut self, name: &Name) -> Flow {
         let fault = ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault));
-        let reply = match self.inner.parts.secrets.read(name) {
-            SecretReply::Stored(value) if value.expose().is_empty() => fault,
-            answer => {
-                let reply = ToRunner::SecretReply(answer);
-                if reply.to_json().is_ok() {
-                    reply
-                } else {
-                    fault
-                }
-            }
+        let reply = ToRunner::SecretReply(self.inner.parts.secrets.read(name));
+        let reply = if reply.to_json().is_ok() {
+            reply
+        } else {
+            fault
         };
         if self.slot.write(&reply) {
             Flow::Go

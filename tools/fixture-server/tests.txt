@@ -1,0 +1,80 @@
+all data.test.mjs development services: every file is of C11.1 and is named <service>.json
+all data.test.mjs development services: at least 4 for each seed category and 6 of the category other
+all data.test.mjs development services: each flow holds a page whose site-masked titles no other service shows
+all data.test.mjs development services: no title of a service is a title of another service
+all data.test.mjs development services: every listed page of every web service holds no link, script, form or other input
+all data.test.mjs page scan: the scan counts a Location, a Set-Cookie and a Content-Length that is not the body length
+all data.test.mjs page scan: the scan counts a link, a script, a form, a second input, a second title and a stray tag
+all lifetime.test.mjs lifetime: SIGTERM to the node --test runner leaves none of the servers that its test started
+all lifetime.test.mjs lifetime: SIGKILL of the process that started a server ends the server
+all lifetime.test.mjs lifetime: a test that throws before its cleanup ends its run and leaves no server
+all lifetime.test.mjs lifetime: a server whose input ends while a request is in flight ends with status 0
+macos lifetime.test.mjs lifetime: a server whose input fails ends with status 0
+all lifetime.test.mjs lifetime: a server with a null input serves on until the test ends it
+all lifetime.test.mjs control: a server that gets no signal is still running at the bound, and the check of a signalled end refuses it
+all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds a listed GET with an upgrade offer
+all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds CONNECT
+all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds an unlisted GET with an upgrade offer
+all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds a half-sent request
+all package.test.mjs package: private, playwright 1.65.0 in devDependencies, a Node major in engines, and the lockfile agrees
+all server.test.mjs server: the page face and the API face answer 200, and every other request 404 with an empty body
+all server.test.mjs server: binds 127.0.0.1 alone
+all server.test.mjs server: ends on SIGTERM and on SIGINT, with status 0 where a process can handle the signal
+all server.test.mjs server: refusals usage, site-data and port, each with nothing on standard output
+all server.test.mjs server: imports nothing from node_modules
+all server.test.mjs server: literal answers for the rules of Host, header case, parameter order, encoding, the API body and Expect
+all sites.test.mjs site data: the three fixtures are of C11.1
+all sites.test.mjs site data: a space between tokens is refused (form)
+all sites.test.mjs site data: pretty printing is refused (form)
+all sites.test.mjs site data: a key that stands twice is refused (form)
+all sites.test.mjs site data: a missing final line feed, a carriage return and a second line are refused (form)
+all sites.test.mjs site data: a byte-order mark is refused (form)
+all sites.test.mjs site data: an escape that the compact rewriting does not write is refused (form)
+all sites.test.mjs site data: a number written another way is refused (form)
+all sites.test.mjs site data: bytes that are not UTF-8 are refused (utf8)
+all sites.test.mjs site data: a lone surrogate is refused (string)
+all sites.test.mjs site data: text that is not JSON, and JSON that is not an object, are refused (json, type)
+all sites.test.mjs site data: two keys swapped are refused (D1)
+all sites.test.mjs site data: a missing key, an extra key and a page or flow key out of order are refused (D1)
+all sites.test.mjs site data: v other than 1 is refused (D1)
+all sites.test.mjs site data: a service name outside its form is refused (service)
+all sites.test.mjs site data: a category outside the closed list is refused (category)
+all sites.test.mjs site data: kind, host and app that do not agree are refused (kind)
+all sites.test.mjs site data: an app id outside the form of C1.5 is refused (app)
+all sites.test.mjs site data: a parameter name outside the form of C8.2 is refused (parameter)
+all sites.test.mjs site data: a parameter name that stands twice is refused (D2)
+all sites.test.mjs site data: values whose keys are not the parameters in order are refused (D2)
+all sites.test.mjs site data: an empty value list and a value that stands twice are refused (D2)
+all sites.test.mjs site data: a value outside its form is refused (value)
+all sites.test.mjs site data: a value written as the escape of a lone surrogate, and a value that holds U+0000, are refused (value)
+all sites.test.mjs site data: an app that is a number is refused (app)
+all sites.test.mjs site data: a card page whose number stands in its text alone is refused (D7)
+all sites.test.mjs site data: a file with no page, a page id twice and a flow id twice are refused (D3)
+all sites.test.mjs site data: a page or flow id outside its form, and the page id api, are refused (id)
+all sites.test.mjs site data: a reference to a name that is not a parameter is refused (D4)
+all sites.test.mjs site data: braces that do not hold a name of C8.2 form are plain text (D4)
+all sites.test.mjs site data: a flow with no page and a flow that names no page of the file are refused (D5)
+all sites.test.mjs site data: a page may stand twice in a flow and in two flows (D5)
+all sites.test.mjs site data: a role outside the three is refused (role)
+all sites.test.mjs site data: a seed service without one task flow and one near-miss flow, or with an other flow, is refused (D6)
+all sites.test.mjs site data: a service of the category other with a flow that is not other is refused (D6)
+all sites.test.mjs site data: a seed web service without exactly one password page, first in its task flow, is refused (D7)
+all sites.test.mjs site data: a native seed service needs no password page (D7)
+all sites.test.mjs site data: a shop service without exactly one card page in its task flow is refused (D7)
+all sites.test.mjs site data: a card page whose title lacks the test number is refused (D7)
+all sites.test.mjs site data: a parameter named as a key of C8.4 is refused (D9)
+all sites.test.mjs site data: a service of the category other with parameters is refused (D9)
+all sites.test.mjs site data: a title or a value with a space at an end or two spaces in a row is refused (D10)
+all sites.test.mjs site data: a parameter that no template uses is refused (unused)
+all sites.test.mjs site data: fields of the wrong type are refused
+all sites.test.mjs encoding: every byte outside the unreserved set is percent-encoded with upper-case digits
+all sites.test.mjs fill: each reference takes its value once and a value is not read again
+all sites.test.mjs requests: one path per choice of the values of the names a page uses, in the order of parameters
+all sites.test.mjs requests: every value of a list of three, and two names that a template uses out of the order of parameters
+all sites.test.mjs checker: counts per category, the password and card pages, and the parameter rows
+all sites.test.mjs checker: a name with no row is printed and makes the status 1
+all sites.test.mjs checker: without --parameters it compares no rows and prints no parameters line
+all sites.test.mjs checker: a file not of C11.1 is refused with site-data naming the file, and nothing on standard output
+all sites.test.mjs arguments: one optional flag with a value, then one or more files
+all sites.test.mjs loading: a missing file, a directory and two files that name one service are refused by path (D8)
+all sites.test.mjs checker: usage and parameters refusals

@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: @speed-highlight/web@1.2.24 has the license CC0-1.0, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "@speed-highlight/web@1.2.24",
+      "license": "CC0-1.0"
+    }
+  ]
+}

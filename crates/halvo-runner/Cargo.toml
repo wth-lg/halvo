@@ -1,0 +1,23 @@
+[package]
+name = "halvo-runner"
+version = "0.0.0"
+description = "The runner of an agent: one process per run that reads its supervisor's frames, replays a playbook step by step and stores each effect before and after its request"
+edition = "2021"
+publish = false
+
+[lib]
+name = "halvo_runner"
+path = "src/lib.rs"
+
+[[bin]]
+name = "halvo-runner"
+path = "src/main.rs"
+
+[dependencies]
+halvo-control = { path = "../halvo-control" }
+halvo-policy = { path = "../halvo-policy" }
+halvo-schema = { path = "../halvo-schema" }
+halvo-sheet = { path = "../halvo-sheet" }
+
+[dev-dependencies]
+serde_json = "1"

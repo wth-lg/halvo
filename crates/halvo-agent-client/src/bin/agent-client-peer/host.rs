@@ -1,11 +1,14 @@
-//! The library in a process of its own, so that a test can end that process by the system's hard kill: `host
-//! DATA_DIR SCRIPT OWNER_LOG` starts one run whose runner is this binary with SCRIPT, prints `started <run id>`,
-//! answers every act with yes, and logs each request that reaches its owner as one line of OWNER_LOG.
+//! The library in a process of its own, so that a test can end that process by the system's hard kill and read its
+//! two streams: `host DATA_DIR SCRIPT OWNER_LOG [HOLD_DIR]` starts one run whose runner is this binary with SCRIPT,
+//! prints `started <run id>`, answers every act with yes, logs each request that reaches its owner as one line of
+//! OWNER_LOG, and prints `end <RunEnd as Debug>` when the run has ended. With HOLD_DIR, `Confirmer::answers` prints
+//! `answers-in`, makes the file HOLD_DIR/asked, waits until the file HOLD_DIR/release exists or 60 seconds have
+//! passed, and prints `answers-out` before it answers.
 
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{self, Write};
 use std::num::NonZeroU32;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -45,10 +48,33 @@ impl OwnerLink for Owner {
     }
 }
 
-struct Yes;
+struct Yes {
+    hold: Option<PathBuf>,
+}
+
+const HOLD_MAX: Duration = Duration::from_secs(60);
+
+fn say(text: &str) {
+    let mut out = io::stdout().lock();
+    let _ = writeln!(out, "{text}");
+    let _ = out.flush();
+}
+
+fn hold_until_released(dir: &Path) {
+    say("answers-in");
+    let _ = std::fs::write(dir.join("asked"), b"");
+    let deadline = std::time::Instant::now() + HOLD_MAX;
+    while !dir.join("release").exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    say("answers-out");
+}
 
 impl Confirmer for Yes {
     fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<Answer> {
+        if let Some(dir) = &self.hold {
+            hold_until_released(dir);
+        }
         vec![Answer::AllowOnce; request.effects.len()]
     }
 
@@ -76,7 +102,9 @@ impl Secrets for Yes {
 impl MarkSink for Yes {
     fn start(&self, _run: &RunId) {}
 
-    fn end(&self, _run: &RunId, _end: &RunEnd) {}
+    fn end(&self, _run: &RunId, end: &RunEnd) {
+        say(&format!("end {end:?}"));
+    }
 }
 
 fn id16(salt: u8) -> [u8; 16] {
@@ -91,8 +119,10 @@ fn id16(salt: u8) -> [u8; 16] {
 }
 
 pub fn run(args: &[String]) {
-    let [data, script, owner_log] = args else {
-        std::process::exit(64);
+    let (data, script, owner_log, hold) = match args {
+        [data, script, owner_log] => (data, script, owner_log, None),
+        [data, script, owner_log, hold] => (data, script, owner_log, Some(PathBuf::from(hold))),
+        _ => std::process::exit(64),
     };
     let Ok(log) = OpenOptions::new().create(true).append(true).open(owner_log) else {
         std::process::exit(70);
@@ -100,7 +130,7 @@ pub fn run(args: &[String]) {
     let Ok(me) = std::env::current_exe() else {
         std::process::exit(70);
     };
-    let yes = Arc::new(Yes);
+    let yes = Arc::new(Yes { hold });
     let parts = Parts {
         link: Arc::new(Owner(Mutex::new(log))),
         confirmer: yes.clone(),
@@ -124,8 +154,8 @@ pub fn run(args: &[String]) {
     };
     let run = spec.run.clone();
     match sup.start(spec) {
-        Ok(()) => println!("started {run}"),
-        Err(e) => println!("refused {e}"),
+        Ok(()) => say(&format!("started {run}")),
+        Err(e) => say(&format!("refused {e}")),
     }
     loop {
         std::thread::sleep(Duration::from_secs(3600));

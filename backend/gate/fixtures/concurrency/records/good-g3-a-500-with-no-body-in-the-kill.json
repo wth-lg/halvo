@@ -1,0 +1,24 @@
+{
+  "kind": "judge",
+  "ruling": "F3 of P7-69 in the default branch, by P7-76 G3",
+  "about": "a 500 with no body on a request that ended in the kill: nothing to read",
+  "source": "by hand",
+  "request": {
+    "status": 500,
+    "body": "",
+    "headersAt": 4039,
+    "endedAt": 4041
+  },
+  "top": {
+    "kill": {
+      "at": 4040,
+      "inFlight": 1
+    },
+    "restartReadyAt": 4500,
+    "firstLedgerReadAt": 9000
+  },
+  "expect": {
+    "counted": false,
+    "violations": []
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "kind": "line",
+  "ruling": "B-39; contract 9.6",
+  "about": "a run whose six attempts were all slow: the line fails with no violation, and its first failure gives the number of slow attempts, the median and the bound",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try6",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": true,
+        "burstWaits": [
+          2700,
+          2800,
+          2900
+        ],
+        "burstMedianMs": 2800,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try2",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try3",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try4",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        },
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try5",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=6 burst-p50-at-200=2800ms rollover-redrawn=0; first failure: 6 attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was 2800 ms, over the bound of 2600 ms; ledger-usage-last-at-200-plain-1-try6 did not count in 6 attempts"
+  }
+}

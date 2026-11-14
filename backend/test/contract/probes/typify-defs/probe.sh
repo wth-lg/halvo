@@ -11,7 +11,7 @@ cp "$ROOT/spikes/s3/crate/Cargo.toml" "$ROOT/spikes/s3/crate/Cargo.lock" "$crate
 cp "$ROOT/test/contract/probes/typify-defs/build.rs" "$crate/build.rs"
 cp "$ROOT/test/contract/probes/typify-defs/main.rs" "$crate/src/main.rs"
 cp "$ROOT/test/contract/probes/typify-defs/schema.json" "$crate/schema.json"
-typify=$(sed -n '/^name = "typify"$/{n;s/^version = "\(.*\)"$/\1/p;}' "$crate/Cargo.lock")
+typify=$(sed -n '/^name = "typify"$/{n;s/^version = "\(.*\)"$/\1/p;}' "$ROOT/spikes/s3/crate/Cargo.lock")
 version="typify $typify, $(cargo --version 2>&1)"
 (cd "$crate" && CARGO_TARGET_DIR="$DIR/target" cargo run --locked --offline --quiet) > "$DIR/generated.rs" 2> "$DIR/cargo.log"
 status=$?

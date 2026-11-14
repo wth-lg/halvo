@@ -1,0 +1,23 @@
+{
+  "kind": "attempt-line",
+  "ruling": "B-37",
+  "about": "the log line of a wave attempt prints its streams, which are no part of the clause, and whether it was held",
+  "source": "by hand",
+  "result": {
+    "key": "ledger-wave-at-200-plain-1-try2",
+    "kind": "wave",
+    "counted": true,
+    "error": null,
+    "violations": [],
+    "ms": 5,
+    "facts": {
+      "slow": false,
+      "streams": 119,
+      "held": true
+    }
+  },
+  "discarded": 1,
+  "expect": {
+    "line": "concurrency: ledger-wave-at-200-plain-1-try2: counted, 0 violation(s), 5 ms, 1 earlier attempt(s) drawn again, 119 stream(s), held true"
+  }
+}

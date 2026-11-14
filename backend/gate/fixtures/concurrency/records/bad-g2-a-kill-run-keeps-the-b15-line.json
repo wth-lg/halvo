@@ -1,0 +1,62 @@
+{
+  "kind": "line",
+  "ruling": "B-15, read by P7-72 (b), for a kill run, by P7-76 G2",
+  "about": "a kill run of the rollover cell whose attempt admitted a request before the boundary and lacks the crossing: B-15's line names the kill run",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 1,
+      "plainRuns": 0
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-rollover-at-20-kill-1-try1",
+      "cell": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": true,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 5,
+        "settled": 5,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": false,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -80,
+        "openAtKill": 1,
+        "streamAtKill": true,
+        "slow": false,
+        "burstWaits": [
+          300,
+          400,
+          500
+        ],
+        "burstMedianMs": 400,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=0 rollover-uncrossed=1 slow=0 burst-p50-at-200=unmeasured rollover-redrawn=0; first failure: 1 attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ledger-rollover-at-20-kill-1-try1"
+  }
+}

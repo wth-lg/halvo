@@ -10,12 +10,21 @@
   var way = null;
   var waiting = false;
   var closedSeen = false;
+  var STALL_TICKS = 150;
+  var quietTicks = 0;
   var sync = { last: 0, order: 'ok', afterHide: 0, hiddenTicks: 0, mark: 0, ended: false };
 
   function tick() {
     counts.ticks += 1;
     if (hidden) {
       sync.hiddenTicks += 1;
+    }
+    if (way !== null && !sync.ended) {
+      quietTicks += 1;
+      if (quietTicks === STALL_TICKS) {
+        app.report('sync stalled last=' + sync.last + ' order=' + sync.order +
+          ' after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
+      }
     }
   }
 
@@ -45,7 +54,11 @@
   }
 
   function accept(change) {
+    quietTicks = 0;
     if (change.seq <= sync.last) {
+      if (sync.order === 'ok') {
+        app.report('sync order_miss seq=' + change.seq + ' last=' + sync.last);
+      }
       sync.order = 'miss';
     } else {
       sync.last = change.seq;
@@ -111,11 +124,13 @@
       stop();
       getNext();
     } else if (event.detail === 'show') {
+      var seen = windowHidden;
       windowHidden = false;
       closedSeen = false;
       setHidden();
       start();
-      app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
+      app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks +
+        ' hide_seen=' + (seen ? 'yes' : 'no'));
       getNext();
     }
   });

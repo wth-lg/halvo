@@ -415,15 +415,22 @@ fn lapsed(obj: &Obj<'_>, kind: ItemKind) -> Result<Lapsed, Refusal> {
     })
 }
 
+fn start_rules(trigger: Trigger, slot: Option<u32>) -> Result<(), Refusal> {
+    match (trigger, slot) {
+        (Trigger::Schedule, None) => Err(Refusal::new("CoordEvent", "no_slot").at("slot")),
+        _ => Ok(()),
+    }
+}
+
 fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
     Ok(match event {
         Event::RunStarted => {
             obj.null_but(&OWN, &["run", "slot", "trigger"])?;
-            What::RunStarted {
-                run: obj.read("run", run_id)?,
-                trigger: obj.read("trigger", Trigger::from_raw)?,
-                slot: obj.read("slot", opt(json::count))?,
-            }
+            let run = obj.read("run", run_id)?;
+            let trigger = obj.read("trigger", Trigger::from_raw)?;
+            let slot = obj.read("slot", opt(json::count))?;
+            start_rules(trigger, slot)?;
+            What::RunStarted { run, trigger, slot }
         }
         Event::RunEnded => {
             obj.null_but(&OWN, &["run", "cause"])?;
@@ -534,10 +541,13 @@ impl CoordEvent {
         json::write("CoordEvent", self)
     }
 
-    /// Checks the one rule that the types leave to a value: the cause `check` lapses a `ready` item alone.
+    /// Checks the two rules that the types leave to a value: the cause `check` lapses a `ready` item alone, and a
+    /// `run_started` of the trigger `schedule` names its slot, else the rule `no_slot` at `slot` (contracts.md
+    /// I5.3, I7.1).
     pub fn rules(&self) -> Result<(), Refusal> {
         match &self.what {
             What::ItemLapsed { lapsed, .. } => lapsed.rules(),
+            What::RunStarted { trigger, slot, .. } => start_rules(*trigger, *slot),
             _ => Ok(()),
         }
     }

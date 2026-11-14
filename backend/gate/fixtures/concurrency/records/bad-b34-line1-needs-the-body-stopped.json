@@ -1,0 +1,18 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 lines 1 and 4",
+  "about": "a 409 repeat for an id sent once (the review's C5)",
+  "source": "by hand",
+  "request": {
+    "body": "{\"result\":\"repeat\",\"state\":\"voided\",\"dispatched\":false}"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

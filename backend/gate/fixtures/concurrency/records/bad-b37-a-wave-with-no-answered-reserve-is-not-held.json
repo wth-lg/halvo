@@ -1,0 +1,59 @@
+{
+  "kind": "judge",
+  "ruling": "B-37, read by P7-69 F1 (the verifier's R50)",
+  "about": "no reserve of the wave was answered: the request ended with no status and stored nothing, so the wave was not held and does not count; the request with no answer is its own violation",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 1,
+      "switch": "usage-last",
+      "k": 1
+    },
+    "requests": [
+      {
+        "index": 0,
+        "sentAt": 1000,
+        "endedAt": 1500,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": "ECONNRESET",
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "",
+        "id": "w0",
+        "status": null,
+        "headersAt": null
+      }
+    ],
+    "mockEvents": [],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 20
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "w0"
+      }
+    ],
+    "facts": {
+      "held": false
+    }
+  }
+}

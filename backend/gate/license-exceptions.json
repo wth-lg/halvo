@@ -1,27 +1,255 @@
 [
   {
-    "package": "@img/sharp-libvips-*",
+    "package": "@img/sharp-libvips-darwin-arm64",
+    "versions": [
+      "1.3.4"
+    ],
     "license": "LGPL-3.0-or-later",
-    "reason": "The prebuilt libvips that sharp loads. miniflare, the local Worker simulator, depends on sharp. Test tooling only: it runs beside the Worker and is never bundled into it."
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-darwin-arm64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-darwin-arm64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
   },
   {
-    "package": "@img/sharp-win32-*",
-    "license": "Apache-2.0 AND LGPL-3.0-or-later",
-    "reason": "sharp's Windows builds, which carry libvips inside the package. Brought by miniflare. Test tooling only, never bundled."
+    "package": "@img/sharp-libvips-darwin-x64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-darwin-x64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-darwin-x64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-arm",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-arm@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-arm@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-arm64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-arm64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-arm64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-ppc64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-ppc64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-ppc64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-riscv64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-riscv64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-riscv64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-s390x",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-s390x@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-s390x@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linux-x64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-x64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linux-x64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linuxmusl-arm64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linuxmusl-arm64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linuxmusl-arm64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-libvips-linuxmusl-x64",
+    "versions": [
+      "1.3.4"
+    ],
+    "license": "LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linuxmusl-x64@1.3.4; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-libvips-linuxmusl-x64@1.3.4",
+    "reason": "The prebuilt libvips library of sharp, an image library, for one platform. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
   },
   {
     "package": "@img/sharp-wasm32",
+    "versions": [
+      "0.35.5"
+    ],
     "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
-    "reason": "sharp's WebAssembly build, which carries libvips inside the package. Brought by miniflare. Test tooling only, never bundled."
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-freebsd-wasm32@0.35.5 > @img/sharp-wasm32@0.35.5; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-freebsd-wasm32@0.35.5 > @img/sharp-wasm32@0.35.5",
+    "reason": "sharp's WebAssembly build, which carries libvips inside the package. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-win32-arm64",
+    "versions": [
+      "0.35.5"
+    ],
+    "license": "Apache-2.0 AND LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-arm64@0.35.5; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-arm64@0.35.5",
+    "reason": "sharp's build for Windows on one processor, which carries libvips inside the package. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-win32-ia32",
+    "versions": [
+      "0.35.5"
+    ],
+    "license": "Apache-2.0 AND LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-ia32@0.35.5; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-ia32@0.35.5",
+    "reason": "sharp's build for Windows on one processor, which carries libvips inside the package. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@img/sharp-win32-x64",
+    "versions": [
+      "0.35.5"
+    ],
+    "license": "Apache-2.0 AND LGPL-3.0-or-later",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-x64@0.35.5; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-win32-x64@0.35.5",
+    "reason": "sharp's build for Windows on one processor, which carries libvips inside the package. sharp: miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "@speed-highlight/core",
+    "versions": [
+      "1.2.24"
+    ],
+    "license": "CC0-1.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > youch@4.1.0-beta.10 > @speed-highlight/core@1.2.24; wrangler@4.159.0 > miniflare@5.20261109.0-beta > youch@4.1.0-beta.10 > @speed-highlight/core@1.2.24",
+    "reason": "The syntax highlighter of youch, with which miniflare prints errors. miniflare, the local Worker simulator, depends on it; miniflare comes with @cloudflare/vitest-plugin, the test tooling, and with wrangler, the tool that builds and deploys the Worker and runs it locally. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
   },
   {
     "package": "lightningcss",
+    "versions": [
+      "1.33.0"
+    ],
     "license": "MPL-2.0",
-    "reason": "The CSS transformer that vite depends on; vitest runs on vite. Test tooling only, never bundled."
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0",
+    "reason": "The CSS transformer of vite. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
   },
   {
-    "package": "lightningcss-*",
+    "package": "lightningcss-android-arm64",
+    "versions": [
+      "1.33.0"
+    ],
     "license": "MPL-2.0",
-    "reason": "The native builds of lightningcss, one per platform. Brought by vite. Test tooling only, never bundled."
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-android-arm64@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-android-arm64@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-darwin-arm64",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-darwin-arm64@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-darwin-arm64@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-darwin-x64",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-darwin-x64@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-darwin-x64@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-freebsd-x64",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-freebsd-x64@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-freebsd-x64@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-linux-arm-gnueabihf",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm-gnueabihf@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm-gnueabihf@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-linux-arm64-gnu",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm64-gnu@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm64-gnu@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-linux-arm64-musl",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm64-musl@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-arm64-musl@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-linux-x64-gnu",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-x64-gnu@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-x64-gnu@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-linux-x64-musl",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-x64-musl@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-linux-x64-musl@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-win32-arm64-msvc",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-win32-arm64-msvc@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-win32-arm64-msvc@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "lightningcss-win32-x64-msvc",
+    "versions": [
+      "1.33.0"
+    ],
+    "license": "MPL-2.0",
+    "chain": "@cloudflare/vitest-plugin@1.6.1 > vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-win32-x64-msvc@1.33.0; vitest@5.1.0 > vite@8.3.6 > lightningcss@1.33.0 > lightningcss-win32-x64-msvc@1.33.0",
+    "reason": "The native build of lightningcss, the CSS transformer of vite, for one platform. vite depends on it; vite comes with vitest, the backend's test runner, and with @cloudflare/vitest-plugin. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
+  },
+  {
+    "package": "tslib",
+    "versions": [
+      "1.14.1",
+      "2.9.1"
+    ],
+    "license": "0BSD",
+    "chain": "@simplewebauthn/server@14.1.0 > @peculiar/x509@2.2.0 > tsyringe@4.10.0 > tslib@1.14.1; @cloudflare/vitest-plugin@1.6.1 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-freebsd-wasm32@0.35.5 > @img/sharp-wasm32@0.35.5 > @emnapi/runtime@1.11.3 > tslib@2.9.1; @simplewebauthn/server@14.1.0 > @peculiar/asn1-android@2.11.1 > tslib@2.9.1; wrangler@4.159.0 > miniflare@5.20261109.0-beta > sharp@0.35.5 > @img/sharp-freebsd-wasm32@0.35.5 > @img/sharp-wasm32@0.35.5 > @emnapi/runtime@1.11.3 > tslib@2.9.1",
+    "reason": "The runtime helpers of TypeScript. Both versions come with @simplewebauthn/server, a passkey server library that backend/package.json holds as a development dependency and that no file imports; 2.9.1 also comes with @emnapi/runtime of sharp's WebAssembly build, through @cloudflare/vitest-plugin and wrangler. Neither linked nor shipped: the Worker's bundle holds zod alone (check 85 prints bundled=1), and no file of the backend imports it."
   }
 ]

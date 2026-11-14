@@ -5,13 +5,16 @@ export function packagesOfEveryLockfileDocument(text) {
   const packages = new Map();
   let inPackages = false;
   let current = null;
-  for (const line of text.split("\n")) {
+  for (const [index, line] of text.split("\n").entries()) {
     if (/^\S/.test(line)) {
+      if (line !== "packages:" && /^['"]?packages['"]?\s*:/.test(line)) {
+        throw new Error(`pnpm-lock.yaml line ${index + 1} ${JSON.stringify(line)} holds the key packages in another form than the line "packages:"`);
+      }
       inPackages = line === "packages:";
       current = null;
       continue;
     }
-    if (!inPackages) continue;
+    if (!inPackages || line.trim() === "") continue;
     const key = /^ {2}(\S.*):$/.exec(line);
     if (key) {
       const id = key[1].replace(/^'(.*)'$/, "$1");
@@ -20,18 +23,26 @@ export function packagesOfEveryLockfileDocument(text) {
       packages.set(id, current);
       continue;
     }
+    if (!current || !/^ {4}/.test(line)) {
+      throw new Error(
+        `pnpm-lock.yaml line ${index + 1} ${JSON.stringify(line)} is in a packages section and is no blank line, no key line "  <name>@<version>:" and no deeper line of an entry`,
+      );
+    }
     const integrity = /^ {4}resolution: \{integrity: ([^,}]+)/.exec(line);
-    if (current && integrity) current.integrity = integrity[1];
+    if (integrity) current.integrity = integrity[1];
   }
   return [...packages.values()];
 }
+
+export const LICENSE_LIST_READING = "AND";
 
 export function licenseOf(manifest) {
   const value = manifest.license ?? manifest.licenses;
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
-    const names = value.map((entry) => (typeof entry === "string" ? entry : entry?.type)).filter(Boolean);
-    return names.length > 0 ? names.join(" OR ") : null;
+    const names = value.map((entry) => (typeof entry === "string" ? entry : entry?.type));
+    if (names.length === 0 || names.some((name) => typeof name !== "string" || name.trim() === "")) return null;
+    return names.map((name) => `(${name})`).join(` ${LICENSE_LIST_READING} `);
   }
   if (value && typeof value.type === "string") return value.type;
   return null;
@@ -45,7 +56,7 @@ export function cachedLicenses(root, packages) {
   const untied = [];
   for (const [id, entry] of Object.entries(entries)) {
     const integrity = integrityOf.get(id);
-    if (integrity && entry?.integrity === integrity) licenses.set(id, entry.license);
+    if (integrity && entry?.integrity === integrity && entry.licenseList === LICENSE_LIST_READING) licenses.set(id, entry.license);
     else untied.push(id);
   }
   return { licenses, untied };

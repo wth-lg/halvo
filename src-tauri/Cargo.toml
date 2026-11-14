@@ -12,3 +12,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 halvo-capture = { path = "../crates/halvo-capture" }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test", "unstable"] }
+serde_json = "1"

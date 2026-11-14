@@ -1014,7 +1014,7 @@ fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
         (want_labels, want_addresses),
         "{first}"
     );
-    assert!(labels >= 2_000 && addresses >= 2_000);
+    assert_eq!((labels, addresses), (2_985, 2_023), "{first}");
     assert!(both_take * 4 >= node_takes, "{both_take} of {node_takes}");
 }
 
@@ -1026,6 +1026,90 @@ fn a_last_label_of_digits_alone_is_refused_at_every_length() {
             let refusal = WebOrigin::of_address(&address).unwrap_err();
             assert_eq!(refusal.rule(), "address_ipv4", "{count} of {digit}");
             assert_eq!(read_origin(&address), None, "{count} of {digit}");
+            let origin = format!("http://pay.{}:80", digit.to_string().repeat(count));
+            assert_eq!(
+                WebOrigin::parse(&origin).unwrap_err().rule(),
+                "origin_ipv4",
+                "{count} of {digit}"
+            );
         }
     }
+}
+
+fn origin_as_written(address: &str) -> Option<String> {
+    let (scheme, rest) = address.split_once("://")?;
+    let scheme = scheme.to_ascii_lowercase();
+    let authority = rest
+        .split(['/', '?', '#', '\\'])
+        .next()?
+        .to_ascii_lowercase();
+    let port = if scheme == "https" { "443" } else { "80" };
+    Some(match authority.contains(':') {
+        true => format!("{scheme}://{authority}"),
+        false => format!("{scheme}://{authority}:{port}"),
+    })
+}
+
+fn number_form(origin: &str) -> bool {
+    let host = origin
+        .split_once("://")
+        .and_then(|(_, rest)| rest.rsplit_once(':'))
+        .map_or("", |(host, _)| host);
+    let last = host.rsplit('.').next().unwrap_or_default();
+    let numeric = last.bytes().all(|b| b.is_ascii_digit())
+        || last
+            .strip_prefix("0x")
+            .is_some_and(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()));
+    numeric && !(host.split('.').count() == 4 && host.split('.').all(octet))
+}
+
+/// `WebOrigin::parse` and `WebOrigin::of_address` take the same origins over strings built from the table's inputs
+/// and answers: the parser takes a string exactly when the function gives that string back. It compares the code
+/// with the code and reads node's answers as inputs only; node's answers bind the code in
+/// `each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none`. Its three counts were read from a run.
+#[test]
+fn the_parser_and_of_address_take_the_same_origins_over_the_inputs_of_the_oracle_table() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/r3")
+        .join(TABLE_MADE_BY_NODE);
+    let text = std::fs::read_to_string(path).unwrap();
+    let mut candidates = Vec::new();
+    for line in text.lines().skip(1) {
+        let columns: Vec<&str> = line.split('\t').collect();
+        let (kind, input, answer) = (columns[0], unhex(columns[1]), columns[2]);
+        match kind {
+            "label" => {
+                candidates.push(format!("http://{input}.test:80"));
+                candidates.push(format!("http://{answer}.test:80"));
+            }
+            _ => {
+                candidates.extend(origin_as_written(&input));
+                candidates.push(answer.to_owned());
+            }
+        }
+    }
+    let (mut taken, mut numbers) = (0, 0);
+    for origin in &candidates {
+        let parsed = WebOrigin::parse(origin);
+        let made = WebOrigin::of_address(origin);
+        match &parsed {
+            Ok(o) => {
+                taken += 1;
+                assert_eq!(made.as_ref(), Ok(o), "{origin:?}");
+            }
+            Err(_) => assert!(
+                made.as_ref().map_or(true, |o| o.as_str() != origin),
+                "{origin:?}"
+            ),
+        }
+        if number_form(origin) {
+            let rule = parsed.expect_err(origin).rule();
+            numbers += usize::from(rule == "origin_ipv4");
+        }
+    }
+    println!(
+        "candidates={} taken={taken} numbers={numbers}",
+        candidates.len()
+    );
+    assert_eq!((candidates.len(), taken, numbers), (9_798, 4_646, 30));
 }

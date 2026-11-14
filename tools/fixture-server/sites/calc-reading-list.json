@@ -1,0 +1,1 @@
+{"v":1,"service":"calc-reading-list","category":"other","kind":"native","host":null,"app":"org.libreoffice.script","parameters":[],"values":{},"pages":[{"page":"list","title":"reading-list.ods - LibreOffice Calc","text":"Books to read this year.","password_input":false,"card_title":false}],"flows":[{"flow":"visit","role":"other","pages":["list"]}]}

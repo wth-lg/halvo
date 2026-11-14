@@ -348,6 +348,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("run.effect.local_edit", "It changed this file."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
+    (
+        "line.waiting_turn.store",
+        "It waits while Halvo wraps up the task it did before, and you need to do nothing.",
+    ),
     ("say.item.new", "“{name}” has a new question for you."),
     (
         "say.item.gone",

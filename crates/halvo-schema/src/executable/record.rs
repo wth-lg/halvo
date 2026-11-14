@@ -5,7 +5,9 @@ use crate::record::Instant;
 
 use super::bound::{check_kept, KeptField};
 use super::json::{self, each_once, from_json, list, object_type, opt};
-use super::names::{ActionClass, Cause, EffectState, LogEvent, Mode, Outcome};
+use super::names::{
+    ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, Outcome,
+};
 use super::step::ExecutableStep;
 use super::text::{
     ApprovalId, Digest, EffectId, Name, OwnValue, RunId, SessionData, WebOrigin, V1,
@@ -227,4 +229,73 @@ object_type! {
         pub data: SessionData = "data" => from_json,
     }
     rules(s) { part_of("AgentSession", s.part, s.of, Some(&s.data)) }
+}
+
+pub(in crate::executable) fn checkpoint_copy(
+    type_name: &'static str,
+    paths: [(&'static str, &OwnValue); 3],
+    state: CheckpointState,
+    sha256: Option<&Digest>,
+    bytes: Option<u32>,
+) -> Result<(), Refusal> {
+    let fail = |key, rule| Err(Refusal::malformed(type_name, rule).at(key));
+    if let Some((key, _)) = paths.iter().find(|(_, value)| value.is_empty()) {
+        return fail(key, "empty_path");
+    }
+    if sha256.is_some() != bytes.is_some() {
+        return fail("bytes", "digest_and_bytes");
+    }
+    match (state, sha256) {
+        (CheckpointState::Planned, Some(_)) => fail("sha256", "planned_with_digest"),
+        (CheckpointState::Made, None) => fail("sha256", "made_without_digest"),
+        _ => Ok(()),
+    }
+}
+
+object_type! {
+    /// One state of one checkpoint that `prepare` made beside a workbook, kind `agent_checkpoint`: the folder that
+    /// `prepare` was given, the workbook's path as given to it and the copy's file name, each a value of at least one
+    /// byte in pieces of at most 1,024 bytes, the copy's SHA-256 and length, both or neither, and the state. The row
+    /// with `seq` 1 is `planned` and holds no digest, and a `planned` row has `seq` 1; a `made` row has `seq` 2 and a
+    /// digest; a `gone` or `left` row has `seq` 2 or 3, since a checkpoint has at most three rows (which of the two
+    /// follows which newest row is the store's to hold); `left` names the reason in a `left` row and is null in every
+    /// other.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentCheckpoint {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub seq: NonZeroU32 = "seq" => from_json,
+        pub day: u32 = "day" => from_json,
+        pub at: Instant = "at" => json::instant,
+        pub folder: OwnValue = "folder" => from_json,
+        pub workbook: OwnValue = "workbook" => from_json,
+        pub copy: OwnValue = "copy" => from_json,
+        pub sha256: Option<Digest> = "sha256" => opt(from_json),
+        pub bytes: Option<u32> = "bytes" => opt(from_json),
+        pub state: CheckpointState = "state" => from_json,
+        pub left: Option<LeftReason> = "left" => opt(from_json),
+    }
+    rules(c) {
+        let fail = |key, rule| Err(Refusal::malformed("AgentCheckpoint", rule).at(key));
+        let first = c.seq.get() == 1;
+        if first != (c.state == CheckpointState::Planned)
+            || (c.state == CheckpointState::Made && c.seq.get() != 2)
+            || c.seq.get() > 3
+        {
+            return fail("seq", "seq_of_state");
+        }
+        checkpoint_copy(
+            "AgentCheckpoint",
+            [("folder", &c.folder), ("workbook", &c.workbook), ("copy", &c.copy)],
+            c.state,
+            c.sha256.as_ref(),
+            c.bytes,
+        )?;
+        if c.left.is_some() != (c.state == CheckpointState::Left) {
+            return fail("left", "left_of_state");
+        }
+        Ok(())
+    }
 }
