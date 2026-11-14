@@ -10092,3 +10092,6 @@ mod pass_two;
 
 #[cfg(windows)]
 mod closed_list_windows;
+
+#[cfg(unix)]
+mod v128r;
