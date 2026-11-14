@@ -580,3 +580,28 @@ fn each_figure_of_the_report_comes_from_its_source() {
     assert_eq!(hold.window_pointer, figures.secure_window_pointer);
     assert_eq!(hold.keys_typed, figures.secure_window_keys_typed);
 }
+
+/// Ruling DM-12 G6 (DM-4 item 5): the last settle waits for the next due try,
+/// so a write that fails once at the last settle is stored by the next try
+/// inside the bound (adversary 1's adv1_w_e).
+#[test]
+fn a_write_that_fails_once_at_the_last_settle_is_stored_by_the_next_try() {
+    let store = ModelStore::new();
+    store.script_writes([WriteScript::Fail(WriteFault::Io(io::ErrorKind::Other))]);
+    let mut scripted = keys(4);
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store.clone(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(
+        (outcome.status, outcome.report.events_persisted),
+        (exit::CLEAN, 4),
+        "{outcome:?}"
+    );
+}
