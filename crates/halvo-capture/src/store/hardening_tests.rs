@@ -8018,12 +8018,19 @@ struct EndStates {
     /// root, the named limit (i) of ruling ST-44 F3, which the next tail's
     /// sweep finishes (ruling ST-45 H1).
     under_the_limit_of_a_stopped_create: bool,
+    /// After a kill in write, write then pass, shred or open, the store opens
+    /// (ruling ST-46 K4 (b)); no row of those operations names another
+    /// answer. True for the operations that may end with no store.
+    store_opens: bool,
 }
 
 #[cfg(target_os = "macos")]
 impl EndStates {
     fn all_true(&self) -> bool {
-        self.no_shredded_decrypts && self.no_unnamed_root && self.no_keyless_file
+        self.no_shredded_decrypts
+            && self.no_unnamed_root
+            && self.no_keyless_file
+            && self.store_opens
     }
 }
 
@@ -8063,6 +8070,8 @@ fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates 
     let root_id = named.first().copied();
     let root_file = root_id.map(|id| roots_dir.join(format!("{id}.root")).exists());
     let opened = root_id.map(|id| open_over_file_root(&store_dir, &roots_dir, id));
+    let store_opens = !matches!(op, "write" | "write_then_pass" | "shred" | "open")
+        || matches!(opened, Some(Ok(_)));
     let (mut no_shredded_decrypts, mut no_keyless_file) = (true, true);
     if op == "delete_all" && root_file != Some(true) {
         no_shredded_decrypts = !matches!(opened, Some(Ok(_)));
@@ -8112,6 +8121,7 @@ fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates 
         no_unnamed_root,
         no_keyless_file,
         under_the_limit_of_a_stopped_create,
+        store_opens,
     }
 }
 
@@ -8160,6 +8170,36 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
             unkilled.all_true() && !unkilled.under_the_limit_of_a_stopped_create,
             "the unkilled {op} run left {unkilled:?}"
         );
+        if op == "shred" {
+            let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+            let root_id =
+                RootId::parse(&std::fs::read_to_string(dir.path().join("root-id")).unwrap())
+                    .unwrap();
+            let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+            let conn = store.db().unwrap().connection();
+            let cleared = expired.iter().all(|id| {
+                conn.query_row(
+                    "SELECT wrapped_key IS NULL FROM segment_keys WHERE segment_id = ?1",
+                    [id.simple().to_string()],
+                    |r| r.get::<_, bool>(0),
+                )
+                .unwrap_or(false)
+            });
+            let sealed = expired.iter().all(|id| {
+                matches!(
+                    store.read_segment(*id, &mut io::sink()),
+                    Err(StoreError::Sealed)
+                )
+            });
+            println!(
+                "KILL op=shred unkilled expired={} key_rows_null={cleared} reads_sealed={sealed}",
+                expired.len()
+            );
+            assert!(
+                cleared && sealed,
+                "the unkilled shred left a key row of an expired segment or a read that is not Sealed"
+            );
+        }
         if op == "delete_all" {
             let after = finished_delete_all_reading(dir.path());
             println!(
