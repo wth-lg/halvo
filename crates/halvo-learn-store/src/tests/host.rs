@@ -36,11 +36,12 @@ pub struct AgentSide {
     pub store: MemoryStore,
     pub fault: bool,
     pub gone: Vec<WorkflowId>,
+    once: bool,
 }
 
 impl RowRead for AgentSide {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        if self.fault && kind == "agent_config" {
+        if (self.fault || self.once) && kind == "agent_config" {
             visit("{}");
         }
         self.store.for_each(kind, visit);
@@ -80,6 +81,7 @@ pub struct TestHost {
     pub commits: Cell<u32>,
     pub run_workflow: Option<String>,
     pub refuse: bool,
+    pub fault_first_agent_call: bool,
 }
 
 impl TestHost {
@@ -89,12 +91,14 @@ impl TestHost {
                 store: MemoryStore::new(),
                 fault: false,
                 gone: Vec::new(),
+                once: false,
             },
             learn: Vec::new(),
             day: DAY,
             commits: Cell::new(0),
             run_workflow: None,
             refuse: false,
+            fault_first_agent_call: false,
         }
     }
 
@@ -203,6 +207,7 @@ impl RowRead for TestHost {
 
 impl LearnHost for TestHost {
     fn agent_host(&mut self) -> &mut dyn Host {
+        self.agent.once = std::mem::take(&mut self.fault_first_agent_call);
         &mut self.agent
     }
 

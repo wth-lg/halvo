@@ -198,3 +198,15 @@ fn an_end_run_after_a_stop_between_a_compiles_two_commits_withdraws_the_lower_ed
     assert_eq!(rows.len(), 2);
     assert!(failed_rev_2(&rows[1]), "{:?}", rows[1].status);
 }
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_before_an_end_run_commits_nothing_and_returns_the_agent_stores_reply(
+) {
+    let mut w = served_and_failed();
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    w.host.fault_first_agent_call = true;
+    assert!(accepted(&end_run(&mut w, 3, 1)));
+    assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
+    assert!(holds_nothing_of(&w, 3));
+    assert_eq!(of_run(&w, 3).len(), 1);
+}
