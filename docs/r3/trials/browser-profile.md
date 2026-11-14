@@ -104,13 +104,14 @@ its own); item 3 added no flag. Flags of the trial that the product does not car
 keychain on every macOS start (the product's browser uses the system's key store, A8.3), the port
 flags of the web trial's port-form controls, and `--isolate-origins` of A13.7's rows (CP-93 (5)).
 
-What ran. The trial's code is 33393f00's; 3fc451d8 changes a lint line of the hosted harness, and
-e54e2bf2 and later this file, the README, CHANGELOG.md and a test. On `mac` items 1 and 2
-(d66953a4, the same code for them) and item 3 (33393f00 with CHANGELOG.md and the README changed;
-d66953a4's clean call printed the same line) ran with Chrome on the helper's lane on 2026-11-14,
-01:18Z to 02:37Z. Every hosted cell ran in run 43547292129 (scratch head 33393f00 plus the
-workflow). The `mac` cell of item 4 is owed: memory pressure read 2 at each try and the brief takes a
-peak only at 1, so the bound stays `open` and no `browser machine=mac` line stands.
+What ran. The trial's code is eb189792's; later commits change this file and the README. Every
+hosted cell ran in run 43552018301 (scratch head eb189792 plus the workflow). On `mac` items 1 and 2
+(d66953a4, the same code for them) and item 3 (eb189792) ran with Chrome on the helper's lane on
+2026-11-14, 01:18Z to 03:30Z. The `mac` cell of item 4 is open (`browser machine=mac
+bound_bytes=open`): memory pressure on this Mac reads level 2, the brief takes a peak only at level
+1, and no level 1 is expected until the owner acts on an item of theirs. The cell is filled by `sh
+tools/r3-trials/profile/run.sh --item 4 --browser <Chrome> --port 18191` through the timed-run
+helper while the level reads 1 before and after.
 
 Item 3 ran the trial program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture
 and one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, direct and
@@ -118,7 +119,7 @@ without the relay, which is the executor's and outside the check's tree; the rel
 close a way out stay. No `--no-sandbox` is given: under the `sandbox` mode Chrome does not start on
 `mac` or `hosted-mac`. With `--sandbox-off`, a control and no cell, it starts and the check logs 3
 denials on each Mac (on `mac` UDP to port 443 with no address). On `hosted-win` the first flag set
-gave `denied=4` and the final set `denied=0`; the check there gets an LF copy of the list (README).
+gave `denied=4` and the final set `denied=0`; the list has `eol=lf` in every checkout (c2f235af).
 
 Beside `denied=0` (W-C26.8 item 5): on hosted-win, denied=0 proves that no process of the wrapped
 tree opened a connection, sent a datagram of any IP protocol or resolved a name outside the list
@@ -134,8 +135,8 @@ to 3 is one run, and the first round's limits of the search stand.
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
 licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
-hosted machine=hosted-mac run=43547292129 sha=c8f9321b0d37e184f73fd6bd865f1f2876711c63
-hosted machine=hosted-win run=43547292129 sha=c8f9321b0d37e184f73fd6bd865f1f2876711c63
+hosted machine=hosted-mac run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
+hosted machine=hosted-win run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
 session machine=mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=edge import=ok second_factor_asked_again=no
@@ -154,27 +155,28 @@ disk machine=hosted-win browser=edge marker_hits=0
 egress machine=mac mode=sandbox browser_started=no denied=0
 egress machine=hosted-mac mode=sandbox browser_started=no denied=0
 egress machine=hosted-win mode=wfp browser_started=yes denied=0
-browser machine=hosted-win browser=chrome shape=steps run=1 peak_bytes=216453120
-browser machine=hosted-win browser=chrome shape=steps run=2 peak_bytes=218685440
-browser machine=hosted-win browser=chrome shape=steps run=3 peak_bytes=219860992
-browser machine=hosted-win browser=chrome shape=steps run=4 peak_bytes=222932992
-browser machine=hosted-win browser=chrome shape=steps run=5 peak_bytes=219295744
-browser machine=hosted-win browser=chrome shape=task run=1 peak_bytes=233033728
-browser machine=hosted-win browser=chrome shape=task run=2 peak_bytes=234663936
-browser machine=hosted-win browser=chrome shape=task run=3 peak_bytes=230985728
-browser machine=hosted-win browser=chrome shape=task run=4 peak_bytes=234323968
-browser machine=hosted-win browser=chrome shape=task run=5 peak_bytes=235151360
-browser machine=hosted-win browser=edge shape=steps run=1 peak_bytes=181817344
-browser machine=hosted-win browser=edge shape=steps run=2 peak_bytes=182829056
-browser machine=hosted-win browser=edge shape=steps run=3 peak_bytes=183750656
-browser machine=hosted-win browser=edge shape=steps run=4 peak_bytes=181202944
-browser machine=hosted-win browser=edge shape=steps run=5 peak_bytes=183144448
-browser machine=hosted-win browser=edge shape=task run=1 peak_bytes=218705920
-browser machine=hosted-win browser=edge shape=task run=2 peak_bytes=214028288
-browser machine=hosted-win browser=edge shape=task run=3 peak_bytes=217288704
-browser machine=hosted-win browser=edge shape=task run=4 peak_bytes=209104896
-browser machine=hosted-win browser=edge shape=task run=5 peak_bytes=212201472
-browser machine=hosted-win bound_bytes=293601280
+browser machine=hosted-win browser=chrome shape=steps run=1 peak_bytes=220573696
+browser machine=hosted-win browser=chrome shape=steps run=2 peak_bytes=222404608
+browser machine=hosted-win browser=chrome shape=steps run=3 peak_bytes=220135424
+browser machine=hosted-win browser=chrome shape=steps run=4 peak_bytes=216879104
+browser machine=hosted-win browser=chrome shape=steps run=5 peak_bytes=221470720
+browser machine=hosted-win browser=chrome shape=task run=1 peak_bytes=237326336
+browser machine=hosted-win browser=chrome shape=task run=2 peak_bytes=234344448
+browser machine=hosted-win browser=chrome shape=task run=3 peak_bytes=235069440
+browser machine=hosted-win browser=chrome shape=task run=4 peak_bytes=233914368
+browser machine=hosted-win browser=chrome shape=task run=5 peak_bytes=235999232
+browser machine=hosted-win browser=edge shape=steps run=1 peak_bytes=186388480
+browser machine=hosted-win browser=edge shape=steps run=2 peak_bytes=189034496
+browser machine=hosted-win browser=edge shape=steps run=3 peak_bytes=193511424
+browser machine=hosted-win browser=edge shape=steps run=4 peak_bytes=188502016
+browser machine=hosted-win browser=edge shape=steps run=5 peak_bytes=192532480
+browser machine=hosted-win browser=edge shape=task run=1 peak_bytes=214368256
+browser machine=hosted-win browser=edge shape=task run=2 peak_bytes=213872640
+browser machine=hosted-win browser=edge shape=task run=3 peak_bytes=215699456
+browser machine=hosted-win browser=edge shape=task run=4 peak_bytes=212213760
+browser machine=hosted-win browser=edge shape=task run=5 peak_bytes=217567232
+browser machine=mac bound_bytes=open
+browser machine=hosted-win bound_bytes=301989888
 flag --disable-background-networking
 flag --disable-component-update
 flag --disable-sync

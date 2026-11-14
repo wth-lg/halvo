@@ -277,7 +277,7 @@ Readings fixed before the runs:
   refused both calls). Run 43547292129 passed an LF copy of the list. From c2f235af the root
   `.gitattributes` gives the file `eol=lf`, and item 3 passes the tracked file itself.
 
-### Item 3 in lines (run 43547292129 and this Mac)
+### Item 3 in lines (runs 43547292129 and 43552018301, which read the same, and this Mac)
 
 The `egress` lines of the first flag set, which the block does not hold:
 
@@ -304,11 +304,13 @@ two relay flags that close a way out (`--disable-quic`, the WebRTC policy) and t
 So item 3 adds no flag to U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that
 set, stand.
 
-### Item 4 in numbers (run 43547292129)
+### Item 4 in numbers (run 43552018301)
 
-- `hosted-win`, Chrome: steps median 219,295,744, task median 234,323,968; Edge: steps median
-  182,829,056, task median 214,028,288. The machine's bound comes from Chrome's task shape:
-  293,601,280 (8 MiB times ceil(5 times 234,323,968 / 33,554,432)). The first round's bound there was
-  469,762,048, from Edge's steps shape on the first flag set.
-- `mac`: owed (the result file says why). A smoke call of one run per shape at 6be76414, not a cell,
+- `hosted-win`, Chrome: steps median 220,573,696, task median 235,069,440; Edge: steps median
+  189,034,496, task median 214,368,256. The machine's bound comes from Chrome's task shape:
+  301,989,888 (8 MiB times ceil(5 times 235,069,440 / 33,554,432)). In run 43547292129 Chrome's task
+  median was 234,323,968 and the bound 293,601,280: 1.25 times the median lies at 35.0 steps of 8 MiB,
+  so a difference of 0.3 % in the median moves the bound by one step. The first round's bound there
+  was 469,762,048, from Edge's steps shape on the first flag set.
+- `mac`: open (the result file says why). A smoke call of one run per shape at 6be76414, not a cell,
   read 948,161,568 (steps) and 959,450,264 (task) at memory pressure 2, which reads too low.
