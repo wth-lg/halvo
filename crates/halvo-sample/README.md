@@ -45,7 +45,8 @@ that `build` writes: a record that cannot be made takes no number.
 
 `build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
 any other SCRIPT argument with `script`, a directory among them, so a caller that passes every
-entry of a scripts directory skips no file.
+entry of a scripts directory skips no file. `build` and `split` name a script file in a refusal
+by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
 
 ## The script manifest and `check-labels`
 
@@ -58,14 +59,18 @@ under both rules.
 
 `check-labels` follows no symbolic link. Each entry of `streams/` that is a link gives
 `FAIL link <stream id>`, and these lines come first. A `streams` directory that is itself a
-link is refused with `batches`. Each range is held against every earlier range whose end lies
+link is refused with `batches`, and a `manifest.toml`, `script-manifest.jsonl`, day file or
+`labels.jsonl` that is a link with `tier-manifest`, `script-manifest`, `batches` or `labels`. Each range is held against every earlier range whose end lies
 after its start, and the later row of each overlapping pair gets its `FAIL row` line.
 
 ## `leak`
 
-`leak` refuses a PATH argument that is a symbolic link with `path`, also when separators or
-`.` follow its name. Inside a walk it follows no link. A stream directory that is a link in
-the tier or in a development body is refused with `tier-files` or `body`. A `HIT` line names a
+`leak` refuses a PATH argument that is a symbolic link with `path`, also when separators, `.`
+or a name and `..` follow its name; a link among the other components of an argument is
+followed. Inside a walk it follows no link. A stream directory, `streams` directory, manifest,
+day file or label file that is a link, in the tier or in a development body, is refused with
+`tier-files` or `body`, and the detail of these two refusals is the TIER argument or the PATH
+argument alone. A `HIT` line names a
 file as the PATH argument followed by `#<n>`: n is the number of the file among the files that
 the walk of that argument searches, in byte order of name, from 1. No name below the argument
 is printed, because a file's name may be a service's name.
