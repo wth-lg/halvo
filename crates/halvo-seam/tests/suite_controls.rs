@@ -767,12 +767,18 @@ fn an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure(
     let other_cause = "the filter keystroke: read_batch got the error: bad-position";
     let count = "the filter foreground_app: 44 entries served, want 8";
     let count_80 = "the filter foreground_app: 44 entries served, want 80";
-    let rows: [(&str, Want, Option<&str>, bool); 22] = [
+    let rows: [(&str, Want, Option<&str>, bool); 23] = [
         ("the last part", Fail("next fell"), Some(next_fell), true),
         ("the whole failure", Fail(next_fell), Some(next_fell), true),
         (
             "a tail of the last part",
             Fail("idx 139}: next fe"),
+            Some(next_fell),
+            false,
+        ),
+        (
+            "an end of the last part",
+            Fail("fell"),
             Some(next_fell),
             false,
         ),
