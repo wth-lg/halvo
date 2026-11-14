@@ -647,8 +647,9 @@ ps_run() {
 }
 
 search_tools() {
-  search_root=$work/search
-  search_bin=$work/search-bin
+  search_work=$(mktemp -d "$work/search.XXXXXX") || exit 1
+  search_root=$search_work/root
+  search_bin=$search_work/bin
   search_runs=0
   real_mkdir=$(command -v mkdir)
   mkdir -p "$search_root/scripts/egress/lists" "$search_bin"
@@ -696,8 +697,8 @@ search_case() {
     esac
   done
   mark=
-  [ "$race" != race ] || mark=$work/search-raced-$search_runs
-  tried_file=$work/search-tried-$search_runs
+  [ "$race" != race ] || mark=$search_work/raced-$search_runs
+  tried_file=$search_work/tried-$search_runs
   : >"$tried_file"
   (cd "$search_root" && PATH="$search_bin:$PATH" SEARCH_MKDIR="$real_mkdir" SEARCH_RACE="$mark" SEARCH_TRIED="$tried_file" \
     sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none) >"$work/out" 2>"$work/err"
@@ -727,6 +728,7 @@ test_search() {
   search_case search/another-run-claims-4-first-takes-5 'takes 5' '4 5' race dir:1 dir:2 dir:3
   search_case search/a-file-at-the-number-is-refused 'refused target/egress/3' 3 - dir:1 dir:2 file:3
   search_case search/holding-9-and-10-takes-11 'takes 11' 11 - dir:9 dir:10
+  search_case search/holding-2-19-and-200-takes-201 'takes 201' 201 - dir:2 dir:19 dir:200
   search_case search/a-name-of-18-digits-is-a-number 'takes 100000000000000001' 100000000000000001 - dir:100000000000000000
   search_case search/names-that-are-no-number-passed-over 'takes 3' 3 - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:1234567890123456789 dir:12345678901234567890 file:50 dir:99999999999999999999
 }
