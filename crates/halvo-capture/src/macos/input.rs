@@ -3632,6 +3632,212 @@ mod tests {
                  (a median above {NOTICE_SPACING_US} us or fewer than {NOTICE_READINGS} readings, ruling MA-22 L4)"
             );
         }
+        let widest_us = spacing.last().map_or(0, |ns| ns / 1_000);
+        let decided = gap_of_the_test(Measured {
+            spacing_max_us: widest_us,
+            readings,
+            dictionary: session != Session::NoDictionary,
+            on_console: session == Session::AtConsole,
+        });
+        println!(
+            "{}",
+            gap_line(
+                &decided,
+                "measured",
+                &widest_us.to_string(),
+                &format!("{:.2}", loads[0])
+            )
+        );
+    }
+
+    /// The fewest readings in the measurement's window from which the gap of the
+    /// hosted phases is taken (ruling MA-23 Addition 1 (4)).
+    const GAP_READINGS_AT_LEAST: usize = 300;
+    /// The gap of the hosted phases is this many times the widest spacing of the
+    /// readings, rounded up to GAP_STEP_MS.
+    const GAP_FACTOR: u64 = 2;
+    const GAP_STEP_MS: u64 = 10;
+    /// The gap of the hosted phases is never under the product's gap bound.
+    const GAP_FLOOR_MS: u64 = 30;
+    /// The widest gap for which the hosted proof is stated; no phase runs at a
+    /// wider one.
+    const GAP_CAP_MS: u64 = 500;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct Measured {
+        spacing_max_us: u64,
+        readings: usize,
+        dictionary: bool,
+        on_console: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum GapOfTheTest {
+        Gap { ms: u64 },
+        AboveTheCap { ms: u64 },
+        Refused { reason: String },
+    }
+
+    fn bounded(ms: u64) -> GapOfTheTest {
+        let ms = ms.max(GAP_FLOOR_MS);
+        if ms > GAP_CAP_MS {
+            GapOfTheTest::AboveTheCap { ms }
+        } else {
+            GapOfTheTest::Gap { ms }
+        }
+    }
+
+    fn gap_of_the_test(measured: Measured) -> GapOfTheTest {
+        let refused = |reason: String| GapOfTheTest::Refused { reason };
+        if !measured.dictionary {
+            return refused(String::from("the session has no dictionary"));
+        }
+        if !measured.on_console {
+            return refused(String::from("the session is not at the console"));
+        }
+        if measured.readings < GAP_READINGS_AT_LEAST {
+            return refused(format!(
+                "{} readings, fewer than {GAP_READINGS_AT_LEAST}",
+                measured.readings
+            ));
+        }
+        if measured.spacing_max_us == 0 {
+            return refused(String::from("a widest spacing of 0 us"));
+        }
+        let step_us = GAP_STEP_MS * 1_000;
+        bounded((GAP_FACTOR * measured.spacing_max_us).div_ceil(step_us) * GAP_STEP_MS)
+    }
+
+    fn gap_of_the_variable(text: &str) -> GapOfTheTest {
+        match text.parse::<u64>() {
+            Err(_) => GapOfTheTest::Refused {
+                reason: format!("HALVO_STALL_GAP_MS is a count of milliseconds, not {text}"),
+            },
+            Ok(ms) => match bounded(ms) {
+                GapOfTheTest::AboveTheCap { ms } => GapOfTheTest::Refused {
+                    reason: format!(
+                        "HALVO_STALL_GAP_MS of {ms} ms is above the cap of {GAP_CAP_MS} ms"
+                    ),
+                },
+                decided => decided,
+            },
+        }
+    }
+
+    fn gap_line(decided: &GapOfTheTest, source: &str, spacing: &str, load1: &str) -> String {
+        match decided {
+            GapOfTheTest::Gap { ms } => format!(
+                "gap_of_the_test gap_ms={ms} source={source} spacing_max_us={spacing} load1={load1}"
+            ),
+            GapOfTheTest::AboveTheCap { ms } => format!(
+                "gap_of_the_test above_the_cap gap_ms={ms} cap_ms={GAP_CAP_MS} source={source} \
+                 spacing_max_us={spacing} load1={load1}"
+            ),
+            GapOfTheTest::Refused { reason } => {
+                format!("gap_of_the_test refused source={source} reason={reason}")
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "the gap of the hosted phases from HALVO_STALL_GAP_MS, for 51-macos-stall"]
+    fn the_gap_of_the_test_from_its_variable() {
+        let text = std::env::var("HALVO_STALL_GAP_MS").unwrap_or_default();
+        println!(
+            "{}",
+            gap_line(&gap_of_the_variable(&text), "HALVO_STALL_GAP_MS", "-", "-")
+        );
+    }
+
+    #[test]
+    fn the_gap_of_the_test_is_twice_the_widest_spacing_rounded_up_between_its_floor_and_cap() {
+        let measured = |spacing_max_us: u64| Measured {
+            spacing_max_us,
+            readings: 300,
+            dictionary: true,
+            on_console: true,
+        };
+        let gap = |ms: u64| GapOfTheTest::Gap { ms };
+        let rows: [(&str, Measured, GapOfTheTest); 10] = [
+            ("twice 90,000 us is 180 ms", measured(90_000), gap(180)),
+            (
+                "twice 90,001 us rounds up to 190 ms",
+                measured(90_001),
+                gap(190),
+            ),
+            (
+                "twice 90,474 us rounds up to 190 ms",
+                measured(90_474),
+                gap(190),
+            ),
+            ("twice 1 us is the floor of 30 ms", measured(1), gap(30)),
+            ("twice 14,999 us is 30 ms", measured(14_999), gap(30)),
+            (
+                "twice 250,000 us is the cap of 500 ms",
+                measured(250_000),
+                gap(500),
+            ),
+            (
+                "twice 250,001 us is above the cap",
+                measured(250_001),
+                GapOfTheTest::AboveTheCap { ms: 510 },
+            ),
+            (
+                "299 readings are too few",
+                Measured {
+                    readings: 299,
+                    ..measured(90_000)
+                },
+                GapOfTheTest::Refused {
+                    reason: String::from("299 readings, fewer than 300"),
+                },
+            ),
+            (
+                "a widest spacing of 0 is refused",
+                measured(0),
+                GapOfTheTest::Refused {
+                    reason: String::from("a widest spacing of 0 us"),
+                },
+            ),
+            (
+                "a session with no dictionary is refused",
+                Measured {
+                    dictionary: false,
+                    ..measured(90_000)
+                },
+                GapOfTheTest::Refused {
+                    reason: String::from("the session has no dictionary"),
+                },
+            ),
+        ];
+        for (what, measured, want) in rows {
+            assert_eq!(gap_of_the_test(measured), want, "{what}");
+        }
+        assert!(
+            matches!(
+                gap_of_the_test(Measured {
+                    on_console: false,
+                    ..measured(90_000)
+                }),
+                GapOfTheTest::Refused { .. }
+            ),
+            "a session not at the console is refused"
+        );
+        assert_eq!(gap_of_the_variable("200"), gap(200));
+        assert_eq!(
+            gap_of_the_variable("10"),
+            gap(30),
+            "the floor holds for the variable too"
+        );
+        assert_eq!(gap_of_the_variable("500"), gap(500));
+        assert!(
+            matches!(gap_of_the_variable("501"), GapOfTheTest::Refused { .. }),
+            "the variable above the cap is refused"
+        );
+        assert!(matches!(
+            gap_of_the_variable("2x"),
+            GapOfTheTest::Refused { .. }
+        ));
     }
 
     #[test]

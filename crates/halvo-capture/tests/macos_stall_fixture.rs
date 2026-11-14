@@ -129,6 +129,59 @@ fn test_step() -> Duration {
     millis_of("HALVO_STALL_STEP_MS", 10)
 }
 
+/// The form of the hosted phases, a closed word that 51-macos-stall hands on
+/// (ruling MA-23 Addition 1): `short`, or no value, for the every-push job, and
+/// `long` for the scratch run that a change of the hold's files owes.
+fn short_form() -> bool {
+    match std::env::var("HALVO_STALL_FORM").as_deref() {
+        Err(_) | Ok("short") => true,
+        Ok("long") => false,
+        Ok(other) => panic!("refused: HALVO_STALL_FORM is short or long, not {other}"),
+    }
+}
+
+/// The short form: one counted round at each wait of a mended phase under a
+/// cap of two rounds run, one round of the control, and one counted round of
+/// the listed known fault D1 (ruling MA-23 Addition 1 (1)).
+const SHORT_ROUNDS_FOR_EACH_WAIT: usize = 1;
+const SHORT_CAP_FOR_EACH_WAIT: usize = 2;
+const SHORT_CONTROL_ROUNDS: usize = 1;
+const SHORT_FAULT_ROUNDS: usize = 1;
+/// The return phase runs one round for each wait in both forms.
+const RETURN_ROUNDS_FOR_EACH_WAIT: usize = 1;
+
+fn phase_rounds() -> usize {
+    if short_form() {
+        SHORT_ROUNDS_FOR_EACH_WAIT
+    } else {
+        ROUNDS
+    }
+}
+
+fn phase_cap() -> usize {
+    if short_form() {
+        SHORT_CAP_FOR_EACH_WAIT
+    } else {
+        ROUNDS + 1
+    }
+}
+
+fn control_rounds() -> usize {
+    if short_form() {
+        SHORT_CONTROL_ROUNDS
+    } else {
+        ROUNDS
+    }
+}
+
+fn fault_rounds() -> usize {
+    if short_form() {
+        SHORT_FAULT_ROUNDS
+    } else {
+        FAULT_ROUNDS
+    }
+}
+
 fn seamed(bound: Duration, gap: Duration, step: Duration) -> (InputSource, DropCounts) {
     let drops = DropCounts::new();
     let source = InputSource::with_seam(
@@ -1057,9 +1110,10 @@ fn phase_on(
     plan: Plan,
 ) -> (Vec<Round>, Vec<DropCounts>) {
     println!(
-        "{name} gap_ms={} step_ms={}",
+        "{name} gap_ms={} step_ms={} form={}",
         test_gap().as_millis(),
-        test_step().as_millis()
+        test_step().as_millis(),
+        if short_form() { "short" } else { "long" }
     );
     let mut rounds = Vec::new();
     let mut running: Option<(Duration, Recorder)> = None;
@@ -1097,10 +1151,27 @@ fn phase_on(
 }
 
 fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
-    phase_with(name, how, waits, source_for, mended(ROUNDS, ROUNDS + 1))
+    phase_with(
+        name,
+        how,
+        waits,
+        source_for,
+        mended(phase_rounds(), phase_cap()),
+    )
 }
 
 fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
+    judge_mended_in(name, rounds, waits, count, short_form());
+}
+
+fn judge_mended_in(
+    name: &str,
+    rounds: &[Round],
+    waits: &[(u64, Duration)],
+    count: usize,
+    short: bool,
+) {
+    assert!(!rounds.is_empty(), "{name}: the phase ran no round");
     let of = |want: fn(Verdict) -> bool| -> Vec<String> {
         rounds
             .iter()
@@ -1129,6 +1200,22 @@ fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: 
         "{name}: never_on: the state did not read on within 2 s of the landing: {}",
         never_on.join(", ")
     );
+    let gap_not_kept: Vec<String> = rounds
+        .iter()
+        .filter(|round| {
+            matches!(round.verdict, Some(Verdict::NotCounted(_)))
+                && round.ahead == 0
+                && gap_after_first_arrival(&round.entries)
+        })
+        .map(|round| format!("wait {} ms", round.wait_ms))
+        .collect();
+    assert!(
+        gap_not_kept.is_empty(),
+        "{name}: the runner did not keep the measured gap of {} ms: {}; run the job again once, and a \
+         second red goes to the coordinator with the rounds' entries",
+        test_gap().as_millis(),
+        gap_not_kept.join(", ")
+    );
     let not_counted: Vec<String> = rounds
         .iter()
         .filter_map(|round| match round.verdict {
@@ -1141,6 +1228,20 @@ fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: 
         "{name}: rounds that did not count: {}",
         not_counted.join(", ")
     );
+    if short {
+        let outside: Vec<String> = rounds
+            .iter()
+            .filter_map(|round| {
+                let found = on_outside(&evidence(&round.stamps, &round.entries, 0));
+                (found > 0).then(|| format!("wait {} ms: {found}", round.wait_ms))
+            })
+            .collect();
+        assert!(
+            outside.is_empty(),
+            "{name}: readings of on outside every span of the round: {}",
+            outside.join(", ")
+        );
+    }
     let no_proof = of(|verdict| verdict == Verdict::NoProof);
     assert!(
         no_proof.is_empty(),
@@ -1267,7 +1368,12 @@ fn stall_waits() -> Vec<(u64, Duration)> {
 fn a_key_typed_ahead_into_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_ahead_into_a_secure_field_is_not_recorded";
     let waits = stall_waits();
-    judge_mended(name, &phase(name, Move::Tab, &waits), &waits, ROUNDS);
+    judge_mended(
+        name,
+        &phase(name, Move::Tab, &waits),
+        &waits,
+        phase_rounds(),
+    );
 }
 
 #[test]
@@ -1281,7 +1387,7 @@ fn known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorde
             Move::Tab,
             &[(1_500, SHORT_BOUND)],
             source_for,
-            as_is(FAULT_ROUNDS),
+            as_is(fault_rounds()),
         ),
     );
 }
@@ -1386,7 +1492,12 @@ fn the_mended_click_phase_counts_62_rounds_at_wait_2000_ms() {
 fn a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded";
     let waits = stall_waits();
-    judge_mended(name, &phase(name, Move::Click, &waits), &waits, ROUNDS);
+    judge_mended(
+        name,
+        &phase(name, Move::Click, &waits),
+        &waits,
+        phase_rounds(),
+    );
 }
 
 #[test]
@@ -1394,7 +1505,12 @@ fn a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded() {
 fn a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded() {
     let name = "a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded";
     let waits = stall_waits();
-    judge_mended(name, &phase(name, Move::Itself, &waits), &waits, ROUNDS);
+    judge_mended(
+        name,
+        &phase(name, Move::Itself, &waits),
+        &waits,
+        phase_rounds(),
+    );
 }
 
 #[test]
@@ -1403,7 +1519,13 @@ fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
     let name = "a_key_typed_on_a_return_to_a_secure_field_is_not_recorded";
     judge_three_ways(
         name,
-        &phase_with(name, Move::Return, &stall_waits(), source_for, mended(1, 1)),
+        &phase_with(
+            name,
+            Move::Return,
+            &stall_waits(),
+            source_for,
+            mended(RETURN_ROUNDS_FOR_EACH_WAIT, RETURN_ROUNDS_FOR_EACH_WAIT),
+        ),
     );
 }
 
@@ -1449,7 +1571,7 @@ fn the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded() {
         name,
         &phase(name, Move::LeavingKeyUp, &waits),
         &waits,
-        ROUNDS,
+        phase_rounds(),
     );
 }
 
@@ -1549,6 +1671,11 @@ fn control_rounds_on(
 fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts), count: usize) {
     let mut fixture = started_fixture(name);
     let (rounds, _) = control_rounds_on(&mut fixture, name, bound, source, count);
+    judge_control(name, &rounds);
+}
+
+fn judge_control(name: &str, rounds: &[Control]) {
+    assert!(!rounds.is_empty(), "{name}: the control ran no round");
     let not_counted: Vec<&str> = rounds
         .iter()
         .filter(|control| !control.counted)
@@ -1559,7 +1686,7 @@ fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts),
         "{name}: control rounds that did not count: {}",
         not_counted.join(", ")
     );
-    for control in &rounds {
+    for control in rounds {
         assert_eq!(
             (control.plain, control.secure, control.after),
             (5, 0, 3),
@@ -1573,7 +1700,7 @@ fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts),
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field() {
     let name = "the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field";
-    control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), ROUNDS);
+    control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), control_rounds());
 }
 
 trait Line {
@@ -3454,4 +3581,159 @@ fn known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_release
          ms apart were released",
         on.1 - on.0
     );
+}
+
+#[test]
+#[ignore = "prints the form of the hosted phases for 51-macos-stall; it opens no window and posts no input"]
+fn the_form_of_the_hosted_phases() {
+    let waits: Vec<String> = stall_waits()
+        .iter()
+        .map(|(wait_ms, bound)| format!("{wait_ms}:{}", bound.as_millis()))
+        .collect();
+    println!(
+        "form={} waits_ms_and_bounds_ms={} rounds_for_each_wait={} cap_for_each_wait={} \
+         return_rounds_for_each_wait={RETURN_ROUNDS_FOR_EACH_WAIT} control_rounds={} known_fault_d1_rounds={}",
+        if short_form() { "short" } else { "long" },
+        waits.join(","),
+        phase_rounds(),
+        phase_cap(),
+        control_rounds(),
+        fault_rounds()
+    );
+    if short_form() {
+        println!(
+            "left_out counted rounds {} to {ROUNDS} of each wait of each mended phase",
+            SHORT_ROUNDS_FOR_EACH_WAIT + 1
+        );
+        println!(
+            "left_out {} of the {ROUNDS} rounds of the control",
+            ROUNDS - SHORT_CONTROL_ROUNDS
+        );
+        println!(
+            "left_out {} of the {FAULT_ROUNDS} rounds of the listed known fault D1",
+            FAULT_ROUNDS - SHORT_FAULT_ROUNDS
+        );
+    }
+}
+
+fn panic_text(result: std::thread::Result<()>) -> Option<String> {
+    result.err().map(|payload| {
+        payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| {
+                payload
+                    .downcast_ref::<&str>()
+                    .map(|text| (*text).to_owned())
+            })
+            .unwrap_or_default()
+    })
+}
+
+fn held_round(wait_ms: u64) -> Round {
+    Round {
+        wait_ms,
+        verdict: Some(Verdict::Held),
+        ..stand_in_round(true, 0)
+    }
+}
+
+type JudgeRow = (&'static str, fn(&mut Round), &'static str);
+
+#[test]
+fn each_judge_of_a_mended_phase_fails_it_at_one_round_for_each_wait() {
+    let waits = stall_waits();
+    let one_each: Vec<Round> = waits
+        .iter()
+        .map(|&(wait_ms, _)| held_round(wait_ms))
+        .collect();
+    let judged = |rounds: &[Round]| {
+        panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_mended_in("stand-in", rounds, &waits, 1, true);
+            },
+        )))
+    };
+    assert_eq!(
+        judged(&one_each),
+        None,
+        "one held round at each wait passes"
+    );
+    let rows: [JudgeRow; 8] = [
+        (
+            "a recorded key",
+            |round| round.verdict = Some(Verdict::Recorded),
+            "recorded keys beside the markers in rounds that counted",
+        ),
+        (
+            "never on",
+            |round| round.verdict = Some(Verdict::NeverOn),
+            "never_on: the state did not read on",
+        ),
+        (
+            "a round that did not count",
+            |round| round.verdict = Some(Verdict::NotCounted("the markers were not recorded")),
+            "rounds that did not count: wait",
+        ),
+        (
+            "no proof",
+            |round| round.verdict = Some(Verdict::NoProof),
+            "counted rounds whose entries show no reading of on",
+        ),
+        (
+            "a record of the markers other than one for each",
+            |round| round.markers = MARKERS.len() + 1,
+            "records of the markers other than one for each marker",
+        ),
+        (
+            "a wait that kept fewer rounds than its count",
+            |round| round.verdict = Some(Verdict::LateClick),
+            "rounds that did not count by the cap of rounds run",
+        ),
+        (
+            "the runner's gap not kept",
+            |round| {
+                round.verdict = Some(Verdict::NotCounted("the markers were not recorded"));
+                round.entries = vec![arrived_at(10), gap_drop_at(40)];
+            },
+            "the runner did not keep the measured gap of",
+        ),
+        (
+            "a reading of on outside every span",
+            |round| {
+                round.stamps = stamps_at(&ROUND);
+                round.entries = vec![reading_at(500, 501, Reading::On)];
+            },
+            "readings of on outside every span of the round",
+        ),
+    ];
+    for (what, change, text) in rows {
+        let mut rounds: Vec<Round> = waits
+            .iter()
+            .map(|&(wait_ms, _)| held_round(wait_ms))
+            .collect();
+        change(&mut rounds[2]);
+        let found = judged(&rounds);
+        assert!(
+            found.as_deref().is_some_and(|found| found.contains(text)),
+            "{what}: {found:?}"
+        );
+    }
+    assert!(
+        judged(&[]).is_some_and(|found| found.contains("the phase ran no round")),
+        "a phase that ran no round fails"
+    );
+    let control = |rounds: &[Control]| {
+        panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_control("stand-in", rounds);
+            },
+        )))
+    };
+    assert_eq!(control(&[stand_in_control(true, 5, 0)]), None);
+    assert!(control(&[stand_in_control(false, 5, 0)])
+        .is_some_and(|found| found.contains("control rounds that did not count")));
+    assert!(control(&[stand_in_control(true, 5, 1)])
+        .is_some_and(|found| found.contains("three in the secure field")));
+    assert!(control(&[]).is_some_and(|found| found.contains("the control ran no round")));
 }
