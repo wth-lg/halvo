@@ -385,7 +385,8 @@ measure() {
       long:measured | long:loop) limit=1500 ;;
       *) limit=900 ;;
     esac
-    run_test "$test" "$log" "${limit_override:-$limit}"
+    limit=${limit_override:-$limit}
+    run_test "$test" "$log" "$limit"
     code=$?
     seconds=$(($(date +%s) - started))
     tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=)|^$test: " | sed 's/^/    | /'
@@ -412,7 +413,7 @@ measure() {
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
-    line="MS $test result=$verdict${three:+ verdict=$three} seconds=$seconds"
+    line="MS $test result=$verdict${three:+ verdict=$three} seconds=$seconds limit=$limit"
     [ "$kind" != measured ] || line="$line asserts=nothing"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
@@ -457,7 +458,7 @@ check() {
     STUB_LIB=$work/bin/halvo_capture-stub
     STUB_CALLS=$work/calls-$case_name
     MS_EXPECTED_FILE=$work/expected-small
-    MS_TEST_LIMIT_S=${limit:-30}
+    MS_TEST_LIMIT_S=${limit:-}
     MS_NOTES_FILE=$work/notes-small
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE
     sh "$0" 2>&1
@@ -544,6 +545,7 @@ case $4 in
 esac
 spec measure-exits && { printf 'test result: FAILED. 0 passed; 1 failed; 0 ignored\n'; exit 101; }
 spec measure-none && ok
+spec measure-gap-alone && { printf 'gap_of_the_test gap_ms=190 source=measured spacing_max_us=90474 load1=1.00\n'; ok; }
 calls=$(cat "$STUB_CALLS" 2>/dev/null || printf 0)
 calls=$((calls + 1))
 printf '%s\n' "$calls" >"$STUB_CALLS"
@@ -703,6 +705,8 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check gap-refused FAIL "the gap of the test's own could not be measured: 12 readings, fewer than 300" 'measure-refused'
   check gap-under-30 PASS 'MS gap_ms=30 source=measured spacing_max_us=5000' 'measure-under-30'
   check gap-no-measure-line FAIL "measure_the_readings_of_the_hold printed no gap line" 'measure-none'
+  check gap-line-without-a-measure-line FAIL "measure_the_readings_of_the_hold printed no measure line" 'measure-gap-alone'
+  check limit-of-the-short-form PASS ' limit=150' ''
   check gap-measurement-exits FAIL "the gap of the test's own could not be measured: measure_the_readings_of_the_hold exited 101" 'measure-exits'
   check gap-no-library FAIL "cargo named no test executable of the library" 'no-library'
   check no-phase-without-a-gap FAIL 'MS form=short' 'measure-refused'
@@ -716,7 +720,8 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   HALVO_STALL_FORM=long
   export HALVO_STALL_FORM
   check long-form PASS 'MS total=7 pass=6 known_fault=1 notdriven=0 notkept=0 fail=0' ''
-  check long-form-measured-line PASS 'MS measured_one result=pass seconds=' ''
+  check long-form-measured-line PASS ' limit=1500 asserts=nothing' ''
+  check limit-of-a-long-phase PASS ' limit=900' ''
   check long-form-line PASS 'MS form=long seconds=' ''
   check long-form-reaches-the-phases PASS '| phase_one gap_ms=190 form=long' ''
   HALVO_STALL_FORM=medium
