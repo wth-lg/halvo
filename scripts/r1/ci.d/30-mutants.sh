@@ -77,7 +77,7 @@ budget_run() {
   printf 'phase budget %s s\n' "$((ended - started))"
   printf '%s\n' "$out" >"$scratch/full" || exit 2
   awk -v m="$m" '
-    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; unbuilt[$2] = (index($0, "(the mutant does not build)") > 0); next }
+    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; unbuilt[$2] = (index($0, "the mutant does not build") > 0); next }
     /^seconds mutation:[^ ]+ [0-9]+$/ {
       if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if (!unbuilt[$2]) built++ }
     }
@@ -279,6 +279,9 @@ self_test() {
   runner push-to-main-mutant-that-does-not-build "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the mutant does not build)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   check push-to-main-mutant-that-does-not-build FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}FAIL $name" "$order1"
+  runner push-to-main-control-row-is-not-built "$applies; $listing; printf \"PASS mutation:segment-roundtrip-broken (control: the mutant does not build, and the runner did not count it as caught)\\nseconds mutation:segment-roundtrip-broken 12\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-control-row-is-not-built PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}PASS $name" "$order1"
   runner push-to-main-same-commit-same-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-same-commit-same-rows PASS 'ran 1 of 5 rows' "$order1"

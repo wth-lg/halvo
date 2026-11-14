@@ -310,7 +310,7 @@ copy_form() {
 
 mutant_form() {
   copy_form
-  case $1 in crates/halvo-sqlcipher/*|*/build.rs) compile_form=build ;; esac
+  case $1 in */[Hh][Aa][Ll][Vv][Oo]-[Ss][Qq][Ll][Cc][Ii][Pp][Hh][Ee][Rr]/*|*/[Bb][Uu][Ii][Ll][Dd].[Rr][Ss]) compile_form=build ;; esac
 }
 
 tree_build() {
@@ -1445,6 +1445,13 @@ form_cases() {
   t apply-only-copy-that-does-not-type-check-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused yes 'FAIL unmutated:type-check (error[E0308]: mismatched types)'
   t full-run-copy-that-does-not-build-is-named PASS with_cargo_home form-copy-refused form_said form-copy-refused no 'FAIL unmutated:build (error[E0308]: mismatched types)'
   t sh-row-line-still-says-builds PASS fixture_says builds 'PASS mutation:applies (applies and builds)' yes
+  t full-run-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher no "$form_build$form_nl$form_build"
+  for form_spelling in dot double; do
+    form_fixture "form-spelling-$form_spelling" crates/halvo-sqlcipher 0
+    case $form_spelling in dot) form_path=crates/./halvo-sqlcipher/src/lib.rs ;; *) form_path=crates//halvo-sqlcipher/src/lib.rs ;; esac
+    row "form-spelling-$form_spelling/scripts/r1-gate/mutants.rows" ctl "$form_path" 's/1 }/2 }/' leak control X-1
+    t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build"
+  done
 }
 
 verifier_cases() {

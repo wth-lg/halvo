@@ -117,7 +117,8 @@ of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
 
 What the runs prove for a row. On each pull request and each push, the macos
 job's `scripts/r1/ci.d/30-mutants.sh` applies each row and compiles its mutant
-as above, so a cargo row's mutant is type-checked and not built. On a push to
+as above, so the mutant of a cargo row that keeps no build is type-checked and
+not built. On a push to
 main it then builds the rows that start within its budget, in an order that the
 commit decides, runs each against its verdict and prints how many it built. The
 whole list is built and run against its verdicts only in a full run on the
