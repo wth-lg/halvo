@@ -1239,10 +1239,20 @@ where
             .iter_mut()
             .find(|b| b.item() == item)
             .ok_or(Cause::Stale)?;
+        let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, &board.members[i].facts);
-        let out = items::answer_bind(&self.ports, l, table, &self.limits, b, choice);
+        let mut reading = Reading::new(&self.ports, board, i);
+        let out =
+            items::answer_bind_reading(&self.ports, l, table, &self.limits, b, choice, &mut |l| {
+                reading.read(l)
+            });
+        let stopped = reading.stopped;
         let closed = *b.state() == items::BindState::Closed;
         self.read_back(board, i);
+        if stopped {
+            self.switch_off(st, i, Move::Off { agent })?;
+            return Err(Cause::UnknownItem);
+        }
         if closed {
             binds.retain(|b| b.item() != item);
             self.act(st, Act::Resume { run: run.clone() })?;

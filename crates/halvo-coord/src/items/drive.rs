@@ -499,6 +499,41 @@ fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
     Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
+/// `store_once` whose one read after a refusal `seq` is `read`: false where that read showed the
+/// agent switched off beside its run, after which nothing is stored; a read that failed is the
+/// refusal.
+fn store_once_reading<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    whats: Vec<What>,
+    stamp: Stamp,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<bool, PortError> {
+    flush(ports, ledger, limits)?;
+    let mut events = ledger.number(whats.clone(), stamp);
+    let mut resynced = false;
+    loop {
+        match ports.log(&events) {
+            Ok(()) => {
+                ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.kept(&events);
+                return Ok(true);
+            }
+            Err(e) if refused_with(&e, "seq") && !resynced => {
+                match read(ledger) {
+                    Read::Failed => return Err(e),
+                    Read::Off => return Ok(false),
+                    Read::Taken => {}
+                }
+                events = ledger.number(whats.clone(), stamp);
+                resynced = true;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
 /// waiting: rows that get no acknowledgement count as not stored (I4.5).
 fn store_once<P: Owner>(
@@ -1368,6 +1403,23 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
     held: &mut HeldBind,
     choice: Choice,
 ) -> Result<(), Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    answer_bind_reading(ports, ledger, table, limits, held, choice, &mut read)
+}
+
+/// `answer_bind` with `read` as the read after a refusal `seq` of its row, which the
+/// coordinator hands: a read that shows the agent switched off beside its run stores no row,
+/// sends no answer and answers `unknown_item`, as for a step that is no longer open, and the
+/// step stays for the rest of the switch-off (ruling RD-52 (b) rule 3, RD-101 item 5 (a)).
+pub fn answer_bind_reading<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    held: &mut HeldBind,
+    choice: Choice,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<(), Cause> {
     if held.state == BindState::Closed {
         return Err(Cause::Stale);
     }
@@ -1387,9 +1439,13 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            if let Err(e) = store_once(ports, ledger, limits, vec![row], stamp) {
-                held.state = BindState::Open;
-                return Err(cause_of(&e));
+            match store_once_reading(ports, ledger, limits, vec![row], stamp, read) {
+                Ok(true) => {}
+                Ok(false) => return Err(Cause::UnknownItem),
+                Err(e) => {
+                    held.state = BindState::Open;
+                    return Err(cause_of(&e));
+                }
             }
             held.state = BindState::Recorded(result);
         }
