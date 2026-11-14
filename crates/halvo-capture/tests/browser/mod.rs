@@ -34,12 +34,14 @@ const busy = (ms) => { const end = performance.now() + ms; while (performance.no
 const where = () => document.activeElement ? (document.activeElement.id || 'body') : 'none';
 function show() {
   const r = password.getBoundingClientRect();
+  const t = plain.getBoundingClientRect();
   const top = window.screenY + (window.outerHeight - window.innerHeight);
   const left = window.screenX + (window.outerWidth - window.innerWidth) / 2;
   document.title = 'halvo-phase ' + phase + run + ' text=' + c.text + ' password=' + c.password +
     ' tp=' + c.tp + ' tt=' + c.tt + ' downs=' + c.downs + ' round=' + c.round +
     ' focus=' + where() + ' ptype=' + plain.type +
-    ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) + ' end';
+    ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) +
+    ' tx=' + Math.round(left + t.left + t.width / 2) + ' ty=' + Math.round(top + t.top + t.height / 2) + ' end';
 }
 const later = (ms, f) => timers.push(setTimeout(() => { f(); show(); }, ms));
 const swap = () => { busy(hold); plain.type = 'password'; busy(hold); };
@@ -108,6 +110,8 @@ struct PageRead {
     plain_type: String,
     px: i64,
     py: i64,
+    tx: i64,
+    ty: i64,
 }
 
 fn page_read(hwnd: HWND) -> Option<PageRead> {
@@ -127,6 +131,8 @@ fn page_read(hwnd: HWND) -> Option<PageRead> {
         plain_type: field("ptype")?,
         px: number("px")?,
         py: number("py")?,
+        tx: number("tx")?,
+        ty: number("ty")?,
     })
 }
 
@@ -432,6 +438,23 @@ impl Keyboard {
 
 fn element_seen(file: &str) -> String {
     marks_seen(file).0
+}
+
+fn marks_with_elements(marks: &[seam::MarkSeen]) -> String {
+    let listed: Vec<String> = marks
+        .iter()
+        .map(|mark| {
+            format!(
+                "{}@{}:{:?}:{:?}:{}",
+                mark.what,
+                mark.at.unwrap_or(mark.began),
+                mark.state,
+                mark.moved,
+                mark.element.as_deref().unwrap_or("none").replace(' ', "_")
+            )
+        })
+        .collect();
+    listed.join(",")
 }
 
 fn element_in(marks: &[seam::MarkSeen], file: &str) -> String {
@@ -947,17 +970,48 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             .open(test, "burst", 0)
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
+        let mut closed_before_the_step = 0;
         for round in 0..5 {
             let _ = seam::take_marks();
+            let gate_before_the_step = keyboard.source.field_state();
+            closed_before_the_step += u32::from(gate_before_the_step != Some(FieldState::Clear));
+            let place = page_read(hwnd).unwrap_or_default();
+            click_at(place.tx, place.ty);
+            std::thread::sleep(Duration::from_millis(130));
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
             let control_sent = i64::from(type_letters_slowly(3) / 2);
             let control = keyboard.keystrokes_for(Duration::from_millis(600));
-            super::control_reads(test, "burst-control", &seam::take_marks(), &seam::take());
+            let control_marks = seam::take_marks();
+            super::control_reads(test, "burst-control", &control_marks, &seam::take());
             std::thread::sleep(Duration::from_millis(250));
             let gate_before = keyboard.source.field_state();
-            if gate_before == Some(FieldState::Unknown) {
+            let control_page = page_read(hwnd).unwrap_or_default();
+            let on_the_text_input = front
+                && start.focus == "plain"
+                && control_page.focus == "plain"
+                && control_page.text == control_sent;
+            if on_the_text_input && (gate_before != Some(FieldState::Clear) || control < 3) {
                 super::detector_line(test, &format!("burst-round-{round}"));
+                let element = control_marks
+                    .iter()
+                    .rev()
+                    .find_map(|mark| mark.element.as_deref())
+                    .unwrap_or("none")
+                    .replace(' ', "_");
+                say(
+                    test,
+                    format!(
+                        "browser={name} phase=burst round={round} gate_before_the_step={gate_before_the_step:?} \
+                         gate_before_the_burst={gate_before:?} element={element} control_letters_sent={control_sent} \
+                         control_keystroke_events={control} marks=[{}]",
+                        marks_with_elements(&control_marks)
+                    ),
+                );
+                panic!(
+                    "the gate was not open on the text input after a click and the page's own move: \
+                     round {round}, gate {gate_before:?}, control {control} of 3"
+                );
             }
             let mut burst = Vec::new();
             for _ in 0..5 {
@@ -981,16 +1035,30 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             say(
                 test,
                 format!(
-                    "browser={name} phase=burst round={round} control_letters_sent={control_sent} \
-                     control_keystroke_events={control} gate_before_the_burst={gate_before:?} {}",
+                    "browser={name} phase=burst round={round} gate_before_the_step={gate_before_the_step:?} \
+                     control_letters_sent={control_sent} control_keystroke_events={control} \
+                     gate_before_the_burst={gate_before:?} {}",
                     r.line()
                 ),
             );
+            if r.counted {
+                assert!(
+                    !matches!(
+                        r.keys.first_letter_rule,
+                        None | Some(seam::Rule::NotClearedInTime)
+                    ),
+                    "round {round}: the burst's first letter was decided by {:?} and not by a rule of the swap's case",
+                    r.keys.first_letter_rule
+                );
+            }
         }
         let _ = keyboard.stop();
         say(
             test,
-            format!("phase=burst counted={counted} password_letters_recorded={recorded}"),
+            format!(
+                "phase=burst counted={counted} password_letters_recorded={recorded} \
+                 rounds_whose_step_found_a_closed_gate={closed_before_the_step}"
+            ),
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
