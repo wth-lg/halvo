@@ -291,7 +291,6 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
       const waited = Promise.race([Promise.all(closed), limit]).then(() => {
         clearTimeout(timer);
         for (const { closeNow } of served.values()) closeNow();
-        for (const socket of sockets) socket.destroy();
         return listening;
       });
       closing = Promise.all([waited, shut(controlServer, controlSockets)]).then(() => {

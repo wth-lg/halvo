@@ -165,6 +165,15 @@ if (process.platform !== "win32") {
   }
 }
 
+test("when the stop settles, no connection of the stand-in is open any more", async () => {
+  const stub = await startStub({ record: fresh(), idleMs: 300 });
+  const held = await holder(portOf(stub.app));
+  stub.close();
+  await stub.stopped;
+  assert.equal(stub.connections(), 0, "the stop settled after the last served socket had closed");
+  held.socket.destroy();
+});
+
 test("L3 the control port is closed at the begin of the stop: a test call 200 ms into the wait gets no answer", async () => {
   const stub = await startStub({ record: fresh(), idleMs: 3000 });
   const held = await holder(portOf(stub.app));
