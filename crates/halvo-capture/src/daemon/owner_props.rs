@@ -331,7 +331,7 @@ fn a_keystroke_blocked_in_its_emit_through_a_resume_is_discarded() {
 /// The same at the product's sink capacity of 1,024 with five blocked
 /// emitters, as five sources would be.
 #[test]
-fn the_same_at_capacity_1024_with_five_blocked_sources() {
+fn the_same_at_the_queue_depth_with_five_blocked_sources() {
     let trials = 40;
     let mut kept = 0;
     let mut example = String::new();
@@ -345,7 +345,7 @@ fn the_same_at_capacity_1024_with_five_blocked_sources() {
         }
     }
     println!(
-        "BLOCKED capacity={QUEUE_SLOTS} blocked=5 trials={trials} kept={kept} example: {example}"
+        "BLOCKED queue_depth={QUEUE_SLOTS} blocked=5 trials={trials} kept={kept} example: {example}"
     );
     assert_eq!(
         kept, 0,
