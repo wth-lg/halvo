@@ -36,8 +36,8 @@ allocation arrived), not that the child held no more. Not counted on macOS: othe
 before an exec, mapped pages, purgeable and reusable memory, kernel messages and socket buffers (the
 child starts none, does not exec, maps no weights); on Windows: other processes, mapped files,
 sections and broker processes. The `mac` cells started at 1-minute loads of 82 to 443: their times
-are upper bounds and their speeds lower bounds.
-
+are upper bounds and their speeds lower bounds. In a reader's two `minicpm5_2b` action cells on
+`mac`, one run of ten answered 2 tokens where the other nine answered 29, under greedy sampling.
 ```text
 hosted machine=hosted-win run=43135922738 sha=78cb1d8a3482acc10981cbdef29038d47d5b1b0e
 runtime crate=0.1.161 backend=cpu load=none sampling=greedy ctx=8192 batch=2048 threads=4 cache=f16
