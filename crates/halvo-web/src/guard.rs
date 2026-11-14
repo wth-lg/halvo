@@ -1687,7 +1687,8 @@ mod tests {
     /// browser to end after its grace, and returns only after the browser is gone. Its ask and
     /// forced end pass the fence alone, and the test has a bound of 20 s inside its read and pause.
     /// The stand-in browser bears the run's mark (CP-185 (1)): `/bin/sh` waiting on a pipe of the
-    /// test, with an argument that names the run's profile, and the mark's program `/bin/sh`.
+    /// test, with the argument `--user-data-dir=<profile>` (CP-189 G1), and the mark's program
+    /// `/bin/sh`.
     #[cfg(target_os = "macos")]
     #[test]
     fn the_guard_ends_a_real_stand_in_after_its_executor_is_killed() {
@@ -1698,7 +1699,7 @@ mod tests {
         own.0.push(
             std::process::Command::new("/bin/sh")
                 .args(["-c", "read x", "stand-in"])
-                .arg(&profile)
+                .arg(format!("--user-data-dir={}", profile.display()))
                 .stdin(std::process::Stdio::piped())
                 .start()
                 .unwrap(),
