@@ -76,9 +76,13 @@ self_case() {
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/r3-hosted-harness.XXXXXX") || exit 2
   mkdir -p "$work/bin"
-  # shellcheck disable=SC2016
+  cat >"$work/stub" <<'STUB'
+#!/bin/sh
+echo "$(basename "$0") $*" >>"$R3_STUB_LOG"
+exit 0
+STUB
   for t in sudo reg powershell killall install defaults swiftc plutil; do
-    printf '#!/bin/sh\necho "%s $*" >>"$R3_STUB_LOG"\nexit 0\n' "$t" >"$work/bin/$t"
+    cp "$work/stub" "$work/bin/$t"
     chmod 755 "$work/bin/$t"
   done
   cases=0
