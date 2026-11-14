@@ -627,3 +627,63 @@ fn the_sink_counts_hold_an_event_emitted_while_the_sources_stop() {
     .unwrap();
     assert_eq!(accepted(&outcome), 5);
 }
+
+/// Sources that learn of the system's refusal of the hold at their stop, as
+/// MacSources does.
+struct RefuseAtStop {
+    inner: ScriptedRun,
+}
+
+impl RunSources for RefuseAtStop {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        wanted: &[SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        self.inner.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        self.inner.wait(window, stop)
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        self.inner.refusal = Some(-25_293);
+        self.inner.stop()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        self.inner.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        self.inner.hold_refusal()
+    }
+}
+
+/// Ruling DM-12 G8 (contracts.md C4 item 10): the hold's refusal is read
+/// after the sources stop, so a refusal that the stop learns ends the run
+/// with it and no report.
+#[test]
+fn a_refusal_that_the_sources_learn_at_their_stop_ends_the_run() {
+    let mut sources = RefuseAtStop {
+        inner: four_events(),
+    };
+    let stop = AtomicBool::new(false);
+    let answer = run_timed(
+        &TimedRun {
+            secure_input: SecureInput::Hold,
+            ..run_of(5)
+        },
+        &mut sources,
+        ModelStore::new(),
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    );
+    assert!(
+        matches!(answer, Err(DaemonError::SecureInputRefused(-25_293))),
+        "{answer:?}"
+    );
+}
