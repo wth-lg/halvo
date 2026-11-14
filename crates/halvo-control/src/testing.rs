@@ -1268,6 +1268,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ct13_the_scripted_daemon_s_own_timed_out_pause_and_its_own_stop_leave_its_life_as_it_was() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let sample = sample_status(platform);
+            let shown = sample.fields().store_id;
+            let mut daemon = ScriptedDaemon::new(sample.clone());
+            daemon.set_stop_answer(sample.fields().enabled_sources[0], StopAnswer::Timeout);
+            let paused = changed(daemon.handle(Request::Pause));
+            assert_eq!(paused.fields().capture, Capture::Pausing, "{platform:?}");
+            assert_eq!(
+                daemon.life,
+                Life::Going,
+                "{platform:?}: after the timed-out Pause"
+            );
+            let delete = daemon.handle(Request::DeleteAll { store: shown });
+            assert!(
+                matches!(&delete, Reply::Error(e) if e.code == ErrorCode::Busy && !e.ending()),
+                "{platform:?}: a delete after the timed-out Pause: {delete:?}"
+            );
+            let mut daemon = ScriptedDaemon::new(sample.clone());
+            assert!(matches!(daemon.handle(Request::Stop), Reply::Stopped(_)));
+            assert_eq!(daemon.life, Life::Going, "{platform:?}: after the Stop");
+            let cap = daemon.handle(Request::SetStorageCap {
+                bytes: StorageCap::MIN,
+            });
+            assert!(
+                matches!(&cap, Reply::CapSet(set) if set.status.fields().cap_bytes == Cap::Known(StorageCap::MIN)),
+                "{platform:?}: a set-cap after the Stop: {cap:?}"
+            );
+            let delete = daemon.handle(Request::DeleteAll { store: shown });
+            assert!(
+                matches!(delete, Reply::Deleted(_)),
+                "{platform:?}: a delete with the shown id after the Stop: {delete:?}"
+            );
+        }
+    }
+
     fn ending_status(platform: Platform, desired: CaptureState) -> DaemonStatus {
         let sample = sample_status(platform);
         let first = sample.fields().enabled_sources[0];
