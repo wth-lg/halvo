@@ -111,16 +111,32 @@ pub enum DataDirCheck {
 
 #[cfg(target_os = "macos")]
 impl DataDirCheck {
-    /// The line with the resolved folder, for the person and no second spelling for
-    /// `--data-dir` (ruling ST-36 (f)); `None` unless the directory was reached through a link.
+    /// The line with the resolved folder, for the person's eyes and no path to open, and no
+    /// second spelling for `--data-dir` (ruling ST-36 (f)); `None` unless the directory was
+    /// reached through a link. It is one line: each control character and U+2028 and U+2029 of
+    /// the folder's name reads "?" (ruling CT-14 K5); `resolved` keeps the true path.
     pub fn resolved_line(&self) -> Option<String> {
         match self {
-            DataDirCheck::Linked { resolved } => {
-                Some(format!("data_dir_resolved={}", resolved.display()))
-            }
+            DataDirCheck::Linked { resolved } => Some(format!(
+                "data_dir_resolved={}",
+                one_line(&resolved.display().to_string())
+            )),
             DataDirCheck::Missing | DataDirCheck::Own { .. } => None,
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn one_line(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() || c == '\u{2028}' || c == '\u{2029}' {
+                '?'
+            } else {
+                c
+            }
+        })
+        .collect()
 }
 
 /// Why a data directory failed its check.
@@ -1584,6 +1600,29 @@ mod tests {
         fn link(target: &Path, at: &Path) -> DataDir {
             std::os::unix::fs::symlink(target, at).unwrap();
             DataDir::from_flag(at).unwrap()
+        }
+
+        #[test]
+        fn k5_the_resolved_line_is_one_line_with_each_control_character_and_line_separator_as_a_question_mark(
+        ) {
+            let line = |path: &str| {
+                DataDirCheck::Linked {
+                    resolved: PathBuf::from(path),
+                }
+                .resolved_line()
+                .unwrap()
+            };
+            assert_eq!(
+                line("/Volumes/a\nb\tc\u{2028}d\u{2029}e\u{7f}f"),
+                "data_dir_resolved=/Volumes/a?b?c?d?e?f"
+            );
+            assert_eq!(
+                line("/Volumes/Daten é ø 文"),
+                "data_dir_resolved=/Volumes/Daten é ø 文"
+            );
+            let long = format!("/Volumes/{}", "x".repeat(240));
+            assert_eq!(line(&long), format!("data_dir_resolved={long}"));
+            assert_eq!(line("/a\nb").lines().count(), 1);
         }
 
         /// Sets each path back to mode 0700, in the order given, when it is dropped, so that a
