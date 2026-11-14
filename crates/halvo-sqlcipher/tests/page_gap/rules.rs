@@ -4,16 +4,15 @@
 //! content area that no cell and no freeblock covers, a leaf of the freelist,
 //! and bytes 52 to 55 of the file header. The allowances, each a limit of the
 //! check: in the gap between the pointer array and the content area, a run of
-//! whole 2-byte slots from the end of the pointer array, in step with it,
-//! whose values lie between the slot's own offset plus 2 and the usable size
-//! less 4 (stale pointers); in the tail of
-//! an overflow page and in a freelist trunk past its count, 4-byte values no
-//! larger than the page count. A leftover made only of such values is not
-//! seen. Every page that dbstat names overflow must be walked by exactly one
-//! chain of the cells that the check reads. This file uses `std` and `rusqlite` alone, so that another crate's
-//! tests can include it by a path attribute; such a caller runs [`plants`] on
-//! its own images as its failing control and reads every field of
-//! [`Checked`].
+//! whole 2-byte slots from the end of the pointer array, in step with it, whose
+//! values lie between the slot's own offset plus 2 and the usable size less 4
+//! (stale pointers); in the tail of an overflow page and in a freelist trunk
+//! past its count, 4-byte values no larger than the page count. A leftover made
+//! only of such values is not seen. Every page that dbstat names overflow must
+//! be walked by exactly one chain of the cells that the check reads. This file
+//! uses `std` and `rusqlite` alone, so that another crate's tests can include
+//! it by a path attribute; such a caller runs [`plants`] on its own images as
+//! its failing control and reads every field of [`Checked`].
 
 use std::collections::{BTreeMap, BTreeSet};
 
