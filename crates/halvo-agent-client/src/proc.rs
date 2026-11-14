@@ -1,12 +1,15 @@
+use std::ffi::OsString;
 use std::num::{NonZeroU32, NonZeroU64};
-use std::process::{Child, ChildStdin, ChildStdout, Command};
+#[cfg(target_os = "macos")]
+use std::process::Child;
+use std::process::{ChildStdin, ChildStdout, Command};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use halvo_schema::executable::frame::Browser;
 use halvo_schema::executable::text::CreationTime;
 
-use crate::api::Reaped;
+use crate::api::{Reaped, RunnerExit};
 use crate::marks::{Group, Mark, ProcLine};
 use crate::sys;
 
@@ -16,8 +19,14 @@ const POLL: Duration = Duration::from_millis(20);
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
 /// facts of its mark's lines, and on Windows the job that holds it.
 pub(crate) struct RunProc {
+    #[cfg(target_os = "macos")]
     child: Child,
+    #[cfg(windows)]
+    child: sys::Process,
+    #[cfg(windows)]
+    link: Option<(ChildStdin, ChildStdout)>,
     reaped: bool,
+    exit: Option<RunnerExit>,
     line: Option<ProcLine>,
     browser: Option<ProcLine>,
     #[cfg(windows)]
@@ -32,17 +41,82 @@ pub(crate) enum SpawnFailed {
     Made(RunProc),
 }
 
+/// The status that the runner exited with, or the signal that ended it.
+#[cfg(target_os = "macos")]
+fn runner_exit(status: std::process::ExitStatus) -> Option<RunnerExit> {
+    use std::os::unix::process::ExitStatusExt;
+    status
+        .code()
+        .map(RunnerExit::Status)
+        .or_else(|| status.signal().map(RunnerExit::Signal))
+}
+
+/// The exit code of the runner, as the status of a C runtime reads it.
+#[cfg(windows)]
+fn runner_exit(code: u32) -> Option<RunnerExit> {
+    Some(RunnerExit::Status(i32::from_ne_bytes(code.to_ne_bytes())))
+}
+
 fn created(us: u64) -> Option<CreationTime> {
     NonZeroU64::new(us).map(CreationTime::from_micros)
 }
 
-/// Starts the runner as the leader of a process group of its own (macOS) or, suspended, in a job of the library's
-/// own that it then lets run (Windows), and reads its line.
+/// The whole environment of a runner, from the closed list of its system (contracts.md A6.1 and A6.6, ruling CP-160
+/// (1) (b)); nothing else of the library's process reaches the runner. On macOS `HOME`, as the library's process has
+/// it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows `SystemRoot`, the Windows
+/// directory that the system answers, `TEMP` and `TMP`, the directory Temp under the account's LocalAppData known
+/// folder, and `LOCALAPPDATA`, as the library's process has it. `HOME` and `LOCALAPPDATA` are left out where the
+/// library's process has none, and a value of the system that cannot be read leaves its name out.
+pub(crate) fn environment() -> Vec<(OsString, OsString)> {
+    let mut env = Vec::new();
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            env.push(("HOME".into(), home));
+        }
+        if let Some(temp) = sys::user_temp_dir() {
+            env.push(("TMPDIR".into(), temp));
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        if let Some(root) = sys::windows_directory() {
+            env.push(("SystemRoot".into(), OsString::from_wide(&root)));
+        }
+        if let Some(local) = sys::local_app_data() {
+            let mut temp = OsString::from_wide(&local);
+            temp.push("\\Temp");
+            env.push(("TEMP".into(), temp.clone()));
+            env.push(("TMP".into(), temp));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            env.push(("LOCALAPPDATA".into(), local));
+        }
+    }
+    env
+}
+
+/// Starts the runner of `cmd`, its program and arguments, with three handles or descriptors of the library's open in
+/// it and no other: the two ends of the link as its standard input and output and the null device as its standard
+/// error. It gives the runner the whole environment of `environment` and the system's directory as its working
+/// directory: `/` on macOS, the system directory on Windows, never the library's own; a Windows start whose system
+/// directory cannot be read makes no process. On macOS the runner is the leader of a process group of its own and
+/// every other descriptor closes at its exec; on Windows it starts suspended, with the list of those three as the
+/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line.
 pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
+        use std::process::Stdio;
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .env_clear()
+            .envs(environment())
+            .current_dir("/")
+            .process_group(0);
+        sys::close_beyond_three(cmd);
         let child = cmd.spawn().map_err(|_| SpawnFailed::NotMade)?;
         let pid = child.id();
         let line = match sys::info(pid) {
@@ -58,6 +132,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         let proc = RunProc {
             child,
             reaped: false,
+            exit: None,
             line,
             browser: None,
         };
@@ -68,22 +143,43 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::io::AsRawHandle;
-        use std::os::windows::process::CommandExt;
+        use std::os::windows::ffi::OsStrExt;
+        let program: Vec<u16> = cmd.get_program().encode_wide().collect();
+        let args: Vec<Vec<u16>> = cmd.get_args().map(|a| a.encode_wide().collect()).collect();
+        let line =
+            command_line(&program, args.iter().map(Vec::as_slice)).ok_or(SpawnFailed::NotMade)?;
+        let application: Vec<u16> = program.into_iter().chain(Some(0)).collect();
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = environment()
+            .iter()
+            .map(|(k, v)| (k.encode_wide().collect(), v.encode_wide().collect()))
+            .collect();
+        let block = environment_block(&vars).ok_or(SpawnFailed::NotMade)?;
+        let directory: Vec<u16> = sys::system_directory()
+            .ok_or(SpawnFailed::NotMade)?
+            .into_iter()
+            .chain(Some(0))
+            .collect();
         let job = sys::Job::new().map_err(|_| SpawnFailed::NotMade)?;
-        cmd.creation_flags(sys::CREATE_SUSPENDED);
-        let child = cmd.spawn().map_err(|_| SpawnFailed::NotMade)?;
+        let sys::Started {
+            process,
+            thread,
+            stdin,
+            stdout,
+        } = sys::start(&application, line, Some(&block), Some(&directory))
+            .map_err(|_| SpawnFailed::NotMade)?;
         let mut proc = RunProc {
-            child,
+            child: process,
+            link: Some((ChildStdin::from(stdin), ChildStdout::from(stdout))),
             reaped: false,
+            exit: None,
             line: None,
             browser: None,
             job,
         };
-        if proc.job.assign(proc.child.as_raw_handle()).is_err() {
+        if proc.job.assign(proc.child.raw()).is_err() {
             return Err(SpawnFailed::Made(proc));
         }
-        let line = sys::created_of(proc.child.as_raw_handle())
+        let line = sys::created_of(proc.child.raw())
             .and_then(created)
             .and_then(|c| {
                 Some(ProcLine {
@@ -92,12 +188,97 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
                     group: Group::Job,
                 })
             });
-        if line.is_none() || sys::resume(proc.child.id()).is_err() {
+        if line.is_none() || sys::resume(&thread).is_err() {
             return Err(SpawnFailed::Made(proc));
         }
         proc.line = line;
         Ok(proc)
     }
+}
+
+/// The environment block of a Windows start: each `name=value` ending in a NUL, the names in the order of their
+/// upper case, and one NUL more at the end. None for an empty name, a name that holds `=`, a NUL in any part, or
+/// two names that are equal but for case.
+#[cfg(any(windows, test))]
+fn environment_block(vars: &[(Vec<u16>, Vec<u16>)]) -> Option<Vec<u16>> {
+    const EQUALS: u16 = b'=' as u16;
+    let upper = |name: &[u16]| -> Vec<u16> {
+        name.iter()
+            .map(|&c| {
+                if (u16::from(b'a')..=u16::from(b'z')).contains(&c) {
+                    c - 32
+                } else {
+                    c
+                }
+            })
+            .collect()
+    };
+    let mut sorted: Vec<&(Vec<u16>, Vec<u16>)> = vars.iter().collect();
+    sorted.sort_by_key(|(name, _)| upper(name));
+    if sorted.windows(2).any(|w| upper(&w[0].0) == upper(&w[1].0)) {
+        return None;
+    }
+    let mut block = Vec::new();
+    for (name, value) in sorted {
+        if name.is_empty() || name.contains(&EQUALS) || name.contains(&0) || value.contains(&0) {
+            return None;
+        }
+        block.extend_from_slice(name);
+        block.push(EQUALS);
+        block.extend_from_slice(value);
+        block.push(0);
+    }
+    if block.is_empty() {
+        block.push(0);
+    }
+    block.push(0);
+    Some(block)
+}
+
+/// The command line of a Windows start: the program in quotes, then each argument, in quotes when it is empty or
+/// holds a space or a tab, with the backslashes before a quote doubled and the quote escaped, as the C runtime
+/// reads a command line back into its arguments; ends in a NUL. None for a NUL in any part or a quote in the
+/// program.
+#[cfg(any(windows, test))]
+fn command_line<'a>(program: &[u16], args: impl Iterator<Item = &'a [u16]>) -> Option<Vec<u16>> {
+    const QUOTE: u16 = b'"' as u16;
+    const BACKSLASH: u16 = b'\\' as u16;
+    const SPACE: u16 = b' ' as u16;
+    const TAB: u16 = b'\t' as u16;
+    if program.contains(&0) || program.contains(&QUOTE) {
+        return None;
+    }
+    let mut line = vec![QUOTE];
+    line.extend_from_slice(program);
+    line.push(QUOTE);
+    for arg in args {
+        if arg.contains(&0) {
+            return None;
+        }
+        line.push(SPACE);
+        let quote = arg.is_empty() || arg.contains(&SPACE) || arg.contains(&TAB);
+        if quote {
+            line.push(QUOTE);
+        }
+        let mut backslashes = 0;
+        for &c in arg {
+            if c == BACKSLASH {
+                backslashes += 1;
+            } else {
+                if c == QUOTE {
+                    line.extend(std::iter::repeat_n(BACKSLASH, backslashes + 1));
+                }
+                backslashes = 0;
+            }
+            line.push(c);
+        }
+        if quote {
+            line.extend(std::iter::repeat_n(BACKSLASH, backslashes));
+            line.push(QUOTE);
+        }
+    }
+    line.push(0);
+    Some(line)
 }
 
 impl RunProc {
@@ -106,9 +287,28 @@ impl RunProc {
         self.line
     }
 
+    /// How the runner ended, once the library has reaped it; none before, and none when the system reaped it.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
+        )
+    )]
+    pub(crate) fn exit(&self) -> Option<RunnerExit> {
+        self.exit
+    }
+
     /// The two ends of the link.
     pub(crate) fn take_link(&mut self) -> Option<(ChildStdin, ChildStdout)> {
-        Some((self.child.stdin.take()?, self.child.stdout.take()?))
+        #[cfg(target_os = "macos")]
+        {
+            Some((self.child.stdin.take()?, self.child.stdout.take()?))
+        }
+        #[cfg(windows)]
+        {
+            self.link.take()
+        }
     }
 
     /// The browser's line of a frame `browser`, when the frame names a process of this run: on macOS a direct child
@@ -170,13 +370,14 @@ impl RunProc {
             sys::ChildState::Running => return false,
             sys::ChildState::Exited => {
                 self.end_own_group();
-                let _ = self.child.try_wait();
+                self.exit = self.child.try_wait().ok().flatten().and_then(runner_exit);
                 self.reaped = true;
             }
             sys::ChildState::Gone => self.reaped = true,
         }
         #[cfg(windows)]
-        if matches!(self.child.try_wait(), Ok(Some(_))) {
+        if let Some(code) = self.child.try_wait() {
+            self.exit = runner_exit(code);
             self.reaped = true;
         }
         self.reaped
@@ -217,7 +418,14 @@ impl RunProc {
         self.end_leftovers();
         if !self.reaped {
             let _ = self.child.kill();
-            let _ = self.child.wait();
+            #[cfg(target_os = "macos")]
+            {
+                self.exit = self.child.wait().ok().and_then(runner_exit);
+            }
+            #[cfg(windows)]
+            {
+                self.exit = self.child.wait().and_then(runner_exit);
+            }
             self.reaped = true;
         }
     }
@@ -432,6 +640,207 @@ fn end_descendant(d: &sys::Info, runner_group: u32) {
         end_group(d.pid);
     } else {
         sys::kill_pid(d.pid);
+    }
+}
+
+#[cfg(test)]
+mod exit_tests {
+    use super::*;
+
+    struct Ends(RunProc);
+
+    impl Drop for Ends {
+        fn drop(&mut self) {
+            self.0.end_all();
+        }
+    }
+
+    fn started(mut cmd: Command) -> Ends {
+        match spawn(&mut cmd) {
+            Ok(p) => Ends(p),
+            Err(SpawnFailed::Made(p)) => {
+                drop(Ends(p));
+                panic!("the runner was made and its line could not be read");
+            }
+            Err(SpawnFailed::NotMade) => panic!("no runner was made"),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn exits_with_two() -> Command {
+        let mut c = Command::new("/bin/sh");
+        c.args(["-c", "exit 2"]);
+        c
+    }
+
+    #[cfg(target_os = "macos")]
+    fn waits() -> Command {
+        let mut c = Command::new("/bin/sleep");
+        c.arg("60");
+        c
+    }
+
+    #[cfg(windows)]
+    fn shell(args: &[&str]) -> Command {
+        use std::os::windows::ffi::OsStringExt;
+        let mut path = std::path::PathBuf::from(OsString::from_wide(
+            &sys::system_directory().expect("the system directory"),
+        ));
+        path.push("cmd.exe");
+        let mut c = Command::new(path);
+        c.args(args);
+        c
+    }
+
+    #[cfg(windows)]
+    fn exits_with_two() -> Command {
+        shell(&["/d", "/c", "exit 2"])
+    }
+
+    #[cfg(windows)]
+    fn waits() -> Command {
+        shell(&["/d", "/k"])
+    }
+
+    #[test]
+    fn a_runner_that_exits_with_the_status_2_gives_a_refusal_and_a_runner_that_the_library_killed_does_not(
+    ) {
+        let mut refused = started(exits_with_two());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !refused.0.exited() && Instant::now() < deadline {
+            thread::sleep(POLL);
+        }
+        assert_eq!(
+            refused.0.exit(),
+            Some(RunnerExit::Status(2)),
+            "how a runner that exited with the status 2 ended"
+        );
+        assert!(refused.0.exit().is_some_and(RunnerExit::is_refusal));
+        let mut killed = started(waits());
+        assert!(!killed.0.exited(), "the waiting runner runs");
+        killed.0.end_all();
+        let ended = killed.0.exit();
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            ended,
+            Some(RunnerExit::Signal(9)),
+            "how a runner that the library killed ended"
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            ended,
+            Some(RunnerExit::Status(1)),
+            "how a runner that the library killed ended"
+        );
+        assert!(
+            !ended.is_some_and(RunnerExit::is_refusal),
+            "a runner that the library killed reads as a refusal"
+        );
+    }
+}
+
+#[cfg(test)]
+mod environment_block_tests {
+    use super::environment_block;
+
+    fn block(vars: &[(&str, &str)]) -> Option<String> {
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = vars
+            .iter()
+            .map(|(k, v)| (k.encode_utf16().collect(), v.encode_utf16().collect()))
+            .collect();
+        environment_block(&vars).map(|b| String::from_utf16(&b).unwrap())
+    }
+
+    #[test]
+    fn the_block_holds_each_variable_in_the_order_of_the_upper_case_of_its_name_and_ends_in_two_nuls(
+    ) {
+        assert_eq!(
+            block(&[
+                ("TMP", "b"),
+                ("SystemRoot", "r"),
+                ("TEMP", "a"),
+                ("LOCALAPPDATA", "l")
+            ])
+            .as_deref(),
+            Some("LOCALAPPDATA=l\0SystemRoot=r\0TEMP=a\0TMP=b\0\0")
+        );
+        assert_eq!(
+            block(&[("b", "1"), ("A", "2")]).as_deref(),
+            Some("A=2\0b=1\0\0")
+        );
+        assert_eq!(
+            block(&[("B", "1"), ("a", "2")]).as_deref(),
+            Some("a=2\0B=1\0\0")
+        );
+    }
+
+    #[test]
+    fn an_empty_block_is_two_nuls() {
+        assert_eq!(block(&[]).as_deref(), Some("\0\0"));
+    }
+
+    #[test]
+    fn an_empty_name_a_name_with_an_equals_sign_or_a_nul_gives_no_block() {
+        assert_eq!(block(&[("", "x")]), None);
+        assert_eq!(block(&[("A=B", "x")]), None);
+        assert_eq!(block(&[("A\0", "x")]), None);
+        assert_eq!(block(&[("A", "x\0y")]), None);
+        assert_eq!(block(&[("Temp", "x"), ("TEMP", "y")]), None);
+    }
+}
+
+#[cfg(test)]
+mod command_line_tests {
+    use super::command_line;
+
+    fn w(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    fn line(program: &str, args: &[&str]) -> Option<String> {
+        let args: Vec<Vec<u16>> = args.iter().map(|a| w(a)).collect();
+        let line = command_line(&w(program), args.iter().map(Vec::as_slice))?;
+        assert_eq!(line.last(), Some(&0), "the command line ends in a NUL");
+        Some(String::from_utf16(&line[..line.len() - 1]).unwrap())
+    }
+
+    #[test]
+    fn the_program_is_quoted_and_a_plain_argument_is_not() {
+        assert_eq!(
+            line(r"C:\a b\runner.exe", &["--run", "abc"]).as_deref(),
+            Some(r#""C:\a b\runner.exe" --run abc"#)
+        );
+    }
+
+    #[test]
+    fn an_empty_argument_and_one_with_a_space_or_a_tab_are_quoted() {
+        assert_eq!(
+            line("p", &["", "a b", "a\tb"]).as_deref(),
+            Some("\"p\" \"\" \"a b\" \"a\tb\"")
+        );
+    }
+
+    #[test]
+    fn a_quote_is_escaped_and_the_backslashes_before_it_are_doubled() {
+        assert_eq!(
+            line("p", &[r#"x"y"#, r#"x\"y"#, r"a\\b"]).as_deref(),
+            Some(r#""p" x\"y x\\\"y a\\b"#)
+        );
+    }
+
+    #[test]
+    fn the_backslashes_before_the_closing_quote_of_a_quoted_argument_are_doubled() {
+        assert_eq!(
+            line("p", &[r"C:\a b\"]).as_deref(),
+            Some(r#""p" "C:\a b\\""#)
+        );
+    }
+
+    #[test]
+    fn a_nul_in_any_part_or_a_quote_in_the_program_gives_no_command_line() {
+        assert_eq!(line("p\0", &[]), None);
+        assert_eq!(line("p", &["a\0b"]), None);
+        assert_eq!(line("p\"q", &[]), None);
     }
 }
 

@@ -48,6 +48,47 @@ impl FromJson for OwnText {
     }
 }
 
+/// The id that a provider gave a message or a draft, written as one `own_text`: 1 to 1,024 bytes, never masked and
+/// never shortened. `Debug` prints the type name and the length alone.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ProviderId(String);
+
+impl ProviderId {
+    /// Returns the id when it has 1 to 1,024 bytes, else the refusal with the rule `empty_id` or `own_text_length`.
+    pub fn parse(s: &str) -> Result<ProviderId, Refusal> {
+        if s.is_empty() {
+            return Err(Refusal::malformed("ProviderId", "empty_id"));
+        }
+        if s.len() > OWN_TEXT_MAX {
+            return Err(Refusal::malformed("ProviderId", "own_text_length"));
+        }
+        Ok(ProviderId(s.to_owned()))
+    }
+
+    /// The id.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for ProviderId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProviderId({} bytes)", self.0.len())
+    }
+}
+
+impl Serialize for ProviderId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for ProviderId {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        ProviderId::parse(&json::string("ProviderId", raw)?)
+    }
+}
+
 fn cut(s: &str) -> Vec<String> {
     let mut pieces = Vec::new();
     let mut rest = s;

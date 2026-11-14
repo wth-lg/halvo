@@ -17,6 +17,11 @@ FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH='remove each listed line from its commit
 
 exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
 
+case $0 in
+  */*) own_directory=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || own_directory=$(dirname "$0") ;;
+  *) own_directory= ;;
+esac
+
 synopsis() {
   cat <<EOF
   sh scripts/check-commit-messages.sh [--no-exempt] [--default-ref <ref>] [<range>]
@@ -50,10 +55,14 @@ synopsis() {
       a config file, a new file under the temporary directory that is left in
       place: Git for Windows converts such a byte in a variable or an argument
       on its way to git, and reads a file as it is. Two fixtures hand the hook
-      path a message file, also a new file there that is left in place.
+      path a message file, also a new file there that is left in place. Three
+      fixtures run a copy of .githooks/commit-msg, in a new directory there that
+      is left in place, without the scanner of home paths, without its list,
+      and with both; they need the .githooks directory beside scripts.
   sh scripts/check-commit-messages.sh --self-test-two-paths
       Send every fixture message of --self-test down both paths in a throwaway
-      repository: through git commit -F with the commit-msg hook on, and, as the
+      repository: through git commit -F with a copy of the commit-msg hook on,
+      beside this script, the scanner of home paths and its list, and, as the
       commit that git stored, through the range check. The two verdicts must
       agree. The exceptions are the hand-made shapes that --message-file names
       above: git commit -F stores a file with a scissors block and a diff whole,
@@ -66,9 +75,12 @@ synopsis() {
       the test is right only where the workflow runs it, in the macos job.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
-      under a new temporary directory that is left in place. The pushed commits
-      sit on the newest exempt commit, so the result does not depend on the
-      other commits of this repository or on its files. Needs a clone of
+      under a new temporary directory that is left in place. The hook runs
+      from a copy of .githooks/pre-push with this script, the scanner of home
+      paths, its list and scripts/commit-range.sh beside it. The pushed commits
+      sit on the newest exempt commit and hold its tree, so they add no line,
+      and the result does not depend on the other commits of this repository
+      or on its files. Needs a clone of
       this repository, and a name and an email for commits: a configured git
       user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
       GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
@@ -101,7 +113,10 @@ without: that makes another word.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
-     stores it. Git does not run it for git commit --no-verify, for a revert
+     stores it. It refuses the commit when scripts/check-home-paths.sh or
+     scripts/home-path-allow.txt is missing beside it, because the pre-push
+     hook cannot scan a push there. Git does not run it for git commit
+     --no-verify, for a revert
      or a cherry-pick that makes its commit without a stop, for am and
      commit-tree, for a commit that a rebase picks without a new message,
      for the commit that a squash, a fixup -c or a fixup -C of git rebase -i
@@ -111,7 +126,9 @@ Three layers apply this predicate.
      has no .githooks directory. git rebase -i runs it for a commit that it
      rewords, unless the pick of that commit stops for a conflict.
   2. .githooks/pre-push reads the stored messages of the commits that a push
-     would add to the remote, and refuses the push. For each pushed ref these
+     would add to the remote, and refuses the push. It also refuses a push
+     when scripts/check-home-paths.sh or scripts/home-path-allow.txt is
+     missing beside it. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
      default branch as this clone last fetched it: the default branch of that
      remote, or the one of origin when the push names a URL or a remote whose
@@ -133,6 +150,22 @@ Three layers apply this predicate.
      default branch: scripts/merge-pr.sh checks that message before the merge.
      It does not run for a push whose newest commit says [skip ci], and it reads
      a description again only when a commit is pushed.
+The commits of a range and of a push come from scripts/commit-range.sh, the
+one function that scripts/check-home-paths.sh calls too, so both checks of the
+hook read the same commits. The script starts in one of two forms, and each
+has one source of that file. Started from its file (the name under which it
+runs holds a slash), it reads scripts/commit-range.sh beside that file, and
+when that file is missing it exits 2 and reads no commit. Run as text (the
+name holds no slash, as the CI step runs the copy of the default branch with
+sh -c), it never reads a file of the work tree: when the name ends in
+@<full object id>, as in check-commit-messages.sh@<id>, it reads the range
+file of that commit; with a bare name it reads the one of the default branch
+as this clone last fetched it (--default-ref, or refs/remotes/origin/HEAD, or
+refs/remotes/origin/main, the first that names a commit). When that commit
+holds no scripts/commit-range.sh, it exits 2. The CI step resolves the default
+branch to one commit and runs that commit's copy under the name
+check-commit-messages.sh@<that commit>, so a branch cannot change the function
+with which the copy of the default branch lists its commits.
 No layer reads the author or the committer of a commit, or words that are
 spelled in another way. Before the layers, the tracked file .claude/settings.json
 tells Claude Code to add no attribution line, and the CI step checks it.
@@ -269,22 +302,54 @@ require_repository_with_exempt_commit() {
   fi
 }
 
+load_commit_range() {
+  if [ -n "$own_directory" ]; then
+    [ -f "$own_directory/commit-range.sh" ] ||
+      die "$own_directory/commit-range.sh, which lists the commits of a range or a push, is missing beside this script, so no commit was read. Restore it (git checkout HEAD -- scripts/commit-range.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts) and run the check again."
+    # shellcheck source=scripts/commit-range.sh
+    . "$own_directory/commit-range.sh"
+    return 0
+  fi
+  case $0 in
+    *@*)
+      range_commit=${0##*@}
+      case $range_commit in
+        '' | *[!0123456789abcdef]*) range_commit_is_an_id= ;;
+        *) range_commit_is_an_id=1 ;;
+      esac
+      { [ -n "$range_commit_is_an_id" ] && { [ ${#range_commit} = 40 ] || [ ${#range_commit} = 64 ]; }; } ||
+        die "this text runs under the name $0, and the part after @ is no full object id, so it cannot tell which commit's scripts/commit-range.sh lists the commits. Run it as sh -c \"<text>\" check-commit-messages.sh@<full id of a commit>, or run the file itself."
+      range_source=$range_commit
+      ;;
+    *)
+      range_source=
+      for range_ref in ${default_ref:+"$default_ref"} refs/remotes/origin/HEAD refs/remotes/origin/main; do
+        if range_source=$(git rev-parse -q --verify "$range_ref^{commit}" 2>/dev/null); then
+          break
+        fi
+        range_source=
+      done
+      [ -n "$range_source" ] ||
+        die 'this text runs without a file and without a commit in its name, and this clone names no default branch (--default-ref, refs/remotes/origin/HEAD or refs/remotes/origin/main), so no scripts/commit-range.sh can be read and no commit was checked. Run it as sh -c "<text>" check-commit-messages.sh@<full id of a commit>, fetch the default branch, or run the file itself.'
+      ;;
+  esac
+  range_text=$(git show "$range_source:scripts/commit-range.sh" 2>/dev/null) ||
+    die "the commit $range_source, from which this text takes its range function, holds no scripts/commit-range.sh, so no commit was checked. Name a commit that holds it (sh -c \"<text>\" check-commit-messages.sh@<full id>), or run the file itself."
+  eval "$range_text"
+}
+
 resolve_default_ref() {
   if [ -n "$default_ref" ]; then
     git rev-parse -q --verify "$default_ref^{commit}" >/dev/null ||
       die "--default-ref $default_ref does not name a commit in this clone"
   else
-    default_ref=$(git symbolic-ref -q refs/remotes/origin/HEAD) || default_ref=
-    if [ -z "$default_ref" ] && git rev-parse -q --verify "$DEFAULT_REF_WITHOUT_ORIGIN_HEAD^{commit}" >/dev/null; then
-      default_ref=$DEFAULT_REF_WITHOUT_ORIGIN_HEAD
-    fi
+    default_ref=$(commit_range_default_ref)
   fi
 }
 
 check_commits() {
   label=$1
-  shift
-  commits=$(git rev-list --reverse "$@" --) || die "git rev-list could not list the commits of '$label'"
+  commits=$2
 
   total=0
   bad=0
@@ -324,55 +389,35 @@ check_commits() {
   } >&2
 }
 
-is_object_id() {
-  case $1 in
-    ''|*[!0-9a-f]*) return 1 ;;
-  esac
-  [ ${#1} = 40 ] || [ ${#1} = 64 ]
-}
-
 check_push() {
   remote=$1
   require_repository_with_exempt_commit
+  load_commit_range
   resolve_default_ref
-  default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
-  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=$default_ref
-  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=
+  default_ref_of_remote=$(commit_range_default_of_remote "$remote" "$default_ref")
   while IFS= read -r pushed_ref; do
-    remote_object=${pushed_ref##* }
-    rest=${pushed_ref% *}
-    remote_ref=${rest##* }
-    rest=${rest% *}
-    local_object=${rest##* }
-    local_ref=${rest% *}
-    if ! { is_object_id "$local_object" && is_object_id "$remote_object"; }; then
-      die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref"
-    fi
-    case $local_object in
-      *[!0]*) ;;
-      *) continue ;;
+    commit_range_read_push_line "$pushed_ref" ||
+      die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref. Each line holds a local ref, a local object id, a remote ref and a remote object id of 40 or 64 lower-case hexadecimal characters; check the commits by hand with sh scripts/check-commit-messages.sh <remote>/<branch>..<local branch>, and push again with a git that writes such lines."
+    range_status=0
+    commits=$(commit_range_of_push "$NEWEST_EXEMPT_COMMIT" "$default_ref_of_remote") || range_status=$?
+    case $range_status in
+      0) ;;
+      3) die "git cannot resolve the object $push_local_object that the push names for $push_local_ref, so the push was not checked" ;;
+      *) die "git rev-list could not list the commits of the push of $push_local_ref" ;;
     esac
-    git rev-parse -q --verify "$local_object^{commit}" >/dev/null || continue
-    set -- "$local_object" "^$NEWEST_EXEMPT_COMMIT"
-    case $remote_object in
-      *[!0]*)
-        if git cat-file -e "$remote_object^{commit}" 2>/dev/null; then set -- "$@" "^$remote_object"; fi
-        ;;
-    esac
-    if [ -n "$default_ref_of_remote" ]; then set -- "$@" "^$default_ref_of_remote"; fi
-    check_commits "push of $local_ref to $remote_ref" "$@"
+    check_commits "$(commit_range_push_label)" "$commits"
   done
   [ "$any_range_failed" = 0 ]
 }
 
 check_range() {
   require_repository_with_exempt_commit
+  load_commit_range
   resolve_default_ref
-  if [ "$exempt" = 1 ]; then
-    check_commits "$1" --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT"
-  else
-    check_commits "$1" --end-of-options "$1"
-  fi
+  exempt_commit=
+  [ "$exempt" = 0 ] || exempt_commit=$NEWEST_EXEMPT_COMMIT
+  commits=$(commit_range "$exempt_commit" "$default_ref" "$1") || die "git rev-list could not list the commits of '$1'"
+  check_commits "$1" "$commits"
   [ "$any_range_failed" = 0 ]
 }
 
@@ -503,6 +548,10 @@ fixture_messages() {
   expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' "Fix the gate${nl}${nl}$trailer"
   expect_hook_path 'the hook path exits 0 on a clean file' 0 '' "Add the store${nl}${nl}Stream segment files through bounded chunks."
   expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' '' /dev/null/absent
+
+  expect_commit_msg_hook 'the commit-msg hook refuses a tree without the scanner of home paths' 1 check-home-paths.sh
+  expect_commit_msg_hook 'the commit-msg hook refuses a tree without the list of the scanner' 1 home-path-allow.txt
+  expect_commit_msg_hook 'the commit-msg hook accepts a clean message in a tree with both' 0 ''
 }
 
 self_test() {
@@ -570,6 +619,30 @@ self_test() {
     fi
   }
 
+  expect_commit_msg_hook() {
+    name=$1 want_status=$2 left_out=$3
+    hook_tree=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-hook-tree.XXXXXX") || die 'mktemp could not make a directory'
+    mkdir -p "$hook_tree/.githooks" "$hook_tree/scripts" || die "cannot make the tree $hook_tree"
+    cp "$own_directory/../.githooks/commit-msg" "$hook_tree/.githooks/commit-msg" || die "this self-test runs a copy of .githooks/commit-msg, and $own_directory/../.githooks/commit-msg cannot be copied"
+    cp "$own_directory/$(basename "$0")" "$hook_tree/scripts/check-commit-messages.sh" || die 'cannot copy this script'
+    for beside in check-home-paths.sh home-path-allow.txt; do
+      [ "$beside" = "$left_out" ] || cp "$own_directory/$beside" "$hook_tree/scripts/$beside" || die "cannot copy scripts/$beside"
+    done
+    printf 'Add the store\n' >"$hook_tree/message" || die "cannot write $hook_tree/message"
+    status=0
+    sh "$hook_tree/.githooks/commit-msg" "$hook_tree/message" >"$hook_tree/out" 2>&1 || status=$?
+    text=present
+    [ -z "$left_out" ] || grep -qF -- "scripts/$left_out is missing" "$hook_tree/out" || text=absent
+    [ -z "$left_out" ] || grep -qF -- "git checkout HEAD -- scripts/$left_out; in a sparse checkout without scripts/, git sparse-checkout add scripts" "$hook_tree/out" || text=absent
+    fixtures=$((fixtures + 1))
+    if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
+      printf 'PASS %s (the tree is %s)\n' "$name" "$hook_tree"
+    else
+      printf 'FAIL %s (expected exit %s and a line that names scripts/%s; got exit %s, text %s; the tree is %s)\n' "$name" "$want_status" "$left_out" "$status" "$text" "$hook_tree"
+      failures=$((failures + 1))
+    fi
+  }
+
   bytes_in_hex() {
     printf '%s' "$1" | od -An -tx1 | tr -d ' \n'
   }
@@ -614,6 +687,7 @@ self_test_two_paths() {
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/messages" "$work/out"
   cp "$root/.githooks/commit-msg" "$work/tree/.githooks/commit-msg"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  cp "$root/scripts/check-home-paths.sh" "$root/scripts/commit-range.sh" "$root/scripts/home-path-allow.txt" "$work/tree/scripts/"
   chmod +x "$work/tree/.githooks/commit-msg"
   git init -q "$work/repository"
   git -C "$work/repository" config core.hooksPath "$work/tree/.githooks"
@@ -693,6 +767,7 @@ a trailer after a carriage return on an added line passes below a scissors block
   expect_in_hook_file_at_lines() { two_paths "$1" "$3" "$4"; }
   expect_hook_path() { [ $# -ge 5 ] || two_paths "$1" '#' "$4"; }
   expect_comment_string_read_from_git() { :; }
+  expect_commit_msg_hook() { :; }
 
   comment_string='#'
   in_repository commit -q --allow-empty --no-verify -m 'Start the repository'
@@ -721,6 +796,7 @@ self_test_pre_push() {
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/out"
   cp "$root/.githooks/pre-push" "$work/tree/.githooks/pre-push"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  cp "$root/scripts/check-home-paths.sh" "$root/scripts/commit-range.sh" "$root/scripts/home-path-allow.txt" "$work/tree/scripts/"
   chmod +x "$work/tree/.githooks/pre-push"
   git clone -q --no-local "$root" "$work/clone"
   git -C "$work/clone" config core.hooksPath "$work/tree/.githooks"
@@ -728,14 +804,16 @@ self_test_pre_push() {
   git init -q --bare "$work/empty-remote.git"
   git -C "$work/clone" remote add proof "$work/remote.git"
   git -C "$work/clone" remote add proof-empty "$work/empty-remote.git"
-  tree=$(git -C "$work/clone" rev-parse 'HEAD^{tree}')
-  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of HEAD above the newest exempt commit') ||
+  tree=$(git -C "$work/clone" rev-parse "$NEWEST_EXEMPT_COMMIT^{tree}") ||
+    die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and the clone of this repository does not hold it. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
+  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of the newest exempt commit above it') ||
     die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and git could not make a commit above it in the clone of this repository. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
   failures=0
   pushes=0
   nl='
 '
   trailer='Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>'
+  no_commit=0000000000000000000000000000000000000000
 
   commit_on_base() {
     git -C "$work/clone" commit-tree "$tree" -p "$base" -m "$1"
@@ -812,9 +890,70 @@ self_test_pre_push() {
   git -C "$work/clone" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/base
   expect_push a-clean-commit-above-the-default-branch-of-origin-to-a-path 0 'commits checked 1,' "$work/remote.git" "$clean:refs/heads/clean-by-path"
 
+  git -C "$work/clone" symbolic-ref --delete refs/remotes/origin/HEAD
+  git -C "$work/clone" update-ref refs/remotes/origin/main "$base"
+  expect_push a-clean-commit-to-a-path-above-origin-main-in-a-clone-without-origin-head 0 'commits checked 1,' "$work/remote.git" "$clean:refs/heads/clean-by-path-over-origin-main"
+  git -C "$work/clone" update-ref -d refs/remotes/origin/main
+  expect_push a-commit-with-a-trailer-to-a-path-in-a-clone-without-a-default-branch 1 'This clone names no default branch' "$work/remote.git" "$with_trailer:refs/heads/trailer-without-a-default-branch"
+
+  expect_push a-clean-commit-to-a-remote-without-fetched-refs-in-a-clone-without-a-default-branch 0 'commits checked 2,' proof-empty "$clean:refs/heads/clean-to-an-unfetched-remote"
+
+  in_other_clone checkout -q -b unseen origin/base
+  in_other_clone commit -q --allow-empty --no-verify -m 'Add a change that the first clone never fetches'
+  in_other_clone push -q origin unseen:refs/heads/unseen
+  expect_push a-forced-push-over-a-commit-that-this-clone-lacks 0 'commits checked 1,' proof "+$clean:refs/heads/unseen"
+  git -C "$work/clone" -c tag.gpgsign=false tag -a -m 'A tag of a tree' tag-of-a-tree "$tree"
+  expect_push an-annotated-tag-of-a-tree 0 'commits checked 0,' proof refs/tags/tag-of-a-tree
+
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
+  utf8_locale=$(locale -a 2>/dev/null | grep -m 1 -E '^(en_US|C)\.(UTF-8|utf8)$') || utf8_locale=
+  [ -n "$utf8_locale" ] || printf 'case a-line-with-one-field-that-is-no-object-id under a UTF-8 locale not run: this system names no UTF-8 locale\n'
+  for case_locale in C ${utf8_locale:+"$utf8_locale"}; do
+    one_field_got=2
+    line_number=0
+    for bad_line in "refs/heads/x $clean refs/heads/x A${clean#?}" "refs/heads/x A${clean#?} refs/heads/x $no_commit" \
+      "refs/heads/x $clean refs/heads/x F${clean#?}" "refs/heads/x F${clean#?} refs/heads/x $no_commit"; do
+      line_number=$((line_number + 1))
+      status=0
+      (cd "$work/clone" && printf '%s\n' "$bad_line" | LC_ALL=$case_locale sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/one-field-$case_locale-$line_number.txt" 2>&1 || status=$?
+      if [ "$status" != 2 ] || ! grep -qF 'cannot read this line' "$work/out/one-field-$case_locale-$line_number.txt"; then
+        one_field_got="line-$line_number-exit-$status"
+      fi
+      cat "$work/out/one-field-$case_locale-$line_number.txt" >>"$work/out/a-line-with-one-field-that-is-no-object-id-$case_locale.txt"
+    done
+    judge "a-line-with-one-field-that-is-no-object-id-$case_locale" "$one_field_got" 2 'cannot read this line'
+    status=0
+    (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' "${clean%?}" "$no_commit" | LC_ALL=$case_locale sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-an-object-id-of-39-characters-$case_locale.txt" 2>&1 || status=$?
+    judge "a-line-with-an-object-id-of-39-characters-$case_locale" "$status" 2 'cannot read this line'
+  done
+
+  status=0
+  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 0000000000000000000000000000000000000000000000000000000000000000 | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-two-object-ids-of-64-characters.txt" 2>&1 || status=$?
+  judge a-line-with-two-object-ids-of-64-characters "$status" 2 'git cannot resolve the object aaaaaaaa'
+  status=0
+  (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' 1234567890123456789012345678901234567890 "$no_commit" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-pushed-object-that-the-clone-lacks.txt" 2>&1 || status=$?
+  judge a-pushed-object-that-the-clone-lacks "$status" 2 'git cannot resolve the object 1234567890123456789012345678901234567890'
+
+  exempt_tree=$work/tree-with-an-exempt-commit-named-by-a-later-one
+  mkdir -p "$exempt_tree/.githooks" "$exempt_tree/scripts"
+  cp "$work/tree/.githooks/pre-push" "$exempt_tree/.githooks/pre-push"
+  cp "$work/tree/scripts/check-home-paths.sh" "$work/tree/scripts/commit-range.sh" "$work/tree/scripts/home-path-allow.txt" "$exempt_tree/scripts/"
+  push_with_an_exempt_commit_named_by_a_later_one() {
+    name=$1 earlier=$2 later_tree=$3 want_text=$4
+    sed "s/^NEWEST_EXEMPT_COMMIT=.*/NEWEST_EXEMPT_COMMIT=$earlier/" "$work/tree/scripts/check-commit-messages.sh" >"$exempt_tree/scripts/check-commit-messages.sh"
+    later=$(git -C "$work/clone" commit-tree "$later_tree" -p "$earlier" -m 'Name the commit below as the newest exempt one')
+    status=0
+    git -C "$work/clone" -c core.hooksPath="$exempt_tree/.githooks" push proof "$later:refs/heads/$name" >"$work/out/$name.txt" 2>&1 || status=$?
+    judge "$name" "$status" 1 "$want_text"
+  }
+  earlier_with_a_trailer=$(commit_on_base "Fix the gate three$nl$nl$trailer")
+  push_with_an_exempt_commit_named_by_a_later_one a-later-commit-names-an-earlier-one-with-a-trailer-as-exempt "$earlier_with_a_trailer" "$tree" 'commits checked 2, with an attribution line 1'
+  note_blob=$(printf 'see /%s/zed/notes\n' Users | git -C "$work/clone" hash-object -w --stdin)
+  tree_with_a_note=$({ git -C "$work/clone" ls-tree "$tree"; printf '100644 blob %s\tzed-notes.txt\n' "$note_blob"; } | git -C "$work/clone" mktree)
+  earlier_with_a_home_path=$(git -C "$work/clone" commit-tree "$tree_with_a_note" -p "$base" -m 'Add a note')
+  push_with_an_exempt_commit_named_by_a_later_one a-later-commit-names-an-earlier-one-with-a-home-path-as-exempt "$earlier_with_a_home_path" "$tree_with_a_note" 'commits read 2, lines with a home path 1.'
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: pre-push self-test FAIL: %d of %d pushes behaved otherwise. Outputs are in %s.\n' "$failures" "$pushes" "$work/out"

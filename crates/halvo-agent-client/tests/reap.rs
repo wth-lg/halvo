@@ -358,7 +358,11 @@ fn reap_answers_gone_for_an_ended_run_of_this_life_whose_end_run_was_not_acknowl
     rig.store
         .fail_all
         .store(1, std::sync::atomic::Ordering::SeqCst);
-    let script = rig.script(&["hello", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
@@ -403,7 +407,11 @@ fn a_browser_and_a_child_of_a_runner_that_exits_by_itself_are_ended_with_the_run
 fn reap_answers_gone_for_a_run_of_this_life_whose_runner_is_gone_while_its_end_run_waits() {
     let rig = Rig::new("reap-held-end-run");
     *rig.store.hold_end_run.lock().unwrap() = true;
-    let script = rig.script(&["hello", "sleep 400", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
@@ -468,7 +476,13 @@ fn a_second_browser_that_leads_its_own_group_is_ended_with_its_run() {
 #[test]
 fn a_runner_that_exits_while_a_child_holds_its_output_is_seen_gone_and_its_child_ended() {
     let rig = Rig::new("exit-child-holds-output");
-    let script = rig.script(&["hello", "child-on-stdout", "log ready", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        "child-on-stdout",
+        "log ready",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();

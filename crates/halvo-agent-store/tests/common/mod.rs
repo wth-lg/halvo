@@ -246,6 +246,18 @@ pub fn run_record(r: u32, mode: Option<&str>, outcome: &str) -> Value {
         "tokens_out": 0,
         "wall_s": 9,
         "model": null,
+        "before_start": null,
+        "cut": null,
+        "no_key": null,
+        "not_to_account": null,
+        "incomplete": null,
+        "reply_to_other": null,
+        "more_pages": null,
+        "held_recipient": null,
+        "organized": null,
+        "other_task": null,
+        "held_earlier": null,
+        "earlier_page": null,
     })
 }
 

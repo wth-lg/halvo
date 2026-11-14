@@ -27,11 +27,14 @@
 //! nothing else of its body, so a body whose `workflow` and `agent` are null goes to the handler of its `op` as every
 //! other body does.
 //!
-//! While it answers a request a handler gets four calls of the store and no other: `HandlerCx::commit`, the typed
-//! commit; `HandlerCx::state`, the state call; `HandlerCx::rows`, the read of the rows of its own family; and
-//! `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored workflow. The store knows for
-//! which request it runs a typed commit and takes it from no argument: a record of a kind of origin own is stored for
-//! a `runner` request and a `coordinator_write`, and refused from a step and for a request of a further role.
+//! While it answers a request a handler gets five calls of the store and no other: `HandlerCx::commit`, the typed
+//! commit; `HandlerCx::state`, the state call; `HandlerCx::held_ahead`, under a `coordinator_write` alone, the yes or
+//! no whether a row of one kind of its own family under one workflow id lies more than two days after the clock's day;
+//! `HandlerCx::rows`, the read of the rows of its own family, of one kind whole or of one kind under one workflow id
+//! (`Rows::for_each_under`); and `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored
+//! workflow. The store knows for which request it runs a typed commit and takes it from no argument: a record of a kind
+//! of origin own is stored for a `runner` request and a `coordinator_write`, and refused from a step and for a request
+//! of a further role.
 //!
 //! # What a read hands out
 //!
@@ -39,10 +42,11 @@
 //! its stored day of going lies after the clock's day, its day lies at most two days after the clock's day, and it
 //! has a day; a window row while its `expires` lies after the clock's instant; a kept row always; and an evidence or
 //! a support row only while the summary that it names is handed out. That holds for a step's summary read and row
-//! read, a handler's `rows`, `workflow` and `evidence`, and the interface read. The summary read leaves out, by a
-//! sentence of its own, a summary of a day after the clock's day as well. The four conditions are written once, in
-//! `sql`, and the expiry's statements and the reads are made from them. No read writes: a row that the reads leave out
-//! stays stored, counted and found by a delete or a purge until an expiry removes it, and the revision rises then.
+//! read, a handler's `rows`, of one kind whole or under one workflow id, `workflow` and `evidence`, and the interface
+//! read. The summary read leaves out, by a sentence of its own, a summary of a day after the clock's day as well. The
+//! four conditions are written once, in `sql`, and the expiry's statements and the reads are made from them. No read
+//! writes: a row that the reads leave out stays stored, counted and found by a delete or a purge until an expiry
+//! removes it, and the revision rises then.
 //!
 //! The clock is the host's. The store reads it once at the start of each call of the host, `commit_batch` for the
 //! reads of every step, `Store::interface_read` for one page, and `Store::handle` for every read of one request, the
@@ -59,6 +63,23 @@
 //! it is no less committed. After each committed transaction the store hands the sink of its host a `Report`: the
 //! revision of every family, the count per retention class, the bytes on disk and the next expiry deadline. A call
 //! that returns a fault after its transaction committed leaves that transaction in place.
+//!
+//! # What a host and a later unit must know
+//!
+//! - While a `Store` is open no other connection can read its database, also one that holds its key: the store keeps
+//!   the database in exclusive locking mode.
+//! - A handler learns of a window record that its typed commit dropped, past its expiry or naming a purged ordinal,
+//!   from `Committed::dropped` alone; the commit refuses nothing for it.
+//! - A stop between a batch's transaction and its steps leaves the batch committed with no proposal and no step
+//!   record; the same batch sent again answers `repeated` and runs no step, and the store notes no owed step.
+//! - An open fails while its entries give a stored kind another retention class, or a workflow key under which a
+//!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
+//! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until
+//!   the clock reaches its day.
+//! - The list of the check `scripts/r2/ci.d/50-derived.sh` names the crate's tests by hand. The check runs the crate's
+//!   test binaries and fails for each test that they report, ignored or not, that the list does not name, so a commit
+//!   that adds a `#[test]` adds its line. It runs no doc-test, and it cannot list a `#[should_panic]` test, which the
+//!   binaries report under its name followed by ` - should panic`, so the check fails while such a test exists.
 //!
 //! # What may be logged
 //!
@@ -93,7 +114,8 @@ pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
 pub use report::{Counts, Report};
-pub use state::MoveTo;
+pub use state::{HeldRefusal, MoveTo};
+pub use typed::Rows;
 
 use db::Db;
 

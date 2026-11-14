@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/do/entries.ts",
-      "find": "    if (arm) host.setAlarm(tested ? null : due);",
-      "replace": "    if (arm) host.setAlarm(due);"
+      "find": "    if (arm) armAlarm(tested ? null : due);",
+      "replace": "    if (arm) armAlarm(due);"
     }
   ],
   "line": [

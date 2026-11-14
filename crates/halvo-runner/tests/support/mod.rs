@@ -499,6 +499,7 @@ impl Supervisor {
                     slots: self.slots.clone(),
                 }),
                 sessions: Vec::new(),
+                start: None,
             }),
             RunnerCall::LoadSteps(b) => {
                 let from = b.from.get() as usize;

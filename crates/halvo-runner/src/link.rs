@@ -276,18 +276,20 @@ impl Link {
     }
 
     /// Does `act` once the reader stands in its next read with nothing more to hand over and no end noted, under the
-    /// lock under which it would note one: the request of an effect leaves in it.
-    pub(crate) fn settle<T>(&mut self, act: impl FnOnce() -> T) -> Result<T, Broken> {
+    /// lock under which it would note one: the request of an effect leaves in it. A `cancel` that the link holds
+    /// then lets nothing act, and the answer is none (A6.2, CP-135 (4), reading 1).
+    pub(crate) fn settle<T>(&mut self, act: impl FnOnce() -> T) -> Result<Option<T>, Broken> {
         if let Some(broken) = self.broken {
             return Err(broken);
         }
         let shared = Arc::clone(&self.shared);
         let held = Self::settled(&shared);
         match held {
+            Ok(held) if held.cancelled => Ok(None),
             Ok(held) => {
                 let done = act();
                 drop(held);
-                Ok(done)
+                Ok(Some(done))
             }
             Err(broken) => Err(self.fail(broken)),
         }
@@ -564,7 +566,7 @@ mod tests {
         let shared = Arc::clone(&link.shared);
         assert_eq!(
             link.settle(|| end_and_look(&release, &shared)),
-            Ok(false),
+            Ok(Some(false)),
             "the effect acts, and the end of file is noted after it"
         );
         assert_eq!(ended(&link), Broken::Closed);
@@ -643,7 +645,7 @@ mod tests {
             drop(writer);
             assert!(link.reply().is_ok(), "link {n}: the reply");
             match link.settle(|| ()) {
-                Ok(()) => acts += 1,
+                Ok(_) => acts += 1,
                 Err(broken) => assert_eq!(broken, Broken::Closed, "link {n}: the close"),
             }
         }
@@ -741,6 +743,27 @@ mod tests {
             "the run's thread gets the settled link once the reader stands in its read"
         );
         drop(release);
+    }
+
+    /// CP-135 (4), reading 1, A6.2: a `cancel` that the link holds when the reader stands in its next read lets
+    /// nothing act under the lock: no request is let through and no `replace` is made.
+    #[test]
+    fn a_cancel_that_the_link_holds_lets_no_effect_act() {
+        let (mut link, mut writer, _out) = piped();
+        writer
+            .write_all(&framed(&ToRunner::Cancel(Cancel {})))
+            .expect("write");
+        assert!(
+            within(Duration::from_secs(5), || link.cancelled()),
+            "the cancel is noted"
+        );
+        let acted = AtomicBool::new(false);
+        let _ = link.settle(|| acted.store(true, Ordering::SeqCst));
+        assert!(
+            !acted.load(Ordering::SeqCst),
+            "no effect acts after a cancel"
+        );
+        drop(writer);
     }
 
     #[test]

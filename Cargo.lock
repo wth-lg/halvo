@@ -1555,6 +1555,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-coord-app"
+version = "0.0.0"
+dependencies = [
+ "halvo-coord",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
+ "serde_json",
+ "tauri",
+ "windows",
+]
+
+[[package]]
 name = "halvo-coord-store"
 version = "0.0.0"
 dependencies = [
@@ -1580,6 +1594,18 @@ dependencies = [
 name = "halvo-learn"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "halvo-learn-gate"
+version = "0.0.0"
+dependencies = [
+ "halvo-agent-store",
+ "halvo-learn",
+ "halvo-learn-store",
+ "halvo-policy",
+ "halvo-schema",
  "serde_json",
 ]
 

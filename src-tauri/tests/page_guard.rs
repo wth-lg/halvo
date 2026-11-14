@@ -1,5 +1,3 @@
-#![cfg(not(windows))]
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -145,6 +143,8 @@ impl Guarded {
         let store = CountingStore::default();
         let shreds = store.shreds.clone();
         let parts = app::Parts {
+            #[cfg(windows)]
+            webview_data_dir: Some(dir.join("webview")),
             config_dir: Some(dir),
             store: Box::new(store),
             store_backend: "the counting store of the guard tests",
@@ -172,6 +172,8 @@ impl Guarded {
             label,
             WebviewUrl::App("index.html".into()),
         );
+        #[cfg(windows)]
+        let builder = builder.data_directory(scratch(&format!("window-{label}")).join("webview"));
         builder
             .build()
             .expect("a window builds on the mock runtime")
@@ -278,6 +280,8 @@ fn a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_n
     let main = test.main();
     for label in ["child", "main-child"] {
         let child = WebviewBuilder::new(label, WebviewUrl::App("index.html".into()));
+        #[cfg(windows)]
+        let child = child.data_directory(scratch(&format!("{label}-data")).join("webview"));
         let child = main
             .as_ref()
             .window()

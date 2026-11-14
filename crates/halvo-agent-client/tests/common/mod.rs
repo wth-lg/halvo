@@ -257,7 +257,7 @@ impl Store {
             let mut rows = self.rows.lock().unwrap();
             let r = rows.entry(body.run().clone()).or_default();
             return Ok(match body {
-                RunnerCall::Load(_) => {
+                RunnerCall::Load(load) => {
                     let origins: Vec<String> = self
                         .load_origins
                         .lock()
@@ -273,7 +273,7 @@ impl Store {
                             origins.join(",")
                         )
                     };
-                    Store::reply(&id, &load_reply(&bindings))
+                    Store::reply(&id, &load_reply(&bindings, load.agent.as_str()))
                 }
                 RunnerCall::Effect(e) if r.ended => {
                     let _ = e;
@@ -341,8 +341,11 @@ fn end_move(states: &mut Vec<EffectState>) {
 
 const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#;
 
-fn load_reply(bindings: &str) -> String {
-    format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":{bindings},"sessions":[]}}"#)
+fn load_reply(bindings: &str, agent: &str) -> String {
+    let config = CONFIG.replacen("40404040404040404040404040404040", agent, 1);
+    format!(
+        r#"{{"config":{config},"playbook":null,"bindings":{bindings},"sessions":[],"start":null}}"#
+    )
 }
 
 pub fn kill_pid(pid: u32) {

@@ -30,6 +30,9 @@ fn bodies() -> Vec<(&'static str, Value)> {
         "mode": "compile", "outcome": "completed", "playbook": null, "steps": 3, "prompts": 0,
         "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
         "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
+        "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+        "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+        "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
     });
     let line = json!({
         "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 1, "day": 20_771,

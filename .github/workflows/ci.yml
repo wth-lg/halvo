@@ -3,6 +3,8 @@ name: ci
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '17 3 * * 0'
 
 permissions:
   contents: read
@@ -78,7 +80,8 @@ jobs:
           sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
@@ -129,7 +132,8 @@ jobs:
         run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt

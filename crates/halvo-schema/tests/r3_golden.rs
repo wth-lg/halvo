@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
-    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReply, LoadSession, LoadSteps,
-    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, PutCheckpoint, PutEffect,
-    PutLog, PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
-    SetState, StartRun, StateReply, StepsReply, Stored,
+    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
+    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
+    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
+    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -19,13 +19,15 @@ use halvo_schema::executable::frame::{
     Store, StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::*;
-use halvo_schema::executable::record::{AgentCheckpoint, AgentEffect, AgentLog, AgentRun, Slot};
+use halvo_schema::executable::record::{
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Slot,
+};
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue, RunId,
-    SecretText, SessionData, WebOrigin, V1,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue,
+    ProviderId, RunId, SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
 use halvo_schema::record::Instant;
@@ -34,13 +36,14 @@ use halvo_schema::{AgentId, RequestId, WorkflowId};
 
 const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
 
-const FILES: [&str; 12] = [
+const FILES: [&str; 13] = [
     "configs.jsonl",
     "runs.jsonl",
     "playbook.jsonl",
     "bounds.jsonl",
     "effects.jsonl",
     "checkpoints.jsonl",
+    "replies.jsonl",
     "runner-bodies.jsonl",
     "coordinator-bodies.jsonl",
     "runner-replies.jsonl",
@@ -186,6 +189,18 @@ fn agent_run(outcome: Outcome, mode: Mode, unknown: u32) -> AgentRun {
         tokens_out: 120,
         wall_s: 41,
         model: Some(name("qwen3_1_7b")),
+        before_start: None,
+        cut: None,
+        no_key: None,
+        not_to_account: None,
+        incomplete: None,
+        reply_to_other: None,
+        more_pages: None,
+        held_recipient: None,
+        organized: None,
+        other_task: None,
+        held_earlier: None,
+        earlier_page: None,
     }
 }
 
@@ -207,11 +222,24 @@ fn runs() -> Vec<AgentRun> {
     ended.tokens_out = 0;
     ended.wall_s = 0;
     ended.model = None;
+    let mut replied = agent_run(Outcome::Completed, Mode::Replay, 0);
+    replied.before_start = Some(2);
+    replied.cut = Some(YesNo::Yes);
+    replied.no_key = Some(0);
+    replied.not_to_account = Some(1);
+    replied.incomplete = Some(0);
+    replied.reply_to_other = Some(1);
+    replied.more_pages = Some(YesNo::No);
+    replied.held_recipient = Some(1);
+    replied.other_task = Some(0);
+    replied.held_earlier = Some(3);
+    replied.earlier_page = Some(1);
     vec![
         replay,
         agent_run(Outcome::Failed, Mode::Compile, 1),
         agent_run(Outcome::EffectUnknown, Mode::Replay, 1),
         ended,
+        replied,
     ]
 }
 
@@ -624,6 +652,38 @@ fn checkpoints() -> Vec<AgentCheckpoint> {
     ]
 }
 
+fn reply_row(seq: u32, message: &str, state: ReplyState, effect: bool) -> AgentReply {
+    AgentReply {
+        v: V1,
+        workflow: workflow(),
+        agent: agent(),
+        run: run(),
+        seq: n(seq),
+        day: 20768,
+        at: Instant(1_794_339_000_000_000_000 + i64::from(seq)),
+        message: ProviderId::parse(&format!("msg-{message}")).unwrap(),
+        draft: (state != ReplyState::Lost)
+            .then(|| ProviderId::parse(&format!("draft-{message}")).unwrap()),
+        effect: effect.then(|| effect_id(0x60)),
+        state,
+    }
+}
+
+fn replies() -> Vec<AgentReply> {
+    vec![
+        reply_row(1, "0001", ReplyState::Drafted, false),
+        reply_row(2, "0001", ReplyState::Begun, true),
+        reply_row(3, "0001", ReplyState::Drafted, true),
+        reply_row(4, "0001", ReplyState::Begun, true),
+        reply_row(5, "0001", ReplyState::Committed, true),
+        reply_row(2, "0002", ReplyState::Begun, true),
+        reply_row(3, "0002", ReplyState::Unknown, true),
+        reply_row(2, "0003", ReplyState::Lost, false),
+        reply_row(3, "0003", ReplyState::Drafted, false),
+        reply_row(2, "0004", ReplyState::Withheld, false),
+    ]
+}
+
 fn listed_checkpoint(state: ListedState, effect: Option<EffectState>) -> ListedCheckpoint {
     let row = checkpoint_row(1, CheckpointState::Planned, None);
     let made = state == ListedState::Made;
@@ -758,6 +818,19 @@ fn runner_bodies() -> Vec<RunnerCall> {
             run: run(),
             record: checkpoint_row(2, CheckpointState::Made, None),
         }),
+        RunnerCall::ReplyRow(PutReplyRow {
+            agent: agent(),
+            run: run(),
+            record: replies().remove(1),
+        }),
+        RunnerCall::LoadReplies(LoadReplies {
+            agent: agent(),
+            run: run(),
+            message_ids: ["0001", "0002", "0003", "0004", "0005"]
+                .iter()
+                .map(|m| ProviderId::parse(&format!("msg-{m}")).unwrap())
+                .collect(),
+        }),
     ]
 }
 
@@ -856,6 +929,13 @@ fn runner_replies() -> Vec<RunnerReply> {
                 rev: n(1),
                 parts: n(1),
             }],
+            start: Some(AgentStart {
+                v: V1,
+                workflow: configs()[0].workflow.clone(),
+                agent: configs()[0].agent.clone(),
+                day: 20768,
+                at: Instant(1_794_339_000_000_000_010),
+            }),
         }),
         RunnerReply::Steps(StepsReply {
             steps: steps()[..2].to_vec(),
@@ -868,6 +948,14 @@ fn runner_replies() -> Vec<RunnerReply> {
             data: session_data(),
         }),
         RunnerReply::Stored(Stored { stored: 1 }),
+        RunnerReply::Replies(LoadRepliesReply {
+            replies: vec![
+                reply_row(5, "0001", ReplyState::Committed, true),
+                reply_row(3, "0003", ReplyState::Drafted, false),
+            ],
+            blocked: vec![ProviderId::parse("msg-0002").unwrap()],
+            blocked_withheld: vec![ProviderId::parse("msg-0004").unwrap()],
+        }),
     ]
 }
 
@@ -902,6 +990,7 @@ fn confirm_request() -> ConfirmRequest {
         v: V1,
         run: run(),
         agent: agent(),
+        cut: None,
         effects: vec![ConfirmEffect {
             effect: effect_id(0x60),
             class: ActionClass::Payment,
@@ -1029,6 +1118,7 @@ fn built(file: &str) -> String {
         "bounds.jsonl" => lines(&bounds(), |v| v.to_json().unwrap()),
         "effects.jsonl" => lines(&effects(), |v| v.to_json().unwrap()),
         "checkpoints.jsonl" => lines(&checkpoints(), |v| v.to_json().unwrap()),
+        "replies.jsonl" => lines(&replies(), |v| v.to_json().unwrap()),
         "runner-bodies.jsonl" => lines(&runner_bodies(), |v| v.to_json().unwrap()),
         "coordinator-bodies.jsonl" => lines(&coordinator_bodies(), |v| v.to_json().unwrap()),
         "runner-replies.jsonl" => lines(&runner_replies(), |v| v.to_json().unwrap()),
@@ -1048,6 +1138,7 @@ fn reread(file: &str, line: &str) -> String {
         "bounds.jsonl" => Bound::parse(b).and_then(|v| v.to_json()),
         "effects.jsonl" => AgentEffect::parse(b).and_then(|v| v.to_json()),
         "checkpoints.jsonl" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
+        "replies.jsonl" => AgentReply::parse(b).and_then(|v| v.to_json()),
         "runner-bodies.jsonl" => RunnerCall::parse(b).and_then(|v| v.to_json()),
         "coordinator-bodies.jsonl" => CoordinatorCall::parse(b).and_then(|v| v.to_json()),
         "runner-replies.jsonl" => RunnerReply::parse(b).and_then(|v| v.to_json()),
@@ -1131,6 +1222,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         "playbook.jsonl",
         "effects.jsonl",
         "checkpoints.jsonl",
+        "replies.jsonl",
         "runner-bodies.jsonl",
         "coordinator-bodies.jsonl",
         "runner-replies.jsonl",
@@ -1177,7 +1269,8 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         CheckpointState,
         ListedState,
         MarkState,
-        LeftReason
+        LeftReason,
+        ReplyState
     );
     for class in ActionClass::ALL {
         derived.extend(
@@ -1206,7 +1299,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 8);
+    assert_eq!(executable::KINDS.len(), 10);
 }
 
 #[test]

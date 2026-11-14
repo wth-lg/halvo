@@ -64,6 +64,18 @@ pub(crate) fn end_run(
             tokens_out: 0,
             wall_s: 0,
             model: None,
+            before_start: None,
+            cut: None,
+            no_key: None,
+            not_to_account: None,
+            incomplete: None,
+            reply_to_other: None,
+            more_pages: None,
+            held_recipient: None,
+            organized: None,
+            other_task: None,
+            held_earlier: None,
+            earlier_page: None,
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
         records.extend(moves(&*host, &b.run, now)?);
