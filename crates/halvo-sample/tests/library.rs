@@ -137,14 +137,16 @@ fn script_manifest_masks_and_order() {
         password_input: false,
         card_title: true,
     };
-    let line = StepLine::of(&card);
+    let line = StepLine::of(&card, true);
+    assert!(line.write().ends_with(",\"card_title\":true,\"seed_category\":true}"));
     assert_eq!(line.masked_titles, vec!["Pay [card] - Acorn".to_owned()]);
     let plain = StepLine::of(&Step {
         step: "p1".to_owned(),
         card_title: false,
         titles: vec!["Browse - Acorn".to_owned()],
         ..card.clone()
-    });
+    }, false);
+    assert!(plain.write().ends_with(",\"card_title\":false,\"seed_category\":false}"));
     let text = format!("{}\n{}\n", plain.write(), line.write());
     assert_eq!(
         parse_script_manifest(text.as_bytes()).map(|v| v.len()),

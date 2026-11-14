@@ -469,3 +469,141 @@ fn a_title_event_of_a_step_of_each_negative_kind_outside_every_range_fails() {
         assert_eq!(outside, vec![line], "{kind}: {}", o.stdout);
     }
 }
+
+/// Deletes every row of the episodes of one task from a copy's labels.
+fn delete_task_rows(dir: &Path, task: &str) -> usize {
+    let p = labels(dir);
+    let text = fs::read_to_string(&p).expect("labels");
+    let episodes: Vec<String> = text
+        .lines()
+        .filter(|l| l.contains(&format!("\"task\":\"{task}\"")))
+        .map(|l| l.split('"').nth(7).expect("episode id").to_owned())
+        .collect();
+    assert!(!episodes.is_empty(), "{task}");
+    let kept: String = text
+        .lines()
+        .filter(|l| {
+            !episodes
+                .iter()
+                .any(|e| l.contains(&format!("\"episode\":\"{e}\"")))
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    fs::write(&p, kept).expect("write");
+    episodes.len()
+}
+
+#[test]
+fn case_210_every_row_of_a_one_off_task_deleted_fails() {
+    every_row_deleted("210", "golden-t4", "one_off", &["g-budget-sheet"]);
+}
+
+#[test]
+fn case_211_every_row_of_a_twice_task_deleted_fails() {
+    every_row_deleted("211", "golden-t2", "twice", &["g-power-bill", "g-power-signin"]);
+}
+
+#[test]
+fn case_212_every_row_of_a_planted_task_deleted_fails() {
+    every_row_deleted(
+        "212",
+        "golden-t1",
+        "planted",
+        &["g-cart-basket", "g-cart-confirm", "g-cart-pay", "g-cart-receipt", "g-cart-signin"],
+    );
+}
+
+/// The verifier's cases 210 to 212: with every row of a seed task deleted, the task's title events lie outside
+/// every range and each gives its FAIL outside line under the generated rule.
+fn every_row_deleted(case: &str, task: &str, kind: &str, steps: &[&str]) {
+    {
+        let dir = copy_golden(&format!("deleted-{case}"));
+        let gone = delete_task_rows(&dir, task);
+        let o = run(&["check-labels", &s(&dir)]);
+        assert_eq!(o.code, 1, "case {case} ({kind}): {}", o.stdout);
+        let outside: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL outside"))
+            .collect();
+        assert!(!outside.is_empty(), "case {case}: {}", o.stdout);
+        assert!(
+            outside
+                .iter()
+                .all(|l| steps.iter().any(|st| l.ends_with(&format!(" {st}")))),
+            "case {case}: {}",
+            o.stdout
+        );
+        assert_eq!(
+            o.stdout.lines().filter(|l| l.starts_with("FAIL")).count(),
+            outside.len(),
+            "case {case}: {}",
+            o.stdout
+        );
+        assert!(gone >= 1);
+    }
+}
+
+#[test]
+fn a_seed_step_whose_mark_is_false_fails_with_a_seed_line_for_each_of_its_ranges() {
+    let dir = copy_golden("seed-false");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with("{\"step\":\"g-power-bill\","))
+        .expect("the step line");
+    assert!(line.ends_with(",\"seed_category\":true}"), "{line}");
+    fs::write(
+        &p,
+        text.replacen(
+            line,
+            &line.replace(",\"seed_category\":true}", ",\"seed_category\":false}"),
+            1,
+        ),
+    )
+    .expect("write");
+    let ranges: Vec<String> = fs::read_to_string(labels(&dir))
+        .expect("labels")
+        .lines()
+        .filter(|l| l.contains("\"step\":\"g-power-bill\""))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(ranges.len(), 2);
+    for rule in ["generated", "recorded"] {
+        let o = run(&["check-labels", "--rule", rule, &s(&dir)]);
+        assert_eq!(o.code, 1, "{rule}: {}", o.stdout);
+        let fails: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("FAIL")).collect();
+        assert_eq!(fails.len(), 2, "{rule}: {}", o.stdout);
+        for (f, r) in fails.iter().zip(&ranges) {
+            let field = |k: &str| {
+                r.split(&format!("\"{k}\":"))
+                    .nth(1)
+                    .and_then(|v| v.split([',', '}']).next())
+                    .expect("field")
+                    .trim_matches('"')
+                    .to_owned()
+            };
+            assert_eq!(
+                *f,
+                format!(
+                    "FAIL seed golden {} g-power-bill {} {}",
+                    field("episode"),
+                    field("start"),
+                    field("end")
+                ),
+                "{rule}"
+            );
+        }
+        assert!(o.stdout.contains(" failures=2\n"), "{rule}: {}", o.stdout);
+    }
+}
+
+#[test]
+fn a_script_manifest_line_without_its_seed_mark_is_refused() {
+    let dir = copy_golden("seed-missing");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    fs::write(&p, text.replacen(",\"seed_category\":true}", "}", 1)).expect("write");
+    refused(&run(&["check-labels", &s(&dir)]), "script-manifest");
+}

@@ -425,7 +425,7 @@ ride_order = 12
 daily_chart_check = 12
 [[file]]
 path = "script-manifest.jsonl"
-sha256 = "c42c556d4a1d61a2a7dcee2215d452c4f8e05ba9844b3a6fa4948542c8c37425"
+sha256 = "52851f632cf9055f0caeba6491a3a41919fe5e1a09b0f88a7ca88c1a7d685adb"
 [[file]]
 path = "streams/gen-unseen-s121/day-001.jsonl"
 sha256 = "18c19529d2dad8e6493ee56fc44be52971950a1ae5c1a1a786075007732b12de"

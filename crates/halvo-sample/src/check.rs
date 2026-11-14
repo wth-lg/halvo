@@ -251,23 +251,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
             }
         }
     }
-    let mut seed_steps: BTreeSet<&str> = BTreeSet::new();
-    for s in streams {
-        for (_, r) in &s.rows {
-            if let Row::Range { episode, step, .. } = r {
-                let seed = episode_category
-                    .get(episode.as_str())
-                    .is_some_and(|(c, _)| *c != Category::Other);
-                if seed {
-                    seed_steps.insert(step.as_str());
-                }
-            }
-        }
-    }
-    let seed_in_order: Vec<&StepLine> = steps
-        .iter()
-        .filter(|s| seed_steps.contains(s.step.as_str()))
-        .collect();
+    let seed_in_order: Vec<&StepLine> = steps.iter().filter(|s| s.seed_category).collect();
     let mut lines = vec![format!("rule {}", rule.as_str())];
     lines.extend(links.iter().map(|id| format!("FAIL link {id}")));
     let mut fails = links.len();
@@ -344,7 +328,17 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                     ),
                 ));
             }
-            let kind = episode_category.get(episode.as_str()).map(|(_, k)| *k);
+            let facts = episode_category.get(episode.as_str());
+            let seed_episode = facts.is_some_and(|(c, _)| *c != Category::Other);
+            if seed_episode && step_line.is_some_and(|sl| !sl.seed_category) {
+                other.push((
+                    *start,
+                    1,
+                    *line,
+                    format!("FAIL seed {} {episode} {step} {start} {end}", s.id),
+                ));
+            }
+            let kind = facts.map(|(_, k)| *k);
             if kind == Some(TaskKind::Marked) {
                 marked_ranges += 1;
                 let opened = marks
@@ -360,7 +354,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                     unmarked += 1;
                     other.push((
                         *start,
-                        1,
+                        2,
                         *line,
                         format!("FAIL unmarked {} {episode} {step} {start} {end}", s.id),
                     ));
@@ -378,7 +372,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                 if keys > 0 {
                     other.push((
                         *start,
-                        2,
+                        3,
                         *line,
                         format!(
                             "FAIL keys {} {episode} {step} {start} {end} key_events={keys}",

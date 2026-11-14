@@ -304,7 +304,17 @@ pub fn build(args: &BuildArgs) -> Result<Vec<String>, Refusal> {
         files.push((rel, sha256_hex(bytes)));
         Ok(())
     };
-    let step_lines: Vec<StepLine> = script.steps.values().map(StepLine::of).collect();
+    let seed_steps: BTreeSet<&str> = script
+        .episodes
+        .iter()
+        .filter(|(_, e)| e.category != Category::Other)
+        .flat_map(|(_, e)| e.ranges.iter().map(|i| i.step.as_str()))
+        .collect();
+    let step_lines: Vec<StepLine> = script
+        .steps
+        .values()
+        .map(|s| StepLine::of(s, seed_steps.contains(s.step.as_str())))
+        .collect();
     let manifest_text: String = step_lines
         .iter()
         .map(|l| format!("{}\n", l.write()))
