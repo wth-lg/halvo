@@ -234,3 +234,28 @@ fn the_same_store_stepped_twice_on_one_day_returns_nothing_the_second_time_and_o
     }]);
     assert!(store.step(DAY).is_empty(), "the fourth step of the day");
 }
+
+#[test]
+fn while_the_writer_is_behind_the_clock_the_step_takes_the_clocks_day_as_today() {
+    let mut store = Store::default();
+    store.put_routine(&fresh(1, DAY - 200));
+    home(&mut store, 1, &[DAY - 82, DAY - 75, DAY - 68, DAY - 61]);
+    store.summaries.push(summary(
+        9,
+        ORDER,
+        domain(OTHER, "address_field"),
+        MAIL,
+        DAY - 6,
+    ));
+    let records = store.step(DAY);
+    store.commit(&records);
+    let marked = store.newest(1);
+    assert_eq!((marked.mark, since(&marked)), (Mark::Stale, Some(DAY)));
+    assert_eq!(last(&marked), Some(DAY - 61));
+    home(&mut store, 5, &[DAY - 5]);
+    let row = only_row(&store.step(DAY));
+    assert_eq!(
+        (row.mark, last(&row), since(&row)),
+        (Mark::None, Some(DAY - 5), Some(DAY))
+    );
+}
