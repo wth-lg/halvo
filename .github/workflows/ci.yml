@@ -96,6 +96,44 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: daemon-1 loop of the round's cheap tests and the three changed copies
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          step_start=$(date +%s)
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::signal::tests::the_heap_and_footprint_readings_answer_with_a_size daemon::tests::two_switch_flags_parse_to_their_values_with_both_names_set daemon::tests::the_verify_modes_take_their_flags_and_nothing_else daemon::tests::the_hold_needs_two_seconds_and_is_a_flag_of_macos'
+          want=4
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (macos): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          art=target/ci-artifacts/26-daemon-owner-growth/test.txt
+          echo "daemon-1 copies: head (check 26): $(grep -m 1 -o 'owner_heap_bytes .*' "$art")"
+          echo "daemon-1 copies: head (check 26): $(grep -m 1 -o 'owner_growth_bytes=[0-9]* records=[0-9]* elapsed_ms=[0-9]*' "$art")"
+          d=crates/halvo-capture/src/daemon
+          perl -0pi -e 's/(pub struct DiscardPort \{\n    dir: PathBuf,\n    next: u64,\n)/$1    kept: Vec<Vec<u8>>,\n/; s/DiscardPort \{ dir, next: 1 \}/DiscardPort { dir, next: 1, kept: Vec::new() }/; s/(        self\.next \+= 1;\n)/$1        if std::env::var("DM10_COPY").as_deref() == Ok("keep300") && self.next % 300 == 0 {\n            self.kept.push(write.payload().to_vec());\n        }\n/' "$d/discard_port.rs"
+          perl -0pi -e 's/(    fn acknowledged\(&mut self, disk_bytes: u64, now: Instants\) \{\n)/$1        if std::env::var("DM10_COPY").as_deref() == Ok("report") {\n            self.report(Report::DrainHealthy);\n        }\n/; s/(            let settled_heap = crate::daemon::signal::heap_bytes_in_use\(\)\.unwrap\(\);\n)/            let held: Vec<u8> = if std::env::var("DM10_COPY").as_deref() == Ok("hold") { vec![1u8; 1 << 20] } else { Vec::new() };\n$1/; s/(            println!\(\n                "owner_growth_bytes=)/            std::hint::black_box(&held);\n$1/' "$d/owner.rs"
+          echo "daemon-1 copies: patch lines: keep300 $(grep -c 'DM10_COPY").as_deref() == Ok("keep300")' "$d/discard_port.rs"), report $(grep -c 'Ok("report")' "$d/owner.rs"), hold $(grep -c 'Ok("hold")' "$d/owner.rs"), held kept $(grep -c 'black_box(&held)' "$d/owner.rs")"
+          b0=$(date +%s)
+          cargo test --release --locked -q -p halvo-capture --lib --no-run 2>&1 | grep -E '^error' | head -5
+          echo "daemon-1 copies: release build of the copy: $(( $(date +%s) - b0 )) s"
+          for copy in keep300 report hold; do
+            DM10_COPY=$copy cargo test --release --locked -p halvo-capture --lib -- --ignored --exact daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound --nocapture >"$out" 2>&1
+            code=$?
+            echo "daemon-1 copies: $copy: exit=$code"
+            echo "daemon-1 copies: $copy: $(grep -m 1 -o 'owner_heap_bytes .*' "$out")"
+            echo "daemon-1 copies: $copy: $(grep -m 1 -o 'owner_growth_bytes=[0-9]* records=[0-9]* elapsed_ms=[0-9]*' "$out")"
+            echo "daemon-1 copies: $copy: $(grep -m 1 -o -E 'the owner grew by [0-9]+ bytes, above [0-9]+|the child failed' "$out")"
+            echo "daemon-1 copies: $copy: $(grep -m 1 '^test result' "$out")"
+          done
+          git checkout -- "$d/discard_port.rs" "$d/owner.rs"
+          echo "daemon-1 copies: restored, status lines $(git status --porcelain | grep -c '')"
+          echo "daemon-1 loop (macos): the step took $(( $(date +%s) - step_start )) s"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -148,6 +186,23 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: daemon-1 loop of the round's cheap tests
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          step_start=$(date +%s)
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::tests::two_switch_flags_parse_to_their_values_with_both_names_set daemon::tests::the_verify_modes_take_their_flags_and_nothing_else daemon::tests::the_hold_needs_two_seconds_and_is_a_flag_of_macos'
+          want=3
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=4 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (windows): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          echo "daemon-1 loop (windows): the step took $(( $(date +%s) - step_start )) s"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
