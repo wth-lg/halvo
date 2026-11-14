@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, 12-test ran the two tests of the file that drive stand-ins (the launch path, and one fixture for the line at the product's constants) and passed them and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the measured lines and the loop are named and run in steps of their own, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and neither a build without debug assertions that passes another bound of the hold nor a print of a held key compiles.
 set -u
 name=51-macos-stall
 test_limit_s=${MS_TEST_LIMIT_S:-900}
@@ -26,10 +26,18 @@ the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_fie
 at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys three-way
 the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
 known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded known-fault
-a_password_typed_whole_ahead_at_machine_speed_is_not_recorded phase
-a_password_typed_whole_ahead_at_a_persons_pace_is_not_recorded phase
+measured_a_password_typed_whole_ahead_at_machine_speed measured
+measured_a_password_typed_whole_ahead_at_a_persons_pace measured
+short_window_a_the_click_round_as_it_was_at_wait_150_ms measured
+short_window_a_the_click_round_as_it_was_at_wait_2000_ms measured
+short_window_b_a_set_on_time measured
+the_mended_click_phase_counts_62_rounds_at_wait_2000_ms loop
 the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out twelve
 the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_control twelve
+the_fixture_gives_out_its_stamps_on_a_command_through_the_launch_path twelve
+the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries twelve
+the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries twelve
+the_on_time_and_the_fates_of_the_keys_are_read_from_the_raw_entries twelve
 EOF
 }
 
@@ -39,7 +47,14 @@ notes() {
     return
   fi
   cat <<'EOF'
-a_password_typed_whole_ahead_at_machine_speed_is_not_recorded shows that keys posted at 2 ms steps into a field that already reads secure are dropped by the on reading; it does not show a program that fills a field without key events, or one that types before the field reads secure on a Mac where the reading comes late (D2 stays a named limit, ruling MA-18)
+measured_a_password_typed_whole_ahead_at_machine_speed in pushes 6 and 7 the keys were held under a reading of off and dropped by a reading that fell into the on-time while the program handled them; the on-time was not printed. D2 stays an open fault (MA-12 D, ruling MA-19)
+short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2 and asserts nothing; it holds D2 in place of a listed test for as long as it exists (ruling MA-19 (7))
+EOF
+}
+
+history_note() {
+  cat <<'EOF'
+MS note pushes 5 to 7: in the Tab, click, focus-move, leaving-key and whole-password phases the test neither kept nor measured the on-time; each round that read 0 shows that a reading fell inside it, and no more; 1 of 105 counted click rounds recorded its 8 letters (ruling MA-19 (7))
 EOF
 }
 
@@ -182,7 +197,7 @@ measure() {
   done <"$work/proofs"
 
   fixture=$work/stall-fixture
-  clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework CoreGraphics \
+  clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics \
     -o "$fixture" "$fixture_source" >"$work/fixture.txt" 2>&1 ||
     fail "the fixture did not compile: clang exited $?"
 
@@ -213,14 +228,23 @@ measure() {
   not_kept=0
   index=0
   while read -r test kind; do
-    case $kind in not-run | twelve) continue ;; esac
+    case $kind in
+      not-run | twelve) continue ;;
+      measured | loop)
+        line="MS $test kind=$kind run=in_a_step_of_its_own"
+        printf '%s\n' "$line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
+        note=$(notes | sed -n "s/^$test //p")
+        [ -z "$note" ] || printf 'MS note %s: %s\n' "$test" "$note" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
+        continue
+        ;;
+    esac
     index=$((index + 1))
     log=$work/test-$index.log
     started=$(date +%s)
     run_test "$test" "$log"
     code=$?
     seconds=$(($(date +%s) - started))
-    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |drops |side=)" | sed 's/^/    | /'
+    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=)" | sed 's/^/    | /'
     judge "$code" "$kind" "$log"
     three=
     if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
@@ -251,6 +275,7 @@ measure() {
 
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
+  history_note | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
   line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
@@ -335,12 +360,18 @@ EOF
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 if [ "$*" = --list ]; then
-  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\nlaunch_one: test\n'
+  printf 'the_probe: test\nphase_one: test\nphase_two: test\nknown_one: test\nthree_one: test\nlaunch_one: test\nmeasured_one: test\nloop_one: test\n'
   spec extra-test && printf 'unlisted: test\n'
   exit 0
 fi
 test=$5
 [ -x "$HALVO_STALL_FIXTURE" ] || exit 98
+case $test in
+  measured_* | loop_*)
+    printf "thread 'x' panicked at y:\n%s: ran in the check\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"
+    exit 101
+    ;;
+esac
 printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8\n' "$test"
 spec "touch-$test" && printf 'changed\n' >>"$CI_D_REPO/tracked.txt"
 spec "hang-$test" && sleep 5
@@ -375,7 +406,7 @@ self_test() {
   }
   mkdir -p "$work/bin" "$work/repo/target/ci-artifacts/12-test" || exit 2
   write_stubs
-  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nlaunch_one twelve\n' >"$work/expected-small"
+  printf 'the_probe not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nlaunch_one twelve\nmeasured_one measured\nloop_one loop\n' >"$work/expected-small"
   printf 'phase_two shows what it shows; it does not show the rest\n' >"$work/notes-small"
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
@@ -396,6 +427,9 @@ test a_rule ... ok'
   limit=
   check all-pass PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0' ''
   check note-line PASS 'MS note phase_two: shows what it shows; it does not show the rest' ''
+  check measured-named-not-run PASS 'MS measured_one kind=measured run=in_a_step_of_its_own' ''
+  check loop-named-not-run PASS 'MS loop_one kind=loop run=in_a_step_of_its_own' ''
+  check history-line PASS 'MS note pushes 5 to 7: in the Tab, click, focus-move, leaving-key and whole-password phases' ''
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
   check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
