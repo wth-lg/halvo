@@ -77,6 +77,54 @@ async function metered(w: World): Promise<unknown> {
   return ((await w.tables()).metering_account ?? []).map((row) => ({ cut_kind: row.cut_kind, cut_at: row.cut_at, carry: row.carry, written_off: row.written_off }));
 }
 
+interface Held {
+  state: SubscriptionState;
+  time: number | null;
+  periodEnd: number | null;
+}
+
+const RANKS: Record<SubscriptionState, number> = { "payment-failed": 0, active: 1, cancelled: 2 };
+
+function newer(event: Extract<ProviderEvent, { kind: "subscription" }>, held: Held): boolean {
+  const cancel = event.state === "cancelled";
+  if (cancel !== (held.state === "cancelled")) return cancel;
+  if (held.time === null) return true;
+  if (event.providerTime !== held.time) return event.providerTime > held.time;
+  if (event.state !== held.state) return RANKS[event.state] > RANKS[held.state];
+  if (event.period === null) return false;
+  return held.periodEnd === null || event.period.end > held.periodEnd;
+}
+
+function implied(order: ProviderEvent[], start: Held | null): { mark: Record<string, number | null>; lines: number } {
+  let held = start;
+  const mark = { m1_count: 0, m1_newest: null as number | null, m2_count: 0, m2_newest: null as number | null };
+  let lines = 0;
+  for (const event of order) {
+    if (event.kind === "checkout-completed") {
+      held ??= { state: "active", time: null, periodEnd: null };
+      continue;
+    }
+    if (event.kind !== "subscription") continue;
+    if (held === null) {
+      held = { state: event.state, time: event.providerTime, periodEnd: event.period?.end ?? null };
+      continue;
+    }
+    const cancel = event.state === "cancelled";
+    if (held.state === "cancelled" && !cancel && (held.time === null || event.providerTime > held.time)) {
+      mark.m1_count += 1;
+      mark.m1_newest = Math.max(mark.m1_newest ?? event.providerTime, event.providerTime);
+      lines += 1;
+    }
+    if (held.state !== "cancelled" && cancel && held.time !== null && event.providerTime < held.time) {
+      mark.m2_count += 1;
+      mark.m2_newest = Math.max(mark.m2_newest ?? event.providerTime, event.providerTime);
+      lines += 1;
+    }
+    if (newer(event, held)) held = { state: event.state, time: event.providerTime, periodEnd: event.period?.end ?? null };
+  }
+  return { mark, lines };
+}
+
 async function pending(): Promise<World> {
   const w = await world({ seed: false, checkout: CHECKOUT });
   expect(await w.entries().start(ACCOUNT, HASH, { amount: 1000, period: "month" })).toEqual({ result: "session", url: CHECKOUT.url });
@@ -167,13 +215,14 @@ describe("an event that is not a cancel changes nothing of a cancelled account (
     done(w);
   });
 
-  test("a second object of the older active state, stamped later than the cancel, changes nothing that is stored, and no reserve is admitted after it", async () => {
+  test("a second object of the older active state, stamped later than the cancel, changes no stored row but the mark, where it counts once with its provider time (the list of event ids apart), and no reserve is admitted after it", async () => {
     const w = await world();
     await w.clock(START + 10 * MINUTE);
     await deliver(w, [ACTIVE, CANCEL]);
     const before = await stored(w);
     await deliver(w, [at("evt_active_repeat", 6, "active")]);
     expect(await stored(w)).toEqual(before);
+    expect(markOf(await account(w))).toEqual({ m1_count: 1, m1_newest: START + 6 * MINUTE, m2_count: 0, m2_newest: null });
     expect(await w.reserve("r1")).toEqual(REFUSED);
     expect(await w.entries().status(HASH)).toEqual({ result: "cancelled" });
     done(w);
@@ -267,16 +316,21 @@ describe("the kept events of a pending checkout (ruling P7-80, R1 and R2; unit 5
   });
 });
 
-describe("every order of a small set of events, with every stored row read (unit 5.5's gate; ruling P7-80, part 6)", () => {
-  test("an account: an active event, a payment failure, a cancel, a second cancel and an active event stamped later than both end in one cancelled set of rows in all 120 orders", { timeout: 120_000 }, async () => {
+describe("every order of a small set of events, with every stored row read, the mark apart (unit 5.5's gate; ruling P7-80, part 6; ruling P7-100, J6)", () => {
+  test("an account: an active event, a payment failure, a cancel, a second cancel and an active event stamped later than both end in one cancelled set of rows in all 120 orders, the mark apart, and each order leaves the mark and the count of lines that its order of delivery implies", { timeout: 120_000 }, async () => {
     const events = [ACTIVE, at("evt_failed", 3, "payment-failed"), CANCEL, at("evt_deleted", 6, "cancelled", { endedAt: null }), at("evt_active_latest", 8, "active")];
     const seen = new Set<string>();
+    const marks = new Set<string>();
     let first: unknown;
     for (const order of orders(events)) {
       const w = await world();
       await w.use("r0", 12_345);
       await w.clock(START + 10 * MINUTE);
-      await deliver(w, order);
+      const lines: string[] = [];
+      await deliver(w, order, lines);
+      const left = { mark: markOf(await account(w)), lines: lines.filter((line) => line === '{"event":"cancel-overrides-order"}').length };
+      expect(left).toEqual(implied(order, { state: "active", time: null, periodEnd: null }));
+      marks.add(JSON.stringify(left.mark));
       const reserved = await w.reserve("r1");
       await w.clock(START + 2 * HOUR);
       const end = { reserved, status: await w.entries().status(HASH), rows: await snapshot(w), sent: sent(w) };
@@ -293,16 +347,26 @@ describe("every order of a small set of events, with every stored row read (unit
       expect.objectContaining({ state: "cancelled", provider_time: START + 6 * MINUTE, ended_at: START + 5 * MINUTE, cancel_first: START + 5 * MINUTE }),
     ]);
     expect(rows.metering_account).toEqual([expect.objectContaining({ cut_kind: "cancel", cut_at: START + 5 * MINUTE, carry: 0, written_off: 2_345 })]);
+    expect(marks).toEqual(
+      new Set([
+        JSON.stringify({ m1_count: 1, m1_newest: START + 8 * MINUTE, m2_count: 0, m2_newest: null }),
+        JSON.stringify({ m1_count: 0, m1_newest: null, m2_count: 1, m2_newest: START + 5 * MINUTE }),
+        JSON.stringify({ m1_count: 0, m1_newest: null, m2_count: 1, m2_newest: START + 6 * MINUTE }),
+      ]),
+    );
   });
 
-  test("a pending checkout: its completed event, an active event, a cancel, an active event stamped later than it and a later payment failure end in one cancelled account with its cut in all 120 orders", { timeout: 120_000 }, async () => {
+  test("a pending checkout: its completed event, an active event, a cancel, an active event stamped later than it and a later payment failure end in one cancelled account with its cut in all 120 orders, the mark apart, and each order leaves the mark and the count of lines that its order of delivery implies", { timeout: 120_000 }, async () => {
     const events = [COMPLETED, ACTIVE, CANCEL, ACTIVE_AGAIN, FAILED_AFTER];
     const seen = new Set<string>();
     let first: unknown;
     for (const order of orders(events)) {
       const w = await pending();
       await w.clock(START + 10 * MINUTE);
-      await deliver(w, order);
+      const lines: string[] = [];
+      await deliver(w, order, lines);
+      const left = { mark: markOf(await account(w)), lines: lines.filter((line) => line === '{"event":"cancel-overrides-order"}').length };
+      expect(left).toEqual(implied(order, null));
       const end = { status: await w.entries().status(HASH), rows: await snapshot(w) };
       done(w);
       first ??= end;
