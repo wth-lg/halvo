@@ -2603,10 +2603,22 @@ mod tests {
         });
         let mut keyboard =
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let _ = seam::take_marks();
         let started = keyboard.begin(crate::source::SourceContext::new(sink));
         std::thread::sleep(std::time::Duration::from_millis(500));
-        let gate_at_start = keyboard.field_state();
         let before = seam::detector();
+        let gate_at_the_first_key = keyboard.field_state();
+        let events_before_the_keys: Vec<String> = seam::take_marks()
+            .iter()
+            .filter(|mark| mark.what == "event")
+            .map(|mark| {
+                format!(
+                    "{:?}:{}",
+                    mark.state,
+                    mark.element.as_deref().unwrap_or("none").replace(' ', "_")
+                )
+            })
+            .collect();
         let mut accepted = 0;
         for _ in 0..3 {
             // SAFETY: the slice holds two live INPUT values of the size passed.
@@ -2627,15 +2639,20 @@ mod tests {
         let health = keyboard.health();
         let stopped = keyboard.shutdown();
         drop(own);
+        let entered = after.handler_entered.wrapping_sub(before.handler_entered);
+        let ended = after.handler_ended.wrapping_sub(before.handler_ended);
         println!(
-            "TF unknown-at-start own_window_in_front={in_front} started={} gate_at_start={gate_at_start:?} \
-             accepted={accepted} keystroke_events={keystrokes} keys_withheld={} own_reads={} \
-             focus_handler_entered={} focus_handler_ended={} stopped={}",
+            "TF unknown-at-start own_window_in_front={in_front} started={} \
+             gate_at_the_first_key={gate_at_the_first_key:?} accepted={accepted} keystroke_events={keystrokes} \
+             keys_withheld={} own_reads={} focus_handler_entered_before_the_keys={} \
+             focus_handler_ended_before_the_keys={} focus_handler_entered_from_the_first_key={entered} \
+             focus_handler_ended_from_the_first_key={ended} events_before_the_keys=[{}] stopped={}",
             started.is_ok(),
             health.counters.keys_withheld,
             after.own_reads,
-            after.handler_entered,
-            after.handler_ended,
+            before.handler_entered,
+            before.handler_ended,
+            events_before_the_keys.join(","),
             stopped.is_ok()
         );
         assert!(
@@ -2643,14 +2660,14 @@ mod tests {
             "INCONCLUSIVE: the window of the test was not in front or the keys were not sent"
         );
         assert_eq!(
-            gate_at_start,
+            gate_at_the_first_key,
             Some(FieldState::Unknown),
-            "INCONCLUSIVE: the start read of a button window did not read Unknown"
+            "INCONCLUSIVE: the gate of a button window did not read Unknown at the first key"
         );
         assert_eq!(
-            (before.handler_entered, after.handler_entered),
+            (entered, ended),
             (0, 0),
-            "INCONCLUSIVE: a focus event reached the gate after the start"
+            "INCONCLUSIVE: a focus event reached the gate between the first key and the end"
         );
         assert_eq!(
             keystrokes, 0,
