@@ -23,6 +23,8 @@ expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing
 a_timed_out_stop_reads_no_input_posted_after_its_answer
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge
 browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing
 browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing
 browser::cold_and_warm_orders_in_chrome
@@ -43,8 +45,6 @@ capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
 keys_queued_before_a_stop_are_delivered_or_counted
-known_defect::browser_burst_whose_first_letter_swaps_in_chrome W3-7-Q2i
-known_defect::browser_burst_whose_first_letter_swaps_in_edge W3-7-Q2i
 known_defect::browser_letter_and_tab_out_of_a_swapped_field_in_chrome W3-7-C5
 known_defect::browser_letter_and_tab_out_of_a_swapped_field_in_edge W3-7-C5
 known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2

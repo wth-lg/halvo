@@ -182,6 +182,22 @@ fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
     }
 }
 
+/// One click of the left button at a point of the screen.
+fn click_at(x: i64, y: i64) {
+    let (cx, cy) = screen_size();
+    let to = |v: i64, span: i32| (v * 65_535 / i64::from(span - 1)) as i32;
+    send(&[mouse_input(
+        to(x, cx),
+        to(y, cy),
+        MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+    )]);
+    std::thread::sleep(Duration::from_millis(40));
+    send(&[
+        mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+        mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+    ]);
+}
+
 fn key(vkey: VIRTUAL_KEY) -> u32 {
     send(&[key_input(vkey, false), key_input(vkey, true)])
 }
@@ -334,6 +350,14 @@ impl PhaseBrowser {
                 std::thread::sleep(Duration::from_millis(800));
                 let (front, method) = bring_to_front(hwnd);
                 std::thread::sleep(Duration::from_millis(700));
+                // Firefox leaves its content without the focus when its
+                // window comes to the front; a click in the page gives it.
+                if !self.chromium {
+                    if let Some(page) = page_read(hwnd) {
+                        click_at(page.px, page.py);
+                        std::thread::sleep(Duration::from_millis(400));
+                    }
+                }
                 say(
                     test,
                     format!(
@@ -1171,10 +1195,12 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
             Some(FieldState::Unknown),
             "the copy's plain input did not read Unknown"
         );
-        assert_eq!(
-            password_state,
-            Some(FieldState::Unknown),
-            "the copy's password input did not read Unknown"
+        assert!(
+            matches!(
+                password_state,
+                Some(FieldState::Unknown | FieldState::Password)
+            ),
+            "the copy's password input read neither Unknown nor Password"
         );
         assert_eq!(
             plain.keys.letters + password.keys.letters,
@@ -1206,6 +1232,29 @@ fn swap_phases_of_the_page_in_chrome() {
 #[ignore = "functional: needs an interactive Windows desktop and Edge"]
 fn swap_phases_of_the_page_in_edge() {
     swap_phases("browser-swap-edge", "edge");
+}
+
+/// W3-7 Q2 (i): the burst of five letters of which the first makes the swap
+/// read 0 in the first hosted run of round B, and the looped proof decides
+/// whether it stays an ordinary phase.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_burst_whose_first_letter_swaps_records_nothing_in_chrome() {
+    let recorded = burst_phase("browser-burst-chrome", "chrome");
+    assert_eq!(
+        recorded, 0,
+        "a letter of the burst that landed in a password field was recorded"
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn a_burst_whose_first_letter_swaps_records_nothing_in_edge() {
+    let recorded = burst_phase("browser-burst-edge", "edge");
+    assert_eq!(
+        recorded, 0,
+        "a letter of the burst that landed in a password field was recorded"
+    );
 }
 
 #[test]

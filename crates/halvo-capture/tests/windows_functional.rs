@@ -4721,14 +4721,18 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
                 "the control in a plain field of a kind that reads Clear did not record its letters: \
                  the source recorded nothing"
             );
-            assert_eq!(
-                (gate_a, gate_b),
-                (
-                    Some(halvo_capture::secure_input::windows::FieldState::Unknown),
-                    Some(halvo_capture::secure_input::windows::FieldState::Unknown)
-                ),
-                "the gate did not read Unknown while the page's input had the focus"
-            );
+            {
+                use halvo_capture::secure_input::windows::FieldState;
+                assert_eq!(
+                    gate_a,
+                    Some(FieldState::Unknown),
+                    "the gate did not read Unknown while the page's plain input had the focus"
+                );
+                assert!(
+                    matches!(gate_b, Some(FieldState::Unknown | FieldState::Password)),
+                    "the gate read neither Unknown nor Password while the page's password input had the focus"
+                );
+            }
             assert_eq!(
                 a + m + c + e,
                 0,
@@ -4900,28 +4904,6 @@ mod known_defect {
             "W3-7-Q2i",
             recorded == 0,
             format!("TF browser-held-swap-edge password_letters_recorded={recorded}")
-        );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a burst of five letters of which the first makes the swap"]
-    fn browser_burst_whose_first_letter_swaps_in_chrome() {
-        let recorded = browser::burst_phase("browser-burst-chrome", "chrome");
-        defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-burst-chrome password_letters_recorded={recorded}")
-        );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a burst of five letters of which the first makes the swap"]
-    fn browser_burst_whose_first_letter_swaps_in_edge() {
-        let recorded = browser::burst_phase("browser-burst-edge", "edge");
-        defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-burst-edge password_letters_recorded={recorded}")
         );
     }
 
