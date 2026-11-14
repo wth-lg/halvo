@@ -1859,6 +1859,7 @@ fn native_round(
     let _ = fixture.ask(CMD_FOCUS, start, "focused");
     let _ = events.drain_for(Duration::from_millis(400));
     let _ = seam::take();
+    let _ = seam::take_marks();
     let acted = act(fixture);
     let accepted = five_letters();
     let _ = events.drain_for(Duration::from_millis(900));
@@ -1972,8 +1973,14 @@ fn a_focus_notice_for_a_field_that_does_not_take_the_focus_records_no_letter() {
                 &fixture.ask(CMD_NOTIFY_FOCUS, FIELD_PLAIN, "notified"),
                 "ok",
             ) == 1;
-            std::thread::sleep(Duration::from_millis(20));
-            notified
+            std::thread::sleep(Duration::from_millis(60));
+            // The round counts only when the gate saw the notice: a focus
+            // event that read Clear, while the password field kept the focus.
+            let seen = seam::take_marks().iter().any(|mark| {
+                mark.what == "event"
+                    && mark.state == Some(halvo_capture::secure_input::windows::FieldState::Clear)
+            });
+            notified && seen
         },
     );
 }
