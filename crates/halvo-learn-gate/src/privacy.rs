@@ -555,7 +555,8 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn learn_outside_misses_a_link_to_a_marker_and_a_file_that_cannot_be_read() {
+    fn learn_outside_misses_a_link_to_a_marker_a_file_that_cannot_be_read_and_a_directory_that_cannot_be_listed(
+    ) {
         use std::os::unix::fs::PermissionsExt;
         let (data, temp) = (scratch("link-data"), scratch("link-temp"));
         std::os::unix::fs::symlink(MARKERS[0], data.join("link")).expect("a link");
@@ -568,6 +569,16 @@ mod tests {
         let got = outside_with(&data, &temp, &mut |_, _| {});
         std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o600)).expect("a mode");
         if !readable {
+            assert_eq!(got, Outcome::Miss);
+        }
+        let (data, temp) = (scratch("shut-data"), scratch("shut-temp"));
+        let shut = data.join("a").join("shut");
+        std::fs::create_dir_all(&shut).expect("a nested directory");
+        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o000)).expect("a mode");
+        let listable = std::fs::read_dir(&shut).is_ok();
+        let got = outside_with(&data, &temp, &mut |_, _| {});
+        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o700)).expect("a mode");
+        if !listable {
             assert_eq!(got, Outcome::Miss);
         }
     }
