@@ -2171,4 +2171,120 @@ mod tests {
             );
         }
     }
+
+    /// CP-189 G6: `LEFT_CAP` is 300 s, written as a number.
+    #[test]
+    fn g6_the_cap_is_300_seconds() {
+        assert_eq!(LEFT_CAP, Duration::from_secs(300));
+    }
+
+    /// CP-189 G6, adversary 3's case: the marked first process is last read at 900 ms, the table
+    /// then stays unread for 290 s, and afterwards only a member without the mark runs. The cap
+    /// counts from the last read that showed a marked member, so the guard leaves at about
+    /// 300 s, not 300 s after the unread spell.
+    #[test]
+    fn g6_the_cap_counts_from_the_last_read_that_showed_a_marked_member() {
+        let (code, at, ends, _) = run_timed(
+            executor(50),
+            100,
+            &|t, _| {
+                let mut v = vec![stranger(5, 1, 50, 5), stranger(70, ROOT, 20, 70)];
+                if t < 1_000 {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                    return Some(v);
+                }
+                if t < 291_000 {
+                    return None;
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(ends.is_empty(), "{ends:?}");
+        assert_eq!(code, 4);
+        assert!((300_000..302_000).contains(&at), "returned at {at} ms");
+    }
+
+    /// CP-189 G6, the review's first shape: a member that bears the mark, then does not, then
+    /// does again keeps the port while it bears it; the cap counts from its last marked read.
+    #[test]
+    fn g6_a_member_that_bears_the_mark_again_keeps_the_port() {
+        let (code, at, ends, _) = run_timed(
+            executor(50),
+            1_000,
+            &|t, _| {
+                let mut v = vec![stranger(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)];
+                if t < 400_000 {
+                    v.push(row(40, ROOT, 20, 0));
+                }
+                Some(v)
+            },
+            &|p, t| {
+                if p == ROOT || (p == 40 && (10_000..20_000).contains(&t)) {
+                    Some(vec!["--user-data-dir=/other".to_string()])
+                } else {
+                    every_marked(p)
+                }
+            },
+        );
+        assert!(ends.is_empty(), "{ends:?}");
+        assert_eq!(code, 4);
+        assert!(at >= 400_000 + 299_000, "returned at {at} ms");
+    }
+
+    /// CP-189 G6, the review's second shape: with no marked member at first, a marked member that
+    /// is born later and runs from 100 s to 200 s keeps the port, and the cap counts from its last
+    /// read, not from the guard's first read.
+    #[test]
+    fn g6_a_marked_member_born_after_a_span_with_none_keeps_the_port() {
+        let (code, at, ends, _) = run_timed(
+            executor(50),
+            1_000,
+            &|t, _| {
+                let mut v = vec![stranger(5, 1, 50, 5), stranger(ROOT, 1, 7, ROOT)];
+                if (100_000..200_000).contains(&t) {
+                    v.push(row(40, ROOT, 100_000, 0));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert!(ends.is_empty(), "{ends:?}");
+        assert_eq!(code, 4);
+        assert!(at >= 199_000 + 300_000, "returned at {at} ms");
+    }
+
+    /// CP-189 G6: after an unread spell the guard does not leave by the cap at the first read; one
+    /// further read must agree. The marked first process is last read at 900 ms; members without
+    /// the mark are read until 50 s, the table is unread from 50 s to 320 s, and the first read
+    /// after it already lies past the cap.
+    #[test]
+    fn g6_one_further_read_must_agree_after_an_unread_spell() {
+        let first_after = std::cell::Cell::new(None::<u128>);
+        let (code, at, _, _) = run_timed(
+            executor(50),
+            100,
+            &|t, _| {
+                let mut v = vec![stranger(5, 1, 50, 5), stranger(70, ROOT, 20, 70)];
+                if t < 1_000 {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                    return Some(v);
+                }
+                if (50_000..320_000).contains(&t) {
+                    return None;
+                }
+                if t >= 320_000 && first_after.get().is_none() {
+                    first_after.set(Some(t));
+                }
+                Some(v)
+            },
+            &|p, _| every_marked(p),
+        );
+        assert_eq!(code, 4);
+        let first = first_after.get().expect("a read after the spell");
+        assert!(
+            at > first,
+            "left at the first read after the spell, {at} ms"
+        );
+    }
 }
