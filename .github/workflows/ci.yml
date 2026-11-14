@@ -1,4 +1,5 @@
 name: ci
+# scratch: both jobs with ci.d whole, the loop, the E3 stops and the E4 source, without the app build; never merged
 
 on:
   push:
@@ -96,17 +97,247 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+      - name: "Loop of the tests that this round adds or changes in halvo-sqlcipher (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          set +e -u
+          start=$(date +%s)
+          out=$(cargo test --locked -p halvo-sqlcipher --lib --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/.*Executable unittests src.lib\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\134' '/')
+          if [ -z "$bin" ]; then
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          printf 'LOOP build of the test binary: seconds %s\n' "$(($(date +%s) - start))"
+          status=0
+          for spec in 'page_gap::controls::the_four_rules_of_a_tree_page_name_their_plants_on_each_kind_of_page_with_a_low_and_a_high_byte 20' 'page_gap::controls::a_low_and_a_high_byte_in_a_freelist_leaf_and_in_the_header_are_named 200' 'page_gap::controls::the_page_count_passes_in_a_trunk_and_a_tail_and_the_count_plus_1_is_named 200' 'page_gap::controls::a_cell_that_takes_the_overflow_chain_of_another_names_a_page_of_2_chains_and_a_page_of_0 200' 'page_gap::controls::a_leaf_whose_type_byte_is_0_on_disk_is_named_as_a_page_that_dbstat_reads_corrupted 200' 'page_gap::controls::the_check_names_a_log_of_the_connections_file_that_holds_frames 200' 'page_gap::controls::a_draw_that_frees_a_second_trunk_leaves_no_text_and_its_plants_are_named 20' 'page_gap::lines::every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list 200' 'page_gap::rewrites::with_a_checkpoint_that_does_not_truncate_the_search_of_rewrites_names_the_log 200' 'page_gap::rewrites::text_planted_in_a_gap_is_named_by_the_structural_check_inside_the_search_of_rewrites 200' 'page_gap::second_place::with_a_checkpoint_that_does_not_truncate_the_search_of_second_place_names_the_log 200' 'page_gap::second_place::with_secure_delete_off_the_search_of_second_place_finds_a_removed_small_row 200' 'page_gap::second_place::small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place 20' 'page_gap::fts5::with_fts5_secure_delete_off_every_removed_token_that_a_needle_finds_is_found_by_its_last_6_bytes 200' 'page_gap::fts5::removed_fts5_tokens_with_a_shared_prefix_stand_in_no_page_but_the_idx_tree 20' 'page_gap::layout::the_structural_check_sees_four_bytes_of_text_planted_in_a_gap 200' 'page_gap::layout::the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads 200' 'page_gap::holes::with_the_store_closed_text_planted_past_the_stale_run_of_a_gap_is_named_by_the_search 200' 'page_gap::holes::text_planted_in_a_gap_with_the_store_open_is_named_by_the_look_with_the_store_open 200' 'page_gap::holes::a_checkpoint_that_does_not_truncate_leaves_a_log_that_the_search_names 200' 'page_gap::a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_place 20' 'page_gap::with_secure_delete_off_the_search_finds_a_removed_row_of_each_seed 200'; do
+            name=${spec% *}
+            runs=${spec##* }
+            passes=0
+            slowest=0
+            i=0
+            begun=$(date +%s)
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              t0=$(date +%s)
+              if "$bin" --exact "$name" 2>&1 | tr -d '\r' | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                passes=$((passes + 1))
+              fi
+              t=$(($(date +%s) - t0))
+              if [ "$t" -gt "$slowest" ]; then slowest=$t; fi
+            done
+            printf 'LOOP %s runs %s passes %s seconds %s slowest %s\n' "$name" "$runs" "$passes" "$(($(date +%s) - begun))" "$slowest"
+            if [ "$passes" -ne "$runs" ]; then status=1; fi
+          done
+          left=$(find target/tmp -maxdepth 1 -name 'halvo-sqlcipher-page-gap-*' 2>/dev/null | wc -l | tr -d ' ')
+          printf 'LOOP entries left under target/tmp named halvo-sqlcipher-page-gap-: %s\n' "$left"
+          if [ "$left" -ne 0 ]; then status=1; fi
+          exit "$status"
+      - name: "E3 stop 1 of halvo-sqlcipher's build: SQLITE_ENABLE_STAT4 is defined (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_ENABLE_STAT4" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 1 CFLAGS=-DSQLITE_ENABLE_STAT4: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 1 CFLAGS=-DSQLITE_ENABLE_STAT4: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 2 of halvo-sqlcipher's build: SQLITE_TEMP_STORE is not 2 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_TEMP_STORE is not 2"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_TEMP_STORE=4" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 2 CFLAGS=-DSQLITE_TEMP_STORE=4: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 2 CFLAGS=-DSQLITE_TEMP_STORE=4: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 3 of halvo-sqlcipher's build: SQLITE_DEFAULT_AUTOVACUUM is not 0 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_AUTOVACUUM=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 3 CFLAGS=-DSQLITE_DEFAULT_AUTOVACUUM=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 3 CFLAGS=-DSQLITE_DEFAULT_AUTOVACUUM=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 4 of halvo-sqlcipher's build: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_AMALGAMATION" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 4 CFLAGS=-DSQLITE_AMALGAMATION: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 4 CFLAGS=-DSQLITE_AMALGAMATION: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 5 of halvo-sqlcipher's build: SQLITE_HAS_CODEC is not defined (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-USQLITE_HAS_CODEC" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 5 CFLAGS=-USQLITE_HAS_CODEC: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 5 CFLAGS=-USQLITE_HAS_CODEC: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 6 of halvo-sqlcipher's build: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_SYNCHRONOUS=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 6 CFLAGS=-DSQLITE_DEFAULT_SYNCHRONOUS=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 6 CFLAGS=-DSQLITE_DEFAULT_SYNCHRONOUS=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          CFLAGS="-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 6 CFLAGS=-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 6 CFLAGS=-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 7 of halvo-sqlcipher's build: SQLITE_DEBUG is defined (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEBUG is defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEBUG" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 7 CFLAGS=-DSQLITE_DEBUG: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 7 CFLAGS=-DSQLITE_DEBUG: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 8 of halvo-sqlcipher's build: SQLITE_DEFAULT_PAGE_SIZE is not 4096 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_PAGE_SIZE is not 4096"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_PAGE_SIZE=8192" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 8 CFLAGS=-DSQLITE_DEFAULT_PAGE_SIZE=8192: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 8 CFLAGS=-DSQLITE_DEFAULT_PAGE_SIZE=8192: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E4 eighth source of halvo-sqlcipher's build: an anchor under a preprocessor branch (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          if [ "${RUNNER_OS:-}" = Windows ]; then py=python; else py=python3; fi
+          home=${CARGO_HOME:-$HOME/.cargo}
+          if [ "${RUNNER_OS:-}" = Windows ]; then home=$(cygpath -u "$home"); fi
+          pinned=$(find "$home/registry/src" -path '*sqlcipher-src-419.0.6*' -name sqlcipher.c | head -n 1)
+          if [ -z "$pinned" ]; then
+            printf 'E4 NOT-STOPPED eighth source: no pinned sqlcipher.c under %s\n' "$home/registry/src"
+            exit 1
+          fi
+          if [ "${RUNNER_OS:-}" = Windows ]; then pinned=$(cygpath -m "$pinned"); fi
+          case_file="${RUNNER_TEMP:-/tmp}/anchor-under-ifdef.c"
+          out="${RUNNER_TEMP:-/tmp}/e4-case.out"
+          script="${RUNNER_TEMP:-/tmp}/e4-case.py"
+          cat >"$script" <<'PYEOF'
+          import hashlib, sys
+          pinned, case, build_rs = sys.argv[1:4]
+          lines = open(pinned, 'rb').read().split(b'\n')
+          assert lines[81514] == b'' and lines[81516] == b'  pPg->nCell = (u16)nNew;'
+          lines[81514] = b'#ifdef SQLITE_DEBUG'
+          lines[81517:81517] = [b'#else', b'  pPg->nCell = (u16)(nNew & 0xffff);', b'#endif']
+          data = b'\n'.join(lines)
+          digest = hashlib.sha256(data).hexdigest()
+          assert digest == 'aac3535daae016c418657f416e962ac11449412ee6697216cc99c656dacf91c1', digest
+          open(case, 'wb').write(data)
+          text = open(build_rs, newline='', encoding='utf-8').read()
+          a = '    let pinned = source_dir.join(sqlcipher_src::SOURCE_FILE);'
+          b = 'const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";'
+          assert text.count(a) == 1 and text.count(b) == 1
+          text = text.replace(a, '    let pinned = PathBuf::from("' + case.replace(chr(92), '/') + '");')
+          text = text.replace(b, 'const PINNED_SHA256: &str = "' + digest + '";')
+          open(build_rs, 'w', newline='', encoding='utf-8').write(text)
+          print('E4 case written, sha256', digest)
+          PYEOF
+          $py -I "$script" "$pinned" "$case_file" crates/halvo-sqlcipher/build.rs || exit 1
+          cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          git checkout -- crates/halvo-sqlcipher/build.rs
+          printf 'E4 status lines after the restore: %s\n' "$(git status --porcelain | wc -l | tr -d ' ')"
+          # shellcheck disable=SC2016
+          words='looked for the line `  pPg->nCell = (u16)nNew;`, line 81517, outside every preprocessor branch opened after the text `static int editPage(`'
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E4 STOP eighth source: cargo build exit %s, the named line stands\n' "$code"
+            exit 0
+          fi
+          printf 'E4 NOT-STOPPED eighth source: cargo build exit %s, the named line does not stand\n' "$code"
+          tr -d '\r' <"$out" | grep -E 'error|halvo-sqlcipher:' | head -n 5
+          exit 1
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,17 +379,247 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+      - name: "Loop of the tests that this round adds or changes in halvo-sqlcipher (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e -u
+          start=$(date +%s)
+          out=$(cargo test --locked -p halvo-sqlcipher --lib --no-run 2>&1)
+          bin=$(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/.*Executable unittests src.lib\.rs (\(.*\))$/\1/p' | head -n 1 | tr '\134' '/')
+          if [ -z "$bin" ]; then
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          printf 'LOOP build of the test binary: seconds %s\n' "$(($(date +%s) - start))"
+          status=0
+          for spec in 'page_gap::controls::the_four_rules_of_a_tree_page_name_their_plants_on_each_kind_of_page_with_a_low_and_a_high_byte 20' 'page_gap::controls::a_low_and_a_high_byte_in_a_freelist_leaf_and_in_the_header_are_named 200' 'page_gap::controls::the_page_count_passes_in_a_trunk_and_a_tail_and_the_count_plus_1_is_named 200' 'page_gap::controls::a_cell_that_takes_the_overflow_chain_of_another_names_a_page_of_2_chains_and_a_page_of_0 200' 'page_gap::controls::a_leaf_whose_type_byte_is_0_on_disk_is_named_as_a_page_that_dbstat_reads_corrupted 200' 'page_gap::controls::the_check_names_a_log_of_the_connections_file_that_holds_frames 200' 'page_gap::controls::a_draw_that_frees_a_second_trunk_leaves_no_text_and_its_plants_are_named 20' 'page_gap::lines::every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list 200' 'page_gap::rewrites::with_a_checkpoint_that_does_not_truncate_the_search_of_rewrites_names_the_log 200' 'page_gap::rewrites::text_planted_in_a_gap_is_named_by_the_structural_check_inside_the_search_of_rewrites 200' 'page_gap::second_place::with_a_checkpoint_that_does_not_truncate_the_search_of_second_place_names_the_log 200' 'page_gap::second_place::with_secure_delete_off_the_search_of_second_place_finds_a_removed_small_row 200' 'page_gap::second_place::small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place 20' 'page_gap::fts5::with_fts5_secure_delete_off_every_removed_token_that_a_needle_finds_is_found_by_its_last_6_bytes 200' 'page_gap::fts5::removed_fts5_tokens_with_a_shared_prefix_stand_in_no_page_but_the_idx_tree 20' 'page_gap::layout::the_structural_check_sees_four_bytes_of_text_planted_in_a_gap 200' 'page_gap::layout::the_structural_check_sees_a_byte_planted_in_each_place_that_it_reads 200' 'page_gap::holes::with_the_store_closed_text_planted_past_the_stale_run_of_a_gap_is_named_by_the_search 200' 'page_gap::holes::text_planted_in_a_gap_with_the_store_open_is_named_by_the_look_with_the_store_open 200' 'page_gap::holes::a_checkpoint_that_does_not_truncate_leaves_a_log_that_the_search_names 200' 'page_gap::a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_place 20' 'page_gap::with_secure_delete_off_the_search_finds_a_removed_row_of_each_seed 200'; do
+            name=${spec% *}
+            runs=${spec##* }
+            passes=0
+            slowest=0
+            i=0
+            begun=$(date +%s)
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              t0=$(date +%s)
+              if "$bin" --exact "$name" 2>&1 | tr -d '\r' | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                passes=$((passes + 1))
+              fi
+              t=$(($(date +%s) - t0))
+              if [ "$t" -gt "$slowest" ]; then slowest=$t; fi
+            done
+            printf 'LOOP %s runs %s passes %s seconds %s slowest %s\n' "$name" "$runs" "$passes" "$(($(date +%s) - begun))" "$slowest"
+            if [ "$passes" -ne "$runs" ]; then status=1; fi
+          done
+          left=$(find target/tmp -maxdepth 1 -name 'halvo-sqlcipher-page-gap-*' 2>/dev/null | wc -l | tr -d ' ')
+          printf 'LOOP entries left under target/tmp named halvo-sqlcipher-page-gap-: %s\n' "$left"
+          if [ "$left" -ne 0 ]; then status=1; fi
+          exit "$status"
+      - name: "E3 stop 1 of halvo-sqlcipher's build: SQLITE_ENABLE_STAT4 is defined (scratch)"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_ENABLE_STAT4 is defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_ENABLE_STAT4" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 1 CFLAGS=-DSQLITE_ENABLE_STAT4: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 1 CFLAGS=-DSQLITE_ENABLE_STAT4: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 2 of halvo-sqlcipher's build: SQLITE_TEMP_STORE is not 2 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_TEMP_STORE is not 2"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_TEMP_STORE=4" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 2 CFLAGS=-DSQLITE_TEMP_STORE=4: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 2 CFLAGS=-DSQLITE_TEMP_STORE=4: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 3 of halvo-sqlcipher's build: SQLITE_DEFAULT_AUTOVACUUM is not 0 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_AUTOVACUUM is not 0"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_AUTOVACUUM=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 3 CFLAGS=-DSQLITE_DEFAULT_AUTOVACUUM=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 3 CFLAGS=-DSQLITE_DEFAULT_AUTOVACUUM=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 4 of halvo-sqlcipher's build: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: BTS_FAST_SECURE is not defined, so the database's code is not compiled in this file"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_AMALGAMATION" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 4 CFLAGS=-DSQLITE_AMALGAMATION: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 4 CFLAGS=-DSQLITE_AMALGAMATION: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 5 of halvo-sqlcipher's build: SQLITE_HAS_CODEC is not defined (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_HAS_CODEC is not defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-USQLITE_HAS_CODEC" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 5 CFLAGS=-USQLITE_HAS_CODEC: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 5 CFLAGS=-USQLITE_HAS_CODEC: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 6 of halvo-sqlcipher's build: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_SYNCHRONOUS=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 6 CFLAGS=-DSQLITE_DEFAULT_SYNCHRONOUS=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 6 CFLAGS=-DSQLITE_DEFAULT_SYNCHRONOUS=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          CFLAGS="-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 6 CFLAGS=-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 6 CFLAGS=-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 7 of halvo-sqlcipher's build: SQLITE_DEBUG is defined (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEBUG is defined"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEBUG" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 7 CFLAGS=-DSQLITE_DEBUG: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 7 CFLAGS=-DSQLITE_DEBUG: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E3 stop 8 of halvo-sqlcipher's build: SQLITE_DEFAULT_PAGE_SIZE is not 4096 (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          status=0
+          words="halvo-sqlcipher: the build stops: SQLITE_DEFAULT_PAGE_SIZE is not 4096"
+          out="${RUNNER_TEMP:-/tmp}/e3-stop.out"
+          CFLAGS="-DSQLITE_DEFAULT_PAGE_SIZE=8192" cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E3 STOP 8 CFLAGS=-DSQLITE_DEFAULT_PAGE_SIZE=8192: cargo build exit %s, the named line stands\n' "$code"
+          else
+            printf 'E3 NOT-STOPPED 8 CFLAGS=-DSQLITE_DEFAULT_PAGE_SIZE=8192: cargo build exit %s, the named line does not stand\n' "$code"
+            tr -d '\r' <"$out" | grep -E 'error|warning: halvo' | head -n 5
+            status=1
+          fi
+          exit "$status"
+      - name: "E4 eighth source of halvo-sqlcipher's build: an anchor under a preprocessor branch (scratch)"
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e -u
+          if [ "${RUNNER_OS:-}" = Windows ]; then py=python; else py=python3; fi
+          home=${CARGO_HOME:-$HOME/.cargo}
+          if [ "${RUNNER_OS:-}" = Windows ]; then home=$(cygpath -u "$home"); fi
+          pinned=$(find "$home/registry/src" -path '*sqlcipher-src-419.0.6*' -name sqlcipher.c | head -n 1)
+          if [ -z "$pinned" ]; then
+            printf 'E4 NOT-STOPPED eighth source: no pinned sqlcipher.c under %s\n' "$home/registry/src"
+            exit 1
+          fi
+          if [ "${RUNNER_OS:-}" = Windows ]; then pinned=$(cygpath -m "$pinned"); fi
+          case_file="${RUNNER_TEMP:-/tmp}/anchor-under-ifdef.c"
+          out="${RUNNER_TEMP:-/tmp}/e4-case.out"
+          script="${RUNNER_TEMP:-/tmp}/e4-case.py"
+          cat >"$script" <<'PYEOF'
+          import hashlib, sys
+          pinned, case, build_rs = sys.argv[1:4]
+          lines = open(pinned, 'rb').read().split(b'\n')
+          assert lines[81514] == b'' and lines[81516] == b'  pPg->nCell = (u16)nNew;'
+          lines[81514] = b'#ifdef SQLITE_DEBUG'
+          lines[81517:81517] = [b'#else', b'  pPg->nCell = (u16)(nNew & 0xffff);', b'#endif']
+          data = b'\n'.join(lines)
+          digest = hashlib.sha256(data).hexdigest()
+          assert digest == 'aac3535daae016c418657f416e962ac11449412ee6697216cc99c656dacf91c1', digest
+          open(case, 'wb').write(data)
+          text = open(build_rs, newline='', encoding='utf-8').read()
+          a = '    let pinned = source_dir.join(sqlcipher_src::SOURCE_FILE);'
+          b = 'const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";'
+          assert text.count(a) == 1 and text.count(b) == 1
+          text = text.replace(a, '    let pinned = PathBuf::from("' + case.replace(chr(92), '/') + '");')
+          text = text.replace(b, 'const PINNED_SHA256: &str = "' + digest + '";')
+          open(build_rs, 'w', newline='', encoding='utf-8').write(text)
+          print('E4 case written, sha256', digest)
+          PYEOF
+          $py -I "$script" "$pinned" "$case_file" crates/halvo-sqlcipher/build.rs || exit 1
+          cargo build --locked -p halvo-sqlcipher >"$out" 2>&1
+          code=$?
+          git checkout -- crates/halvo-sqlcipher/build.rs
+          printf 'E4 status lines after the restore: %s\n' "$(git status --porcelain | wc -l | tr -d ' ')"
+          # shellcheck disable=SC2016
+          words='looked for the line `  pPg->nCell = (u16)nNew;`, line 81517, outside every preprocessor branch opened after the text `static int editPage(`'
+          if [ "$code" -ne 0 ] && tr -d '\r' <"$out" | grep -qF "$words"; then
+            printf 'E4 STOP eighth source: cargo build exit %s, the named line stands\n' "$code"
+            exit 0
+          fi
+          printf 'E4 NOT-STOPPED eighth source: cargo build exit %s, the named line does not stand\n' "$code"
+          tr -d '\r' <"$out" | grep -E 'error|halvo-sqlcipher:' | head -n 5
+          exit 1
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
