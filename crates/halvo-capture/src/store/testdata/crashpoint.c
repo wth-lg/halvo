@@ -1,13 +1,3 @@
-// Interposer of the kill table (store::hardening_tests): counts the
-// file-system calls that change a file under one directory and ends the
-// process, as a kill would, just before the Nth.
-//
-// Build:  cc -dynamiclib -o crashpoint.dylib crashpoint.c
-// Use:    DYLD_INSERT_LIBRARIES=crashpoint.dylib with
-//   HALVO_IT_DIR       a path component that marks the test's directory
-//   HALVO_IT_CRASH_AT  N; _exit(77) just before the Nth counted call; 0 = never
-//   HALVO_IT_TRACE     optional file; one line per counted call
-// Counting starts after the process writes a file named ARM in the directory.
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>

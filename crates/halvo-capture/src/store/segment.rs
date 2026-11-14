@@ -148,19 +148,12 @@ pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
         .map_err(io_error)
 }
 
-/// What the removal of the segments tree left: the entries that are no
-/// directory and stay, and the names at which it met a link or an entry of
-/// another kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct SegmentsRemoval {
     pub(crate) left: u64,
     pub(crate) not_followed: u64,
 }
 
-/// Removes the segments tree through the handle of the store directory, each
-/// directory opened through the handle of its parent, every entry attempted:
-/// a link or an entry of another kind is removed as the entry that it is,
-/// never followed, and counted.
 pub(crate) fn remove_segments_through(store_dir: &Dir) -> SegmentsRemoval {
     let mut removal = SegmentsRemoval::default();
     remove_entry_below(store_dir, OsStr::new(SEGMENTS), 0, &mut removal);
@@ -216,9 +209,6 @@ pub(crate) fn refuse_a_linked_segments_root(store_dir: &Dir) -> StoreResult<()> 
     }
 }
 
-/// What a sweep of the segment files did: the files that it removed, the
-/// entries that it took as no files of the store, and the first removal that
-/// failed, after it tried every other one.
 pub(crate) struct SegmentSweep {
     pub(crate) removed: u64,
     pub(crate) not_store_files: u64,
@@ -531,9 +521,6 @@ pub(crate) fn read_segment_file(
     decrypt_segment(&mut reader, out, seg_key)
 }
 
-/// Removes the file of a segment that this store wrote, through the handles
-/// of its directories; a name that is gone or that is no directory of the
-/// store leaves nothing to remove.
 pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> StoreResult<()> {
     let names = SegmentNames::of(segment_id);
     let shard = store_dir

@@ -76,8 +76,6 @@ impl Drop for DestroyRootOnDrop {
     }
 }
 
-/// A fresh store in `dir` under the root-file custody, its root kept in the
-/// directory `roots` inside `dir`.
 fn scratch_store(dir: &Path) -> StoreResult<(EncryptedStore, DestroyRootOnDrop)> {
     let root_id = RootId::fresh()?;
     let roots = dir.join(ROOTS);

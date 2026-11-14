@@ -83,9 +83,6 @@ fn known_version(found: i64, supported: i64) -> StoreResult<()> {
     }
 }
 
-/// A key file of version 2: the version, the custody kind, the root id as 32
-/// lowercase hex, the namespace (the label of what the wrapped key protects)
-/// and the wrapped key.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct KeyFile {
     pub version: u32,
@@ -95,16 +92,12 @@ pub(crate) struct KeyFile {
     pub wrapped_key: String,
 }
 
-/// A key file's place: a directory handle and the name in it. The store's
-/// own key file is reached through the store's handle; [`KeyFile::at`] serves
-/// a key file that has no handle.
 pub(crate) struct KeyFilePlace {
     dir: Dir,
     name: OsString,
     temp: OsString,
 }
 
-/// What a key file says about roots, for the clearing of `create.pending`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum KeyNames {
     Absent,
@@ -112,7 +105,6 @@ enum KeyNames {
     Unknown,
 }
 
-/// What a removal of a key file did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Removal {
     pub(crate) gone: bool,
@@ -130,8 +122,6 @@ impl KeyFile {
         }
     }
 
-    /// The key file at `path`, reached through a handle of its parent that
-    /// refuses a link at the parent's own name.
     pub(crate) fn at(path: &Path) -> StoreResult<KeyFilePlace> {
         let name = path
             .file_name()
@@ -202,12 +192,6 @@ impl KeyFilePlace {
         }
     }
 
-    /// Reads the key file of `label` without following a link and without a
-    /// wait. A missing file answers [`StoreError::Sealed`], a link or an entry
-    /// of another kind the obstructed variant, a version other than 2
-    /// [`StoreError::OlderStore`] or [`StoreError::NewerStore`], a namespace of
-    /// another valid label [`StoreError::KeyFileOfAnotherLabel`], and anything
-    /// else that does not parse [`StoreError::KeyFileUnparseable`].
     pub(crate) fn read(&self, label: KeyLabel) -> StoreResult<KeyFile> {
         let json = self.bytes()?;
         serde_json::from_slice::<KeyFileVersion>(&json)
@@ -224,8 +208,6 @@ impl KeyFilePlace {
         Ok(key_file)
     }
 
-    /// The root id that a key file of version 1 names, which an older build
-    /// wrote.
     fn older_root(&self) -> Option<RootId> {
         let json = self.bytes().ok()?;
         let head: KeyFileVersion = serde_json::from_slice(&json).ok()?;
@@ -236,15 +218,12 @@ impl KeyFilePlace {
         RootId::parse(&older.root_id)
     }
 
-    /// The root id that the key file names, whatever its label and version.
     pub(crate) fn named_root(&self) -> Option<RootId> {
         let json = self.bytes().ok()?;
         let named: OlderKeyFile = serde_json::from_slice(&json).ok()?;
         RootId::parse(&named.root_id)
     }
 
-    /// What the key file says about roots: no entry at its name, the root id
-    /// that it names, or an entry whose root id cannot be read.
     fn names(&self) -> KeyNames {
         match self.dir.entry(&self.name) {
             Err(e) if e.kind() == ErrorKind::NotFound => KeyNames::Absent,
@@ -263,10 +242,6 @@ impl KeyFilePlace {
         }
     }
 
-    /// Publishes `key_file` create-only: the bytes go to a temporary file,
-    /// which is made durable and then given the key file's name by a hard
-    /// link, which never replaces an entry. An entry at the name answers
-    /// [`StoreError::AlreadyExists`] and stays as it was.
     pub(crate) fn publish(&self, key_file: &KeyFile) -> StoreResult<()> {
         let json = serde_json::to_vec_pretty(key_file)
             .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
@@ -298,10 +273,6 @@ impl KeyFilePlace {
             })
     }
 
-    /// Zeroes the key file when it is a regular file and removes it whatever
-    /// the zero-fill did; a link or an entry of another kind is removed as the
-    /// entry that it is, never opened, and counted as not followed. Its
-    /// temporary file goes the same way.
     pub(crate) fn destroy(&self) -> Removal {
         let _ = zero_and_remove(&self.dir, &self.temp);
         if failpoint::hit("key_file_destroy").is_err() {
@@ -325,9 +296,6 @@ fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
 }
 
-/// Zeroes the entry `name` of `dir` when it is a regular file and removes it
-/// whatever the zero-fill did; a link or an entry of another kind is removed
-/// as the entry that it is and never opened. Answers the removal's result.
 fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     if let Ok(entry) = dir.entry(name) {
         if entry.kind == EntryKind::File {
@@ -374,9 +342,6 @@ const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
     .union(OpenFlags::SQLITE_OPEN_NO_MUTEX)
     .union(OpenFlags::SQLITE_OPEN_NOFOLLOW);
 
-/// Which name an open gave SQLite: on macOS the name
-/// `/.vol/<device>/<file number>/store.db` of the handle's directory, or the
-/// handle's kept name where the volume does not resolve such a name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     not(target_os = "macos"),
@@ -387,13 +352,8 @@ pub(crate) enum NameForm {
     Kept,
 }
 
-/// The form that an open used and the volume's reading at that open.
 type Named = (NameForm, VolumeIds);
 
-/// Opens the connection on the database file of `store_dir`. On macOS the
-/// store first sets the mode of the file to 0600 on its own descriptor and
-/// closes that descriptor before SQLite opens the name, because closing a
-/// descriptor of the file after SQLite took its locks would drop them.
 #[cfg(unix)]
 fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     use std::os::unix::fs::PermissionsExt;
@@ -409,8 +369,6 @@ fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, 
     open_connection(store_dir, flags)
 }
 
-/// SQLite opens the database by a name, so the store goes on only while the
-/// handle's directory still stands at its kept name.
 fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
     match store_dir.still_named() {
         Ok(true) => Ok(()),
@@ -422,9 +380,6 @@ fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
     }
 }
 
-/// Opens the connection on the database file of `store_dir`. On Windows the
-/// store holds the file from its check until the connection is open, with a
-/// handle that shares no delete, so no other file can take the name.
 #[cfg(windows)]
 fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     #[cfg(test)]
@@ -432,11 +387,6 @@ fn open_database(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, 
     open_connection(store_dir, flags)
 }
 
-/// The one open of SQLite in the store, for the probe and for both
-/// connections: a look at the four names of the database through the
-/// handle, the last look at the handle's name, the name for SQLite, then
-/// SQLite's open with the flags that the caller passes. A code of that open
-/// is answered after a second look.
 fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection, Named)> {
     #[cfg(test)]
     failpoint::seam(SEAM_BEFORE_THE_LOOK);
@@ -460,8 +410,6 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
     conn
 }
 
-/// Whether the volume of a handle resolves `/.vol/<device>/<file number>`
-/// names, read by calls that look up no name of the store directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     not(target_os = "macos"),
@@ -474,10 +422,6 @@ pub(crate) enum VolumeIds {
 }
 
 #[cfg(target_os = "macos")]
-/// The three readings of a volume: its mount flag `MNT_DOVOLFS`, its
-/// capability `VOL_CAP_FMT_PATH_FROM_ID` as (valid, set), and the stat of
-/// its root under the root's own volume name. `None` is a reading that
-/// failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct VolumeReadings {
     pub(crate) flag: Option<bool>,
@@ -486,7 +430,6 @@ pub(crate) struct VolumeReadings {
 }
 
 #[cfg(target_os = "macos")]
-/// What the stat of a volume's root under its own volume name answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RootAnswer {
     TheRoot,
@@ -512,7 +455,6 @@ impl VolumeReadings {
 }
 
 #[cfg(target_os = "macos")]
-/// What the stat of the directory's own volume name answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DirectoryStat {
     TheHandle,
@@ -522,7 +464,6 @@ pub(crate) enum DirectoryStat {
 }
 
 #[cfg(target_os = "macos")]
-/// The step that one answer of the directory's stat decides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameChoice {
     Volume,
@@ -533,10 +474,6 @@ pub(crate) enum NameChoice {
 }
 
 #[cfg(target_os = "macos")]
-/// The choice of ruling ST-39 (1)(c): the volume name for the handle's own
-/// identity; the kept name only for a no-such-name answer on a volume that
-/// reads NO before and after it; for YES a look at the handle, then the stat
-/// again while `stats_left` allows; a refusal otherwise.
 pub(crate) fn choose_the_name(
     stat: DirectoryStat,
     before: VolumeIds,
@@ -559,11 +496,6 @@ pub(crate) fn choose_the_name(
     }
 }
 
-/// The readings of the volume of `store_dir`: the mount flag by fstatfs of
-/// the handle; the capability by the attribute call on the mount point that
-/// fstatfs names, used only when its volume id is the handle's, because the
-/// call answers volume attributes only for the root of a volume; and the
-/// stat of the root under its own volume name.
 #[cfg(target_os = "macos")]
 pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
     #[cfg(test)]
@@ -609,8 +541,6 @@ pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
     }
 }
 
-/// The capability `VOL_CAP_FMT_PATH_FROM_ID` of the volume whose root `fd`
-/// holds, as (valid, set), read with fgetattrlist.
 #[cfg(target_os = "macos")]
 fn path_from_id(fd: std::os::fd::RawFd) -> Option<(bool, bool)> {
     #[repr(C)]
@@ -651,16 +581,6 @@ fn path_from_id(fd: std::os::fd::RawFd) -> Option<(bool, bool)> {
     ))
 }
 
-/// The name that SQLite gets for the database of `store_dir`, and the form
-/// and volume reading of that choice. On macOS it is
-/// `/.vol/<device>/<file number>/store.db`, with the two numbers read from the
-/// handle in this call and kept nowhere, after a stat of the directory's own
-/// volume name that follows no link: the same device, file number and kind
-/// give that name; another identity refuses the open; a no-such-name answer
-/// gives the kept name only on a volume that reads NO before and after it,
-/// and is refused on a volume that reads UNKNOWN or that reads YES after two
-/// more stats or when the handle's directory is removed or left its name;
-/// any other error is answered as the base answers it.
 #[cfg(target_os = "macos")]
 fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)> {
     let (device, file_number) = store_dir.identity().map_err(io_error)?;
@@ -744,7 +664,6 @@ fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)>
     ))
 }
 
-/// Seams of the tests at the name that SQLite gets.
 #[cfg(all(test, target_os = "macos"))]
 pub(crate) mod name_seams {
     use std::cell::RefCell;
@@ -785,8 +704,6 @@ pub(crate) mod name_seams {
     }
 }
 
-/// A seam of the tests that makes the next open of SQLite on this thread
-/// answer a code.
 #[cfg(test)]
 pub(crate) mod code_seams {
     use std::cell::Cell;
@@ -795,7 +712,6 @@ pub(crate) mod code_seams {
         static FORCED: Cell<Option<(usize, i32)>> = const { Cell::new(None) };
     }
 
-    /// The `nth` open of SQLite from now on, on this thread, answers `code`.
     pub(crate) fn force(nth: usize, code: Option<i32>) {
         FORCED.with(|forced| forced.set(code.map(|code| (nth, code))));
     }
@@ -815,9 +731,6 @@ pub(crate) mod code_seams {
     }
 }
 
-/// The answer to a code that SQLite gave at an open or a create, after the
-/// store looked through its handle once more: what the look finds wins, and
-/// only when it finds nothing does the code decide, by [`code_answer`].
 fn after_a_code(store_dir: &Dir, e: &rusqlite::Error) -> StoreError {
     let code = match e {
         rusqlite::Error::SqliteFailure(failure, _) => Some(failure.extended_code),
@@ -838,10 +751,6 @@ fn look_again(store_dir: &Dir) -> StoreResult<()> {
     look_at_the_database_files(store_dir)
 }
 
-/// The table of the codes that an open or a create can meet, read on the
-/// primary code: 11 and 26 [`StoreError::DatabaseUnreadable`], 13
-/// `Io(StorageFull)`, 5 and 6 [`StoreError::Locked`], every other code, and
-/// an answer that carries no code, `Io(Other)`.
 pub(crate) fn code_answer(code: Option<i32>) -> StoreError {
     match code.map(|code| code & 0xff) {
         Some(rusqlite::ffi::SQLITE_CORRUPT | rusqlite::ffi::SQLITE_NOTADB) => {
@@ -853,9 +762,6 @@ pub(crate) fn code_answer(code: Option<i32>) -> StoreError {
     }
 }
 
-/// On Windows the database file is held from the look until the connection
-/// is open, with a handle that shares no delete, so no other file can take
-/// its name meanwhile.
 #[cfg(windows)]
 fn hold_the_database_file(store_dir: &Dir) -> StoreResult<Option<std::fs::File>> {
     match store_dir.hold_file(OsStr::new(DATABASE_FILE)) {
@@ -865,9 +771,6 @@ fn hold_the_database_file(store_dir: &Dir) -> StoreResult<Option<std::fs::File>>
     }
 }
 
-/// Reads store.db and its three side files through the handle, following no
-/// link and without a wait: each is absent or a regular file, and anything
-/// else answers the obstructed variant for its name.
 fn look_at_the_database_files(store_dir: &Dir) -> StoreResult<()> {
     let names = [(DATABASE_FILE, StoreName::Database)]
         .into_iter()
@@ -886,9 +789,6 @@ fn look_at_the_database_files(store_dir: &Dir) -> StoreResult<()> {
 
 pub(crate) use super::failpoint;
 
-/// The answer to an error of SQLite at a write, a shred or a read of a handle
-/// that is open: the extended code, or a fixed text for an answer that
-/// carries none. It copies no text of the library.
 pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
         rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
@@ -917,8 +817,6 @@ fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
     }
 }
 
-/// What `create.pending` holds while a create runs: the custody kind and the
-/// root id of the root that the create is about to make.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Pending {
@@ -962,11 +860,6 @@ fn remove_pending(store_dir: &Dir) -> StoreResult<()> {
     store_dir.sync().map_err(io_error)
 }
 
-/// Finishes what a create that stopped left in `create.pending`: the root
-/// that it names is destroyed when no key file stands at the store's name or
-/// the key file names another root, and the file is removed. When an entry
-/// stands at the key file's name whose root id cannot be read, nothing is
-/// destroyed or removed.
 fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<()> {
     let present = store_dir.entry(OsStr::new(CREATE_PENDING)).is_ok()
         || store_dir.entry(OsStr::new(CREATE_PENDING_TEMP)).is_ok();
@@ -1002,8 +895,6 @@ enum Database {
 
 const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
 
-/// What a removal of the database names left: whether a database file
-/// remains, and how many names held a link or an entry of another kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DatabaseRemoval {
     pub(crate) left: bool,
@@ -1011,9 +902,6 @@ pub(crate) struct DatabaseRemoval {
 }
 
 impl Db {
-    /// Removes store.db and its side files through the handle, each attempted
-    /// whatever the others did; an entry that is no regular file is removed
-    /// as the entry that it is and counted as not followed.
     pub(crate) fn destroy_through(store_dir: &Dir) -> DatabaseRemoval {
         if failpoint::hit("database_destroy").is_err() {
             return DatabaseRemoval {
@@ -1059,8 +947,6 @@ impl Db {
         Self::open_file(store_dir, key, Database::Existing)
     }
 
-    /// Answers Locked when another connection holds store.db, without asking a
-    /// custody; any other answer of the probe is no live holder.
     fn refuse_a_live_holder(store_dir: &Dir) -> StoreResult<()> {
         halvo_sqlcipher::initialize().map_err(|code| code_answer(Some(code)))?;
         match store_dir.entry(OsStr::new(DATABASE_FILE)) {
@@ -1201,11 +1087,6 @@ impl Db {
         Ok(())
     }
 
-    /// The first instant of the log's check, after the connection's first
-    /// read and before its first write: SQLite checkpoints its log with
-    /// truncation, and the log through the handle is then absent or empty;
-    /// otherwise the log that SQLite holds is not the handle's. A checkpoint
-    /// that does not complete answers as a live holder does.
     fn log_drained(&self) -> StoreResult<()> {
         let busy: i64 = self
             .conn
@@ -1230,10 +1111,6 @@ impl Db {
         }
     }
 
-    /// The second instant of the log's check: after the first write of the
-    /// connection and before its next checkpoint, the log through the handle
-    /// is a regular file that holds bytes; otherwise the log that SQLite
-    /// writes is not the handle's.
     fn log_look(&self) -> StoreResult<()> {
         match self.store_dir.entry(&self.log_name) {
             Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => Ok(()),
@@ -1251,8 +1128,6 @@ impl Db {
         }
     }
 
-    /// After the create's checkpoint, store.db through the handle holds at
-    /// least one page.
     fn page_look(&self) -> StoreResult<()> {
         let page: u64 = self
             .conn
@@ -1452,7 +1327,6 @@ impl Db {
             .map_err(db_error)
     }
 
-    /// The count of keyed segments, or `None` when it cannot be read.
     pub(crate) fn keyed_segments(&self) -> Option<u64> {
         self.conn
             .query_row(
@@ -1620,14 +1494,6 @@ fn hex_lower(bytes: &[u8; 32]) -> Zeroizing<String> {
     s
 }
 
-/// The look once SQLite holds its files: through the handle the entry
-/// store.db is a regular file; SQLite answers that its file has not moved
-/// from the name that it keeps; that name, read without following a link,
-/// leads to the handle's entry; and the handle's directory still stands at
-/// its kept name. On macOS under the volume name the two numbers of the name
-/// are the handle's own. Any difference answers the obstructed variant. It
-/// closes no window: a log may already have been made or removed in a
-/// directory at the name.
 #[cfg(target_os = "macos")]
 fn held_look(conn: &Connection, store_dir: &Dir, form: NameForm) -> StoreResult<()> {
     let outside = || obstructed(StoreName::Database, Met::DatabaseOutsideTheDirectory);
@@ -1686,9 +1552,6 @@ fn volume_stat_of(name: &Path) -> std::io::Result<(EntryKind, u64, u64)> {
     Ok((kind, meta.dev() as u64, meta.ino()))
 }
 
-/// On Windows the database file and the directory are held without delete
-/// sharing from the look until the connection is open, so the look reads the
-/// kind of the entry alone.
 #[cfg(windows)]
 fn held_look(_conn: &Connection, store_dir: &Dir, _form: NameForm) -> StoreResult<()> {
     match store_dir.entry(OsStr::new(DATABASE_FILE)) {
@@ -1705,9 +1568,6 @@ fn held_look(_conn: &Connection, store_dir: &Dir, _form: NameForm) -> StoreResul
     }
 }
 
-/// The states of a handle: open with its database and store key; deleting,
-/// from the first root step of a delete-all until every step finished; and
-/// deleted. Writes answer [`StoreError::Sealed`] in the last two.
 enum Keyed {
     Open { db: Db, store_key: StoreKey },
     Deleting(Option<Box<DeleteReport>>),
@@ -1880,9 +1740,8 @@ impl EncryptedStore {
     /// custody's own variant when the custody kind is not in this build or the
     /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
     /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back,
-    /// and [`CustodyError::RootDenied`] that the root file cannot be read. A
-    /// code of SQLite is answered by the table of [`code_answer`] after a look
-    /// through the handle; no answer carries a bare code. No call waits on a
+    /// and [`CustodyError::RootDenied`] that the root file cannot be read.
+    /// No call waits on a
     /// FIFO.
     pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, roots, retention, custody_for)
@@ -1958,11 +1817,6 @@ impl EncryptedStore {
         self.keyed().map(|(_, key)| key)
     }
 
-    /// The answer of a code that a read or a write of this handle met: a code
-    /// of a directory that is gone (1802 at a read, 14 at an open), and a
-    /// segment file that is missing, answer the obstructed variant for the
-    /// store directory when the handle's directory no longer stands at its
-    /// name.
     pub(crate) fn answer(&self, e: StoreError) -> StoreError {
         match e {
             StoreError::Db(rusqlite::ffi::SQLITE_IOERR_FSTAT | rusqlite::ffi::SQLITE_CANTOPEN)
@@ -2035,8 +1889,6 @@ impl EncryptedStore {
         ))
     }
 
-    /// The root step of a delete-all: the custody's root, then every other
-    /// root file under the custody's roots directory.
     pub(crate) fn root_step(&self) -> RootsLeft {
         let destroyed = self.custody.destroy_root();
         let named = self.custody.root_id();
@@ -2049,7 +1901,6 @@ impl EncryptedStore {
         }
     }
 
-    /// What a delete-all left when it ran no step on this handle.
     pub(crate) fn untouched(&self) -> DeleteReport {
         DeleteReport {
             keyed_segments: None,
@@ -2065,8 +1916,6 @@ impl EncryptedStore {
         }
     }
 
-    /// Steps 4 to 6 through the handle, after the root step: the handle is
-    /// put in the deleting state first, so that it refuses writes.
     pub(crate) fn remove_files_after(&mut self, roots: RootsLeft) {
         self.keyed = Keyed::Deleting(None);
         let mut report = remove_the_store_files(&self.dir, None, roots);
@@ -2143,9 +1992,6 @@ fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {
     }
 }
 
-/// The tail of a delete on a name that is no directory: the entry is removed
-/// as the entry that it is, never followed, and every root file under `roots`
-/// is destroyed.
 fn remove_what_stands_at(store_dir: &Path, roots: &Path) -> DeleteReport {
     let roots = file_root::destroy_every_root(roots, None);
     let gone = match (store_dir.parent(), store_dir.file_name()) {
@@ -2168,7 +2014,6 @@ fn remove_what_stands_at(store_dir: &Path, roots: &Path) -> DeleteReport {
     }
 }
 
-/// Steps 4 to 6 of a delete through the handle of the store directory.
 fn remove_the_store_files(
     store: &Dir,
     keyed_segments: Option<u64>,
@@ -2218,9 +2063,6 @@ fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
     }
 }
 
-/// The bytes of the regular files below `dir`, each directory opened and
-/// listed through the handle of its parent; a link is neither followed nor
-/// counted.
 pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     type Pending = Vec<(Option<Rc<Dir>>, std::ffi::OsString)>;
     fn take(

@@ -173,8 +173,7 @@ impl DeleteReport {
 pub enum StoreError {
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
-    /// SQLite returned this extended result code at a write or a shred; `open`
-    /// and `create` hand on no code.
+    /// SQLite returned this extended result code.
     #[error("the store database failed with SQLite code {0}")]
     Db(i32),
     /// Sealing a segment or a segment key failed: the random source or the
@@ -214,8 +213,7 @@ pub enum StoreError {
     #[error("the store key does not open the store database")]
     DatabaseUnreadable,
     /// store.key or store.db has a format version above the one this build
-    /// reads. The refused open writes to no file of the store, and it narrows
-    /// the directory to its owner.
+    /// reads.
     #[error(
         "the store has format version {found}, above version {supported} that this build reads"
     )]
@@ -223,9 +221,7 @@ pub enum StoreError {
     /// store.key or store.db has a format version below the one this build
     /// reads, among them a key file of version 1, which an older build wrote.
     /// No migration exists; the delete tail of
-    /// [`db::EncryptedStore::delete_store_dir`] removes such a store. The
-    /// refused open writes to no file of the store, and it narrows the
-    /// directory to its owner.
+    /// [`db::EncryptedStore::delete_store_dir`] removes such a store.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]

@@ -1,4 +1,4 @@
-//! macOS Secure Enclave key custody: the release path.
+//! macOS Secure Enclave key custody.
 
 #![cfg(feature = "secure-enclave")]
 
@@ -9,7 +9,6 @@ use super::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId, StoreKey, W
 
 const ECIES: Algorithm = Algorithm::ECIESEncryptionCofactorX963SHA256AESGCM;
 
-/// Secure Enclave custody keyed by a per-store label.
 pub struct SecureEnclaveCustody {
     root_id: RootId,
     key: SecKey,

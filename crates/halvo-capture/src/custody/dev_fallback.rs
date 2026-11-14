@@ -101,8 +101,6 @@ pub(crate) fn store_key_from(plain: Zeroizing<Vec<u8>>) -> Result<StoreKey, Cust
     Ok(key)
 }
 
-/// The protector of a root file on macOS without the feature `secure-enclave`:
-/// none. The file holds the 32 random bytes, and its mode alone protects it.
 #[cfg(not(target_os = "windows"))]
 pub(crate) struct Plain;
 

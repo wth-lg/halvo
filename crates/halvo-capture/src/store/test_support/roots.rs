@@ -14,8 +14,6 @@ fn registry() -> &'static Mutex<HashMap<RootId, PathBuf>> {
     ROOTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// `<target>/tmp/store-test-roots`, beside the test executable's build tree
-/// and outside the temporary directory that a test run checks for leftovers.
 fn roots_base() -> PathBuf {
     let exe = std::env::current_exe().expect("the test executable's path");
     let target = exe
@@ -37,10 +35,6 @@ fn directory_of(root_id: RootId) -> PathBuf {
         .clone()
 }
 
-/// The root of a test store: a root id with a roots directory of its own
-/// under `<target>/tmp/store-test-roots`. Dropping it destroys the root. A
-/// custody that a test makes for the id before the guard uses the same
-/// directory.
 pub(crate) struct RootGuard {
     id: RootId,
     dir: PathBuf,
@@ -82,8 +76,6 @@ impl Drop for RootGuard {
     }
 }
 
-/// The roots directory of `root_id`: that of its guard, made for the id when
-/// no guard holds it yet.
 pub(crate) fn roots_of(root_id: RootId) -> PathBuf {
     if let Some(dir) = registry().lock().unwrap().get(&root_id) {
         return dir.join("roots");
@@ -94,18 +86,12 @@ pub(crate) fn roots_of(root_id: RootId) -> PathBuf {
     }
 }
 
-/// The variable that hands a child test process the roots directory of the
-/// store that its parent made.
 pub(crate) const ROOTS_OF_THE_PARENT: &str = "HALVO_TEST_ROOTS_DIR";
 
-/// The development custody of `root_id` under the roots directory of its
-/// live guard.
 pub(crate) fn custody(root_id: RootId) -> DevFallbackCustody {
     DevFallbackCustody::new(root_id, roots_of(root_id))
 }
 
-/// The roots directory of the store in `dir`: that of the guard of the root
-/// that its key file names.
 pub(crate) fn roots_for_store(dir: &Path) -> PathBuf {
     match KeyFile::at(&dir.join("store.key"))
         .ok()
@@ -127,8 +113,6 @@ pub(crate) fn roots_for_store(dir: &Path) -> PathBuf {
     }
 }
 
-/// `EncryptedStore::open` with the roots directory of the guard of the root
-/// that the key file names.
 pub(crate) fn open(dir: &Path, retention: Duration) -> StoreResult<EncryptedStore> {
     EncryptedStore::open(dir, &roots_for_store(dir), retention)
 }

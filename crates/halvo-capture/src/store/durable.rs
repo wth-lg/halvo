@@ -111,9 +111,6 @@ impl Dir {
         &self.path
     }
 
-    /// Removes the entry `name` as the entry that it is, in one call: a file,
-    /// a link or another kind of entry is unlinked, and a directory is removed
-    /// only when it is empty. Nothing behind a link is touched.
     pub(crate) fn remove_entry(&self, name: &OsStr) -> io::Result<()> {
         match self.entry(name)?.kind {
             EntryKind::Dir => self.remove_dir(name),
@@ -125,9 +122,6 @@ impl Dir {
         }
     }
 
-    /// Removes the entry `name` and, when it is a directory, everything below
-    /// it, each directory opened through the handle of its parent; a link is
-    /// removed and not followed, and a name that is gone is no error.
     pub(crate) fn remove_tree(&self, name: &OsStr) -> io::Result<()> {
         let gone = |removed: io::Result<()>| match removed {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -339,9 +333,7 @@ mod unix_dir {
             if stream.is_null() {
                 let e = io::Error::last_os_error();
                 // SAFETY: fdopendir failed, so raw is still ours alone and is closed
-                // here once. Its result is not read: the call already answers
-                // fdopendir's error, and a second error changes nothing that a
-                // caller can do.
+                // here once.
                 unsafe { libc::close(raw) };
                 return Err(e);
             }
@@ -444,8 +436,6 @@ mod unix_dir {
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
         }
 
-        /// Opens the regular file `name` for writing, following no link and
-        /// without a wait; any other kind of entry is refused.
         pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
             let c = c_name(name)?;
             let flags = libc::O_WRONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
@@ -460,8 +450,6 @@ mod unix_dir {
             }
         }
 
-        /// An open that failed at an entry that is no regular file and no
-        /// directory, such as a socket, answers that refusal.
         fn no_file_or(&self, name: &OsStr, e: io::Error) -> io::Error {
             if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() {
                 return e;
@@ -472,17 +460,14 @@ mod unix_dir {
             }
         }
 
-        /// Gives the file `from` the second name `to` in this directory; an
-        /// entry at `to` answers AlreadyExists and stays.
         pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
             let (from, to) = (c_name(from)?, c_name(to)?);
             let fd = self.fd.as_raw_fd();
             // SAFETY: from and to are NUL-terminated, and fd is this handle's
-            // descriptor, open while self lives; flag 0 follows no link at from.
+            // descriptor, open while self lives.
             checked(unsafe { libc::linkat(fd, from.as_ptr(), fd, to.as_ptr(), 0) })
         }
 
-        /// The device and file number of this handle's directory.
         pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
             let st = stat_of(self.fd.as_raw_fd())?;
             Ok((st.st_dev as u64, st.st_ino))
@@ -492,19 +477,14 @@ mod unix_dir {
             self.fd.as_raw_fd()
         }
 
-        /// The count of names of this handle's directory; 0 once it is removed.
         pub(crate) fn link_count(&self) -> io::Result<u64> {
             Ok(u64::from(stat_of(self.fd.as_raw_fd())?.st_nlink))
         }
 
-        /// The mount flags of the volume of this handle, the path of its
-        /// mount point and the id of the volume, read with fstatfs.
         pub(crate) fn volume(&self) -> io::Result<(u32, PathBuf, [i32; 2])> {
             volume_of(self.fd.as_raw_fd())
         }
 
-        /// The device and file number of the entry `name`, read through this
-        /// handle without following a link.
         pub(crate) fn entry_identity(&self, name: &OsStr) -> io::Result<(EntryKind, u64, u64)> {
             let st = stat_at(self.fd.as_raw_fd(), name)?;
             Ok((kind(&st), st.st_dev as u64, st.st_ino))
@@ -804,8 +784,6 @@ mod windows_dir {
             }
         }
 
-        /// Always yes: the held handle shares no delete, so the name cannot be
-        /// moved or removed while the handle is held.
         pub(crate) fn still_named(&self) -> io::Result<bool> {
             Ok(true)
         }

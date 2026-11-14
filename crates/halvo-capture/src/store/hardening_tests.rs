@@ -1556,9 +1556,6 @@ fn make_fifo(path: &Path) {
 #[cfg(unix)]
 const FIFO_BOUND: Duration = Duration::from_secs(5);
 
-/// The answer of `call` when it comes within `bound`, run on its own thread.
-/// When the call is still blocked at the bound, a writer opens `fifo` to let it
-/// go, and the answer is `None`.
 #[cfg(unix)]
 fn answer_within<T: Send + 'static>(
     bound: Duration,
@@ -1710,8 +1707,6 @@ fn names_in(dir: &Path) -> Vec<String> {
     names
 }
 
-/// Puts a link at store.db to `target`, or answers why this account may not
-/// make a file link.
 fn link_store_db_to(store_dir: &Path, target: &Path) -> Result<(), String> {
     let db = store_dir.join("store.db");
     let kept = std::fs::read(&db).unwrap();
@@ -2059,9 +2054,6 @@ fn a_wrong_store_key_opens_as_database_unreadable_and_a_shredded_segment_reads_a
     );
 }
 
-/// The files under `dir` with their lengths, without the lock file that an open
-/// on Windows makes and leaves (`LOCK_FILES`), so that a case compares the
-/// store's own files on both systems.
 fn files_and_lengths(dir: &Path) -> Vec<(PathBuf, u64)> {
     let mut files: Vec<(PathBuf, u64)> = files_under(dir)
         .into_iter()
@@ -5400,8 +5392,6 @@ fn a_segment_write_whose_shard_name_takes_a_plain_directory_at_the_create_answer
 #[cfg(unix)]
 const CALL_BOUND: Duration = Duration::from_secs(5);
 
-/// The answer of `call`, made on a thread of its own, when it comes within
-/// `bound`; `None` when it does not, and then that thread is left behind.
 #[cfg(unix)]
 fn within<T: Send + 'static>(
     bound: Duration,
@@ -5418,8 +5408,6 @@ fn say_branch(test: &str, branch: &str) {
     let _ = writeln!(std::io::stderr(), "BRANCH {test}: {branch}");
 }
 
-/// Moves `name` away and puts a link to `target` there; the answer of the
-/// move, which on Windows a held handle refuses with error 32.
 fn put_a_link_in_place_of(name: &Path, aside: &Path, target: &Path) -> Result<(), Option<i32>> {
     std::fs::rename(name, aside).map_err(|e| e.raw_os_error())?;
     #[cfg(unix)]
@@ -5852,8 +5840,6 @@ fn a_store_db_that_becomes_a_fifo_before_the_mode_step_answers_obstructed_within
     );
 }
 
-/// An open store whose directory is then moved away, with another directory
-/// put at its name that holds `theirs`; the store keeps its handle.
 #[cfg(unix)]
 fn a_store_moved_away_from_its_name(
     dir: &Path,
@@ -6613,9 +6599,6 @@ fn no_text_of_an_answer_holds_the_directory_marker_or_a_segment_id() {
         .filter(|text| !text.starts_with("odd name: ") && !holds_no_marker(text, &markers))
         .collect();
     println!("TEXTS {texts:#?}");
-    // Windows has no link or FIFO case: it reads 18 texts and the odd name, and
-    // four of the texts are the create and the open in the directory whose name
-    // is not Unicode.
     #[cfg(windows)]
     assert_eq!(
         texts
@@ -7992,9 +7975,6 @@ fn kill_table_child(
     command.status().unwrap().code().unwrap_or(-1)
 }
 
-/// The three end states after a kill: no shredded segment decrypts, no root
-/// file is left that neither store.key nor create.pending names, and after
-/// an open and one expiry pass no segment file is left without a live key.
 #[cfg(target_os = "macos")]
 fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> [bool; 3] {
     let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
@@ -8342,8 +8322,6 @@ fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look
     assert!(created.starts_with("Obstructed {"), "{created}");
 }
 
-/// Makes the opens of this thread take the kept name: the stat of the
-/// directory's volume name answers no such name, and the volume reads NO.
 #[cfg(target_os = "macos")]
 fn the_kept_name(on: bool) {
     use super::db::{name_seams, RootAnswer, VolumeReadings};
@@ -8661,8 +8639,6 @@ fn a_pending_create_beside_an_unreadable_key_file_destroys_no_root() {
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let before = root_files_in(&roots_dir);
     assert_eq!(before.len(), 1);
-    // A create.pending that names this store's root, made by a create that stops
-    // after writing it, in a scratch directory with a roots directory of its own.
     let scratch = dir.path().join("scratch");
     let pending = scratch.join("create.pending");
     let seen = pending.clone();
@@ -8682,8 +8658,6 @@ fn a_pending_create_beside_an_unreadable_key_file_destroys_no_root() {
     drop(seam);
     assert!(stopped.is_err());
     std::fs::copy(&pending, store_dir.join("create.pending")).unwrap();
-    // The state a create leaves when it stops between the key file and the
-    // removal of create.pending: store.key and create.pending both name the root.
     let key = store_dir.join("store.key");
     let mode = std::fs::metadata(&key).unwrap().permissions().mode();
     std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o000)).unwrap();

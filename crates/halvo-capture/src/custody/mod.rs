@@ -48,9 +48,7 @@ impl StoreKey {
 pub struct WrappedKey(pub Vec<u8>);
 
 /// The non-secret per-store locator of the platform root that wraps the store
-/// key. Its one text form is 32 lowercase hex digits, in a key file, in a
-/// pending-create file, in every report and as the stem of a root file's
-/// name; a reader also accepts the hyphenated form.
+/// key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RootId(Uuid);
 
@@ -195,9 +193,7 @@ pub trait KeyCustody {
     /// Make the root of a new store. Fails [`CustodyError::RootExists`] when a
     /// root with this id exists or appears while the call runs, and with the
     /// custody's own error when the root of this id cannot be read, so that a
-    /// create never takes, replaces or destroys the root of another store. A
-    /// call that fails leaves no root that it made; where it began a root file
-    /// and cannot remove it, it returns the error of that removal.
+    /// create never takes, replaces or destroys the root of another store.
     fn create_root(&self) -> Result<(), CustodyError>;
 
     /// Unwrap a key that was wrapped under the root with the same `label`.
@@ -247,7 +243,6 @@ pub enum CustodyError {
     /// No root exists for this store, also an empty or all-zero root file.
     #[error("the root of this store is missing")]
     RootMissing,
-    /// The root exists and does not hold 32 bytes.
     #[error("the root of this store does not hold 32 bytes")]
     RootCorrupt,
     #[error("this process may not read or destroy the root of this store")]

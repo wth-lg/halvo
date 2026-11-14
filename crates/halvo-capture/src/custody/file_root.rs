@@ -47,8 +47,6 @@ fn partial_name(root_id: RootId) -> Result<OsString, CustodyError> {
     Ok(OsString::from(format!("{root_id}.{tag}.{PARTIAL_EXT}")))
 }
 
-/// What a name under the roots directory is: the root file of an id, a
-/// partial root file of an id, or no file of the custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RootFile {
     Root(RootId),
@@ -80,10 +78,6 @@ impl RootFile {
     }
 }
 
-/// Zeroes the entry `name` of `dir` when it is a regular file, and removes it
-/// whatever the zero-fill did: a link or an entry of another kind is removed
-/// as the entry that it is and never opened. Answers whether the zeros were
-/// made durable (or nothing was there to zero) and the removal's own result.
 pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Result<()>) {
     let zeroed = match dir.entry(name) {
         Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
@@ -130,11 +124,6 @@ impl RootsLeft {
     }
 }
 
-/// Destroys every root file and every partial root file under `roots`, the
-/// one of `first` before the others, and lists the directory again. A link or
-/// an entry of another kind with a root file's name is removed and never
-/// followed; a missing directory holds no root. Nothing outside `roots` is
-/// read or removed.
 pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLeft {
     let dir = match Dir::open(roots) {
         Ok(dir) => dir,
@@ -182,8 +171,6 @@ pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLe
     }
 }
 
-/// Whether an entry stands at the root file's name of `root_id` under
-/// `roots`; a roots directory that cannot be read counts as one where it may.
 pub(crate) fn root_file_present(roots: &Path, root_id: RootId) -> bool {
     match Dir::open(roots) {
         Ok(dir) => {
@@ -193,8 +180,6 @@ pub(crate) fn root_file_present(roots: &Path, root_id: RootId) -> bool {
     }
 }
 
-/// Destroys the root file of `root_id` under `roots` and its partial files,
-/// as [`FileRoots::destroy_root`] does; it needs no protector.
 pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), CustodyError> {
     let dir = match Dir::open(roots) {
         Ok(dir) => dir,
@@ -232,9 +217,6 @@ impl<P: Protector> FileRoots<P> {
         self.dir.join(root_name(root_id))
     }
 
-    /// The roots directory, made when it is missing and taken by one handle
-    /// that refuses a link at its name; it is narrowed to its owner on that
-    /// handle.
     fn roots_dir(&self) -> Result<Dir, CustodyError> {
         durable::create_private_dir_all(&self.dir).map_err(root_io)?;
         let dir = Dir::open(&self.dir).map_err(root_io)?;
@@ -278,10 +260,6 @@ impl<P: Protector> FileRoots<P> {
         }
     }
 
-    /// Writes a new root under a partial name of its own and publishes it with
-    /// a hard link, which never replaces an entry: a root of the id that
-    /// stands at the name, also one that appeared after the look, answers
-    /// [`CustodyError::RootExists`] and stays as it was.
     fn make_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
         let mut root = Zeroizing::new([0u8; 32]);
         fill_random(root.as_mut_slice())?;
@@ -340,12 +318,6 @@ impl<P: Protector> FileRoots<P> {
         store_key_from(plain)
     }
 
-    /// Zeroes and removes the root file of `root_id` and its partial files.
-    /// Answers Ok once the root's zeros are durable, also when its removal
-    /// failed: an all-zero root reads as missing, and a delete counts what is
-    /// left by listing the directory. When the zero-fill failed it still
-    /// removes the file, and answers the error only when that removal failed
-    /// as well.
     pub(crate) fn destroy_root(&self, root_id: RootId) -> Result<(), CustodyError> {
         destroy_root_at(&self.dir, root_id)
     }

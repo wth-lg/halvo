@@ -1,5 +1,3 @@
-//! The writer lock of a store directory.
-
 use std::fs::{File, TryLockError};
 #[cfg(windows)]
 use std::io::ErrorKind;
@@ -11,21 +9,11 @@ use super::durable::{self, Refused};
 use super::{Met, StoreName};
 use super::{StoreError, StoreResult};
 
-/// An exclusive lock on a store directory, released explicitly when it is
-/// dropped, so that a spawned child that still holds a copy of its descriptor
-/// does not keep the store locked.
-///
-/// On macOS it is a `flock` on a descriptor of the directory itself, so no
-/// lock file exists that an unlink could take away. On Windows it is a lock on
-/// the file `writer.lock` in the directory, opened without delete sharing, so
-/// that the held file cannot be unlinked.
 pub(crate) struct DirLock {
     pub(crate) file: File,
 }
 
 impl DirLock {
-    /// Takes the lock, or answers [`StoreError::Locked`] at once when another
-    /// holder has it.
     pub(crate) fn take(dir: &Dir) -> StoreResult<Self> {
         let file = Self::lock_file(dir)?;
         match file.try_lock() {
