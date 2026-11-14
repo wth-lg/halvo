@@ -28,6 +28,10 @@ ere_literal() {
   printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
 }
 
+check_is_past_its_fork() {
+  pgrep -P "$1" -x sleep > /dev/null
+}
+
 hup_leaves_no_child() {
   command -v "$1" > /dev/null 2>&1 || return 1
   hup_root=$gate_scratch/hup-$1
@@ -51,7 +55,7 @@ WRAPPER
     printf 'the check ended with exit %s before its child started\n' "$hup_status"
     return 1
   fi
-  until pgrep -P "$hup_pid" -x sleep > /dev/null; do
+  until check_is_past_its_fork "$hup_pid"; do
     kill -0 "$hup_pid" 2> /dev/null || break
     sleep 0.1
   done

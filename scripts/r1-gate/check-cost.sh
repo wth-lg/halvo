@@ -119,6 +119,10 @@ ere_literal() {
   printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
 }
 
+check_is_past_its_fork() {
+  pgrep -P "$1" -x sleep > /dev/null
+}
+
 signal_ends_the_child() {
   mini_shell=$1; shift
   mini_dir=$gate_scratch/mini-$mini_shell-$1
@@ -139,8 +143,8 @@ check_main --measure
 MINI
   perl -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
   mini_pid=$!
-  mini_child=$(ere_literal "$standin --timed-run $2 --store-dir $mini_dir")
-  until pgrep -f "^$mini_child\$" > /dev/null; do
+  standin_pattern=$(ere_literal "$standin --timed-run $2 --store-dir $mini_dir")
+  until pgrep -f "^$standin_pattern\$" > /dev/null; do
     if ! kill -0 "$mini_pid" 2>/dev/null; then
       wait "$mini_pid"
       mini_status=$?
@@ -149,15 +153,14 @@ MINI
     fi
     sleep 0.1
   done
-  until pgrep -P "$mini_pid" -x sleep > /dev/null; do
+  until check_is_past_its_fork "$mini_pid"; do
     kill -0 "$mini_pid" 2>/dev/null || break
     sleep 0.1
   done
   kill "-$1" "$mini_pid"
   wait "$mini_pid"
   mini_status=$?
-  mini_left=$(ere_literal "--store-dir $mini_dir")
-  left=$(pgrep -f -- "$mini_left\$")
+  left=$(pgrep -f -- "$standin_pattern\$")
   case $? in
     0) ;;
     1) left='' ;;
