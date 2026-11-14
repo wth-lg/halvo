@@ -1,4 +1,5 @@
 name: ci
+# scratch: jobtime-5 PL-21 G8, the whole workflow at the joined head with a loop step after the step ci.d
 
 on:
   push:
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -93,6 +94,48 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: PL-21 G8 loop, 100 runs of each case
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: alone-part-waits-for-a-free-script-that-outlasts-the-cargo-lane free-check-that-cannot-start-gives-its-place-to-the-next alone-check-that-cannot-start-lets-the-next-alone-check-run standard-error-written-after-the-print-in-the-step-ci.d head-moved-beside-another-check-names-both lane-line-with-a-blank-after-its-value child-whose-term-trap-takes-a-second-finishes-it-before-kill group-ended-before-the-tracked-files-are-read child-in-a-group-of-its-own-is-named-at-the-next-read alone-list-names-a-script-of-the-other-job-alone own-cases-past-the-limit checks-of-two-lanes-run-at-the-same-time lane-line-with-a-carriage-return-names-the-free-lane checks-without-a-lane-one-at-a-time-beside-the-free-lane lane-line-at-line-11-is-no-lane outputs-of-free-checks-kept-apart-in-name-order output-in-name-order-when-a-later-check-ends-first refusal-keeps-its-place-in-the-recap-of-the-step-ci.d free-lane-runs-ci-d-check-jobs-at-a-time default-check-jobs-from-number-of-processors default-check-jobs-of-one-without-number-of-processors tracked-file-changed-beside-another-check-names-both free-check-past-its-limit-beside-the-cargo-lane step-ci.d-with-a-free-check-interrupted-by-HUP step-ci.d-with-a-free-check-interrupted-by-INT step-ci.d-with-a-free-check-interrupted-by-TERM output-of-started-checks-printed-when-the-step-is-interrupted interrupt-while-the-driver-reads-the-tracked-files group-of-a-check-that-ended-and-is-not-yet-finished-is-ended-by-an-interrupt change-undone-after-its-report-is-not-reported-again
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); fi
+          copy="$tmp/run-ci-d-filtered.sh"
+          perl -0pe 's/own_case\(\) \{\n  case_name=\$1\n/own_case() {\n  [ -z "\$\{OWN_ONLY:-\}" ] || case " \$OWN_ONLY " in *" \$1 "*) ;; *) case_reset; return ;; esac\n  case_name=\$1\n/' scripts/ci/run-ci-d.sh >"$copy"
+          echo "filter lines in the copy: $(grep -c 'OWN_ONLY' "$copy")"
+          out="$tmp/g8-loop"
+          mkdir -p "$out"
+          batch() {
+            i=0
+            while [ "$i" -lt 13 ]; do
+              n=$(( ($1 - 1) * 13 + i ))
+              if [ "$n" -lt 100 ]; then
+                sh "$copy" macos --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+                echo "run $n: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              fi
+              i=$((i + 1))
+            done
+          }
+          start=$(date +%s)
+          batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 & batch 8 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          echo "runs: $#, seconds: $((end - start))"
+          bad=0
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt | grep -c "^case run-ci-d/$c want=")
+            pass=$(cat "$out"/run-*.txt | grep -E "^case run-ci-d/$c want=" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq 100 ] && [ "$total" -eq 100 ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            grep -E "^case run-ci-d/.* want=" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          exit "$bad"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -115,7 +158,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -144,6 +187,48 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: PL-21 G8 loop, 100 runs of each case
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: alone-part-waits-for-a-free-script-that-outlasts-the-cargo-lane free-check-that-cannot-start-gives-its-place-to-the-next alone-check-that-cannot-start-lets-the-next-alone-check-run standard-error-written-after-the-print-in-the-step-ci.d head-moved-beside-another-check-names-both lane-line-with-a-blank-after-its-value child-whose-term-trap-takes-a-second-finishes-it-before-kill group-ended-before-the-tracked-files-are-read child-in-a-group-of-its-own-is-named-at-the-next-read alone-list-names-a-script-of-the-other-job-alone own-cases-past-the-limit checks-of-two-lanes-run-at-the-same-time lane-line-with-a-carriage-return-names-the-free-lane checks-without-a-lane-one-at-a-time-beside-the-free-lane lane-line-at-line-11-is-no-lane outputs-of-free-checks-kept-apart-in-name-order output-in-name-order-when-a-later-check-ends-first refusal-keeps-its-place-in-the-recap-of-the-step-ci.d free-lane-runs-ci-d-check-jobs-at-a-time default-check-jobs-from-number-of-processors default-check-jobs-of-one-without-number-of-processors tracked-file-changed-beside-another-check-names-both free-check-past-its-limit-beside-the-cargo-lane step-ci.d-with-a-free-check-interrupted-by-HUP step-ci.d-with-a-free-check-interrupted-by-INT step-ci.d-with-a-free-check-interrupted-by-TERM output-of-started-checks-printed-when-the-step-is-interrupted interrupt-while-the-driver-reads-the-tracked-files group-of-a-check-that-ended-and-is-not-yet-finished-is-ended-by-an-interrupt change-undone-after-its-report-is-not-reported-again free-check-that-sends-QUIT-to-itself-runs-on-as-in-the-foreground
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); fi
+          copy="$tmp/run-ci-d-filtered.sh"
+          perl -0pe 's/own_case\(\) \{\n  case_name=\$1\n/own_case() {\n  [ -z "\$\{OWN_ONLY:-\}" ] || case " \$OWN_ONLY " in *" \$1 "*) ;; *) case_reset; return ;; esac\n  case_name=\$1\n/' scripts/ci/run-ci-d.sh >"$copy"
+          echo "filter lines in the copy: $(grep -c 'OWN_ONLY' "$copy")"
+          out="$tmp/g8-loop"
+          mkdir -p "$out"
+          batch() {
+            i=0
+            while [ "$i" -lt 13 ]; do
+              n=$(( ($1 - 1) * 13 + i ))
+              if [ "$n" -lt 100 ]; then
+                sh "$copy" windows --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+                echo "run $n: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              fi
+              i=$((i + 1))
+            done
+          }
+          start=$(date +%s)
+          batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 & batch 8 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          echo "runs: $#, seconds: $((end - start))"
+          bad=0
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt | grep -c "^case run-ci-d/$c want=")
+            pass=$(cat "$out"/run-*.txt | grep -E "^case run-ci-d/$c want=" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq 100 ] && [ "$total" -eq 100 ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            grep -E "^case run-ci-d/.* want=" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          exit "$bad"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
