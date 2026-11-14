@@ -582,12 +582,18 @@ fn each_figure_of_the_report_comes_from_its_source() {
 }
 
 /// Ruling DM-12 G6 (DM-4 item 5): the last settle waits for the next due try,
-/// so a write that fails once at the last settle is stored by the next try
-/// inside the bound (adversary 1's adv1_w_e).
+/// so writes that fail three times at the last settle are stored by a later
+/// try inside the bound (adversary 1's adv1_w_e, with three failures, because
+/// the Shutdown's own settle makes one more try after the settles' loop).
 #[test]
-fn a_write_that_fails_once_at_the_last_settle_is_stored_by_the_next_try() {
+fn writes_that_fail_at_the_last_settle_are_stored_by_a_later_try() {
     let store = ModelStore::new();
-    store.script_writes([WriteScript::Fail(WriteFault::Io(io::ErrorKind::Other))]);
+    let fault = WriteFault::Io(io::ErrorKind::Other);
+    store.script_writes([
+        WriteScript::Fail(fault),
+        WriteScript::Fail(fault),
+        WriteScript::Fail(fault),
+    ]);
     let mut scripted = keys(4);
     let stop = AtomicBool::new(false);
     let outcome = run_timed(
