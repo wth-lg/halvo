@@ -3,11 +3,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use halvo_coord_store::{Clock, CoordReply, MemoryStore};
+use halvo_coord_store::{Clock, CommitRefused, CoordReply, Host, MemoryStore};
 use halvo_schema::coordinator::body::Stored;
 use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::request::decode;
-use halvo_schema::{Decoded, ErrorName, Instant, RawRequest, RowRead, TypedRecord, Workflow};
+use halvo_schema::{
+    Decoded, ErrorName, Instant, RawRequest, RowRead, TypedRecord, Workflow, WorkflowId,
+    WorkflowItem,
+};
 use serde_json::json;
 
 pub const DAY_S: i64 = 86_400;
@@ -105,6 +108,68 @@ pub fn store() -> MemoryStore {
     store_at(noon(TODAY), 0).0
 }
 
+/// A host over a store that hands out the extra rows after the store's own, as rows that another build stored, and
+/// whose commit answers the refusal where one is given.
+pub struct StandIn {
+    pub store: MemoryStore,
+    pub extra: Vec<String>,
+    pub refusal: Option<CommitRefused>,
+}
+
+impl RowRead for StandIn {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        self.store.for_each(kind, visit);
+        for row in &self.extra {
+            visit(row);
+        }
+    }
+}
+
+impl Host for StandIn {
+    fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), CommitRefused> {
+        match self.refusal {
+            Some(refused) => Err(refused),
+            None => Host::commit(&mut self.store, records),
+        }
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        self
+    }
+
+    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+        Host::workflow(&self.store, id)
+    }
+
+    fn clock(&self) -> &dyn Clock {
+        Host::clock(&self.store)
+    }
+}
+
+/// The stand-in over `store()` with the extra rows and the refusal.
+pub fn stand_in(extra: Vec<String>, refusal: Option<CommitRefused>) -> StandIn {
+    StandIn {
+        store: store(),
+        extra,
+        refusal,
+    }
+}
+
+/// A row `run_ended` of workflow 1 and agent 1 at noon of `TODAY` for run 1, with the cause, and with the keys
+/// `defer_launch` and `defer_ticks_failed` after `origin` where the pair of their values is given.
+pub fn run_ended_row(seq: u32, cause: &str, defers: Option<(&str, &str)>) -> String {
+    let tail = defers.map_or(String::new(), |(launch, ticks)| {
+        format!(r#","defer_launch":{launch},"defer_ticks_failed":{ticks}"#)
+    });
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_ended","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null{tail}}}"#,
+        wf(1),
+        agent(1),
+        noon(TODAY),
+        run(1)
+    )
+}
+
 /// A row `hold_set` with the cause `person`.
 pub fn hold_set(w: u32, a: u32, seq: u32, day: u32, at: i64) -> String {
     format!(
@@ -117,6 +182,32 @@ pub fn hold_set(w: u32, a: u32, seq: u32, day: u32, at: i64) -> String {
 /// A row of workflow 1 and agent 1 at noon of its day.
 pub fn row(seq: u32, day: u32) -> String {
     hold_set(1, 1, seq, day, noon(day))
+}
+
+/// A row `hold_set` or `hold_cleared` of workflow 1 and agent 1 at noon of `TODAY` with the cause and the run.
+pub fn hold_row(seq: u32, event: &str, cause: &str, run_n: Option<u32>) -> String {
+    let run = run_n.map_or("null".to_owned(), |n| format!("\"{}\"", run(n)));
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"{event}","run":{run},"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null}}"#,
+        wf(1),
+        agent(1),
+        noon(TODAY)
+    )
+}
+
+/// A row `item_answered` of workflow 1 and agent 1 at noon of its day: the answer `reject_once` to effect `n` of the
+/// confirmation item 1.
+pub fn confirm_answered(seq: u32, day: u32, n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{},"event":"item_answered","run":null,"slot":null,"item":"{}","kind":"confirm","effect":"{}","approval":"{}","digest":"{}","answer":"reject_once","cause":null,"trigger":null,"origin":null}}"#,
+        wf(1),
+        agent(1),
+        noon(day),
+        item(1),
+        id('6', n),
+        id('8', n),
+        "ab".repeat(32)
+    )
 }
 
 pub fn typed(json: String) -> TypedRecord {

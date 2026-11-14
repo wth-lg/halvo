@@ -1,6 +1,7 @@
 use halvo_schema::coordinator::body::{CoordLog, History};
 use halvo_schema::coordinator::names::{RunEnd, Trigger};
 use halvo_schema::coordinator::record::{CoordEvent, What};
+use halvo_schema::kinds::check_record;
 
 const WORKFLOW: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const AGENT: &str = "1a2b3c4d5e6f708192a3b4c5d6e7f809";
@@ -237,6 +238,18 @@ const FORMS: &[Form] = &[
         name: "hold_cleared failures",
         event: "hold_cleared",
         sets: &[("cause", r#""failures""#)],
+        may_be_null: &[],
+    },
+    Form {
+        name: "hold_set sign_in_refused",
+        event: "hold_set",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
+        may_be_null: &[],
+    },
+    Form {
+        name: "hold_cleared sign_in_refused",
+        event: "hold_cleared",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
         may_be_null: &[],
     },
     Form {
@@ -522,4 +535,129 @@ fn r4_rows_run_ended_with_the_cause_deleted_is_never_read() {
         Err("unknown_name"),
         "a coord_history reply with run_ended deleted"
     );
+}
+
+fn with_defers(text: &str, launch: &str, ticks: &str) -> String {
+    let body = text.strip_suffix('}').unwrap();
+    format!(r#"{body},"defer_launch":{launch},"defer_ticks_failed":{ticks}}}"#)
+}
+
+fn refused_at(text: &str, key: &str, rule: &str) {
+    let refusal = CoordEvent::parse(text.as_bytes())
+        .err()
+        .unwrap_or_else(|| panic!("taken: {text}"));
+    assert_eq!((refusal.key(), refusal.rule()), (Some(key), rule), "{text}");
+}
+
+#[test]
+fn r4_rows_run_ended_holds_the_two_defer_keys_both_null_or_both_set() {
+    for cause in STORED_ENDS {
+        let older = run_ended(1, cause);
+        let nulls = with_defers(&older, "null", "null");
+        let read = CoordEvent::parse(nulls.as_bytes()).unwrap_or_else(|r| panic!("{nulls}: {r}"));
+        assert_eq!(read, CoordEvent::parse(older.as_bytes()).unwrap());
+        assert_eq!(
+            read.to_json().unwrap(),
+            older,
+            "null defers are not written"
+        );
+        for (launch, ticks) in [
+            (r#""yes""#, "0"),
+            (r#""no""#, "0"),
+            (r#""no""#, "3"),
+            (r#""yes""#, "4294967295"),
+        ] {
+            let text = with_defers(&older, launch, ticks);
+            let read = CoordEvent::parse(text.as_bytes()).unwrap_or_else(|r| panic!("{text}: {r}"));
+            assert_eq!(read.to_json().unwrap(), text, "RD-86: written after origin");
+            assert_ne!(read, CoordEvent::parse(older.as_bytes()).unwrap());
+        }
+    }
+    let older = run_ended(1, "failed");
+    refused_at(
+        &with_defers(&older, r#""yes""#, "null"),
+        "defer_launch",
+        "not_null",
+    );
+    refused_at(
+        &with_defers(&older, "null", "2"),
+        "defer_ticks_failed",
+        "not_null",
+    );
+    refused_at(
+        &with_defers(&older, r#""maybe""#, "2"),
+        "defer_launch",
+        "unknown_name",
+    );
+    refused_at(
+        &with_defers(&older, "true", "2"),
+        "defer_launch",
+        "not_a_string",
+    );
+    for ticks in ["-1", r#""2""#, "2.0", "false"] {
+        refused_at(
+            &with_defers(&older, r#""no""#, ticks),
+            "defer_ticks_failed",
+            "not_a_count",
+        );
+    }
+    refused_at(
+        &with_defers(&older, r#""no""#, "4294967296"),
+        "defer_ticks_failed",
+        "range",
+    );
+}
+
+#[test]
+fn r4_rows_every_other_form_takes_the_two_defer_keys_null_alone() {
+    for form in FORMS.iter().filter(|form| form.event != "run_ended") {
+        let older = row_with(form, None);
+        let nulls = with_defers(&older, "null", "null");
+        let read =
+            CoordEvent::parse(nulls.as_bytes()).unwrap_or_else(|r| panic!("{}: {r}", form.name));
+        assert_eq!(read.to_json().unwrap(), older, "{}", form.name);
+        refused_at(
+            &with_defers(&older, r#""yes""#, "1"),
+            "defer_launch",
+            "not_null",
+        );
+        refused_at(
+            &with_defers(&older, "null", "1"),
+            "defer_ticks_failed",
+            "not_null",
+        );
+    }
+}
+
+#[test]
+fn r4_rows_a_row_with_one_of_the_two_defer_keys_is_refused() {
+    let older = run_ended(1, "completed");
+    let body = older.strip_suffix('}').unwrap();
+    refused_at(
+        &format!(r#"{body},"defer_launch":null}}"#),
+        "defer_ticks_failed",
+        "missing_key",
+    );
+    refused_at(
+        &format!(r#"{body},"defer_ticks_failed":null}}"#),
+        "defer_launch",
+        "missing_key",
+    );
+    let refusal = CoordEvent::parse(
+        format!(r#"{body},"defer_launch":null,"defer_ticks_failed":null,"defer":null}}"#)
+            .as_bytes(),
+    )
+    .unwrap_err();
+    assert_eq!((refusal.key(), refusal.rule()), (None, "unknown_key"));
+}
+
+#[test]
+fn r4_rows_the_kind_entry_refuses_defer_values_until_the_writers_write_them() {
+    let entry = &halvo_schema::coordinator::KINDS[0];
+    let older = run_ended(1, "completed");
+    assert_eq!(check_record(entry, &older), Ok(()));
+    let newer = with_defers(&older, r#""yes""#, "2");
+    assert!(CoordEvent::parse(newer.as_bytes()).is_ok());
+    let refusal = check_record(entry, &newer).unwrap_err();
+    assert!(refusal.contains("unknown_key"), "{refusal}");
 }

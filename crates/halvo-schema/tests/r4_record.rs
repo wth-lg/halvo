@@ -1,13 +1,14 @@
 use std::num::NonZeroU32;
 
 use halvo_schema::coordinator::names::{
-    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldSetCause, ItemKind,
-    OtherKind, OtherLapse, ReadyAnswer, RunEnd, Trigger,
+    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldCause,
+    HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, Trigger,
 };
 use halvo_schema::coordinator::record::{
-    Answered, BindAnswer, Cleared, CoordEvent, Entry, ItemId, Lapsed, LinkAnswer, Raised,
-    SignInAnswer, What,
+    Answered, BindAnswer, Cleared, CoordEvent, Defers, Entry, Held, ItemId, Lapsed, LinkAnswer,
+    Raised, SignInAnswer, What,
 };
+use halvo_schema::executable::names::YesNo;
 use halvo_schema::executable::{ApprovalId, Digest, EffectId, RunId, WebOrigin};
 use halvo_schema::kinds::check_record;
 use halvo_schema::record::Instant;
@@ -104,16 +105,23 @@ fn every_shape() -> Vec<(What, String)> {
             ),
         ),
         (
-            What::HoldSet {
-                cause: HoldSetCause::Person,
-            },
+            What::HoldSet { held: Held::Person },
             line("hold_set", &[("cause", &q("person"))]),
         ),
         (
             What::HoldSet {
-                cause: HoldSetCause::Failures,
+                held: Held::Failures,
             },
             line("hold_set", &[("cause", &q("failures"))]),
+        ),
+        (
+            What::HoldSet {
+                held: Held::SignInRefused { run: run() },
+            },
+            line(
+                "hold_set",
+                &[("run", &q(RUN)), ("cause", &q("sign_in_refused"))],
+            ),
         ),
         (
             What::HoldCleared {
@@ -126,6 +134,15 @@ fn every_shape() -> Vec<(What, String)> {
                 cleared: Cleared::Failures,
             },
             line("hold_cleared", &[("cause", &q("failures"))]),
+        ),
+        (
+            What::HoldCleared {
+                cleared: Cleared::SignInRefused { run: run() },
+            },
+            line(
+                "hold_cleared",
+                &[("run", &q(RUN)), ("cause", &q("sign_in_refused"))],
+            ),
         ),
         (
             What::SlotSkipped { slot: Some(20766) },
@@ -156,6 +173,7 @@ fn every_shape() -> Vec<(What, String)> {
             What::RunEnded {
                 run: run(),
                 cause: *cause,
+                defers: None,
             },
             line(
                 "run_ended",
@@ -373,6 +391,39 @@ fn r4_record_writes_and_reads_every_shape_of_the_nine_events() {
 }
 
 #[test]
+fn r4_record_run_ended_writes_its_defers_after_origin_and_none_where_they_are_not_known() {
+    let older = line("run_ended", &[("run", &q(RUN)), ("cause", &q("failed"))]);
+    let none = event(What::RunEnded {
+        run: run(),
+        cause: RunEnd::Failed,
+        defers: None,
+    });
+    assert_eq!(none.to_json().unwrap(), older);
+    for (launch, ticks_failed) in [(YesNo::Yes, 0), (YesNo::No, 7), (YesNo::No, u32::MAX)] {
+        let value = event(What::RunEnded {
+            run: run(),
+            cause: RunEnd::Failed,
+            defers: Some(Defers {
+                launch,
+                ticks_failed,
+            }),
+        });
+        let text = value.to_json().unwrap();
+        assert_eq!(
+            text,
+            format!(
+                r#"{},"defer_launch":"{}","defer_ticks_failed":{ticks_failed}}}"#,
+                older.strip_suffix('}').unwrap(),
+                launch.as_str()
+            )
+        );
+        assert_eq!(CoordEvent::parse(text.as_bytes()).unwrap(), value);
+        assert_eq!(serde_json::to_string(&value).unwrap(), text);
+        assert_eq!(serde_json::from_str::<CoordEvent>(&text).unwrap(), value);
+    }
+}
+
+#[test]
 fn r4_record_writes_the_keys_of_the_kind_entry_in_their_order() {
     let keys: Vec<&str> = coord_event_entry().fields.iter().map(|(k, _)| *k).collect();
     assert_eq!(keys, KEYS);
@@ -450,7 +501,8 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
             "wait_limit",
             "cancelled",
             "no_record",
-            "app_ended"
+            "app_ended",
+            "answer_lost"
         ]
     );
     assert_eq!(
@@ -459,7 +511,11 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
     );
     assert_eq!(
         names(HoldSetCause::ALL.iter().map(|v| v.as_str()).collect()),
-        ["person", "failures"]
+        ["person", "failures", "sign_in_refused"]
+    );
+    assert_eq!(
+        names(HoldCause::ALL.iter().map(|v| v.as_str()).collect()),
+        ["person", "failures", "check", "sign_in_refused"]
     );
     assert_eq!(
         names(EffectAnswer::ALL.iter().map(|v| v.as_str()).collect()),
@@ -703,7 +759,7 @@ fn r4_record_refuses_a_key_that_its_event_does_not_set_and_a_key_that_it_lacks()
 }
 
 #[test]
-fn r4_record_hold_cleared_sets_run_and_answer_for_check_alone() {
+fn r4_record_hold_cleared_sets_run_for_check_and_sign_in_refused_and_answer_for_check_alone() {
     let r = q(RUN);
     let a = q("try_again");
     for cause in ["person", "failures"] {
@@ -714,14 +770,62 @@ fn r4_record_hold_cleared_sets_run_and_answer_for_check_alone() {
             assert_eq!(
                 (refusal.key(), refusal.rule()),
                 (Some(key), "not_null"),
-                "I7.1: hold_cleared sets run and answer for check alone; {text}"
+                "I7.1: hold_cleared sets run for check and sign_in_refused alone; {text}"
             );
         }
     }
+    let c = q("sign_in_refused");
+    refused(
+        &with(
+            &[("cause", &c), ("run", &r), ("answer", &a)],
+            "hold_cleared",
+        ),
+        Some("answer"),
+        "not_null",
+    );
+    refused(
+        &with(&[("cause", &c)], "hold_cleared"),
+        Some("run"),
+        "not_a_string",
+    );
 }
 
 #[test]
-fn r4_record_lapse_causes_are_the_six_for_a_confirmation_and_others_for_the_rest() {
+fn r4_record_hold_set_names_the_run_for_sign_in_refused_alone() {
+    let r = q(RUN);
+    for cause in ["person", "failures"] {
+        refused(
+            &with(&[("cause", &q(cause)), ("run", &r)], "hold_set"),
+            Some("run"),
+            "not_null",
+        );
+    }
+    let c = q("sign_in_refused");
+    refused(
+        &with(&[("cause", &c)], "hold_set"),
+        Some("run"),
+        "not_a_string",
+    );
+    refused(
+        &with(
+            &[("cause", &c), ("run", &r), ("answer", &q("try_again"))],
+            "hold_set",
+        ),
+        Some("answer"),
+        "not_null",
+    );
+    let set =
+        CoordEvent::parse(with(&[("cause", &c), ("run", &r)], "hold_set").as_bytes()).unwrap();
+    assert_eq!(
+        set.what,
+        What::HoldSet {
+            held: Held::SignInRefused { run: run() }
+        }
+    );
+}
+
+#[test]
+fn r4_record_lapse_causes_are_the_seven_for_a_confirmation_and_others_for_the_rest() {
     let i = q(ITEM);
     let lapsed = |kind: &str, cause: &str| {
         with(
@@ -730,7 +834,7 @@ fn r4_record_lapse_causes_are_the_six_for_a_confirmation_and_others_for_the_rest
         )
     };
     refused(&lapsed("confirm", "check"), Some("cause"), "unknown_name");
-    for cause in ["digest", "no_record"] {
+    for cause in ["digest", "no_record", "answer_lost"] {
         for kind in OtherKind::ALL {
             refused(&lapsed(kind.as_str(), cause), Some("cause"), "unknown_name");
         }
