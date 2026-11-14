@@ -75,6 +75,22 @@ The driver refuses an entry of a `ci.d` directory, prints `FAIL <name> (<cause>)
 
 With no script for the job the driver prints `FAIL run-ci-d (no scripts for <job>)` and exits 1, also with `--self-test`. The one exception is `--self-test run-ci-d`, which runs the driver's own cases and needs no script.
 
+## The weekly run
+
+The workflow `ci` also runs on the event `schedule`, on Sundays at 03:17 UTC, on the newest commit of main. It runs both jobs with every step, and on this event the Rust cache step of each job takes the prefix key `v0-rust-cold`, so it restores no Rust build cache and saves none. GitHub's documentation says that a scheduled run may start late under a high load and that some queued jobs may then be dropped, so a Sunday without a weekly run is no fault of the tree.
+
+The run is there for two things. A break that only a restored Rust build cache hides shows here first, and its jobs are the only measure of a job that builds everything without that cache.
+
+A red weekly run shows in the repository's Actions list under the event `schedule`, and its jobs are checks on main's newest commit. A break that a restored Rust build cache hid is one cause of a red weekly run among several: a cold job at the limit of 90 minutes, a self-test at its limit of 1,200 s, a step that reads the event (the commit-message step on its first run of this event), a change of the runner image since the push run, a runner's failure and a flaky test. The failed job's log tells which. GitHub tells the account that last changed the cron line of the workflow file, or the account that last switched the schedule on again, as that account's notification settings for GitHub Actions choose.
+
+No gate and no merge script reads the weekly run: `scripts/merge-pr.sh` reads the events `push` and `pull_request` alone. To mend a red run, read the failed job's log and fix the fault on a branch through a pull request, as any other fault.
+
+When the weekly run has shown a break that a cache hid, the pull request that mends the tree restores main's same Rust cache in its own run, so its green does not show the mend. The bad cache goes when main's Rust caches are deleted, which GitHub's documentation lets an account with write access do on the Caches page under the repository's Actions tab or with the GitHub CLI (`gh cache delete`); main's next push run then builds from nothing and saves a new cache. It also goes when the restore key changes, by a change of the toolchain or of the prefix in the pinned prefix-key line, which is a ruled change of the pin; a change of Cargo.lock or of a manifest changes the cache's key but not its restore key, so the step still restores the old cache. And it goes when GitHub removes a cache that no run has read for seven days, as its documentation says. Until the bad cache goes, every run but the weekly run restores it, so the next weekly run is the first that shows the mend; once the cache has gone in one of these ways, the next run of any branch builds without it and shows the mend as well.
+
+The lint `scripts/r1/ci.d/17-workflow-lint.sh` pins the lines of the schedule and each job's Rust cache step: a change of one of them changes the pinned text at the top of that script in the same commit, by a ruling.
+
+In a public repository GitHub switches a schedule off after 60 days without activity in the repository. The owner switches it on again on the repository's Actions page: select the workflow `ci`, then Enable workflow.
+
 ## The scripts root
 
 The driver lists every entry of `scripts/*/ci.d/`, hidden entries included, in byte order of the path, so `scripts/r1/ci.d/` runs before `scripts/r2/ci.d/`, and it runs each entry that is a regular file named `NN-name.sh`. When `CI_D_SCRIPTS` is set, it lists `$CI_D_SCRIPTS/*/ci.d/` instead. This command shows that an empty set fails:
