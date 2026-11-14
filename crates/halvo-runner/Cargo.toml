@@ -14,6 +14,7 @@ name = "halvo-runner"
 path = "src/main.rs"
 
 [dependencies]
+halvo-control = { path = "../halvo-control" }
 halvo-policy = { path = "../halvo-policy" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }

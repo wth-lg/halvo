@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: lightningcss@1.34.0 has the license GPL-3.0-only, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "lightningcss@1.34.0",
+      "license": "GPL-3.0-only"
+    }
+  ]
+}

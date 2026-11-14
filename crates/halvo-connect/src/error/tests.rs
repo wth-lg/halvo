@@ -5,9 +5,14 @@ fn effect_of_each_error() {
     let rows = [
         (CallError::NotSent, Effect::NotMade),
         (CallError::Unauthorized, Effect::NotMade),
-        (CallError::Status(400), Effect::NotMade),
-        (CallError::Status(404), Effect::NotMade),
-        (CallError::Status(499), Effect::NotMade),
+        (CallError::Status(429), Effect::NotMade),
+        (CallError::Status(400), Effect::Unknown),
+        (CallError::Status(403), Effect::Unknown),
+        (CallError::Status(404), Effect::Unknown),
+        (CallError::Status(409), Effect::Unknown),
+        (CallError::Status(428), Effect::Unknown),
+        (CallError::Status(430), Effect::Unknown),
+        (CallError::Status(499), Effect::Unknown),
         (CallError::Status(100), Effect::Unknown),
         (CallError::Status(302), Effect::Unknown),
         (CallError::Status(399), Effect::Unknown),
@@ -23,6 +28,18 @@ fn effect_of_each_error() {
     ];
     for (error, effect) in rows {
         assert_eq!(error.effect(), effect, "{error:?}");
+    }
+}
+
+#[test]
+fn of_the_answered_statuses_only_429_makes_nothing() {
+    for status in 0..=u16::MAX {
+        let expected = if status == 429 {
+            Effect::NotMade
+        } else {
+            Effect::Unknown
+        };
+        assert_eq!(CallError::Status(status).effect(), expected, "{status}");
     }
 }
 

@@ -1,5 +1,5 @@
 line: PASS schema: seed=20261109 unmodified=8 of 8 validator=540 of 540 forbidden=140 of 140 arbitrary=400 of 400 query=216 of 216 raw=46 of 46 5xx=0 handler-calls=0 sentinel=0
-stamp: 2026-11-12T17:15:55Z
-load: 49.14
-tree: 80f51ca8b3f2cdde39c588991f2d819e8c94e39a
+stamp: 2026-11-13T19:04:33Z
+load: 10.89
+tree: 686f7f842745ae164c3160e16d7f957a82825e35
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

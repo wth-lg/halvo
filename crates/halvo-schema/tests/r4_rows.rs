@@ -1,6 +1,6 @@
 use halvo_schema::coordinator::body::{CoordLog, History};
-use halvo_schema::coordinator::names::RunEnd;
-use halvo_schema::coordinator::record::CoordEvent;
+use halvo_schema::coordinator::names::{RunEnd, Trigger};
+use halvo_schema::coordinator::record::{CoordEvent, What};
 
 const WORKFLOW: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const AGENT: &str = "1a2b3c4d5e6f708192a3b4c5d6e7f809";
@@ -44,13 +44,19 @@ struct Form {
 /// from the contract's words.
 const FORMS: &[Form] = &[
     Form {
-        name: "run_started",
+        name: "run_started by the scheduler",
         event: "run_started",
         sets: &[
             ("run", RUN),
             ("slot", "20767"),
             ("trigger", r#""schedule""#),
         ],
+        may_be_null: &[],
+    },
+    Form {
+        name: "run_started by the person",
+        event: "run_started",
+        sets: &[("run", RUN), ("slot", "20767"), ("trigger", r#""person""#)],
         may_be_null: &["slot"],
     },
     Form {
@@ -342,6 +348,74 @@ fn r4_rows_null_means_null() {
             }
         }
     }
+}
+
+fn run_started(seq: u32, trigger: &str, slot: &str) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{WORKFLOW}","agent":"{AGENT}","seq":{seq},"day":20767,"at":1794339000000000000,"event":"run_started","run":{RUN},"slot":{slot},"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"{trigger}","origin":null}}"#
+    )
+}
+
+#[test]
+fn r4_rows_a_start_of_the_scheduler_with_a_null_slot_is_refused() {
+    let text = run_started(1, "schedule", "null");
+    let refusal = CoordEvent::parse(text.as_bytes()).expect_err(
+        "I5.3 and I7.1: a start by the scheduler is for a slot, and run_started schedule with a null slot is taken",
+    );
+    assert_eq!(
+        (refusal.type_name(), refusal.key(), refusal.rule()),
+        ("CoordEvent", Some("slot"), "no_slot")
+    );
+    let log = format!(
+        r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{text}]}}"#
+    );
+    assert_eq!(
+        CoordLog::parse(log.as_bytes())
+            .map(|_| ())
+            .map_err(|r| r.rule()),
+        Err("no_slot"),
+        "a coord_log body with run_started schedule and a null slot"
+    );
+    let reply = format!(
+        r#"{{"records":[{},{}],"last":2}}"#,
+        run_started(1, "schedule", "20767"),
+        run_started(2, "schedule", "null")
+    );
+    assert_eq!(
+        History::parse(reply.as_bytes())
+            .map(|_| ())
+            .map_err(|r| r.rule()),
+        Err("no_slot"),
+        "a coord_history reply with run_started schedule and a null slot"
+    );
+    let mut value = CoordEvent::parse(run_started(1, "person", "null").as_bytes()).unwrap();
+    if let What::RunStarted { trigger, .. } = &mut value.what {
+        *trigger = Trigger::Schedule;
+    }
+    assert_eq!(value.to_json().unwrap_err().rule(), "no_slot");
+    assert!(serde_json::to_string(&value).is_err());
+}
+
+#[test]
+fn r4_rows_a_start_of_the_person_with_a_null_slot_is_taken() {
+    for (trigger, slot) in [
+        ("person", "null"),
+        ("person", "20767"),
+        ("schedule", "20767"),
+    ] {
+        let text = run_started(1, trigger, slot);
+        let value = CoordEvent::parse(text.as_bytes())
+            .unwrap_or_else(|r| panic!("I5.3: run_started {trigger} with slot {slot}: {r}"));
+        assert_eq!(value.to_json().unwrap(), text, "{trigger} {slot}");
+    }
+    let log = format!(
+        r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{}]}}"#,
+        run_started(1, "person", "null")
+    );
+    assert!(
+        CoordLog::parse(log.as_bytes()).is_ok(),
+        "a coord_log body with run_started person and a null slot"
+    );
 }
 
 fn hold_set(v: &str, at: &str) -> String {

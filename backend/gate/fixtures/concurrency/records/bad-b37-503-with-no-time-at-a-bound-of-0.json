@@ -1,0 +1,33 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a 503 voided with no recorded answer time where the bound is exactly 0: timing.ts voids only when more than the bound passed, which no time shows",
+  "source": "by hand; written from the record bad-b37-503-with-no-time for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "request": {
+    "status": 503,
+    "body": "{\"result\":\"voided\"}",
+    "headersAt": null,
+    "endedAt": 2300,
+    "receipt": null
+  },
+  "row": {
+    "ended_at": 2190,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  },
+  "top": {
+    "gateway": {
+      "holdLifeMs": 1900,
+      "deadlineMs": 1500,
+      "marginMs": 400
+    }
+  }
+}

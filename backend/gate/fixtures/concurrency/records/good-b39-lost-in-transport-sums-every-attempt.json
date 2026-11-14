@@ -1,0 +1,77 @@
+{
+  "kind": "line",
+  "ruling": "B-36",
+  "about": "the requests lost in transport after their last resend are summed over the last attempt (1) and a discarded one (2)",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try2",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 1
+      },
+      "discarded": [
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "burstWaits": [],
+          "burstMedianMs": null,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 2,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "PASS concurrency: runs=1 of 1 cells=1 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=0 burst-p50-at-200=200ms rollover-redrawn=0",
+    "lostInTransport": 3
+  }
+}

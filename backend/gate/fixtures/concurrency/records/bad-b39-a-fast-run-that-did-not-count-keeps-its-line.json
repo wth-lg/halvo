@@ -1,0 +1,125 @@
+{
+  "kind": "line",
+  "ruling": "B-39",
+  "about": "beside a counted run with one slow discarded attempt, a run that did not count with no slow attempt keeps its own line",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    {
+      "name": "usage-missing@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-missing",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try1",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    },
+    {
+      "key": "ledger-usage-missing-at-200-plain-1-try2",
+      "cell": "usage-missing@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-missing",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-usage-missing-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700
+          ],
+          "burstMedianMs": 2700,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=1 of 2 cells=1 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=200ms rollover-redrawn=0; first failure: ledger-usage-last-at-200-plain-1-try1 did not count in 6 attempts (admitted 1, holds open at the kill 0, a stream in flight at the kill false, voided 0)"
+  }
+}

@@ -191,29 +191,101 @@ export function readingLine({ name, version, build, licences, inputCalls, banned
   return `reading trial=driver machine=mac candidate=${name} version=${version} build=${build} licences=${licences ? 'ok' : 'miss'} input_calls=${inputCalls} banned=${banned}`;
 }
 
+export const DIALOG_KEYS = ['default', 'cancel', 'close'];
+
+const CANCELLABLE = /^\s*dwFlags: TDF_ALLOW_DIALOG_CANCELLATION \| TDF_SIZE_TO_CONTENT,$/;
+const PLUGIN_CALL = [
+  { source: 'card', find: /^\s*\(REJECT, ALLOW\)$/ },
+  { source: 'card', find: /^\s*MessageDialogResult::Custom\(label\) if label == ALLOW => Answer::Allow,$/ },
+  { source: 'native', find: /^\s*let \(first, second\) = card::plugin_slots\(\);$/ },
+  { source: 'native', after: /^\s*\.buttons\(MessageDialogButtons::OkCancelCustom\($/, find: /^\s*first\.to_string\(\),$/ },
+];
+const CF_ALERT = { source: 'rfdMac', find: /^\s*CFUserNotificationDisplayAlert\($/ };
+const NS_ALERT = { source: 'native', find: /^\s*let alert = NSAlert::new\(mtm\);$/ };
+const PLUGIN_CANCEL = { source: 'plugin', find: /^\s*MessageDialogButtons::OkCancelCustom\(_ok, cancel\),$/ };
+const TASK_ELSE = { source: 'card', find: /^\s*if shown && button == ALLOW_ID \{$/ };
+const ELSE_REJECT = [/^\s*Answer::Allow$/, /^\s*\} else \{$/, /^\s*Answer::Reject$/];
+const PLUGIN_PASS = [
+  { source: 'plugin', find: /^\s*MessageDialogButtons::OkCancelCustom\(ok, cancel\) => Self::OkCancelCustom\(ok, cancel\),$/ },
+  { source: 'card', seq: [PLUGIN_CALL[1].find, /^\s*_ => Answer::Reject,$/] },
+];
+
+/** For each form and system: the value of each key and the one source line that decides it, and the required lines, orders of lines and absence that the review and the verifier named in the read sources. The reading refuses when a cited or a required text changes; it reads text and does not follow the code, so a change of another line is not seen. */
 export const DIALOG_SOURCES = {
   plugin: [
     {
-      system: 'macos', crate: 'rfd', file: 'src/backend/macos/utils/user_alert.rs',
-      find: /^\s*default_button_title: buttons\[0\]\.take\(\),$/,
-      default: 'reject', cancel: 'none', close: 'none',
+      system: 'macos',
+      requires: [
+        ...PLUGIN_CALL,
+        ...PLUGIN_PASS,
+        { source: 'native', find: /\.parent\(/, absent: true },
+        { source: 'rfdMac', after: /^\s*MessageButtons::OkCancelCustom\(ok_text, cancel_text\) => \[$/, find: /^\s*Some\(ok_text\.to_string\(\)\),$/ },
+        { source: 'rfdMac', find: /^\s*MessageButtons::OkCancelCustom\(custom, _\)$/ },
+        { source: 'rfdMac', seq: [/^\s*MessageButtons::OkCancelCustom\(custom, _\)$/, /^\s*if response == kCFUserNotificationDefaultResponse =>$/] },
+        { source: 'rfdMac', seq: [/^\s*default_button_title\.as_deref\(\),$/, /^\s*alternate_button_title\.as_deref\(\),$/] },
+      ],
+      keys: {
+        default: { value: 'reject', source: 'rfdMac', find: /^\s*default_button_title: buttons\[0\]\.take\(\),$/ },
+        cancel: { value: 'none', ...CF_ALERT },
+        close: { value: 'none', ...CF_ALERT },
+      },
     },
     {
-      system: 'windows', crate: 'tauri-plugin-dialog', file: 'src/desktop.rs',
-      find: /^\s*MessageDialogButtons::OkCancelCustom\(_ok, cancel\),$/,
-      default: 'reject', cancel: 'allow', close: 'allow',
+      system: 'windows',
+      requires: [
+        ...PLUGIN_CALL,
+        { source: 'rfdWin', after: /^\s*\(ID_CUSTOM_OK, str_to_vec_u16\(ok_text\)\),$/, find: /^\s*\(ID_CUSTOM_CANCEL, str_to_vec_u16\(cancel_text\)\),$/ },
+        { source: 'rfdWin', find: CANCELLABLE },
+        { source: 'rfdWin', after: /^\s*MessageButtons::OkCancelCustom\(ok_text, cancel_text\) => match custom \{$/, find: /^\s*ID_CUSTOM_OK => MessageDialogResult::Custom\(ok_text\),$/ },
+        ...PLUGIN_PASS,
+        { source: 'plugin', seq: [/^\s*rfd::MessageDialogResult::Cancel,$/, PLUGIN_CANCEL.find] },
+        { source: 'plugin', seq: [PLUGIN_CANCEL.find, /^\s*\) => rfd::MessageDialogResult::Custom\(cancel\),$/] },
+        { source: 'rfdWin', seq: [/^\s*match pn_button \{$/, /^\s*IDOK => MessageDialogResult::Ok,$/, /^\s*IDYES => MessageDialogResult::Yes,$/, /^\s*IDCANCEL => MessageDialogResult::Cancel,$/] },
+        { source: 'native', seq: [/^\s*first\.to_string\(\),$/, /^\s*second\.to_string\(\),$/] },
+      ],
+      keys: {
+        default: { value: 'reject', source: 'rfdWin', find: /^\s*nDefaultButton: 0,$/ },
+        cancel: { value: 'allow', ...PLUGIN_CANCEL },
+        close: { value: 'allow', ...PLUGIN_CANCEL },
+      },
     },
   ],
   system: [
     {
-      system: 'macos', crate: null, file: 'src/native.rs',
-      find: /alert\.addButtonWithTitle\(&NSString::from_str\(card::REJECT\)\)/,
-      default: 'reject', cancel: 'none', close: 'none',
+      system: 'macos',
+      requires: [
+        { source: 'card', find: /^pub const REJECT: &str = "Don't pay";$/ },
+        { source: 'card', find: /^pub const ALLOW: &str = "Pay";$/ },
+        { source: 'card', find: /^pub const ALERT_SECOND: isize = 1001;$/ },
+        { source: 'card', find: /^\s*if response == ALERT_SECOND \{$/ },
+        { source: 'card', seq: [/^\s*if response == ALERT_SECOND \{$/, ...ELSE_REJECT] },
+        { source: 'native', seq: [/^\s*alert\.addButtonWithTitle\(&NSString::from_str\(card::REJECT\)\);$/, /^\s*alert\.addButtonWithTitle\(&NSString::from_str\(card::ALLOW\)\);$/] },
+      ],
+      keys: {
+        default: { value: 'reject', source: 'native', find: /^\s*alert\.addButtonWithTitle\(&NSString::from_str\(card::REJECT\)\);$/ },
+        cancel: { value: 'none', ...NS_ALERT },
+        close: { value: 'none', ...NS_ALERT },
+      },
     },
     {
-      system: 'windows', crate: null, file: 'src/native.rs',
-      find: /nDefaultButton: card::REJECT_ID,/,
-      default: 'reject', cancel: 'reject', close: 'reject',
+      system: 'windows',
+      requires: [
+        { source: 'card', find: /^pub const REJECT_ID: i32 = 101;$/ },
+        { source: 'card', find: /^pub const ALLOW_ID: i32 = 100;$/ },
+        { source: 'native', find: CANCELLABLE },
+        { source: 'native', find: /^\s*card::from_task_dialog\(shown, pressed\)$/ },
+        { source: 'card', seq: [TASK_ELSE.find, ...ELSE_REJECT] },
+        {
+          source: 'native',
+          seq: [/^\s*nButtonID: card::REJECT_ID,$/, /^\s*pszButtonText: PCWSTR\(reject\.as_ptr\(\)\),$/, /^\s*\},$/,
+            /^\s*TASKDIALOG_BUTTON \{$/, /^\s*nButtonID: card::ALLOW_ID,$/, /^\s*pszButtonText: PCWSTR\(allow\.as_ptr\(\)\),$/],
+        },
+      ],
+      keys: {
+        default: { value: 'reject', source: 'native', find: /^\s*nDefaultButton: card::REJECT_ID,$/ },
+        cancel: { value: 'reject', ...TASK_ELSE },
+        close: { value: 'reject', ...TASK_ELSE },
+      },
     },
   ],
 };
@@ -233,17 +305,59 @@ export function findLine(text, re) {
   return hits[0];
 }
 
-export function dialogLines(form, locate) {
+function runs(text, seq) {
+  const lines = textLines(text);
+  let n = 0;
+  lines.forEach((line, i) => {
+    if (!seq[0].test(line)) return;
+    let at = i;
+    for (const re of seq.slice(1)) {
+      do at += 1; while (at < lines.length && lines[at].trim() === '');
+      if (at >= lines.length || !re.test(lines[at])) return;
+    }
+    n += 1;
+  });
+  return n;
+}
+
+function holds(text, r) {
+  if (r.absent) {
+    const n = textLines(text).filter((line) => r.find.test(line)).length;
+    if (n !== 0) throw new Error(`${n} lines match ${r.find}`);
+  } else if (r.seq) {
+    const n = runs(text, r.seq);
+    if (n !== 1) throw new Error(`${n} lines match ${r.seq[0]} with ${r.seq.slice(1).join(' then ')} after them`);
+  } else if (r.after) nextAfter(text, findLine(text, r.after), r.find, String(r.after));
+  else findLine(text, r.find);
+}
+
+function named(kind, label, check) {
+  try {
+    return check();
+  } catch (e) {
+    throw new Error(`${kind} ${label}: ${e.message}`);
+  }
+}
+
+/** The reading line of each system of `form`: each key's value, then the file and line that decide each key. Throws, naming the file, when a cited or a required line does not match exactly once, a required order of lines is not found exactly once, or a required line does not follow its anchor. */
+export function dialogLines(form, readSource) {
   return DIALOG_SOURCES[form].map((s) => {
-    const { label, text } = locate(s);
-    const line = findLine(text, s.find);
-    return `reading trial=dialog machine=mac form=${form} system=${s.system} default=${s.default} cancel=${s.cancel} close=${s.close} file=${label} line=${line}`;
+    for (const r of s.requires) {
+      const { label, text } = readSource(SOURCES[r.source]);
+      named('required', label, () => holds(text, r));
+    }
+    const values = DIALOG_KEYS.map((key) => `${key}=${s.keys[key].value}`);
+    const places = DIALOG_KEYS.flatMap((key) => {
+      const { label, text } = readSource(SOURCES[s.keys[key].source]);
+      return [`${key}_file=${label}`, `${key}_line=${named('cited', label, () => findLine(text, s.keys[key].find))}`];
+    });
+    return `reading trial=dialog machine=mac form=${form} system=${s.system} ${values.join(' ')} ${places.join(' ')}`;
   });
 }
 
 export const OUTCOMES = ['failed_call', 'cancel_response', 'unknown_response', 'timeout'];
 
-export const OUTCOME_SOURCES = {
+export const SOURCES = {
   rfdMac: { crate: 'rfd', file: 'src/backend/macos/utils/user_alert.rs' },
   rfdWin: { crate: 'rfd', file: 'src/backend/win_cid/message_dialog.rs' },
   plugin: { crate: 'tauri-plugin-dialog', file: 'src/desktop.rs' },
@@ -384,7 +498,7 @@ const DERIVE = {
 export function outcomeLines(form, readSource) {
   const out = [];
   for (const system of ['macos', 'windows']) {
-    const derived = DERIVE[form][system]((key) => readSource(OUTCOME_SOURCES[key]));
+    const derived = DERIVE[form][system]((key) => readSource(SOURCES[key]));
     for (const outcome of OUTCOMES) {
       const d = derived[outcome];
       out.push(`reading trial=dialog machine=mac form=${form} system=${system} outcome=${outcome} gives=${d.gives} file=${d.label} line=${d.n}`);

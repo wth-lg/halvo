@@ -1,0 +1,38 @@
+{"v":1,"id":"019c7633-4f00-732e-b9dd-f6f9547b0878","at":1771509600000000000,"seq":141,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019c7633-56d0-78dd-925d-da912f3fdc35","at":1771509602000000000,"seq":142,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019c7633-56d0-7240-8e1d-e91cc82f1574","at":1771509602000000000,"seq":143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda - Goldfinch Agenda","cut":false,"why":"app_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7633-6288-767d-97bb-76103cc0ac79","at":1771509605000000000,"seq":144,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
+{"v":1,"id":"019c7633-6670-7260-9b16-7a4ed0628c2b","at":1771509606000000000,"seq":145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7633-cc00-79d1-858d-224d9b0ca497","at":1771509632000000000,"seq":146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Clear the week - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7633-d7b8-7c77-b83d-8e08ec69ec7c","at":1771509635000000000,"seq":147,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
+{"v":1,"id":"019c7633-dba0-7130-b21d-2089e7b9819c","at":1771509636000000000,"seq":148,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7633-e758-7110-9cca-d2da5904c013","at":1771509639000000000,"seq":149,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7634-6840-76ff-8011-51a8c20c3d4d","at":1771509672000000000,"seq":150,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7634-c218-7fa9-b210-36e9a461e721","at":1771509695000000000,"seq":151,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
+{"v":1,"id":"019c7634-d988-75c0-84c4-7354f8ce80bd","at":1771509701000000000,"seq":152,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7634-dd70-7663-a0fe-43c89d4a11e0","at":1771509702000000000,"seq":153,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Clear the week - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7634-e928-7434-8065-cf468e34a7af","at":1771509705000000000,"seq":154,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7635-1bf0-7938-9ae7-d305cceeaf28","at":1771509718000000000,"seq":155,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7635-27a8-71b9-bf34-8eec78e5529b","at":1771509721000000000,"seq":156,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7635-79b0-7fa9-8130-36e90ecf9ad4","at":1771509742000000000,"seq":157,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7635-b448-7b9e-9065-d53c39a67363","at":1771509757000000000,"seq":158,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7635-b830-7264-8c42-38980ad7faca","at":1771509758000000000,"seq":159,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
+{"v":1,"id":"019c7635-eee0-7839-93f4-db1fb2996a86","at":1771509772000000000,"seq":160,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Clear the week - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7635-fa98-72c7-b786-8d453365377f","at":1771509775000000000,"seq":161,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7636-0650-7e5b-91f1-4d2e4f670b8c","at":1771509778000000000,"seq":162,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
+{"v":1,"id":"019c7636-21a8-7487-846b-5aca2c535b07","at":1771509785000000000,"seq":163,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7636-8b20-7e86-91c1-75f08c3346a5","at":1771509812000000000,"seq":164,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7636-9ac0-78e1-a4c3-282be3013579","at":1771509816000000000,"seq":165,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019c7636-c1d0-7c0b-8d0b-7235305a8abe","at":1771509826000000000,"seq":166,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7637-0050-76b0-a7bd-e53a9b815915","at":1771509842000000000,"seq":167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Clear the week - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7637-17c0-7b1e-bf42-d650f4c98933","at":1771509848000000000,"seq":168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7637-3ae8-7e43-8fad-9c175710828d","at":1771509857000000000,"seq":169,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7637-5640-7b8a-bf2c-8ae32b15661a","at":1771509864000000000,"seq":170,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
+{"v":1,"id":"019c7637-9c90-72a1-b0e5-318a5bc056cb","at":1771509882000000000,"seq":171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7637-d340-7184-9922-8742c282bf18","at":1771509896000000000,"seq":172,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
+{"v":1,"id":"019c7637-db10-7846-9086-48809a0e654b","at":1771509898000000000,"seq":173,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7638-11c0-71bd-99e7-8c300c6bc54f","at":1771509912000000000,"seq":174,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Clear the week - Goldfinch Agenda","cut":false,"why":"title_change","site":{"domain":"goldfinch-agenda.test","source":"address_field"}}}
+{"v":1,"id":"019c7638-15a8-7158-92a5-01e3b7ccb1b4","at":1771509913000000000,"seq":175,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7638-3100-7ac6-a788-0927e48e5942","at":1771509920000000000,"seq":176,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019c7638-6f80-7b79-b1f7-1df476ff06e1","at":1771509936000000000,"seq":177,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019c7638-92a8-7062-972e-e417964f88bf","at":1771509945000000000,"seq":178,"kind":"run_mark","app":null,"p":{"edge":"end"}}

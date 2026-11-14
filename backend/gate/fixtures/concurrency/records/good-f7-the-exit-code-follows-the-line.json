@@ -1,0 +1,20 @@
+{
+  "kind": "exit-code",
+  "ruling": "P7-69 F7 (the verifier's C15)",
+  "about": "check 50 exits 0 for a PASS line and 1 for a FAIL line, as contract 9 says",
+  "source": "by hand",
+  "cases": [
+    {
+      "line": "PASS concurrency: runs=1 of 1",
+      "code": 0
+    },
+    {
+      "line": "FAIL concurrency: runs=0 of 1; first failure: x",
+      "code": 1
+    },
+    {
+      "line": "FAIL concurrency: runs=unmeasured; first failure: the driver stopped",
+      "code": 1
+    }
+  ]
+}

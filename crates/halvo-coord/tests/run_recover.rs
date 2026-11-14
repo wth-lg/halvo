@@ -853,6 +853,10 @@ impl<P: Clock> Clock for Late<'_, P> {
     fn today(&self) -> Result<u32, PortError> {
         self.ports.today()
     }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.ports.day(at)
+    }
 }
 
 impl<P: Rng> Rng for Late<'_, P> {
@@ -1696,4 +1700,39 @@ fn review_m1_a_read_after_seq_takes_up_no_item_for_an_agent_that_holds_one() {
     let after = format!("{:?}", w.facts(0).doing);
     println!("M1 before {before} | after the tick {after}");
     assert!(after.contains("Ready"), "M1 after the tick {after}");
+}
+
+/// The end of the local day `DAY` in the zone of `world`.
+const MIDNIGHT: u64 = T0 + 6_400_000;
+
+/// The `run_ended` row that recovery logs for a run of an earlier life, with the clock from 8 ms
+/// before local midnight to 3 ms after it and moving on 1 ms at each read, carries the local day
+/// of its `at` (I7.1).
+#[test]
+fn the_rows_of_recovery_carry_the_day_of_their_at_across_midnight() {
+    let mut days = Vec::new();
+    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+        let mut w = world(&[MANUAL]);
+        let run = started(&mut w, 0);
+        w.ports.set_now(start);
+        w.ports.step_reads(1);
+        let ended = relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+        assert_eq!(
+            ended,
+            vec![(run.clone(), RunEnd::Interrupted)],
+            "from {start}"
+        );
+        let events = w.ports.events.borrow();
+        let rows: Vec<&Event> = events
+            .iter()
+            .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == &run))
+            .collect();
+        assert_eq!(rows.len(), 1, "from {start}");
+        for e in rows {
+            let at = u64::try_from(e.at / 1_000_000).unwrap();
+            assert_eq!(w.ports.day(at), Ok(e.day), "from {start}");
+            days.push(e.day);
+        }
+    }
+    assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }

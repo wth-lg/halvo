@@ -1,0 +1,42 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 2",
+  "about": "as above, but the mock logged a request under the id",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "ended_at": 2000,
+    "ended_by": "void"
+  },
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "voided-clean",
+        "id": "r"
+      },
+      {
+        "clause": "voided-at-expiry",
+        "id": "r"
+      }
+    ]
+  }
+}

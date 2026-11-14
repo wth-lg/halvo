@@ -247,7 +247,7 @@ impl Supervisor {
         }
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::null());
         cmd
     }
 

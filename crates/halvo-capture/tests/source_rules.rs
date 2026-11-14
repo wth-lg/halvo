@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 6] = [
+const LISTED: [(&str, &str, &str); 8] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -61,7 +61,57 @@ const LISTED: [(&str, &str, &str); 6] = [
         "include_bytes",
         "\"testdata/segment-v1.golden\"",
     ),
+    ("src-tauri/build.rs", "path", "\"src/commands/names.rs\""),
+    (
+        "src-tauri/src/tests.rs",
+        "include_str",
+        "\"engine-url-forms.txt\"",
+    ),
 ];
+
+/// The roots whose files the tests of this file read.
+const ROOTS: [&str; 2] = ["crates/halvo-capture/", "src-tauri/src/"];
+
+/// The names of LISTED that bring code to the compiler; `include_str` and
+/// `include_bytes` bring a text or bytes.
+const CODE: [&str; 2] = ["path", "include"];
+
+/// The file that a use reaches: its literal from the directory of `file`,
+/// with each `.` segment taken out.
+fn reached(file: &str, literal: &str) -> String {
+    let dir = file.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let parts: Vec<&str> = literal
+        .trim_matches('"')
+        .split('/')
+        .filter(|part| *part != ".")
+        .collect();
+    format!("{dir}/{}", parts.join("/"))
+}
+
+/// Each use of `listed` that brings code and reaches a file that these rules
+/// do not read as Rust: a literal that is absolute, holds a backslash, starts
+/// with a drive or climbs with `..`, or a file under no root of [`ROOTS`] or
+/// on [`DATA_FILES`].
+fn code_reach_faults(listed: &[(&str, &str, &str)]) -> Vec<String> {
+    listed
+        .iter()
+        .filter(|(_, name, _)| CODE.contains(name))
+        .filter_map(|(file, name, literal)| {
+            let text = literal.trim_matches('"');
+            let target = reached(file, literal);
+            let drive = text.as_bytes().get(1) == Some(&b':');
+            let ok = !text.starts_with('/')
+                && !text.contains('\\')
+                && !drive
+                && !target.split('/').any(|part| part == "..")
+                && ROOTS.iter().any(|root| target.starts_with(root))
+                && !DATA_FILES.contains(&target.as_str());
+            (!ok).then(|| {
+                format!("{file}: the listed {name} reaches {target}, a file that these rules do not read as Rust")
+            })
+        })
+        .collect()
+}
 
 const KEYWORDS: [&str; 38] = [
     "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
@@ -76,25 +126,135 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-/// Every file under the directory `dir` of the repository, tracked or not, by
-/// its path from the root, in order.
-fn files_under(dir: &str, out: &mut Vec<String>) {
-    let Ok(entries) = fs::read_dir(root().join(dir)) else {
-        return;
+/// The files under the directories that these rules read that hold no code,
+/// each by its path from the root, byte for byte. The rules read every other
+/// file there as Rust, whatever its name: the compiler opens a module file by
+/// a path, and a volume that folds case gives `x.RS` for `x.rs`.
+const DATA_FILES: [&str; 9] = [
+    "crates/halvo-capture/Cargo.toml",
+    "crates/halvo-capture/src/custody/mutants.rows",
+    "crates/halvo-capture/src/daemon/mutants.rows",
+    "crates/halvo-capture/src/macos/mutants.rows",
+    "crates/halvo-capture/src/mutants.rows",
+    "crates/halvo-capture/src/store/mutants.rows",
+    "crates/halvo-capture/src/store/testdata/segment-v1.golden",
+    "crates/halvo-capture/src/windows/mutants.rows",
+    "src-tauri/src/engine-url-forms.txt",
+];
+
+/// Every file under the directory `dir` of the tree at `base`, tracked or not,
+/// by its path from `base`, in order, but the paths of [`DATA_FILES`]. A
+/// symbolic link is read through: a link to a directory is walked, and any
+/// other link is a file of the list, which a dangling link fails to read. A
+/// directory that cannot be listed, and an entry that cannot be read, is a
+/// fault in `faults` that names its path.
+fn files_under(base: &Path, dir: &str, out: &mut Vec<String>, faults: &mut Vec<String>) {
+    let entries = match fs::read_dir(base.join(dir)) {
+        Ok(entries) => entries,
+        Err(e) => {
+            faults.push(format!("{dir} cannot be listed: {e}"));
+            return;
+        }
     };
-    let mut names: Vec<String> = entries
-        .filter_map(Result::ok)
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .collect();
+    let mut names = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => names.push(entry.file_name().to_string_lossy().into_owned()),
+            Err(e) => faults.push(format!("an entry of {dir} cannot be read: {e}")),
+        }
+    }
     names.sort();
     for name in names {
         let path = format!("{dir}/{name}");
-        if root().join(&path).is_dir() {
-            files_under(&path, out);
-        } else {
+        if base.join(&path).is_dir() {
+            files_under(base, &path, out, faults);
+        } else if !DATA_FILES.contains(&path.as_str()) {
             out.push(path);
         }
     }
+}
+
+/// A new directory under the target's directory for the temporary files of
+/// tests, for one tree of a test.
+fn temp_tree(name: &str) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "source-rules-{name}-{}-{nanos}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&base).unwrap();
+    base
+}
+
+/// Writes `text` at `path` under `base`, with the directories above it.
+fn plant(base: &Path, path: &str, text: &str) {
+    let file = base.join(path);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(file, text).unwrap();
+}
+
+/// A link at `path` under `base` to the file `target` beside it; where the
+/// system makes no link, a copy of the target.
+fn link(base: &Path, target: &str, path: &str) -> &'static str {
+    let at = base.join(path);
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(target, &at).unwrap();
+        "link"
+    }
+    #[cfg(not(unix))]
+    {
+        let from = at.parent().unwrap().join(target);
+        match std::os::windows::fs::symlink_file(&from, &at) {
+            Ok(()) => "link",
+            Err(_) => {
+                fs::copy(&from, &at).unwrap();
+                "copy"
+            }
+        }
+    }
+}
+
+/// The files that the rule of the text filter point reads under `base`, and
+/// the faults of their listing.
+fn point_files(base: &Path) -> (Vec<String>, Vec<String>) {
+    let (mut files, mut faults) = (Vec::new(), Vec::new());
+    files_under(
+        base,
+        "crates/halvo-capture/src/floor",
+        &mut files,
+        &mut faults,
+    );
+    files_under(
+        base,
+        "crates/halvo-capture/src/daemon",
+        &mut files,
+        &mut faults,
+    );
+    (files, faults)
+}
+
+/// The uses of path attributes and include macros in the files that the rule
+/// of the listed uses reads under `base`, and the faults of the reading.
+fn reach_uses(base: &Path) -> (Vec<Use>, Vec<String>) {
+    let (mut files, mut faults) = (Vec::new(), Vec::new());
+    files_under(base, "crates/halvo-capture", &mut files, &mut faults);
+    files_under(base, "src-tauri/src", &mut files, &mut faults);
+    files.push("src-tauri/build.rs".to_owned());
+    let mut uses = Vec::new();
+    for file in &files {
+        match read_tokens_at(base, file) {
+            Err(fault) => faults.push(fault),
+            Ok(t) => {
+                let (found, wrong) = reach_reading(file, &t);
+                uses.extend(found);
+                faults.extend(wrong);
+            }
+        }
+    }
+    (uses, faults)
 }
 
 fn flatten(stream: TokenStream, out: &mut Vec<String>) {
@@ -136,7 +296,11 @@ fn lex(text: &str) -> Result<Vec<String>, String> {
 }
 
 fn read_tokens(file: &str) -> Result<Vec<String>, String> {
-    let text = fs::read_to_string(root().join(file))
+    read_tokens_at(&root(), file)
+}
+
+fn read_tokens_at(base: &Path, file: &str) -> Result<Vec<String>, String> {
+    let text = fs::read_to_string(base.join(file))
         .map_err(|e| format!("{file} cannot be read as UTF-8 text: {e}"))?;
     lex(&text).map_err(|cause| format!("{file} cannot be read as the compiler reads it: {cause}"))
 }
@@ -446,9 +610,68 @@ fn the_reader_finds_a_path_attribute_and_an_include_however_they_are_spelled() {
 
 #[test]
 fn the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon() {
-    let mut files = Vec::new();
-    files_under("crates/halvo-capture/src/floor", &mut files);
-    files_under("crates/halvo-capture/src/daemon", &mut files);
+    let tree = temp_tree("point");
+    let daemon = "crates/halvo-capture/src/daemon";
+    for (name, text) in [
+        ("owner.rs", "pub struct Owner;"),
+        ("evil.RS", "pub struct Evil;"),
+        ("noext", "pub struct NoExtension;"),
+        ("mutants.rows", "a\tb"),
+        ("outside.txt", "pub struct Linked;"),
+        ("long.r\u{17f}", "pub struct LongS;"),
+    ] {
+        plant(&tree, &format!("{daemon}/{name}"), text);
+    }
+    plant(&tree, "crates/halvo-capture/src/floor/Mutants.rows", "a\tb");
+    let made = link(&tree, "outside.txt", &format!("{daemon}/linked_tests.rs"));
+    println!("the fixture of a link is a {made}");
+    let (mut read, listing) = point_files(&tree);
+    assert_eq!(listing, Vec::<String>::new());
+    read.sort();
+    let mut want: Vec<String> = [
+        "crates/halvo-capture/src/floor/Mutants.rows",
+        "crates/halvo-capture/src/daemon/evil.RS",
+        "crates/halvo-capture/src/daemon/long.r\u{17f}",
+        "crates/halvo-capture/src/daemon/linked_tests.rs",
+        "crates/halvo-capture/src/daemon/noext",
+        "crates/halvo-capture/src/daemon/outside.txt",
+        "crates/halvo-capture/src/daemon/owner.rs",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    want.sort();
+    assert_eq!(
+        read, want,
+        "the rule leaves out a file but the listed data file"
+    );
+    assert!(read_tokens_at(&tree, &format!("{daemon}/linked_tests.rs")).is_ok());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        struct Guard(PathBuf);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+            }
+        }
+        let locked = tree.join(daemon).join("locked");
+        fs::create_dir_all(&locked).unwrap();
+        fs::write(locked.join("mod.rs"), "pub struct Locked;").unwrap();
+        let _guard = Guard(locked.clone());
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o311)).unwrap();
+        assert!(
+            fs::read_dir(&locked).is_err(),
+            "this account lists a directory of mode 311, as the system's first user does, so the fixture cannot be made"
+        );
+        let (_, listing) = point_files(&tree);
+        assert_eq!(listing.len(), 1, "{listing:?}");
+        assert!(
+            listing[0].starts_with("crates/halvo-capture/src/daemon/locked cannot be listed"),
+            "{listing:?}"
+        );
+    }
+    let (files, listing) = point_files(&root());
+    assert_eq!(listing, Vec::<String>::new());
     assert!(
         files
             .iter()
@@ -518,21 +741,95 @@ fn the_secure_input_probe_is_implemented_only_in_the_secure_input_tree() {
 
 #[test]
 fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
-    let mut files = Vec::new();
-    files_under("crates/halvo-capture", &mut files);
-    files_under("src-tauri/src", &mut files);
-    files.push("src-tauri/build.rs".to_owned());
-    let (mut uses, mut faults) = (Vec::new(), Vec::new());
-    for file in files.iter().filter(|f| f.ends_with(".rs")) {
-        match read_tokens(file) {
-            Err(fault) => faults.push(fault),
-            Ok(t) => {
-                let (found, wrong) = reach_reading(file, &t);
-                uses.extend(found);
-                faults.extend(wrong);
-            }
-        }
+    assert_eq!(code_reach_faults(&LISTED), Vec::<String>::new());
+    let refused = [
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"mutants.rows\"",
+        ),
+        (
+            "crates/halvo-capture/src/lib.rs",
+            "include",
+            "\"mutants.rows\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"../../../../other/x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"/private/tmp/outside/x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"..\\\\..\\\\..\\\\..\\\\other\\\\x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"C:\\\\other\\\\x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"C:/other/x.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/lib.rs",
+            "path",
+            "\"../../other/src/x.rs\"",
+        ),
+        ("src-tauri/build.rs", "path", "\"build/x.rs\""),
+    ];
+    for case in refused {
+        assert_eq!(code_reach_faults(&[case]).len(), 1, "{case:?}");
     }
+    let kept = [
+        ("src-tauri/build.rs", "path", "\"src/commands/names.rs\""),
+        (
+            "crates/halvo-capture/src/secure_input.rs",
+            "path",
+            "\"./secure_input_macos.rs\"",
+        ),
+        (
+            "crates/halvo-capture/src/a.rs",
+            "include_str",
+            "\"notes.txt\"",
+        ),
+        (
+            "crates/halvo-capture/src/a.rs",
+            "include_bytes",
+            "\"data.golden\"",
+        ),
+    ];
+    for case in kept {
+        assert_eq!(code_reach_faults(&[case]), Vec::<String>::new(), "{case:?}");
+    }
+    let tree = temp_tree("reach");
+    plant(&tree, "src-tauri/build.rs", "fn main() {}");
+    plant(&tree, "src-tauri/src/main.rs", "fn main() {}");
+    plant(&tree, "crates/halvo-capture/Cargo.toml", "[package]");
+    plant(
+        &tree,
+        "crates/halvo-capture/src/daemon/evil.RS",
+        "#[path = \"y.rs\"]\nmod y;",
+    );
+    let (found, wrong) = reach_uses(&tree);
+    assert_eq!(wrong, Vec::<String>::new());
+    assert_eq!(
+        found,
+        [(
+            "crates/halvo-capture/src/daemon/evil.RS".to_owned(),
+            "path".to_owned(),
+            "\"y.rs\"".to_owned()
+        )],
+        "a path attribute in a file whose name ends in .RS is not read"
+    );
+    let (mut uses, faults) = reach_uses(&root());
     println!(
         "uses of path attributes and include macros: {}, listed: {}",
         uses.len(),

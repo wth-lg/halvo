@@ -4,7 +4,7 @@
 
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
-    Reply, RunId, RunSpec, Workflow,
+    Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -37,6 +37,18 @@ pub trait Owner {
     fn agents(&self) -> Result<Vec<Agent<Self::Config>>, PortError>;
     /// Sends a body of A-A7.2 and gives its reply.
     fn send(&self, body: &Body) -> Result<Reply, PortError>;
+    /// The agent's last `runs` runs, newest first, each with its effects, as the reply of the
+    /// body `agent_history` gives them (I6.1, I2.6, ruling RD-10). An owner that does not read
+    /// them answers `no_service`, which is the answer of this default.
+    fn agent_history(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        runs: u32,
+    ) -> Result<Vec<RunHistory>, PortError> {
+        let _ = (workflow, agent, runs);
+        Err(PortError::NoService)
+    }
 }
 
 /// The runners of the agent-setup run, through its supervisor library.
@@ -53,10 +65,16 @@ pub trait Runs {
         answers: &[Answer],
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError>;
-    /// Sends the result of a handback.
+    /// Sends the result of a handback. The port's duty (ruling RD-46 (2) g): it returns an
+    /// error other than the refusal `ended` only when the run's waiting call did not get the
+    /// result, so that the coordinator, which closes the item after a success or after `ended`
+    /// only, may send a result again.
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError>;
     /// Sends the answer of the second step of a `sign_in` item, with which the supervisor
-    /// library's call `Human::allow_origin` of the run returns (I3.1, I6.2).
+    /// library's call `Human::allow_origin` of the run returns (I3.1, I6.2). The port's duty
+    /// (ruling RD-46 (2) g): it returns an error other than the refusal `ended` only when the
+    /// waiting call did not get the answer, so that the coordinator, which closes the step after
+    /// a success or after `ended` only, may send that answer again or `decline`.
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError>;
     /// Sends the frame `cancel`.
     fn cancel(&self, run: &RunId) -> Result<(), PortError>;
@@ -94,12 +112,59 @@ pub trait Analysis {
     fn defer(&self, until: u64) -> Result<(), PortError>;
 }
 
-/// The clock.
+/// The clock. It gives the day of an instant, so that a day and an instant are never handed
+/// over as a pair that can disagree (I7.1; the agent-setup run's CP-122 (a)).
 pub trait Clock {
     /// Milliseconds since 1970-01-01T00:00:00Z.
     fn now(&self) -> Result<u64, PortError>;
-    /// The local calendar day as days since 1970-01-01.
-    fn today(&self) -> Result<u32, PortError>;
+    /// The local calendar day of the instant `at`, in milliseconds as `now` gives them, as days
+    /// since 1970-01-01 (W-C2.5).
+    fn day(&self, at: u64) -> Result<u32, PortError>;
+    /// The local calendar day as days since 1970-01-01: the day of one read of `now`.
+    fn today(&self) -> Result<u32, PortError> {
+        let at = self.now()?;
+        self.day(at)
+    }
+}
+
+/// The instant of a row and its day from one read of the clock: `Clock::now` once, and
+/// `Clock::day` of that instant (I7.1). Only `Stamp::read` makes one, so a row's `day` is the
+/// local day of its `at`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stamp {
+    now: u64,
+    day: u32,
+}
+
+impl Stamp {
+    /// The last instant, in milliseconds, whose nanoseconds a row's `at` holds.
+    pub const LAST: u64 = i64::MAX as u64 / 1_000_000;
+
+    /// Reads the clock once and gives the day of that instant; an instant after `Stamp::LAST`,
+    /// which no `at` can hold, is the clock's failure `no_service`.
+    pub fn read<P: Clock + ?Sized>(clock: &P) -> Result<Stamp, PortError> {
+        let now = clock.now()?;
+        if now > Stamp::LAST {
+            return Err(PortError::NoService);
+        }
+        let day = clock.day(now)?;
+        Ok(Stamp { now, day })
+    }
+
+    /// The instant in milliseconds, as `Clock::now` gave it.
+    pub fn now(self) -> u64 {
+        self.now
+    }
+
+    /// The local calendar day of the instant.
+    pub fn day(self) -> u32 {
+        self.day
+    }
+
+    /// The instant as a row's `at`: nanoseconds, `now` times 1,000,000.
+    pub fn at(self) -> i64 {
+        i64::try_from(self.now).map_or(i64::MAX, |n| n.saturating_mul(1_000_000))
+    }
 }
 
 /// The source of random bytes.

@@ -1,5 +1,5 @@
 use super::check::raise_checks;
-use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
+use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
 use crate::schedule::{item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing};
 use crate::types::{
     Agent, AgentId, Body, Cause, ConfigView, Doing, Event, Facts, FullWorkflow, ItemId, LapseCause,
@@ -230,8 +230,8 @@ where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
 {
-    let now = ports.now().map_err(|e| cause(&e))?;
-    let day = ports.today().map_err(|e| cause(&e))?;
+    let stamp = Stamp::read(ports).map_err(|e| cause(&e))?;
+    let day = stamp.day();
     let reaped = ports.reap().map_err(|e| cause(&e))?;
     let workflows = ports.workflows().map_err(|e| cause(&e))?;
     let agents = ports.agents().map_err(|e| cause(&e))?;
@@ -272,9 +272,7 @@ where
             .cmp(&first(b))
             .then_with(|| a.agent.agent.cmp(&b.agent.agent))
     });
-    let at = i64::try_from(now)
-        .unwrap_or(i64::MAX)
-        .saturating_mul(1_000_000);
+    let at = stamp.at();
     let mut owed: Vec<Owed> = Vec::new();
     let mut ended: Vec<Ended> = Vec::new();
     for f in &mut found {

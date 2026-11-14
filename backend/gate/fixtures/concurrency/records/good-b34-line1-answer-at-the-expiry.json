@@ -1,0 +1,13 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1",
+  "about": "the answer reached the driver at the row's expiry, which line 1 allows",
+  "source": "by hand",
+  "request": {
+    "headersAt": 4010
+  },
+  "expect": {
+    "counted": true,
+    "violations": []
+  }
+}

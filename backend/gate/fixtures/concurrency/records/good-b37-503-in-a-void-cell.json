@@ -1,0 +1,43 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "in the void cell the hold lives 1,700 ms, under the deadline plus the margin, so a void is legal at any time",
+  "source": "by hand",
+  "request": {
+    "status": 503,
+    "body": "{\"result\":\"voided\"}",
+    "headersAt": 1050,
+    "endedAt": 1055,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1010,
+      "expiresAt": 2710
+    }
+  },
+  "row": {
+    "expires_at": 2710,
+    "ended_at": 1040,
+    "ended_by": "void"
+  },
+  "top": {
+    "cell": {
+      "name": "void@20",
+      "kind": "void",
+      "level": 20,
+      "switch": "usage-last"
+    },
+    "gateway": {
+      "holdLifeMs": 1700,
+      "deadlineMs": 1500,
+      "marginMs": 400
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "voided": 1
+    }
+  }
+}

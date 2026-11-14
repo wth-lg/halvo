@@ -1,0 +1,12 @@
+[package]
+name = "halvo-checkpoint"
+version = "0.0.0"
+description = "The checkpoint of the sheet executor without a reader of workbooks: the copy's name, the walk of a path inside a folder, the SHA-256 of a file, the lock of a workbook's directory, and the call that removes a named checkpoint"
+edition = "2021"
+publish = false
+
+[dependencies]
+sha2 = "=0.10.9"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemServices"] }

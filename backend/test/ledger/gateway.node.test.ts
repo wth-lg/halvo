@@ -56,7 +56,7 @@ beforeAll(async () => {
   const inspector = await freePort();
   base = `http://127.0.0.1:${port}`;
   logPath = join(dir, "wrangler.log");
-  
+
   const log = openSync(logPath, "a");
   worker = startGroup(
     join(ROOT, "node_modules/.bin/wrangler"),
