@@ -58,10 +58,10 @@ const LAUNCH_WAIT: Duration = Duration::from_secs(20);
 const KEPT_MARGIN: Duration = Duration::from_millis(130);
 const NEVER_ON_WAIT: Duration = Duration::from_secs(2);
 const WINDOW_MARGIN: u64 = 200_000_000;
-const SHORT_WINDOW_AT_150: usize = 320;
-const SHORT_WINDOW_AT_2000: usize = 62;
-const SET_ON_TIMES: [i64; 7] = [0, 5, 10, 20, 40, 80, 200];
-const SET_ON_TIME_ROUNDS: usize = 20;
+const SHORT_WINDOW_AT_150: usize = 40;
+const SHORT_WINDOW_AT_2000: usize = 124;
+const LEAVES_ASKED_AFTER_MS: [i64; 7] = [0, 5, 10, 20, 40, 80, 200];
+const LEAVE_ROUNDS: usize = 5;
 const LOOP_COUNTED: usize = 62;
 const LOOP_CAP: usize = 68;
 const BURST_STEP: Duration = Duration::from_millis(2);
@@ -680,7 +680,7 @@ struct Round {
     from: u64,
     stamps: Vec<Stamp>,
     entries: Vec<RawEntry>,
-    case: Case,
+    case: Option<Case>,
     verdict: Option<Verdict>,
 }
 
@@ -732,8 +732,8 @@ fn round(
     round.from = from;
     round.stamps = fixture.stamps();
     round.entries = recorder.drops.take_entries();
-    let found = evidence(on_runs(&round.stamps), &round.entries);
-    round.case = short_case(&found);
+    let found = evidence(&round.stamps, &round.entries, since_of(how, &round.stamps));
+    round.case = (how != Move::Return || round.counted).then(|| short_case(&found));
     if keep == Keep::Mended {
         round.verdict = Some(mended_verdict(
             round.never_on,
@@ -743,6 +743,14 @@ fn round(
         ));
     }
     round
+}
+
+fn since_of(how: Move, stamps: &[Stamp]) -> u64 {
+    if how == Move::Return {
+        return_start(stamps)
+    } else {
+        0
+    }
 }
 
 fn round_inner(
@@ -766,7 +774,7 @@ fn round_inner(
         from: 0,
         stamps: Vec::new(),
         entries: Vec::new(),
-        case: Case::C,
+        case: None,
         verdict: None,
     };
     fixture.ask("clear", "cleared");
@@ -948,41 +956,46 @@ fn phase_with(
     phase_on(&mut fixture, name, how, waits, source, plan).0
 }
 
-fn round_line(name: &str, number: usize, round: &Round, bound: Duration, keep: Keep) -> String {
-    let found = evidence(on_runs(&round.stamps), &round.entries);
-    let (inside_on, inside_off) = inside(&found);
+fn round_line(
+    name: &str,
+    number: usize,
+    round: &Round,
+    bound: Duration,
+    keep: Keep,
+    how: Move,
+) -> String {
+    let found = evidence(&round.stamps, &round.entries, since_of(how, &round.stamps));
+    let at = |ns: Option<u64>| {
+        ns.map_or_else(
+            || String::from("-"),
+            |ns| relative_us(ns, round.from).to_string(),
+        )
+    };
     let runs: Vec<String> = found
-        .on_runs
+        .runs
         .iter()
-        .map(|&(on_from, on_to)| {
+        .map(|run| {
             format!(
                 "{}..{}",
-                relative_us(on_from, round.from),
-                relative_us(on_to, round.from)
+                relative_us(run.first_on, round.from),
+                relative_us(run.last_on, round.from)
             )
         })
         .collect();
-    let off = found
-        .on_runs
-        .first()
-        .and_then(|&(_, on_to)| first_off_after(&round.stamps, on_to))
-        .map_or_else(
-            || String::from("-"),
-            |at| relative_us(at, round.from).to_string(),
-        );
-    let release = found.first_release.map_or_else(
-        || String::from("-"),
-        |at| relative_us(at, round.from).to_string(),
-    );
+    let run = proof_run(&found);
+    let span_on = run.map_or(0, |run| on_in_span(&found, run).len());
     let verdict = round.verdict.map_or_else(
         || String::from("-"),
         |verdict| format!("{verdict:?}").to_lowercase(),
     );
+    let case = round
+        .case
+        .map_or_else(|| String::from("-"), |case| format!("{case:?}"));
     format!(
         "{name} round={number} wait_ms={} bound_ms={} counted={} ahead={} markers={} plain={} \
-         secure={} which={} keep={keep:?} never_on={} on_runs_us={} off_us={off} \
-         inside_on={inside_on} inside_off={inside_off} first_release_us={release} \
-         on_drops={} case={:?} rv={verdict}",
+         secure={} which={} keep={keep:?} never_on={} on_runs_us={} last_off_us={} off_us={} \
+         inside_on={} span_on={span_on} on_outside={} inside_off={} first_release_us={} \
+         on_drops={} case={case} rv={verdict}",
         round.wait_ms,
         bound.as_millis(),
         u8::from(round.counted),
@@ -997,8 +1010,13 @@ fn round_line(name: &str, number: usize, round: &Round, bound: Duration, keep: K
         } else {
             runs.join(",")
         },
-        found.on_drops,
-        round.case,
+        at(run.and_then(|run| run.last_off_before)),
+        at(run.and_then(|run| run.first_off_after)),
+        on_in_narrow(&found),
+        on_outside(&found),
+        off_in_narrow(&found),
+        at(found.first_release),
+        found.on_drops.len(),
     )
 }
 
@@ -1010,16 +1028,16 @@ fn whole_entries(round: &Round) -> bool {
             .is_some_and(|verdict| verdict != Verdict::Held)
 }
 
-fn print_entries(name: &str, number: usize, round: &Round) {
-    let runs = on_runs(&round.stamps);
+fn print_entries(name: &str, number: usize, round: &Round, how: Move) {
+    let found = evidence(&round.stamps, &round.entries, since_of(how, &round.stamps));
     let window = if whole_entries(round) {
         None
     } else {
-        runs.first().map(|&(on_from, on_to)| {
-            let off = first_off_after(&round.stamps, on_to).unwrap_or(on_to);
+        proof_run(&found).map(|run| {
+            let (start, end) = run.span();
             (
-                on_from.saturating_sub(WINDOW_MARGIN),
-                off.saturating_add(WINDOW_MARGIN),
+                start.min(run.first_on.saturating_sub(WINDOW_MARGIN)),
+                end.saturating_add(WINDOW_MARGIN),
             )
         })
     };
@@ -1064,12 +1082,15 @@ fn phase_on(
         while run < plan.cap && good < plan.count {
             let round = round(fixture, recorder, how, wait_ms, bound, plan.keep);
             let number = rounds.len();
-            println!("{}", round_line(name, number, &round, bound, plan.keep));
+            println!(
+                "{}",
+                round_line(name, number, &round, bound, plan.keep, how)
+            );
             println!(
                 "{name} drops round={number} {}",
                 drops_line(&recorder.drops)
             );
-            print_entries(name, number, &round);
+            print_entries(name, number, &round, how);
             run += 1;
             if plan.keep != Keep::Mended || round.verdict == Some(Verdict::Held) {
                 good += 1;
@@ -1160,7 +1181,12 @@ fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: 
 }
 
 fn measured(name: &str, form: &str, rounds: &[Round]) {
-    let count = |case: Case| rounds.iter().filter(|round| round.case == case).count();
+    let count = |case: Case| {
+        rounds
+            .iter()
+            .filter(|round| round.case == Some(case))
+            .count()
+    };
     let recorded: Vec<&Round> = rounds
         .iter()
         .filter(|round| round.counted && round.ahead > 0)
@@ -1169,22 +1195,29 @@ fn measured(name: &str, form: &str, rounds: &[Round]) {
         .iter()
         .filter(|round| !round.counted && round.ahead > 0)
         .count();
-    let recorded_case = |case: Case| recorded.iter().filter(|round| round.case == case).count();
+    let recorded_case = |case: Case| {
+        recorded
+            .iter()
+            .filter(|round| round.case == Some(case))
+            .count()
+    };
     println!(
         "{name} measured form={form} wait_ms={} rounds={} counted={} recorded_rounds={} \
-         recorded_cases=A:{},B:{},C:{},D:{},seen:{} uncounted_with_keys={uncounted_with_keys} \
-         cases=A:{},B:{},C:{},D:{},seen:{}",
+         recorded_cases=A:{},B:{},between:{},C:{},D:{},seen:{} \
+         uncounted_with_keys={uncounted_with_keys} cases=A:{},B:{},between:{},C:{},D:{},seen:{}",
         rounds.first().map_or(0, |round| round.wait_ms),
         rounds.len(),
         rounds.iter().filter(|round| round.counted).count(),
         recorded.len(),
         recorded_case(Case::A),
         recorded_case(Case::B),
+        recorded_case(Case::Between),
         recorded_case(Case::C),
         recorded_case(Case::D),
         recorded_case(Case::Seen),
         count(Case::A),
         count(Case::B),
+        count(Case::Between),
         count(Case::C),
         count(Case::D),
         count(Case::Seen),
@@ -1316,11 +1349,11 @@ fn short_window_a_the_click_round_as_it_was_at_wait_2000_ms() {
 
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
-fn short_window_b_a_set_on_time() {
-    let name = "short_window_b_a_set_on_time";
+fn short_window_b_the_leave_asked_after_n_ms() {
+    let name = "short_window_b_the_leave_asked_after_n_ms";
     let mut fixture = started_fixture(name);
-    for on_time in SET_ON_TIMES {
-        fixture.ask(&format!("autoleave {on_time}"), "autoleave=");
+    for asked_ms in LEAVES_ASKED_AFTER_MS {
+        fixture.ask(&format!("autoleave {asked_ms}"), "autoleave=");
         let (rounds, _) = phase_on(
             &mut fixture,
             name,
@@ -1328,12 +1361,12 @@ fn short_window_b_a_set_on_time() {
             &[(150, SHORT_BOUND)],
             source_for,
             Plan {
-                count: SET_ON_TIME_ROUNDS,
-                cap: SET_ON_TIME_ROUNDS,
+                count: LEAVE_ROUNDS,
+                cap: LEAVE_ROUNDS,
                 keep: Keep::Autoleave,
             },
         );
-        measured(name, &format!("b_{on_time}ms"), &rounds);
+        measured(name, &format!("leave_asked_after_{asked_ms}ms"), &rounds);
     }
     fixture.ask("autoleave -1", "autoleave=");
 }
@@ -1646,7 +1679,7 @@ fn stand_in_round(counted: bool, ahead: usize) -> Round {
         from: 0,
         stamps: Vec::new(),
         entries: Vec::new(),
-        case: Case::C,
+        case: None,
         verdict: None,
     }
 }
@@ -1888,17 +1921,64 @@ fn first_off_after(stamps: &[Stamp], at: u64) -> Option<u64> {
         .map(|stamp| stamp.ns)
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct Evidence {
-    on_runs: Vec<(u64, u64)>,
-    readings: Vec<(u64, u64, Reading)>,
-    first_release: Option<u64>,
-    on_drops: usize,
+fn off_around(stamps: &[Stamp], first_on: u64, last_on: u64) -> (Option<u64>, Option<u64>) {
+    let before = stamps
+        .iter()
+        .filter(|stamp| !stamp.on && stamp.ns < first_on)
+        .map(|stamp| stamp.ns)
+        .max();
+    let after = stamps
+        .iter()
+        .find(|stamp| !stamp.on && stamp.ns > last_on)
+        .map(|stamp| stamp.ns);
+    (before, after)
 }
 
-fn evidence(runs: Vec<(u64, u64)>, entries: &[RawEntry]) -> Evidence {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Run {
+    first_on: u64,
+    last_on: u64,
+    last_off_before: Option<u64>,
+    first_off_after: Option<u64>,
+}
+
+impl Run {
+    fn span(&self) -> (u64, u64) {
+        (
+            self.last_off_before.unwrap_or(self.first_on),
+            self.first_off_after.unwrap_or(self.last_on),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Evidence {
+    runs: Vec<Run>,
+    since: u64,
+    first_stamp: Option<u64>,
+    first_stamp_on: bool,
+    readings: Vec<(u64, u64, Reading)>,
+    first_release: Option<u64>,
+    on_drops: Vec<u64>,
+}
+
+fn evidence(stamps: &[Stamp], entries: &[RawEntry], since: u64) -> Evidence {
     let mut found = Evidence {
-        on_runs: runs,
+        runs: on_runs(stamps)
+            .into_iter()
+            .map(|(first_on, last_on)| {
+                let (last_off_before, first_off_after) = off_around(stamps, first_on, last_on);
+                Run {
+                    first_on,
+                    last_on,
+                    last_off_before,
+                    first_off_after,
+                }
+            })
+            .collect(),
+        since,
+        first_stamp: stamps.first().map(|stamp| stamp.ns),
+        first_stamp_on: stamps.first().is_some_and(|stamp| stamp.on),
         ..Evidence::default()
     };
     for entry in entries {
@@ -1913,56 +1993,101 @@ fn evidence(runs: Vec<(u64, u64)>, entries: &[RawEntry]) -> Evidence {
                 found.first_release = Some(found.first_release.map_or(at, |first| first.min(at)));
             }
             RawEntry::Dropped {
-                cause: Cause::On, ..
-            } => found.on_drops += 1,
+                at,
+                cause: Cause::On,
+                ..
+            } => found.on_drops.push(at),
             _ => {}
         }
     }
     found
 }
 
-fn inside(found: &Evidence) -> (usize, usize) {
-    let within = |before: u64, after: u64| {
-        found
-            .on_runs
-            .iter()
-            .any(|&(from, to)| before >= from && after <= to)
-    };
-    let mut counts = (0, 0);
-    for &(before, after, value) in &found.readings {
-        if within(before, after) {
-            match value {
-                Reading::On => counts.0 += 1,
-                Reading::Off => counts.1 += 1,
-                Reading::Unknown => {}
-            }
-        }
-    }
-    counts
+fn proof_run(found: &Evidence) -> Option<&Run> {
+    found.runs.iter().find(|run| run.first_on >= found.since)
+}
+
+fn on_in_span(found: &Evidence, run: &Run) -> Vec<u64> {
+    let (start, end) = run.span();
+    found
+        .readings
+        .iter()
+        .filter(|&&(before, after, value)| value == Reading::On && before >= start && after <= end)
+        .map(|&(before, _, _)| before)
+        .collect()
+}
+
+fn on_in_narrow(found: &Evidence) -> usize {
+    found
+        .readings
+        .iter()
+        .filter(|&&(before, after, value)| {
+            value == Reading::On
+                && found
+                    .runs
+                    .iter()
+                    .any(|run| before >= run.first_on && after <= run.last_on)
+        })
+        .count()
+}
+
+fn off_in_narrow(found: &Evidence) -> usize {
+    found
+        .readings
+        .iter()
+        .filter(|&&(before, after, value)| {
+            value == Reading::Off
+                && found
+                    .runs
+                    .iter()
+                    .any(|run| before >= run.first_on && after <= run.last_on)
+        })
+        .count()
+}
+
+fn on_outside(found: &Evidence) -> usize {
+    let from = found.first_stamp.unwrap_or(0);
+    found
+        .readings
+        .iter()
+        .filter(|&&(before, after, value)| {
+            value == Reading::On
+                && before >= from
+                && !found.runs.iter().any(|run| {
+                    let (start, end) = run.span();
+                    before >= start && after <= end
+                })
+        })
+        .count()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Case {
     A,
     B,
+    Between,
     C,
     D,
     Seen,
 }
 
 fn short_case(found: &Evidence) -> Case {
-    let Some(&(first_on, _)) = found.on_runs.first() else {
+    let Some(run) = proof_run(found) else {
         return Case::C;
     };
-    let (on_inside, off_inside) = inside(found);
-    if off_inside > 0 {
-        Case::D
-    } else if found
-        .first_release
-        .is_some_and(|release| first_on > release)
-    {
-        Case::B
-    } else if on_inside == 0 {
+    if off_in_narrow(found) > 0 {
+        return Case::D;
+    }
+    let (start, _) = run.span();
+    if let Some(release) = found.first_release {
+        if release < start {
+            return Case::B;
+        }
+        if release < run.first_on {
+            return Case::Between;
+        }
+    }
+    if on_in_span(found, run).is_empty() {
         Case::A
     } else {
         Case::Seen
@@ -1988,9 +2113,12 @@ fn mended_verdict(
     if never_on {
         return Verdict::NeverOn;
     }
-    let first_on = found.on_runs.first().map(|&(from, _)| from);
-    if let (Some(on), Some(release)) = (first_on, found.first_release) {
-        if on > release {
+    if found.first_stamp_on {
+        return Verdict::NotCounted("the round's first stamp read on");
+    }
+    let run = proof_run(found);
+    if let (Some(run), Some(release)) = (run, found.first_release) {
+        if run.span().0 > release {
             return Verdict::LateClick;
         }
     }
@@ -2000,7 +2128,11 @@ fn mended_verdict(
     if ahead > 0 {
         return Verdict::Recorded;
     }
-    if inside(found).0 > 0 && found.on_drops > 0 {
+    if run.is_some_and(|run| {
+        on_in_span(found, run)
+            .iter()
+            .any(|before| found.on_drops.contains(before))
+    }) {
         Verdict::Held
     } else {
         Verdict::NoProof
@@ -2155,13 +2287,40 @@ fn reading_at(before_ms: u64, after_ms: u64, value: Reading) -> RawEntry {
     }
 }
 
-fn table_evidence(runs: &[(u64, u64)], entries: &[RawEntry]) -> Evidence {
-    evidence(
-        runs.iter()
-            .map(|&(from, to)| (ms_ns(from), ms_ns(to)))
-            .collect(),
-        entries,
-    )
+fn stamps_at(points: &[(u64, bool)]) -> Vec<Stamp> {
+    points
+        .iter()
+        .map(|&(ms, on)| Stamp {
+            kind: String::from("ev"),
+            detail: 0,
+            ns: ms_ns(ms),
+            on,
+        })
+        .collect()
+}
+
+const ROUND: [(u64, bool); 5] = [
+    (0, false),
+    (90, false),
+    (100, true),
+    (400, true),
+    (420, false),
+];
+
+fn table_evidence(points: &[(u64, bool)], entries: &[RawEntry]) -> Evidence {
+    evidence(&stamps_at(points), entries, 0)
+}
+
+fn on_drop_at(ms: u64) -> RawEntry {
+    RawEntry::Dropped {
+        at: ms_ns(ms),
+        cause: Cause::On,
+        keys: 8,
+    }
+}
+
+fn released_at(ms: u64) -> RawEntry {
+    RawEntry::Released { at: ms_ns(ms) }
 }
 
 type MendedRow = (
@@ -2175,95 +2334,147 @@ type MendedRow = (
 
 #[test]
 fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
-    let on_drop = RawEntry::Dropped {
-        at: ms_ns(120),
-        cause: Cause::On,
-        keys: 8,
+    let proved = |before: u64, after: u64| {
+        table_evidence(
+            &ROUND,
+            &[reading_at(before, after, Reading::On), on_drop_at(before)],
+        )
     };
-    let seen = table_evidence(&[(100, 400)], &[reading_at(110, 111, Reading::On), on_drop]);
-    let rows: [MendedRow; 9] = [
+    let rows: [MendedRow; 17] = [
         (
-            "a reading of on inside the on-time and a drop for on",
+            "a reading of on inside the narrow span and its drop",
             false,
             None,
             0,
-            seen.clone(),
+            proved(110, 111),
             Verdict::Held,
         ),
         (
-            "no reading of on inside the on-time",
+            "a reading of on between the last stamp of off and the first stamp of on",
+            false,
+            None,
+            0,
+            proved(92, 95),
+            Verdict::Held,
+        ),
+        (
+            "a reading of on that straddles the first stamp of on",
+            false,
+            None,
+            0,
+            proved(98, 102),
+            Verdict::Held,
+        ),
+        (
+            "a reading of on that straddles the last stamp of off",
+            false,
+            None,
+            0,
+            proved(89, 91),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of on wholly before the last stamp of off",
+            false,
+            None,
+            0,
+            proved(50, 51),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of on between the last stamp of on and the first stamp of off after",
+            false,
+            None,
+            0,
+            proved(405, 410),
+            Verdict::Held,
+        ),
+        (
+            "a reading of on that straddles the first stamp of off after",
+            false,
+            None,
+            0,
+            proved(418, 422),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of off in a widened part proves nothing",
+            false,
+            None,
+            0,
+            table_evidence(&ROUND, &[reading_at(92, 95, Reading::Off), on_drop_at(92)]),
+            Verdict::NoProof,
+        ),
+        (
+            "a reading of on inside the span with the drop made by a reading outside it",
             false,
             None,
             0,
             table_evidence(
-                &[(100, 400)],
+                &ROUND,
                 &[
-                    reading_at(90, 95, Reading::Off),
-                    reading_at(450, 451, Reading::On),
-                    on_drop,
+                    reading_at(50, 51, Reading::On),
+                    on_drop_at(50),
+                    reading_at(150, 151, Reading::On),
                 ],
             ),
             Verdict::NoProof,
         ),
         (
-            "a reading of on that straddles the start of the on-time",
+            "a reading of on inside the span and no drop for on in the round",
             false,
             None,
             0,
-            table_evidence(&[(100, 400)], &[reading_at(99, 101, Reading::On), on_drop]),
+            table_evidence(&ROUND, &[reading_at(150, 151, Reading::On)]),
             Verdict::NoProof,
         ),
         (
-            "a reading of on inside and no drop for on in the round",
+            "a first release before the last stamp of off",
+            false,
+            None,
+            8,
+            table_evidence(
+                &ROUND,
+                &[released_at(80), reading_at(150, 151, Reading::On)],
+            ),
+            Verdict::LateClick,
+        ),
+        (
+            "a first release between the last stamp of off and the first stamp of on",
+            false,
+            None,
+            8,
+            table_evidence(
+                &ROUND,
+                &[released_at(95), reading_at(150, 151, Reading::On)],
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "the round's first stamp read on",
             false,
             None,
             0,
-            table_evidence(&[(100, 400)], &[reading_at(110, 111, Reading::On)]),
-            Verdict::NoProof,
+            table_evidence(
+                &[(100, true), (400, true), (420, false)],
+                &[reading_at(150, 151, Reading::On), on_drop_at(150)],
+            ),
+            Verdict::NotCounted("the round's first stamp read on"),
         ),
         (
             "the test's read never said on",
             true,
             None,
             0,
-            seen.clone(),
+            proved(110, 111),
             Verdict::NeverOn,
-        ),
-        (
-            "the first stamp of on after the first release",
-            false,
-            None,
-            8,
-            table_evidence(
-                &[(5_000, 5_400)],
-                &[
-                    RawEntry::Released { at: ms_ns(3_011) },
-                    reading_at(5_010, 5_011, Reading::On),
-                ],
-            ),
-            Verdict::LateClick,
-        ),
-        (
-            "the first stamp of on before the first release",
-            false,
-            None,
-            1,
-            table_evidence(
-                &[(100, 400)],
-                &[
-                    RawEntry::Released { at: ms_ns(3_011) },
-                    reading_at(110, 111, Reading::On),
-                    on_drop,
-                ],
-            ),
-            Verdict::Recorded,
         ),
         (
             "a key recorded in a round that kept the on-time",
             false,
             None,
             2,
-            seen.clone(),
+            proved(110, 111),
             Verdict::Recorded,
         ),
         (
@@ -2271,8 +2482,32 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
             false,
             Some("the markers were not recorded"),
             0,
-            seen,
+            proved(110, 111),
             Verdict::NotCounted("the markers were not recorded"),
+        ),
+        (
+            "the proof read on the first run after the return",
+            false,
+            None,
+            0,
+            {
+                let mut found = table_evidence(
+                    &[
+                        (0, false),
+                        (20, true),
+                        (30, true),
+                        (40, false),
+                        (90, false),
+                        (100, true),
+                        (400, true),
+                        (420, false),
+                    ],
+                    &[reading_at(25, 26, Reading::On), on_drop_at(25)],
+                );
+                found.since = ms_ns(60);
+                found
+            },
+            Verdict::NoProof,
         ),
     ];
     for (what, never_on, why_not, ahead, found, want) in rows {
@@ -2286,43 +2521,19 @@ fn the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries() {
 
 #[test]
 fn the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries() {
-    let rows: [(&str, Evidence, Case); 6] = [
+    let rows: [(&str, Evidence, Case); 12] = [
         (
             "no on-time at all",
-            table_evidence(&[], &[reading_at(10, 11, Reading::Off)]),
+            table_evidence(
+                &[(0, false), (10, false)],
+                &[reading_at(10, 11, Reading::Off)],
+            ),
             Case::C,
         ),
         (
-            "no reading inside the on-time",
+            "a reading of off inside the narrow span is (D) still",
             table_evidence(
-                &[(100, 130)],
-                &[
-                    reading_at(90, 95, Reading::Off),
-                    reading_at(140, 145, Reading::Off),
-                ],
-            ),
-            Case::A,
-        ),
-        (
-            "a reading that straddles the end of the on-time",
-            table_evidence(&[(100, 130)], &[reading_at(125, 135, Reading::Off)]),
-            Case::A,
-        ),
-        (
-            "an on-time that begins after the first release",
-            table_evidence(
-                &[(5_000, 5_300)],
-                &[
-                    RawEntry::Released { at: ms_ns(3_011) },
-                    reading_at(5_010, 5_011, Reading::On),
-                ],
-            ),
-            Case::B,
-        ),
-        (
-            "a reading of off with both stamps inside the on-time",
-            table_evidence(
-                &[(100, 130)],
+                &ROUND,
                 &[
                     reading_at(110, 112, Reading::Off),
                     reading_at(115, 116, Reading::On),
@@ -2331,13 +2542,116 @@ fn the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries() {
             Case::D,
         ),
         (
-            "a reading of on inside the on-time",
-            table_evidence(&[(100, 130)], &[reading_at(110, 112, Reading::On)]),
+            "a reading of off before the first stamp of on is not (D)",
+            table_evidence(&ROUND, &[reading_at(92, 95, Reading::Off)]),
+            Case::A,
+        ),
+        (
+            "a reading of off after the last stamp of on is not (D)",
+            table_evidence(&ROUND, &[reading_at(405, 410, Reading::Off)]),
+            Case::A,
+        ),
+        (
+            "a reading of on between the last stamp of off and the first stamp of on",
+            table_evidence(&ROUND, &[reading_at(92, 95, Reading::On)]),
+            Case::Seen,
+        ),
+        (
+            "a reading of on between the last stamp of on and the first stamp of off after",
+            table_evidence(&ROUND, &[reading_at(405, 410, Reading::On)]),
+            Case::Seen,
+        ),
+        (
+            "a reading of on that straddles the last stamp of off",
+            table_evidence(&ROUND, &[reading_at(89, 91, Reading::On)]),
+            Case::A,
+        ),
+        (
+            "no reading in the span",
+            table_evidence(
+                &ROUND,
+                &[
+                    reading_at(80, 85, Reading::Off),
+                    reading_at(430, 431, Reading::Off),
+                ],
+            ),
+            Case::A,
+        ),
+        (
+            "a first release before the last stamp of off",
+            table_evidence(
+                &ROUND,
+                &[released_at(80), reading_at(150, 151, Reading::On)],
+            ),
+            Case::B,
+        ),
+        (
+            "a first release between the last stamp of off and the first stamp of on",
+            table_evidence(
+                &ROUND,
+                &[released_at(95), reading_at(150, 151, Reading::On)],
+            ),
+            Case::Between,
+        ),
+        (
+            "a run with no stamp of off before it and a reading before its first stamp",
+            table_evidence(
+                &[(100, true), (400, true), (420, false)],
+                &[reading_at(50, 51, Reading::On)],
+            ),
+            Case::A,
+        ),
+        (
+            "a reading of on inside the narrow span",
+            table_evidence(&ROUND, &[reading_at(110, 112, Reading::On)]),
             Case::Seen,
         ),
     ];
     for (what, found, want) in rows {
         assert_eq!(short_case(&found), want, "{what}");
+    }
+}
+
+type OutsideRow = (&'static str, Vec<(u64, bool)>, RawEntry, usize);
+
+#[test]
+fn a_reading_of_on_outside_every_span_is_counted_from_the_rounds_first_stamp() {
+    let rows: [OutsideRow; 4] = [
+        (
+            "a reading of on before the last stamp of off",
+            ROUND.to_vec(),
+            reading_at(50, 51, Reading::On),
+            1,
+        ),
+        (
+            "a reading of on inside the span",
+            ROUND.to_vec(),
+            reading_at(92, 95, Reading::On),
+            0,
+        ),
+        (
+            "a reading of on after the first stamp of off after",
+            ROUND.to_vec(),
+            reading_at(430, 431, Reading::On),
+            1,
+        ),
+        (
+            "a reading of on before the round's first stamp",
+            [(10, false)]
+                .iter()
+                .chain(ROUND[1..].iter())
+                .copied()
+                .collect(),
+            reading_at(5, 6, Reading::On),
+            0,
+        ),
+    ];
+    for (what, points, reading, want) in rows {
+        assert_eq!(
+            on_outside(&table_evidence(&points, &[reading])),
+            want,
+            "{what}"
+        );
     }
 }
 
