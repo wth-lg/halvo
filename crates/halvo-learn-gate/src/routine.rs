@@ -289,9 +289,9 @@ fn summary(workflow: &str, day: u32) -> Result<(String, Summary), String> {
     Ok((json, summary))
 }
 
-/// The mark and the period of the newest `learn_routine` row of the rows, or an error when a row of that kind
-/// cannot be read or none is there.
-pub fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
+/// The mark and the period of the newest `learn_routine` row of the rows, none when no row of that kind is there,
+/// or an error when a row of that kind cannot be read.
+pub fn newest(rows: &dyn RowRead) -> Result<Option<Figures>, String> {
     let mut found: Option<LearnRoutine> = None;
     let mut unread = false;
     rows.for_each(
@@ -305,17 +305,17 @@ pub fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
     if unread {
         return Err("a learn_routine row that its parser refuses".to_owned());
     }
-    let row = found.ok_or_else(|| "no learn_routine row".to_owned())?;
-    Ok((row.mark, row.period.map(std::num::NonZeroU32::get)))
+    Ok(found.map(|row| (row.mark, row.period.map(std::num::NonZeroU32::get))))
 }
 
 /// Plays one train in one stream on a memory store of its own (L10.2, L10.4): the compile on day 1, then each day
-/// from 1 to `LAST_DAY` on the clock, until the first day whose figures differ from the train's. On a day with an
-/// occurrence the store and the command's list of summaries are opened on the day, and the stub runner plays the
-/// occurrence where the stream carries it as a run; else the day's summary goes onto that list. No batch is
-/// committed: every day `LearnStep` runs over that list and the rows of the family `learn`, its rows are committed,
-/// and the mark and the period of the newest routine row, read again after a write or on an occurrence day, are
-/// compared with the train's. The line reaches neither the step's 30-day rewrite nor the bound of a routine row.
+/// from 1 to `LAST_DAY` on the clock, until the first day whose figures differ from the train's. Every day the store
+/// and the command's list of summaries are opened on the day first (the coordinator's ruling LM-67); then, on a day
+/// with an occurrence, the stub runner plays the occurrence where the stream carries it as a run, else the day's
+/// summary goes onto that list. No batch is committed: every day `LearnStep` runs over that list and the rows of the
+/// family `learn`, its rows are committed, and the mark and the period of the newest routine row, read again after a
+/// write, on an occurrence day or after an open that removed a routine row, are compared with the train's. A day on
+/// which no routine row is left differs; no routine row after the compile is an error.
 pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     let case = routine_case();
     let mut play = Play::new(&case, Arm::Admit, 1, MemoryStore::new());
@@ -325,14 +325,17 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     let occurs: BTreeSet<u32> = train.days.iter().copied().collect();
     let mut batches = Batches(Vec::new());
     let mut played = Played::default();
-    let mut figures = newest(play.host.store.rows(Family::Learn))?;
+    let mut figures = Some(
+        newest(play.host.store.rows(Family::Learn))?
+            .ok_or_else(|| "no learn_routine row".to_owned())?,
+    );
     for day in 1..=LAST_DAY {
         play.host.day = day;
+        let expired = play.host.store.open(day);
+        played.expired_runs += u32::try_from(expired.of("learn_run")).unwrap_or(u32::MAX);
+        played.expired_summaries += batches.open(day);
         let occurs_today = occurs.contains(&day);
         if occurs_today {
-            let expired = play.host.store.open(day).of("learn_run");
-            played.expired_runs += u32::try_from(expired).unwrap_or(u32::MAX);
-            played.expired_summaries += batches.open(day);
             if stream == Stream::Replay && day >= REPLAY_FROM {
                 let (_, _, completed, _) = play.occurrence(&occurrence(day))?;
                 if !completed {
@@ -351,10 +354,10 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
             .store
             .commit(Family::Learn, records)
             .map_err(|e| format!("the step's rows of day {day} are refused: {e:?}"))?;
-        if wrote || occurs_today {
+        if wrote || occurs_today || expired.of("learn_routine") > 0 {
             figures = newest(play.host.store.rows(Family::Learn))?;
         }
-        if figures != train.figures_on(day) {
+        if figures != Some(train.figures_on(day)) {
             played.differs_on = Some(day);
             return Ok(played);
         }

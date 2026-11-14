@@ -53,8 +53,7 @@ fn routine_gives_the_trials_figures_on_every_day_of_a_stale_train_in_both_stream
 fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_expiry() {
     let train = sample().remove(0);
     let count = |keep: &dyn Fn(u32) -> bool| train.days.iter().filter(|d| keep(**d)).count() as u32;
-    let last = *train.days.last().expect("a day");
-    let gone = |d: u32| d + 93 <= last;
+    let gone = |d: u32| d + 93 <= LAST_DAY;
     assert!(train.days.contains(&REPLAY_FROM));
     let mut changed = train.clone();
     changed.events[0].period = changed.events[0].period.map(|p| p + 1);
@@ -85,6 +84,31 @@ fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_
     assert_eq!(
         replay.expired_runs - summaries.expired_runs,
         2 * count(&|d| d >= REPLAY_FROM && gone(d))
+    );
+}
+
+#[test]
+fn routine_opens_the_store_and_the_batches_on_every_day_also_after_a_stop_trains_last_occurrence() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(SAMPLE_PATH);
+    let text = std::fs::read_to_string(path).expect("the sample file");
+    let third = text.lines().nth(2).expect("a third line");
+    assert!(third.starts_with(r#"{"cell":"7-0-0","train":101,"kind":"stop","#));
+    let train = sample().remove(2);
+    let last = *train.days.last().expect("a day");
+    assert!(last + 93 < LAST_DAY, "the last occurrence is on day {last}");
+    let all = train.days.len() as u32;
+    let early = train.days.iter().filter(|d| **d < REPLAY_FROM).count() as u32;
+    let summaries = play(&train, Stream::Summaries).expect("a play");
+    let replay = play(&train, Stream::Replay).expect("a play");
+    assert_eq!((summaries.differs_on, replay.differs_on), (None, None));
+    assert_eq!(summaries.expired_summaries, all);
+    assert_eq!(replay.expired_summaries, early);
+    assert!(summaries.expired_runs > 0);
+    assert_eq!(
+        replay.expired_runs - summaries.expired_runs,
+        2 * (all - early)
     );
 }
 
@@ -390,8 +414,9 @@ const UNREADABLE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e
 fn routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses() {
     assert_eq!(
         newest(&RoutineRows(vec![ROUTINE_ROW])),
-        Ok((Mark::None, Some(30)))
+        Ok(Some((Mark::None, Some(30))))
     );
+    assert_eq!(newest(&RoutineRows(Vec::new())), Ok(None));
     for rows in [
         vec![ROUTINE_ROW, UNREADABLE_ROW],
         vec![UNREADABLE_ROW, ROUTINE_ROW],
