@@ -163,6 +163,22 @@ fn a_store_fault_at_the_commit_of_an_end_run_leaves_the_reply_accepted_the_rows_
 }
 
 #[test]
+fn a_store_fault_at_the_commit_of_a_finish_leaves_the_reply_the_rows_and_no_facts() {
+    let mut w = served_and_failed();
+    let count = w.host.count();
+    w.host.refuse = true;
+    let reply = w.finish(3, "replay", "failed");
+    assert!(
+        matches!(reply, Ok(halvo_schema::executable::RunnerReply::Stored(_))),
+        "{reply:?}"
+    );
+    assert_eq!(w.handlers.faults, [Fault::Error(ErrorName::Store)]);
+    assert_eq!(w.host.count(), count);
+    assert_eq!(of_run(&w, 3).len(), 1);
+    assert!(holds_nothing_of(&w, 3));
+}
+
+#[test]
 fn an_end_run_after_a_stop_between_a_compiles_two_commits_withdraws_the_lower_edit_and_reverts_nothing(
 ) {
     let mut w = served_and_failed();

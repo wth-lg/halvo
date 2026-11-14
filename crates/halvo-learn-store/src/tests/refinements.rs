@@ -1,11 +1,11 @@
 use halvo_schema::learning::names::{Mark, RefinementKind};
 use halvo_schema::learning::record::LearnRoutine;
-use halvo_schema::{AgentId, TypedRecord, WorkflowId};
+use halvo_schema::{AgentId, Summary, SummaryRead, TypedRecord, WorkflowId, WriterStep};
 use serde_json::json;
 
 use super::host::{active_world, agent, wf, World};
 use crate::rows::{self, Read};
-use crate::{CoordinatorAnswer, LearnHost};
+use crate::{Clock, CoordinatorAnswer, LearnHost, LearnStep};
 
 const LATER: u32 = 100_000;
 
@@ -52,6 +52,50 @@ fn of_two_routine_rows_of_one_rev_list_refinements_takes_the_row_of_the_later_da
     };
     let newest = rows::newest_routine(&routines, &workflow, &agent_id).expect("a newest row");
     assert_eq!((newest.day.get(), newest.mark), (LATER, Mark::Stale));
+    let read =
+        w.coordinator(json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(1)}));
+    let Ok(CoordinatorAnswer::Refinements(read)) = read else {
+        panic!("the read is answered: {read:?}");
+    };
+    assert_eq!(read.refinements.len(), 1);
+    assert_eq!(read.refinements[0].what, RefinementKind::RoutineStale);
+    assert_eq!(read.refinements[0].day.get(), LATER);
+}
+
+struct NoSummaries;
+
+impl SummaryRead for NoSummaries {
+    fn for_each(&self, _visit: &mut dyn FnMut(&Summary)) {}
+}
+
+struct Today(u32);
+
+impl Clock for Today {
+    fn today(&self) -> u32 {
+        self.0
+    }
+}
+
+#[test]
+fn of_two_routine_rows_of_one_rev_and_different_days_the_step_and_list_refinements_take_the_same_row(
+) {
+    let mut w = active_world();
+    w.host.day = LATER + 30;
+    rev_2(&mut w, LATER, true);
+    rev_2(&mut w, LATER - 1, false);
+    let written: Vec<LearnRoutine> = LearnStep::new(Today(w.host.day))
+        .after_commit(&NoSummaries, &w.host)
+        .into_iter()
+        .map(|r| LearnRoutine::parse(r.json.as_bytes()).expect("a routine row"))
+        .filter(|r| r.workflow.as_str() == wf(1))
+        .collect();
+    assert_eq!(written.len(), 1);
+    assert_eq!(written[0].rev.get(), 3);
+    assert_eq!(
+        written[0].first.map(|d| d.get()),
+        Some(LATER - 70 - 60),
+        "the step went on from the row of the later day"
+    );
     let read =
         w.coordinator(json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(1)}));
     let Ok(CoordinatorAnswer::Refinements(read)) = read else {
