@@ -30,7 +30,7 @@ measured_a_password_typed_whole_ahead_at_machine_speed measured
 measured_a_password_typed_whole_ahead_at_a_persons_pace measured
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measured
 short_window_a_the_click_round_as_it_was_at_wait_2000_ms measured
-short_window_b_a_set_on_time measured
+short_window_b_the_leave_asked_after_n_ms measured
 the_mended_click_phase_counts_62_rounds_at_wait_2000_ms loop
 the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out twelve
 the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_control twelve
@@ -38,6 +38,7 @@ the_fixture_gives_out_its_stamps_on_a_command_through_the_launch_path twelve
 the_verdict_of_a_mended_round_holds_each_rule_on_a_table_of_entries twelve
 the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries twelve
 the_on_time_and_the_fates_of_the_keys_are_read_from_the_raw_entries twelve
+a_reading_of_on_outside_every_span_is_counted_from_the_rounds_first_stamp twelve
 EOF
 }
 
@@ -49,6 +50,8 @@ notes() {
   cat <<'EOF'
 measured_a_password_typed_whole_ahead_at_machine_speed in pushes 6 and 7 the keys were held under a reading of off and dropped by a reading that fell into the on-time while the program handled them; the on-time was not printed. D2 stays an open fault (MA-12 D, ruling MA-19)
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2 and asserts nothing; it holds D2 in place of a listed test for as long as it exists (ruling MA-19 (7))
+short_window_a_the_click_round_as_it_was_at_wait_2000_ms D2 stays an open fault. Its mechanism has been seen once on the hosted machine at the test's gap of 200 ms: an on-time shorter than the spacing of two readings that are both in time releases the keys. At the product's gap of 30 ms no hosted round shows it. The cause of push 7's recorded click round is not shown (ruling MA-20 (1), (7))
+short_window_b_the_leave_asked_after_n_ms names the leave that the fixture was asked to make after n ms; the set on-times were not reached, because the leave ran behind the queued events, so each on-time is as measured, and the sample under 40 ms is thin (8 of 599 rounds in push 8) (ruling MA-20 (6))
 EOF
 }
 
