@@ -33,28 +33,40 @@ pub enum PathError {
 
 /// Why a data directory cannot be used: the nearest name that stands on its path, its own name or,
 /// when that name is missing, the nearest name above it, is a link that leads nowhere or is no
-/// directory (rulings ST-36 (e) and CT-13). A missing data directory below a directory is no cause.
+/// directory, or the directory or a folder on its path cannot be read (rulings ST-36 (e), CT-13
+/// and CT-14 K4). A first run is answered only for an absence: a missing data directory below a
+/// directory is no cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EntryAtDataDir {
     #[error("the data directory's path meets a link that leads nowhere")]
     LinkLeadsNowhere,
     #[error("the data directory's path meets an entry that is no directory")]
     NotADirectory,
+    #[error("the data directory or a folder on its path cannot be read")]
+    CannotBeRead,
 }
 
-/// The cause at `dir`. When nothing stands at its name, the nearest name above it that an lstat
-/// finds is read instead, following its links; a directory there is no cause.
+/// The cause at `dir`. A read that follows links comes first; only when it fails is the name read
+/// without following, and when nothing stands there the nearest name above it is read the same
+/// way. A directory there is no cause; a link whose target may not be reached for permission
+/// cannot be read, and any other link that the read cannot follow leads nowhere.
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
+    let followed = match std::fs::metadata(dir) {
+        Ok(target) if target.is_dir() => return None,
+        Ok(_) => return Some(EntryAtDataDir::NotADirectory),
+        Err(e) => e,
+    };
     let Ok(named) = std::fs::symlink_metadata(dir) else {
         return dir.parent().and_then(entry_fault);
     };
-    match std::fs::metadata(dir) {
-        Ok(target) if target.is_dir() => None,
-        Ok(_) => Some(EntryAtDataDir::NotADirectory),
-        Err(_) if named.file_type().is_symlink() => Some(EntryAtDataDir::LinkLeadsNowhere),
-        Err(_) if named.is_dir() => None,
-        Err(_) => Some(EntryAtDataDir::NotADirectory),
+    if named.file_type().is_symlink() {
+        return Some(if followed.kind() == std::io::ErrorKind::PermissionDenied {
+            EntryAtDataDir::CannotBeRead
+        } else {
+            EntryAtDataDir::LinkLeadsNowhere
+        });
     }
+    (!named.is_dir()).then_some(EntryAtDataDir::NotADirectory)
 }
 
 /// The cause of ruling ST-36 (e) that an error of the instance lock's open carries.
@@ -72,6 +84,12 @@ pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Er
             std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
         }
         Some(cause @ EntryAtDataDir::LinkLeadsNowhere) => std::io::Error::other(cause),
+        Some(cause @ EntryAtDataDir::CannotBeRead) => {
+            std::io::Error::new(std::io::ErrorKind::PermissionDenied, cause)
+        }
+        None if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            std::io::Error::new(error.kind(), EntryAtDataDir::CannotBeRead)
+        }
         None => error,
     }
 }
@@ -82,9 +100,10 @@ pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Er
 pub enum DataDirCheck {
     /// Nothing stands at the name.
     Missing,
-    /// The directory stands at its own name; `tightened` when its mode gave group or others
-    /// access and was set to 0700 on the descriptor.
-    Own { tightened: bool },
+    /// The directory stands at its own name; `set_to_0700` when its permission bits were not
+    /// 0700 (they gave group or others access, or lacked an owner bit) and were set to 0700 on the
+    /// descriptor.
+    Own { set_to_0700: bool },
     /// The directory was reached through a link at its last name; it was not narrowed.
     /// `resolved` is the folder as the descriptor names it.
     Linked { resolved: PathBuf },
@@ -171,14 +190,13 @@ pub(crate) fn check_opened(
     }
     let open_to_others = held.mode() & 0o077 != 0;
     if !through_a_link {
-        if open_to_others {
+        let set_to_0700 = held.mode() & 0o777 != 0o700;
+        if set_to_0700 {
             directory
                 .set_permissions(std::fs::Permissions::from_mode(0o700))
                 .map_err(io)?;
         }
-        return Ok(DataDirCheck::Own {
-            tightened: open_to_others,
-        });
+        return Ok(DataDirCheck::Own { set_to_0700 });
     }
     if open_to_others {
         return Err(DataDirFault::LinkedAndOpenToOthers);
@@ -411,15 +429,18 @@ impl DataDir {
         &self.0
     }
 
-    /// Whether the state file stands. A missing data directory is a first run unless the nearest
-    /// name that stands above it is a link that leads nowhere or is no directory; that, and an
-    /// entry at the directory's own name that leads nowhere or is no directory, answers its cause
-    /// (rulings ST-36 (e) and CT-13).
+    /// Whether the state file stands. A first run is answered only for an absence: a missing data
+    /// directory is a first run unless the nearest name that stands above it is a link that leads
+    /// nowhere or is no directory; that, an entry at the directory's own name that leads nowhere or
+    /// is no directory, and a stat of the state file that is refused for any cause but its absence,
+    /// answer their cause (rulings ST-36 (e), CT-13 and CT-14 K4).
     pub fn is_provisioned(&self) -> Result<bool, EntryAtDataDir> {
         if let Some(cause) = entry_fault(self.path()) {
             return Err(cause);
         }
-        Ok(self.state_file().exists())
+        self.state_file()
+            .try_exists()
+            .map_err(|_| EntryAtDataDir::CannotBeRead)
     }
 
     pub fn entry(&self, entry: &Entry) -> PathBuf {
@@ -1565,6 +1586,123 @@ mod tests {
             DataDir::from_flag(at).unwrap()
         }
 
+        /// Sets each path back to mode 0700, in the order given, when it is dropped, so that a
+        /// test's own directories can be removed on every path out of the test.
+        struct ModeBack(Vec<PathBuf>);
+
+        impl Drop for ModeBack {
+            fn drop(&mut self) {
+                for path in &self.0 {
+                    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+                }
+            }
+        }
+
+        fn set_mode(path: &Path, bits: u32) {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).unwrap();
+        }
+
+        fn store_in(dir: &Path) {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(dir.join(STATE_FILE), "{}").unwrap();
+        }
+
+        #[test]
+        fn k4_a_store_in_a_folder_or_below_a_parent_of_mode_0000_answers_cannot_be_read_from_the_four(
+        ) {
+            for closed_parent in [false, true] {
+                let root = tempfile::tempdir().unwrap();
+                let parent = root.path().join("p");
+                let dir = parent.join("d");
+                store_in(&dir);
+                let _back = ModeBack(vec![parent.clone(), dir.clone()]);
+                set_mode(if closed_parent { &parent } else { &dir }, 0o000);
+                caused(&dir, EntryAtDataDir::CannotBeRead);
+            }
+        }
+
+        #[test]
+        fn k4_a_store_in_a_folder_of_mode_0600_answers_cannot_be_read_until_the_check_sets_0700() {
+            let root = tempfile::tempdir().unwrap();
+            let dir = root.path().join("d");
+            store_in(&dir);
+            let _back = ModeBack(vec![dir.clone()]);
+            set_mode(&dir, 0o600);
+            let data = DataDir::from_flag(&dir).unwrap();
+            assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::CannotBeRead));
+            assert_eq!(read(&dir).unwrap(), LockRead::Free);
+            assert_eq!(
+                check_data_dir(&data, None),
+                Ok(DataDirCheck::Own { set_to_0700: true })
+            );
+            assert_eq!(mode(&dir), 0o700);
+            assert_eq!(data.is_provisioned(), Ok(true));
+        }
+
+        #[test]
+        fn k4_an_own_folder_whose_bits_are_not_0700_is_set_to_0700_and_special_bits_beside_0700_stay(
+        ) {
+            for bits in [0o600, 0o500, 0o1700, 0o4700] {
+                let root = tempfile::tempdir().unwrap();
+                let dir = root.path().join("d");
+                std::fs::create_dir(&dir).unwrap();
+                let _back = ModeBack(vec![dir.clone()]);
+                set_mode(&dir, bits);
+                assert_eq!(
+                    mode(&dir),
+                    bits,
+                    "{bits:o}: the fixture's mode did not hold"
+                );
+                let lock = InstanceLock::take(&dir).unwrap().unwrap();
+                let set = bits & 0o777 != 0o700;
+                assert_eq!(
+                    check_data_dir(&DataDir::from_flag(&dir).unwrap(), Some(&lock)),
+                    Ok(DataDirCheck::Own { set_to_0700: set }),
+                    "{bits:o}"
+                );
+                assert_eq!(mode(&dir), if set { 0o700 } else { bits }, "{bits:o}");
+            }
+        }
+
+        #[test]
+        fn k4_a_linked_folder_of_mode_0600_is_not_changed_and_its_store_answers_cannot_be_read() {
+            let root = tempfile::tempdir().unwrap();
+            let target = root.path().join("moved");
+            store_in(&target);
+            let _back = ModeBack(vec![target.clone()]);
+            set_mode(&target, 0o600);
+            let data = link(&target, &root.path().join("d"));
+            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            assert_eq!(
+                check_data_dir(&data, Some(&lock)),
+                Ok(DataDirCheck::Linked {
+                    resolved: target.canonicalize().unwrap()
+                })
+            );
+            assert_eq!(mode(&target), 0o600);
+            assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::CannotBeRead));
+        }
+
+        #[test]
+        fn k4_a_link_to_a_standing_folder_behind_a_closed_parent_answers_cannot_be_read() {
+            let root = tempfile::tempdir().unwrap();
+            let closed = root.path().join("closed");
+            store_in(&closed.join("t"));
+            let _back = ModeBack(vec![closed.clone()]);
+            let data = link(&closed.join("t"), &root.path().join("d"));
+            set_mode(&closed, 0o000);
+            caused(data.path(), EntryAtDataDir::CannotBeRead);
+        }
+
+        #[test]
+        fn k4_a_missing_folder_two_levels_below_a_real_directory_is_still_a_first_run() {
+            let root = tempfile::tempdir().unwrap();
+            let data = DataDir::from_flag(root.path().join("a").join("halvo")).unwrap();
+            assert_eq!(data.is_provisioned(), Ok(false));
+            assert_eq!(check_data_dir(&data, None), Ok(DataDirCheck::Missing));
+            assert_eq!(read(data.path()).unwrap(), LockRead::NoDirectory);
+        }
+
         fn spelled(link: &Path, tail: &str) -> PathBuf {
             let mut text = link.as_os_str().to_os_string();
             text.push(tail);
@@ -1673,15 +1811,18 @@ mod tests {
                 let lock = InstanceLock::take(data.path()).unwrap().unwrap();
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
-                    Ok(DataDirCheck::Own { tightened: true }),
+                    Ok(DataDirCheck::Own { set_to_0700: true }),
                     "{bits:o}"
                 );
                 assert_eq!(mode(&path), 0o700, "{bits:o}");
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
-                    Ok(DataDirCheck::Own { tightened: false })
+                    Ok(DataDirCheck::Own { set_to_0700: false })
                 );
-                assert_eq!(DataDirCheck::Own { tightened: true }.resolved_line(), None);
+                assert_eq!(
+                    DataDirCheck::Own { set_to_0700: true }.resolved_line(),
+                    None
+                );
             }
         }
 
@@ -1714,14 +1855,14 @@ mod tests {
             let real = root.path().join("real");
             std::fs::create_dir(&real).unwrap();
             std::os::unix::fs::symlink(&real, root.path().join("p")).unwrap();
-            for (bits, tightened) in [(0o700, false), (0o755, true)] {
+            for (bits, set_to_0700) in [(0o700, false), (0o755, true)] {
                 let name = format!("d{bits:o}");
                 dir_of_mode(&real.join(&name), bits);
                 let data = DataDir::from_flag(root.path().join("p").join(&name)).unwrap();
                 let lock = InstanceLock::take(data.path()).unwrap().unwrap();
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
-                    Ok(DataDirCheck::Own { tightened }),
+                    Ok(DataDirCheck::Own { set_to_0700 }),
                     "{bits:o}"
                 );
                 assert_eq!(mode(&real.join(&name)), 0o700);
