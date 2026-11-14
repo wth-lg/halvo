@@ -479,7 +479,7 @@ st_own() {
     own_self_test
     : >"$st_d/done"
   ) </dev/null >"$st_d/out" 2>"$st_d/err" &
-  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d st_lim_$st_n=\$st_own_limit"
+  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d st_lim_$st_n=$st_own_limit"
   st_n=$((st_n + 1))
   st_track "$((st_n - 1))" "$!" "$st_d"
 }
@@ -509,11 +509,10 @@ st_start() {
     CI_D_JOB=$job
     CI_D_ARTIFACTS=$st_q_artifacts
     TMPDIR=$st_td
-    PATH=$script_path
-    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR PATH
+    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
     st_t0=$(date +%s)
     {
-      RUN_CI_D_PID_FILE=$st_d/pid "$perl_cmd" -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &
+      RUN_CI_D_PID_FILE=$st_d/pid PATH=$script_path "$perl_cmd" -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &
       wait "$!"
       printf '%s\n' "$?" >"$st_d/status"
     } | cat >"$st_d/out"
@@ -1225,7 +1224,7 @@ own_self_test() {
   case_absent='FAIL run-ci-d (20-b changed a tracked file: tracked.txt)'
   own_case script-changes-a-tracked-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 05-x.sh "$good" 'printf "PASS 05-x\n"' &&
-    add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; for f in "$TMPDIR"/../* "$TMPDIR"/../../*; do [ ! -f "$f" ] || : >"$f"; done; printf "PASS 10-a\n"'
+    add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; sleep 1; for f in "$TMPDIR"/../* "$TMPDIR"/../../*; do [ ! -f "$f" ] || : >"$f"; done; printf "PASS 10-a\n"'
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX") || case_tmpdir=$tmp/no-own-tmp
   case_witness=yes
   case_absent='FAIL run-ci-d (10-a moved HEAD)'
@@ -1239,6 +1238,7 @@ own_self_test() {
   for bit in assume-unchanged skip-worktree; do
     new_repo && track_file && add_script r1 10-a.sh "$good" "git -C \"\$CI_D_REPO\" update-index --$bit tracked.txt; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
     case_once='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
+    case_witness=yes
     own_case "script-changes-a-tracked-file-under-$bit" 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   done
   new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; printf "x\n" >>"$r/tracked.txt"; git -C "$r" add tracked.txt; t=$(git -C "$r" write-tree); p=$(git -C "$r" rev-parse HEAD); c=$(printf "tree %s\nparent %s\nauthor f <f@example.invalid> 1 +0000\ncommitter f <f@example.invalid> 1 +0000\n\nf\n" "$t" "$p" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref HEAD "$c"; printf "PASS 10-a\n"'
@@ -1268,10 +1268,18 @@ own_self_test() {
   case_git_home=yes
   case_witness=yes
   own_case global-git-setting-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  if ! command -v cygpath >/dev/null 2>&1; then
+    new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
+      git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit &&
+      add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_GLOBAL:-}\" = \"\$HOME/gitconfig\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; git config --global core.checkStat minimal && cp -p \"\$CI_D_REPO/tracked.txt\" \"\$CI_D_ARTIFACTS/kept\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -r \"\$CI_D_ARTIFACTS/kept\" \"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+    case_git_home=yes
+    case_witness=yes
+    own_case global-check-stat-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  fi
   new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
   case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
     printf '#!/bin/sh\ncase "$*" in *"status --porcelain"* | *diff-index*) exit 0 ;; esac\nexec %s "$@"\n' "$real_git" >"$case_cargo_home/bin/git" &&
-    chmod +x "$case_cargo_home/bin/git"
+    chmod +x "$case_cargo_home/bin/git" || wrong="$wrong stand-in-git-not-made"
   case_path=$case_cargo_home/bin
   case_witness=yes
   own_case git-in-the-cargo-bin-directory-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
@@ -1355,10 +1363,10 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "me=20-b; $leaves; chmod 0 \"\$TMPDIR/left\"; printf 'FAIL 20-b (planned)\\n'; exit 1"
   case_gone=2
   own_case tmpdir-of-each-script-removed-whatever-its-status 1 'FAIL 20-b (planned)' macos
-  real_rm=$(command -v rm) || real_rm=rm
+  real_rm=$(command -v rm) || real_rm='rm'
   mkdir -p "$tmp/rm-fails-once" &&
     printf '#!/bin/sh\nfor a in "$@"; do last=$a; done\ncase ${last##*/} in *.10-a) if [ ! -e rm-failed-once ]; then : >rm-failed-once; exit 1; fi ;; esac\nexec %s "$@"\n' "$real_rm" >"$tmp/rm-fails-once/rm" &&
-    chmod +x "$tmp/rm-fails-once/rm"
+    chmod +x "$tmp/rm-fails-once/rm" || wrong="$wrong stand-in-rm-not-made"
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'"
   case_path=$tmp/rm-fails-once
   case_gone=1
@@ -1425,12 +1433,12 @@ own_self_test() {
   case_path=$tmp/late-date
   case_max_s=15
   own_case default-limit-of-a-self-test-reached-at-1200-s 1 'FAIL self-test:10-a (time limit 1200 s)' macos --self-test 10-a
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_witness=yes
   own_case limit-line-raises-the-limit-of-its-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
     printf '1500\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_max_s=15
@@ -1447,7 +1455,7 @@ own_self_test() {
   own_case two-limit-lines 1 "FAIL 10-a (its first 10 lines hold more than one '# limit:' line)" --rules
   mkdir -p "$tmp/jump-date" &&
     printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r jump ]; then\n  now=$(%s +%%s) || exit 1\n  if [ -e jump.used ]; then read -r jump <jump; echo "$((now + jump))"; else : >jump.used; echo "$now"; fi\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/jump-date/date" &&
-    chmod +x "$tmp/jump-date/date"
+    chmod +x "$tmp/jump-date/date" || wrong="$wrong stand-in-date-not-made"
   new_repo && printf '1200\n' >"$fixture/jump"
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=slow
@@ -1636,6 +1644,7 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; for f in \"\$TMPDIR\"/../../run-ci-d.*/self-test.run-ci-d/done; do [ -e \"\$f\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; done; $passes"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_jobs=1
+  case_witness=yes
   own_case own-cases-take-one-of-the-slots 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test
   new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
   case_path=$tmp/no-getconf
@@ -1978,6 +1987,9 @@ st_pk=
 st_f_d=
 st_f_name=
 st_f_lane=
+st_f_td=
+st_td=
+st_lm=
 st_f_other=
 tree_to=
 cr=$(printf '\r')
