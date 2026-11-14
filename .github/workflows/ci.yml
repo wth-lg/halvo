@@ -1,4 +1,6 @@
 name: ci
+# scratch: driver-2 (builder-73), the own cases in both self-test steps and loop steps after each step ci.d
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +30,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +79,180 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test run-ci-d 16-shell-lint 19-home-paths 21-tree-bans 30-store-ignore-reason 10-r3-layout 22-redact 70-r6-memory 20-r7-stub
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 16-shell-lint 19-home-paths 21-tree-bans 30-store-ignore-reason 10-r3-layout 22-redact 70-r6-memory 20-r7-stub
+      - name: driver-2 loop, own cases 200 times each
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        env:
+          OWN_ONLY: untracked-script-under-a-ci.d-directory rules-refuses-an-untracked-script global-git-setting-of-a-script-leaves-the-read-of-the-driver git-in-the-cargo-bin-directory-does-not-answer-for-the-driver stat-data-written-into-the-index-leaves-the-read-of-the-driver nested-switch-set-by-the-caller-is-refused nested-switch-set-by-the-caller-is-refused-in-the-step-ci.d limit-line-that-is-no-whole-number two-limit-lines
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-copy-fast.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-copy.py <driver> <copy>
+          # Writes a copy of the driver for the hosted loop: own_case runs only the cases named in OWN_ONLY, and the fixture
+          # helpers (new_repo, track_file, add_script, fixture_commit) do nothing for a block whose own_case is a literal
+          # name at the top level of own_self_test that OWN_ONLY does not name. Any other block (a case in a loop or an if,
+          # a name with an expansion) keeps its setup. Plain lines of a skipped block still run.
+          src, dst = sys.argv[1], sys.argv[2]
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          own = []
+          for i in range(start + 1, end):
+              m = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+              if m:
+                  name = m.group(2).strip('"')
+                  literal = len(m.group(1)) == 2 and '$' not in name
+                  own.append((i, literal, name))
+          inserts = {start + 1: '  fixture=$tmp/no-fixture\n  next_case=' + (own[0][2] if own[0][1] else '')}
+          for k, (i, literal, name) in enumerate(own):
+              if len(lines[i]) - len(lines[i].lstrip(' ')) != 2:
+                  continue
+              nxt = own[k + 1] if k + 1 < len(own) else None
+              inserts[i + 1] = '  next_case=' + (nxt[2] if nxt and nxt[1] else '')
+          out = []
+          for i, l in enumerate(lines):
+              if i in inserts:
+                  out.append(inserts[i])
+              out.append(l)
+          text = '\n'.join(out)
+          guard = '  if [ -n "${OWN_ONLY:-}" ] && [ -n "${next_case:-}" ]; then case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n'
+          for fn in ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n'):
+              if text.count(fn) != 1:
+                  sys.exit('helper %s found %d times' % (fn, text.count(fn)))
+              text = text.replace(fn, fn + guard)
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('own cases', len(own), 'skip points', len(inserts), 'filter lines', text.count('OWN_ONLY'))
+          PYEOF
+          copy="$tmp/run-ci-d-loop-fast.sh"
+          "$py" "$tmp/loop-copy-fast.py" scripts/ci/run-ci-d.sh "$copy"
+          out="$tmp/loop-fast"
+          mkdir -p "$out"
+          runs=200
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              sh "$copy" macos --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          echo "runs: $#, seconds: $((end - start))"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt | grep -c "^case run-ci-d/$c want=")
+            pass=$(cat "$out"/run-*.txt | grep -E "^case run-ci-d/$c want=" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            grep -E "^case run-ci-d/.* want=" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          exit "$bad"
+      - name: driver-2 loop, own cases 20 times each
+        if: always()
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        env:
+          OWN_ONLY: script-that-empties-the-files-beside-its-tmpdir-leaves-the-baseline tmpdir-whose-first-removal-fails-is-removed-on-a-later-try groups-that-two-self-tests-left-are-ended-by-one-process limit-line-raises-the-limit-of-its-script limit-line-reached limit-of-the-caller-before-the-limit-line own-cases-past-1200-s-pass-below-their-limit own-cases-take-one-of-the-slots global-check-stat-of-a-script-leaves-the-read-of-the-driver
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-copy-stall.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-copy.py <driver> <copy>
+          # Writes a copy of the driver for the hosted loop: own_case runs only the cases named in OWN_ONLY, and the fixture
+          # helpers (new_repo, track_file, add_script, fixture_commit) do nothing for a block whose own_case is a literal
+          # name at the top level of own_self_test that OWN_ONLY does not name. Any other block (a case in a loop or an if,
+          # a name with an expansion) keeps its setup. Plain lines of a skipped block still run.
+          src, dst = sys.argv[1], sys.argv[2]
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          own = []
+          for i in range(start + 1, end):
+              m = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+              if m:
+                  name = m.group(2).strip('"')
+                  literal = len(m.group(1)) == 2 and '$' not in name
+                  own.append((i, literal, name))
+          inserts = {start + 1: '  fixture=$tmp/no-fixture\n  next_case=' + (own[0][2] if own[0][1] else '')}
+          for k, (i, literal, name) in enumerate(own):
+              if len(lines[i]) - len(lines[i].lstrip(' ')) != 2:
+                  continue
+              nxt = own[k + 1] if k + 1 < len(own) else None
+              inserts[i + 1] = '  next_case=' + (nxt[2] if nxt and nxt[1] else '')
+          out = []
+          for i, l in enumerate(lines):
+              if i in inserts:
+                  out.append(inserts[i])
+              out.append(l)
+          text = '\n'.join(out)
+          guard = '  if [ -n "${OWN_ONLY:-}" ] && [ -n "${next_case:-}" ]; then case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n'
+          for fn in ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n'):
+              if text.count(fn) != 1:
+                  sys.exit('helper %s found %d times' % (fn, text.count(fn)))
+              text = text.replace(fn, fn + guard)
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('own cases', len(own), 'skip points', len(inserts), 'filter lines', text.count('OWN_ONLY'))
+          PYEOF
+          copy="$tmp/run-ci-d-loop-stall.sh"
+          "$py" "$tmp/loop-copy-stall.py" scripts/ci/run-ci-d.sh "$copy"
+          out="$tmp/loop-stall"
+          mkdir -p "$out"
+          runs=20
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              sh "$copy" macos --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          echo "runs: $#, seconds: $((end - start))"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt | grep -c "^case run-ci-d/$c want=")
+            pass=$(cat "$out"/run-*.txt | grep -E "^case run-ci-d/$c want=" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            grep -E "^case run-ci-d/.* want=" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +289,95 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test run-ci-d 19-home-paths 21-tree-bans 30-store-ignore-reason 10-r3-layout 22-redact 70-r6-memory 20-r7-stub 24-hook-imports
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 19-home-paths 21-tree-bans 30-store-ignore-reason 10-r3-layout 22-redact 70-r6-memory 20-r7-stub 24-hook-imports
+      - name: driver-2 loop, own cases 20 times each
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        env:
+          OWN_ONLY: script-that-empties-the-files-beside-its-tmpdir-leaves-the-baseline tmpdir-whose-first-removal-fails-is-removed-on-a-later-try groups-that-two-self-tests-left-are-ended-by-one-process limit-line-raises-the-limit-of-its-script limit-line-reached limit-of-the-caller-before-the-limit-line own-cases-past-1200-s-pass-below-their-limit own-cases-take-one-of-the-slots
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-copy-stall.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-copy.py <driver> <copy>
+          # Writes a copy of the driver for the hosted loop: own_case runs only the cases named in OWN_ONLY, and the fixture
+          # helpers (new_repo, track_file, add_script, fixture_commit) do nothing for a block whose own_case is a literal
+          # name at the top level of own_self_test that OWN_ONLY does not name. Any other block (a case in a loop or an if,
+          # a name with an expansion) keeps its setup. Plain lines of a skipped block still run.
+          src, dst = sys.argv[1], sys.argv[2]
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          own = []
+          for i in range(start + 1, end):
+              m = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+              if m:
+                  name = m.group(2).strip('"')
+                  literal = len(m.group(1)) == 2 and '$' not in name
+                  own.append((i, literal, name))
+          inserts = {start + 1: '  fixture=$tmp/no-fixture\n  next_case=' + (own[0][2] if own[0][1] else '')}
+          for k, (i, literal, name) in enumerate(own):
+              if len(lines[i]) - len(lines[i].lstrip(' ')) != 2:
+                  continue
+              nxt = own[k + 1] if k + 1 < len(own) else None
+              inserts[i + 1] = '  next_case=' + (nxt[2] if nxt and nxt[1] else '')
+          out = []
+          for i, l in enumerate(lines):
+              if i in inserts:
+                  out.append(inserts[i])
+              out.append(l)
+          text = '\n'.join(out)
+          guard = '  if [ -n "${OWN_ONLY:-}" ] && [ -n "${next_case:-}" ]; then case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n'
+          for fn in ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n'):
+              if text.count(fn) != 1:
+                  sys.exit('helper %s found %d times' % (fn, text.count(fn)))
+              text = text.replace(fn, fn + guard)
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('own cases', len(own), 'skip points', len(inserts), 'filter lines', text.count('OWN_ONLY'))
+          PYEOF
+          copy="$tmp/run-ci-d-loop-stall.sh"
+          "$py" "$tmp/loop-copy-stall.py" scripts/ci/run-ci-d.sh "$copy"
+          out="$tmp/loop-stall"
+          mkdir -p "$out"
+          runs=20
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              sh "$copy" windows --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          echo "runs: $#, seconds: $((end - start))"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt | grep -c "^case run-ci-d/$c want=")
+            pass=$(cat "$out"/run-*.txt | grep -E "^case run-ci-d/$c want=" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            grep -E "^case run-ci-d/.* want=" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          exit "$bad"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
