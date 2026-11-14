@@ -85,6 +85,7 @@ function reset() {
   if (phase === 'self') later(600, () => { busy(hold); password.focus(); });
   show();
 }
+document.addEventListener('focusin', () => show());
 document.addEventListener('keydown', (e) => {
   if (e.key === 'F24') { e.preventDefault(); reset(); }
   if (e.key === 'F22') { e.preventDefault(); password.focus(); show(); }
@@ -138,8 +139,12 @@ struct Decisions {
 }
 
 fn decisions() -> Decisions {
+    decisions_of(&seam::take())
+}
+
+fn decisions_of(keys: &[seam::Decided]) -> Decisions {
     let mut d = Decisions::default();
-    for key in seam::take() {
+    for key in keys.iter().copied() {
         let recorded = key.verdict == seam::Verdict::Recorded;
         match key.class {
             seam::KeyClass::Printable => {
@@ -425,6 +430,20 @@ impl Keyboard {
 
 fn element_seen(file: &str) -> String {
     marks_seen(file).0
+}
+
+fn element_in(marks: &[seam::MarkSeen], file: &str) -> String {
+    marks
+        .iter()
+        .rev()
+        .filter_map(|mark| mark.element.as_deref())
+        .find(|element| {
+            element
+                .to_ascii_lowercase()
+                .contains(&format!("file={}", file.to_ascii_lowercase()))
+        })
+        .unwrap_or("element=none")
+        .to_string()
 }
 
 fn marks_seen(file: &str) -> (String, String) {
@@ -886,11 +905,12 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
         for round in 0..5 {
+            let _ = seam::take_marks();
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
             let control_sent = i64::from(type_letters_slowly(3) / 2);
             let control = keyboard.keystrokes_for(Duration::from_millis(600));
-            let _ = seam::take();
+            super::control_reads(test, "burst-control", &seam::take_marks(), &seam::take());
             std::thread::sleep(Duration::from_millis(250));
             let gate_before = keyboard.source.field_state();
             let mut burst = Vec::new();
@@ -949,6 +969,7 @@ pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
         for round in 0..5 {
+            let _ = seam::take_marks();
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
             std::thread::sleep(Duration::from_millis(800));
@@ -956,7 +977,20 @@ pub(super) fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'
             key(VK_A);
             std::thread::sleep(Duration::from_millis(50));
             key(VK_TAB);
-            let mut r = end_round(&keyboard, hwnd, 1, front);
+            keyboard.settle(Duration::from_millis(800));
+            let keys = seam::take();
+            super::mark_trail(
+                test,
+                &format!("tab-after round={round}"),
+                &seam::take_marks(),
+                &keys,
+            );
+            let mut r = Round {
+                counted: front,
+                sent: 1,
+                page: page_read(hwnd).unwrap_or_default(),
+                keys: decisions_of(&keys),
+            };
             r.counted = front
                 && start.focus == "plain"
                 && swapped
@@ -1020,12 +1054,23 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         let warm = browser
             .open(test, "warm", 0)
             .expect("INCONCLUSIVE: no page window");
+        let _ = seam::take_marks();
         let start = reset(&keyboard, warm).unwrap_or_default();
         let warm_front = foreground_window() == warm;
         let plain_state = keyboard.state_within(FieldState::Clear, Duration::from_secs(3));
-        let plain_element = element_seen(&file);
+        let _ = seam::take();
         let sent = i64::from(type_letters_slowly(5) / 2);
-        let control = end_round(&keyboard, warm, sent, warm_front);
+        keyboard.settle(Duration::from_millis(800));
+        let control_keys = seam::take();
+        let control_marks = seam::take_marks();
+        super::control_reads(test, "warm-control", &control_marks, &control_keys);
+        let plain_element = element_in(&control_marks, &file);
+        let control = Round {
+            counted: warm_front,
+            sent,
+            page: page_read(warm).unwrap_or_default(),
+            keys: decisions_of(&control_keys),
+        };
         key(VK_F22);
         let warm_state = keyboard.state_within(FieldState::Password, Duration::from_secs(3));
         let warm_element = element_seen(&file);

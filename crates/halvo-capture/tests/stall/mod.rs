@@ -1065,6 +1065,7 @@ impl Decisions {
 }
 
 fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u32 {
+    let _ = seam::take_marks();
     let reset = fixture.ask(CMD_RESET, 0, "reset");
     for _ in 0..3 {
         std::thread::sleep(Duration::from_millis(250));
@@ -1080,7 +1081,9 @@ fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u
         std::thread::sleep(LETTER_STEP);
     }
     let seen = events.drain_for(Duration::from_millis(900));
-    let decided = Decisions::of(&seam::take());
+    let keys = seam::take();
+    super::control_reads(test, which, &seam::take_marks(), &keys);
+    let decided = Decisions::of(&keys);
     let state = fixture.ask(CMD_STATE, 0, "state");
     let reached = seen
         .iter()

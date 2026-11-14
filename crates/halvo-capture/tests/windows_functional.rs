@@ -2848,6 +2848,114 @@ fn gate_reads_clear(test: &str, fields: Option<&FieldWindow>, keyboard: &RawInpu
     clear
 }
 
+fn control_reads(test: &str, which: &str, marks: &[seam::MarkSeen], decided: &[seam::Decided]) {
+    let letters: Vec<u32> = decided
+        .iter()
+        .filter(|key| key.class == seam::KeyClass::Printable)
+        .map(|key| key.os_tick)
+        .collect();
+    let Some(first) = letters.first().copied() else {
+        say(
+            test,
+            format!("control_reads={which} letters=0 marks={}", marks.len()),
+        );
+        return;
+    };
+    let rel = |tick: u32| i64::from(tick.wrapping_sub(first) as i32);
+    let last = letters.iter().map(|tick| rel(*tick)).max().unwrap_or(0);
+    let reads: Vec<(i64, i64, Option<seam::Moved>)> = marks
+        .iter()
+        .filter(|mark| mark.what == "read")
+        .map(|mark| {
+            (
+                rel(mark.at.unwrap_or(mark.began)),
+                rel(mark.began),
+                mark.moved,
+            )
+        })
+        .filter(|(at, _, _)| (-1500..=last + 500).contains(at))
+        .collect();
+    let event = marks
+        .iter()
+        .filter(|mark| mark.what == "event" || mark.what.starts_with("latch"))
+        .map(|mark| rel(mark.at.unwrap_or(mark.began)))
+        .filter(|at| *at < 0)
+        .max();
+    let armed = event.and_then(|event| reads.iter().find(|(_, began, _)| *began >= event));
+    let not_same_from_the_first = reads
+        .iter()
+        .filter(|(at, _, moved)| *at >= 0 && *at <= last + 250 && *moved != Some(seam::Moved::Same))
+        .count();
+    let listed: Vec<String> = reads
+        .iter()
+        .map(|(at, _, moved)| format!("{at}:{moved:?}"))
+        .collect();
+    say(
+        test,
+        format!(
+            "control_reads={which} letters={} last_letter_at={last} reads=[{}] move_at={event:?} \
+             armed_read_at={:?} armed_moved={:?} armed_read_before_the_first_letter={} \
+             reads_not_same_from_the_first_letter={not_same_from_the_first}",
+            letters.len(),
+            listed.join(","),
+            armed.map(|(at, _, _)| *at),
+            armed.and_then(|(_, _, moved)| *moved),
+            armed.is_some_and(|(at, _, _)| *at < 0),
+        ),
+    );
+}
+
+fn mark_trail(test: &str, which: &str, marks: &[seam::MarkSeen], decided: &[seam::Decided]) {
+    let Some(first) = decided.first().map(|key| key.os_tick) else {
+        say(test, format!("trail {which} keys=0 marks={}", marks.len()));
+        return;
+    };
+    let rel = |tick: u32| i64::from(tick.wrapping_sub(first) as i32);
+    let keys: Vec<String> = decided
+        .iter()
+        .map(|key| {
+            format!(
+                "{:?}@{}:{:?}:{:?}@{}",
+                key.class,
+                rel(key.os_tick),
+                key.verdict,
+                key.rule,
+                rel(key.decided_tick)
+            )
+        })
+        .collect();
+    let last = decided
+        .iter()
+        .map(|key| rel(key.decided_tick))
+        .max()
+        .unwrap_or(0);
+    let listed: Vec<String> = marks
+        .iter()
+        .filter_map(|mark| {
+            let at = rel(mark.at.unwrap_or(mark.began));
+            (-800..=last + 300).contains(&at).then(|| {
+                let file = mark
+                    .element
+                    .as_deref()
+                    .and_then(|e| e.split(' ').find(|part| part.starts_with("kind=")))
+                    .unwrap_or("kind=none");
+                format!(
+                    "{}@{at}:{:?}:{:?}:{file}",
+                    mark.what, mark.state, mark.moved
+                )
+            })
+        })
+        .collect();
+    say(
+        test,
+        format!(
+            "trail {which} keys=[{}] marks=[{}]",
+            keys.join(","),
+            listed.join(",")
+        ),
+    );
+}
+
 fn gate_trail(test: &str) {
     let keys = seam::take();
     let marks = seam::take_marks();
@@ -4051,10 +4159,19 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
 
+        let _ = seam::take();
+        let _ = seam::take_marks();
         let focused_a = fields.focus(Field::Plain);
         let _ = events.drain_for(Duration::from_millis(500));
+        let _ = seam::take();
         type_letters_slowly(LETTERS);
         let a = keys(&events.drain_for(Duration::from_secs(1)));
+        control_reads(
+            "fixture-native",
+            "phase-A",
+            &seam::take_marks(),
+            &seam::take(),
+        );
         let gate_a = keyboard.field_state();
 
         let focused_b = fields.focus(Field::Password);
@@ -4536,14 +4653,17 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let unknown_class = !browser.chromium;
         let control = |which: &str| -> usize {
+            let _ = seam::take_marks();
             let fields = FieldWindow::open(test, Field::Plain);
             let focused = fields.focus(Field::Plain);
             let _ = events.drain_for(Duration::from_millis(600));
+            let _ = seam::take();
             type_letters_slowly(5);
             let recorded = count(
                 &events.drain_for(Duration::from_secs(1)),
                 Modality::Keystroke,
             );
+            control_reads(test, which, &seam::take_marks(), &seam::take());
             say(
                 test,
                 format!(
@@ -4557,7 +4677,13 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         let control_before = if unknown_class { control("before") } else { 5 };
 
         let _ = browser_phase(test, run, &keyboard, &events, 'W', Vec::new);
-        let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || letters(5));
+        let _ = seam::take();
+        let _ = seam::take_marks();
+        let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || {
+            let _ = seam::take();
+            letters(5)
+        });
+        control_reads(test, "phase-A", &seam::take_marks(), &seam::take());
         let gate_a = keyboard.field_state();
         let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
         let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
