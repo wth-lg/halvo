@@ -154,22 +154,17 @@ impl RequestError {
 
     /// The reply that the server sends for the refused request.
     pub fn answer(&self) -> Reply {
-        Reply::Error(ErrorReply {
-            code: self.code(),
-            message: self.to_string(),
-            ending: false,
-        })
+        Reply::Error(ErrorReply::new(self.code(), self.to_string()))
     }
 }
 
 /// The reply to a request that the v1 table does not hold.
 pub fn unknown_answer(unknown: &UnknownRequest) -> Reply {
     if unknown.version == PROTOCOL_VERSION {
-        Reply::Error(ErrorReply {
-            code: ErrorCode::UnsupportedOp,
-            message: "the op is not in the request table of protocol version 1".into(),
-            ending: false,
-        })
+        Reply::Error(ErrorReply::new(
+            ErrorCode::UnsupportedOp,
+            "the op is not in the request table of protocol version 1",
+        ))
     } else {
         RequestError::UnsupportedVersion {
             version: unknown.version,
@@ -504,16 +499,36 @@ struct ErrorReplyWire {
 
 /// The message is a fixed text of the server and holds no captured content. `ending` is the
 /// mark of the busy of a life that is ending (ruling PL-17 (h)); it stands beside the code
-/// busy alone, crosses the wire only when true, and a reply without it reads false.
+/// busy alone, crosses the wire only when true, and a reply without it reads false. Only
+/// [`ErrorReply::busy_of_an_ending_life`] builds the mark:
+///
+/// ```compile_fail
+/// use halvo_control::proto::{ErrorCode, ErrorReply};
+/// let wrong = ErrorReply { code: ErrorCode::Internal, message: String::new(), ending: true };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "ErrorReplyWire", into = "ErrorReplyWire")]
 pub struct ErrorReply {
     pub code: ErrorCode,
     pub message: String,
-    pub ending: bool,
+    ending: bool,
 }
 
 impl ErrorReply {
+    /// An error reply without the mark `ending`.
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            ending: false,
+        }
+    }
+
+    /// Whether the reply is the busy of a life that is ending.
+    pub const fn ending(&self) -> bool {
+        self.ending
+    }
+
     /// The answer to a mutation in a life that is ending: busy, with the mark `ending`.
     pub fn busy_of_an_ending_life() -> Self {
         Self {
@@ -2103,11 +2118,7 @@ mod tests {
             replies.push(Reply::PermissionRequested(PermissionRequested { outcome }));
         }
         for &code in ErrorCode::ALL {
-            replies.push(Reply::Error(ErrorReply {
-                code,
-                message: "a fixed text".into(),
-                ending: false,
-            }));
+            replies.push(Reply::Error(ErrorReply::new(code, "a fixed text")));
         }
         replies
     }
@@ -2465,11 +2476,10 @@ stopped/kind body
                 r#"{"v":1,"body":{"kind":"permission_requested","outcome":"requested"}}"#,
             ),
             (
-                Reply::Error(ErrorReply {
-                    code: ErrorCode::Busy,
-                    message: "another mutation is in flight".into(),
-                    ending: false,
-                }),
+                Reply::Error(ErrorReply::new(
+                    ErrorCode::Busy,
+                    "another mutation is in flight",
+                )),
                 r#"{"v":1,"body":{"kind":"error","code":"busy","message":"another mutation is in flight"}}"#,
             ),
         ];
@@ -4307,14 +4317,11 @@ stopped/kind body
             );
         }
         for &code in ErrorCode::ALL {
-            let reply = Reply::Error(ErrorReply {
-                code,
-                message: "x".into(),
-                ending: false,
-            });
+            let reply = Reply::Error(ErrorReply::new(code, "x"));
             assert!(!String::from_utf8(encode_reply(&reply))
                 .unwrap()
                 .contains("ending"));
+            assert_eq!(decode_reply(&encode_reply(&reply)), Ok(reply), "{code:?}");
         }
     }
 

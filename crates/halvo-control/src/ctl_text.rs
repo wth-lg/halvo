@@ -429,7 +429,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
-        (_, Reply::Error(error)) if error.ending => failed(ending_line(verb), crate::exit::BUSY),
+        (_, Reply::Error(error)) if error.ending() => failed(ending_line(verb), crate::exit::BUSY),
         (_, Reply::Error(error)) => {
             let status = match error.code {
                 ErrorCode::Busy => crate::exit::BUSY,
@@ -1138,11 +1138,7 @@ mod tests {
         let message = "\u{1b}]0;Halvo\u{7}\u{1b}[2K\rcapture=paused\nhalvo-capture: capture service not running at /x \u{e9}";
         let printed = print(
             &Verb::Pause,
-            Ok(Reply::Error(ErrorReply {
-                code: ErrorCode::Internal,
-                message: message.into(),
-                ending: false,
-            })),
+            Ok(Reply::Error(ErrorReply::new(ErrorCode::Internal, message))),
             &data_dir(),
         );
         one_clean_line(&printed);
@@ -1179,11 +1175,7 @@ mod tests {
         ] {
             let printed = print(
                 &Verb::Status { indicator: false },
-                Ok(Reply::Error(ErrorReply {
-                    code,
-                    message: filler.clone(),
-                    ending: false,
-                })),
+                Ok(Reply::Error(ErrorReply::new(code, filler.clone()))),
                 &data_dir(),
             );
             one_clean_line(&printed);
@@ -1318,11 +1310,7 @@ mod tests {
             ),
             (ErrorCode::Internal, "a\u{1b}[2Kb", 1),
         ] {
-            let reply = ErrorReply {
-                code,
-                message: message.into(),
-                ending: false,
-            };
+            let reply = ErrorReply::new(code, message);
             let as_reply = print(&Verb::Pause, Ok(Reply::Error(reply.clone())), &data_dir());
             let as_error = print(&Verb::Pause, Err(ClientError::Daemon(reply)), &data_dir());
             if as_error != as_reply || as_error.status != want {
@@ -1332,11 +1320,10 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
         let busy = print(
             &Verb::Pause,
-            Err(ClientError::Daemon(ErrorReply {
-                code: ErrorCode::Busy,
-                message: "another mutation is in flight".into(),
-                ending: false,
-            })),
+            Err(ClientError::Daemon(ErrorReply::new(
+                ErrorCode::Busy,
+                "another mutation is in flight",
+            ))),
             &data_dir(),
         );
         assert_eq!(
@@ -1350,7 +1337,7 @@ mod tests {
     {
         let ending = ErrorReply::busy_of_an_ending_life();
         assert_eq!(ending.code, ErrorCode::Busy);
-        assert!(ending.ending);
+        assert!(ending.ending());
         for (verb, line) in [
             (
                 Verb::DeleteAll(Some(FRESH)),
@@ -1396,10 +1383,10 @@ mod tests {
         }
         let plain = print(
             &Verb::Stop,
-            Ok(Reply::Error(ErrorReply {
-                ending: false,
-                ..ending
-            })),
+            Ok(Reply::Error(ErrorReply::new(
+                ending.code,
+                ending.message.clone(),
+            ))),
             &data_dir(),
         );
         assert_eq!(plain.status, 75);
@@ -1423,11 +1410,10 @@ mod tests {
         ] {
             let printed = print(
                 &Verb::Pause,
-                Ok(Reply::Error(ErrorReply {
+                Ok(Reply::Error(ErrorReply::new(
                     code,
-                    message: "store unavailable: sealed".into(),
-                    ending: false,
-                })),
+                    "store unavailable: sealed",
+                ))),
                 &data_dir(),
             );
             assert_eq!(printed.status, status, "{code:?}");

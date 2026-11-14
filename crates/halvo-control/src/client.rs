@@ -302,7 +302,7 @@ impl<C: Connector> Client<C> {
 
     fn call(&self, request: Request) -> Result<Reply, ClientError> {
         match self.send(&request)? {
-            Reply::Error(error) if error.ending => Err(ClientError::ServiceEnding(error)),
+            Reply::Error(error) if error.ending() => Err(ClientError::ServiceEnding(error)),
             Reply::Error(error) => Err(ClientError::Daemon(error)),
             reply => Ok(reply),
         }
@@ -1113,12 +1113,13 @@ mod tests {
             let (client, _) = client(daemon);
             call(&client)
         };
-        let calls: [(&str, Call<'_>); 6] = [
+        let calls: [(&str, Call<'_>); 7] = [
             ("delete-all with the id it names", &|c| {
                 c.delete_all(Some(current)).map(|_| ())
             }),
             ("delete-all with no id", &|c| c.delete_all(None).map(|_| ())),
             ("status", &|c| c.status().map(|_| ())),
+            ("inventory", &|c| c.inventory().map(|_| ())),
             ("pause", &|c| c.pause().map(|_| ())),
             ("stop", &|c| c.stop().map(|_| ())),
             ("set-cap", &|c| {
@@ -1906,7 +1907,7 @@ mod tests {
             match result {
                 Err(ClientError::ServiceEnding(reply)) => {
                     assert_eq!(reply.code, ErrorCode::Busy);
-                    assert!(reply.ending);
+                    assert!(reply.ending());
                 }
                 other => panic!("{other:?}"),
             }
@@ -1917,11 +1918,7 @@ mod tests {
         let (plain_client, _) = client(plain);
         assert!(matches!(
             plain_client.stop(),
-            Err(ClientError::Daemon(ErrorReply {
-                code: ErrorCode::Busy,
-                ending: false,
-                ..
-            }))
+            Err(ClientError::Daemon(reply)) if reply.code == ErrorCode::Busy && !reply.ending()
         ));
     }
 

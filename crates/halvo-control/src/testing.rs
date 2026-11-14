@@ -373,11 +373,7 @@ pub struct ScriptedDaemon {
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
-    Reply::Error(ErrorReply {
-        code,
-        message: message.to_string(),
-        ending: false,
-    })
+    Reply::Error(ErrorReply::new(code, message))
 }
 
 impl ScriptedDaemon {
@@ -403,9 +399,17 @@ impl ScriptedDaemon {
         }
     }
 
-    /// Sets the daemon's fact that its life is ending, or that it is not (ruling PL-17 (a)).
+    /// Sets the daemon's fact that its life is ending, or that it is not (ruling PL-17 (a)). In a
+    /// life that is ending capture reads pausing (contracts.md C2.3), so the status the daemon
+    /// holds then reads pausing.
     pub fn set_life(&mut self, life: Life) {
         self.life = life;
+        if life == Life::Ending && self.status.fields().capture != Capture::Pausing {
+            self.edit(|f| {
+                f.capture = Capture::Pausing;
+                f.capture_reason = None;
+            });
+        }
     }
 
     pub fn set_stop_answer(&mut self, source: SourceName, answer: StopAnswer) {
@@ -1040,11 +1044,10 @@ mod tests {
                     for request in [Request::Status { indicator: true }, Request::Resume] {
                         assert_ne!(
                             daemon.handle(request.clone()),
-                            Reply::Error(ErrorReply {
-                                code: ErrorCode::Internal,
-                                message: "the scripted change does not hold together".into(),
-                                ending: false,
-                            }),
+                            Reply::Error(ErrorReply::new(
+                                ErrorCode::Internal,
+                                "the scripted change does not hold together"
+                            )),
                             "{case} {request:?}"
                         );
                         assert_eq!(daemon.status(), &status, "{case} {request:?}");
@@ -1294,7 +1297,7 @@ mod tests {
     }
 
     fn is_the_busy_of_an_ending_life(reply: &Reply) -> bool {
-        matches!(reply, Reply::Error(e) if e.code == ErrorCode::Busy && e.ending)
+        matches!(reply, Reply::Error(e) if e.code == ErrorCode::Busy && e.ending())
     }
 
     #[test]
@@ -1333,7 +1336,7 @@ mod tests {
                 permission: Permission::Accessibility,
             });
             assert!(
-                matches!(&other_form, Reply::Error(e) if e.code == ErrorCode::UnsupportedOp && !e.ending),
+                matches!(&other_form, Reply::Error(e) if e.code == ErrorCode::UnsupportedOp && !e.ending()),
                 "{platform:?}: {other_form:?}"
             );
             for read in [Request::Status { indicator: false }, Request::Inventory] {
@@ -1343,6 +1346,25 @@ mod tests {
                     "{platform:?} {read:?}: {reply:?}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn pl17_the_flag_of_a_life_that_is_ending_makes_capture_read_pausing() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut daemon = ScriptedDaemon::new(sample_status(platform));
+            daemon.set_life(Life::Ending);
+            assert_eq!(
+                daemon.status().fields().capture,
+                Capture::Pausing,
+                "{platform:?}"
+            );
+            assert_eq!(daemon.status().fields().capture_reason, None);
+            let resumed = changed(daemon.handle(Request::Resume));
+            assert!(!crate::proto::reaches_the_end(
+                crate::proto::CaptureChange::Resume,
+                &resumed
+            ));
         }
     }
 
@@ -1387,8 +1409,13 @@ mod tests {
             for desired in [CaptureState::Running, CaptureState::Paused] {
                 let start = ending_status(platform, desired);
                 let mut daemon = ending_daemon(start.clone());
+                daemon.hold = true;
                 daemon.set_stop_answer(start.fields().enabled_sources[0], StopAnswer::Ok);
                 let paused = changed(daemon.handle(Request::Pause));
+                assert!(
+                    daemon.hold,
+                    "{platform:?} {desired:?}: the Pause cleared the hold"
+                );
                 let mut want = start.clone().into_fields();
                 want.desired = CaptureState::Paused;
                 assert_eq!(
@@ -1478,7 +1505,8 @@ mod tests {
             let mut f = ending_status(platform, CaptureState::Paused).into_fields();
             f.capture = Capture::Starting;
             let start = DaemonStatus::new(f).expect("starting takes the mark");
-            let mut daemon = ending_daemon(start.clone());
+            let mut daemon = ending_daemon(start);
+            let before = daemon.status().clone();
             let status = changed(daemon.handle(Request::Resume));
             let started = status
                 .fields()
@@ -1490,7 +1518,7 @@ mod tests {
                 started, 0,
                 "{platform:?}: a Resume in a life that is ending started {started} sources"
             );
-            assert_eq!(status, start, "{platform:?}");
+            assert_eq!(status, before, "{platform:?}");
             assert!(
                 !crate::proto::reaches_the_end(crate::proto::CaptureChange::Resume, &status),
                 "{platform:?}: the resume reached its end, ctl exits 0"
