@@ -1,4 +1,5 @@
 name: ci
+# scratch: release-1 loop steps; never merged
 
 on:
   push:
@@ -106,6 +107,29 @@ jobs:
           APPLE_API_KEY: ${{ github.ref_type == 'tag' && secrets.APPLE_API_KEY || '' }}
           APPLE_API_ISSUER: ${{ github.ref_type == 'tag' && secrets.APPLE_API_ISSUER || '' }}
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of the release-1 self-tests (scratch)
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: |
+          set +e
+          bad=
+          for name in 60-release-dry-run 61-version 62-build; do
+            passed=0
+            for _ in $(seq 1 200); do
+              dir=$(mktemp -d "$RUNNER_TEMP/loop.XXXXXX")
+              last=$(TMPDIR=$dir CI_D_REPO=$GITHUB_WORKSPACE CI_D_JOB=macos CI_D_ARTIFACTS=$dir LC_ALL=C sh "scripts/r1/ci.d/$name.sh" --self-test 2>/dev/null | tail -n 1)
+              case $last in
+                "PASS self-test:$name ("*" failing fixtures rejected)") passed=$((passed + 1)) ;;
+              esac
+            done
+            echo "loop $name: $passed of 200 rounds printed PASS self-test:$name with its count of rejected fixtures; last line: $last"
+            [ "$passed" = 200 ] || bad=1
+          done
+          [ -z "$bad" ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,6 +184,29 @@ jobs:
         env:
           HALVO_WINDOWS_SIGN_COMMAND: ${{ github.ref_type == 'tag' && secrets.HALVO_WINDOWS_SIGN_COMMAND || '' }}
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop of the release-1 self-tests (scratch)
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: |
+          set +e
+          bad=
+          for name in 61-version 62-build; do
+            passed=0
+            for _ in $(seq 1 200); do
+              dir=$(mktemp -d "$RUNNER_TEMP/loop.XXXXXX")
+              last=$(TMPDIR=$dir CI_D_REPO=$GITHUB_WORKSPACE CI_D_JOB=windows CI_D_ARTIFACTS=$dir LC_ALL=C sh "scripts/r1/ci.d/$name.sh" --self-test 2>/dev/null | tail -n 1)
+              case $last in
+                "PASS self-test:$name ("*" failing fixtures rejected)") passed=$((passed + 1)) ;;
+              esac
+            done
+            echo "loop $name: $passed of 200 rounds printed PASS self-test:$name with its count of rejected fixtures; last line: $last"
+            [ "$passed" = 200 ] || bad=1
+          done
+          [ -z "$bad" ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
