@@ -1203,6 +1203,18 @@ What the code does since store-3, each sentence with the test that shows it.
   `a_create_whose_key_name_is_taken_after_its_root_leaves_what_stands_there`,
   `a_create_whose_key_name_is_taken_by_a_plain_file_after_its_root_removes_that_file`,
   `a_create_removes_a_hard_link_at_store_key_tmp_without_writing_through_it`.
+- The delete, on a handle and in the tail, clears an entry at
+  `store.key.tmp` as the create does: with more than one name, or with a
+  count that cannot be read, it is removed without a zero-fill. The
+  temporary name goes first, then `store.key`, whose zero-fill reaches
+  every name of the store's own key file. An entry at `store.key.tmp` that
+  is no regular file and that the call cannot remove is counted in
+  `not_followed`, so that the report names a cause (ruling ST-45 H5).
+  Tests:
+  `p2_d_the_tail_writes_nothing_through_a_second_name_at_store_key_tmp`,
+  `delete_all_writes_nothing_through_a_second_name_at_store_key_tmp`,
+  `the_store_key_file_under_a_second_name_at_store_key_tmp_ends_all_zero_under_every_name`,
+  `an_entry_at_store_key_tmp_that_no_call_can_remove_is_counted_as_not_followed`.
 - The root step destroys, and its last reading counts, every entry of the
   roots directory whose name, with its ASCII letters lowered, is a root name
   or a partial name of a root, on every volume; the report names a file that

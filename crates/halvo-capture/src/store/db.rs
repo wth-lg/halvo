@@ -369,18 +369,28 @@ impl KeyFilePlace {
         zeroed.map(|()| own_name)
     }
 
+    /// Removes the key file for a delete: first an entry at the temporary
+    /// name as a create clears it (with more than one name, or a count that
+    /// cannot be read, removed without a zero-fill), then `store.key`, whose
+    /// zero-fill reaches every name of the store's own key file. An entry at
+    /// the temporary name that is no regular file and that stays is counted
+    /// as not followed (ruling ST-45 H5).
     pub(crate) fn destroy(&self) -> Removal {
-        let _ = zero_and_remove(&self.dir, &self.temp);
+        let temp_kind = self.dir.entry(&self.temp).ok().map(|entry| entry.kind);
+        let temp_stays = self.clear_a_temp_of_another_party().is_err();
+        let temp_not_followed =
+            u64::from(temp_stays && temp_kind.is_some_and(|kind| kind != EntryKind::File));
         if failpoint::hit("key_file_destroy").is_err() {
             return Removal {
                 gone: false,
-                not_followed: 0,
+                not_followed: temp_not_followed,
             };
         }
-        let not_followed = match self.dir.entry(&self.name) {
-            Ok(entry) if entry.kind != EntryKind::File => 1,
-            _ => 0,
-        };
+        let not_followed = temp_not_followed
+            + match self.dir.entry(&self.name) {
+                Ok(entry) if entry.kind != EntryKind::File => 1,
+                _ => 0,
+            };
         let _ = zero_and_remove(&self.dir, &self.name);
         let _ = self.dir.sync();
         let absent = |name: &OsStr| matches!(self.dir.entry(name), Err(e) if e.kind() == ErrorKind::NotFound);
