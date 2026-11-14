@@ -8,16 +8,17 @@ use crate::record::Instant;
 use crate::request::{CoordinatorBody, RunnerBody, REPLY_MAX};
 
 use super::config::AgentConfig;
+use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     AgentState, CheckpointState, EffectState, LeftReason, ListedState, MarkState, Mode, Way, YesNo,
 };
 use super::record::{
     checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
-    AgentLog, AgentRun, Slot, SESSION_PARTS_MAX,
+    AgentLog, AgentReply, AgentRun, AgentStart, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
-use super::text::{Digest, Null, OwnValue, RunId, SessionData, WebOrigin};
+use super::text::{Digest, Null, OwnValue, ProviderId, RunId, SessionData, WebOrigin};
 use super::Refusal;
 
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
@@ -26,6 +27,14 @@ pub const STEPS_PER_REQUEST_MAX: usize = 16;
 /// The most bytes of the reply of `list_checkpoints` and of every reply of a runner or coordinator body, as they
 /// arrive: the bound of a reply less the 53 bytes of its envelope beside a request id.
 pub const CHECKPOINTS_REPLY_MAX: usize = REPLY_MAX - 53;
+
+/// The most bytes of the value of a runner reply that one `store_reply` frame carries beside a request id: the bound
+/// of a frame less the 28 bytes of the frame's own text and the 53 of the reply's envelope. The reply of
+/// `load_replies` holds it as its bytes arrive and at its writer.
+pub const RUNNER_REPLY_VALUE_MAX: usize = FRAME_JSON_MAX - 28 - 53;
+
+/// The most message ids of one `load_replies` body, those of one page of the run's list.
+pub const REPLY_IDS_MAX: usize = 25;
 
 macro_rules! op_enum {
     (
@@ -92,20 +101,28 @@ macro_rules! reply_enum {
     ) => {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq, Eq)]
+        #[allow(clippy::large_enum_variant)]
         pub enum $name {
             $( $variant($ty), )+
         }
 
         const _: () = {
-            $( assert!(<$ty as json::Arrives>::MAX == CHECKPOINTS_REPLY_MAX); )+
+            $( assert!(<$ty as json::Arrives>::MAX <= CHECKPOINTS_REPLY_MAX); )+
         };
 
         impl $name {
             pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
-                reply_bytes(stringify!($name), raw.get().len())?;
+                Self::read(raw, raw.get().len())
+            }
+
+            fn read(raw: &RawValue, given: usize) -> Result<Self, Refusal> {
+                reply_bytes(stringify!($name), given)?;
                 let obj = json::object(stringify!($name), raw)?;
                 $(
                     if obj.has($key) {
+                        if given > <$ty as json::Arrives>::MAX {
+                            return Err(Refusal::length(stringify!($name), "reply_bytes"));
+                        }
                         return $ty::from_raw(raw).map($name::$variant);
                     }
                 )+
@@ -114,10 +131,11 @@ macro_rules! reply_enum {
 
             /// Reads one reply as it arrives and refuses every other input. An input of more than
             /// `CHECKPOINTS_REPLY_MAX` bytes, counted on the bytes given before anything is read, is refused with the
-            /// cause `length` and the rule `reply_bytes`.
+            /// cause `length` and the rule `reply_bytes`; so is an input of more bytes than the bound of the reply
+            /// type that its keys name, once they name it.
             pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
                 reply_bytes(stringify!($name), bytes.len())?;
-                Self::from_raw(json::whole(stringify!($name), bytes)?)
+                Self::read(json::whole(stringify!($name), bytes)?, bytes.len())
             }
 
             /// The compact JSON of the reply.
@@ -137,8 +155,9 @@ macro_rules! reply_enum {
         }
 
         /// The serde reader counts the text of the value that serde gives it, white space and escapes inside the
-        /// value included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes
-        /// are counted by `parse` or by the reader of the text around the value.
+        /// value included, against `CHECKPOINTS_REPLY_MAX` and the bound of the reply type that its keys name. Serde
+        /// gives it no byte outside the value: those bytes are counted by `parse` or by the reader of the text around
+        /// the value.
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 let raw = json::deserialize_raw(stringify!($name), deserializer)?;
@@ -313,6 +332,38 @@ object_type! {
     }
 }
 
+object_type! {
+    /// `reply_row`: one row of the reply to one message, of the body's agent and run. Which row may follow which is
+    /// the handler's to hold.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PutReplyRow [op = "reply_row"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub record: AgentReply = "record" => AgentReply::from_raw,
+    }
+    rules(b) { same_run("PutReplyRow", (&b.agent, &b.run), (&b.record.agent, &b.record.run)) }
+}
+
+object_type! {
+    /// `load_replies`: 1 to 25 message ids, each once, those of one page of the run's list, whose rows the run reads.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LoadReplies [op = "load_replies"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub messages: Vec<ProviderId> = "messages" => list(from_json),
+    }
+    rules(b) {
+        let fail = |rule| Err(Refusal::malformed("LoadReplies", rule).at("messages"));
+        if b.messages.is_empty() {
+            return fail("no_message");
+        }
+        if b.messages.len() > REPLY_IDS_MAX {
+            return fail("messages_max");
+        }
+        each_once("LoadReplies", &b.messages).map_err(|e| e.at("messages"))
+    }
+}
+
 op_enum! {
     /// The runner bodies (`RunnerCall`): each holds `op` first, then `agent` and `run`, then its keys. A body that
     /// holds a record refuses a record of another agent or run.
@@ -326,6 +377,8 @@ op_enum! {
         Log(PutLog) = "log",
         Finish(Finish) = "finish",
         Checkpoint(PutCheckpoint) = "checkpoint",
+        ReplyRow(PutReplyRow) = "reply_row",
+        LoadReplies(LoadReplies) = "load_replies",
     }
 }
 
@@ -342,6 +395,8 @@ impl RunnerCall {
             RunnerCall::Log(b) => &b.agent,
             RunnerCall::Finish(b) => &b.agent,
             RunnerCall::Checkpoint(b) => &b.agent,
+            RunnerCall::ReplyRow(b) => &b.agent,
+            RunnerCall::LoadReplies(b) => &b.agent,
         }
     }
 
@@ -357,6 +412,8 @@ impl RunnerCall {
             RunnerCall::Log(b) => &b.run,
             RunnerCall::Finish(b) => &b.run,
             RunnerCall::Checkpoint(b) => &b.run,
+            RunnerCall::ReplyRow(b) => &b.run,
+            RunnerCall::LoadReplies(b) => &b.run,
         }
     }
 }
@@ -408,17 +465,26 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load`: one session entry per origin.
+    /// The reply of `load`: one session entry per origin, and the agent's one start row or null when none stands.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadReply {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
         pub playbook: Option<LoadedPlaybook> = "playbook" => opt(LoadedPlaybook::from_raw),
         pub bindings: Option<LoadedBindings> = "bindings" => opt(LoadedBindings::from_raw),
         pub sessions: Vec<LoadedSession> = "sessions" => list(LoadedSession::from_raw),
+        pub start: Option<AgentStart> = "start" => opt(AgentStart::from_raw),
     }
     rules(r) {
         let origins: Vec<&WebOrigin> = r.sessions.iter().map(|s| &s.origin).collect();
-        each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))
+        each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))?;
+        if r
+            .start
+            .as_ref()
+            .is_some_and(|s| (&s.workflow, &s.agent) != (&r.config.workflow, &r.config.agent))
+        {
+            return Err(Refusal::malformed("LoadReply", "start_of_another_agent").at("start"));
+        }
+        Ok(())
     }
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
@@ -448,7 +514,8 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `put_playbook`, `put_session`, `effect`, `log` and `finish`: the count stored.
+    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint` and
+    /// `reply_row`, and of the coordinator body `mark_checkpoint`: the count stored.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Stored {
         pub stored: u32 = "stored" => from_json,
@@ -457,35 +524,123 @@ object_type! {
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
+object_type! {
+    /// The reply of `load_replies`: for each id asked that has a row of the asking agent its newest row, in the order
+    /// asked, and beside them two lists of bare ids asked, each id once and in one list alone: in `blocked` those for
+    /// which another agent holds `begun`, `committed` or `unknown`, and in `blocked_withheld` those for which another
+    /// agent holds `withheld` and none of the three. Its rows are of one agent and one workflow, and it names at most
+    /// 25 ids in all. Its bound, `RUNNER_REPLY_VALUE_MAX`, counts the bytes given to `parse` and to
+    /// `RunnerReply::parse`, and the compact text that the writer writes; a reply over it is refused whole. Through
+    /// `RunnerReply::parse` the text is read as JSON before this bound refuses it and no row is read before it does,
+    /// so a text over the bound that is no JSON is refused as malformed.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LoadRepliesReply {
+        pub replies: Vec<AgentReply> = "replies" => list(AgentReply::from_raw),
+        pub blocked: Vec<ProviderId> = "blocked" => list(from_json),
+        pub blocked_withheld: Vec<ProviderId> = "blocked_withheld" => list(from_json),
+    }
+    rules(r) {
+        let fail = |key, rule| Err(Refusal::malformed("LoadRepliesReply", rule).at(key));
+        if let Some(first) = r.replies.first() {
+            if r
+                .replies
+                .iter()
+                .any(|row| (&row.workflow, &row.agent) != (&first.workflow, &first.agent))
+            {
+                return fail("replies", "row_of_another_agent");
+            }
+        }
+        let messages: Vec<&ProviderId> = r.replies.iter().map(|row| &row.message).collect();
+        each_once("LoadRepliesReply", &messages).map_err(|e| e.at("replies"))?;
+        each_once("LoadRepliesReply", &r.blocked).map_err(|e| e.at("blocked"))?;
+        each_once("LoadRepliesReply", &r.blocked_withheld).map_err(|e| e.at("blocked_withheld"))?;
+        if r.blocked_withheld.iter().any(|id| r.blocked.contains(id)) {
+            return fail("blocked_withheld", "blocked_twice");
+        }
+        let mut all: Vec<&ProviderId> = messages;
+        all.extend(&r.blocked);
+        all.extend(&r.blocked_withheld);
+        all.sort_unstable_by(|a, b| a.as_str().cmp(b.as_str()));
+        all.dedup();
+        if all.len() > REPLY_IDS_MAX {
+            return fail("replies", "ids_max");
+        }
+        Ok(())
+    }
+    max_len(RUNNER_REPLY_VALUE_MAX)
+    arrives(RUNNER_REPLY_VALUE_MAX, "reply_bytes")
+}
+
+impl LoadRepliesReply {
+    /// Whether the reply answers the body: every row is of the body's agent and of an id that it asked, the rows
+    /// stand in the order asked, and each id of the two lists is one that it asked; else the refusal of the first
+    /// rule that the reply breaks.
+    pub fn answers(&self, body: &LoadReplies) -> Result<(), Refusal> {
+        let fail = |key, rule| Err(Refusal::malformed("LoadRepliesReply", rule).at(key));
+        if self.replies.iter().any(|row| row.agent != body.agent) {
+            return fail("replies", "row_of_another_agent");
+        }
+        let mut last = None;
+        for row in &self.replies {
+            let Some(at) = body.messages.iter().position(|id| *id == row.message) else {
+                return fail("replies", "not_asked");
+            };
+            if last.is_some_and(|last| at <= last) {
+                return fail("replies", "order_asked");
+            }
+            last = Some(at);
+        }
+        for (key, ids) in [
+            ("blocked", &self.blocked),
+            ("blocked_withheld", &self.blocked_withheld),
+        ] {
+            if ids.iter().any(|id| !body.messages.contains(id)) {
+                return fail(key, "not_asked");
+            }
+        }
+        Ok(())
+    }
+}
+
 reply_enum! {
-    /// The reply of a runner body, told apart by its keys. Each variant's type has a bound of
-    /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile.
+    /// The reply of a runner body, told apart by its keys. Each variant's type has a bound of at most
+    /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile: the reply of
+    /// `load_replies` has `RUNNER_REPLY_VALUE_MAX`, and every other `CHECKPOINTS_REPLY_MAX`.
     pub enum RunnerReply {
         Load(LoadReply) = "config",
         Steps(StepsReply) = "steps",
         Session(SessionReply) = "data",
         Stored(Stored) = "stored",
+        Replies(LoadRepliesReply) = "replies",
     }
 }
 
 impl RunnerReply {
-    /// Whether the reply has the form that the body's call answers with.
+    /// Whether the reply has the form that the body's call answers with; a reply of `load_replies` answers its call
+    /// only as `LoadRepliesReply::answers` says, and a reply of `load` only when its config, and its start row if it
+    /// holds one, are of the body's agent.
     pub fn answers(&self, call: &RunnerCall) -> bool {
-        matches!(
-            (self, call),
-            (RunnerReply::Load(_), RunnerCall::Load(_))
-                | (RunnerReply::Steps(_), RunnerCall::LoadSteps(_))
-                | (RunnerReply::Session(_), RunnerCall::LoadSession(_))
-                | (
-                    RunnerReply::Stored(_),
-                    RunnerCall::PutPlaybook(_)
-                        | RunnerCall::PutSession(_)
-                        | RunnerCall::Effect(_)
-                        | RunnerCall::Log(_)
-                        | RunnerCall::Finish(_)
-                        | RunnerCall::Checkpoint(_)
-                )
-        )
+        match (self, call) {
+            (RunnerReply::Replies(r), RunnerCall::LoadReplies(b)) => r.answers(b).is_ok(),
+            (RunnerReply::Load(r), RunnerCall::Load(b)) => {
+                r.config.agent == b.agent && r.start.as_ref().is_none_or(|s| s.agent == b.agent)
+            }
+            _ => matches!(
+                (self, call),
+                (RunnerReply::Steps(_), RunnerCall::LoadSteps(_))
+                    | (RunnerReply::Session(_), RunnerCall::LoadSession(_))
+                    | (
+                        RunnerReply::Stored(_),
+                        RunnerCall::PutPlaybook(_)
+                            | RunnerCall::PutSession(_)
+                            | RunnerCall::Effect(_)
+                            | RunnerCall::Log(_)
+                            | RunnerCall::Finish(_)
+                            | RunnerCall::Checkpoint(_)
+                            | RunnerCall::ReplyRow(_)
+                    )
+            ),
+        }
     }
 }
 

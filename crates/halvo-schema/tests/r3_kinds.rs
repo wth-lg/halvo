@@ -1,3 +1,4 @@
+use halvo_schema::executable::record::RUN_LIST_KEYS;
 use halvo_schema::executable::{self, AgentConfig, AgentRun};
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, FieldType, KindEntry, Origin,
@@ -35,6 +36,8 @@ fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
             "agent_log",
             "agent_session",
             "agent_checkpoint",
+            "agent_reply",
+            "agent_start",
         ]
     );
     let config = entry("agent_config");
@@ -109,8 +112,10 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
         expected.push((key, Count));
     }
     expected.push(("model", Name));
-    assert_eq!(run, expected);
-    let own_fields: [(&str, &[(&str, FieldType)]); 6] = [
+    assert_eq!(run[..expected.len()], expected);
+    let list: Vec<&str> = run[expected.len()..].iter().map(|(key, _)| *key).collect();
+    assert_eq!(list, RUN_LIST_KEYS);
+    let own_fields: [(&str, &[(&str, FieldType)]); 8] = [
         (
             "agent_playbook",
             &[
@@ -209,6 +214,32 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
                 ("left", Name),
             ],
         ),
+        (
+            "agent_reply",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("run", Id),
+                ("seq", Count),
+                ("day", Day),
+                ("at", Instant),
+                ("message", OwnText),
+                ("draft", OwnText),
+                ("effect", Id),
+                ("state", Name),
+            ],
+        ),
+        (
+            "agent_start",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("day", Day),
+                ("at", Instant),
+            ],
+        ),
     ];
     for kind in executable::KINDS {
         match kind.origin {
@@ -251,7 +282,7 @@ fn each_example_is_one_record_that_the_store_and_the_strict_reader_take_alike() 
             .unwrap(),
         run.example
     );
-    assert_eq!(keys(run).len(), 19);
+    assert_eq!(keys(run).len(), 19 + RUN_LIST_KEYS.len());
 }
 
 #[test]

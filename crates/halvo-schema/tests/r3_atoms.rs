@@ -94,7 +94,10 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "effect",
             "ended",
             "changed",
-            "secret"
+            "secret",
+            "unauthorized",
+            "not_selected",
+            "no_start"
         ]
     );
     assert_eq!(
@@ -115,6 +118,7 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
     assert_eq!(
         names_of!(LogEvent),
         [
+            "start_accepted",
             "step_ok",
             "step_failed",
             "recovered",

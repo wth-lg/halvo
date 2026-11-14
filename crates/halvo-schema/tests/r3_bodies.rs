@@ -37,7 +37,7 @@ fn run_record(run: &str, rest: &str) -> String {
     format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","run":"{run}",{rest}}}"#)
 }
 
-const RUN_REST: &str = r#""day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null"#;
+const RUN_REST: &str = r#""day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null"#;
 
 const PAY_KEPT: &str = r#"[{"name":"payee","value":["Northwind Power"]},{"name":"amount","value":["84.20"]},{"name":"instrument","value":["card 4242"]},{"name":"origin","value":["http://pay.test:18090"]}]"#;
 
@@ -1412,10 +1412,11 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
 #[test]
 fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
+        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}],"start":null}}"#
     );
-    let empty_load =
-        format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+    let empty_load = format!(
+        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+    );
     let steps = format!(r#"{{"steps":[{},{}]}}"#, wait(3), wait(4));
     let session_reply = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
     for text in [
@@ -1928,7 +1929,7 @@ fn the_reply_of_create_agent_is_revision_1_and_set_bindings_and_add_origin_take_
 fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
     let load = |origins: &str| {
         format!(
-            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[]}}"#
+            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[],"start":null}}"#
         )
     };
     assert!(RunnerReply::parse(load(ORIGINS).as_bytes()).is_ok());
@@ -1954,7 +1955,9 @@ fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
 #[test]
 fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_and_its_readers() {
     type Parse = fn(&[u8]) -> Result<(), Refusal>;
-    let load = format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+    let load = format!(
+        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+    );
     let steps = format!(r#"{{"steps":[{}]}}"#, wait(3));
     let session = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
     let cases: [(&str, &str, Parse); 4] = [

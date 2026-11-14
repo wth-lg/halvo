@@ -440,3 +440,37 @@ fn a_runner_body_that_is_not_the_form_is_refused() {
     );
     assert!(playbook_rows(&store).is_empty());
 }
+
+fn every_row(store: &MemoryStore) -> Vec<(&'static str, Vec<String>)> {
+    halvo_schema::executable::KINDS
+        .iter()
+        .map(|k| (k.name, rows(store, k.name)))
+        .collect()
+}
+
+#[test]
+fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothing() {
+    let mut store = store_with("utility_bill_payment");
+    let record = json!({
+        "v": 1,
+        "workflow": wf(1),
+        "agent": agent(1),
+        "run": run(1),
+        "seq": 1,
+        "day": 20_770,
+        "at": 1_794_400_000_000_000_000_i64,
+        "message": "msg-1",
+        "draft": "draft-1",
+        "effect": null,
+        "state": "drafted",
+    });
+    let before = every_row(&store);
+    assert!(before.iter().any(|(_, rows)| !rows.is_empty()));
+    for body in [
+        json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record}),
+        json!({"op": "load_replies", "agent": agent(1), "run": run(1), "messages": ["msg-1", "msg-2"]}),
+    ] {
+        assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
+        assert_eq!(every_row(&store), before);
+    }
+}
