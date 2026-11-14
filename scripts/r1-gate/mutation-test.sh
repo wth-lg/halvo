@@ -776,6 +776,18 @@ descendants_of() {
       for (p in mark) if (p != root) print p }'
 }
 
+witness_start() {
+  perl -e 'setpgrp(0, 0); $SIG{$_} = "DEFAULT" for qw(INT TERM HUP QUIT); sleep 300' &
+  witness_pid=$!
+}
+
+witness_end() {
+  witness_alive=no
+  if kill -0 "$witness_pid" 2> /dev/null; then witness_alive=yes; fi
+  kill -s KILL "$witness_pid" 2> /dev/null
+  wait "$witness_pid" 2> /dev/null
+}
+
 stopped_by() {
   stop_fixture=$gate_scratch/$1; stop_signal_sent=$2; stop_whom=$3; stop_bound=$4; stop_mode=$5
   stop_status_wanted=$6; stop_marker_wanted=$7; stop_ended_wanted=$8; stop_starts_wanted=$9; shift 9; stop_line_wanted=$1
@@ -791,6 +803,7 @@ stopped_by() {
     [ "$stop_polls" -lt 300 ] || { kill -s KILL -- "-$stop_pid"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$stop_polls"; return 1; }
     sleep 0.1
   done
+  witness_start
   stop_held_at_end=no
   case $stop_whom in
     tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
@@ -828,7 +841,7 @@ stopped_by() {
   stop_polls=0
   while kill -0 "$stop_pid" 2> /dev/null; do
     stop_polls=$((stop_polls + 1))
-    [ "$stop_polls" -lt 400 ] || { kill -s KILL -- "-$stop_pid"; printf 'the runner did not end within %s polls of 0.1 s after the signal\n' "$stop_polls"; return 1; }
+    [ "$stop_polls" -lt 400 ] || { kill -s KILL -- "-$stop_pid"; witness_end; printf 'the runner did not end within %s polls of 0.1 s after the signal\n' "$stop_polls"; return 1; }
     sleep 0.1
   done
   wait "$stop_pid"
@@ -837,6 +850,7 @@ stopped_by() {
   stop_starts=0
   [ ! -f "$stop_fixture/bin/starts" ] || stop_starts=$(wc -l < "$stop_fixture/bin/starts" | tr -d ' ')
   stop_left=$(pgrep -f "$stop_fixture/" | wc -l | tr -d ' ')
+  witness_end
   stop_marker=gone
   [ ! -e "$stop_fixture/bin/marker" ] || stop_marker=left
   stop_ended=none
@@ -854,6 +868,7 @@ stopped_by() {
   stop_fail=$(grep -m 1 '^FAIL ' "$stop_fixture.out")
   [ -z "$stop_fail" ] || stop_defects="$stop_defects; the runner printed $stop_fail"
   [ "$stop_held_at_end" = no ] || stop_defects="$stop_defects; the runner ended while its stand-in held the marker"
+  [ "$witness_alive" = yes ] || stop_defects="$stop_defects; the witness process of the case did not outlive the run"
   [ -n "$stop_defects" ] || return 0
   printf '%s\n' "${stop_defects#; }"
   return 1
@@ -1719,13 +1734,15 @@ main_stopped_by() {
     sleep 0.1
   done
   main_stop_calls=$(wc -l < "$main_launch_fx/bin/calls" | tr -d ' ')
+  witness_start
   case $main_stop_whom in
     group) kill -s "$main_stop_signal" -- "-$main_launch_pid" ;;
     step-first) read -r main_stop_step < "$main_launch_fx/bin/held"; kill -s "$main_stop_signal" "$main_stop_step"; sleep 0.5; kill -s "$main_stop_signal" "$main_launch_pid" ;;
     *) kill -s "$main_stop_signal" "$main_launch_pid" ;;
   esac
-  main_ended || return 1
+  main_ended || { witness_end; return 1; }
   sleep 0.2
+  witness_end
   main_stop_calls_end=$(wc -l < "$main_launch_fx/bin/calls" | tr -d ' ')
   main_stop_defects=''
   grep -F -x -q -e "$main_stop_line" "$main_launch_fx.out" || main_stop_defects="$main_stop_defects; the runner printed no line $main_stop_line"
@@ -1736,6 +1753,7 @@ main_stopped_by() {
   [ -z "$main_stop_fail" ] || main_stop_defects="$main_stop_defects; the runner printed $main_stop_fail"
   [ "$main_stop_calls_end" -eq "$main_stop_calls" ] || main_stop_defects="$main_stop_defects; $((main_stop_calls_end - main_stop_calls)) steps started after the signal"
   [ "$main_ended_left" -eq 0 ] || main_stop_defects="$main_stop_defects; TMPDIR holds $main_ended_left entries after the stop"
+  [ "$witness_alive" = yes ] || main_stop_defects="$main_stop_defects; the witness process of the case did not outlive the run"
   [ -n "$main_stop_defects" ] || return 0
   printf '%s\n' "${main_stop_defects#; }"
   return 1
