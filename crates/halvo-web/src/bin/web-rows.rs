@@ -547,8 +547,18 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     };
     let root = ex.root().clone();
     let ids = ex.pipe_ids().clone();
-    // CP-189 G1, Addition 1 (3): the profile in the one form that the start wrote.
+    // CP-189 G1, Addition 1 (3): the profile in the one form that the start wrote; macOS resolves
+    // its links, Windows uses it as given.
+    let given = profile.clone();
     let profile = ex.profile().map_or(profile, Path::to_path_buf);
+    println!(
+        "row checks machine={machine} browser={kind} profile_path={}",
+        if profile == given {
+            "as_given"
+        } else {
+            "resolved"
+        }
+    );
     let subject = halvo_web::checks::Subject {
         root: &root,
         profile: &profile,

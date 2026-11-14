@@ -2147,4 +2147,53 @@ mod tests {
             vec![40]
         );
     }
+
+    /// CP-189 G1, Addition 1, the control of the state before the mend: an adopted crash handler
+    /// whose `--database=` names the profile's Crashpad directory through a link (`/var` beside
+    /// `/private/var`) is no member of the tree and is in no kill list; with the resolved form it is
+    /// both. The mark follows no link.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn g1_an_adopted_handler_with_the_unresolved_database_is_no_member_and_not_ended() {
+        let root = Proc {
+            pid: 30,
+            ppid: 5,
+            started_us: 10,
+            pgid: 30,
+            exe: Some("/B.app/Contents/MacOS/b".into()),
+        };
+        let handler = Proc {
+            pid: 41,
+            ppid: 1,
+            started_us: 20,
+            pgid: 41,
+            exe: Some("/B.app/Contents/Frameworks/x/chrome_crashpad_handler".into()),
+        };
+        let table = vec![root.clone(), handler];
+        let profile = "/private/var/f/p";
+        let args_with = |database: &'static str| {
+            move |pid: u32| {
+                Some(vec![if pid == 30 {
+                    format!("--user-data-dir={profile}")
+                } else {
+                    format!("--database={database}")
+                }])
+            }
+        };
+        let before = tree_of_with(&table, &root, &args_with("/var/f/p/Crashpad"));
+        assert!(!before.iter().any(|p| p.pid == 41), "{before:?}");
+        let after = tree_of_with(&table, &root, &args_with("/private/var/f/p/Crashpad"));
+        assert!(after.iter().any(|p| p.pid == 41), "{after:?}");
+        assert_eq!(
+            g1_kills(profile, vec!["--database=/var/f/p/Crashpad".to_string()]),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            g1_kills(
+                profile,
+                vec!["--database=/private/var/f/p/Crashpad".to_string()]
+            ),
+            vec![40]
+        );
+    }
 }
