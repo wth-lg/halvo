@@ -298,6 +298,37 @@ expect_records() {
   verdict "$1" "$got" "$case_name"
 }
 
+measure_fixture() {
+  case_name=$1
+  records_exit=$2
+  shift 2
+  fixture "$case_name"
+  mkdir -p "$dir/$records_dir" || exit 2
+  printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
+  for line in "$@"; do printf 'console.log("%s");\n' "$line"; done >"$dir/$records_script"
+  printf 'process.exit(%s);\n' "$records_exit" >>"$dir/$records_script"
+  git -C "$dir" init -q >/dev/null 2>&1 || exit 2
+  git -C "$dir" add backend scripts || exit 2
+  git -C "$dir" -c maintenance.auto=false commit -q -m "$case_name" >/dev/null || exit 2
+}
+
+expect_measure() {
+  case_name=$2
+  dir=$scratch/$case_name
+  (CI_D_REPO=$dir CI_D_ARTIFACTS=$dir/out STUB_STATE=$dir/state measure) >"$dir/measure.txt" 2>&1
+  code=$?
+  case $code in
+    0) got=PASS ;;
+    1) got=FAIL ;;
+    *) got=exit-$code ;;
+  esac
+  records_line=$(sed -n 2p "$dir/measure.txt")
+  last_line=$(sed -n 3p "$dir/measure.txt")
+  [ "$records_line" = "$3" ] || got=$got-with-another-records-line
+  [ "$last_line" = "$4" ] || got=$got-with-another-last-line
+  verdict "$1" "$got" "$case_name"
+}
+
 self_test() {
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   scratch=$(cd "$scratch" && pwd -P) || exit 2
@@ -469,6 +500,25 @@ process.exit(failed === 0 ? 0 : 1);'
 
   records_fixture packages-missing without-packages
   expect_records FAIL packages-missing 'backend/node_modules is missing'
+
+  records_fixture head-without-a-commit
+  git -C "$scratch/head-without-a-commit" update-ref -d HEAD || exit 2
+  expect_records FAIL head-without-a-commit "git could not list $records_dir/ at HEAD"
+
+  passed_records='concurrency: records: 1 of 1 as expected'
+  measure_fixture measure-runs-the-tests-and-the-records 0 "$passed_records"
+  expect_measure PASS measure-runs-the-tests-and-the-records 'records exit=0 at-head=1 failed=0 last-line=all-of-head tree-diff=0' "PASS $name"
+
+  measure_fixture measure-fails-on-the-records-alone 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
+  expect_measure FAIL measure-fails-on-the-records-alone 'records exit=1 at-head=1 failed=1 last-line=other tree-diff=0' "FAIL $name (check 50's records exited 1; the lines are records.txt among the artifacts)"
+
+  measure_fixture measure-fails-on-the-tests-alone 0 "$passed_records"
+  printf '1\n' >"$scratch/measure-fails-on-the-tests-alone/state/vitest.exit"
+  expect_measure FAIL measure-fails-on-the-tests-alone 'records exit=0 at-head=1 failed=0 last-line=all-of-head tree-diff=0' "FAIL $name (the test script exited 1)"
+
+  measure_fixture measure-fails-on-both 1 'self-test concurrency: record good-a: broken' 'concurrency: records: 0 of 1 as expected'
+  printf '1\n' >"$scratch/measure-fails-on-both/state/vitest.exit"
+  expect_measure FAIL measure-fails-on-both 'records exit=1 at-head=1 failed=1 last-line=other tree-diff=0' "FAIL $name (the test script exited 1; check 50's records exited 1; the lines are records.txt among the artifacts)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
