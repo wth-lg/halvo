@@ -9831,3 +9831,9 @@ fn a_custody_made_before_its_root_guard_shares_the_guards_roots_directory() {
     let guard = RootGuard::new(root_id);
     assert_eq!(custody.roots(), Some(guard.roots().as_path()));
 }
+
+#[cfg(unix)]
+mod closed_list;
+
+#[cfg(windows)]
+mod closed_list_windows;
