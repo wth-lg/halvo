@@ -323,8 +323,9 @@ const resetBeforeTheServerAccepted = (record) => record.status === null && LOST_
 export const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
 /** True when the driver sends an attempt again: it was lost on its way in, the traffic is not paused, and fewer than MAX_RESENDS earlier attempts were sent again. */
 export const sendsAgain = (record, paused) => !paused && record.lost.length < MAX_RESENDS && lostOnTheWayIn(record);
-/** The entry that the driver keeps in a request's record for an attempt that it sends again. */
-export const lostAttemptOf = (record) => (resetBeforeTheServerAccepted(record) ? { why: "reset", body: "" } : { why: "500", body: record.body });
+/** The entry that the driver keeps in a request's record for an attempt that it sends again, with the time of that attempt's send. */
+export const lostAttemptOf = (record) =>
+  resetBeforeTheServerAccepted(record) ? { why: "reset", body: "", sentAt: record.sentAt } : { why: "500", body: record.body, sentAt: record.sentAt };
 
 class Traffic {
   constructor(plan, level, port, chat) {

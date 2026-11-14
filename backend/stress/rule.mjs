@@ -37,6 +37,7 @@ const bodyOf = (request) => {
   }
 };
 const sentMoreThanOnce = (request) => request.lost.length > 0;
+const firstSentAt = (request) => request.lost[0]?.sentAt ?? request.sentAt;
 const settlesOf = (row) => (row.state === "settled" ? 1 : 0) + (row.late_at !== null ? 1 : 0);
 const fitsTheRow = (body, row) =>
   body.dispatched === (row.dispatched === 1) && (body.state === "open" ? body.dispatched === true : body.state === row.state);
@@ -131,7 +132,7 @@ export function judge({
   const sent = new Map(requests.filter((request) => request.sentAt !== null).map((request) => [request.id, request]));
   const rows = new Map(final.holds.map((row) => [row.request_id, row]));
   const mock = readMock(mockEvents);
-  const burstWaits = [...sent.values()].filter((request) => request.index < cell.level && request.headersAt !== null).map((request) => request.headersAt - request.sentAt);
+  const burstWaits = [...sent.values()].filter((request) => request.index < cell.level && request.headersAt !== null).map((request) => request.headersAt - firstSentAt(request));
   const burstMedianMs = nearestRank(burstWaits, 0.5);
   const slowBoundMs = gateway.holdLifeMs - gateway.marginMs;
   const slow = burstMedianMs !== null && burstMedianMs > slowBoundMs;
