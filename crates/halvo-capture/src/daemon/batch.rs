@@ -425,7 +425,7 @@ mod tests {
 
     use super::*;
     use crate::daemon::model_store::{
-        foreground, frame, key, title_of, Harness, AFTER_MIDNIGHT, AT_NOON, NOON,
+        foreground, foreground_now, frame, key, title_of, Harness, AFTER_MIDNIGHT, AT_NOON, NOON,
     };
     use crate::daemon::owner::Command;
     use crate::daemon::port::PAYLOAD_MAX_BYTES;
@@ -636,12 +636,7 @@ mod tests {
     fn each_kind_with_a_constructor_keeps_its_record_shape_through_a_flush() {
         let mut harness = Harness::new();
         harness.ask(Command::ClosePause);
-        let events = [
-            foreground(&AT_NOON, Duration::ZERO),
-            key(),
-            frame(),
-            title_of(5, 7),
-        ];
+        let events = [foreground_now(), key(), frame(), title_of(5, 7)];
         let ids: Vec<_> = events.iter().map(|event| event.id().uuid()).collect();
         for event in events {
             harness.emit(event);
