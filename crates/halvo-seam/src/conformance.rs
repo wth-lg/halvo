@@ -807,10 +807,14 @@ fn at_the_watermark<S: Subject>(
 /// `open_while_open` of `CHECKS` on that connection, a read of the reference read on a second connection,
 /// with no restart between, and `open_while_open` again on the second connection. Last, after `load(D)`, a
 /// read of set D from the zero position must serve its records in order, the `keystroke` after the step back
-/// must have an `at` below that of the pointer before it, and a read with the range from the `at` of the first
-/// entry of D to that of the pointer before the step back must serve every entry of D whose `at` lies in it,
-/// at its position, that `keystroke` among them; a server that ends a ranged read at the first entry whose
-/// `at` is at or after the end of the range fails.
+/// must have an `at` below that of the pointer before it, and reads under three ranges, from the zero position
+/// and from the position of that pointer, must each serve every entry of D at or after the start position whose
+/// `at` lies in the range, at its position: the range from the `at` of the first entry of D to that of the
+/// pointer (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, and the
+/// range from the `at` of the `keystroke` to that of the entry after it. A server fails that ends a ranged read
+/// at the first entry whose `at` is at or after the end of the range, or after it, or at least 500 ms after it,
+/// or at the first line of a Batch whose `at` is at or after it, or that drops an entry whose `at` is below
+/// that of an entry that it served before.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -953,28 +957,52 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
             data.len()
         ));
     }
-    let start = d.entries[0].record.at();
-    let end = d.entries[STEP_BACK - 1].record.at();
-    if d.entries[STEP_BACK].record.at() >= end {
+    let first = d.entries[0].record.at();
+    let pointer = &d.entries[STEP_BACK - 1];
+    let keystroke = d.entries[STEP_BACK].record.at();
+    if keystroke >= pointer.record.at() {
         return Err(
             "set D as served holds no keystroke whose at is below that of the pointer before it"
                 .to_owned(),
         );
     }
-    let want: Vec<Entry> = d
-        .entries
-        .iter()
-        .filter(|e| e.record.at() >= start && e.record.at() < end)
-        .cloned()
-        .collect();
-    let reading = read(&mut conn, Some(&d.store), ZERO, None, Some((start, end)))
-        .map_err(|e| format!("the range of set D up to the pointer before its step back: {e}"))?;
-    if !same(&reading.entries, &want) {
-        return Err(format!(
-            "the range of set D up to the pointer before its step back: {} entries served, want {}",
-            reading.entries.len(),
-            want.len()
-        ));
+    let ranges = [
+        (
+            "up to the pointer before its step back",
+            (first, pointer.record.at()),
+        ),
+        (
+            "up to just after the keystroke of its step back",
+            (first, Instant(keystroke.0.saturating_add(1))),
+        ),
+        (
+            "from the keystroke of its step back",
+            (keystroke, d.entries[STEP_BACK + 1].record.at()),
+        ),
+    ];
+    for start in [ZERO, pointer.pos] {
+        for (name, (a, b)) in ranges {
+            let name = if start == ZERO {
+                format!("the range of set D {name}")
+            } else {
+                format!("the range of set D {name} from {}", show(start))
+            };
+            let want: Vec<Entry> = d
+                .entries
+                .iter()
+                .filter(|e| e.pos >= start && e.record.at() >= a && e.record.at() < b)
+                .cloned()
+                .collect();
+            let reading = read(&mut conn, Some(&d.store), start, None, Some((a, b)))
+                .map_err(|e| format!("{name}: {e}"))?;
+            if !same(&reading.entries, &want) {
+                return Err(format!(
+                    "{name}: {} entries served, want {}",
+                    reading.entries.len(),
+                    want.len()
+                ));
+            }
+        }
     }
     Ok(())
 }

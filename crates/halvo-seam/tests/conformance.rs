@@ -63,6 +63,9 @@ enum Fault {
     OpenWithKindsWhileOpenServes,
     PhantomAfterTheRefusedOpenAtTheWatermark,
     RangedReadEndsAtTheFirstAtFromItsEnd,
+    RangedReadEndsAtTheFirstAtPastItsEnd,
+    RangedReadEndsWhenABatchStartsFromItsEnd,
+    RangedReadDropsAnAtBelowOneServed,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -311,6 +314,16 @@ struct Wrong {
     cut: Option<TimeRange>,
 }
 
+fn cuts(fault: Fault) -> bool {
+    matches!(
+        fault,
+        RangedReadEndsAtTheFirstAtFromItsEnd
+            | RangedReadEndsAtTheFirstAtPastItsEnd
+            | RangedReadEndsWhenABatchStartsFromItsEnd
+            | RangedReadDropsAnAtBelowOneServed
+    )
+}
+
 fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
     open.range()?;
     match open.store() {
@@ -323,7 +336,7 @@ fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
 impl Wrong {
     fn open(&mut self, t: &mut FixtureTransport, asked: &OpenCursor) -> ServerMessage {
         let unranged = match self.fault {
-            RangedReadEndsAtTheFirstAtFromItsEnd => without_range(asked),
+            fault if cuts(fault) => without_range(asked),
             _ => None,
         };
         let open = unranged.as_ref().unwrap_or(asked);
@@ -488,14 +501,23 @@ impl Wrong {
         };
         self.reads += 1;
         self.cursor_reads += 1;
-        if let (RangedReadEndsAtTheFirstAtFromItsEnd, Some(range)) = (self.fault, self.cut) {
-            let mut kept = Vec::new();
-            for e in std::mem::take(&mut b.records) {
-                if e.record.at() >= range.end() {
+        if let (Some(range), true) = (self.cut, cuts(self.fault)) {
+            let mut kept: Vec<Entry> = Vec::new();
+            for (i, e) in std::mem::take(&mut b.records).into_iter().enumerate() {
+                let at = e.record.at();
+                let ends = match self.fault {
+                    RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
+                    RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
+                    RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
+                    _ => false,
+                };
+                if ends {
                     b.next = b.watermark;
                     break;
                 }
-                if range.contains(e.record.at()) {
+                let below = self.fault == RangedReadDropsAnAtBelowOneServed
+                    && kept.last().is_some_and(|k| at < k.record.at());
+                if range.contains(at) && !below {
                     kept.push(e);
                 }
             }
@@ -913,6 +935,18 @@ fn conformance_filters_step_back() {
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4",
+        ),
+        (
+            RangedReadEndsAtTheFirstAtPastItsEnd,
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4",
+        ),
+        (
+            RangedReadEndsWhenABatchStartsFromItsEnd,
+            "the range of set D up to the pointer before its step back from {seg 1, idx 3}: 0 entries served, want 1",
+        ),
+        (
+            RangedReadDropsAnAtBelowOneServed,
+            "the range of set D from the keystroke of its step back: 1 entries served, want 2",
         ),
         (
             LoadRoundsTheStepBackAway,
