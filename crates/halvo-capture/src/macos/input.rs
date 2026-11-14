@@ -427,12 +427,22 @@ struct OwnTake {
     hold: SharedHold,
     counters: InputCounters,
     stop: Arc<AtomicBool>,
+    #[cfg(feature = "stall-seam")]
+    drops: Option<DropCounts>,
+    #[cfg(feature = "stall-seam")]
+    clock: fn() -> Monotonic,
 }
 
 impl OwnTake {
     fn taken(&self) {
         let stopped = self.stop.load(Ordering::SeqCst);
         let dropped = lock(&self.hold).keys.drop_all();
+        #[cfg(feature = "stall-seam")]
+        if let (Some(drops), true) = (&self.drops, dropped > 0) {
+            let cause = if stopped { Cause::Stop } else { Cause::OwnTake };
+            drops.count(cause);
+            drops.dropped(cause, dropped, Some((self.clock)().0));
+        }
         if dropped > 0 && !stopped {
             self.counters.withhold();
         }
@@ -524,6 +534,11 @@ pub enum Arrived {
     Withheld { cause: Cause, dropped: usize },
 }
 
+/// One raw entry of the hold as a test build reads it, times on
+/// CLOCK_MONOTONIC_RAW in nanoseconds. A release and a drop carry the before
+/// stamp of the reading that made them; a drop that took no reading (a stop at
+/// an event or a tick, the daemon's own take, the tap switched off) carries a
+/// stamp of its own and is marked unread.
 #[cfg(feature = "stall-seam")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawEntry {
@@ -545,6 +560,7 @@ pub enum RawEntry {
         at: u64,
         cause: Cause,
         keys: usize,
+        unread: bool,
     },
 }
 
@@ -705,9 +721,14 @@ impl DropCounts {
         self.push(RawEntry::Released { at });
     }
 
-    fn dropped(&self, cause: Cause, keys: usize) {
-        let at = self.last_before();
-        self.push(RawEntry::Dropped { at, cause, keys });
+    fn dropped(&self, cause: Cause, keys: usize, own: Option<u64>) {
+        let at = own.unwrap_or_else(|| self.last_before());
+        self.push(RawEntry::Dropped {
+            at,
+            cause,
+            keys,
+            unread: own.is_some(),
+        });
     }
 
     /// The count of raw entries dropped because the log was full.
@@ -807,6 +828,14 @@ impl TapContext {
     }
 
     fn dropped(&self, keys: usize, cause: Cause) {
+        self.drop_with(keys, cause, false);
+    }
+
+    fn dropped_unread(&self, keys: usize, cause: Cause) {
+        self.drop_with(keys, cause, true);
+    }
+
+    fn drop_with(&self, keys: usize, cause: Cause, unread: bool) {
         let cause = if self.stop.load(Ordering::SeqCst) {
             Cause::Stop
         } else {
@@ -816,9 +845,12 @@ impl TapContext {
         if keys > 0 {
             if let Some(drops) = &self.drops {
                 drops.count(cause);
-                drops.dropped(cause, keys);
+                let own = unread.then(|| (self.clocks.monotonic)().0);
+                drops.dropped(cause, keys, own);
             }
         }
+        #[cfg(not(feature = "stall-seam"))]
+        let _ = unread;
         if keys > 0 && cause.withholds() {
             self.counters.withhold();
         }
@@ -864,7 +896,8 @@ impl TapContext {
                 Step::Released(key) => key,
             };
             if self.stop.load(Ordering::SeqCst) {
-                state.keys.drop_all();
+                let keys = state.keys.drop_all() + 1;
+                self.dropped(keys, Cause::Stop);
                 return;
             }
             let emitted = emit_metadata_only(
@@ -875,7 +908,8 @@ impl TapContext {
                 key.instant,
             );
             if emitted.is_err() {
-                state.keys.drop_all();
+                let keys = state.keys.drop_all() + 1;
+                self.dropped(keys, Cause::Refused);
                 return;
             }
             #[cfg(feature = "stall-seam")]
@@ -930,7 +964,7 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
         let stopped = ctx.stop.load(Ordering::SeqCst);
         state.flags = None;
         let keys = state.keys.drop_all();
-        ctx.dropped(keys, Cause::TapSwitchedOff);
+        ctx.dropped_unread(keys, Cause::TapSwitchedOff);
         ctx.settle_timer(&mut state);
         drop(state);
         if !stopped {
@@ -944,7 +978,8 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
         return;
     }
     if ctx.stop.load(Ordering::SeqCst) {
-        state.keys.drop_all();
+        let keys = state.keys.drop_all();
+        ctx.dropped_unread(keys, Cause::Stop);
     } else {
         #[cfg(feature = "stall-seam")]
         ctx.mark(Caller::Event);
@@ -971,6 +1006,13 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
                 state.keys.late_reading(at, at_reading)
             }
             _ => state.keys.reading(reading, at),
+        };
+        let step = match step {
+            Step::Dropped { keys, cause } => {
+                ctx.dropped(keys, cause);
+                Step::Waiting
+            }
+            other => other,
         };
         if kind == Kind::Key {
             let lag = match at_reading {
@@ -1005,7 +1047,8 @@ fn on_reading_tick(ctx: &TapContext) {
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
     if ctx.stop.load(Ordering::SeqCst) {
-        state.keys.drop_all();
+        let keys = state.keys.drop_all();
+        ctx.dropped_unread(keys, Cause::Stop);
     } else {
         #[cfg(feature = "stall-seam")]
         ctx.mark(Caller::Tick);
@@ -1490,6 +1533,10 @@ impl InputSource {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
             stop: stop.clone(),
+            #[cfg(feature = "stall-seam")]
+            drops: ctx.drops.clone(),
+            #[cfg(feature = "stall-seam")]
+            clock: ctx.clocks.monotonic,
         };
         let started = TapThread::spawn(
             move || install_tap(ctx, settings, maker),
@@ -2298,12 +2345,198 @@ mod tests {
                 hold: held.ctx.hold.clone(),
                 counters: held.counters.clone(),
                 stop: held.ctx.stop.clone(),
+                drops: held.ctx.drops.clone(),
+                clock: held.ctx.clocks.monotonic,
             }),
         };
         slot.take();
         assert_eq!(held_now(&held.ctx), 0);
         assert!(!held.counters.figures().keys_withheld);
         drop(slot);
+    }
+
+    fn only_drop(entries: &[RawEntry]) -> (u64, Cause, usize, bool, u64) {
+        let at_drop = entries
+            .iter()
+            .position(|entry| matches!(entry, RawEntry::Dropped { .. }))
+            .expect("a drop entry");
+        let last_reading = entries[..at_drop]
+            .iter()
+            .rev()
+            .find_map(|entry| match *entry {
+                RawEntry::Reading { before, .. } => Some(before),
+                _ => None,
+            })
+            .unwrap_or(0);
+        let drops = entries
+            .iter()
+            .filter(|entry| matches!(entry, RawEntry::Dropped { .. }))
+            .count();
+        assert_eq!(drops, 1, "one drop entry: {entries:?}");
+        match entries[at_drop] {
+            RawEntry::Dropped {
+                at,
+                cause,
+                keys,
+                unread,
+            } => (at, cause, keys, unread, last_reading),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn the_seam_counts_and_enters_every_drop_by_its_cause() {
+        for case in [
+            "own_take",
+            "stop_at_tick",
+            "stop_at_event",
+            "tap_off",
+            "refused",
+            "stop_in_release",
+        ] {
+            let (held, drops) = seam_held(1_000);
+            key_down(&held.ctx);
+            key_down(&held.ctx);
+            if case != "stop_in_release" {
+                stall(5 * MS);
+            }
+            let mut writer = Some(held.writer);
+            let (cause, keys, unread) = match case {
+                "own_take" => {
+                    OwnTake {
+                        hold: held.ctx.hold.clone(),
+                        counters: held.counters.clone(),
+                        stop: held.ctx.stop.clone(),
+                        drops: held.ctx.drops.clone(),
+                        clock: held.ctx.clocks.monotonic,
+                    }
+                    .taken();
+                    (Cause::OwnTake, 2, true)
+                }
+                "stop_at_tick" => {
+                    held.ctx.stop.store(true, Ordering::SeqCst);
+                    tick(&held.ctx);
+                    (Cause::Stop, 2, true)
+                }
+                "stop_at_event" => {
+                    held.ctx.stop.store(true, Ordering::SeqCst);
+                    on_tap_event(&held.ctx, event(CGEventType::KeyDown));
+                    (Cause::Stop, 2, true)
+                }
+                "tap_off" => {
+                    on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
+                    (Cause::TapSwitchedOff, 2, true)
+                }
+                "refused" => {
+                    drop(writer.take());
+                    ticks(&held.ctx, 1_000);
+                    (Cause::Refused, 2, false)
+                }
+                _ => {
+                    ticks(&held.ctx, 990);
+                    let stop = held.ctx.stop.clone();
+                    STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 2, stop)));
+                    JUMP_AT_ASK.with(|jump| jump.set(Some(asked() + 2)));
+                    tick(&held.ctx);
+                    assert_eq!(keystrokes(writer.as_ref().expect("the writer")), 1);
+                    (Cause::Stop, 1, false)
+                }
+            };
+            let entries = drops.take_entries();
+            let (at, entered, entered_keys, entered_unread, last_reading) = only_drop(&entries);
+            assert_eq!(
+                (entered, entered_keys, entered_unread),
+                (cause, keys, unread),
+                "{case}: {entries:?}"
+            );
+            let want = if unread {
+                MONOTONIC.with(Cell::get)
+            } else {
+                last_reading
+            };
+            assert_eq!(
+                at, want,
+                "{case}: a drop that took no reading carries its own stamp, any other the stamp of the reading that made it"
+            );
+            let name = CAUSES
+                .iter()
+                .find(|&&(listed, _)| listed == cause)
+                .map(|&(_, name)| name)
+                .expect("a named cause");
+            assert_eq!(drops.of(name), 1, "{case}");
+            assert_eq!(held_now(&held.ctx), 0, "{case}");
+        }
+    }
+
+    fn replayed_fates(entries: &[RawEntry]) -> Vec<String> {
+        let mut fates: Vec<String> = Vec::new();
+        let mut held: Vec<usize> = Vec::new();
+        for entry in entries {
+            match *entry {
+                RawEntry::Arrival { admission, .. } => match admission {
+                    Arrived::Held => {
+                        held.push(fates.len());
+                        fates.push(String::from("held"));
+                    }
+                    Arrived::Suppressed => fates.push(String::from("suppressed")),
+                    Arrived::Withheld { cause, dropped } => {
+                        assert_eq!(
+                            dropped,
+                            held.len(),
+                            "a withheld arrival drops every held key"
+                        );
+                        for index in held.drain(..) {
+                            fates[index] = format!("dropped {cause:?}");
+                        }
+                        fates.push(format!("withheld {cause:?}"));
+                    }
+                },
+                RawEntry::Released { .. } => {
+                    let index = held.remove(0);
+                    fates[index] = String::from("released");
+                }
+                RawEntry::Dropped { cause, keys, .. } => {
+                    assert_eq!(
+                        keys,
+                        held.len(),
+                        "a drop takes every key held at that point of the log"
+                    );
+                    for index in held.drain(..) {
+                        fates[index] = format!("dropped {cause:?}");
+                    }
+                }
+                RawEntry::Reading { .. } => {}
+            }
+        }
+        fates
+    }
+
+    #[test]
+    fn a_replay_of_the_log_in_its_order_gives_each_key_its_true_fate() {
+        let (held, drops) = seam_held(100);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        stall(40 * MS);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 120);
+        key_down(&held.ctx);
+        key_down(&held.ctx);
+        answer(Reading::On);
+        key_down(&held.ctx);
+        assert_eq!(keystrokes(&held.writer), 1);
+        assert_eq!(
+            replayed_fates(&drops.take_entries()),
+            [
+                "dropped Gap",
+                "dropped Gap",
+                "released",
+                "dropped On",
+                "dropped On",
+                "suppressed"
+            ],
+            "the third key's own reading found the gap that dropped the first two, and the sixth key's \
+             own reading of on dropped the two before it"
+        );
     }
 
     #[test]
@@ -2843,6 +3076,8 @@ mod tests {
                 hold: held.ctx.hold.clone(),
                 counters: held.counters.clone(),
                 stop: held.ctx.stop.clone(),
+                drops: held.ctx.drops.clone(),
+                clock: held.ctx.clocks.monotonic,
             }),
         };
         slot.take();
@@ -3272,6 +3507,7 @@ mod tests {
                 at: ms(113),
                 cause: Cause::On,
                 keys: 1,
+                unread: false,
             },
             reading(114, Reading::On, Caller::Event, 0),
             RawEntry::Arrival {

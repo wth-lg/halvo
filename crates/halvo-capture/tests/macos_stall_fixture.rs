@@ -2164,7 +2164,9 @@ fn key_fates(entries: &[RawEntry]) -> Vec<(u64, String, Option<u64>)> {
             RawEntry::Released { at } => {
                 resolve(&mut fates, &mut held, 1, String::from("released"), at);
             }
-            RawEntry::Dropped { at, cause, keys } => {
+            RawEntry::Dropped {
+                at, cause, keys, ..
+            } => {
                 let fate = format!("dropped_{cause:?}").to_lowercase();
                 resolve(&mut fates, &mut held, keys, fate, at);
             }
@@ -2309,6 +2311,7 @@ fn on_drop_at(ms: u64) -> RawEntry {
         at: ms_ns(ms),
         cause: Cause::On,
         keys: 8,
+        unread: false,
     }
 }
 
@@ -2701,6 +2704,7 @@ fn the_on_time_and_the_fates_of_the_keys_are_read_from_the_raw_entries() {
             at: 7,
             cause: Cause::On,
             keys: 2,
+            unread: false,
         },
         RawEntry::Arrival {
             at: 8,
