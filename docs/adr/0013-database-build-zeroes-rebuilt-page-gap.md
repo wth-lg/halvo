@@ -97,7 +97,9 @@ in the draws of the tests", with the limits below.
   unit store-4 removes it (rulings A2 and E11 of that run's contract).
 - The structural check reads every page of the file by the database's own
   layout after each round and requires zero in every byte that holds no cell,
-  no header and no pointer, a cell of fewer than 4 bytes included. Its rules
+  no header and no pointer, a cell of fewer than 4 bytes included, and that
+  every page that dbstat names overflow is walked by exactly one chain of the
+  cells that it reads. Its rules
   stand in tests/page_gap/rules.rs, which uses rusqlite alone so that another
   crate's tests can include it; its `plants` function plants a byte in each
   place that it reads in a copy of a caller's own image. Its allowances are
@@ -148,7 +150,18 @@ in the draws of the tests", with the limits below.
   rebuilt-page-gap-not-zeroed and edited-page-gap-not-zeroed take each
   statement out. A narrowing of the editPage statement to the bytes of line
   81461 is caught by the structural check alone: the byte search does not see
-  it in the draws.
+  it in the draws. The tests page_gap::holes hold a control for each rule of
+  the search and the check that the draws do not reach: a checkpoint that
+  does not truncate (the log's own line), 4 bytes of text planted past the
+  stale run of a gap with the store closed and with it open, a removed marker
+  written after a close and one in a file of another name, a stored marker
+  that no file holds, a marker that the test never wrote, a byte planted at
+  each end of the places that the check reads (a freelist trunk past its
+  count, an overflow tail, the first bytes of a freelist leaf, header byte 55,
+  the last byte of a freeblock), and two index records at the bound of the
+  local payload that dbstat reads as such (a local part of 1,002 bytes, and a
+  record of 1,003 bytes that spills). The secure-delete-off control requires
+  that for at least one seed the first line is found after a single delete.
 - On a file that passes the database's integrity check, every result is as
   with the pinned source. On a page that is malformed before the edit, the
   results can differ: when the content-start field of a leaf lies above live

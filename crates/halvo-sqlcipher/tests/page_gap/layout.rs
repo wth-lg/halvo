@@ -2,7 +2,7 @@ use rusqlite::params;
 
 use super::{connect, rules, Mode, Rng, Scratch};
 
-fn small_store(mode: Mode) -> Scratch {
+pub(super) fn small_store(mode: Mode) -> Scratch {
     let scratch = Scratch::new(7, mode);
     let conn = connect(&scratch.db(), mode);
     conn.execute_batch(

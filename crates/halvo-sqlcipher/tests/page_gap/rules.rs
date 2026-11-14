@@ -9,7 +9,8 @@
 //! less 4 (stale pointers); in the tail of
 //! an overflow page and in a freelist trunk past its count, 4-byte values no
 //! larger than the page count. A leftover made only of such values is not
-//! seen. This file uses `std` and `rusqlite` alone, so that another crate's
+//! seen. Every page that dbstat names overflow must be walked by exactly one
+//! chain of the cells that the check reads. This file uses `std` and `rusqlite` alone, so that another crate's
 //! tests can include it by a path attribute; such a caller runs [`plants`] on
 //! its own images as its failing control and reads every field of
 //! [`Checked`].
@@ -251,9 +252,11 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
         }
     }
     let mut tails = Vec::new();
+    let mut walks: BTreeMap<usize, usize> = BTreeMap::new();
     for (first, mut left) in chains {
         let mut number = first;
         while number != 0 && number <= count && left > 0 {
+            *walks.entry(number).or_default() += 1;
             let page = &db[(number - 1) * size..number * size];
             let used = left.min(usable - 4);
             left -= used;
@@ -266,6 +269,14 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
                 }
             }
             number = read4(page, 0);
+        }
+    }
+    for (number, kind) in &kinds {
+        let walked = walks.get(number).copied().unwrap_or(0);
+        if kind == "overflow" && walked != 1 {
+            problems.push(format!(
+                "page {number}: an overflow page that {walked} chains of cells walk, not one"
+            ));
         }
     }
     let checked = Checked {

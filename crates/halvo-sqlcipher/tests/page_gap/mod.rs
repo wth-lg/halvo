@@ -6,6 +6,7 @@ use std::time::Instant;
 use rusqlite::{params, Connection};
 
 mod fts5;
+mod holes;
 mod layout;
 mod malformed;
 mod pins;
@@ -150,6 +151,8 @@ struct Run {
     shallow_after_deep: bool,
     cycles: u32,
     first_copy: Option<String>,
+    checkpoint_word: &'static str,
+    after_close: Option<fn(&Run)>,
 }
 
 struct Found {
@@ -177,6 +180,8 @@ impl Run {
             shallow_after_deep: false,
             cycles: 0,
             first_copy: None,
+            checkpoint_word: "TRUNCATE",
+            after_close: None,
         }
     }
 
@@ -361,7 +366,11 @@ impl Run {
     fn checkpoint(&self) {
         let busy: i64 = self
             .conn()
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+            .query_row(
+                &format!("PRAGMA wal_checkpoint({})", self.checkpoint_word),
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(busy, 0, "seed {}: the checkpoint was blocked", self.seed);
     }
@@ -605,6 +614,9 @@ impl Run {
             self.model_and_integrity();
         }
         drop(self.conn.take());
+        if let Some(plant) = self.after_close {
+            plant(self);
+        }
         let closed = self.look("after a close");
         self.conn = Some(connect(&self.scratch.db(), self.mode));
         if closed.is_some() {
@@ -671,6 +683,7 @@ fn a_removed_or_replaced_row_leaves_no_text_in_a_page_built_again_or_edited_in_p
 #[test]
 fn with_secure_delete_off_the_search_finds_a_removed_row_of_each_seed() {
     crate::initialize().unwrap();
+    let mut first_lines = Vec::new();
     for seed in SEEDS {
         let mut control = Run::new(seed, Mode::Unsecured);
         let seen = control.checked_rounds();
@@ -679,7 +692,14 @@ fn with_secure_delete_off_the_search_finds_a_removed_row_of_each_seed() {
                 .is_some_and(|p| p.contains("the removed marker")),
             "seed {seed}: with secure delete off the search found no removed marker: {seen:?}"
         );
+        first_lines.push(seen.unwrap().lines().next().unwrap_or_default().to_owned());
     }
+    assert!(
+        first_lines
+            .iter()
+            .any(|line| line.contains(" after a single delete: ")),
+        "with secure delete off no seed's first line was found after a single delete: {first_lines:?}"
+    );
 }
 
 #[test]
