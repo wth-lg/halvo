@@ -4,10 +4,10 @@ use std::panic::PanicHookInfo;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use halvo_learn_store::{Clock, LearnStep};
+use halvo_learn_store::{newest_routine, Clock, LearnStep};
 use halvo_schema::learning::names::Mark;
 use halvo_schema::learning::record::LearnRoutine;
-use halvo_schema::{RowRead, Summary, SummaryRead, WriterStep};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, WorkflowId, WriterStep};
 use serde_json::{json, Value};
 
 use crate::case::{Case, Form, Kind, Occurrence, Step, Verb};
@@ -21,6 +21,8 @@ pub const SAMPLE_PATH: &str = "fixtures/r5/trains/sample.jsonl";
 
 /// The number of trains that the sample holds (L7.2).
 pub const TRAINS: usize = 135;
+
+const WORKFLOW: u32 = 1;
 
 /// The last day of a train; the play runs the clock from day 1 to it (L7.2, L10.4).
 pub const LAST_DAY: u32 = 730;
@@ -292,23 +294,28 @@ fn summary(workflow: &str, day: u32) -> Result<(String, Summary), String> {
     Ok((json, summary))
 }
 
-/// The mark and the period of the newest `learn_routine` row of the rows, none when no row of that kind is there,
-/// or an error when a row of that kind cannot be read.
-pub fn newest(rows: &dyn RowRead) -> Result<Option<Figures>, String> {
-    let mut found: Option<LearnRoutine> = None;
+/// The mark and the period of the newest `learn_routine` row of the workflow and agent among the rows, by
+/// `halvo_learn_store::newest_routine` over the rows in the order of the read (the coordinator's ruling LM-79, item
+/// 2), none when the pair has no such row, or an error when a row of that kind cannot be read.
+pub fn newest(
+    rows: &dyn RowRead,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+) -> Result<Option<Figures>, String> {
+    let mut read: Vec<LearnRoutine> = Vec::new();
     let mut unread = false;
     rows.for_each(
         "learn_routine",
         &mut |json| match LearnRoutine::parse(json.as_bytes()) {
-            Ok(row) if found.as_ref().is_none_or(|f| row.rev > f.rev) => found = Some(row),
-            Ok(_) => {}
+            Ok(row) => read.push(row),
             Err(_) => unread = true,
         },
     );
     if unread {
         return Err("a learn_routine row that its parser refuses".to_owned());
     }
-    Ok(found.map(|row| (row.mark, row.period.map(std::num::NonZeroU32::get))))
+    Ok(newest_routine(&read, workflow, agent)
+        .map(|row| (row.mark, row.period.map(std::num::NonZeroU32::get))))
 }
 
 /// Plays one train in one stream on a memory store of its own (L10.2, L10.4): the compile on day 1, then each day
@@ -321,15 +328,19 @@ pub fn newest(rows: &dyn RowRead) -> Result<Option<Figures>, String> {
 /// which no routine row is left differs; no routine row after the compile is an error.
 pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     let case = routine_case();
-    let mut play = Play::new(&case, Arm::Admit, 1, MemoryStore::new());
+    let mut play = Play::new(&case, Arm::Admit, WORKFLOW, MemoryStore::new());
     play.host.day = 1;
     play.compile()?;
     let workflow = play.workflow().to_owned();
+    let pair = (
+        WorkflowId::parse(&workflow).map_err(|_| "the play's workflow id".to_owned())?,
+        AgentId::parse(&id('4', WORKFLOW)).map_err(|_| "the play's agent id".to_owned())?,
+    );
     let occurs: BTreeSet<u32> = train.days.iter().copied().collect();
     let mut batches = Batches(Vec::new());
     let mut played = Played::default();
     let mut figures = Some(
-        newest(play.host.store.rows(Family::Learn))?
+        newest(play.host.store.rows(Family::Learn), &pair.0, &pair.1)?
             .ok_or_else(|| "no learn_routine row".to_owned())?,
     );
     for day in 1..=LAST_DAY {
@@ -358,7 +369,7 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
             .commit(Family::Learn, records)
             .map_err(|e| format!("the step's rows of day {day} are refused: {e:?}"))?;
         if wrote || occurs_today || expired.of("learn_routine") > 0 {
-            figures = newest(play.host.store.rows(Family::Learn))?;
+            figures = newest(play.host.store.rows(Family::Learn), &pair.0, &pair.1)?;
         }
         if figures != Some(train.figures_on(day)) {
             played.differs_on = Some(day);
