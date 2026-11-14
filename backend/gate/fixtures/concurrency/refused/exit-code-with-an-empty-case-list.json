@@ -3,5 +3,6 @@
   "ruling": "the planner's Addition 27, section 1 (plan.md line 239), from reports/builder-54.md lines 102 to 107",
   "about": "an exit-code record with no case: it pins nothing; records.mjs refuses it",
   "source": "the review cases of builder-54 (evidence/builder-54/review/), written again by hand",
-  "cases": []
+  "cases": [],
+  "refusal": "its list cases is empty"
 }

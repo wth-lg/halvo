@@ -10,5 +10,6 @@
   "expect": {
     "status": 64,
     "text": ""
-  }
+  },
+  "refusal": "its expected text is empty or blank"
 }

@@ -235,37 +235,81 @@ const EXPECT_KEYS = {
 };
 const RUN_KEYS = ["key", "rigUnbuilt", "discarded", "countedAtTheDraw"];
 const READS_CASES = new Set(["main-guard", "gateway-default", "exit-code"]);
+const READS_CHUNKS = new Set(["kept-body", "kept-judge"]);
+const LISTS_OF_ATTEMPTS = ["cells", "attempts", "attemptsByRun"];
 
-function refusalsOf(record) {
+function duplicateKeyOf(text) {
+  const open = [];
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at];
+    if (char === "{") open.push({ keys: new Set(), wantsKey: true });
+    else if (char === "[") open.push(null);
+    else if (char === "}" || char === "]") open.pop();
+    else if (char === "," && open.at(-1)) open.at(-1).wantsKey = true;
+    else if (char === '"') {
+      let end = at + 1;
+      while (text[end] !== '"') end += text[end] === "\\" ? 2 : 1;
+      const object = open.at(-1);
+      if (object?.wantsKey) {
+        const key = JSON.parse(text.slice(at, end + 1));
+        if (object.keys.has(key)) return key;
+        object.keys.add(key);
+        object.wantsKey = false;
+      }
+      at = end;
+    }
+  }
+  return null;
+}
+
+const emptyList = (value) => !Array.isArray(value) || value.length === 0;
+
+function refusalsOf(record, text) {
   const keys = EXPECT_KEYS[record.kind] ?? [];
   const refusals = Object.keys(record.expect ?? {})
     .filter((key) => !keys.includes(key))
     .map((key) => `its expect holds the key ${key}, which the reading of ${record.kind} does not read`);
+  const duplicate = duplicateKeyOf(text);
+  if (duplicate !== null) refusals.push(`its JSON holds the key ${duplicate} twice in one object, and JSON.parse keeps the last`);
   if (record.kind === "attempts") {
-    for (const run of record.expect?.runs ?? []) {
+    for (const name of LISTS_OF_ATTEMPTS.filter((each) => Object.hasOwn(record, each))) {
+      if (emptyList(record[name])) refusals.push(`its list ${name} is empty, so it pins nothing`);
+    }
+    for (const [cell, list] of Object.entries(record.attemptsByCell ?? {})) {
+      if (emptyList(list)) refusals.push(`its list attemptsByCell.${cell} is empty, so it pins nothing`);
+    }
+    if (Object.keys(record.expect ?? {}).length === 0) refusals.push("its expect holds no key, so the reading of attempts checks nothing");
+    if (Object.hasOwn(record.expect ?? {}, "runs") && emptyList(record.expect.runs)) refusals.push("its list expect.runs is empty, so it pins nothing");
+    for (const run of Array.isArray(record.expect?.runs) ? record.expect.runs : []) {
+      if (Object.keys(run).length === 0) refusals.push("a run of its expect holds no key, so it pins nothing");
       for (const key of Object.keys(run).filter((each) => !RUN_KEYS.includes(each))) refusals.push(`a run of its expect holds the key ${key}, which the reading of attempts does not read`);
     }
   }
-  if (READS_CASES.has(record.kind) && !(Array.isArray(record.cases) && record.cases.length > 0)) refusals.push("its case list is empty, so it pins nothing");
+  if (READS_CASES.has(record.kind) && emptyList(record.cases)) refusals.push("its list cases is empty, so it pins nothing");
+  if (READS_CHUNKS.has(record.kind)) {
+    if (emptyList(record.chunks)) refusals.push("its list chunks is empty, so it pins nothing");
+    else if (record.chunks.some((chunks) => emptyList(chunks) || chunks.every((chunk) => chunk === ""))) refusals.push("a list of its chunks is empty or holds only empty chunks, so it pins nothing");
+  }
   if (record.kind === "main-guard") {
     for (const each of record.cases ?? []) {
       if (!Object.hasOwn(MAIN_GUARD_ARGV1, each.argv1)) refusals.push(`the argv1 ${JSON.stringify(each.argv1)} of a case is none of ${Object.keys(MAIN_GUARD_ARGV1).join(", ")}`);
     }
   }
-  if (record.kind === "script-run" && !(typeof record.expect?.text === "string" && record.expect.text !== "")) refusals.push("its expected text is empty, and every output includes an empty text");
+  if (record.kind === "script-run" && !(typeof record.expect?.text === "string" && record.expect.text.trim() !== "")) refusals.push("its expected text is empty or blank, and every output includes such a text");
   return refusals;
 }
 
 const REFUSAL = "refused: ";
 async function resultOf(path) {
   try {
-    const record = JSON.parse(readFileSync(path, "utf8"));
-    const refusals = refusalsOf(record);
-    if (refusals.length > 0) return { good: null, problems: refusals.map((refusal) => `${REFUSAL}${refusal}`) };
+    const text = readFileSync(path, "utf8");
+    const record = JSON.parse(text);
+    const refusals = refusalsOf(record, text);
+    if (refusals.length > 0) return { record, good: null, problems: refusals.map((refusal) => `${REFUSAL}${refusal}`) };
     const reading = READINGS[record.kind];
-    return reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
+    return { record, ...(reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] }) };
   } catch (error) {
-    return { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
+    return { record: null, good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
   }
 }
 
@@ -277,19 +321,19 @@ const refusedFiles = existsSync(REFUSED)
   : [];
 let failed = 0;
 let refusedAsExpected = 0;
-if (refusedFiles.length === 0) {
-  failed++;
-  console.log("self-test concurrency: refused records: no record under gate/fixtures/concurrency/refused");
-}
+if (refusedFiles.length === 0) failed++;
 for (const file of refusedFiles) {
   const name = file.slice(0, -".json".length);
   const result = await resultOf(join(REFUSED, file));
-  if (result.problems.length > 0 && result.problems.every((problem) => problem.startsWith(REFUSAL))) {
+  const cause = result.record?.refusal;
+  const refused = result.problems.length > 0 && result.problems.every((problem) => problem.startsWith(REFUSAL));
+  if (refused && typeof cause === "string" && cause !== "" && result.problems.some((problem) => problem.includes(cause))) {
     refusedAsExpected++;
-    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${result.problems.join("; ")}`);
+    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${cause}`);
   } else {
     failed++;
-    console.log(`self-test concurrency: refused record ${name}: not refused, where it pins nothing${result.problems.length > 0 ? ` (${result.problems.join("; ")})` : ""}`);
+    const why = refused ? `refused, but not for its named cause ${JSON.stringify(cause)}: ` : "";
+    console.log(`self-test concurrency: refused record-${name}: not refused as expected: ${why}${result.problems.join("; ") || "accepted"}`);
   }
 }
 console.log(`concurrency: refused records: ${refusedAsExpected} of ${refusedFiles.length} refused as expected`);

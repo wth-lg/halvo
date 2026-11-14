@@ -8,5 +8,6 @@
       "argv1": "chek",
       "main": false
     }
-  ]
+  ],
+  "refusal": "the argv1 \"chek\" of a case"
 }

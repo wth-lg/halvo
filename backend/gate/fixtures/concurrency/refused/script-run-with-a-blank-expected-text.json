@@ -1,0 +1,15 @@
+{
+  "kind": "script-run",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "a script-run record whose expected text is one blank alone: every output holds a blank; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "args": [
+    "--no-such-flag",
+    "x"
+  ],
+  "expect": {
+    "status": 64,
+    "text": " "
+  },
+  "refusal": "its expected text is empty or blank"
+}
