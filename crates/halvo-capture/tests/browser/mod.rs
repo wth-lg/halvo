@@ -971,6 +971,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
         let mut closed_before_the_step = 0;
+        let mut waited_for_the_type = 0;
         for round in 0..5 {
             let _ = seam::take_marks();
             let gate_before_the_step = keyboard.source.field_state();
@@ -978,7 +979,27 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             let place = page_read(hwnd).unwrap_or_default();
             click_at(place.tx, place.ty);
             std::thread::sleep(Duration::from_millis(130));
-            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let mut start = reset(&keyboard, hwnd).unwrap_or_default();
+            let type_at_the_reset = start.plain_type.clone();
+            if start.plain_type != "text" {
+                waited_for_the_type += 1;
+                let began = Instant::now();
+                while start.plain_type != "text" && began.elapsed() < Duration::from_millis(450) {
+                    std::thread::sleep(Duration::from_millis(20));
+                    start = page_read(hwnd).unwrap_or_default();
+                }
+            }
+            if start.plain_type != "text" {
+                say(
+                    test,
+                    format!(
+                        "browser={name} phase=burst round={round} uncounted: the page's input type \
+                         after the reset is {} focus={} text={} password={}",
+                        start.plain_type, start.focus, start.text, start.password
+                    ),
+                );
+                continue;
+            }
             let front = foreground_window() == hwnd;
             let control_sent = i64::from(type_letters_slowly(3) / 2);
             let control = keyboard.keystrokes_for(Duration::from_millis(600));
@@ -1036,8 +1057,8 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                 test,
                 format!(
                     "browser={name} phase=burst round={round} gate_before_the_step={gate_before_the_step:?} \
-                     control_letters_sent={control_sent} control_keystroke_events={control} \
-                     gate_before_the_burst={gate_before:?} {}",
+                     type_at_the_reset={type_at_the_reset} control_letters_sent={control_sent} \
+                     control_keystroke_events={control} gate_before_the_burst={gate_before:?} {}",
                     r.line()
                 ),
             );
@@ -1057,7 +1078,8 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             test,
             format!(
                 "phase=burst counted={counted} password_letters_recorded={recorded} \
-                 rounds_whose_step_found_a_closed_gate={closed_before_the_step}"
+                 rounds_whose_step_found_a_closed_gate={closed_before_the_step} \
+                 rounds_that_waited_for_the_page_type={waited_for_the_type}"
             ),
         );
         out.store(recorded, Ordering::SeqCst);
