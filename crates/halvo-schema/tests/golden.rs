@@ -745,11 +745,65 @@ fn golden_names() {
     }
 }
 
+const GATEWAY_KEYS: [&str; 5] = ["effort", "max_output_tokens", "messages", "role", "content"];
+
+fn gateway_keys_held(path: &Path) -> Result<(), Vec<&'static str>> {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let held: Vec<&'static str> = GATEWAY_KEYS
+        .into_iter()
+        .filter(|key| text.lines().any(|line| line == *key))
+        .collect();
+    if held.is_empty() {
+        Ok(())
+    } else {
+        Err(held)
+    }
+}
+
+fn names_copy_with(dir: &Path, file: &str, added: &[&str]) -> PathBuf {
+    let committed = committed("names.txt");
+    let mut lines: Vec<&str> = committed.lines().chain(added.iter().copied()).collect();
+    lines.sort_unstable();
+    let path = dir.join(file);
+    std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+    path
+}
+
 #[test]
-fn the_committed_names_file_holds_no_line_role() {
+fn the_committed_names_file_holds_none_of_the_five_gateway_keys() {
+    if let Err(held) = gateway_keys_held(&golden("names.txt")) {
+        panic!("tests/golden/names.txt holds the gateway keys {held:?} as lines, which contracts.md C1.10 keeps out of it");
+    }
+}
+
+#[test]
+fn a_copy_of_the_names_file_with_one_gateway_key_added_fails_the_check_for_that_key() {
+    let held = leaf("golden-gateway-keys");
+    let missed: Vec<(&str, Result<(), Vec<&str>>)> = GATEWAY_KEYS
+        .into_iter()
+        .map(|key| {
+            let copy = names_copy_with(held.path(), &format!("names-{key}.txt"), &[key]);
+            (key, gateway_keys_held(&copy))
+        })
+        .filter(|(key, answer)| *answer != Err(vec![*key]))
+        .collect();
     assert!(
-        !committed("names.txt").lines().any(|line| line == "role"),
-        "tests/golden/names.txt holds the line role, which contracts.md C1.10 keeps out of it"
+        missed.is_empty(),
+        "copies of the names file with one gateway key added, and what the check answered: {missed:?}"
+    );
+    let near = [
+        "roles",
+        "Role",
+        " role",
+        "role ",
+        "contents",
+        "max_output_token",
+        "efforts",
+    ];
+    assert_eq!(
+        gateway_keys_held(&names_copy_with(held.path(), "names-near.txt", &near)),
+        Ok(()),
+        "a line that only resembles a gateway key fails the check"
     );
 }
 
