@@ -638,3 +638,58 @@ describe("what the one-rule changes of unit 5.5's record asked for", () => {
     done(w);
   });
 });
+
+describe("the line after the commit, and events that are no case (ruling P7-100, J4 and J5)", () => {
+  const LINE = '{"event":"cancel-overrides-order"}';
+  const NO_CASE = [ACTIVE, at("evt_failed_no_case", 3, "payment-failed"), ACTIVE_AGAIN, FAILED_AFTER];
+
+  test("J4: the line is written after the step's commit: a stop between the commit and the line keeps the mark and writes no line, and a redelivery of the id writes none", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    await deliver(w, [CANCEL]);
+    const commit = w.host.step;
+    let armed = true;
+    w.host.step = ((run: Parameters<typeof commit>[0]) => {
+      const value = commit(run);
+      if (armed) {
+        armed = false;
+        const error = new Error("the object stopped after the commit");
+        error.name = "ObjectStoppedError";
+        throw error;
+      }
+      return value;
+    }) as typeof commit;
+    w.restart();
+    const lines: string[] = [];
+    let thrown = "";
+    await quiet(lines, () => w.entries().webhookEvent(ACTIVE_AGAIN)).catch((error: Error) => {
+      thrown = error.name;
+    });
+    const mark = markOf(await account(w));
+    await deliver(w, [ACTIVE_AGAIN], lines);
+    const once = { m1_count: 1, m1_newest: START + 6 * MINUTE, m2_count: 0, m2_newest: null };
+    expect({ thrown, lines, mark, again: markOf(await account(w)) }).toEqual({ thrown: "ObjectStoppedError", lines: [], mark: once, again: once });
+    done(w);
+  });
+
+  test("J5: in all 24 orders four events that are not a cancel leave no mark on an account, on each kept event and on the account made from them, and write no line", { timeout: 120_000 }, async () => {
+    const seen: unknown[] = [];
+    for (const order of orders(NO_CASE)) {
+      const lines: string[] = [];
+      const seeded = await world();
+      await seeded.clock(START + 10 * MINUTE);
+      await deliver(seeded, order, lines);
+      const onTheAccount = markOf(await account(seeded));
+      done(seeded);
+      const kept = await pending();
+      await kept.clock(START + 10 * MINUTE);
+      await deliver(kept, order, lines);
+      const onTheKeptEvents = ((await kept.tables()).kept_event ?? []).map(markOf);
+      await deliver(kept, [COMPLETED], lines);
+      const onTheMadeAccount = markOf(await account(kept));
+      done(kept);
+      seen.push({ onTheAccount, onTheKeptEvents, onTheMadeAccount, lines: lines.filter((line) => line === LINE) });
+    }
+    expect(seen).toEqual(Array(24).fill({ onTheAccount: NO_MARK, onTheKeptEvents: [NO_MARK], onTheMadeAccount: NO_MARK, lines: [] }));
+  });
+});

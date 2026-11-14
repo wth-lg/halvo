@@ -44,7 +44,7 @@ test/ledger/rollback.node.test.ts	22
 test/ledger/rollback.test.ts	22
 test/ledger/rule.node.test.ts	12
 test/ledger/test-clock.node.test.ts	2
-test/metering/cancel-final.node.test.ts	35
+test/metering/cancel-final.node.test.ts	37
 test/metering/cancel.node.test.ts	7
 test/metering/closed-list-tests.node.test.ts	4
 test/metering/closed-list.node.test.ts	4
