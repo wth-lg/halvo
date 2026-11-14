@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: a second click at the point of "Delete everything" lands on no control that deletes
+# lane: alone
 set -u
 name=31-app-page-layout
 probe=ui/tests/layout/delete-confirm.swift

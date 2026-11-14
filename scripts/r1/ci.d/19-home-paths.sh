@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not; it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# lane: free
 set -u
 name=19-home-paths
 

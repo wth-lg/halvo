@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: TLC finds none of the eleven invariants of the spend model's Spend.cfg violated, the machine of one hold gives every committed trace with all 30 pairs and 8 causes, the replay control accepts each of its right traces and refuses each of its wrong ones, and each of the two controls breaks its one invariant; the macos job alone runs it, because the model and the checker, one pinned jar, are the same on both systems and the windows job printed the same lines of T7.6 in run 43294110696; what the check holds and what it does not see stands in formal/r6-spend/README.md, section "The check 55-r6-formal.sh".
+# lane: free
 set -u
 name=55-r6-formal
 model=formal/r6-spend

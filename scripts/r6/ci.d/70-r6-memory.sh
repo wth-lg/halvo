@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Five runs of route-gate probe --rounds 100000 under measure-peak at a limit of 16777216 bytes each exit 0 with no read above the limit, and the bound of their median, 8 MiB times the ceiling of 5 times the median over 32 MiB, is at or under that limit; a pass says that no read was above the limit and never that the probe held no more, the reading does not count child-process, exec, mapped-read, mapped-written, purgeable, reusable, kernel-message or socket-buffer memory on macOS, or child-process, mapped-file, section or broker-process memory on Windows, the binary measured is the one whose path cargo's artifact line of a fresh build gives, and code that runs while cargo builds and a program named cargo earlier on the PATH are the job's environment, which the check trusts.
+# lane: alone
 set -u
 name=70-r6-memory
 limit=16777216

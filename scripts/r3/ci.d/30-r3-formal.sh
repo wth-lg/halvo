@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 637933 and 61728 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of twelve controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL
