@@ -1853,3 +1853,57 @@ fn a_start_whose_read_brings_the_ready_item_closes_it_though_step_7_or_8_fails()
         assert_eq!(w.facts(0).doing, Doing::Idle(None), "{step:?}");
     }
 }
+
+#[test]
+fn a_switch_off_whose_read_brings_an_open_ready_item_stores_hold_set_alone_and_leaves_it_open() {
+    let mut w = world(&[PERSON]);
+    let ready = ready_raised_with_a_lost_acknowledgement(&mut w);
+    let from = w.ports.tried.borrow().len();
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        whats(&acknowledged_bodies_from(&w, 0, from)),
+        vec![vec![What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Person,
+        }]]
+    );
+    assert!(closes(&w, &ready).is_empty(), "the ready item stays open");
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(OwnItem {
+            item: ready,
+            kind: OwnItemKind::Ready,
+        })),
+        "the board holds the item that the read brought"
+    );
+}
+
+#[test]
+fn a_start_whose_log_meets_seq_for_another_writers_event_answers_its_ready_item_once() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let ready = ready_item(&w, 0);
+    stored_unacknowledged(
+        &w,
+        0,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Failures,
+        },
+    );
+    let from = w.ports.tried.borrow().len();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Ok(Answer::Ok));
+    let run = start.report.run.clone().unwrap();
+    let refused = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!((&t.call, &t.refused), (Call::Log(_), Some(PortError::Refused(name))) if name.as_str() == "seq"))
+        .count();
+    assert_eq!(refused, 1, "the start's log meets seq");
+    let bodies = acknowledged_bodies_from(&w, 0, from);
+    assert!(
+        answers_then_starts(&bodies, &ready, &run),
+        "{:?}",
+        whats(&bodies)
+    );
+    assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
+}
