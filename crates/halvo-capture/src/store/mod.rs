@@ -133,8 +133,10 @@ impl fmt::Display for Met {
 }
 
 /// What a delete says of the store's root. `Destroyed`: this call, or an
-/// earlier call on the same handle, removed that root's file itself, and the
-/// last reading of the roots directory shows none. `Left`: a root may stand,
+/// earlier call on the same handle, removed that root's file itself at the
+/// root's own name (a regular file that is not empty and, off Windows, of the
+/// root file's length; an all-zero file of that length counts), and the last
+/// reading of the roots directory shows none (ruling ST-45 H4). `Left`: a root may stand,
 /// the one named when the call knows its id. `Unnamed`: nothing that the call
 /// could read names a root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

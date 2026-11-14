@@ -12,6 +12,27 @@ use crate::store::RootReading;
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
 
+/// The length of a root, from which the code writes a root file.
+const ROOT_LEN: usize = 32;
+
+/// The length of a root file where the build's root file has a fixed
+/// length: off Windows the root file holds the root as it is, and on
+/// Windows its protected form has no fixed length (ruling ST-45 H4).
+#[cfg(not(windows))]
+const ROOT_FILE_LEN: Option<u64> = Some(ROOT_LEN as u64);
+#[cfg(windows)]
+const ROOT_FILE_LEN: Option<u64> = None;
+
+/// Whether an entry at a root's own name can be that root's file: a regular
+/// file that is not empty and, where the root file has a fixed length, of
+/// that length. An all-zero file of that length counts, so that a delete
+/// stopped after its zeros resumes (ruling ST-45 H4).
+fn can_be_the_root_file(entry: &durable::Entry) -> bool {
+    entry.kind == EntryKind::File
+        && entry.len > 0
+        && ROOT_FILE_LEN.is_none_or(|len| entry.len == len)
+}
+
 pub(crate) trait Protector {
     fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError>;
     fn unprotect(&self, blob: &[u8], label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError>;
@@ -164,8 +185,13 @@ pub(crate) enum RootStepForm {
 /// partial root file, named or not, and reads nothing at the roots path as
 /// an answer: listed and empty when nothing names a root, the root left and
 /// not listed when one is named. The root reads destroyed only when one is
-/// named and this call removed its entries and none stays; left when one is
-/// named and not removed; unnamed when nothing names one. A roots path that
+/// named and this call removed, at the root's own name in any letter case, a
+/// file that can be the root's file (a partial name alone is no witness),
+/// and no entry of the root stays; left when one is named and not removed;
+/// unnamed when nothing names one. An entry at the root's own name that
+/// cannot be its file (a link, an entry of another kind, an empty file, or
+/// off Windows a file of another length) is removed as the entry that it
+/// is, with no zero-fill and no write through it (ruling ST-45 H4). A roots path that
 /// stands and cannot be opened or listed reads not listed. A later call on
 /// a handle whose root read destroyed does not come here (ruling ST-45 H3).
 pub(crate) fn destroy_roots_in(
@@ -197,9 +223,9 @@ pub(crate) fn destroy_roots_in(
     let Ok(entries) = dir.entries() else {
         return unread;
     };
-    let mut found: Vec<(RootFile, OsString)> = entries
+    let mut found: Vec<(RootFile, durable::Entry)> = entries
         .into_iter()
-        .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.name)))
+        .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry)))
         .collect();
     let of_named = |file: &RootFile| Some(file.id()) == named;
     if form != RootStepForm::Sweep {
@@ -211,15 +237,20 @@ pub(crate) fn destroy_roots_in(
         }
     }
     found.sort_by_key(|(file, _)| !of_named(file));
-    let mut named_entry_met = false;
+    let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
-    for (file, name) in &found {
-        let fate = destroy_root_entry(&dir, name);
-        if of_named(file) {
-            named_entry_met = true;
-            if fate != EntryFate::Gone {
-                every_named_entry_destroyed = false;
-            }
+    for (file, entry) in &found {
+        let own_name = matches!(file, RootFile::Root(_)) && of_named(file);
+        if own_name && !can_be_the_root_file(entry) {
+            let _ = dir.remove_entry(&entry.name);
+            continue;
+        }
+        let fate = destroy_root_entry(&dir, &entry.name);
+        if of_named(file) && fate != EntryFate::Gone {
+            every_named_entry_destroyed = false;
+        }
+        if own_name && fate == EntryFate::Gone {
+            own_root_file_removed = true;
         }
     }
     let _ = dir.sync();
@@ -236,7 +267,7 @@ pub(crate) fn destroy_roots_in(
             let reading = match named {
                 None => RootReading::Unnamed,
                 Some(named)
-                    if named_entry_met
+                    if own_root_file_removed
                         && every_named_entry_destroyed
                         && !stays.iter().any(|(id, _)| *id == named) =>
                 {
@@ -459,7 +490,7 @@ impl<P: Protector> FileRoots<P> {
             return Ok(None);
         }
         let plain = self.protector.unprotect(&blob, root_id.as_bytes())?;
-        if plain.len() != 32 {
+        if plain.len() != ROOT_LEN {
             return Err(CustodyError::RootCorrupt);
         }
         let mut root = Zeroizing::new([0u8; 32]);
@@ -478,7 +509,7 @@ impl<P: Protector> FileRoots<P> {
         &self,
         root_id: RootId,
     ) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        let mut root = Zeroizing::new([0u8; 32]);
+        let mut root = Zeroizing::new([0u8; ROOT_LEN]);
         fill_random(root.as_mut_slice())?;
         let blob = self
             .protector

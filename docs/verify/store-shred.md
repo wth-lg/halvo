@@ -1168,9 +1168,21 @@ What the code does since store-3, each sentence with the test that shows it.
   name, whether or not anything names a root, also beside a key file that
   this build does not handle; it opens no roots path that leads through a
   store name at which it did not open a directory itself. The root reads
-  destroyed only when a root was named and this call removed its entries,
-  left (not found) when one was named and not removed, and unnamed when
-  nothing named one. `Ok` needs the reading destroyed or unnamed and either
+  destroyed only when a root was named and this call removed, at the
+  root's own name (the root name in any letter case, never a partial name
+  alone), a regular file that is not empty and, off Windows, of the root
+  file's length of 32 bytes (an all-zero file of that length counts, so
+  that a delete stopped after its zeros resumes); left (not found) when one
+  was named and not removed; and unnamed when nothing named one. A link,
+  an entry of another kind, an empty file or, off Windows, a file of
+  another length at that name is removed as the entry that it is, with no
+  zero-fill and no write through it, and the root reads left, not found;
+  the handle's delete-all reads its root the same way (ruling ST-45 H4;
+  tests
+  `p2_c_delete_all_reads_destroyed_only_when_it_removed_the_root_file_itself`,
+  `p2_c2_the_tail_reads_destroyed_only_when_it_removed_the_root_file_and_not_a_link_to_it`,
+  `a_file_of_another_length_at_the_root_name_is_removed_unwritten_and_the_root_reads_left`,
+  `an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_removes_it`). `Ok` needs the reading destroyed or unnamed and either
   nothing at the roots path (with nothing named) or a listing after the
   removals with no root name and no partial name. Named, and no directory
   at the roots location: `DeleteIncomplete`, the root left, the roots
@@ -1432,6 +1444,12 @@ set, and the root's own volume name answers the root.
   `p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail`,
   `p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_names`,
   `a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok`.
+- What the reading destroyed rests on (ruling ST-45 H4). On Windows any
+  regular file at the root's name that is not empty counts as the root's
+  file, because the protected form has no fixed length. A root file that a
+  program renamed aside, with a file of the right length put at its name,
+  reads destroyed while the renamed file can still unwrap; binding the
+  reading to the file's identity is store-3b's.
 - The tail's sweep (ruling ST-45 H1). The roots location that a caller
   gives the tail is that data directory's own (ruling ST-32 (a)), so two
   stores that share one roots directory both lose their root at a tail.
