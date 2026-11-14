@@ -687,7 +687,7 @@ async function schedule(tasks, capacity, halted) {
   return Promise.all(running);
 }
 
-const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs"];
+const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs", "held", "firstEndBeforeTheLastAnswer"];
 const CROSSING_DRAWS_MAX = 5;
 
 async function runCounted(ctx, cell, variant, runNo, withKill) {

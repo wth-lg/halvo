@@ -287,6 +287,7 @@ export function judge({
     }
   }
   let held = null;
+  let firstEndBeforeTheLastAnswer = null;
   let streams = null;
   if (cell.kind === "wave") {
     streams = [...sent.values()].filter((request) => request.status === 200).length;
@@ -296,6 +297,9 @@ export function judge({
     });
     const lastReserveAnsweredAt = reserveAnsweredAt.length === 0 ? null : Math.max(...reserveAnsweredAt);
     held = lastReserveAnsweredAt !== null && [...rows.values()].every((row) => row.ended_at === null || row.ended_at >= lastReserveAnsweredAt);
+    const endedEarly = lastReserveAnsweredAt === null ? [] : [...rows.values()].filter((row) => row.ended_at !== null && row.ended_at < lastReserveAnsweredAt);
+    const firstEnd = endedEarly.reduce((first, row) => (first === null || row.ended_at < first.ended_at ? row : first), null);
+    firstEndBeforeTheLastAnswer = firstEnd === null ? null : { state: firstEnd.state, ms: lastReserveAnsweredAt - firstEnd.ended_at };
     const unsent = [...rows.keys()].filter((id) => !sent.has(id)).length;
     if (held && !slow && (rows.size !== cell.k || unsent > 0)) {
       bad("wave-admits-k", null, `the held wave has ${rows.size} hold rows, ${unsent} of them under an id the driver did not send; K is ${cell.k}`);
@@ -464,6 +468,7 @@ export function judge({
       burstMedianMs,
       slowBoundMs,
       held,
+      firstEndBeforeTheLastAnswer,
       streams,
       admitted: rows.size,
       settled,

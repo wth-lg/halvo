@@ -106,6 +106,13 @@ export function lineOf({ selected, runs, halted, attempts }) {
         .map(([bound, waits]) => `${nearestRank(waits, 0.5)} ms, over the bound of ${bound} ms`)
         .join(", and ");
       failure = `${slowAttempts.length} attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was ${medians}; ${neverCounted.key} did not count in ${attempts} attempts`;
+    } else if (neverCounted && neverCounted.kind === "wave" && attemptsOf(neverCounted).every((attempt) => attempt.held === false)) {
+      const end = neverCounted.facts.firstEndBeforeTheLastAnswer;
+      const cause =
+        end === null
+          ? "no reserve of the wave was answered"
+          : `the first hold of the wave to end, ${end.state}, ended ${end.ms} ms before the last reserve of the wave was answered`;
+      failure = `${neverCounted.key} did not count in ${attemptsOf(neverCounted).length} attempts because its wave was held in none of them (ruling B-37); in the last attempt ${cause}`;
     } else if (neverCounted) {
       const facts = neverCounted.facts ?? {};
       failure = `${neverCounted.key} did not count in ${attempts} attempts (admitted ${facts.admitted ?? "unmeasured"}, holds open at the kill ${facts.openAtKill ?? "unmeasured"}, a stream in flight at the kill ${facts.streamAtKill ?? "unmeasured"}, voided ${facts.voided ?? "unmeasured"})`;
