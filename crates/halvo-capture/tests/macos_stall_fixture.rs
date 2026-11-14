@@ -177,11 +177,14 @@ fn lines_of(output: impl std::io::Read + Send + 'static) -> Receiver<String> {
 }
 
 fn ready_pid(lines: &Receiver<String>, wait: Duration) -> Result<i32, String> {
-    let line = lines.recv_timeout(wait).map_err(|_| {
-        format!(
+    let line = lines.recv_timeout(wait).map_err(|error| match error {
+        RecvTimeoutError::Timeout => format!(
             "the wait for the fixture's ready line ran out after {} ms",
             wait.as_millis()
-        )
+        ),
+        RecvTimeoutError::Disconnected => {
+            "the fixture's output ended before its ready line".to_owned()
+        }
     })?;
     line.strip_prefix("ready pid=")
         .and_then(|pid| pid.parse().ok())
