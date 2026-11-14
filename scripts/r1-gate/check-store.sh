@@ -24,12 +24,19 @@ link_line() {
   emit_pass "$name"
 }
 
+stall_guard_s=120
+
 ere_literal() {
   printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
 }
 
 check_is_past_its_fork() {
   pgrep -P "$1" -x sleep > /dev/null
+}
+
+end_check_group() {
+  perl -e "kill 'KILL', -\$ARGV[0]" "$1"
+  wait "$1"
 }
 
 hup_leaves_no_child() {
@@ -49,30 +56,54 @@ printf '%s %s\n' "$$" "$store_dir" >&3
 exec "$HUP_STANDIN" "$@"
 WRAPPER
   chmod 755 "$hup_root/standin" || return 1
-  HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
+  hup_start=$(date +%s)
+  HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
     "$1" -c "hup_wrapper=\$1; set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; standin=\$hup_wrapper; against_the_standin hang none" \
     "$DIR/check-$name.sh" "$hup_root/standin" > "$hup_root/check.out" 2>&1 3> "$hup_root/ready" &
   hup_pid=$!
-  hup_line=''
-  IFS= read -r hup_line < "$hup_root/ready"
-  if [ -z "$hup_line" ]; then
-    wait "$hup_pid"
-    hup_status=$?
-    printf 'the check ended with exit %s before its child started\n' "$hup_status"
-    return 1
-  fi
+  hup_line=$(perl -e "\$SIG{ALRM} = sub { exit 3 }; alarm \$ARGV[1]; open(my \$ready, '<', \$ARGV[0]) or exit 4; my \$line = <\$ready>; exit 1 unless defined \$line; print \$line; exit 0;" "$hup_root/ready" "$stall_guard_s")
+  case $? in
+    0) ;;
+    3)
+      end_check_group "$hup_pid"
+      printf 'the child of the check did not start within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1 ;;
+    *)
+      wait "$hup_pid"
+      hup_status=$?
+      printf 'the check ended with exit %s before its child started\n' "$hup_status"
+      return 1 ;;
+  esac
   hup_child=${hup_line%% *}
   hup_store=${hup_line#* }
   if [ ! -d "$hup_store" ]; then
-    wait "$hup_pid"
+    end_check_group "$hup_pid"
     printf 'the child of the check names no store directory after --store-dir\n'
     return 1
   fi
+  hup_until=$((hup_start + stall_guard_s))
   until check_is_past_its_fork "$hup_pid"; do
     kill -0 "$hup_pid" 2> /dev/null || break
+    hup_now=$(date +%s)
+    if [ "$hup_now" -ge "$hup_until" ]; then
+      end_check_group "$hup_pid"
+      printf 'the check did not start to watch its child within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1
+    fi
     sleep 0.1
   done
   kill -HUP "$hup_pid"
+  hup_now=$(date +%s)
+  hup_until=$((hup_now + stall_guard_s))
+  while kill -0 "$hup_pid" 2> /dev/null; do
+    hup_now=$(date +%s)
+    if [ "$hup_now" -ge "$hup_until" ]; then
+      end_check_group "$hup_pid"
+      printf 'the check did not end within the guard of %s s against a stall after HUP\n' "$stall_guard_s"
+      return 1
+    fi
+    sleep 0.1
+  done
   wait "$hup_pid"
   hup_status=$?
   hup_pattern=$(ere_literal "--store-dir $hup_store")

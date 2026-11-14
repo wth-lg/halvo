@@ -115,6 +115,8 @@ deadline_ends_the_child() {
   return 1
 }
 
+stall_guard_s=120
+
 ere_literal() {
   printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
 }
@@ -123,11 +125,18 @@ check_is_past_its_fork() {
   pgrep -P "$1" -x sleep > /dev/null
 }
 
+end_check_group() {
+  perl -e "kill 'KILL', -\$ARGV[0]" "$1"
+  wait "$1"
+}
+
 signal_ends_the_child() {
   mini_shell=$1; shift
   mini_dir=$gate_scratch/mini-$mini_shell-$1
   mini=$mini_dir.sh
   mkdir -p "$mini_dir" || return 1
+  standin_words="$standin --timed-run $2 --store-dir $mini_dir"
+  mini_run="timed_child 60 \"$mini_dir\" \"$standin\" --timed-run \"$2\" --store-dir \"$mini_dir\""
   cat > "$mini" <<MINI
 #!/bin/sh
 set -u
@@ -137,27 +146,42 @@ name=mini
 cases() { :; }
 measure() {
   export STANDIN_SCENARIO=ok
-  timed_child 60 "$mini_dir" "$standin" --timed-run "$2" --store-dir "$mini_dir"
+  $mini_run
 }
 check_main --measure
 MINI
-  perl -MPOSIX -e "\$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
+  mini_start=$(date +%s)
+  perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
   mini_pid=$!
-  standin_pattern=$(ere_literal "$standin --timed-run $2 --store-dir $mini_dir")
-  until pgrep -f "^$standin_pattern\$" > /dev/null; do
+  standin_pattern=$(ere_literal "$standin_words")
+  mini_until=$((mini_start + stall_guard_s))
+  until pgrep -f "^$standin_pattern\$" > /dev/null && check_is_past_its_fork "$mini_pid"; do
     if ! kill -0 "$mini_pid" 2>/dev/null; then
       wait "$mini_pid"
       mini_status=$?
       printf 'the check ended with exit %s before its child started\n' "$mini_status"
       return 1
     fi
-    sleep 0.1
-  done
-  until check_is_past_its_fork "$mini_pid"; do
-    kill -0 "$mini_pid" 2>/dev/null || break
+    mini_now=$(date +%s)
+    if [ "$mini_now" -ge "$mini_until" ]; then
+      end_check_group "$mini_pid"
+      printf 'the child of the check did not start within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1
+    fi
     sleep 0.1
   done
   kill "-$1" "$mini_pid"
+  mini_now=$(date +%s)
+  mini_until=$((mini_now + stall_guard_s))
+  while kill -0 "$mini_pid" 2>/dev/null; do
+    mini_now=$(date +%s)
+    if [ "$mini_now" -ge "$mini_until" ]; then
+      end_check_group "$mini_pid"
+      printf 'the check did not end within the guard of %s s against a stall after %s\n' "$stall_guard_s" "$1"
+      return 1
+    fi
+    sleep 0.1
+  done
   wait "$mini_pid"
   mini_status=$?
   left=$(pgrep -f -- "$standin_pattern\$")
