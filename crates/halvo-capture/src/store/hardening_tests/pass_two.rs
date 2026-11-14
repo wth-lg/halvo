@@ -1564,3 +1564,88 @@ fn a_create_pending_that_cannot_be_removed_is_counted_by_the_delete() {
         report_line(&answer)
     );
 }
+
+/// Below this median, in milliseconds, the time to a destroyed root at 2,000
+/// segments passes whatever its ratio to 250 segments (ruling ST-46 K5 N5).
+const N5_FLOOR_MS: f64 = 50.0;
+
+fn median(mut values: Vec<f64>) -> f64 {
+    values.sort_by(f64::total_cmp);
+    values[values.len() / 2]
+}
+
+/// A store of `segments` small segments, opened, with the wrapped key of
+/// store.key: the directory, the handle, the roots, the root id and the key.
+fn store_of_segments(
+    segments: usize,
+) -> (
+    tempfile::TempDir,
+    EncryptedStore,
+    PathBuf,
+    RootId,
+    WrappedKey,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let mut store =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+    for i in 0..segments {
+        store
+            .write_segment(&mut Cursor::new((i as u64).to_le_bytes()))
+            .unwrap();
+    }
+    let wrapped = wrapped(&store_dir);
+    (dir, store, roots_dir, root_id, wrapped)
+}
+
+/// Milliseconds from the delete-all request to the end of its root step, after
+/// which the old wrapped key no longer unwraps (checked), and the whole
+/// delete-all's milliseconds.
+fn delete_times(segments: usize) -> (f64, f64) {
+    let (_dir, mut store, roots_dir, root_id, wrapped) = store_of_segments(segments);
+    let stamp = Arc::new(std::sync::Mutex::new(None));
+    let seen = Arc::clone(&stamp);
+    let _seam =
+        crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT_STEP, move || {
+            *seen.lock().unwrap() = Some(Instant::now());
+        });
+    let started = Instant::now();
+    let answer = store.delete_all();
+    let whole = started.elapsed();
+    let to_the_root = stamp.lock().unwrap().expect("the root step's seam") - started;
+    assert!(answer.is_ok(), "{}", report_line(&answer));
+    assert!(
+        unwraps(&roots_dir, root_id, &wrapped) != "Ok",
+        "the old wrapped key still unwraps after the root step"
+    );
+    (
+        to_the_root.as_secs_f64() * 1000.0,
+        whole.as_secs_f64() * 1000.0,
+    )
+}
+
+/// ST-46 K5 N5, port (b) of X-store-01 and the Bounds figures: the time from
+/// the request to "the old wrapped key no longer unwraps" differs by less
+/// than a factor of 2 between 250 and 2,000 segments, on the medians of 5
+/// runs at each size, or the larger median is under N5_FLOOR_MS. It prints
+/// the delete times of 250, 500, 1,000 and 2,000 segments, median of 3.
+#[test]
+#[ignore = "no time on this Mac is a measurement (ruling ST-46 K5 N5): the hosted macos job runs it with --include-ignored"]
+fn the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_segments() {
+    let at = |segments: usize| median((0..5).map(|_| delete_times(segments).0).collect());
+    let (small, large) = (at(250), at(2_000));
+    println!(
+        "N5 to_the_root_ms median_of_5: 250={small:.2} 2000={large:.2} ratio={:.2} floor_ms={N5_FLOOR_MS}",
+        large / small
+    );
+    for segments in [250, 500, 1_000, 2_000] {
+        let whole = median((0..3).map(|_| delete_times(segments).1).collect());
+        println!("N5 delete_all_ms median_of_3: segments={segments} ms={whole:.2}");
+    }
+    assert!(
+        large < 2.0 * small || large < N5_FLOOR_MS,
+        "the time to a destroyed root grows with the store: 250={small:.2} ms, 2000={large:.2} ms"
+    );
+}
