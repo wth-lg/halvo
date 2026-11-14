@@ -1019,8 +1019,56 @@ mod detector {
         cache: IUIAutomationCacheRequest,
         kept: std::sync::Mutex<Option<(IUIAutomationElement, u64)>>,
         last_read: std::sync::Mutex<Option<IUIAutomationElement>>,
-        #[cfg(feature = "test-seam")]
-        seen: std::sync::Mutex<Option<String>>,
+    }
+
+    #[cfg(feature = "test-seam")]
+    thread_local! {
+        static SEEN: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    }
+
+    #[cfg(feature = "test-seam")]
+    fn file_read_of(pid: Option<i32>) -> (Option<String>, String) {
+        use windows::core::PWSTR;
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{
+            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+            PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+        let Some(pid) = pid else {
+            return (None, "not-read:no-process-id".to_string());
+        };
+        let Ok(pid) = u32::try_from(pid) else {
+            return (None, "not-read:negative-process-id".to_string());
+        };
+        // SAFETY: OpenProcess takes plain values; the handle that it returns is
+        // closed once, after the query.
+        let handle = match unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) } {
+            Ok(handle) => handle,
+            Err(error) => return (None, format!("error:open:{:#010x}", error.code().0)),
+        };
+        let mut failed = 0;
+        let path = crate::windows::foreground::image_path_with(|buf, len| {
+            // SAFETY: `buf` and `len` are live, `len` holds the length of
+            // `buf`, and `handle` is open for the call.
+            let queried = unsafe {
+                QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), len)
+            };
+            if let Err(error) = &queried {
+                failed = error.code().0;
+            }
+            queried
+        });
+        // SAFETY: `handle` is the handle that OpenProcess returned above.
+        unsafe {
+            let _ = CloseHandle(handle);
+        }
+        match path {
+            Some(path) => (
+                path.rsplit(['/', '\\']).next().map(str::to_string),
+                "ok".to_string(),
+            ),
+            None => (None, format!("error:query:{failed:#010x}")),
+        }
     }
 
     // SAFETY: the objects of the system's UI Automation client are free
@@ -1054,6 +1102,7 @@ mod detector {
 
     const DEFAULT_IS_NO_ANSWER: bool = true;
 
+    #[cfg(not(feature = "test-seam"))]
     pub(super) fn process_file(pid: Option<i32>) -> Option<String> {
         let path = crate::windows::foreground::process_path(u32::try_from(pid?).ok()?)?;
         path.rsplit(['/', '\\']).next().map(str::to_string)
@@ -1109,18 +1158,26 @@ mod detector {
                 .ok()
                 .map(|id| id.to_string())
                 .filter(|id| !id.is_empty());
+            #[cfg(not(feature = "test-seam"))]
             // SAFETY: as above.
             let file = process_file(unsafe { element.CachedProcessId() }.ok());
+            #[cfg(feature = "test-seam")]
+            // SAFETY: as above.
+            let pid = unsafe { element.CachedProcessId() }.ok();
+            #[cfg(feature = "test-seam")]
+            let (file, file_read) = file_read_of(pid);
             let class = focus_window_class();
             let kind = kind_of(framework.as_deref(), class.as_deref(), file.as_deref());
             #[cfg(feature = "test-seam")]
             self.saw(format!(
-                "framework={} window_class={} file={} kind={kind:?} is_password={} protected={}",
+                "framework={} window_class={} file={} kind={kind:?} is_password={} protected={} \
+                 pid_read={} file_read={file_read}",
                 framework.as_deref().unwrap_or("none"),
                 class.as_deref().unwrap_or("none"),
                 file.as_deref().unwrap_or("none"),
                 is_password.map_or("none", |p| if p { "1" } else { "0" }),
                 u8::from(protected),
+                u8::from(pid.is_some()),
             ));
             match is_password {
                 Some(is_password) => FocusRead::Answered {
@@ -1134,19 +1191,12 @@ mod detector {
 
         #[cfg(feature = "test-seam")]
         fn saw(&self, what: String) {
-            *self
-                .seen
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(what);
+            SEEN.with(|seen| *seen.borrow_mut() = Some(what));
         }
 
         fn seen(&self) -> Option<String> {
             #[cfg(feature = "test-seam")]
-            return self
-                .seen
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .take();
+            return SEEN.with(|seen| seen.borrow_mut().take());
             #[cfg(not(feature = "test-seam"))]
             None
         }
@@ -1178,7 +1228,10 @@ mod detector {
             };
             let read = if same {
                 #[cfg(feature = "test-seam")]
-                self.saw("the_kept_password_element".to_string());
+                self.saw(
+                    "the_kept_password_element pid_read=not-read file_read=not-read:the-kept-element"
+                        .to_string(),
+                );
                 FieldState::Password
             } else {
                 super::state_of(self.read(element), false)
@@ -1379,8 +1432,6 @@ mod detector {
             cache,
             kept: std::sync::Mutex::new(None),
             last_read: std::sync::Mutex::new(None),
-            #[cfg(feature = "test-seam")]
-            seen: std::sync::Mutex::new(None),
         })
     }
 
