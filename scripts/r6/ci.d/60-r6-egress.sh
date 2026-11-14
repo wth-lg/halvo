@@ -427,8 +427,8 @@ EOF
 case $* in
   'build --locked -p halvo-route-gate --bin route-gate') exit 0 ;;
   'build --locked -p halvo-route-gate --bin route-gate --message-format=json')
-    printf '{"reason":"compiler-artifact","package_id":"path+file://%s/crates/halvo-route-gate#0.0.0","manifest_path":"%s/crates/halvo-route-gate/Cargo.toml","target":{"kind":["bin"],"name":"route-gate","src_path":"%s/crates/halvo-route-gate/src/main.rs"},"executable":"%s","fresh":true}\n' \
-      "$CI_D_REPO" "$CI_D_REPO" "$CI_D_REPO" "$STUB_EXE"
+    printf '{"reason":"compiler-artifact","package_id":"path+file://%s/crates/halvo-route-gate#0.0.0","manifest_path":"%s/crates/halvo-route-gate/Cargo.toml","target":{"kind":["bin"],"name":"route-gate","src_path":"%s/crates/halvo-route-gate/src/main.rs"},"executable":"%s","fresh":%s}\n' \
+      "$CI_D_REPO" "$CI_D_REPO" "$CI_D_REPO" "$STUB_EXE" "$STUB_FRESH"
     exit 0
     ;;
   "tree --locked -e normal,no-proc-macro --target all -p halvo-route-gate --prefix none --format {p}")
@@ -497,6 +497,7 @@ code=$?
 denied=0
 [ "$STUB_CHECK" != denied ] || denied=1
 printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/1/denied.log\n' "$list" "$code" "$denied" >&2
+[ "$STUB_CHECK" != exit3 ] || exit 3
 [ "$code" = 0 ] && [ "$denied" = 0 ]
 EOF
   git init -q "$dir" >/dev/null 2>&1 || self_failed setup
@@ -511,14 +512,16 @@ case_reset() {
   STUB_RUN_EXIT=0
   STUB_CHECK=pass
   STUB_TOUCH=
+  STUB_FRESH=true
+  case_actions=
   case_arg=
 }
 
 case_run() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS \
-    STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH \
-    sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
+    GITHUB_ACTIONS=$case_actions sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -554,14 +557,26 @@ self_test() {
   write_stubs
   good_tree=$(write_repo "$work/repo" '') || self_failed setup
   entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed setup
-  platform_of
-  p=$platform
+  system=$(uname -s) || self_failed setup
+  case $system in
+    Darwin)
+      p=this-mac
+      hosted=macos-15
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      p=windows-2025
+      hosted=windows-2025
+      ;;
+    *) self_failed "no platform for $system" ;;
+  esac
   wrong=
   rejected=0
   case_reset
 
   case_run pass PASS - "egress checks=6 denied=0 entries=0${nl}denied=0 proves that no process"
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
+  case_actions=true
+  case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
   case_run commands PASS - 'egress commands=7 asked=9 run=6 cannot=1'
   case_run third-party PASS - 'egress limit third-party crates=1 names=serde'
   case_repo=$work/repo-entry
@@ -579,6 +594,10 @@ self_test() {
   case_run refusal-mode FAIL check 'NOT VERIFIED egress requirement=W2'
   STUB_RUN_EXIT=1
   case_run command-exits-1 FAIL check 'egress run=probe mode=sandbox command=1 denied=0 exit=1'
+  STUB_CHECK=exit3
+  case_run check-exits-3-with-a-clean-line FAIL check 'egress run=probe mode=sandbox command=0 denied=0 exit=3'
+  STUB_FRESH=false
+  case_run stale-build FAIL setup 'FAIL'
   STUB_CHECK=noline
   case_run no-egress-line FAIL check 'egress run=probe line=missing exit=0'
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
