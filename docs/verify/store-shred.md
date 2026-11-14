@@ -419,10 +419,13 @@ holds the store fewer times than planned.
 
 The order of an `open` (`EncryptedStore::open_with`): it takes the handle
 of the store directory, narrows the directory on that handle, takes the
-directory lock, destroys the root that a leftover `create.pending` names,
-reads `store.key` relative to the handle, refuses a `segments` that is a
-link and a `store.db` that is missing, empty or no regular file, probes
-for a holder, asks its custody, and opens the database file. Beside the
+directory lock, reads `store.key` relative to the handle, refuses a
+`segments` that is a link and a `store.db` that is missing, empty or no
+regular file, probes for a holder, asks its custody, and opens the
+database file. Only then does it clear what a stopped create left in
+`create.pending`, with the root id of the key file that it read: it keeps
+that root and destroys another one that `create.pending` names, and a
+cleanup that cannot finish leaves the open as it is (ruling ST-43). Beside the
 refusals an `open` can answer `Obstructed` (a link or an entry of another
 kind at a store name, or a store directory that left its name),
 `KeyFileUnparseable`, `KeyFileOfAnotherLabel`, `OlderStore`,
@@ -1114,9 +1117,30 @@ What the code does since store-3, each sentence with the test that shows it.
   version 1 is removed, and its root is reported as not handled by this
   build.
 - `create` records `create.pending` before its root and removes it after
-  `store.key` is published by a hard link; `create`, `open` and the tail
-  destroy a root that a leftover `create.pending` names. Test:
+  `store.key` is published by a hard link; `create`, an open that
+  succeeds and the tail destroy a root that a leftover `create.pending`
+  names and no key file names, and the delete on a handle removes
+  `create.pending` and its temporary file. Test:
   `a_create_killed_between_its_root_and_its_key_file_leaves_a_root_that_the_next_create_destroys`.
+- An open that is refused destroys no root file, writes nothing under the
+  roots directory and leaves `create.pending` as it found it (ruling
+  ST-43). Tests, each with a `create.pending` of a killed create that names
+  another root:
+  `a_refused_open_of_a_stopped_create_answers_sealed_and_the_next_create_clears_it`,
+  `a_refused_open_of_a_key_file_of_version_3_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_of_a_key_file_of_version_1_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_of_a_key_file_of_another_label_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_of_a_key_file_that_does_not_parse_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_with_no_store_db_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_at_the_custody_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_in_the_database_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_while_another_process_holds_the_database_keeps_the_pending_root_and_create_pending`,
+  `a_refused_open_of_version_3_beside_a_create_pending_of_its_own_root_keeps_both`;
+  the open that succeeds:
+  `an_open_beside_a_create_pending_of_its_own_root_keeps_the_root_and_removes_create_pending`,
+  `an_open_beside_a_create_pending_of_another_root_destroys_that_root_and_keeps_its_own`,
+  `an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it`,
+  `an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_within_a_bound`.
 - The kill table `a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind`
   ends a child before each counted file-system call of write, write then a
   pass, shred, delete-all, create and open (216 calls in the last run of
@@ -1222,6 +1246,14 @@ set, and the root's own volume name answers the root.
   another roots directory than the one where a stopped create made its root
   leaves that root, because `create.pending` names a root id and no roots
   directory.
+- The root of a stopped create (ruling ST-43 (5)). A refused open leaves
+  it: the next open that succeeds, the next create, or the delete of the
+  data directory, which destroys every root file, removes it. Until then
+  a root file stands that wraps no key that any key file names, and it
+  protects no capture. One sequence leaves it until a person deletes
+  again: a delete whose create of step 6 is killed between its root and
+  its key file while the mark of ruling ST-34 is set, so that no life
+  makes a store.
 
 - On Windows the store sets no access rule on its files and directories,
   syncs no directory after a rename or an unlink, and opens a link at a

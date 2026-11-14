@@ -8843,3 +8843,675 @@ fn a_create_answers_locked_before_it_clears_a_pending_create() {
         "create removed create.pending before it answered Locked"
     );
 }
+
+/// A store directory and a roots directory left by a create that a child
+/// process ended between its root and its key file: `store/create.pending`
+/// names `pending_root`, and `roots/<pending_root>.root` stands.
+#[cfg(unix)]
+fn killed_create(pending_root: RootId) -> tempfile::TempDir {
+    let killed = tempfile::tempdir().unwrap();
+    std::fs::write(killed.path().join("root-id"), pending_root.to_string()).unwrap();
+    let status = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::kill_a_create_after_its_root_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_KILLED_CREATE_DIR", killed.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!status.success(), "the child was not killed: {status:?}");
+    assert!(killed.path().join("store").join("create.pending").exists());
+    assert!(killed
+        .path()
+        .join("roots")
+        .join(format!("{pending_root}.root"))
+        .exists());
+    killed
+}
+
+#[cfg(unix)]
+struct RefusedOpen {
+    answer: String,
+    pending_root_kept: bool,
+    pending_kept: bool,
+    store_entries_kept: bool,
+    roots_entries_kept: bool,
+}
+
+#[cfg(unix)]
+fn default_file_root_custody(
+    roots_dir: &Path,
+    root_id: RootId,
+) -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+    Ok(Box::new(file_root_custody(
+        roots_dir,
+        TestProtector::new(0x5a).0,
+        root_id,
+    )))
+}
+
+/// An open over a store whose directory also holds the `create.pending` of a
+/// killed create, which names `pending_root` (another root than the store's,
+/// whose root file is copied under the store's roots directory, unless the
+/// case names the store's own root). `prepare` changes the store before the
+/// open and returns what must live until the open has answered. The open
+/// is `EncryptedStore::open_with` with the test's own roots directory.
+#[cfg(unix)]
+fn refused_open_case<G>(
+    case: &str,
+    pending_names_the_store_root: bool,
+    prepare: impl FnOnce(&Path, &Path, &Path, RootId) -> G,
+    custody_for: impl FnOnce(&Path, RootId) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
+) -> RefusedOpen {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let pending_root = if pending_names_the_store_root {
+        root_id
+    } else {
+        RootId::fresh().unwrap()
+    };
+    let killed = killed_create(pending_root);
+    std::fs::copy(
+        killed.path().join("store").join("create.pending"),
+        store_dir.join("create.pending"),
+    )
+    .unwrap();
+    if !pending_names_the_store_root {
+        std::fs::copy(
+            killed
+                .path()
+                .join("roots")
+                .join(format!("{pending_root}.root")),
+            roots_dir.join(format!("{pending_root}.root")),
+        )
+        .unwrap();
+    }
+    let guard = prepare(dir.path(), &store_dir, &roots_dir, root_id);
+    let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
+    let root_bytes = std::fs::read(&pending_root_file).ok();
+    let pending_bytes = std::fs::read(store_dir.join("create.pending")).ok();
+    let store_before = store_files_and_bytes(&store_dir);
+    let roots_before = files_with_bytes(&roots_dir);
+    let opened = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| custody_for(&roots_dir, root_id),
+    );
+    let answer = answer_text(&opened);
+    drop(opened);
+    let store_after = store_files_and_bytes(&store_dir);
+    let roots_after = files_with_bytes(&roots_dir);
+    drop(guard);
+    let seen = RefusedOpen {
+        answer,
+        pending_root_kept: root_bytes.is_some()
+            && std::fs::read(&pending_root_file).ok() == root_bytes,
+        pending_kept: pending_bytes.is_some()
+            && std::fs::read(store_dir.join("create.pending")).ok() == pending_bytes,
+        store_entries_kept: store_after == store_before,
+        roots_entries_kept: roots_after == roots_before,
+    };
+    println!(
+        "REFUSED-OPEN case={case} answer={} pending_root_kept={} pending_kept={} \
+         store_entries_kept={} roots_entries_kept={}",
+        seen.answer,
+        seen.pending_root_kept,
+        seen.pending_kept,
+        seen.store_entries_kept,
+        seen.roots_entries_kept
+    );
+    for (name, bytes) in &store_after {
+        println!(
+            "REFUSED-OPEN case={case} store entry {name} len={}",
+            bytes.len()
+        );
+    }
+    for (name, bytes) in &roots_after {
+        println!(
+            "REFUSED-OPEN case={case} roots entry {name} len={}",
+            bytes.len()
+        );
+    }
+    seen
+}
+
+/// The files of a store directory with their bytes, without the lock file
+/// that an open on Windows makes and leaves.
+#[cfg(unix)]
+fn store_files_and_bytes(store_dir: &Path) -> Vec<(String, Vec<u8>)> {
+    files_with_bytes(store_dir)
+        .into_iter()
+        .filter(|(name, _)| !LOCK_FILES.contains(&name.as_str()))
+        .collect()
+}
+
+#[cfg(unix)]
+fn assert_the_refused_open_wrote_nothing(seen: &RefusedOpen, expected: &str) {
+    assert_eq!(seen.answer, expected);
+    assert!(
+        seen.pending_root_kept,
+        "the refused open destroyed or changed the root file that create.pending names"
+    );
+    assert!(
+        seen.pending_kept,
+        "the refused open removed or changed create.pending"
+    );
+    assert!(
+        seen.store_entries_kept,
+        "the refused open changed an entry of the store directory"
+    );
+    assert!(
+        seen.roots_entries_kept,
+        "the refused open changed an entry under the roots directory"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_a_key_file_of_version_3_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "version 3",
+        false,
+        |_, store_dir, _, _| edit_key_file(store_dir, |v| v["version"] = 3.into()),
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "NewerStore { found: 3, supported: 2 }");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_a_key_file_of_version_1_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "version 1",
+        false,
+        |_, store_dir, _, _| edit_key_file(store_dir, |v| v["version"] = 1.into()),
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "OlderStore { found: 1, supported: 2 }");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_a_key_file_of_another_label_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "another label",
+        false,
+        |_, store_dir, _, _| edit_key_file(store_dir, |v| v["namespace"] = "derived".into()),
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "KeyFileOfAnotherLabel");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_a_key_file_that_does_not_parse_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "unparseable with a root id",
+        false,
+        |_, store_dir, _, _| edit_key_file(store_dir, |v| v["wrapped_key"] = "AAA".into()),
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "KeyFileUnparseable");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_with_no_store_db_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "store.db missing",
+        false,
+        |dir, store_dir, _, _| {
+            std::fs::rename(store_dir.join("store.db"), dir.join("store.db-aside")).unwrap();
+        },
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "DatabaseMissing");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_at_the_custody_keeps_the_pending_root_and_create_pending() {
+    let seen = refused_open_case(
+        "custody refusal",
+        false,
+        |_, _, _, _| (),
+        |_, _| Err(CustodyError::RootDenied),
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "Custody(RootDenied)");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_in_the_database_keeps_the_pending_root_and_create_pending() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    let seen = refused_open_case(
+        "database unreadable",
+        false,
+        |_, store_dir, roots_dir, root_id| {
+            let custody = file_root_custody(roots_dir, TestProtector::new(0x5a).0, root_id);
+            let another = custody
+                .wrap_store_key(
+                    &StoreKey::random().unwrap(),
+                    crate::custody::KeyLabel::STORE,
+                )
+                .unwrap();
+            edit_key_file(store_dir, |v| {
+                v["wrapped_key"] = STANDARD.encode(&another.0).into();
+            });
+        },
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "DatabaseUnreadable");
+}
+
+#[cfg(unix)]
+struct DatabaseHolder {
+    child: Child,
+    stop: PathBuf,
+}
+
+#[cfg(unix)]
+impl Drop for DatabaseHolder {
+    fn drop(&mut self) {
+        let _ = std::fs::write(&self.stop, b"");
+        let _ = self.child.wait();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_while_another_process_holds_the_database_keeps_the_pending_root_and_create_pending(
+) {
+    let seen = refused_open_case(
+        "locked by a holder",
+        false,
+        |dir, store_dir, roots_dir, root_id| {
+            let aside = dir.join("create.pending-aside");
+            std::fs::rename(store_dir.join("create.pending"), &aside).unwrap();
+            let store = EncryptedStore::open_with(
+                store_dir,
+                &dir.join("no-roots"),
+                DEFAULT_RETENTION,
+                |_: &crate::custody::CustodyLocator| default_file_root_custody(roots_dir, root_id),
+            )
+            .unwrap();
+            let key = *store.store_key().unwrap().expose();
+            drop(store);
+            std::fs::rename(&aside, store_dir.join("create.pending")).unwrap();
+            std::fs::write(dir.join("raw-key"), key).unwrap();
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "store::hardening_tests::hold_the_database_for_parent",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("HALVO_TEST_HOLD_DATABASE", dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap();
+            wait_for(&dir.join("child-ready"), &mut child);
+            DatabaseHolder {
+                child,
+                stop: dir.join("child-stop"),
+            }
+        },
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "Locked");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_version_3_beside_a_create_pending_of_its_own_root_keeps_both() {
+    let seen = refused_open_case(
+        "own root beside version 3",
+        true,
+        |_, store_dir, _, _| edit_key_file(store_dir, |v| v["version"] = 3.into()),
+        default_file_root_custody,
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "NewerStore { found: 3, supported: 2 }");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_open_of_a_stopped_create_answers_sealed_and_the_next_create_clears_it() {
+    let pending_root = RootId::fresh().unwrap();
+    let killed = killed_create(pending_root);
+    let (store_dir, roots_dir) = (killed.path().join("store"), killed.path().join("roots"));
+    let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
+    let root_bytes = std::fs::read(&pending_root_file).unwrap();
+    let pending_bytes = std::fs::read(store_dir.join("create.pending")).unwrap();
+    let store_before = store_files_and_bytes(&store_dir);
+    let roots_before = files_with_bytes(&roots_dir);
+    let opened = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| default_file_root_custody(&roots_dir, pending_root),
+    );
+    let answer = answer_text(&opened);
+    drop(opened);
+    let seen = RefusedOpen {
+        answer,
+        pending_root_kept: std::fs::read(&pending_root_file).ok() == Some(root_bytes),
+        pending_kept: std::fs::read(store_dir.join("create.pending")).ok() == Some(pending_bytes),
+        store_entries_kept: store_files_and_bytes(&store_dir) == store_before,
+        roots_entries_kept: files_with_bytes(&roots_dir) == roots_before,
+    };
+    println!(
+        "REFUSED-OPEN case=no key file answer={} pending_root_kept={} pending_kept={} \
+         store_entries_kept={} roots_entries_kept={}",
+        seen.answer,
+        seen.pending_root_kept,
+        seen.pending_kept,
+        seen.store_entries_kept,
+        seen.roots_entries_kept
+    );
+    assert_the_refused_open_wrote_nothing(&seen, "Sealed");
+    let custody = file_root_custody(
+        &roots_dir,
+        TestProtector::new(0x5a).0,
+        RootId::fresh().unwrap(),
+    );
+    let fresh_root = custody.root_id;
+    let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+    assert!(created.is_ok(), "{:?}", created.err());
+    assert_eq!(
+        root_files_in(&roots_dir),
+        vec![format!("{fresh_root}.root")]
+    );
+    assert!(!store_dir.join("create.pending").exists());
+}
+
+/// An open that succeeds over a store whose directory holds the
+/// `create.pending` of a killed create: what stands after it.
+#[cfg(unix)]
+struct OpenAfterAStoppedCreate {
+    store_root_bytes_kept: bool,
+    pending_root_file_left: bool,
+    pending_left: bool,
+}
+
+#[cfg(unix)]
+fn open_after_a_stopped_create(pending_names_the_store_root: bool) -> OpenAfterAStoppedCreate {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let pending_root = if pending_names_the_store_root {
+        root_id
+    } else {
+        RootId::fresh().unwrap()
+    };
+    let killed = killed_create(pending_root);
+    std::fs::copy(
+        killed.path().join("store").join("create.pending"),
+        store_dir.join("create.pending"),
+    )
+    .unwrap();
+    if !pending_names_the_store_root {
+        std::fs::copy(
+            killed
+                .path()
+                .join("roots")
+                .join(format!("{pending_root}.root")),
+            roots_dir.join(format!("{pending_root}.root")),
+        )
+        .unwrap();
+    }
+    let store_root_file = roots_dir.join(format!("{root_id}.root"));
+    let store_root_bytes = std::fs::read(&store_root_file).unwrap();
+    let opened = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| default_file_root_custody(&roots_dir, root_id),
+    );
+    assert!(opened.is_ok(), "{:?}", opened.err());
+    drop(opened);
+    OpenAfterAStoppedCreate {
+        store_root_bytes_kept: std::fs::read(&store_root_file).ok() == Some(store_root_bytes),
+        pending_root_file_left: !pending_names_the_store_root
+            && roots_dir.join(format!("{pending_root}.root")).exists(),
+        pending_left: store_dir.join("create.pending").exists(),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn an_open_beside_a_create_pending_of_its_own_root_keeps_the_root_and_removes_create_pending() {
+    let seen = open_after_a_stopped_create(true);
+    assert!(seen.store_root_bytes_kept);
+    assert!(!seen.pending_left, "create.pending stayed after the open");
+}
+
+#[cfg(unix)]
+#[test]
+fn an_open_beside_a_create_pending_of_another_root_destroys_that_root_and_keeps_its_own() {
+    let seen = open_after_a_stopped_create(false);
+    assert!(seen.store_root_bytes_kept);
+    assert!(
+        !seen.pending_root_file_left,
+        "the root that create.pending names stayed"
+    );
+    assert!(!seen.pending_left, "create.pending stayed after the open");
+}
+
+#[cfg(unix)]
+#[test]
+fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let pending_root = RootId::fresh().unwrap();
+    let killed = killed_create(pending_root);
+    std::fs::copy(
+        killed.path().join("store").join("create.pending"),
+        store_dir.join("create.pending"),
+    )
+    .unwrap();
+    let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
+    std::fs::copy(
+        killed
+            .path()
+            .join("roots")
+            .join(format!("{pending_root}.root")),
+        &pending_root_file,
+    )
+    .unwrap();
+    std::fs::set_permissions(&pending_root_file, std::fs::Permissions::from_mode(0o000)).unwrap();
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let opened = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| default_file_root_custody(&roots_dir, root_id),
+    );
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(&pending_root_file, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let mut store = opened.unwrap();
+    let flag = store.pending_left();
+    let root_stands = pending_root_file.exists();
+    let pending_stands = store_dir.join("create.pending").exists();
+    println!(
+        "CLEANUP-FAILED pending_left={flag} root_stands={root_stands} pending_stands={pending_stands}"
+    );
+    assert!(flag, "the handle does not say that the cleanup failed");
+    assert!(
+        root_stands && pending_stands,
+        "the leftover of the stopped create is gone"
+    );
+    let deleted = store.delete_all();
+    assert!(deleted.is_ok(), "{deleted:?}");
+    drop(store);
+    assert!(
+        !store_dir.join("create.pending").exists(),
+        "delete_all left create.pending"
+    );
+    assert!(!store_dir.join("create.pending.tmp").exists());
+    assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_within_a_bound() {
+    for case in [
+        "fifo at create.pending",
+        "link at create.pending",
+        "fifo at the pending root",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let outside = dir.path().join("outside");
+        let pending_root = RootId::fresh().unwrap();
+        let killed = killed_create(pending_root);
+        let fifo = match case {
+            "fifo at create.pending" => {
+                let fifo = store_dir.join("create.pending");
+                make_fifo(&fifo);
+                fifo
+            }
+            "link at create.pending" => {
+                std::fs::copy(killed.path().join("store").join("create.pending"), &outside)
+                    .unwrap();
+                std::os::unix::fs::symlink(&outside, store_dir.join("create.pending")).unwrap();
+                outside.clone()
+            }
+            _ => {
+                std::fs::copy(
+                    killed.path().join("store").join("create.pending"),
+                    store_dir.join("create.pending"),
+                )
+                .unwrap();
+                let fifo = roots_dir.join(format!("{pending_root}.root"));
+                make_fifo(&fifo);
+                fifo
+            }
+        };
+        let outside_before = std::fs::read(&outside).ok();
+        let (store_path, roots_path) = (store_dir.clone(), roots_dir.clone());
+        let opened = answer_within(FIFO_BOUND, &fifo, move || {
+            answer_text(&EncryptedStore::open_with(
+                &store_path,
+                &roots_path,
+                DEFAULT_RETENTION,
+                |_: &crate::custody::CustodyLocator| {
+                    default_file_root_custody(&roots_path, root_id)
+                },
+            ))
+        });
+        println!("PENDING-ENTRY case={case} answer={opened:?}");
+        assert_eq!(
+            opened.as_deref(),
+            Some("Ok"),
+            "{case}: no answer within {FIFO_BOUND:?}, or another one"
+        );
+        assert_eq!(
+            std::fs::read(&outside).ok(),
+            outside_before,
+            "{case}: the link's target changed"
+        );
+    }
+}
+
+#[test]
+fn the_live_holder_probe_and_the_held_look_answer_a_code_by_its_class_and_never_a_bare_code() {
+    use super::db::code_seams;
+    let mut places = vec![
+        ("open", code_seams::PROBE_TIMEOUT),
+        ("open", code_seams::PROBE_LOCKING_MODE),
+    ];
+    if cfg!(target_os = "macos") {
+        places.push(("open", code_seams::HELD_LOOK_HAS_MOVED));
+        places.push(("create", code_seams::HELD_LOOK_HAS_MOVED));
+    }
+    let codes = [
+        (11, "DatabaseUnreadable"),
+        (26, "DatabaseUnreadable"),
+        (13, "Io(StorageFull)"),
+        (5, "Locked"),
+        (6, "Locked"),
+        (1, "Io(Other)"),
+        (10 | (3 << 8), "Io(Other)"),
+    ];
+    for (call, place) in places {
+        for (code, expected) in codes {
+            let dir = tempfile::tempdir().unwrap();
+            let roots_dir = dir.path().join("roots");
+            let answer = if call == "open" {
+                let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+                code_seams::force_at(place, Some(code));
+                let opened = EncryptedStore::open_with(
+                    &store_dir,
+                    &roots_dir,
+                    DEFAULT_RETENTION,
+                    |_: &crate::custody::CustodyLocator| {
+                        Ok(Box::new(file_root_custody(
+                            &roots_dir,
+                            TestProtector::new(0x5a).0,
+                            root_id,
+                        )))
+                    },
+                );
+                answer_text(&opened)
+            } else {
+                let custody = file_root_custody(
+                    &roots_dir,
+                    TestProtector::new(0x5a).0,
+                    RootId::fresh().unwrap(),
+                );
+                code_seams::force_at(place, Some(code));
+                let created = EncryptedStore::create(
+                    &dir.path().join("store"),
+                    Box::new(custody),
+                    DEFAULT_RETENTION,
+                );
+                answer_text(&created)
+            };
+            code_seams::force_at(place, None);
+            println!("CODE-AT call={call} place={place} code={code} answer={answer}");
+            assert_eq!(
+                answer, expected,
+                "{call} answered code {code} at {place} as {answer}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() {
+    let (left, not_handled) = (RootId::fresh().unwrap(), RootId::fresh().unwrap());
+    let report = super::DeleteReport {
+        keyed_segments: None,
+        roots: super::RootsLeft {
+            left: vec![left],
+            listed: true,
+        },
+        root_not_handled: Some(not_handled),
+        key_file_gone: true,
+        database_left: false,
+        files_left: 0,
+        not_followed: 0,
+    };
+    let printed = format!("{report:?} {:?} {:?}", report.roots, left);
+    println!("REPORT-DEBUG {printed}");
+    for id in [left, not_handled] {
+        let text = id.to_string();
+        assert_eq!(text.len(), 32);
+        assert!(printed.contains(&text), "{printed} does not hold {text}");
+        let hyphenated = uuid::Uuid::parse_str(&text)
+            .unwrap()
+            .hyphenated()
+            .to_string();
+        assert!(
+            !printed.contains(&hyphenated),
+            "{printed} holds the hyphenated {hyphenated}"
+        );
+    }
+}

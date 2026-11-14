@@ -49,8 +49,14 @@ pub struct WrappedKey(pub Vec<u8>);
 
 /// The non-secret per-store locator of the platform root that wraps the store
 /// key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RootId(Uuid);
+
+impl fmt::Debug for RootId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "RootId({})", self.0.simple())
+    }
+}
 
 impl RootId {
     /// A fresh id from 16 random bytes; it reads no clock.
@@ -243,7 +249,14 @@ pub enum CustodyError {
     /// No root exists for this store, also an empty or all-zero root file.
     #[error("the root of this store is missing")]
     RootMissing,
-    #[error("the root of this store does not hold 32 bytes")]
+    /// The root cannot be read as a root of this store. Its sources: the
+    /// root file unprotects to another length than 32 bytes; a link or an
+    /// entry of another kind than a regular file stands at the root file's
+    /// name; a link or an entry of another kind than a directory stands at
+    /// the roots directory's name, also when a root is destroyed.
+    #[error(
+        "the root of this store is damaged, or a link or another kind of entry stands at its name"
+    )]
     RootCorrupt,
     #[error("this process may not read or destroy the root of this store")]
     RootDenied,

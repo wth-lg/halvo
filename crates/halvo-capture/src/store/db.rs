@@ -708,12 +708,42 @@ pub(crate) mod name_seams {
 pub(crate) mod code_seams {
     use std::cell::Cell;
 
+    use halvo_sqlcipher::rusqlite;
+
     thread_local! {
         static FORCED: Cell<Option<(usize, i32)>> = const { Cell::new(None) };
     }
 
     pub(crate) fn force(nth: usize, code: Option<i32>) {
         FORCED.with(|forced| forced.set(code.map(|code| (nth, code))));
+    }
+
+    pub(crate) const PROBE_TIMEOUT: &str = "the live-holder probe's busy timeout";
+    pub(crate) const PROBE_LOCKING_MODE: &str = "the live-holder probe's locking mode";
+    pub(crate) const HELD_LOOK_HAS_MOVED: &str = "the held look's question whether the file moved";
+
+    thread_local! {
+        static FORCED_AT: Cell<Option<(&'static str, i32)>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn force_at(place: &'static str, code: Option<i32>) {
+        FORCED_AT.with(|forced| forced.set(code.map(|code| (place, code))));
+    }
+
+    pub(crate) fn or_forced_at<T>(
+        place: &'static str,
+        result: rusqlite::Result<T>,
+    ) -> rusqlite::Result<T> {
+        FORCED_AT.with(|forced| match forced.get() {
+            Some((at, code)) if at == place => {
+                forced.set(None);
+                Err(rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(code),
+                    None,
+                ))
+            }
+            _ => result,
+        })
     }
 
     pub(crate) fn forced() -> Option<i32> {
@@ -959,10 +989,14 @@ impl Db {
             Err(e @ StoreError::Obstructed { .. }) => return Err(e),
             Err(_) => return Ok(()),
         };
-        probe.busy_timeout(Duration::ZERO).map_err(db_error)?;
-        probe
-            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
-            .map_err(db_error)?;
+        let timeout = probe.busy_timeout(Duration::ZERO);
+        #[cfg(test)]
+        let timeout = code_seams::or_forced_at(code_seams::PROBE_TIMEOUT, timeout);
+        timeout.map_err(|e| after_a_code(store_dir, &e))?;
+        let locking = probe.execute_batch("PRAGMA locking_mode = EXCLUSIVE;");
+        #[cfg(test)]
+        let locking = code_seams::or_forced_at(code_seams::PROBE_LOCKING_MODE, locking);
+        locking.map_err(|e| after_a_code(store_dir, &e))?;
         let read = probe.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
         });
@@ -1508,11 +1542,13 @@ fn held_look(conn: &Connection, store_dir: &Dir, form: NameForm) -> StoreResult<
         _ => return Err(obstructed(StoreName::Database, Met::OtherKind)),
     }
     let mut moved: std::os::raw::c_int = 0;
-    conn.file_control(
+    let asked = conn.file_control(
         Some(rusqlite::MAIN_DB),
         rusqlite::FileControl::HasMoved(&mut moved),
-    )
-    .map_err(db_error)?;
+    );
+    #[cfg(test)]
+    let asked = code_seams::or_forced_at(code_seams::HELD_LOOK_HAS_MOVED, asked);
+    asked.map_err(|e| after_a_code(store_dir, &e))?;
     if moved != 0 {
         return Err(outside());
     }
@@ -1583,6 +1619,14 @@ pub struct EncryptedStore {
     keyed: Keyed,
     fs: Arc<dyn DurableFs>,
     unwrap_time: Duration,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "a test reads whether the open's cleanup of a stopped create failed"
+        )
+    )]
+    pending_left: bool,
     _writer_lock: DirLock,
 }
 
@@ -1661,6 +1705,7 @@ impl EncryptedStore {
                 keyed: Keyed::Open { db, store_key },
                 fs: Arc::new(OsFs),
                 unwrap_time: Duration::ZERO,
+                pending_left: false,
                 _writer_lock,
             }),
             Err(e) => {
@@ -1722,8 +1767,13 @@ impl EncryptedStore {
 
     /// Open an existing store: read the store-key file, **unwrap the store key
     /// through the custody that it names, under the roots directory `roots`**,
-    /// and open the database. `open` never makes a database. It finishes what
-    /// a stopped create left in `create.pending` first. Fails
+    /// and open the database. `open` never makes a database. An open that is
+    /// refused destroys no root file, writes nothing under the roots
+    /// directory and leaves `create.pending` as it found it. Once the database
+    /// is open, it finishes what a stopped create left in `create.pending`:
+    /// it keeps the root that the key file it read names and destroys another
+    /// one; a cleanup that cannot finish leaves the open as it is, and the
+    /// next open tries again. Fails
     /// [`StoreError::Locked`] while another writer holds the directory or the
     /// database, [`StoreError::Sealed`] when `store.key` is missing (delete-all
     /// ran, or no store was made here), [`StoreError::DatabaseMissing`] when
@@ -1756,9 +1806,7 @@ impl EncryptedStore {
         let store = Dir::open(dir).map_err(store_dir_error)?;
         store.make_private().map_err(io_error)?;
         let _writer_lock = DirLock::take(&store)?;
-        let place = KeyFile::of_store(&store)?;
-        clear_pending(&store, roots, place.names())?;
-        let key_file = place.read(KeyLabel::STORE)?;
+        let key_file = KeyFile::of_store(&store)?.read(KeyLabel::STORE)?;
         let wrapped = key_file.wrapped_store_key()?;
         segment::refuse_a_linked_segments_root(&store)?;
         Db::require_file(&store)?;
@@ -1768,6 +1816,7 @@ impl EncryptedStore {
         let store_key = custody.unwrap_store_key(&wrapped, KeyLabel::STORE)?;
         let unwrap_time = started.elapsed();
         let db = Db::open_existing(&store, store_key.expose())?;
+        let pending_left = clear_pending(&store, roots, KeyNames::Root(key_file.root_id)).is_err();
         Ok(Self {
             dir: store,
             retention,
@@ -1775,6 +1824,7 @@ impl EncryptedStore {
             keyed: Keyed::Open { db, store_key },
             fs: Arc::new(OsFs),
             unwrap_time,
+            pending_left,
             _writer_lock,
         })
     }
@@ -1932,6 +1982,11 @@ impl EncryptedStore {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn pending_left(&self) -> bool {
+        self.pending_left
+    }
+
     #[cfg(all(test, unix))]
     pub(crate) fn writer_lock_file(&self) -> &std::fs::File {
         &self._writer_lock.file
@@ -1979,7 +2034,6 @@ impl EncryptedStore {
         let roots = file_root::destroy_every_root(roots, named);
         let mut report = remove_the_store_files(&store, None, roots);
         report.root_not_handled = root_not_handled;
-        let _ = remove_pending(&store);
         finished(report)
     }
 }
@@ -2028,13 +2082,14 @@ fn remove_the_store_files(
     };
     let database = Db::destroy_through(store);
     let segments = segment::remove_segments_through(store);
+    let pending_left = u64::from(remove_pending(store).is_err());
     DeleteReport {
         keyed_segments,
         roots,
         root_not_handled: None,
         key_file_gone: key_file.gone,
         database_left: database.left,
-        files_left: segments.left,
+        files_left: segments.left + pending_left,
         not_followed: key_file.not_followed + database.not_followed + segments.not_followed,
     }
 }

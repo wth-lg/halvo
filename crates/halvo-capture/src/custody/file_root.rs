@@ -281,8 +281,20 @@ impl<P: Protector> FileRoots<P> {
             Err(_) => scrub_and_remove(&dir, &partial).1,
         };
         published?;
-        discarded.map_err(root_io)?;
-        dir.sync().map_err(root_io)?;
+        #[cfg(test)]
+        let discarded = make_root_seams::or_failed(make_root_seams::REMOVE_THE_PARTIAL, discarded);
+        let finished = discarded.and_then(|()| {
+            let synced = dir.sync();
+            #[cfg(test)]
+            let synced = make_root_seams::or_failed(make_root_seams::SYNC_THE_DIRECTORY, synced);
+            synced
+        });
+        if let Err(e) = finished {
+            let (_, removed) = scrub_and_remove(&dir, &root_name(root_id));
+            let _ = scrub_and_remove(&dir, &partial);
+            let _ = dir.sync();
+            return Err(root_io(removed.err().unwrap_or(e)));
+        }
         Ok(root)
     }
 
@@ -363,6 +375,35 @@ fn write_partial(dir: &Dir, partial: &OsStr, blob: &[u8]) -> Result<(), CustodyE
     let mut file = dir.create_new(partial).map_err(root_io)?;
     file.write_all(blob).map_err(root_io)?;
     file.sync_all().map_err(root_io)
+}
+
+#[cfg(test)]
+pub(crate) mod make_root_seams {
+    use std::cell::Cell;
+
+    pub(crate) const REMOVE_THE_PARTIAL: &str = "the removal of the partial name after the link";
+    pub(crate) const SYNC_THE_DIRECTORY: &str = "the sync of the roots directory after the link";
+
+    thread_local! {
+        static FAIL: Cell<Option<&'static str>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn fail(step: Option<&'static str>) {
+        FAIL.with(|fail| fail.set(step));
+    }
+
+    pub(crate) fn or_failed(
+        step: &'static str,
+        result: std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        FAIL.with(|fail| match fail.get() {
+            Some(at) if at == step => {
+                fail.set(None);
+                Err(std::io::Error::other(at))
+            }
+            _ => result,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -496,6 +537,35 @@ mod tests {
 
     fn roots(dir: &Path) -> FileRoots<XorProtector> {
         FileRoots::new(dir.join("roots"), XorProtector(0x5a))
+    }
+
+    #[test]
+    fn a_create_root_whose_step_after_the_link_fails_leaves_no_root_file_of_its_id() {
+        use super::make_root_seams;
+        for step in [
+            make_root_seams::REMOVE_THE_PARTIAL,
+            make_root_seams::SYNC_THE_DIRECTORY,
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let roots = roots(dir.path());
+            let root_id = RootId::fresh().unwrap();
+            make_root_seams::fail(Some(step));
+            let made = roots.create_root(root_id);
+            make_root_seams::fail(None);
+            let left: Vec<String> = std::fs::read_dir(dir.path().join("roots"))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .filter(|name| name.starts_with(&root_id.to_string()))
+                .collect();
+            println!("MAKE-ROOT step={step} answer={made:?} left={left:?}");
+            assert!(made.is_err(), "{step}: create_root answered Ok");
+            assert!(left.is_empty(), "{step}: {left:?} stands");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh().unwrap();
+        assert!(roots.create_root(root_id).is_ok());
+        assert!(roots.root_exists(root_id).unwrap());
     }
 
     #[test]
