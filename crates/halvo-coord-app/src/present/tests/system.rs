@@ -142,3 +142,92 @@ mod seams {
         }
     }
 }
+
+mod moment {
+    use crate::present::guard::Guard;
+    use crate::present::system::notice;
+    use std::time::{Duration, Instant};
+
+    const ARM: Duration = Duration::from_millis(500);
+
+    fn ms(n: u64) -> Duration {
+        Duration::from_millis(n)
+    }
+
+    fn answers(guard: Guard, at: Instant) -> bool {
+        let mut copy = guard;
+        copy.press(at)
+    }
+
+    #[test]
+    fn moment_the_key_window_notice_before_the_app_is_active_reports_at_the_app_notice() {
+        let t0 = Instant::now();
+        let mut guard = Guard::new(ARM);
+        assert!(
+            !notice(&mut guard, false, true, t0),
+            "key, the app not active"
+        );
+        assert!(
+            notice(&mut guard, true, true, t0 + ms(300)),
+            "the app became active"
+        );
+        guard.reported(t0 + ms(300));
+        assert!(!answers(guard, t0 + ms(799)));
+        assert!(answers(guard, t0 + ms(800)));
+    }
+
+    #[test]
+    fn moment_the_app_notice_before_the_window_is_key_reports_at_the_key_notice() {
+        let t0 = Instant::now();
+        let mut guard = Guard::new(ARM);
+        assert!(
+            !notice(&mut guard, true, false, t0),
+            "active, the window not key"
+        );
+        assert!(
+            notice(&mut guard, true, true, t0 + ms(300)),
+            "the window became key"
+        );
+        guard.reported(t0 + ms(300));
+        assert!(!answers(guard, t0 + ms(799)));
+        assert!(answers(guard, t0 + ms(800)));
+    }
+
+    #[test]
+    fn moment_no_notice_reports_while_the_app_is_not_active_or_the_window_not_key() {
+        let t0 = Instant::now();
+        let mut guard = Guard::new(ARM);
+        for (active, key) in [(false, false), (false, true), (true, false)] {
+            assert!(
+                !notice(&mut guard, active, key, t0),
+                "active={active} key={key}"
+            );
+        }
+        assert!(
+            !answers(guard, t0 + ms(10_000)),
+            "no report, so no press answers"
+        );
+    }
+
+    #[test]
+    fn moment_a_later_notice_with_both_starts_the_hold_anew_and_reports_nothing() {
+        let t0 = Instant::now();
+        let mut guard = Guard::new(ARM);
+        assert!(notice(&mut guard, true, true, t0));
+        guard.reported(t0);
+        assert!(
+            !notice(&mut guard, false, true, t0 + ms(600)),
+            "the app not active"
+        );
+        assert!(
+            answers(guard, t0 + ms(600)),
+            "a notice while not active starts nothing"
+        );
+        assert!(
+            !notice(&mut guard, true, true, t0 + ms(700)),
+            "reported once"
+        );
+        assert!(!answers(guard, t0 + ms(1_199)));
+        assert!(answers(guard, t0 + ms(1_200)));
+    }
+}

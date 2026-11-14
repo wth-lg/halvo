@@ -1,10 +1,14 @@
 #[cfg(any(test, target_os = "macos"))]
+use super::guard::Guard;
+#[cfg(any(test, target_os = "macos"))]
 use super::outcome::from_alert;
 #[cfg(any(test, windows))]
 use super::outcome::from_task_dialog;
 use super::{Card, Dialog};
 use halvo_coord::items::ConfirmAnswer;
 use std::time::Duration;
+#[cfg(any(test, target_os = "macos"))]
+use std::time::Instant;
 use tauri::{AppHandle, Runtime};
 
 /// The native dialog in the form `system` of U0.4's verdict (I11.5, ruling RD-42 D2), never the
@@ -121,6 +125,15 @@ pub fn wait_alert<E>(
     }
 }
 
+/// A notice at `now` that the alert's window became the key window or that the app became
+/// active, read with whether the app is active and whether the alert's window is its key window:
+/// the window became the active window only when both hold, and then the hold of `guard` starts
+/// anew; `true` at the first such moment, when the show reports itself on screen.
+#[cfg(any(test, target_os = "macos"))]
+pub fn notice(guard: &mut Guard, app_active: bool, window_key: bool, now: Instant) -> bool {
+    app_active && window_key && guard.active(now)
+}
+
 /// The answer of a task dialog from the result of its call and the id of the pressed button:
 /// `allow` for the allowing id from a call that returned, and `reject` for every other pair.
 #[cfg(any(test, windows))]
@@ -132,7 +145,7 @@ pub fn task_answer<E>(called: Result<(), E>, pressed: i32) -> ConfirmAnswer {
 mod macos {
     use super::super::guard::Guard;
     use super::super::Card;
-    use super::{controls, wait_alert, Step};
+    use super::{controls, notice, wait_alert, Step};
     use halvo_coord::items::ConfirmAnswer;
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, NSObject};
@@ -204,10 +217,13 @@ mod macos {
             return;
         };
         let app = NSApplication::sharedApplication(hold.mtm());
-        if app.isActive()
-            && window.isKeyWindow()
-            && lock(&hold.ivars().guard).active(Instant::now())
-        {
+        let mut guard = lock(&hold.ivars().guard);
+        if notice(
+            &mut guard,
+            app.isActive(),
+            window.isKeyWindow(),
+            Instant::now(),
+        ) {
             let _ = hold.ivars().shown.send(Step::Shown);
         }
     }
