@@ -52,7 +52,11 @@ const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de0535
 const FIX: &str = "read rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and \
     balance_nonroot from its divider loop again in the new source, with every row of the table of \
     docs/adr/0013, move or delete the mends, and run the tests page_gap of halvo-sqlcipher, the \
-    structural check of every page among them, on the source with and without the mends";
+    structural check of every page among them, on the source with and without the mends; a new \
+    pin changes PINNED, PINNED_SHA256 and MENDS of this file, the MENDS and STOPS copies in \
+    tests/page_gap/mod.rs and the substitutions of crates/halvo-sqlcipher/mutants.rows; a sha256 \
+    that differs while the pin stands comes from a patched copy (a cargo [patch] of sqlcipher-src \
+    or an edited registry copy): remove the patch";
 
 const SHA256_ROUND: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

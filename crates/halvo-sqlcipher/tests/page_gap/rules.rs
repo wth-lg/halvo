@@ -21,6 +21,18 @@
 //! attribute; such a caller runs [`plants`] on its own images and reads every
 //! field of [`Checked`]. The controls of the rules that need pages a caller's
 //! image may lack stand in the tests page_gap of halvo-sqlcipher.
+//!
+//! A caller's duties: `conn` is open on the same file as the bytes, with the
+//! log checkpointed by TRUNCATE before the read (dbstat reads through the log
+//! and the check reads the main file; [`check`] names a log that holds
+//! frames); the caller's images hold the pages that [`plants`] needs, or
+//! plants() names each that is missing; a pointer-map page and the lock-byte
+//! page read as pages in no tree and not on the freelist, so a file with
+//! auto-vacuum or of more than 1 GiB fails; the reserved tail of a page is not
+//! read, so a decrypted keyed image is read up to its usable size alone; and
+//! plants() shows that the check sees a planted byte on the caller's image,
+//! not that the caller's draw would leave anything, so each includer owes its
+//! own draw with secure delete off that must produce lines.
 
 use std::collections::{BTreeMap, BTreeSet};
 

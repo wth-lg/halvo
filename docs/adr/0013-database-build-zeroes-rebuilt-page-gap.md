@@ -55,7 +55,8 @@ two functions, rebuildPage and editPage, and in one added function.
   SQLITE_DEFAULT_AUTOVACUUM is not 0, SQLITE_HAS_CODEC is not defined,
   SQLITE_DEFAULT_SYNCHRONOUS or SQLITE_DEFAULT_WAL_SYNCHRONOUS is not 2,
   SQLITE_DEBUG is defined, or SQLITE_DEFAULT_PAGE_SIZE is not 4096, whether
-  build.rs or the environment (CFLAGS) set it. The stop on BTS_FAST_SECURE
+  build.rs or the environment sets it (CFLAGS, CFLAGS_<target>, TARGET_CFLAGS
+  or a define of build.rs; the #error lines name the macro, not its source). The stop on BTS_FAST_SECURE
   stands first: MSVC's compiler ends at the first #error, and with the
   database's code compiled out the macros of the later stops are undefined
   too (the builder's hosted run 43582177071 at c57666d5 named
@@ -76,7 +77,12 @@ two functions, rebuildPage and editPage, and in one added function.
   of the stores' sources today; no check holds it.
 - No cargo feature and no switch of the environment or of the build takes a
   statement out, within the limit above: a flag that redefines an identifier
-  of the source is not read.
+  of the source is not read. The sha256 reads sqlcipher.c alone: the headers
+  that the same file includes, the other sources of sqlcipher-src, a forced
+  include and the compiler's own headers are not hashed. tomcrypt.h is
+  included at line 115040, after the whole of btree.c, so a patched header
+  cannot change the page code's text; a blanket redefinition is the limit
+  above. Cargo.lock pins the crate's archive, not an edited registry copy.
 
 ## How it is held
 
@@ -404,7 +410,7 @@ in the draws of the tests", with the limits below.
 | 81520 | editPage | a 2-byte offset or count into the header (cell count) | no | nothing | - | 9.04k | 14.9k |
 | 81521 | editPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 9.04k | 14.9k |
 | 81655 | balance_quick | a 4-byte page number or count (the right child) into a page header | no | nothing | - | 345 | 448 |
-| 81741 | copyNodeContent | the content area of one page into another (a root that becomes deeper or shallower) | no | the receiving page's own bytes between its new pointer array and the copied content | zeroPage of a new child (75844) or the zeroed cells of a root; read by the structural check | 258 | 470 |
+| 81741 | copyNodeContent | the content area of one page into another (a root that becomes deeper or shallower) | no | the receiving page's own bytes between its new pointer array and the copied content | a child from allocateBtreePage (82625): a page freed under secure delete was zeroed by freePage2 (80434), or the page is new (under secure_delete=FAST a freed page is not zeroed there; both stores use ON); the root is zeroed by zeroPage (82650); read by the structural check | 258 | 470 |
 | 81742 | copyNodeContent | the header and pointer array of one page into another | no | as 81741 | as 81741 | 258 | 470 |
 | 81840 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
 | 81842 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
