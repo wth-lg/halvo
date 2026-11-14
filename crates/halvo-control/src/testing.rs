@@ -10,13 +10,13 @@ use crate::onboarding::{
 #[cfg(target_os = "macos")]
 use crate::paths::DataDir;
 use crate::proto::{
-    decode_request, delete_decision, encode_reply, unknown_answer, AlreadyDeleted, Cap, CapSet,
-    Capture, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DeleteDecision,
-    DeleteFields, DeleteReport, Deleted, ErrorCode, ErrorReply, Health, IntentState,
-    InventoryReply, KindLine, LastStop, Lease, OnOff, Parent, PasswordGuard, PermissionForm,
-    PermissionLine, PermissionRequested, Platform, Reason, Reply, Request, RootDestroyed, Section,
-    SourceLine, SourceName, SourceState, StateFile, StatusFields, Stopped, StoreErrorKind,
-    StoreState, SwitchLine, SwitchName, Totals, PERMISSION_FORM,
+    admission, decode_request, delete_decision, encode_reply, unknown_answer, Admission,
+    AlreadyDeleted, Cap, CapSet, Capture, CaptureReason, Custody, DaemonStatus, DaemonVersion,
+    Decoded, DeleteDecision, DeleteFields, DeleteReport, Deleted, ErrorCode, ErrorReply, Health,
+    IntentState, InventoryReply, KindLine, LastStop, Lease, Life, OnOff, Parent, PasswordGuard,
+    PermissionForm, PermissionLine, PermissionRequested, Platform, Reason, Reply, Request,
+    RootDestroyed, Section, SourceLine, SourceName, SourceState, StateFile, StatusFields, Stopped,
+    StoreErrorKind, StoreState, SwitchLine, SwitchName, Totals, PERMISSION_FORM,
 };
 use crate::wire::{read_one_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
@@ -343,7 +343,7 @@ fn ask_to_stop(line: &mut SourceLine, answer: StopAnswer) {
 }
 
 /// A daemon in memory that answers requests through the real decoder, the delete rule, the
-/// permission form and one mutation at a time. It records every request that reached its
+/// permission form, one mutation at a time and the rule of a life that is ending. It records every request that reached its
 /// handlers.
 #[derive(Debug, Clone)]
 pub struct ScriptedDaemon {
@@ -362,12 +362,16 @@ pub struct ScriptedDaemon {
     /// claim and a pause, and cleared by a Resume.
     hold: bool,
     stop_answers: Vec<(SourceName, StopAnswer)>,
+    /// The flag of the scripted daemon's own for the fact of ruling PL-17 (a); the script sets it
+    /// with the status, and nothing reads it out of the capture value.
+    life: Life,
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
     Reply::Error(ErrorReply {
         code,
         message: message.to_string(),
+        ending: false,
     })
 }
 
@@ -390,7 +394,13 @@ impl ScriptedDaemon {
             requests: Vec::new(),
             refused_change: false,
             stop_answers: Vec::new(),
+            life: Life::Going,
         }
+    }
+
+    /// Sets the daemon's fact that its life is ending, or that it is not (ruling PL-17 (a)).
+    pub fn set_life(&mut self, life: Life) {
+        self.life = life;
     }
 
     pub fn set_stop_answer(&mut self, source: SourceName, answer: StopAnswer) {
@@ -471,8 +481,16 @@ impl ScriptedDaemon {
 
     fn delete(&mut self, armed: Option<StoreId>) -> Reply {
         let f = self.status.fields();
-        match delete_decision(f.store, f.store_error, f.store_id, armed) {
-            DeleteDecision::Busy => error(ErrorCode::Busy, "the store is busy"),
+        match delete_decision(
+            self.life,
+            f.capture,
+            f.store,
+            f.store_error,
+            f.store_id,
+            armed,
+        ) {
+            DeleteDecision::Busy => error(ErrorCode::Busy, "the delete cannot start now"),
+            DeleteDecision::Ending => Reply::Error(ErrorReply::busy_of_an_ending_life()),
             DeleteDecision::Refused => Reply::DeleteRefused,
             DeleteDecision::AlreadyDeleted { current } => {
                 Reply::AlreadyDeleted(AlreadyDeleted { current })
@@ -515,14 +533,24 @@ impl ScriptedDaemon {
 
     fn handle_request(&mut self, request: Request) -> Reply {
         self.requests.push(request.clone());
-        if !self.form.serves(&request) {
-            return error(
-                ErrorCode::UnsupportedOp,
-                "this daemon serves the other permission form",
-            );
-        }
-        if self.in_flight && request.is_mutation() {
-            return error(ErrorCode::Busy, "another mutation is in flight");
+        match admission(&request, self.form, self.in_flight, self.life) {
+            Admission::OtherForm => {
+                return error(
+                    ErrorCode::UnsupportedOp,
+                    "this daemon serves the other permission form",
+                )
+            }
+            Admission::InFlight => return error(ErrorCode::Busy, "another mutation is in flight"),
+            Admission::Ending => return Reply::Error(ErrorReply::busy_of_an_ending_life()),
+            Admission::StatusAsItStands => return Reply::CaptureChanged(self.status.clone()),
+            Admission::ClaimStartingNothing => return Reply::Status(self.status.clone()),
+            Admission::PauseKeepingTheWord => {
+                if self.status.fields().desired != CaptureState::Paused {
+                    self.edit(|f| f.desired = CaptureState::Paused);
+                }
+                return Reply::CaptureChanged(self.status.clone());
+            }
+            Admission::Serve => {}
         }
         match request {
             Request::Status { indicator } => {
@@ -1010,6 +1038,7 @@ mod tests {
                             Reply::Error(ErrorReply {
                                 code: ErrorCode::Internal,
                                 message: "the scripted change does not hold together".into(),
+                                ending: false,
                             }),
                             "{case} {request:?}"
                         );
@@ -1195,6 +1224,241 @@ mod tests {
                 line(&resumed, SourceName::Screen).state,
                 SourceState::Running,
                 "{answer:?}"
+            );
+        }
+    }
+
+    /// A status of the ending life of ruling PL-3: capture pausing beside the first enabled source,
+    /// which failed with a timeout and carries the mark; the other required sources stopped.
+    fn ending_status(platform: Platform, desired: CaptureState) -> DaemonStatus {
+        let sample = sample_status(platform);
+        let first = sample.fields().enabled_sources[0];
+        let mut f = sample.into_fields();
+        for line in &mut f.sources {
+            if line.state != SourceState::Off {
+                line.state = SourceState::Stopped { by_user: false };
+            }
+            if line.name == first {
+                line.state = SourceState::Failed {
+                    reason: Reason::Timeout,
+                    error: None,
+                };
+                line.unstopped = true;
+            }
+        }
+        f.desired = desired;
+        f.capture = Capture::Pausing;
+        f.capture_reason = None;
+        DaemonStatus::new(f).expect("pausing takes every state and the mark")
+    }
+
+    fn ending_daemon(status: DaemonStatus) -> ScriptedDaemon {
+        let mut daemon = ScriptedDaemon::new(status);
+        daemon.set_life(Life::Ending);
+        daemon
+    }
+
+    fn is_the_busy_of_an_ending_life(reply: &Reply) -> bool {
+        matches!(reply, Reply::Error(e) if e.code == ErrorCode::Busy && e.ending)
+    }
+
+    #[test]
+    fn pl17_in_a_life_that_is_ending_every_mutation_but_pause_and_resume_answers_the_typed_busy_and_writes_nothing(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let start = ending_status(platform, CaptureState::Running);
+            for request in [
+                Request::SetStorageCap {
+                    bytes: StorageCap::MIN,
+                },
+                Request::AcknowledgeLostPermission {
+                    permission: Permission::Accessibility,
+                },
+                Request::RequestPermission {
+                    permission: Permission::Accessibility,
+                },
+                Request::Stop,
+                Request::DeleteAll {
+                    store: start.fields().store_id,
+                },
+                Request::DeleteAll { store: None },
+            ] {
+                let mut daemon = ending_daemon(start.clone());
+                let reply = daemon.handle(request.clone());
+                assert!(
+                    is_the_busy_of_an_ending_life(&reply),
+                    "{platform:?} {request:?}: {reply:?}"
+                );
+                assert_eq!(daemon.status(), &start, "{platform:?} {request:?}");
+                assert_eq!(daemon.requests(), [request]);
+            }
+            let mut daemon = ending_daemon(start.clone());
+            daemon.set_form(PermissionForm::A);
+            let other_form = daemon.handle(Request::PermissionAsked {
+                permission: Permission::Accessibility,
+            });
+            assert!(
+                matches!(&other_form, Reply::Error(e) if e.code == ErrorCode::UnsupportedOp && !e.ending),
+                "{platform:?}: {other_form:?}"
+            );
+            for read in [Request::Status { indicator: false }, Request::Inventory] {
+                let reply = daemon.handle(read.clone());
+                assert!(
+                    !matches!(reply, Reply::Error(ref e) if e.code == ErrorCode::Busy),
+                    "{platform:?} {read:?}: {reply:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pl17_a_claim_in_a_life_that_is_ending_is_served_and_starts_no_source() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = ending_status(platform, CaptureState::Running).into_fields();
+            f.lease = Lease::Lapsed;
+            let start = DaemonStatus::new(f).unwrap();
+            let mut daemon = ending_daemon(start.clone());
+            let reply = daemon.handle(Request::Status { indicator: true });
+            assert_eq!(reply, Reply::Status(start.clone()), "{platform:?}");
+            assert_eq!(daemon.status(), &start);
+        }
+    }
+
+    #[test]
+    fn pl17_a_resume_in_a_life_that_is_ending_answers_the_status_as_it_stands_and_keeps_desired_and_the_hold(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            for desired in [CaptureState::Running, CaptureState::Paused] {
+                let start = ending_status(platform, desired);
+                for hold in [false, true] {
+                    let mut daemon = ending_daemon(start.clone());
+                    daemon.hold = hold;
+                    let resumed = changed(daemon.handle(Request::Resume));
+                    assert_eq!(resumed, start, "{platform:?} {desired:?} hold {hold}");
+                    assert_eq!(daemon.status(), &start);
+                    assert_eq!(daemon.hold, hold, "{platform:?} {desired:?}");
+                    assert!(!crate::proto::reaches_the_end(
+                        crate::proto::CaptureChange::Resume,
+                        &resumed
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pl17_a_pause_in_a_life_that_is_ending_persists_desired_paused_and_the_next_read_shows_it() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            for desired in [CaptureState::Running, CaptureState::Paused] {
+                let start = ending_status(platform, desired);
+                let mut daemon = ending_daemon(start.clone());
+                daemon.set_stop_answer(start.fields().enabled_sources[0], StopAnswer::Ok);
+                let paused = changed(daemon.handle(Request::Pause));
+                let mut want = start.clone().into_fields();
+                want.desired = CaptureState::Paused;
+                assert_eq!(
+                    paused.into_fields(),
+                    want.clone(),
+                    "{platform:?} {desired:?}"
+                );
+                let read = match daemon.handle(Request::Status { indicator: true }) {
+                    Reply::Status(status) => status,
+                    other => panic!("{other:?}"),
+                };
+                assert_eq!(read.into_fields(), want, "{platform:?} {desired:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn pl17_in_a_stop_sequence_that_is_not_ending_a_pause_is_served_as_before_and_the_next_claim_starts_no_source(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = ending_status(platform, CaptureState::Running).into_fields();
+            f.lease = Lease::Lapsed;
+            let start = DaemonStatus::new(f).unwrap();
+            let first = start.fields().enabled_sources[0];
+            let mut daemon = ScriptedDaemon::new(start.clone());
+            daemon.set_stop_answer(first, StopAnswer::Ok);
+            let paused = changed(daemon.handle(Request::Pause));
+            assert_eq!(paused.fields().capture, Capture::Pausing, "{platform:?}");
+            assert_eq!(
+                line(&paused, first),
+                SourceLine {
+                    name: first,
+                    state: SourceState::Stopped { by_user: false },
+                    unstopped: false,
+                },
+                "{platform:?}: the Pause asks the marked source again"
+            );
+            let claimed = match daemon.handle(Request::Status { indicator: true }) {
+                Reply::Status(status) => status,
+                other => panic!("{other:?}"),
+            };
+            let running = claimed
+                .fields()
+                .sources
+                .iter()
+                .filter(|l| l.state == SourceState::Running)
+                .count();
+            assert_eq!(
+                running, 0,
+                "{platform:?}: the claim started {running} sources"
+            );
+        }
+    }
+
+    #[test]
+    fn pl17_mark_01_a_pause_in_a_life_that_is_ending_persists_desired_paused() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let sample = sample_status(platform);
+            let first = sample.fields().enabled_sources[0];
+            let mut f = ending_status(platform, CaptureState::Paused).into_fields();
+            f.lease = Lease::Lapsed;
+            f.capture = Capture::Starting;
+            let mut walked = ScriptedDaemon::new(DaemonStatus::new(f).unwrap());
+            let via = changed(walked.handle(Request::Resume));
+            assert_eq!(
+                (via.fields().desired, via.fields().capture),
+                (CaptureState::Running, Capture::Pausing),
+                "{platform:?}: the scripted daemon publishes pausing with desired running"
+            );
+            for start in [ending_status(platform, CaptureState::Running), via] {
+                let mut daemon = ending_daemon(start);
+                daemon.set_stop_answer(first, StopAnswer::Timeout);
+                let status = changed(daemon.handle(Request::Pause));
+                assert_eq!(status.fields().capture, Capture::Pausing, "{platform:?}");
+                assert_eq!(
+                    status.fields().desired,
+                    CaptureState::Paused,
+                    "{platform:?}: the person's pause was not kept"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pl17_mark_02_a_resume_in_a_life_that_is_ending_beside_a_marked_source_starts_nothing() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = ending_status(platform, CaptureState::Paused).into_fields();
+            f.capture = Capture::Starting;
+            let start = DaemonStatus::new(f).expect("starting takes the mark");
+            let mut daemon = ending_daemon(start.clone());
+            let status = changed(daemon.handle(Request::Resume));
+            let started = status
+                .fields()
+                .sources
+                .iter()
+                .filter(|l| l.state == SourceState::Running)
+                .count();
+            assert_eq!(
+                started, 0,
+                "{platform:?}: a Resume in a life that is ending started {started} sources"
+            );
+            assert_eq!(status, start, "{platform:?}");
+            assert!(
+                !crate::proto::reaches_the_end(crate::proto::CaptureChange::Resume, &status),
+                "{platform:?}: the resume reached its end, ctl exits 0"
             );
         }
     }

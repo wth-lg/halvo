@@ -369,6 +369,19 @@ pub fn peer_text(text: &str) -> String {
         .collect()
 }
 
+/// What ctl says on standard error for the busy of a life that is ending: what the verb did not
+/// do (ruling PL-17 (h)).
+pub const fn ending_line(verb: &Verb) -> &'static str {
+    match verb {
+        Verb::DeleteAll(_) => "the capture service is ending; this request deleted nothing; ask again once the service has started again",
+        Verb::Stop => "the capture service is ending already; this stop request changed nothing",
+        Verb::SetCap(_) => "the capture service is ending; the cap was not changed",
+        Verb::Status { .. } | Verb::Inventory | Verb::Pause | Verb::Resume => {
+            "the capture service is ending; this request changed nothing"
+        }
+    }
+}
+
 fn failed(message: impl std::fmt::Display, status: i32) -> Printed {
     Printed {
         stdout: String::new(),
@@ -390,7 +403,7 @@ fn printed(stdout: String, status: i32) -> Printed {
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
     let reply = match result {
         Ok(reply) => reply,
-        Err(ClientError::Daemon(error)) => Reply::Error(error),
+        Err(ClientError::Daemon(error) | ClientError::ServiceEnding(error)) => Reply::Error(error),
         Err(ClientError::Unreachable { endpoint }) => {
             return failed(
                 format!("capture service not running at {endpoint}"),
@@ -412,6 +425,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
+        (_, Reply::Error(error)) if error.ending => failed(ending_line(verb), crate::exit::BUSY),
         (_, Reply::Error(error)) => {
             let status = match error.code {
                 ErrorCode::Busy => crate::exit::BUSY,
@@ -1092,6 +1106,7 @@ mod tests {
             Ok(Reply::Error(ErrorReply {
                 code: ErrorCode::Internal,
                 message: message.into(),
+                ending: false,
             })),
             &data_dir(),
         );
@@ -1132,6 +1147,7 @@ mod tests {
                 Ok(Reply::Error(ErrorReply {
                     code,
                     message: filler.clone(),
+                    ending: false,
                 })),
                 &data_dir(),
             );
@@ -1270,6 +1286,7 @@ mod tests {
             let reply = ErrorReply {
                 code,
                 message: message.into(),
+                ending: false,
             };
             let as_reply = print(&Verb::Pause, Ok(Reply::Error(reply.clone())), &data_dir());
             let as_error = print(&Verb::Pause, Err(ClientError::Daemon(reply)), &data_dir());
@@ -1283,12 +1300,77 @@ mod tests {
             Err(ClientError::Daemon(ErrorReply {
                 code: ErrorCode::Busy,
                 message: "another mutation is in flight".into(),
+                ending: false,
             })),
             &data_dir(),
         );
         assert_eq!(
             busy.stderr,
             "halvo-capture: another mutation is in flight\n"
+        );
+    }
+
+    #[test]
+    fn pl17_the_busy_of_a_life_that_is_ending_exits_75_with_a_line_that_names_what_did_not_happen()
+    {
+        let ending = ErrorReply::busy_of_an_ending_life();
+        assert_eq!(ending.code, ErrorCode::Busy);
+        assert!(ending.ending);
+        for (verb, line) in [
+            (
+                Verb::DeleteAll(Some(FRESH)),
+                "halvo-capture: the capture service is ending; this request deleted nothing; ask again once the service has started again\n",
+            ),
+            (
+                Verb::DeleteAll(None),
+                "halvo-capture: the capture service is ending; this request deleted nothing; ask again once the service has started again\n",
+            ),
+            (
+                Verb::Stop,
+                "halvo-capture: the capture service is ending already; this stop request changed nothing\n",
+            ),
+            (
+                Verb::SetCap(StorageCap::MIN),
+                "halvo-capture: the capture service is ending; the cap was not changed\n",
+            ),
+            (
+                Verb::Pause,
+                "halvo-capture: the capture service is ending; this request changed nothing\n",
+            ),
+            (
+                Verb::Resume,
+                "halvo-capture: the capture service is ending; this request changed nothing\n",
+            ),
+        ] {
+            let as_reply = print(&verb, Ok(Reply::Error(ending.clone())), &data_dir());
+            assert_eq!(
+                as_reply,
+                Printed {
+                    stdout: String::new(),
+                    stderr: line.to_string(),
+                    status: 75,
+                },
+                "{verb:?}"
+            );
+            let as_error = print(
+                &verb,
+                Err(ClientError::ServiceEnding(ending.clone())),
+                &data_dir(),
+            );
+            assert_eq!(as_error, as_reply, "{verb:?}");
+        }
+        let plain = print(
+            &Verb::Stop,
+            Ok(Reply::Error(ErrorReply {
+                ending: false,
+                ..ending
+            })),
+            &data_dir(),
+        );
+        assert_eq!(plain.status, 75);
+        assert_eq!(
+            plain.stderr,
+            "halvo-capture: the capture service is ending\n"
         );
     }
 
@@ -1309,6 +1391,7 @@ mod tests {
                 Ok(Reply::Error(ErrorReply {
                     code,
                     message: "store unavailable: sealed".into(),
+                    ending: false,
                 })),
                 &data_dir(),
             );

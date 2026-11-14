@@ -157,6 +157,7 @@ impl RequestError {
         Reply::Error(ErrorReply {
             code: self.code(),
             message: self.to_string(),
+            ending: false,
         })
     }
 }
@@ -167,6 +168,7 @@ pub fn unknown_answer(unknown: &UnknownRequest) -> Reply {
         Reply::Error(ErrorReply {
             code: ErrorCode::UnsupportedOp,
             message: "the op is not in the request table of protocol version 1".into(),
+            ending: false,
         })
     } else {
         RequestError::UnsupportedVersion {
@@ -492,11 +494,59 @@ one_spelling!(ErrorCode, "error code", [
     Internal => "internal",
 ]);
 
-/// The message is a fixed text of the server and holds no captured content.
+#[derive(Serialize, Deserialize)]
+struct ErrorReplyWire {
+    code: ErrorCode,
+    message: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    ending: bool,
+}
+
+/// The message is a fixed text of the server and holds no captured content. `ending` is the
+/// mark of the busy of a life that is ending (ruling PL-17 (h)); it stands beside the code
+/// busy alone, crosses the wire only when true, and a reply without it reads false.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ErrorReplyWire", into = "ErrorReplyWire")]
 pub struct ErrorReply {
     pub code: ErrorCode,
     pub message: String,
+    pub ending: bool,
+}
+
+impl ErrorReply {
+    /// The answer to a mutation in a life that is ending: busy, with the mark `ending`.
+    pub fn busy_of_an_ending_life() -> Self {
+        Self {
+            code: ErrorCode::Busy,
+            message: "the capture service is ending".into(),
+            ending: true,
+        }
+    }
+}
+
+impl TryFrom<ErrorReplyWire> for ErrorReply {
+    type Error = &'static str;
+
+    fn try_from(wire: ErrorReplyWire) -> Result<Self, Self::Error> {
+        if wire.ending && wire.code != ErrorCode::Busy {
+            return Err("the mark ending stands beside the code busy alone");
+        }
+        Ok(Self {
+            code: wire.code,
+            message: wire.message,
+            ending: wire.ending,
+        })
+    }
+}
+
+impl From<ErrorReply> for ErrorReplyWire {
+    fn from(reply: ErrorReply) -> Self {
+        Self {
+            code: reply.code,
+            message: reply.message,
+            ending: reply.ending,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1773,11 +1823,79 @@ pub fn reaches_the_end(change: CaptureChange, status: &DaemonStatus) -> bool {
     }
 }
 
+/// The daemon's own fact of ruling PL-17 (a). A life is ending from the first answer that is
+/// not a stop in a stop for capture off, or from the start of the shutdown entry, whatever began
+/// it, until the process is gone. No rule reads it out of the capture value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Life {
+    Going,
+    Ending,
+}
+
+/// What a server does with a request before its handler, by [`admission`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Admission {
+    /// Answer `unsupported_op`: the permission request of the form that the daemon does not
+    /// serve.
+    OtherForm,
+    /// Answer `busy`: another mutation is in flight.
+    InFlight,
+    /// Answer [`ErrorReply::busy_of_an_ending_life`] and write nothing.
+    Ending,
+    /// Answer the status as it stands, after one durable write of desired=paused through the
+    /// state file's one writer when desired is not paused yet; start nothing.
+    PauseKeepingTheWord,
+    /// Answer `capture_changed` with the status as it stands; write nothing, clear no hold and
+    /// start nothing.
+    StatusAsItStands,
+    /// Serve the claim and start no source.
+    ClaimStartingNothing,
+    Serve,
+}
+
+/// The rule of ruling PL-17 for every request, in its order: the permission request of the
+/// other form answers `unsupported_op`; while a mutation is in flight every other mutation
+/// answers `busy`; in a life that is ending the two reads are served, the claim is served and
+/// starts no source, a Pause keeps the person's word, a Resume answers the status as it stands,
+/// and every other mutation answers the busy of an ending life.
+pub fn admission(
+    request: &Request,
+    form: PermissionForm,
+    in_flight: bool,
+    life: Life,
+) -> Admission {
+    if !form.serves(request) {
+        return Admission::OtherForm;
+    }
+    if in_flight && request.is_mutation() {
+        return Admission::InFlight;
+    }
+    if life == Life::Going {
+        return Admission::Serve;
+    }
+    match request {
+        Request::Status { indicator: true } => Admission::ClaimStartingNothing,
+        Request::Status { indicator: false } | Request::Inventory => Admission::Serve,
+        Request::Pause => Admission::PauseKeepingTheWord,
+        Request::Resume => Admission::StatusAsItStands,
+        Request::Stop
+        | Request::DeleteAll { .. }
+        | Request::SetStorageCap { .. }
+        | Request::RequestPermission { .. }
+        | Request::PermissionAsked { .. }
+        | Request::AcknowledgeLostPermission { .. } => Admission::Ending,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteDecision {
     Accept,
-    AlreadyDeleted { current: StoreId },
+    AlreadyDeleted {
+        current: StoreId,
+    },
     Busy,
+    /// The busy of a life that is ending.
+    Ending,
     Refused,
 }
 
@@ -1785,18 +1903,28 @@ fn may_yet_show_an_id(store: StoreState) -> bool {
     store == StoreState::Opening
 }
 
-/// The delete rule of ruling PL-8 part (4)(a), in its order. A deleting store or a locked one
-/// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
+/// The delete rule of contracts.md C2.6, in its order. In a life that is ending the delete
+/// answers the busy of an ending life, and while capture reads pausing it answers busy, before
+/// the store and the ids are read (ruling PL-17 (b)). Then a deleting store or a locked one is
+/// busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
 /// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, an opening store is busy, and any other store is accepted. The rule reads the
-/// store's state, its cause and the two ids, and no other field of a status.
+/// refused, an opening store is busy, and any other store is accepted. The rule reads the life,
+/// capture, the store's state, its cause and the two ids, and no other field of a status.
 pub fn delete_decision(
+    life: Life,
+    capture: Capture,
     store: StoreState,
     cause: Option<StoreErrorKind>,
     shown: Option<StoreId>,
     armed: Option<StoreId>,
 ) -> DeleteDecision {
+    if life == Life::Ending {
+        return DeleteDecision::Ending;
+    }
+    if capture == Capture::Pausing {
+        return DeleteDecision::Busy;
+    }
     if store == StoreState::Deleting || cause == Some(StoreErrorKind::Locked) {
         return DeleteDecision::Busy;
     }
@@ -1978,6 +2106,7 @@ mod tests {
             replies.push(Reply::Error(ErrorReply {
                 code,
                 message: "a fixed text".into(),
+                ending: false,
             }));
         }
         replies
@@ -2339,6 +2468,7 @@ stopped/kind body
                 Reply::Error(ErrorReply {
                     code: ErrorCode::Busy,
                     message: "another mutation is in flight".into(),
+                    ending: false,
                 }),
                 r#"{"v":1,"body":{"kind":"error","code":"busy","message":"another mutation is in flight"}}"#,
             ),
@@ -3920,7 +4050,14 @@ stopped/kind body
                 };
                 let f = status.fields();
                 assert_eq!(
-                    delete_decision(f.store, f.store_error, Some(current), Some(current)),
+                    delete_decision(
+                        Life::Going,
+                        Capture::Running,
+                        f.store,
+                        f.store_error,
+                        Some(current),
+                        Some(current)
+                    ),
                     want,
                     "{state:?} {cause:?}"
                 );
@@ -3974,7 +4111,7 @@ stopped/kind body
             ),
         ] {
             assert_eq!(
-                delete_decision(store, cause, shown, armed),
+                delete_decision(Life::Going, Capture::Running, store, cause, shown, armed),
                 want,
                 "{store:?} {cause:?} shown {shown:?} armed {armed:?}"
             );
@@ -3983,7 +4120,14 @@ stopped/kind body
 
     fn decide(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
         let f = status.fields();
-        delete_decision(f.store, f.store_error, f.store_id, armed)
+        delete_decision(
+            Life::Going,
+            f.capture,
+            f.store,
+            f.store_error,
+            f.store_id,
+            armed,
+        )
     }
 
     #[test]
@@ -4027,6 +4171,150 @@ stopped/kind body
             ) {
                 assert!(PermissionForm::A.serves(&other) && PermissionForm::B.serves(&other));
             }
+        }
+    }
+
+    #[test]
+    fn pl17_the_admission_of_each_request_by_form_mutation_in_flight_and_life() {
+        use Admission::*;
+        let mut wrong = Vec::new();
+        for form in [PermissionForm::A, PermissionForm::B] {
+            for in_flight in [false, true] {
+                for life in [Life::Going, Life::Ending] {
+                    for request in every_request() {
+                        let want = if !form.serves(&request) {
+                            OtherForm
+                        } else if in_flight && request.is_mutation() {
+                            InFlight
+                        } else if life == Life::Going {
+                            Serve
+                        } else {
+                            match request {
+                                Request::Status { indicator: true } => ClaimStartingNothing,
+                                Request::Status { indicator: false } | Request::Inventory => Serve,
+                                Request::Pause => PauseKeepingTheWord,
+                                Request::Resume => StatusAsItStands,
+                                _ => Ending,
+                            }
+                        };
+                        let got = admission(&request, form, in_flight, life);
+                        if got != want {
+                            wrong.push(format!(
+                                "{form:?} in_flight={in_flight} {life:?} {}: got {got:?}, want {want:?}",
+                                request.op()
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+        for request in [
+            Request::Stop,
+            Request::DeleteAll { store: None },
+            Request::SetStorageCap {
+                bytes: StorageCap::MIN,
+            },
+            Request::RequestPermission {
+                permission: Permission::Accessibility,
+            },
+            Request::AcknowledgeLostPermission {
+                permission: Permission::Accessibility,
+            },
+        ] {
+            assert_eq!(
+                admission(&request, PermissionForm::A, false, Life::Ending),
+                Ending,
+                "{request:?}"
+            );
+        }
+        assert_eq!(
+            admission(
+                &Request::PermissionAsked {
+                    permission: Permission::Accessibility
+                },
+                PermissionForm::A,
+                true,
+                Life::Ending
+            ),
+            OtherForm
+        );
+    }
+
+    #[test]
+    fn pl17_a_delete_answers_busy_while_capture_reads_pausing_and_the_typed_busy_in_a_life_that_is_ending_before_the_store_and_the_ids(
+    ) {
+        let shown = Some(FIXTURE_STORE_ID);
+        for &store in StoreState::ALL {
+            for cause in [None, Some(StoreErrorKind::Locked), Some(StoreErrorKind::Io)] {
+                for (armed, shown) in [(shown, shown), (None, None), (shown, None), (None, shown)] {
+                    for &capture in Capture::ALL {
+                        let going =
+                            delete_decision(Life::Going, capture, store, cause, shown, armed);
+                        let ending =
+                            delete_decision(Life::Ending, capture, store, cause, shown, armed);
+                        let at = format!("{capture:?} {store:?} {cause:?} {shown:?} {armed:?}");
+                        assert_eq!(ending, DeleteDecision::Ending, "{at}");
+                        if capture == Capture::Pausing {
+                            assert_eq!(going, DeleteDecision::Busy, "{at}");
+                        } else {
+                            assert_eq!(
+                                going,
+                                delete_decision(
+                                    Life::Going,
+                                    Capture::Running,
+                                    store,
+                                    cause,
+                                    shown,
+                                    armed
+                                ),
+                                "{at}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pl17_the_busy_of_a_life_that_is_ending_carries_the_mark_ending_and_a_mark_beside_another_code_does_not_decode(
+    ) {
+        let ending = ErrorReply::busy_of_an_ending_life();
+        let text = r#"{"v":1,"body":{"kind":"error","code":"busy","message":"the capture service is ending","ending":true}}"#;
+        assert_eq!(
+            String::from_utf8(encode_reply(&Reply::Error(ending.clone()))).unwrap(),
+            text
+        );
+        assert_eq!(decode_reply(text.as_bytes()), Ok(Reply::Error(ending)));
+        let plain = decode_reply(
+            br#"{"v":1,"body":{"kind":"error","code":"busy","message":"x","ending":false}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            plain,
+            Reply::Error(ErrorReply { ending: false, .. })
+        ));
+        for &code in ErrorCode::ALL {
+            let frame = format!(
+                r#"{{"v":1,"body":{{"kind":"error","code":"{}","message":"x","ending":true}}}}"#,
+                code.as_str()
+            );
+            assert_eq!(
+                decode_reply(frame.as_bytes()).is_ok(),
+                code == ErrorCode::Busy,
+                "{code:?}"
+            );
+        }
+        for &code in ErrorCode::ALL {
+            let reply = Reply::Error(ErrorReply {
+                code,
+                message: "x".into(),
+                ending: false,
+            });
+            assert!(!String::from_utf8(encode_reply(&reply))
+                .unwrap()
+                .contains("ending"));
         }
     }
 

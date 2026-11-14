@@ -61,6 +61,10 @@ pub enum ClientError {
     Deadline { seconds: u64 },
     #[error("{}: {}", .0.code.as_str(), .0.message)]
     Daemon(ErrorReply),
+    /// The busy of a life that is ending (ruling PL-17 (h)): the reply carries the mark
+    /// `ending`.
+    #[error("the capture service is ending")]
+    ServiceEnding(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
     /// A reply of a protocol version other than 1.
@@ -287,6 +291,7 @@ impl<C: Connector> Client<C> {
 
     fn call(&self, request: Request) -> Result<Reply, ClientError> {
         match self.send(&request)? {
+            Reply::Error(error) if error.ending => Err(ClientError::ServiceEnding(error)),
             Reply::Error(error) => Err(ClientError::Daemon(error)),
             reply => Ok(reply),
         }
@@ -1816,6 +1821,58 @@ mod tests {
         let stored = client.status().unwrap();
         assert_eq!(capture(&stored), crate::proto::Capture::Pausing);
         assert_eq!(running_sources(&stored), 0);
+    }
+
+    #[test]
+    fn pl17_told_04_a_delete_while_capture_reads_pausing_answers_busy_and_deletes_nothing() {
+        let status = scripted(pausing).status().clone();
+        for armed in [status.fields().store_id, None, Some(store_id(7))] {
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let reply = client.send(&Request::DeleteAll { store: armed }).unwrap();
+            assert_eq!(reply.code(), Some(ErrorCode::Busy), "{armed:?}: {reply:?}");
+            assert_eq!(connector.status(), status, "{armed:?}");
+        }
+    }
+
+    #[test]
+    fn pl17_the_busy_of_a_life_that_is_ending_is_its_own_error_of_the_client() {
+        let mut daemon = scripted(pausing);
+        daemon.set_life(crate::proto::Life::Ending);
+        let (ending_client, connector) = client(daemon);
+        let before = connector.status();
+        for result in [
+            ending_client.stop().map(|_| ()),
+            ending_client
+                .delete_all(before.fields().store_id)
+                .map(|_| ()),
+            ending_client.set_storage_cap(StorageCap::MIN).map(|_| ()),
+            ending_client
+                .acknowledge_lost_permission(Permission::Accessibility)
+                .map(|_| ()),
+            ending_client
+                .request_permission(Permission::Accessibility)
+                .map(|_| ()),
+        ] {
+            match result {
+                Err(ClientError::ServiceEnding(reply)) => {
+                    assert_eq!(reply.code, ErrorCode::Busy);
+                    assert!(reply.ending);
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+        assert_eq!(connector.status(), before);
+        let mut plain = ScriptedDaemon::new(sample_status(Platform::Macos));
+        plain.set_mutation_in_flight(true);
+        let (plain_client, _) = client(plain);
+        assert!(matches!(
+            plain_client.stop(),
+            Err(ClientError::Daemon(ErrorReply {
+                code: ErrorCode::Busy,
+                ending: false,
+                ..
+            }))
+        ));
     }
 
     #[test]
