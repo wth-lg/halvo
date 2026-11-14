@@ -6977,3 +6977,141 @@ fn rd52b_an_allow_on_a_second_step_whose_read_shows_a_stored_switch_off_stops_th
         assert!(c.snapshot().items.is_empty(), "{case}: no card");
     }
 }
+
+#[test]
+fn an_allow_on_a_confirmation_whose_read_shows_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
+) {
+    use halvo_coord::types::AgentState;
+    for native in [false, true] {
+        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+            let case = format!("native={native} {order:?}");
+            let (c, run, item) = run_waiting_on_a_confirmation(native);
+            assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+            if native {
+                c.on_screen(&item);
+            } else {
+                assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+            }
+            c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+            if native {
+                c.tick();
+            }
+            let m = mark(&c);
+            let out = if native {
+                c.answer_native(&item, ConfirmAnswer::Allow)
+            } else {
+                c.answer(
+                    &item,
+                    Choice::Allow,
+                    None,
+                    shown_step_mark_or_zero(&c, &item),
+                )
+            };
+            assert_eq!(out, Ok(()), "{case}");
+            let calls = calls_since(&c, m);
+            let decisions: Vec<halvo_coord::types::Decision> = calls
+                .iter()
+                .filter_map(|call| match call {
+                    Call::AnswerConfirm(_, _, d) => Some(d.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(decisions.len(), 1, "{case}: the answer at the runner once");
+            let entries = decisions[0].approvals().to_vec();
+            assert!(
+                entries
+                    .iter()
+                    .all(|e| e.answer == halvo_coord::types::EffectAnswer::AllowOnce),
+                "{case}"
+            );
+            let answered =
+                places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
+            let cancels =
+                places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
+            assert_eq!(cancels.len(), 1, "{case}: one cancel");
+            assert!(
+                answered[0] < cancels[0],
+                "{case}: the answer, then the cancel"
+            );
+            assert_eq!(
+                states_sent(&c, m),
+                [AgentState::Paused],
+                "{case}: paused once"
+            );
+            assert!(
+                c.off_beside_live().is_empty(),
+                "{case}: no run live beside the hold"
+            );
+            let class = if native { Class::Sign } else { Class::Send };
+            for e in &entries {
+                for state in [
+                    halvo_coord::guard::EffectState::Approved,
+                    halvo_coord::guard::EffectState::Releasing,
+                ] {
+                    let record = halvo_coord::guard::EffectRecord {
+                        run: run.clone(),
+                        agent: agent(0),
+                        effect: e.effect.clone(),
+                        state,
+                        class,
+                        digest: e.digest.clone(),
+                        approval: Some(e.approval.clone()),
+                    };
+                    assert_eq!(
+                        c.check_record(&record),
+                        Err(halvo_coord::guard::Refusal::Approval),
+                        "{case}: {state:?} after the move"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_stop_or_a_wait_limit_tick_whose_read_shows_a_stored_switch_off_lapses_with_its_own_cause_and_sends_no_state(
+) {
+    use halvo_coord::types::Control;
+    let limits = Limits::PRODUCT;
+    for way in WAIT_WAYS_BY_LAPSE {
+        for by in ["stop", "wait_limit"] {
+            for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+                let case = format!("{way} {by} {order:?}");
+                let (c, run, item) = waiting(way);
+                assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+                let m = mark(&c);
+                if by == "stop" {
+                    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{case}");
+                } else {
+                    c.ports()
+                        .ports
+                        .set_clock(T0 + limits.wait_limit_s * 1000, DAY);
+                    c.tick();
+                }
+                assert!(states_sent(&c, m).is_empty(), "{case}: no set_state");
+                assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+                let cause = if by == "stop" {
+                    "cancelled"
+                } else {
+                    "wait_limit"
+                };
+                assert_eq!(
+                    step_rows(&c, &item),
+                    [format!("lapsed:{cause}")],
+                    "{case}: the move's own cause, once"
+                );
+                assert_eq!(hold_sets(&c, 0), 1, "{case}");
+                let s = c.snapshot();
+                assert_eq!(row_line(&s, 0), text("line.off.person"), "{case}");
+                let controls = controls_of(&c, 0);
+                assert!(
+                    controls.contains(&Control::Stop)
+                        && controls.contains(&Control::SwitchOn)
+                        && controls.contains(&Control::Delete)
+                        && !controls.contains(&Control::RunNow),
+                    "{case}: {controls:?}"
+                );
+            }
+        }
+    }
+}
