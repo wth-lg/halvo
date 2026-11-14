@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "if (metered) metering.cut(open.sql, \"delete\", now, now);",
+      "replace": "if (metered) metering.cut(open.sql, \"cancel\", now, now);"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "1"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 1, faults [",
+    "]: the stored state disagrees with the cancel ("
+  ]
+}

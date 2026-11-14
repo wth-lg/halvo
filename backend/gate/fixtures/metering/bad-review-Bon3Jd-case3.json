@@ -1,0 +1,23 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "from: interval.timestamp, to: interval.timestamp + 1",
+      "replace": "from: interval.timestamp + 1, to: interval.timestamp + 2"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "1",
+    "--orderings",
+    "50",
+    "--settings",
+    ""
+  ],
+  "line": [
+    "FAIL metering: ",
+    "orderings=43 of 50 ",
+    "first failure: seed 1 of the generated orderings, ordering 8 (",
+    "a read the sync cannot explain"
+  ]
+}

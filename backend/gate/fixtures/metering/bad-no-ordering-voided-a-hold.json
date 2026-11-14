@@ -1,0 +1,16 @@
+{
+  "edits": [],
+  "args": [
+    "--seeds",
+    "7",
+    "--orderings",
+    "1",
+    "--settings",
+    ""
+  ],
+  "line": [
+    "FAIL metering: ",
+    "orderings=1 of 1 voided=0 ",
+    "first failure: no generated ordering voided a hold at its expiry, so the line did not test that such a hold counts nothing"
+  ]
+}

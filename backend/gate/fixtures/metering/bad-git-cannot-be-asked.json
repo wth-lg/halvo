@@ -1,0 +1,23 @@
+{
+  "checkout": true,
+  "env": {
+    "GIT_DIR": "no-such-git-directory"
+  },
+  "edits": [
+    {
+      "file": "README.md",
+      "find": "# Halvo backend\n",
+      "replace": "# Halvo backend, changed in a checkout\n"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "34"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: git could not say before the check whether a tracked file differs from HEAD (exit 128: fatal: not a git repository"
+  ]
+}
