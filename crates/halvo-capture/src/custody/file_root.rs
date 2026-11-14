@@ -178,10 +178,14 @@ pub(crate) enum RootStepForm {
 /// The root step through one opened handle of the roots location. `named`
 /// is the root that the handle, the key file or a mark that reads made names.
 /// The step lists, destroys and reads again through that one handle. In the
-/// forms with the witness it destroys there only when the directory holds an
-/// entry of the named root: a directory put at the old name is not touched,
-/// a roots directory that left its name is not read as destroyed, and with
-/// nothing named it opens nothing. The sweep destroys every root file and
+/// forms with the witness it destroys there only when the directory holds, at
+/// the named root's own name in any letter case, a file that can be the
+/// root's file; a partial name, a link, an empty file or an entry of another
+/// kind is no witness, and without the witness the step destroys nothing in
+/// that directory, also not the entry that it met, and the root reads left
+/// (ruling ST-45 Addition 2 (a)): a directory put at the old name is not
+/// touched, a roots directory that left its name is not read as destroyed,
+/// and with nothing named it opens nothing. The sweep destroys every root file and
 /// partial root file, named or not, and reads nothing at the roots path as
 /// an answer: listed and empty when nothing names a root, the root left and
 /// not listed when one is named. The root reads destroyed only when one is
@@ -191,7 +195,10 @@ pub(crate) enum RootStepForm {
 /// unnamed when nothing names one. An entry at the root's own name that
 /// cannot be its file (a link, an entry of another kind, an empty file, or
 /// off Windows a file of another length) is removed as the entry that it
-/// is, with no zero-fill and no write through it (ruling ST-45 H4). A roots path that
+/// is, with no zero-fill and no write through it (ruling ST-45 H4); so is, in
+/// every form, a regular file at another root's name that cannot be a root
+/// file and has more than one name, or a count that cannot be read (ruling
+/// ST-45 Addition 2 (b)); a partial name is zero-filled. A roots path that
 /// stands and cannot be opened or listed reads not listed. A later call on
 /// a handle whose root read destroyed does not come here (ruling ST-45 H3).
 pub(crate) fn destroy_roots_in(
@@ -229,7 +236,10 @@ pub(crate) fn destroy_roots_in(
         .collect();
     let of_named = |file: &RootFile| Some(file.id()) == named;
     if form != RootStepForm::Sweep {
-        if !found.iter().any(|(file, _)| of_named(file)) {
+        let witness = found.iter().any(|(file, entry)| {
+            matches!(file, RootFile::Root(_)) && of_named(file) && can_be_the_root_file(entry)
+        });
+        if !witness {
             return (unread_reading, none_counted(true));
         }
         if form == RootStepForm::NamedAlone {
@@ -240,8 +250,12 @@ pub(crate) fn destroy_roots_in(
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     for (file, entry) in &found {
-        let own_name = matches!(file, RootFile::Root(_)) && of_named(file);
-        if own_name && !can_be_the_root_file(entry) {
+        let root_name = matches!(file, RootFile::Root(_));
+        let own_name = root_name && of_named(file);
+        let written_through_by_no_form = root_name
+            && !can_be_the_root_file(entry)
+            && (own_name || (entry.kind == EntryKind::File && !has_one_name(&dir, &entry.name)));
+        if written_through_by_no_form {
             let _ = dir.remove_entry(&entry.name);
             continue;
         }
@@ -306,6 +320,14 @@ impl PartialEq for EntryFate {
     fn eq(&self, other: &Self) -> bool {
         std::mem::discriminant(self) == std::mem::discriminant(other)
     }
+}
+
+/// Whether the regular file at `name` has one name, by the count read through
+/// a handle that follows no link; a count that cannot be read is not one.
+fn has_one_name(dir: &Dir, name: &OsStr) -> bool {
+    dir.open_file(name)
+        .and_then(|file| durable::file_link_count(&file))
+        .is_ok_and(|links| links == 1)
 }
 
 /// Destroys one entry of a roots directory. An entry that is no regular file

@@ -1105,10 +1105,17 @@ What the code does since store-3, each sentence with the test that shows it.
   custody with a roots directory the root step opens the roots location
   once and lists, destroys and reads again through that one handle; it
   makes no second walk of the path and does not call the custody's destroy
-  by path. It destroys there only when the directory holds an entry of the
-  root that the handle names (the witness), and then it destroys every root
-  file of that directory, the store's own first. Otherwise it destroys
-  nothing there and the root reads left: a directory put at the roots
+  by path. It destroys there only when the directory holds, at the root's
+  own name in any letter case, a file that can be the root's file (the
+  witness: a regular file that is not empty and, off Windows, of the root
+  file's length; an all-zero one of that length counts), and then it
+  destroys every root file of that directory, the store's own first. A
+  partial name, a link, an empty file or an entry of another kind is no
+  witness (ruling ST-45 Addition 2 (a); tests
+  `p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file`,
+  `the_tail_whose_lock_fails_takes_no_empty_file_at_the_root_name_as_its_witness`).
+  Otherwise it destroys nothing there, also not the entry that it met, and
+  the root reads left: a directory put at the roots
   directory's old name is not touched, and a roots directory that left its
   name is not read as destroyed. Once a call on the handle read its root
   destroyed, no later call on that handle opens the roots path again: the
@@ -1177,8 +1184,15 @@ What the code does since store-3, each sentence with the test that shows it.
   an entry of another kind, an empty file or, off Windows, a file of
   another length at that name is removed as the entry that it is, with no
   zero-fill and no write through it, and the root reads left, not found;
-  the handle's delete-all reads its root the same way (ruling ST-45 H4;
-  tests
+  the handle's delete-all reads its root the same way (ruling ST-45 H4). In
+  every form, a regular file at another root's name that cannot be a root
+  file and has more than one name, or a count that cannot be read, is also
+  removed with no write through it, as the delete has it for
+  `store.key.tmp`; a partial name is zero-filled, because it can hold root
+  bytes (ruling ST-45 Addition 2 (b); tests
+  `p3_e_the_unnamed_sweep_removes_a_second_name_at_a_root_name_without_writing_through_it`,
+  `delete_all_removes_a_second_name_at_another_root_name_without_writing_through_it`;
+  ruling ST-45 H4, tests
   `p2_c_delete_all_reads_destroyed_only_when_it_removed_the_root_file_itself`,
   `p2_c2_the_tail_reads_destroyed_only_when_it_removed_the_root_file_and_not_a_link_to_it`,
   `a_file_of_another_length_at_the_root_name_is_removed_unwritten_and_the_root_reads_left`,
@@ -1289,7 +1303,10 @@ What the code does since store-3, each sentence with the test that shows it.
   `Io(InvalidInput)` before they make or open anything, so that no store of
   Halvo's making lies under such a name: the first hosted run of the test
   found that a create there made its directory at the trimmed sibling
-  (ruling ST-45 H6 (b)). Tests:
+  (ruling ST-45 H6 (b)). The refusal also takes a path whose inner part
+  ends in a space, such as a real directory made through its verbatim name,
+  although Win32 would open that part as written: it fails closed, and a
+  test of it is store-3b's (ruling ST-45 Addition 2). Tests:
   `a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name`,
   `a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store`,
   `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`,
